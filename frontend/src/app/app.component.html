@@ -1,0 +1,25 @@
+<main class="shell">
+  <section class="hero" aria-labelledby="page-title">
+    <div class="eyebrow"><span class="pulse"></span> G54 development environment</div>
+    <p class="index">01 / API CONNECTION</p>
+    <h1 id="page-title">{{ message() }}</h1>
+    <p class="intro">
+      Angular 19 is connected to the ASP.NET Core 8 API. PostgreSQL, Redis, migrations, health
+      checks, and deployment configuration are ready for feature development.
+    </p>
+    <div class="status" [class.online]="connected()">
+      <span>{{ connected() ? 'ONLINE' : 'WAITING' }}</span>
+      <code>GET /api/hello</code>
+    </div>
+  </section>
+
+  <aside class="stack" aria-label="Technology stack">
+    <p>STACK</p>
+    <ul>
+      <li><strong>API</strong><span>.NET 8 MVC</span></li>
+      <li><strong>WEB</strong><span>Angular + TypeScript</span></li>
+      <li><strong>DATA</strong><span>PostgreSQL + Redis</span></li>
+      <li><strong>OPS</strong><span>Docker Compose</span></li>
+    </ul>
+  </aside>
+</main>

@@ -1,0 +1,24 @@
+name: Backend CI
+
+on:
+  push:
+    paths: ["backend/**", "scripts/codereview-backend.*", ".github/workflows/backend-ci.yml"]
+  pull_request:
+    paths: ["backend/**", "scripts/codereview-backend.*", ".github/workflows/backend-ci.yml"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Review backend
+        shell: pwsh
+        run: ./scripts/codereview-backend.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-review-report
+          path: docs/codereview/reports/BACKEND_REPORT.md
