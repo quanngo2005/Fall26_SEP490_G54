@@ -1,0 +1,28 @@
+name: Frontend CI
+
+on:
+  push:
+    paths: ["frontend/**", "scripts/codereview-frontend.*", ".github/workflows/frontend-ci.yml"]
+  pull_request:
+    paths: ["frontend/**", "scripts/codereview-frontend.*", ".github/workflows/frontend-ci.yml"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Review frontend
+        shell: pwsh
+        run: ./scripts/codereview-frontend.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-review-report
+          path: docs/codereview/reports/FRONTEND_REPORT.md
