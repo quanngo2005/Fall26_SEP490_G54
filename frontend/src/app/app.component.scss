@@ -1,0 +1,147 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  color: #10251d;
+  background:
+    linear-gradient(90deg, transparent 49.9%, rgba(16, 37, 29, 0.07) 50%, transparent 50.1%),
+    #f1eee5;
+}
+
+.hero {
+  padding: clamp(2rem, 7vw, 7rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid rgba(16, 37, 29, 0.18);
+}
+
+.eyebrow,
+.index,
+.status,
+.stack {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.pulse {
+  width: 0.7rem;
+  height: 0.7rem;
+  background: #ff5c35;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0.35rem rgba(255, 92, 53, 0.14);
+}
+
+.index {
+  margin: 6rem 0 1.5rem;
+  font-size: 0.7rem;
+  color: #6b756e;
+}
+
+h1 {
+  margin: 0;
+  max-width: 12ch;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(4rem, 12vw, 10rem);
+  font-weight: 400;
+  line-height: 0.82;
+  letter-spacing: -0.065em;
+}
+
+.intro {
+  max-width: 44rem;
+  margin: 3rem 0;
+  font-size: clamp(1rem, 1.6vw, 1.25rem);
+  line-height: 1.65;
+  color: #44544c;
+}
+
+.status {
+  width: fit-content;
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid #10251d;
+  font-size: 0.72rem;
+}
+
+.status span {
+  color: #b63c21;
+  font-weight: 800;
+}
+
+.status.online span {
+  color: #087447;
+}
+
+.stack {
+  padding: 3rem 2.5rem;
+  background: #10251d;
+  color: #f1eee5;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.stack > p {
+  color: #ff8c65;
+  font-size: 0.75rem;
+}
+
+.stack ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stack li {
+  padding: 1.3rem 0;
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid rgba(241, 238, 229, 0.22);
+}
+
+.stack strong {
+  color: #ff8c65;
+  font-size: 0.68rem;
+}
+
+.stack span {
+  font-family: Arial, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    min-height: 75vh;
+    border-right: 0;
+  }
+
+  .index {
+    margin-top: 4rem;
+  }
+
+  .stack {
+    min-height: 20rem;
+  }
+}

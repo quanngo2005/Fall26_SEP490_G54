@@ -38,6 +38,12 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+node_modules/
+dist/
+coverage/
+.angular/
+docs/codereview/reports/*.md
+!docs/codereview/reports/.gitkeep
 
 # Others
 ~$*

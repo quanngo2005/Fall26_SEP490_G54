@@ -1,0 +1,10 @@
+services:
+  postgres:
+    ports: []
+  redis:
+    ports: []
+  pgadmin:
+    profiles: ["disabled"]
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
