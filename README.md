@@ -153,6 +153,16 @@ npm:       10.x
 
 ## Chạy Project
 
+### Sau khi clone lần đầu
+
+Trên Windows, đảm bảo đã cài .NET SDK 8.0.425, Node.js 22, npm 10 và Docker Desktop; mở Docker Desktop trước khi chạy project. Tạo file cấu hình development nếu chưa có, sau đó khởi động:
+
+```powershell
+if (-not (Test-Path docker/.env)) { Copy-Item docker/.env.example docker/.env }
+./run.ps1
+```
+
+Không cần chạy `npm install` thủ công: `run.ps1` tự cài frontend dependencies nếu `frontend/node_modules` chưa tồn tại. PostgreSQL, Redis và pgAdmin chạy trong Docker; API và frontend chạy native.
 ### Cách 1: Development với hot reload
 
 Đây là cách nên dùng khi lập trình. PostgreSQL, Redis và pgAdmin chạy bằng Docker; API và Angular chạy native với hot reload.
