@@ -1,70 +1,4 @@
-# Frontend
-
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.27.
-
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
-
-## UI Design System
-
-The login page and future workspace screens follow this enterprise design system. The complete source specification is in [docs/DESIGN.md](docs/DESIGN.md); the token manifest and design guidance are included below as a quick reference.
-
-### Design Tokens
-
-```yaml
+---
 name: Apex Enterprise Banking
 colors:
   surface: '#f7f9fb'
@@ -201,37 +135,34 @@ spacing:
   space-lg: 1.5rem
   space-xl: 2rem
   space-2xl: 3rem
-```
+---
 
-### Brand & Style
+## Brand & Style
 
 This design system embodies institutional precision, executive trust, and regulatory rigor tailored for modern enterprise and commercial banking. Built around an aesthetic of clean authority, it merges deep navy structural architecture with vibrant, high-intent coral-red accents derived from premier financial identifiers.
 
 The personality balances stoic corporate stability with modern speed:
-
 - **Atmosphere:** Clean, clinical, and reassuringly robust. Surfaces are uncluttered, structured around clear spatial hierarchies and crisp division lines.
 - **Visual Stance:** Corporate / Modern with elevated information density. It prioritizes data clarity, auditability, and immediate optical recognition over decorative ornamentation.
 - **Target Audience:** Treasury directors, institutional risk analysts, enterprise compliance officers, and commercial banking clients requiring continuous, low-latency financial operations.
 
-### Colors
+## Colors
 
 The color palette establishes rigorous enterprise hierarchy through intentional contrast between structural deep blues and active interaction triggers.
 
-#### Palette Architecture
-
+### Palette Architecture
 - **Primary Navy (`#002B49` / `#0F172A`):** The institutional anchor used for primary navigation chrome, master buttons, prominent headers, and high-impact structural panels.
 - **Secondary Accent Red (`#E30613`):** The authoritative focal accent reserved for critical actions, single-point authorization triggers (such as MBID SSO authorization), high-risk operations, and key visual identifiers.
 - **Supporting Slate-Blue (`#1E293B`):** Used for primary typography, active tab states, and heavy iconography.
 - **Neutral Surface Foundation (`#F8FAFC` & `#FFFFFF`):** Cool Slate-50 background that prevents eye fatigue across data-heavy operational shifts, framed by clean `#E2E8F0` (Slate-200) micro-borders.
 
-#### Semantic Tiers
-
+### Semantic Tiers
 - **Success (Emerald):** `#059669` fill / `#ECFDF5` container / `#047857` text for cleared settlements, ledger balances, and confirmed transfers.
 - **Warning (Amber):** `#D97706` fill / `#FFFBEB` container / `#B45309` text for pending multi-sig reviews, holds, and AML thresholds.
 - **Danger (Rose/Red):** `#E11D48` fill / `#FFF1F2` container / `#BE123C` text for failed batches, rejected authorizations, and compliance flags.
 - **Info (Blue):** `#2563EB` fill / `#EFF6FF` container / `#1D4ED8` text for system notes, standard transaction routing, and informational callouts.
 
-### Typography
+## Typography
 
 The typographic strategy pairs **Manrope** for confident, geometric headings with **Inter** for dense, neutral UI text, accompanied by **JetBrains Mono** for accounting figures, account numbers, and transaction ledgers.
 
@@ -239,16 +170,16 @@ The typographic strategy pairs **Manrope** for confident, geometric headings wit
 - **Inter:** Ensures legibility in dense forms, data tables, and verification screens at 13px–14px sizes.
 - **JetBrains Mono:** Enforces tabular alignment for monetary sums, routing codes, IBAN numbers, and timestamps to eliminate visual jitter during real-time ledger updates.
 
-### Layout & Spacing
+## Layout & Spacing
 
 This design system uses a precise 4px baseline grid optimized for high-density administrative operations.
 
 - **Desktop (1920px+):** 12-column fluid grid with 24px (`1.5rem`) gutters and dynamic side margins (up to 40px). Side rails and navigation drawers remain fixed width (64px collapsed, 260px expanded), leaving the viewport flexible for data tables.
-- **Tablet (768px–1023px):** 8-column layout with 16px gutters and 24px margins. Operational data panels collapse from horizontal multi-column grids into stacked horizontal groups.
+- **Tablet (768px - 1023px):** 8-column layout with 16px gutters and 24px margins. Operational data panels collapse from horizontal multi-column grids into stacked horizontal groups.
 - **Mobile (< 768px):** 4-column system with 16px gutters and 16px margins. Financial cards drop into single-column flows, while action bars pin to the bottom edge.
 - **Data Densities:** Tables and nested form lists utilize compact vertical spacing (`space-sm` for row cells) to maximize visible records above the fold.
 
-### Elevation & Depth
+## Elevation & Depth
 
 Visual depth relies on low-contrast structural outlines and subtle ambient shadows to preserve clean enterprise clarity:
 
@@ -257,43 +188,38 @@ Visual depth relies on low-contrast structural outlines and subtle ambient shado
 - **Active / Dropdown Level:** `0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05)`.
 - **Modal & Floating Dialogs:** `0 20px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08)` paired with a navy backdrop overlay (`rgba(15, 23, 42, 0.45)` with `backdrop-filter: blur(4px)`).
 
-### Shapes
+## Shapes
 
 The design system maintains a structured, semi-compact radius value:
-
 - **Base Components (Inputs, Buttons, Badges):** 4px (`0.25rem`) corner radius. This communicates administrative discipline and alignment.
 - **Containers & Surfaces (Cards, Tables, Drawers, Modals):** 8px (`0.5rem`) corner radius (`rounded-lg`), delivering subtle softness while preserving horizontal and vertical lines.
 - **Pill Exceptions:** Restricted strictly to counter tags, contextual system alert pills, and status badges.
 
-### Components
+## Components
 
-#### Buttons
-
+### Buttons
 - **Primary Institution:** Solid Navy (`#002B49`), white text, 40px height for administrative standard, 48px for sign-in/primary flows. Hover: `#0F172A`. Focused: 2px ring offset with `#002B49`.
 - **Accent Action (High Impact):** Solid Coral-Red (`#E30613`), white text. Reserved for single-action authorizations, immediate payment transfers, and critical validation. Hover: `#C90510`.
 - **Secondary / Outline:** White background with 1px border (`#CBD5E1`), text `#1E293B`. Hover: `#F1F5F9`.
 - **Ghost:** Transparent background, text `#475569`. Hover: `#F1F5F9`.
 
-#### Input Fields & Controls
-
+### Input Fields & Controls
 - **Form Controls:** 42px height, 1px border (`#CBD5E1`), `#FFFFFF` background, 14px Inter text. Placeholder text `#94A3B8`. Focused state introduces a 1.5px `#002B49` border with a subtle `0 0 0 3px rgba(0, 43, 73, 0.1)` glow.
 - **Checkboxes & Radios:** 16px square/circle with a 1px border (`#94A3B8`). Selected: Deep Navy fill (`#002B49`) with crisp white checkmark/dot.
 
-#### Status Badges
-
+### Status Badges
 - **Configuration:** 22px height, 8px horizontal padding, 11px uppercase `JetBrains Mono` font with medium weight.
-- **Success:** `#ECFDF5` background, `#047857` text, `#A7F3D0` subtle border.
-- **Warning:** `#FFFBEB` background, `#B45309` text, `#FDE68A` subtle border.
-- **Danger:** `#FFF1F2` background, `#BE123C` text, `#FECDD3` subtle border.
-- **Info/Neutral:** `#F1F5F9` background, `#334155` text, `#E2E8F0` subtle border.
+- **Variants:**
+  - *Success:* `#ECFDF5` background, `#047857` text, `#A7F3D0` subtle border.
+  - *Warning:* `#FFFBEB` background, `#B45309` text, `#FDE68A` subtle border.
+  - *Danger:* `#FFF1F2` background, `#BE123C` text, `#FECDD3` subtle border.
+  - *Info/Neutral:* `#F1F5F9` background, `#334155` text, `#E2E8F0` subtle border.
 
-#### Enterprise Tables
-
+### Enterprise Tables
 - **Header:** 36px height, background `#F8FAFC`, uppercase 12px text (`#64748B`), 1px bottom border (`#E2E8F0`).
 - **Rows:** 48px standard row height, `#FFFFFF` resting, hover state `#F8FAFC`. Alternating zebra stripes are avoided in favor of crisp 1px `#F1F5F9` row dividers.
 - **Numeric & Ledger Cells:** Right-aligned using `JetBrains Mono` with negative spacing optimization.
 
-#### Modals & Drawers
-
+### Modals & Drawers
 - **Header Section:** 56px height, `#FFFFFF` background, 1px border bottom (`#E2E8F0`), strong title in `Manrope` 18px.
 - **Drawer Panels:** Slide in from right edge for item inspection and transaction drill-downs; fixed width of 480px or 640px, full viewport height, styled with clean `#E2E8F0` left-border dividers.

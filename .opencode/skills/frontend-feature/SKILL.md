@@ -17,6 +17,10 @@ frontend/src/
 
 Stack: Angular 19 standalone components, strict TypeScript, signals, Node 22.
 
+## UI Design System
+
+Before creating or redesigning frontend UI, read `frontend/docs/DESIGN.md`. Treat it as the canonical source for brand, color, typography, spacing, elevation, shapes, and component guidance. Keep responsive behavior and accessibility intact; document intentional design deviations in the change.
+
 ## Steps To Add A Feature
 
 1. Generate: `npx ng g c features/<name>/<name>-page` (standalone by default).

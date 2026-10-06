@@ -45,6 +45,7 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] FE-18 `[manual]` Docker nginx fallback continues to support Angular routes.
 - [ ] FE-19 `[manual]` New runtime dependencies have a documented reason.
 - [ ] FE-20 `[manual]` Review verifies the app against a running API, not mocks only.
+- [ ] FE-21 `[manual]` UI follows `frontend/docs/DESIGN.md`; verify desktop, tablet, and mobile layouts, keyboard/focus states, and document intentional deviations.
 
 ## Security
 
