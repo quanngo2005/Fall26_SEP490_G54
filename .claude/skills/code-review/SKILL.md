@@ -21,6 +21,7 @@ description: Use when reviewing G54 backend or frontend code, running codereview
 4. Read the generated report. It groups results into Quality Gates, Security - Critical, Security - High, with a summary table.
 5. Fix every failed item, then rerun until the report ends with `## ALL CHECKS PASSED`.
 6. Walk the `[manual]` items and report findings with `file:line`, severity, risk, and fix.
+7. For frontend changes, review the rendered UI against `frontend/docs/DESIGN.md` at desktop, tablet, and mobile widths; check keyboard/focus states and record any intentional design deviations.
 
 ## Pass Criteria
 
