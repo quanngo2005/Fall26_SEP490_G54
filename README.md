@@ -9,6 +9,7 @@ Dự án full-stack sử dụng ASP.NET Core 8, Angular 22, PostgreSQL 16, Redis
 - [Kiến trúc](#kiến-trúc)
 - [Yêu cầu môi trường](#yêu-cầu-môi-trường)
 - [Chạy project](#chạy-project)
+- [Authentication](#authentication)
 - [Địa chỉ dịch vụ](#địa-chỉ-dịch-vụ)
 - [Cấu hình development](#cấu-hình-development)
 - [Database và DbMigrator](#database-và-dbmigrator)
@@ -177,6 +178,15 @@ Runner sẽ:
 4. Khởi động Angular dev server tại port `4200`.
 
 Trên Windows, API và frontend được mở trong hai cửa sổ PowerShell riêng.
+
+## Authentication
+
+- Sign-in is available at `/login`; successful login opens `/home`. Logout revokes the server session and clears the client session.
+- `POST /api/v1/auth/login` accepts `email`, `password`, and `rememberMe`; roles and permissions are returned in the JWT.
+- `POST /api/v1/auth/logout` requires an access token and a `refreshToken`; the API revokes the refresh session and blacklists the access token in Redis.
+- Failed logins are audited; five consecutive failures lock the account for 15 minutes.
+- Access tokens expire after 15 minutes; rotating refresh tokens expire after 12 hours, or up to 30 days with `rememberMe`.
+- Refresh tokens are kept in browser storage; prevent XSS and do not render untrusted HTML.
 
 ### Cách 2: Chạy toàn bộ bằng Docker
 
