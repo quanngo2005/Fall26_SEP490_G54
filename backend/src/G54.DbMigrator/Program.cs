@@ -2,7 +2,7 @@ using G54.DAL;
 using Microsoft.EntityFrameworkCore;
 
 var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres")
-    ?? "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres";
+    ?? "Host=localhost;Port=5432;Database=bpms_db;Username=postgres;Password=postgres";
 var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options;
 await using var dbContext = new AppDbContext(options);
 
