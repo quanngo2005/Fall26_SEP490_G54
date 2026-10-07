@@ -21,8 +21,12 @@ Startup order: postgres healthy -> migrator completed -> redis healthy -> api he
 ## Commands
 
 - Native dev (infra in Docker, apps with hot reload): `./run.ps1` or `./run.sh`
+- Restart only the native frontend on Windows: `./run-frontend.ps1`
+- Run only the native API on Windows: `./run-api.ps1`
 - Full stack in Docker: `./run.ps1 -Docker`
 - Stop: `./run.ps1 -Stop`
+
+On Windows, one `./run.ps1` invocation starts infrastructure/migrations, opens separate PowerShell windows for the API and frontend, waits for both health endpoints, and opens the login page. Already-responsive native services are reused rather than started twice. Keep each app window open while using that service; close it or press `Ctrl+C` there to stop the service. The frontend can be restarted independently without rerunning migrations.
 - Manual: `docker compose --env-file docker/.env -f docker/docker-compose.yml up --build -d`
 - Reset data: `docker compose --env-file docker/.env -f docker/docker-compose.yml down -v`
 - Production overlay: add `-f docker/docker-compose.prod.yml`

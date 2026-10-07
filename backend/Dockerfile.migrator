@@ -4,7 +4,7 @@ COPY . .
 RUN dotnet restore G54.sln
 RUN dotnet publish src/G54.DbMigrator/G54.DbMigrator.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app .
 ENTRYPOINT ["dotnet", "G54.DbMigrator.dll"]
