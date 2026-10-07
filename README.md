@@ -1,6 +1,6 @@
 # Fall26 SEP490 G54
 
-Dự án full-stack sử dụng ASP.NET Core 8, Angular 22, PostgreSQL 16, Redis 7 và Docker Compose. Dự án đã có sẵn DbMigrator, health check, Swagger, JWT skeleton, Serilog, xử lý lỗi tập trung, runtime environment cho frontend, unit test, CI và bộ code review có phân loại security theo mức độ.
+Dự án full-stack sử dụng ASP.NET Core 8, Angular 22, PostgreSQL 16, Redis 7 và Docker Compose. Dự án gồm DbMigrator, health check, Swagger, JWT authentication, Serilog, xử lý lỗi tập trung, runtime environment cho frontend, unit test, CI và bộ code review có phân loại security theo mức độ.
 
 ## Mục Lục
 
@@ -36,27 +36,27 @@ Dự án gồm các thành phần:
 - Docker Compose khởi động PostgreSQL, Redis, pgAdmin, DbMigrator, API và frontend theo đúng thứ tự.
 - Code review scripts kiểm tra build, test, format, dependency vulnerabilities và các mẫu code không an toàn.
 
-Trang mẫu hiện tại gọi `GET /api/hello` và hiển thị `Hello World`, dùng để xác minh kết nối frontend-backend.
+Frontend cung cấp trang đăng nhập và màn hình workspace có thao tác đăng xuất; API xác thực dựa trên account/employee/role/permission trong PostgreSQL.
 
 ## Công Nghệ
 
-| Thành phần | Công nghệ |
-| --- | --- |
-| Backend | .NET 8, ASP.NET Core MVC Controllers |
-| Business layer | C# services và dependency injection |
-| Data layer | EF Core 8, Npgsql |
-| Database | PostgreSQL 16 |
-| Cache | Redis 7 |
-| Migration | EF Core migrations, `G54.DbMigrator` |
-| API docs | Swagger / OpenAPI |
-| Authentication skeleton | JWT Bearer |
-| Logging | Serilog |
-| Frontend | Angular 22, TypeScript 6, RxJS |
-| Frontend server | nginx |
-| Test | xUnit, Jasmine/Karma |
-| Tooling | ESLint, Prettier, Husky, lint-staged |
-| Container | Docker Desktop, Docker Compose, WSL2 trên Windows |
-| CI | GitHub Actions |
+| Thành phần              | Công nghệ                                         |
+| ----------------------- | ------------------------------------------------- |
+| Backend                 | .NET 8, ASP.NET Core MVC Controllers              |
+| Business layer          | C# services và dependency injection               |
+| Data layer              | EF Core 8, Npgsql                                 |
+| Database                | PostgreSQL 16                                     |
+| Cache                   | Redis 7                                           |
+| Migration               | EF Core migrations, `G54.DbMigrator`              |
+| API docs                | Swagger / OpenAPI                                 |
+| Authentication skeleton | JWT Bearer                                        |
+| Logging                 | Serilog                                           |
+| Frontend                | Angular 22, TypeScript 6, RxJS                    |
+| Frontend server         | nginx                                             |
+| Test                    | xUnit, Jasmine/Karma                              |
+| Tooling                 | ESLint, Prettier, Husky, lint-staged              |
+| Container               | Docker Desktop, Docker Compose, WSL2 trên Windows |
+| CI                      | GitHub Actions                                    |
 
 Phiên bản .NET SDK được ghim trong `global.json`:
 
@@ -177,16 +177,23 @@ Runner sẽ:
 3. Khởi động API bằng `dotnet watch` tại port `5000`.
 4. Khởi động Angular dev server tại port `4200`.
 
-Trên Windows, API và frontend được mở trong hai cửa sổ PowerShell riêng.
+Trên Windows, một lần chạy `./run.ps1` sẽ mở API và frontend trong hai cửa sổ PowerShell riêng, đợi cả hai sẵn sàng rồi tự mở trang đăng nhập. Nếu một dịch vụ đã chạy, runner sẽ dùng lại dịch vụ đó thay vì mở bản thứ hai. Giữ các cửa sổ này mở để website/API tiếp tục hoạt động; đóng cửa sổ hoặc nhấn `Ctrl+C` trong cửa sổ tương ứng sẽ dừng ứng dụng đó. Nếu chỉ frontend dừng, có thể khởi động lại độc lập mà không chạy lại migration:
+
+```powershell
+./run-frontend.ps1
+```
+
+API cũng có thể được chạy độc lập bằng `./run-api.ps1`.
 
 ## Authentication
 
-- Sign-in is available at `/login`; successful login opens `/home`. Logout revokes the server session and clears the client session.
-- `POST /api/v1/auth/login` accepts `email`, `password`, and `rememberMe`; roles and permissions are returned in the JWT.
-- `POST /api/v1/auth/logout` requires an access token and a `refreshToken`; the API revokes the refresh session and blacklists the access token in Redis.
-- Failed logins are audited; five consecutive failures lock the account for 15 minutes.
-- Access tokens expire after 15 minutes; rotating refresh tokens expire after 12 hours, or up to 30 days with `rememberMe`.
-- Refresh tokens are kept in browser storage; prevent XSS and do not render untrusted HTML.
+- Frontend: `/login`; đăng nhập thành công chuyển tới `/home`. Logout yêu cầu xác nhận, gọi API rồi xóa client session và quay lại `/login`.
+- `POST /api/v1/auth/login` nhận `{ "email", "password", "rememberMe" }`; email được đối chiếu với `employee.email`, mật khẩu được kiểm tra bằng PBKDF2, các role/permission được đưa vào JWT.
+- `POST /api/v1/auth/logout` yêu cầu `Authorization: Bearer <accessToken>` và body `{ "refreshToken": "<refreshToken>" }`. API blacklist access token trong Redis, thu hồi refresh session và ghi audit log.
+- Login thất bại được ghi audit; sau 5 lần sai liên tiếp account bị khóa 15 phút. Có thể điều chỉnh qua `Authentication__MaxFailedAttempts` và `Authentication__LockoutMinutes`.
+- Không có tài khoản mặc định dùng chung hoặc endpoint đăng ký. Local development có thể bật tài khoản bootstrap bằng `BOOTSTRAP_ADMIN_ENABLED=true` và đặt `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `docker/.env` (file này không commit). DbMigrator chỉ tạo tài khoản khi `ASPNETCORE_ENVIRONMENT=Development`; mặc định bị tắt. Cấu hình máy dev hiện tại dùng `admin@bpms.com` / `12345`; mật khẩu này yếu, chỉ dùng local và cần đổi trước khi dùng môi trường chia sẻ. Các account khác cần được provision/import với hash `pbkdf2-sha256`.
+- Access token hết hạn sau 15 phút. Refresh token được lưu dạng hash phía server, xoay vòng nguyên tử mỗi lần làm mới và hết hạn sau 12 giờ; lựa chọn `rememberMe` kéo dài phiên refresh tối đa 30 ngày.
+- Client lưu refresh token trong local storage khi `rememberMe` được chọn và trong session storage nếu không. Web storage có thể bị đọc bởi JavaScript nếu ứng dụng có XSS; không render HTML không tin cậy, giữ CSP bật ở production và cân nhắc chuyển refresh token sang cookie `HttpOnly`.
 
 ### Cách 2: Chạy toàn bộ bằng Docker
 
@@ -224,6 +231,8 @@ PostgreSQL healthy
 ./run.ps1 -Stop
 ```
 
+Native API/frontend chạy trong cửa sổ PowerShell riêng; để dừng, nhấn `Ctrl+C` hoặc đóng từng cửa sổ đó. Tham số `-Stop` dừng Docker Compose stack.
+
 Hoặc:
 
 ```powershell
@@ -242,16 +251,16 @@ Cẩn thận: `down -v` xóa database và cache hiện tại.
 
 ## Địa Chỉ Dịch Vụ
 
-| Dịch vụ | Native development | Full Docker |
-| --- | --- | --- |
-| Frontend | http://localhost:4200 | http://localhost:8080 |
-| API Hello | http://localhost:5000/api/hello | http://localhost:5000/api/hello |
-| Swagger | http://localhost:5000/swagger | http://localhost:5000/swagger |
-| Liveness | http://localhost:5000/health | http://localhost:5000/health |
-| Readiness | http://localhost:5000/health/ready | http://localhost:5000/health/ready |
-| pgAdmin | http://localhost:5050 | http://localhost:5050 |
-| PostgreSQL | localhost:5432 | localhost:5432 |
-| Redis | localhost:6379 | localhost:6379 |
+| Dịch vụ    | Native development                 | Full Docker                        |
+| ---------- | ---------------------------------- | ---------------------------------- |
+| Frontend   | http://localhost:4200              | http://localhost:8080              |
+| API Hello  | http://localhost:5000/api/hello    | http://localhost:5000/api/hello    |
+| Swagger    | http://localhost:5000/swagger      | http://localhost:5000/swagger      |
+| Liveness   | http://localhost:5000/health       | http://localhost:5000/health       |
+| Readiness  | http://localhost:5000/health/ready | http://localhost:5000/health/ready |
+| pgAdmin    | http://localhost:5050              | http://localhost:5050              |
+| PostgreSQL | localhost:5432                     | localhost:5432                     |
+| Redis      | localhost:6379                     | localhost:6379                     |
 
 Swagger chỉ được bật khi API chạy với `ASPNETCORE_ENVIRONMENT=Development`.
 
@@ -329,6 +338,10 @@ $env:Jwt__Key = "replace-with-a-random-secret-at-least-32-characters"
 
 Trong Docker, API chỉ khởi động sau khi DbMigrator thoát với exit code `0`.
 
+`InitialProgestSchema` thực thi DDL trong `progest_erd_v0_10_postgresql.sql` (35 bảng, 25 PostgreSQL ENUM, index, constraint, function và trigger). `AuthLoginSupport` bổ sung lockout/audit cho login. `FullSchemaModelBaseline` không thay đổi database; migration này ghi nhận đầy đủ 35 bảng SQL và bảng audit trong EF model snapshot để các migration tiếp theo không tạo lại schema đã được hai migration trước khởi tạo. Nếu database chưa khởi tạo, chạy DbMigrator một lần (hoặc dùng `./run.ps1`) để áp dụng migration theo thứ tự. Không cần chạy file SQL trực tiếp.
+
+Các function và trigger nghiệp vụ được khai báo trong SQL baseline vì EF Core không scaffold chúng thành entity mapping; khi thay đổi chúng, tạo migration mới có `migrationBuilder.Sql(...)`.
+
 ### Chạy DbMigrator native
 
 Đảm bảo PostgreSQL đang chạy, sau đó:
@@ -350,7 +363,7 @@ Tạo migration:
 ```powershell
 dotnet ef migrations add <MigrationName> `
   --project backend/src/G54.DAL `
-  --startup-project backend/src/G54.DbMigrator
+  --startup-project backend/src/G54.DAL
 ```
 
 Sau khi tạo migration:
@@ -384,8 +397,8 @@ File production không chứa deployment URL thật mà chứa placeholder:
 ```typescript
 export const environment = {
   production: true,
-  apiUrl: '__API_URL__',
-  appVersion: '__APP_VERSION__',
+  apiUrl: "__API_URL__",
+  appVersion: "__APP_VERSION__",
 };
 ```
 
@@ -487,13 +500,13 @@ Frontend review kiểm tra:
 
 ### Mức độ nghiêm trọng của bảo mật (Security severity)
 
-| Severity | Ý nghĩa | Policy |
-| --- | --- | --- |
-| Critical | Có thể trực tiếp gây data breach, auth bypass, RCE, XSS hoặc lộ lọt bí mật | Chặn merge (Block merge), sửa ngay |
-| High | Lỗ hổng nghiêm trọng, có thể khai thác với nỗ lực vừa phải | Chặn merge (Block merge) |
-| Medium | Lỗ hổng thuộc lớp phòng thủ theo chiều sâu (defense-in-depth gap), cần thêm điều kiện để khai thác | Tạo issue và sửa trong sprint |
-| Low | Tăng cường bảo mật (hardening) hoặc sai lệch so với best practice | Đưa vào backlog |
-| Info | Gợi ý hoặc quan sát ghi nhận | Không bắt buộc |
+| Severity | Ý nghĩa                                                                                            | Policy                             |
+| -------- | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Critical | Có thể trực tiếp gây data breach, auth bypass, RCE, XSS hoặc lộ lọt bí mật                         | Chặn merge (Block merge), sửa ngay |
+| High     | Lỗ hổng nghiêm trọng, có thể khai thác với nỗ lực vừa phải                                         | Chặn merge (Block merge)           |
+| Medium   | Lỗ hổng thuộc lớp phòng thủ theo chiều sâu (defense-in-depth gap), cần thêm điều kiện để khai thác | Tạo issue và sửa trong sprint      |
+| Low      | Tăng cường bảo mật (hardening) hoặc sai lệch so với best practice                                  | Đưa vào backlog                    |
+| Info     | Gợi ý hoặc quan sát ghi nhận                                                                       | Không bắt buộc                     |
 
 Review chỉ pass khi:
 
@@ -540,6 +553,8 @@ Production overlay:
 - Không mở (expose) port Redis ra bên ngoài.
 - Tắt pgAdmin.
 - Đặt môi trường API thành `Production`.
+- Bắt buộc cung cấp `JWT_KEY` từ `docker/.env` hoặc secret store; Compose dừng nếu thiếu và API từ chối khóa thiếu độ dài hoặc khóa Development mặc định.
+- Chạy DbMigrator trong môi trường `Production` để chặn bootstrap admin dành riêng cho Development.
 
 Trước khi deploy production:
 
@@ -567,14 +582,14 @@ Backend và frontend workflows chạy theo bộ lọc `paths`, thực thi script
 
 OpenCode skills nằm trong `.opencode/skills/`:
 
-| Skill | Khi nào dùng |
-| --- | --- |
-| `backend-feature` | Controller, BLL service, entity, DTO, backend test |
-| `db-migration` | Schema, migration, seed data, DbMigrator |
-| `frontend-feature` | Angular component, route, service, environment |
-| `code-review` | Chạy quality gates và đọc reports |
-| `security-review` | Review Critical/High/Medium/Low security findings |
-| `deploy` | Docker, run scripts, nginx và deployment |
+| Skill              | Khi nào dùng                                       |
+| ------------------ | -------------------------------------------------- |
+| `backend-feature`  | Controller, BLL service, entity, DTO, backend test |
+| `db-migration`     | Schema, migration, seed data, DbMigrator           |
+| `frontend-feature` | Angular component, route, service, environment     |
+| `code-review`      | Chạy quality gates và đọc reports                  |
+| `security-review`  | Review Critical/High/Medium/Low security findings  |
+| `deploy`           | Docker, run scripts, nginx và deployment           |
 
 Các skill cũng được mirror tại `.claude/skills/`.
 

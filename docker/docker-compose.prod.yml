@@ -5,6 +5,9 @@ services:
     ports: []
   pgadmin:
     profiles: ["disabled"]
+  migrator:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
   api:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
