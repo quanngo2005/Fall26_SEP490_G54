@@ -1,11 +1,17 @@
+using System.Threading.RateLimiting;
+using G54.Api.Controllers;
 using G54.Api.Health;
 using G54.Api.Middleware;
 using G54.Api.Services;
+using G54.Api.Swagger;
 using G54.BLL;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -74,7 +80,49 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         },
     };
 });
-builder.Services.AddAuthorization();
+var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 5);
+var loginWindowSeconds = builder.Configuration.GetValue("RateLimiting:Login:WindowSeconds", 60);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = static async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        var problemDetails = new ProblemDetails
+        {
+            Status = StatusCodes.Status429TooManyRequests,
+            Title = "Too Many Requests",
+            Detail = "Too many login attempts from this IP address. Please try again later.",
+            Instance = context.HttpContext.Request.Path,
+        };
+        await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken: cancellationToken);
+    };
+
+    options.AddPolicy(AuthController.LoginRateLimitPolicy, httpContext =>
+    {
+        var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+            ?? "unknown";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ipAddress,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = loginPermitLimit,
+                Window = TimeSpan.FromSeconds(loginWindowSeconds),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            });
+    });
+});
+
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -87,6 +135,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
     });
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 
 var app = builder.Build();
@@ -108,10 +157,11 @@ else
     app.UseHsts();
 }
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapHealthChecks("/health", new() { Predicate = _ => false });
-app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") });
+app.MapHealthChecks("/health", new() { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 app.MapControllers();
 app.Run();
 

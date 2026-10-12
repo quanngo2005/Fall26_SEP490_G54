@@ -3,6 +3,7 @@ using G54.BLL.Dtos.Auth;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace G54.Api.Controllers;
 
@@ -10,12 +11,16 @@ namespace G54.Api.Controllers;
 [Route("api/v1/auth")]
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
+    public const string LoginRateLimitPolicy = "LoginByIp";
+
     [AllowAnonymous]
+    [EnableRateLimiting(LoginRateLimitPolicy)]
     [HttpPost("login")]
     [ProducesResponseType<AuthResponseDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponseDto>> Login(
         [FromBody] LoginRequestDto request,
         CancellationToken cancellationToken)
