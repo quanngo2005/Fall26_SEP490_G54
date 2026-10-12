@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\G54.BLL\G54.BLL.csproj" />
+    <ProjectReference Include="..\..\src\G54.Api\G54.Api.csproj" />
   </ItemGroup>
 
 </Project>
