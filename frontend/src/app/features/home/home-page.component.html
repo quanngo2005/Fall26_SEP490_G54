@@ -1,0 +1,30 @@
+<main class="workspace">
+  <header class="topbar">
+    <a class="brand" routerLink="/home">
+      <span class="brand-mark">B</span>
+      <span>BPMS <small>Banking Performance Management System</small></span>
+    </a>
+    <div class="account-menu">
+      <span class="user-name">{{ currentUser()?.fullName ?? 'BPMS user' }}</span>
+      <button type="button" class="logout-button" (click)="logout()" [disabled]="loggingOut()">
+        {{ loggingOut() ? 'Signing out…' : 'Logout' }}
+      </button>
+    </div>
+  </header>
+
+  <section class="welcome-card">
+    <p class="eyebrow">YOUR WORKSPACE</p>
+    <h1>Welcome, {{ currentUser()?.fullName ?? 'back' }}.</h1>
+    <p>You are signed in to BPMS — Banking Performance Management System.</p>
+    @if (currentUser()?.roles?.length) {
+      <div class="role-list" aria-label="Assigned roles">
+        @for (role of currentUser()?.roles; track role) {
+          <span>{{ role }}</span>
+        }
+      </div>
+    }
+    @if (errorMessage()) {
+      <p class="logout-error" role="alert">{{ errorMessage() }}</p>
+    }
+  </section>
+</main>

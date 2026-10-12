@@ -1,0 +1,85 @@
+<main class="login-shell">
+  <section class="login-panel" aria-labelledby="login-heading">
+    <div class="login-content">
+      <a
+        class="wordmark"
+        routerLink="/login"
+        aria-label="BPMS Banking Performance Management System home"
+      >
+        <span class="wordmark-mark" aria-hidden="true">B</span>
+        <span class="wordmark-copy">
+          <strong>BPMS</strong>
+          <small>Banking Performance Management System</small>
+        </span>
+      </a>
+
+      <header class="welcome">
+        <h1 id="login-heading">Welcome back</h1>
+        <p>Sign in to continue to your performance workspace.</p>
+      </header>
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="field">
+          <label for="email">Work email</label>
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            placeholder="name@company.com"
+            [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
+            aria-describedby="email-error"
+          />
+          @if (form.controls.email.invalid && form.controls.email.touched) {
+            <small id="email-error" class="field-error">Enter a valid email address.</small>
+          }
+        </div>
+
+        <div class="field">
+          <div class="label-row">
+            <label for="password">Password</label>
+            <button
+              class="text-button"
+              type="button"
+              (click)="togglePasswordHelp()"
+              [attr.aria-expanded]="showPasswordHelp()"
+            >
+              Forgot password?
+            </button>
+          </div>
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            placeholder="Enter your password"
+            [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched"
+            aria-describedby="password-error"
+          />
+          @if (form.controls.password.invalid && form.controls.password.touched) {
+            <small id="password-error" class="field-error">Password is required.</small>
+          }
+          @if (showPasswordHelp()) {
+            <p class="help-note">Password resets are managed by your BPMS administrator.</p>
+          }
+        </div>
+
+        <label class="remember-option">
+          <input type="checkbox" formControlName="rememberMe" />
+          <span>Remember me for 30 days</span>
+        </label>
+
+        @if (errorMessage()) {
+          <p class="form-error" role="alert">{{ errorMessage() }}</p>
+        }
+
+        <button class="submit-button" type="submit" [disabled]="submitting()">
+          <span>{{ submitting() ? 'Signing in…' : 'Sign in to workspace' }}</span>
+          <span class="button-arrow" aria-hidden="true">→</span>
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <app-login-brand-panel />
+</main>

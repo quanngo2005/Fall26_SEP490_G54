@@ -5,6 +5,10 @@ services:
     ports: []
   pgadmin:
     profiles: ["disabled"]
+  migrator:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
   api:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in docker/.env before using the production overlay}
