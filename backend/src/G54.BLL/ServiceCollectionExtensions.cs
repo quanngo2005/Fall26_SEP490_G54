@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IWorkService, WorkService>();
         return services;
     }
 }

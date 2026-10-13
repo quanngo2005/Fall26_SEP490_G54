@@ -15,6 +15,14 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
         typeof(Work),
         _ => new WorkRepository(dbContext));
 
+    public IRepository<WorkType> WorkTypes => Repository<WorkType>();
+
+    public IRepository<Employee> Employees => Repository<Employee>();
+
+    public IRepository<BusinessCampaign> BusinessCampaigns => Repository<BusinessCampaign>();
+
+    public IRepository<CampaignWorkType> CampaignWorkTypes => Repository<CampaignWorkType>();
+
     public IRepository<Participant> Participants => Repository<Participant>();
 
     public IRepository<TaskHandover> TaskHandovers => Repository<TaskHandover>();
