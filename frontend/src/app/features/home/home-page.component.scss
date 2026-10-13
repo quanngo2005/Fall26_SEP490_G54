@@ -1,0 +1,155 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background: #f6f7f3;
+  color: #1c2a1e;
+}
+
+.workspace {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(22px, 6vw, 88px);
+  border-bottom: 1px solid #e7eae3;
+  background: #fff;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #213821;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.brand small {
+  display: block;
+  margin-top: 2px;
+  color: #788174;
+  font-size: 8px;
+  letter-spacing: 0.2em;
+}
+
+.brand-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 10px 10px 10px 3px;
+  background: #355d26;
+  color: #fff;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.account-menu {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-name {
+  color: #59645a;
+  font-size: 13px;
+}
+
+.logout-button {
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid #dce3d7;
+  border-radius: 7px;
+  background: #fff;
+  color: #355d26;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.logout-button:hover:not(:disabled) {
+  border-color: #355d26;
+  background: #f4f7f1;
+}
+
+.logout-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.welcome-card {
+  width: min(760px, calc(100% - 40px));
+  margin: clamp(54px, 10vh, 112px) auto;
+  padding: clamp(28px, 6vw, 64px);
+  border: 1px solid #e7eae3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 60px rgb(35 55 30 / 6%);
+}
+
+.eyebrow {
+  margin: 0 0 16px;
+  color: #668452;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.welcome-card > p:not(.eyebrow, .logout-error) {
+  margin: 13px 0 0;
+  color: #68716a;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.role-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 26px;
+}
+
+.role-list span {
+  padding: 7px 11px;
+  border-radius: 20px;
+  background: #edf3e8;
+  color: #355d26;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.logout-error {
+  margin: 20px 0 0;
+  color: #a13e35;
+  font-size: 13px;
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0 18px;
+  }
+
+  .account-menu {
+    gap: 10px;
+  }
+
+  .user-name {
+    display: none;
+  }
+}

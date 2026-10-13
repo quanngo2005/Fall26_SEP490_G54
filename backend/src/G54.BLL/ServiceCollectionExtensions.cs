@@ -8,6 +8,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddBusinessLogic(this IServiceCollection services)
     {
         services.AddScoped<IHelloService, HelloService>();
+        services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
+        services.AddSingleton<JwtTokenProvider>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IWorkService, WorkService>();
         return services;
     }
 }
