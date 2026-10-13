@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace G54.DAL.Entities;
 
-public partial class TaskHandover
+public partial class TaskHandover : IBaseEntity
 {
     public Guid Id { get; set; }
 

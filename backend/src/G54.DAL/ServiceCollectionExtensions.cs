@@ -1,4 +1,6 @@
 using G54.DAL.Entities;
+using G54.DAL.Repositories;
+using G54.DAL.Uow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -41,6 +43,9 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>((provider, options) =>
             options.UseNpgsql(provider.GetRequiredService<NpgsqlDataSource>()));
         services.AddScoped<DatabaseSeeder>();
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<IWorkRepository, WorkRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }
 }
