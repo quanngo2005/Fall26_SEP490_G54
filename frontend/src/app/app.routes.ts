@@ -29,6 +29,22 @@ export const routes: Routes = [
         (m) => m.WorkTypeDetailComponent,
       ),
   },
+  {
+    path: 'review-verify',
+    title: 'Thẩm định kết quả công việc',
+    loadComponent: () =>
+      import('./features/review-verify/review-verify.component').then(
+        (m) => m.ReviewVerifyComponent,
+      ),
+  },
+  {
+    path: 'review-verify/:submissionId',
+    title: 'Thẩm định kết quả công việc',
+    loadComponent: () =>
+      import('./features/review-verify/review-verify.component').then(
+        (m) => m.ReviewVerifyComponent,
+      ),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];
