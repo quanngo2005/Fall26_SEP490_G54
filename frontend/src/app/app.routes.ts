@@ -21,6 +21,14 @@ export const routes: Routes = [
         (module) => module.EmployeeProfileComponent,
       ),
   },
+  {
+    path: 'work-type-detail',
+    title: 'Work Type Detail',
+    loadComponent: () =>
+      import('./features/work-type-detail/work-type-detail.component').then(
+        (m) => m.WorkTypeDetailComponent,
+      ),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];

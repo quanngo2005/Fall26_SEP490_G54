@@ -1,0 +1,389 @@
+<main class="work-type-app" aria-label="Work Type Detail">
+  <aside class="sidebar" aria-label="Điều hướng chính">
+    <a class="brand" href="#work-type-detail" aria-label="Enterprise Banking">
+      <span class="brand-mark">EB</span>
+      <span class="brand-copy">
+        <strong>Enterprise Banking <small>SEC</small></strong>
+        <span>HR ADMIN / EMPLOYEE PORTAL</span>
+      </span>
+    </a>
+    <div class="core-status">
+      <span>CORE v2.4.0-SEC</span><b><i></i> Online</b>
+    </div>
+    @for (group of navigationGroups; track group.title) {
+      <section class="nav-group">
+        <h2>{{ group.title }} <span>⌄</span></h2>
+        @for (item of group.items; track item[1]) {
+          <button type="button" class="nav-item" [class.selected]="item[1] === 'Hồ sơ Cán bộ'">
+            <span class="nav-icon" aria-hidden="true">{{ item[0] }}</span>
+            <span class="nav-label">{{ item[1] }}</span>
+            @if (item[2]) {
+              <span
+                class="nav-count"
+                [class.warn]="item[2] === '1'"
+                [class.danger]="item[2] === '3'"
+                >{{ item[2] }}</span
+              >
+            }
+          </button>
+        }
+      </section>
+    }
+    <div class="sidebar-footer">
+      <strong>v2.4.0 Enterprise</strong><span>◉ HRMS Synced</span>
+      <small>Core Banking Systems &amp; Compliance</small>
+    </div>
+  </aside>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <label class="global-search"
+        ><span aria-hidden="true">⌕</span
+        ><input
+          type="search"
+          placeholder="Tìm kiếm mã công việc, nhân sự, phòng ban..."
+          aria-label="Tìm kiếm mã công việc, nhân sự, phòng ban..."
+      /></label>
+      <div class="topbar-actions">
+        <button type="button" class="icon-button notification" aria-label="Thông báo">
+          ♧<i></i>
+        </button>
+        <button type="button" class="icon-button help" aria-label="Trợ giúp">?</button>
+        <span class="top-divider"></span>
+        <div class="user-name">
+          <strong>Nguyễn Văn An <i></i></strong><span>Admin / QHKH Doanh nghiệp</span>
+        </div>
+        <button type="button" class="avatar" aria-label="Tài khoản người dùng">♙</button>
+      </div>
+    </header>
+
+    <section class="state-simulation" aria-label="Bản xem trước trạng thái">
+      <strong>☷ &nbsp; BẢN XEM TRƯỚC TRẠNG THÁI (STATE SIMULATION):</strong>
+      <div class="state-options">
+        <span class="current">1. Ready (Đủ điều kiện)</span><span>2. Config Warning (Cảnh báo)</span
+        ><span>3. Load Error (Lỗi tải)</span><span>4. Empty Usage (Chưa sử dụng)</span>
+      </div>
+    </section>
+
+    <div class="content">
+      <section class="title-area">
+        <div class="title-main">
+          <div class="breadcrumbs">
+            <a href="#work-type-list">← Quay lại danh sách Loại công việc / Work Type List</a
+            ><span>/</span><span>Work Type Management</span><span>/</span
+            ><strong>Work Type Detail</strong>
+          </div>
+          <div class="title-row">
+            <h1>Customer Complaint Handling <span>(Xử lý khiếu nại khách hàng)</span></h1>
+            <button class="code-chip" type="button">WT-2026-008 ⧉</button
+            ><span class="status-chip"><i></i> ACTIVE (ĐANG HOẠT ĐỘNG)</span>
+          </div>
+        </div>
+        <div class="title-actions">
+          <span class="readonly"><span>♙</span> Read-only Mode (Phiên bản chỉ đọc)</span>
+          <div>
+            <button class="button secondary" type="button">◴ &nbsp;Lịch sử phiên bản</button
+            ><button class="button primary" type="button" (click)="toggleEditMode()">
+              {{ isEditing() ? '✓ Lưu thay đổi' : '／ Chỉnh sửa Loại công việc' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="ready-banner" aria-label="Trạng thái cấu hình">
+        <span class="ready-icon">✓</span>
+        <div>
+          <strong
+            >Ready · Đủ điều kiện kích hoạt vận hành <small>PRODUCTION CERTIFIED</small></strong
+          >
+          <p>
+            This Work Type is configured and ready to use. Quy trình xử lý và khung đo lường KPI
+            hiện hành đã được thiết lập đầy đủ, cho phép giao dịch viên và phòng ban khởi tạo công
+            việc theo phân quyền chuẩn.
+          </p>
+        </div>
+        <span class="cert-date">Kiểm định Core Banking: 06/10/2026</span>
+      </section>
+
+      <nav class="tabs" aria-label="Các phần chi tiết">
+        <a
+          href="#overview"
+          [class.active]="activeTab() === 'overview'"
+          (click)="selectTab('overview')"
+          >ⓘ &nbsp;Overview (Tổng quan)</a
+        >
+        <a
+          href="#workflow"
+          [class.active]="activeTab() === 'workflow'"
+          (click)="selectTab('workflow')"
+          >⛓ &nbsp;Workflow (Quy trình)</a
+        >
+        <a
+          href="#kpi-mappings"
+          [class.active]="activeTab() === 'kpi-mappings'"
+          (click)="selectTab('kpi-mappings')"
+          >▥ &nbsp;KPI Mappings <small>3</small></a
+        >
+        <a
+          href="#job-positions"
+          [class.active]="activeTab() === 'job-positions'"
+          (click)="selectTab('job-positions')"
+          >♙ &nbsp;Job Positions <small>12</small></a
+        >
+        <a
+          href="#campaigns"
+          [class.active]="activeTab() === 'campaigns'"
+          (click)="selectTab('campaigns')"
+          >⚑ &nbsp;Campaigns <small>4</small></a
+        >
+        <a href="#usage" [class.active]="activeTab() === 'usage'" (click)="selectTab('usage')"
+          >▣ &nbsp;Usage (Sử dụng)</a
+        >
+      </nav>
+
+      <section class="surface overview-card" id="overview">
+        <div class="section-title">
+          <h2><span class="heading-icon">ⓘ</span> Overview (Tổng quan)</h2>
+          <small>MÔ TẢ &amp; PHẠM VI TÁC NGHIỆP</small>
+        </div>
+        <p class="overview-copy">
+          Defines the standard workflow for handling customer complaint cases across branch network
+          and digital channels, ensuring SLA resolution and quality assurance in compliance with
+          State Bank regulations and internal service quality standards.
+          @if (showMoreOverview()) {
+            Quy trình bao gồm tiếp nhận, phân loại, xác minh, xử lý và phản hồi khiếu nại; đồng thời
+            ghi nhận dữ liệu phục vụ đo lường chất lượng dịch vụ và theo dõi thời hạn xử lý theo quy
+            định.
+          }
+        </p>
+        <button class="text-action" type="button" (click)="toggleOverview()">
+          {{ showMoreOverview() ? 'Show less (Thu gọn)' : 'Show more (Xem thêm)' }}⌄
+        </button>
+        <div class="updated-at">
+          ◷ &nbsp;Cập nhật lần cuối: <b>06 Oct 2026, 14:32</b> (Bởi Quản trị viên hệ thống - ID:
+          ADM-9024)
+        </div>
+      </section>
+
+      <section class="surface workflow-card" id="workflow">
+        <div class="section-title">
+          <h2><span class="heading-icon">⛓</span> Workflow (Quy trình nghiệp vụ)</h2>
+          <small>Engine: Camunda BPM v8.4 Enterprise</small>
+        </div>
+        <div class="workflow-grid">
+          <div><span>WORKFLOW CODE</span><strong class="mono linkish">WF-EMP-001 ↗</strong></div>
+          <div>
+            <span>WORKFLOW NAME</span><strong>Employee Work Review Workflow</strong
+            ><small>(Quy trình tiếp nhận và thẩm định công việc)</small>
+          </div>
+          <div>
+            <span>PHIÊN BẢN / VERSION</span
+            ><strong>v1.2 <span class="version-tag">Ban hành 2026</span></strong>
+          </div>
+          <div>
+            <span>TÌNH TRẠNG HIỆU LỰC</span
+            ><strong class="active-text"><i></i> ACTIVE (ĐANG HIỆU LỰC)</strong>
+          </div>
+          <button class="view-workflow" type="button">View Workflow → &nbsp;◉</button>
+        </div>
+        <p class="workflow-description">
+          <b>Mô tả quy trình:</b> Standard workflow for employee work execution and review,
+          including supervisor verification and multi-tier approval. Luồng duyệt gồm 3 bước: Tiếp
+          nhận hồ sơ khiếu nại → Phân loại &amp; Giám định tài chính → Phê duyệt phương án xử lý bởi
+          Trưởng bộ phận.
+        </p>
+      </section>
+
+      <section class="surface mappings-card" id="kpi-mappings">
+        <div class="section-title">
+          <h2>
+            <span class="heading-icon">⌁</span> KPI Mappings
+            <small class="count-pill">{{ visibleMappings.length }} chỉ tiêu</small>
+          </h2>
+          <div class="section-actions">
+            <label class="history-toggle"
+              ><input type="checkbox" [checked]="showHistory()" (change)="toggleHistory($event)" />
+              Show history (Hiển thị cả ánh xạ đã hết hạn)</label
+            ><button class="button secondary" type="button">＋ Add KPI Mapping</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="mapping-table">
+            <thead>
+              <tr>
+                <th>KPI CODE</th>
+                <th>KPI NAME (TÊN CHỈ TIÊU)</th>
+                <th>UNIT (ĐƠN VỊ)</th>
+                <th>AGGREGATION</th>
+                <th>DIRECTION (CHIỀU)</th>
+                <th>REQUIRED</th>
+                <th>EFFECTIVE PERIOD (THỜI HẠN)</th>
+                <th>STATUS (TRẠNG THÁI)</th>
+                <th>THAO TÁC</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mapping of visibleMappings; track mapping.code) {
+                <tr [class.expired-row]="mapping.expired">
+                  <td class="mono">{{ mapping.code }} ↗</td>
+                  <td>
+                    <strong>{{ mapping.name }}</strong
+                    ><small>{{ mapping.description }}</small>
+                  </td>
+                  <td>{{ mapping.unit }}</td>
+                  <td>
+                    <span class="aggregation">{{ mapping.aggregation }}</span>
+                  </td>
+                  <td class="direction" [class.down]="!mapping.improving">
+                    {{ mapping.improving ? '⌁ ↑' : '⌁ ↓' }} {{ mapping.direction }}
+                  </td>
+                  <td>
+                    <span class="required" [class.optional]="!mapping.required">{{
+                      mapping.required ? 'REQUIRED ⓘ' : 'OPTIONAL'
+                    }}</span>
+                  </td>
+                  <td class="mono">{{ mapping.period }}</td>
+                  <td>
+                    <span class="mapping-status" [class.expired-status]="mapping.expired"
+                      ><i></i>{{ mapping.status }}</span
+                    >
+                  </td>
+                  <td>
+                    <button
+                      class="row-action"
+                      type="button"
+                      [attr.aria-label]="'Xem ' + mapping.code"
+                    >
+                      ◉
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="related-grid">
+        <section class="surface related-card" id="job-positions">
+          <div class="section-title">
+            <h2>
+              <span class="heading-icon">♙</span> Job Positions
+              <small class="count-pill">12 vị trí</small>
+            </h2>
+            <button class="button secondary" type="button">＋ Add Job Position</button>
+          </div>
+          <div class="related-controls">
+            <label class="table-search"
+              ><span>⌕</span
+              ><input
+                type="search"
+                placeholder="Tìm kiếm vị trí chức danh..."
+                [value]="positionSearch()"
+                (input)="setPositionSearch($event)" /></label
+            ><a href="#job-positions">View all (12) →</a>
+          </div>
+          <div class="table-wrap">
+            <table class="related-table">
+              <thead>
+                <tr>
+                  <th>MÃ CHỨC DANH</th>
+                  <th>TÊN VỊ TRÍ (POSITION NAME)</th>
+                  <th>TRẠNG THÁI</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (position of visibleJobPositions; track position.code) {
+                  <tr>
+                    <td class="mono">{{ position.code }}</td>
+                    <td>{{ position.name }}</td>
+                    <td>
+                      <span class="small-active">{{ position.status }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="surface related-card" id="campaigns">
+          <div class="section-title">
+            <h2>
+              <span class="heading-icon">⚑</span> Campaigns
+              <small class="count-pill">4 chiến dịch</small>
+            </h2>
+            <button class="button secondary" type="button">＋ Add Campaign</button>
+          </div>
+          <div class="related-controls">
+            <label class="table-search"
+              ><span>⌕</span
+              ><input
+                type="search"
+                placeholder="Tìm kiếm chiến dịch kinh doanh..."
+                [value]="campaignSearch()"
+                (input)="setCampaignSearch($event)" /></label
+            ><a href="#campaigns">View all (4) →</a>
+          </div>
+          <div class="table-wrap">
+            <table class="related-table">
+              <thead>
+                <tr>
+                  <th>MÃ CHIẾN DỊCH</th>
+                  <th>TÊN CHIẾN DỊCH (CAMPAIGN NAME)</th>
+                  <th>TRẠNG THÁI</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (campaign of visibleCampaigns; track campaign.code) {
+                  <tr>
+                    <td class="mono">{{ campaign.code }}</td>
+                    <td>{{ campaign.name }}</td>
+                    <td>
+                      <span class="small-active">{{ campaign.status }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="surface usage-card" id="usage">
+        <div class="section-title">
+          <h2><span class="heading-icon">▣</span> Usage (Tình trạng sử dụng thực tế)</h2>
+          <small>DỮ LIỆU THỜI GIAN THỰC TỪ WORK HUB</small>
+        </div>
+        <div class="usage-grid">
+          <article class="usage-tile">
+            <div>
+              <span class="usage-label">TỔNG SỐ CÔNG VIỆC KHỞI TẠO (TOTAL WORKS)</span
+              ><strong>128</strong
+              ><a href="#usage"
+                >View all 128 works → &nbsp;<span>(Xem tất cả công việc thuộc loại này)</span></a
+              >
+            </div>
+            <span class="usage-icon navy">▤</span>
+          </article>
+          <article class="usage-tile">
+            <div>
+              <span class="usage-label">CÔNG VIỆC ĐANG XỬ LÝ (ACTIVE WORKS)</span
+              ><strong class="green-number">17 <small>/ 128 (13.3% tải xử lý)</small></strong
+              ><a href="#usage"
+                >View active 17 works → &nbsp;<span>(Xem công việc đang vận hành)</span></a
+              >
+            </div>
+            <span class="usage-icon green">◴</span>
+          </article>
+        </div>
+      </section>
+
+      <footer class="audit-footer">
+        <span
+          >♙ Audit Trail Hash: SHA256#9d8f31b...a49c &nbsp;·&nbsp; Security Level: Tier 3 Enterprise
+          Banking &nbsp;·&nbsp; Quyết định ban hành số: QĐ-2026/VHKN-09</span
+        ><strong>Enterprise Core Architecture v4.8.2</strong>
+      </footer>
+    </div>
+  </div>
+</main>
