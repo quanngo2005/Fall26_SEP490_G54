@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace G54.DAL.Entities;
 
-public partial class Work
+public partial class Work : IBaseEntity
 {
     public Guid Id { get; set; }
 

@@ -139,6 +139,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+app.UseMiddleware<TraceIdMiddleware>();
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 app.Use(async (context, next) =>
