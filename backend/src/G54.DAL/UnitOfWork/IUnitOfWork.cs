@@ -7,6 +7,10 @@ namespace G54.DAL.Uow;
 public interface IUnitOfWork : IAsyncDisposable, IDisposable
 {
     IWorkRepository Works { get; }
+    IRepository<WorkType> WorkTypes { get; }
+    IRepository<Employee> Employees { get; }
+    IRepository<BusinessCampaign> BusinessCampaigns { get; }
+    IRepository<CampaignWorkType> CampaignWorkTypes { get; }
     IRepository<Participant> Participants { get; }
     IRepository<TaskHandover> TaskHandovers { get; }
     IRepository<ResultSubmission> ResultSubmissions { get; }
