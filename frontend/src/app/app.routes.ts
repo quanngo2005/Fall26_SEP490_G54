@@ -5,13 +5,21 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () =>
-      import('./features/auth/login-page.component').then((m) => m.LoginPageComponent),
+      import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),
   },
   {
     path: 'home',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/home/home-page.component').then((m) => m.HomePageComponent),
+      import('./features/home/home-page.component').then((module) => module.HomePageComponent),
+  },
+  {
+    path: 'employee-profile',
+    title: 'Hồ sơ Cán bộ',
+    loadComponent: () =>
+      import('./features/employee-profile/employee-profile.component').then(
+        (module) => module.EmployeeProfileComponent,
+      ),
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
