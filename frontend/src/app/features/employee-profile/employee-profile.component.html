@@ -3,36 +3,71 @@
     <header class="topbar">
       <a class="brand-block" href="#employee-profile" aria-label="Enterprise Banking">
         <span class="brand-mark">EB</span>
-        <span class="brand-copy"><strong>Enterprise Banking <small>SEC</small></strong><span>HR ADMIN / EMPLOYEE PORTAL</span></span>
+        <span class="brand-copy"
+          ><strong>Enterprise Banking <small>SEC</small></strong
+          ><span>HR ADMIN / EMPLOYEE PORTAL</span></span
+        >
       </a>
       <div class="topbar-main">
-        <div class="product-title"><strong>Hệ thống Quản trị &amp; Điều hành Ngân hàng</strong><span>Enterprise Portal - Employee Workspace</span></div>
-        <label class="global-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search công việc, mã hồ sơ, KPI..." aria-label="Search công việc, mã hồ sơ, KPI..." /></label>
+        <div class="product-title">
+          <strong>Hệ thống Quản trị &amp; Điều hành Ngân hàng</strong
+          ><span>Enterprise Portal - Employee Workspace</span>
+        </div>
+        <label class="global-search"
+          ><span aria-hidden="true">⌕</span
+          ><input
+            type="search"
+            placeholder="Search công việc, mã hồ sơ, KPI..."
+            aria-label="Search công việc, mã hồ sơ, KPI..."
+        /></label>
         <button class="language-button" type="button">VI&nbsp; / &nbsp;EN</button>
         <button class="header-icon" type="button" aria-label="Trợ giúp">?</button>
-        <button class="header-icon notification" type="button" aria-label="Thông báo">♧<i></i></button>
+        <button class="header-icon notification" type="button" aria-label="Thông báo">
+          ♧<i></i>
+        </button>
         <span class="header-separator"></span>
-        <div class="signed-in"><strong>Nguyễn Văn A <i></i></strong><span>Senior RM • NV-00182</span></div>
+        <div class="signed-in">
+          <strong>Nguyễn Văn A <i></i></strong><span>Senior RM • NV-00182</span>
+        </div>
         <button class="account-button" type="button" aria-label="Tài khoản người dùng">♙</button>
       </div>
     </header>
 
     <aside class="sidebar" aria-label="Điều hướng chính">
-      <div class="system-status"><span>CORE v2.4.0-SEC</span><b><i></i> Online</b></div>
+      <div class="system-status">
+        <span>CORE v2.4.0-SEC</span><b><i></i> Online</b>
+      </div>
       @for (group of data.navigation; track group.title) {
         <section class="nav-section">
           <h2>{{ group.title }}<span class="nav-caret">⌄</span></h2>
           <nav>
             @for (item of group.items; track item.label) {
-              <button type="button" class="nav-item" [class.active]="activeNavigation() === item.label" (click)="selectNavigation(item.label)">
-                <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span><span class="nav-text">{{ item.label }}</span>
-                @if (item.count) { <span class="nav-badge" [class.warning]="item.count === '1'" [class.danger]="item.count === '3'">{{ item.count }}</span> }
+              <button
+                type="button"
+                class="nav-item"
+                [attr.aria-label]="item.label"
+                [class.active]="activeNavigation() === item.label"
+                (click)="selectNavigation(item.label)"
+              >
+                <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span
+                ><span class="nav-text">{{ item.label }}</span>
+                @if (item.count) {
+                  <span
+                    class="nav-badge"
+                    [class.warning]="item.count === '1'"
+                    [class.danger]="item.count === '3'"
+                    >{{ item.count }}</span
+                  >
+                }
               </button>
             }
           </nav>
         </section>
       }
-      <div class="sidebar-footer"><strong>v2.4.0 Enterprise</strong><span class="sync-state">◉ HRMS Synced</span><small>Core Banking Systems &amp; Compliance</small></div>
+      <div class="sidebar-footer">
+        <strong>v2.4.0 Enterprise</strong><span class="sync-state">◉ HRMS Synced</span
+        ><small>Core Banking Systems &amp; Compliance</small>
+      </div>
     </aside>
 
     <section class="main-column">
@@ -41,101 +76,398 @@
           <div class="page-trail">
             <div><span>▦</span> Tổ chức &amp; Phòng ban <b>›</b> Danh sách cán bộ <b>›</b></div>
             <div>Khối Bán hàng &amp; Dịch vụ <b>›</b> Phòng KH Cá nhân <b>›</b></div>
-            <div class="screen-meta"><span class="employee-code">{{ data.employee.id }}</span><span>SCREEN ID: SCR-EMP-02</span><i>•</i><strong>Compliance Guard v2.4<br />Active</strong></div>
+            <div class="screen-meta">
+              <span class="employee-code">{{ data.employee.id }}</span
+              ><span>SCREEN ID: SCR-EMP-02</span><i>•</i
+              ><strong>Compliance Guard v2.4<br />Active</strong>
+            </div>
           </div>
           <div class="toolbar-actions">
-            <button type="button" class="button button-secondary">← Quay lại Danh sách Cán bộ</button>
+            <button type="button" class="button button-secondary">
+              ← Quay lại Danh sách Cán bộ
+            </button>
             <button type="button" class="button button-secondary">⊙ Xuất hồ sơ cán bộ</button>
             <div class="action-menu-wrap">
-              <button type="button" class="button button-primary" (click)="toggleMoreActions()" [attr.aria-expanded]="showMoreActions()">Thao tác khác⌄</button>
+              <button
+                type="button"
+                class="button button-primary"
+                (click)="toggleMoreActions()"
+                [attr.aria-expanded]="showMoreActions()"
+              >
+                Thao tác khác⌄
+              </button>
               @if (showMoreActions()) {
-                <div class="action-menu"><button type="button">Chỉnh sửa hồ sơ</button><button type="button">Xem lịch sử thay đổi</button></div>
+                <div class="action-menu">
+                  <button type="button">Chỉnh sửa hồ sơ</button
+                  ><button type="button">Xem lịch sử thay đổi</button>
+                </div>
               }
             </div>
           </div>
         </section>
 
         <section class="employee-card surface-card" aria-labelledby="employee-name">
-          <div class="employee-photo-wrap"><img class="employee-photo" src="/assets/employee-nv-00182.jpg" alt="Ảnh Nguyễn Văn A" /><span class="photo-status">● ACTIVE</span></div>
+          <div class="employee-photo-wrap">
+            <img
+              class="employee-photo"
+              src="/assets/employee-nv-00182.jpg"
+              alt="Ảnh Nguyễn Văn A"
+            /><span class="photo-status">● ACTIVE</span>
+          </div>
           <div class="employee-details">
-            <div class="employee-heading"><h1 id="employee-name">{{ data.employee.name }}</h1><span class="id-chip">{{ data.employee.id }}</span><span class="employment-chip">◉ {{ data.employee.status }} · {{ data.employee.branchCode }}</span></div>
-            <div class="employee-title">{{ data.employee.title }} <span>({{ data.employee.roleCode }}) ↗</span> <b>•</b></div>
+            <div class="employee-heading">
+              <h1 id="employee-name">{{ data.employee.name }}</h1>
+              <span class="id-chip">{{ data.employee.id }}</span
+              ><span class="employment-chip"
+                >◉ {{ data.employee.status }} · {{ data.employee.branchCode }}</span
+              >
+            </div>
+            <div class="employee-title">
+              {{ data.employee.title }} <span>({{ data.employee.roleCode }}) ↗</span> <b>•</b>
+            </div>
             <div class="employee-department">▤ {{ data.employee.department }}</div>
             <div class="employee-contact">
-              <span>♧ Báo cáo: <strong>{{ data.employee.manager }}</strong></span>
-              <span>✉ <strong>{{ data.employee.email }}</strong></span>
-              <span>♧ Ext. <strong>{{ data.employee.extension }}</strong></span>
+              <span
+                >♧ Báo cáo: <strong>{{ data.employee.manager }}</strong></span
+              >
+              <span
+                >✉ <strong>{{ data.employee.email }}</strong></span
+              >
+              <span
+                >♧ Ext. <strong>{{ data.employee.extension }}</strong></span
+              >
               <span>▣ {{ data.employee.contract }}</span>
             </div>
           </div>
-          <aside class="approval-card"><div><span>Trạng thái kiểm duyệt</span><strong class="cleared">CLEARED</strong></div><strong class="permission">Quyền hạn Cấp III (RM-HQ)</strong><span class="lock-status">♙ Khóa hồ sơ: Mở (Editable)</span></aside>
+          <aside class="approval-card">
+            <div><span>Trạng thái kiểm duyệt</span><strong class="cleared">CLEARED</strong></div>
+            <strong class="permission">Quyền hạn Cấp III (RM-HQ)</strong
+            ><span class="lock-status">♙ Khóa hồ sơ: Mở (Editable)</span>
+          </aside>
         </section>
 
         <section class="summary-grid" aria-label="Chỉ số cán bộ">
-          <article class="summary-card surface-card"><div class="summary-heading"><span>CÔNG VIỆC ĐANG XỬ LÝ</span><b class="summary-icon blue">▣</b></div><strong class="summary-number">03</strong><div class="summary-foot"><span class="inline-tag red-tag">◷ 1 việc sắp đến hạn SLA</span><span class="arrow">→</span></div><small>Context: EmployeeId = NV-00182, Active</small></article>
-          <article class="summary-card surface-card"><div class="summary-heading"><span>CHỜ THẨM ĐỊNH /<br /> REVIEW</span><b class="summary-icon amber">☷</b></div><strong class="summary-number amber-text">01</strong><div class="summary-foot"><span>Công thẩm định độc lập</span><span class="arrow">→</span></div><small>Status hồ sơ bài nộp (Độc lập trạng thái CB)</small></article>
-          <article class="summary-card surface-card"><div class="summary-heading"><span>TIẾN ĐỘ KPI KỲ NÀY</span><b class="summary-icon green">⌁</b></div><strong class="summary-number">82.4<small>%</small></strong><div class="summary-progress"><i style="width:82.4%"></i></div><div class="summary-foot"><span>Target: 100 • Tháng 10/2026</span><span class="arrow">→</span></div><small>BR-04: Auto Verified Work Calculation</small></article>
-          <article class="summary-card surface-card"><div class="summary-heading"><span>HIỆU SUẤT &amp; XẾP LOẠI</span><b class="summary-icon neutral">♜</b></div><strong class="summary-number">84.2 <span class="grade-chip">Loại B</span></strong><div class="summary-foot"><span>Hạng đơn vị: <b>04 / 28 cán bộ</b></span><span class="arrow">→</span></div><small>Employee Performance Drill-down</small></article>
+          <article class="summary-card surface-card">
+            <div class="summary-heading">
+              <span>CÔNG VIỆC ĐANG XỬ LÝ</span><b class="summary-icon blue">▣</b>
+            </div>
+            <strong class="summary-number">03</strong>
+            <div class="summary-foot">
+              <span class="inline-tag red-tag">◷ 1 việc sắp đến hạn SLA</span
+              ><span class="arrow">→</span>
+            </div>
+            <small>Context: EmployeeId = NV-00182, Active</small>
+          </article>
+          <article class="summary-card surface-card">
+            <div class="summary-heading">
+              <span
+                >CHỜ THẨM ĐỊNH /<br />
+                REVIEW</span
+              ><b class="summary-icon amber">☷</b>
+            </div>
+            <strong class="summary-number amber-text">01</strong>
+            <div class="summary-foot">
+              <span>Công thẩm định độc lập</span><span class="arrow">→</span>
+            </div>
+            <small>Status hồ sơ bài nộp (Độc lập trạng thái CB)</small>
+          </article>
+          <article class="summary-card surface-card">
+            <div class="summary-heading">
+              <span>TIẾN ĐỘ KPI KỲ NÀY</span><b class="summary-icon green">⌁</b>
+            </div>
+            <strong class="summary-number">82.4<small>%</small></strong>
+            <div class="summary-progress"><i style="width: 82.4%"></i></div>
+            <div class="summary-foot">
+              <span>Target: 100 • Tháng 10/2026</span><span class="arrow">→</span>
+            </div>
+            <small>BR-04: Auto Verified Work Calculation</small>
+          </article>
+          <article class="summary-card surface-card">
+            <div class="summary-heading">
+              <span>HIỆU SUẤT &amp; XẾP LOẠI</span><b class="summary-icon neutral">♜</b>
+            </div>
+            <strong class="summary-number">84.2 <span class="grade-chip">Loại B</span></strong>
+            <div class="summary-foot">
+              <span>Hạng đơn vị: <b>04 / 28 cán bộ</b></span
+              ><span class="arrow">→</span>
+            </div>
+            <small>Employee Performance Drill-down</small>
+          </article>
         </section>
 
         <section class="detail-grid">
           <article class="surface-card organization-card">
-            <div class="section-heading"><span class="section-icon">♧</span><h2>Thông tin Tổ chức &amp; Ngạch bậc</h2><span class="section-spec">Mục 9 Spec</span></div>
-            <div class="grade-info"><span>Mã ngạch &amp; Bậc định biên</span><strong>HQ-RM-L4 (Senior Relationship Officer Level 4) <b>Tier A</b></strong></div>
-            <div class="organization-facts"><div><span>Khối nghiệp vụ</span><strong>Khối Bán hàng &amp; Dịch vụ</strong><small>Division: RB-CENTRAL</small></div><div><span>Chi nhánh quản lý</span><strong>Hội sở chính (Hà Nội)</strong><small>Branch Code: BR-001</small></div></div>
-            <div class="competency-info"><span>Profile đánh giá năng lực áp dụng</span><strong>Khung chuẩn năng lực RM Doanh nghiệp 2026-v2</strong><b>♢</b></div>
-            <div class="organization-footer"><span>Đồng bộ từ HRMS Core: 04:00 AM hôm nay</span><button type="button">Lịch sử thay đổi ngạch bậc →</button></div>
+            <div class="section-heading">
+              <span class="section-icon">♧</span>
+              <h2>Thông tin Tổ chức &amp; Ngạch bậc</h2>
+              <span class="section-spec">Mục 9 Spec</span>
+            </div>
+            <div class="grade-info">
+              <span>Mã ngạch &amp; Bậc định biên</span
+              ><strong>HQ-RM-L4 (Senior Relationship Officer Level 4) <b>Tier A</b></strong>
+            </div>
+            <div class="organization-facts">
+              <div>
+                <span>Khối nghiệp vụ</span><strong>Khối Bán hàng &amp; Dịch vụ</strong
+                ><small>Division: RB-CENTRAL</small>
+              </div>
+              <div>
+                <span>Chi nhánh quản lý</span><strong>Hội sở chính (Hà Nội)</strong
+                ><small>Branch Code: BR-001</small>
+              </div>
+            </div>
+            <div class="competency-info">
+              <span>Profile đánh giá năng lực áp dụng</span
+              ><strong>Khung chuẩn năng lực RM Doanh nghiệp 2026-v2</strong><b>♢</b>
+            </div>
+            <div class="organization-footer">
+              <span>Đồng bộ từ HRMS Core: 04:00 AM hôm nay</span
+              ><button type="button">Lịch sử thay đổi ngạch bậc →</button>
+            </div>
           </article>
 
           <article class="surface-card reporting-card">
-            <div class="section-heading"><span class="section-icon">☷</span><h2>Cây phân cấp Báo cáo (Reporting Tree)</h2><span class="section-spec">Mục 10<br />Spec</span></div>
-            <div class="manager-node"><span class="person-initials manager-initials">TH</span><div><small>QUẢN LÝ TRỰC TIẾP &nbsp; NV-00421</small><strong>Trần Thu Hương</strong><span>Trưởng phòng Khách hàng Cá nhân</span></div><button type="button">Xem hồ sơ →</button></div>
+            <div class="section-heading">
+              <span class="section-icon">☷</span>
+              <h2>Cây phân cấp Báo cáo (Reporting Tree)</h2>
+              <span class="section-spec">Mục 10<br />Spec</span>
+            </div>
+            <div class="manager-node">
+              <span class="person-initials manager-initials">TH</span>
+              <div>
+                <small>QUẢN LÝ TRỰC TIẾP &nbsp; NV-00421</small><strong>Trần Thu Hương</strong
+                ><span>Trưởng phòng Khách hàng Cá nhân</span>
+              </div>
+              <button type="button">Xem hồ sơ →</button>
+            </div>
             <div class="report-label">↓ &nbsp; BÁO CÁO TRỰC TIẾP</div>
-            <div class="current-node"><span class="person-initials">NA</span><div><small>CÁN BỘ HIỆN TẠI &nbsp; NV-00182</small><strong>{{ data.employee.name }}</strong><span>{{ data.employee.title }}</span></div><b>Đang xem</b></div>
+            <div class="current-node">
+              <span class="person-initials">NA</span>
+              <div>
+                <small>CÁN BỘ HIỆN TẠI &nbsp; NV-00182</small
+                ><strong>{{ data.employee.name }}</strong
+                ><span>{{ data.employee.title }}</span>
+              </div>
+              <b>Đang xem</b>
+            </div>
             <div class="direct-label">↳ &nbsp; HƯỚNG DẪN / DIRECT REPORTS (2 CÁN BỘ)</div>
-            <div class="direct-reports"><article><small>NV-00319</small><strong>Vũ Minh Đức</strong><span>Chuyên viên QHKH</span><button type="button">Xem hồ sơ ↗</button></article><article><small>NV-00561</small><strong>Phạm Hồng Quân</strong><span>Thực tập sinh tín dụng</span><button type="button">Xem hồ sơ ↗</button></article></div>
-            <div class="reporting-footer"><button type="button">Xem toàn bộ sơ đồ tổ chức phòng ban →</button></div>
+            <div class="direct-reports">
+              <article>
+                <small>NV-00319</small><strong>Vũ Minh Đức</strong><span>Chuyên viên QHKH</span
+                ><button type="button">Xem hồ sơ ↗</button>
+              </article>
+              <article>
+                <small>NV-00561</small><strong>Phạm Hồng Quân</strong
+                ><span>Thực tập sinh tín dụng</span><button type="button">Xem hồ sơ ↗</button>
+              </article>
+            </div>
+            <div class="reporting-footer">
+              <button type="button">Xem toàn bộ sơ đồ tổ chức phòng ban →</button>
+            </div>
           </article>
         </section>
 
         <section class="surface-card work-card">
-          <div class="section-heading"><h2>Công việc được giao (Assigned Work Preview)</h2><span class="count-chip">03 việc đang hoạt động</span><button type="button" class="heading-link">Xem tất cả công việc →</button></div>
-          <div class="table-scroll"><table class="work-table"><thead><tr><th>MÃ CV<br />(WORK ID)</th><th>TÊN CÔNG VIỆC &amp; LOẠI HỒ SƠ</th><th>MỨC ƯU<br />TIÊN</th><th>HẠN SLA</th><th>TRẠNG THÁI</th><th>TIẾN ĐỘ</th><th>THAO<br />TÁC</th></tr></thead><tbody>
-            @for (work of data.workPreview; track work.id) {
-              <tr><td class="work-id">{{ work.id }}</td><td class="work-title"><strong>{{ work.title }}</strong><small>{{ work.metadata }}</small></td><td><span class="table-pill" [class]="'table-pill tone-' + work.priorityTone">{{ work.priority }}</span></td><td class="deadline" [class.urgent]="work.priorityTone === 'red'"><strong>{{ work.deadline }}</strong><small>{{ work.deadlineNote }}</small></td><td><span class="table-pill" [class]="'table-pill tone-' + work.statusTone">{{ work.status }}</span></td><td><div class="progress-cell"><span class="progress-track"><i [class]="'tone-fill tone-' + work.progressTone" [style.width.%]="work.progress"></i></span><small>{{ work.progress }}%</small></div></td><td><button class="row-link" type="button">Chi tiết →</button></td></tr>
-            }
-          </tbody></table></div>
+          <div class="section-heading">
+            <h2>Công việc được giao (Assigned Work Preview)</h2>
+            <span class="count-chip">03 việc đang hoạt động</span
+            ><button type="button" class="heading-link">Xem tất cả công việc →</button>
+          </div>
+          <div class="table-scroll">
+            <table class="work-table">
+              <thead>
+                <tr>
+                  <th>MÃ CV<br />(WORK ID)</th>
+                  <th>TÊN CÔNG VIỆC &amp; LOẠI HỒ SƠ</th>
+                  <th>MỨC ƯU<br />TIÊN</th>
+                  <th>HẠN SLA</th>
+                  <th>TRẠNG THÁI</th>
+                  <th>TIẾN ĐỘ</th>
+                  <th>THAO<br />TÁC</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (work of data.workPreview; track work.id) {
+                  <tr>
+                    <td class="work-id">{{ work.id }}</td>
+                    <td class="work-title">
+                      <strong>{{ work.title }}</strong
+                      ><small>{{ work.metadata }}</small>
+                    </td>
+                    <td>
+                      <span class="table-pill" [class]="'table-pill tone-' + work.priorityTone">{{
+                        work.priority
+                      }}</span>
+                    </td>
+                    <td class="deadline" [class.urgent]="work.priorityTone === 'red'">
+                      <strong>{{ work.deadline }}</strong
+                      ><small>{{ work.deadlineNote }}</small>
+                    </td>
+                    <td>
+                      <span class="table-pill" [class]="'table-pill tone-' + work.statusTone">{{
+                        work.status
+                      }}</span>
+                    </td>
+                    <td>
+                      <div class="progress-cell">
+                        <span class="progress-track"
+                          ><i
+                            [class]="'tone-fill tone-' + work.progressTone"
+                            [style.width.%]="work.progress"
+                          ></i></span
+                        ><small>{{ work.progress }}%</small>
+                      </div>
+                    </td>
+                    <td><button class="row-link" type="button">Chi tiết →</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section class="surface-card kpi-card">
-          <div class="section-heading"><h2>Tổng quan Chỉ số KPI (Kỳ Tháng 10/2026)</h2><span class="verified-chip">● Đã liên kết Verified Works (BR-04/BR-06)</span><button type="button" class="heading-link">Xem chi tiết KPI cá nhân →</button></div>
-          <div class="table-scroll"><table class="kpi-table"><thead><tr><th>TÊN CHỈ SỐ KPI</th><th>TRỌNG<br />SỐ</th><th>CHỈ TIÊU<br />(TARGET)</th><th>THỰC HIỆN<br />(VERIFIED)</th><th>TIẾN ĐỘ ĐẠT</th><th>NGUỒN GỐC DỮ LIỆU /<br />TRACEABILITY</th></tr></thead><tbody>
-            @for (kpi of data.kpis; track kpi.code) {
-              <tr><td><strong>{{ kpi.title }}</strong><small>Mã chỉ tiêu: {{ kpi.code }}</small></td><td class="mono-cell">{{ kpi.weight }}</td><td class="mono-cell muted-cell">{{ kpi.target }}</td><td class="mono-cell actual-cell" [class.green-text]="kpi.tone === 'green'">{{ kpi.actual }}</td><td><div class="kpi-progress"><span class="progress-track"><i [class]="'tone-fill tone-' + kpi.tone" [style.width.%]="kpi.progress"></i></span><small [class.green-text]="kpi.tone === 'green'">{{ kpi.progressText }}</small></div></td><td><span class="source-chip" [class.green-source]="kpi.tone === 'green'">{{ kpi.source }}</span></td></tr>
-            }
-          </tbody></table></div>
-          <div class="kpi-note"><span>◉</span><p>Nguyên tắc BR-06: Bài nộp chưa được nghiệm thu sẽ không kết chuyển vào chỉ số thực hiện (Submitted ≠ Contribution).</p><code>Audit Hash: #7A2F-OCT2026</code></div>
+          <div class="section-heading">
+            <h2>Tổng quan Chỉ số KPI (Kỳ Tháng 10/2026)</h2>
+            <span class="verified-chip">● Đã liên kết Verified Works (BR-04/BR-06)</span
+            ><button type="button" class="heading-link">Xem chi tiết KPI cá nhân →</button>
+          </div>
+          <div class="table-scroll">
+            <table class="kpi-table">
+              <thead>
+                <tr>
+                  <th>TÊN CHỈ SỐ KPI</th>
+                  <th>TRỌNG<br />SỐ</th>
+                  <th>CHỈ TIÊU<br />(TARGET)</th>
+                  <th>THỰC HIỆN<br />(VERIFIED)</th>
+                  <th>TIẾN ĐỘ ĐẠT</th>
+                  <th>NGUỒN GỐC DỮ LIỆU /<br />TRACEABILITY</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (kpi of data.kpis; track kpi.code) {
+                  <tr>
+                    <td>
+                      <strong>{{ kpi.title }}</strong
+                      ><small>Mã chỉ tiêu: {{ kpi.code }}</small>
+                    </td>
+                    <td class="mono-cell">{{ kpi.weight }}</td>
+                    <td class="mono-cell muted-cell">{{ kpi.target }}</td>
+                    <td class="mono-cell actual-cell" [class.green-text]="kpi.tone === 'green'">
+                      {{ kpi.actual }}
+                    </td>
+                    <td>
+                      <div class="kpi-progress">
+                        <span class="progress-track"
+                          ><i
+                            [class]="'tone-fill tone-' + kpi.tone"
+                            [style.width.%]="kpi.progress"
+                          ></i></span
+                        ><small [class.green-text]="kpi.tone === 'green'">{{
+                          kpi.progressText
+                        }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="source-chip" [class.green-source]="kpi.tone === 'green'">{{
+                        kpi.source
+                      }}</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="kpi-note">
+            <span>◉</span>
+            <p>
+              Nguyên tắc BR-06: Bài nộp chưa được nghiệm thu sẽ không kết chuyển vào chỉ số thực
+              hiện (Submitted ≠ Contribution).
+            </p>
+            <code>Audit Hash: #7A2F-OCT2026</code>
+          </div>
         </section>
 
         <section class="bottom-grid">
           <article class="surface-card reviews-card">
-            <div class="section-heading"><span class="section-icon">♙</span><h2>Lịch sử Đánh giá Hiệu suất</h2><button type="button" class="heading-link">Chi tiết Đánh giá →</button></div>
+            <div class="section-heading">
+              <span class="section-icon">♙</span>
+              <h2>Lịch sử Đánh giá Hiệu suất</h2>
+              <button type="button" class="heading-link">Chi tiết Đánh giá →</button>
+            </div>
             <div class="review-list">
               @for (review of data.reviews; track review.period) {
-                <article class="review-item"><div class="review-period"><strong>{{ review.period }}</strong><span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{ review.state }}</span></div><div class="review-score"><strong [class.green-text]="review.gradeTone === 'green'">{{ review.score }}</strong><span [class]="'grade-chip grade-' + review.gradeTone">{{ review.grade }}</span>@if (review.status) {<small>• &nbsp;{{ review.status }}</small>}</div>@if (review.description) {<p>{{ review.description }}</p>}@if (review.managerNote) {<blockquote>{{ review.managerNote }}</blockquote>}</article>
+                <article class="review-item">
+                  <div class="review-period">
+                    <strong>{{ review.period }}</strong
+                    ><span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{
+                      review.state
+                    }}</span>
+                  </div>
+                  <div class="review-score">
+                    <strong [class.green-text]="review.gradeTone === 'green'">{{
+                      review.score
+                    }}</strong
+                    ><span [class]="'grade-chip grade-' + review.gradeTone">{{
+                      review.grade
+                    }}</span>
+                    @if (review.status) {
+                      <small>• &nbsp;{{ review.status }}</small>
+                    }
+                  </div>
+                  @if (review.description) {
+                    <p>{{ review.description }}</p>
+                  }
+                  @if (review.managerNote) {
+                    <blockquote>{{ review.managerNote }}</blockquote>
+                  }
+                </article>
               }
             </div>
-            <div class="review-footer"><span>Quy chuẩn: HR-PERF-POLICY-2026</span><button type="button">Xuất báo cáo Performance PDF →</button></div>
+            <div class="review-footer">
+              <span>Quy chuẩn: HR-PERF-POLICY-2026</span
+              ><button type="button">Xuất báo cáo Performance PDF →</button>
+            </div>
           </article>
 
           <article class="surface-card audit-card">
-            <div class="section-heading"><span class="section-icon">◴</span><h2>Nhật ký Hoạt động Gần đây</h2><span class="section-spec">Audit Log</span></div>
+            <div class="section-heading">
+              <span class="section-icon">◴</span>
+              <h2>Nhật ký Hoạt động Gần đây</h2>
+              <span class="section-spec">Audit Log</span>
+            </div>
             <ol class="audit-list">
               @for (event of data.auditLog; track event.time) {
-                <li [class]="'audit-event tone-border-' + event.tone"><span class="timeline-marker">{{ event.tone === 'green' ? '✓' : event.tone === 'amber' ? '↻' : event.tone === 'blue' ? '♧' : '▣' }}</span><div><p class="audit-meta"><strong>{{ event.time }}</strong><span>• &nbsp;{{ event.kind }}</span></p><p class="audit-title">{{ event.title }}</p>@if (event.detail) {<p class="audit-detail">{{ event.detail }}</p>}@if (event.source) {<p class="audit-source">{{ event.source }}</p>}</div></li>
+                <li [class]="'audit-event tone-border-' + event.tone">
+                  <span class="timeline-marker">{{
+                    event.tone === 'green'
+                      ? '✓'
+                      : event.tone === 'amber'
+                        ? '↻'
+                        : event.tone === 'blue'
+                          ? '♧'
+                          : '▣'
+                  }}</span>
+                  <div>
+                    <p class="audit-meta">
+                      <strong>{{ event.time }}</strong
+                      ><span>• &nbsp;{{ event.kind }}</span>
+                    </p>
+                    <p class="audit-title">{{ event.title }}</p>
+                    @if (event.detail) {
+                      <p class="audit-detail">{{ event.detail }}</p>
+                    }
+                    @if (event.source) {
+                      <p class="audit-source">{{ event.source }}</p>
+                    }
+                  </div>
+                </li>
               }
             </ol>
-            <div class="audit-footer"><span>Nhật ký lưu trữ bất biến (Immutable Log)</span><button type="button">Toàn bộ lịch sử (18) →</button></div>
+            <div class="audit-footer">
+              <span>Nhật ký lưu trữ bất biến (Immutable Log)</span
+              ><button type="button">Toàn bộ lịch sử (18) →</button>
+            </div>
           </article>
         </section>
       </div>
