@@ -1,18 +1,15 @@
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
-  it('renders the API message', () => {
+  it('renders the routed page outlet', () => {
     const fixture = TestBed.configureTestingModule({
-      imports: [AppComponent, HttpClientTestingModule],
+      imports: [AppComponent],
+      providers: [provideRouter([])],
     }).createComponent(AppComponent);
-    const http = TestBed.inject(HttpTestingController);
-
-    http.expectOne((request) => request.url.endsWith('/hello')).flush({ message: 'Hello World' });
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('h1').textContent).toContain('Hello World');
-    http.verify();
+    expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
   });
 });
