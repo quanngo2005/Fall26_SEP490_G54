@@ -19,7 +19,6 @@ type RelatedItem = { code: string; name: string; status: string };
 @Component({
   selector: 'app-work-type-detail',
   templateUrl: './work-type-detail.component.html',
-  styleUrl: './work-type-detail.component.scss',
 })
 export class WorkTypeDetailComponent {
   protected readonly activeTab = signal('overview');
