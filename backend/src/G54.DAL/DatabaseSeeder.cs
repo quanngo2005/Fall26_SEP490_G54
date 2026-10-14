@@ -181,6 +181,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             {
                 RoleId = adminRole.Id,
                 PermissionId = permissionId,
+                Scope = "All",
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
         }

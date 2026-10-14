@@ -181,6 +181,7 @@ CREATE TABLE role_permission (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id       UUID NOT NULL,
     permission_id UUID NOT NULL,
+    scope         VARCHAR(50) NOT NULL DEFAULT 'Own',
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT uq_role_permission UNIQUE (role_id, permission_id),
     CONSTRAINT fk_role_permission_role
