@@ -203,8 +203,13 @@
         </div>
 
         <div class="kem-chips-wrap">
-          <div class="kem-chips" role="button" tabindex="0" (click)="toggleRoleDropdown()"
-            (keydown.enter)="toggleRoleDropdown()">
+          <div
+            class="kem-chips"
+            role="button"
+            tabindex="0"
+            (click)="toggleRoleDropdown()"
+            (keydown.enter)="toggleRoleDropdown()"
+          >
             @for (r of roleWeights(); track r.role) {
               <span class="kem-chip">
                 {{ r.role }}
