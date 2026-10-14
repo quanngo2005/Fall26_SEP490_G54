@@ -2,9 +2,13 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ENV_FILE="$ROOT/docker/.env"
+[ -f "$ENV_FILE" ] || cp "$ROOT/docker/.env.example" "$ENV_FILE"
+set -a; . "$ENV_FILE"; set +a
+export Jwt__Key="${JWT_KEY:-}"
 
 if command -v docker >/dev/null 2>&1; then
-  docker compose -f "$ROOT/docker/docker-compose.yml" up -d postgres redis pgadmin
+  docker compose --env-file "$ENV_FILE" -f "$ROOT/docker/docker-compose.yml" up -d postgres redis pgadmin
   dotnet run --project "$ROOT/backend/src/G54.DbMigrator/G54.DbMigrator.csproj"
 else
   echo "Warning: Docker unavailable; infrastructure and migrations skipped."
