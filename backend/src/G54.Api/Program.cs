@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.Api.Health;
 using G54.Api.Middleware;
@@ -123,6 +124,8 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
