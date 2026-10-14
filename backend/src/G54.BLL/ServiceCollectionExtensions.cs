@@ -12,6 +12,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IWorkService, WorkService>();
+        services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
+        services.AddScoped<IKpiMappingService, KpiMappingService>();
         return services;
     }
 }
