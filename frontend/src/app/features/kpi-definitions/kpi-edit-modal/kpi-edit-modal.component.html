@@ -1,0 +1,280 @@
+<div class="kem-container" role="dialog" aria-modal="true" aria-labelledby="kemTitle">
+  <button type="button" class="kem-backdrop" (click)="close()" aria-label="Đóng cửa sổ"></button>
+
+  <div class="kem-card">
+    <header class="kem-header">
+      <div>
+        <h3 id="kemTitle" class="kem-title">Cập nhật Định nghĩa KPI</h3>
+        <span class="kem-subtitle">
+          Phiên bản: {{ versionLabel() }} | Ngày hiệu lực: {{ effectiveDateLabel() }}
+        </span>
+      </div>
+      <button type="button" class="kem-close" (click)="close()" aria-label="Đóng">✕</button>
+    </header>
+
+    <div class="kem-body">
+      @if (error(); as err) {
+        <div class="kem-error">⚠ {{ err }}</div>
+      }
+
+      <!-- Thông tin KPI -->
+      <section class="kem-section">
+        <h4 class="kem-section-title">Thông tin KPI</h4>
+        <div class="kem-grid">
+          <div class="kem-field">
+            <label for="kemCode">Mã KPI</label>
+            <div class="kem-locked">
+              <input id="kemCode" type="text" class="mono" [value]="kpi().code" disabled />
+              <span class="kem-lock" title="Mã KPI không thể thay đổi">🔒</span>
+            </div>
+          </div>
+          <div class="kem-field">
+            <label for="kemGroup">Nhóm chỉ số</label>
+            <select id="kemGroup" [ngModel]="groupId()" (ngModelChange)="groupId.set($event)">
+              @for (g of groups(); track g.id) {
+                <option [value]="g.id">{{ g.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="kem-field full">
+            <label for="kemName">Tên KPI</label>
+            <input
+              id="kemName"
+              type="text"
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
+              placeholder="Nhập tên KPI..."
+            />
+          </div>
+          <div class="kem-field full">
+            <label for="kemDesc">Mô tả</label>
+            <textarea
+              id="kemDesc"
+              rows="2"
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
+              placeholder="Mô tả mục đích và cách tính KPI..."
+            ></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- Phương pháp đo lường -->
+      <section class="kem-section kem-panel">
+        <h4 class="kem-section-title">Phương pháp đo lường</h4>
+        <div class="kem-grid">
+          <div class="kem-field">
+            <span class="kem-label">Loại</span>
+            <div class="kem-segment">
+              <button
+                type="button"
+                [class.active]="measurementType() === 'Quantitative'"
+                (click)="measurementType.set('Quantitative')"
+              >
+                @if (measurementType() === 'Quantitative') {
+                  <span class="dot">•</span>
+                }
+                Định lượng
+              </button>
+              <button
+                type="button"
+                [class.active]="measurementType() === 'Qualitative'"
+                (click)="measurementType.set('Qualitative')"
+              >
+                @if (measurementType() === 'Qualitative') {
+                  <span class="dot">•</span>
+                }
+                Định tính
+              </button>
+            </div>
+          </div>
+          <div class="kem-field">
+            <label for="kemUnit">Đơn vị</label>
+            <select id="kemUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
+              @for (u of unitOptions; track u) {
+                <option [value]="u">{{ u }}</option>
+              }
+            </select>
+          </div>
+          <div class="kem-field">
+            <span class="kem-label">Chiều hướng</span>
+            <div class="kem-radios">
+              <label class="kem-radio">
+                <input
+                  type="radio"
+                  name="kemDirection"
+                  value="HigherBetter"
+                  [ngModel]="direction()"
+                  (ngModelChange)="direction.set($event)"
+                />
+                Càng cao càng tốt
+              </label>
+              <label class="kem-radio">
+                <input
+                  type="radio"
+                  name="kemDirection"
+                  value="LowerBetter"
+                  [ngModel]="direction()"
+                  (ngModelChange)="direction.set($event)"
+                />
+                Càng thấp càng tốt
+              </label>
+            </div>
+          </div>
+          <div class="kem-field">
+            <label for="kemFormula">Công thức</label>
+            <input
+              id="kemFormula"
+              type="text"
+              class="mono"
+              [ngModel]="formula()"
+              (ngModelChange)="formula.set($event)"
+              placeholder="VD: FORMULA_SUM_DEPOSIT"
+            />
+          </div>
+        </div>
+        @if (direction() === 'HigherBetter') {
+          <p class="kem-hint">ⓘ Uncapped achievement applied (BR-40a)</p>
+        }
+      </section>
+
+      <!-- Hệ số theo sản phẩm -->
+      <section class="kem-section">
+        <div class="kem-section-head">
+          <h4 class="kem-section-title">Hệ số theo sản phẩm</h4>
+          <span class="kem-rule">BR-33</span>
+        </div>
+        <label class="kem-checkbox">
+          <input
+            type="checkbox"
+            [ngModel]="applyMultiplier()"
+            (ngModelChange)="applyMultiplier.set($event)"
+          />
+          Áp dụng hệ số sản phẩm
+        </label>
+
+        @if (applyMultiplier()) {
+          @for (m of multipliers(); track m.id ?? $index; let i = $index) {
+            <div class="kem-mult-row">
+              <select
+                [ngModel]="m.label"
+                (ngModelChange)="updateMultiplierLabel(i, $event)"
+                aria-label="Sản phẩm"
+              >
+                @if (!productOptions.includes(m.label)) {
+                  <option [value]="m.label">{{ m.label }}</option>
+                }
+                @for (p of productOptions; track p) {
+                  <option [value]="p">{{ p }}</option>
+                }
+              </select>
+              <div class="kem-stepper">
+                <button type="button" (click)="stepMultiplier(i, -1)" aria-label="Giảm">−</button>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  class="mono"
+                  [ngModel]="m.value.toFixed(1)"
+                  (ngModelChange)="updateMultiplierValue(i, $event)"
+                  aria-label="Hệ số"
+                />
+                <button type="button" (click)="stepMultiplier(i, 1)" aria-label="Tăng">+</button>
+              </div>
+              <button
+                type="button"
+                class="kem-remove"
+                (click)="removeMultiplier(i)"
+                aria-label="Xóa sản phẩm"
+              >
+                ✕
+              </button>
+            </div>
+          }
+          <button type="button" class="kem-add" (click)="addMultiplier()">+ Thêm sản phẩm</button>
+        }
+      </section>
+
+      <!-- Trọng số theo vai trò -->
+      <section class="kem-section">
+        <div class="kem-section-head">
+          <h4 class="kem-section-title">Trọng số theo vai trò</h4>
+          <span class="kem-rule">BR-06, 49</span>
+        </div>
+
+        <div class="kem-chips-wrap">
+          <div class="kem-chips" role="button" tabindex="0" (click)="toggleRoleDropdown()"
+            (keydown.enter)="toggleRoleDropdown()">
+            @for (r of roleWeights(); track r.role) {
+              <span class="kem-chip">
+                {{ r.role }}
+                <button
+                  type="button"
+                  (click)="removeRole(r.role); $event.stopPropagation()"
+                  [attr.aria-label]="'Bỏ ' + r.role"
+                >
+                  ✕
+                </button>
+              </span>
+            }
+            <span class="kem-caret">⌄</span>
+          </div>
+          @if (roleDropdownOpen() && availableRoles().length > 0) {
+            <ul class="kem-dropdown">
+              @for (r of availableRoles(); track r) {
+                <li>
+                  <button type="button" (click)="addRole(r)">{{ r }}</button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        @for (r of roleWeights(); track r.role; let i = $index) {
+          <div class="kem-weight-row">
+            <span>Trọng số {{ r.role }}</span>
+            <div class="kem-percent">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                class="mono"
+                [ngModel]="r.weight"
+                (ngModelChange)="updateRoleWeight(i, $event)"
+                [attr.aria-label]="'Trọng số ' + r.role"
+              />
+              <span>%</span>
+            </div>
+          </div>
+        }
+
+        @if (roleWeights().length > 0) {
+          @if (isWeightValid()) {
+            <div class="kem-banner success">✓ 100% total weight validation passed</div>
+          } @else {
+            <div class="kem-banner warning">
+              ⚠ Tổng trọng số hiện là {{ totalWeight() }}%. Bắt buộc phải bằng 100%.
+            </div>
+          }
+        }
+      </section>
+    </div>
+
+    <footer class="kem-footer">
+      <span class="kem-audit mono">⟳ Audit: Synced Server Time | DM-001</span>
+      <div class="kem-actions">
+        <button type="button" class="kem-btn-ghost" (click)="close()" [disabled]="saving()">
+          Hủy bỏ
+        </button>
+        <button
+          type="button"
+          class="kem-btn-primary"
+          (click)="save()"
+          [disabled]="saving() || !isWeightValid()"
+        >
+          {{ saving() ? 'Đang lưu...' : 'LƯU & BAN HÀNH CẤU HÌNH' }}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

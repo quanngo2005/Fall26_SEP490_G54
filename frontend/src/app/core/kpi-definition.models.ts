@@ -1,6 +1,7 @@
 export type KpiAggregationType = 'Sum' | 'Ratio' | 'Avg' | 'NoAggregation';
 export type KpiDirection = 'HigherBetter' | 'LowerBetter' | 'OnTarget';
 export type KpiStatus = 'Draft' | 'Active' | 'Inactive' | 'Archived';
+export type KpiMeasurementType = 'Quantitative' | 'Qualitative';
 
 export interface MultiplierItem {
   id?: string;
@@ -28,6 +29,10 @@ export interface KpiDefinition {
   maxAchievementPercent: number | null;
   status: KpiStatus;
   updatedAt: string;
+  version?: string;
+  effectiveDate?: string;
+  measurementType?: KpiMeasurementType;
+  applyProductMultiplier?: boolean;
   depositMultipliers?: MultiplierItem[];
   roleWeights?: RoleWeightItem[];
 }
