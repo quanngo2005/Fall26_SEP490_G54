@@ -16,6 +16,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IKpiMappingService, KpiMappingService>();
         services.AddScoped<IWorkTypeService, WorkTypeService>();
         services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<IStorageService, StorageService>();
+        services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
+        services.AddScoped<IEventBus, EventBus>();
+        services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
         return services;
     }
