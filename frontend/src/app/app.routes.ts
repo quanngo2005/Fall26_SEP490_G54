@@ -45,6 +45,14 @@ export const routes: Routes = [
         (m) => m.ReviewVerifyComponent,
       ),
   },
+  {
+    path: 'kpi-definitions',
+    title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
+    loadComponent: () =>
+      import('./features/kpi-definitions/kpi-definitions.component').then(
+        (m) => m.KpiDefinitionsComponent,
+      ),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];
