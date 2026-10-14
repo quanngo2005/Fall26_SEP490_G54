@@ -136,6 +136,22 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
     });
     options.OperationFilter<AuthorizeCheckOperationFilter>();
+    options.CustomSchemaIds(type =>
+    {
+        return BuildSchemaId(type);
+
+        static string BuildSchemaId(Type t)
+        {
+            if (!t.IsGenericType)
+            {
+                return t.FullName?.Replace("+", ".", StringComparison.Ordinal) ?? t.Name;
+            }
+
+            var typeDefName = t.Name[..t.Name.IndexOf('`', StringComparison.Ordinal)];
+            var args = string.Join("And", t.GetGenericArguments().Select(BuildSchemaId));
+            return $"{typeDefName}Of{args}";
+        }
+    });
 });
 
 var app = builder.Build();
