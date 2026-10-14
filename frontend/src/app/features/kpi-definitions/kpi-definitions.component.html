@@ -245,10 +245,15 @@
           <div class="header-titles">
             <div class="title-with-badge">
               <h2>Cấu hình KPI: {{ editCode() }}</h2>
-              <span class="active-status-badge">
-                <span class="dot"></span>
-                <span>Đang áp dụng</span>
-              </span>
+              <div class="header-actions">
+                <span class="active-status-badge">
+                  <span class="dot"></span>
+                  <span>Đang áp dụng</span>
+                </span>
+                <button type="button" class="btn-edit-kpi" (click)="openEditModal()">
+                  ✎ Chỉnh sửa
+                </button>
+              </div>
             </div>
             <p class="header-subtitle">
               Thiết lập thông tin, phương pháp đo lường và quy tắc phân bổ KPI.
@@ -490,6 +495,16 @@
       }
     </main>
   </div>
+
+  <!-- Edit KPI Modal -->
+  @if (isEditModalOpen() && selectedKpi(); as kpi) {
+    <app-kpi-edit-modal
+      [kpi]="kpi"
+      [groups]="groups()"
+      (closed)="closeEditModal()"
+      (saved)="onKpiEdited($event)"
+    />
+  }
 
   <!-- Create KPI Modal (SCR-STRAT-02-M1) -->
   @if (isCreateModalOpen()) {

@@ -11,11 +11,12 @@ import {
   RoleWeightItem,
 } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
+import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
 
 @Component({
   selector: 'app-kpi-definitions',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, KpiEditModalComponent],
   templateUrl: './kpi-definitions.component.html',
   styleUrls: ['./kpi-definitions.component.scss'],
 })
@@ -56,6 +57,9 @@ export class KpiDefinitionsComponent implements OnInit {
   readonly newFormula = signal<string>('');
   readonly newDescription = signal<string>('');
   readonly createError = signal<string | null>(null);
+
+  // Edit Modal state
+  readonly isEditModalOpen = signal<boolean>(false);
 
   // Toast notification
   readonly toast = signal<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -292,6 +296,23 @@ export class KpiDefinitionsComponent implements OnInit {
         this.createError.set('Không thể tạo KPI. Vui lòng kiểm tra lại dữ liệu.');
       },
     });
+  }
+
+  openEditModal(): void {
+    if (this.selectedKpi()) {
+      this.isEditModalOpen.set(true);
+    }
+  }
+
+  closeEditModal(): void {
+    this.isEditModalOpen.set(false);
+  }
+
+  onKpiEdited(updated: KpiDefinition): void {
+    this.kpis.set(this.kpis().map((item) => (item.id === updated.id ? updated : item)));
+    this.selectKpi(updated);
+    this.isEditModalOpen.set(false);
+    this.showToast('success', `Đã cập nhật và ban hành cấu hình KPI '${updated.code}'.`);
   }
 
   addMultiplier(): void {
