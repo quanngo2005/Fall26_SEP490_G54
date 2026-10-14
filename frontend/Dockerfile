@@ -9,5 +9,7 @@ FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/frontend/browser /usr/share/nginx/html
 COPY scripts/replace_env.sh /docker-entrypoint.d/40-replace-env.sh
-RUN chmod +x /docker-entrypoint.d/40-replace-env.sh
+# Strip CRLF in case the script was checked out on Windows with autocrlf.
+RUN sed -i 's/\r$//' /docker-entrypoint.d/40-replace-env.sh \
+    && chmod +x /docker-entrypoint.d/40-replace-env.sh
 EXPOSE 80
