@@ -1196,6 +1196,10 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("id");
             entity.Property(e => e.PermissionId).HasColumnName("permission_id");
             entity.Property(e => e.RoleId).HasColumnName("role_id");
+            entity.Property(e => e.Scope)
+                .HasMaxLength(50)
+                .HasDefaultValue("Own")
+                .HasColumnName("scope");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
