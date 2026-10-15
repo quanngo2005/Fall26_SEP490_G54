@@ -1,0 +1,122 @@
+<div class="kem-container" role="dialog" aria-modal="true" aria-labelledby="kcmTitle">
+  <button type="button" class="kem-backdrop" (click)="close()" aria-label="Đóng cửa sổ"></button>
+
+  <div class="kem-card">
+    <header class="kem-header">
+      <div>
+        <h3 id="kcmTitle" class="kem-title">Tạo mới KPI Definition</h3>
+        <span class="kem-subtitle">SCR-STRAT-02-M1 • Thêm chỉ số đo lường hiệu suất mới</span>
+      </div>
+      <button type="button" class="kem-close" (click)="close()" aria-label="Đóng">✕</button>
+    </header>
+
+    <div class="kem-body">
+      @if (error(); as err) {
+        <div class="kem-error">⚠ {{ err }}</div>
+      }
+
+      <section class="kem-section">
+        <div class="kem-grid">
+          <div class="kem-field">
+            <label for="kcmCode">Mã KPI *</label>
+            <input
+              id="kcmCode"
+              type="text"
+              class="mono"
+              placeholder="VD: KPI-RET-03"
+              [ngModel]="code()"
+              (ngModelChange)="code.set($event)"
+            />
+          </div>
+
+          <div class="kem-field">
+            <label for="kcmName">Tên KPI *</label>
+            <input
+              id="kcmName"
+              type="text"
+              placeholder="VD: Tăng trưởng thẻ tín dụng"
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
+            />
+          </div>
+
+          <div class="kem-field">
+            <label for="kcmGroup">Nhóm KPI</label>
+            <select id="kcmGroup" [ngModel]="groupId()" (ngModelChange)="groupId.set($event)">
+              @for (g of groups(); track g.id) {
+                <option [value]="g.id">{{ g.name }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="kem-field">
+            <label for="kcmUnit">Đơn vị</label>
+            <select id="kcmUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
+              @for (u of unitOptions; track u) {
+                <option [value]="u">{{ u }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="kem-field">
+            <label for="kcmDirection">Chiều đánh giá</label>
+            <select
+              id="kcmDirection"
+              [ngModel]="direction()"
+              (ngModelChange)="direction.set($event)"
+            >
+              <option value="HigherBetter">Càng cao càng tốt (Higher Better)</option>
+              <option value="LowerBetter">Càng thấp càng tốt (Lower Better)</option>
+              <option value="OnTarget">Đúng mục tiêu (On Target)</option>
+            </select>
+          </div>
+
+          <div class="kem-field">
+            <label for="kcmAgg">Phép tổng hợp</label>
+            <select id="kcmAgg" [ngModel]="aggregation()" (ngModelChange)="aggregation.set($event)">
+              <option value="Sum">Sum</option>
+              <option value="Ratio">Ratio</option>
+              <option value="Avg">Avg</option>
+              <option value="NoAggregation">NoAggregation</option>
+            </select>
+          </div>
+
+          <div class="kem-field full">
+            <label for="kcmFormula">Công thức</label>
+            <input
+              id="kcmFormula"
+              type="text"
+              class="mono"
+              placeholder="VD: FORMULA_CREDIT_CARD_GROWTH"
+              [ngModel]="formula()"
+              (ngModelChange)="formula.set($event)"
+            />
+          </div>
+
+          <div class="kem-field full">
+            <label for="kcmDesc">Mô tả</label>
+            <textarea
+              id="kcmDesc"
+              rows="3"
+              placeholder="Mô tả chi tiết cách tính và đối tượng áp dụng..."
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
+            ></textarea>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="kem-footer">
+      <span class="kem-audit">SCR-STRAT-02-M1</span>
+      <div>
+        <button type="button" class="kem-btn-ghost" (click)="close()" [disabled]="saving()">
+          Hủy
+        </button>
+        <button type="button" class="kem-btn-primary" (click)="submit()" [disabled]="saving()">
+          {{ saving() ? 'Đang tạo...' : 'Tạo KPI' }}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

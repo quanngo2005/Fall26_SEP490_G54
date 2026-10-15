@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
 import {
   INITIAL_MOCK_GROUPS,
   INITIAL_MOCK_KPIS,
   KpiDefinitionService,
 } from '../../core/kpi-definition.service';
+import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
 import { KpiDefinitionsComponent } from './kpi-definitions.component';
 
 describe('KpiDefinitionsComponent', () => {
@@ -145,15 +147,36 @@ describe('KpiDefinitionsComponent', () => {
     component.openCreateModal();
     expect(component.isCreateModalOpen()).toBeTrue();
 
-    component.newCode.set('KPI-NEW-99');
-    component.newName.set('Chỉ số mới');
-    component.newGroupId.set('grp-001');
+    fixture.detectChanges();
 
-    component.submitCreateKpi();
+    const modal = fixture.debugElement.query(By.directive(KpiCreateModalComponent))
+      .componentInstance as KpiCreateModalComponent;
+    modal.code.set('KPI-NEW-99');
+    modal.name.set('Chỉ số mới');
+    modal.groupId.set('grp-001');
+
+    modal.submit();
+    fixture.detectChanges();
 
     expect(mockService.createKpi).toHaveBeenCalled();
     expect(component.isCreateModalOpen()).toBeFalse();
     expect(component.kpis().some((k) => k.code === 'KPI-NEW-99')).toBeTrue();
     expect(component.selectedKpi()?.code).toBe('KPI-NEW-99');
+  });
+
+  it('should reject a duplicate KPI code in the create modal', () => {
+    component.openCreateModal();
+    fixture.detectChanges();
+
+    const modal = fixture.debugElement.query(By.directive(KpiCreateModalComponent))
+      .componentInstance as KpiCreateModalComponent;
+    modal.code.set('KPI-RET-01');
+    modal.name.set('Trùng mã');
+
+    modal.submit();
+
+    expect(mockService.createKpi).not.toHaveBeenCalled();
+    expect(modal.error()).toContain('KPI-RET-01');
+    expect(component.isCreateModalOpen()).toBeTrue();
   });
 });
