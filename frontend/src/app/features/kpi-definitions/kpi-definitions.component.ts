@@ -11,12 +11,13 @@ import {
   RoleWeightItem,
 } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
+import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
 import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
 
 @Component({
   selector: 'app-kpi-definitions',
   standalone: true,
-  imports: [CommonModule, FormsModule, KpiEditModalComponent],
+  imports: [CommonModule, FormsModule, KpiCreateModalComponent, KpiEditModalComponent],
   templateUrl: './kpi-definitions.component.html',
   styleUrls: ['./kpi-definitions.component.scss'],
 })
@@ -48,15 +49,6 @@ export class KpiDefinitionsComponent implements OnInit {
 
   // Create Modal state
   readonly isCreateModalOpen = signal<boolean>(false);
-  readonly newCode = signal<string>('');
-  readonly newName = signal<string>('');
-  readonly newGroupId = signal<string>('');
-  readonly newUnit = signal<string>('VND');
-  readonly newDirection = signal<KpiDirection>('HigherBetter');
-  readonly newAggregation = signal<KpiAggregationType>('Sum');
-  readonly newFormula = signal<string>('');
-  readonly newDescription = signal<string>('');
-  readonly createError = signal<string | null>(null);
 
   // Edit Modal state
   readonly isEditModalOpen = signal<boolean>(false);
@@ -82,6 +74,8 @@ export class KpiDefinitionsComponent implements OnInit {
       return matchQuery && matchGroup;
     });
   });
+
+  readonly existingCodes = computed(() => this.kpis().map((k) => k.code));
 
   readonly totalRoleWeight = computed(() => {
     return this.roleWeights().reduce((acc, curr) => acc + (Number(curr.weight) || 0), 0);
@@ -228,15 +222,6 @@ export class KpiDefinitionsComponent implements OnInit {
   }
 
   openCreateModal(): void {
-    this.newCode.set('KPI-');
-    this.newName.set('');
-    this.newGroupId.set(this.groups()[0]?.id ?? '');
-    this.newUnit.set('VND');
-    this.newDirection.set('HigherBetter');
-    this.newAggregation.set('Sum');
-    this.newFormula.set('');
-    this.newDescription.set('');
-    this.createError.set(null);
     this.isCreateModalOpen.set(true);
   }
 
@@ -244,58 +229,11 @@ export class KpiDefinitionsComponent implements OnInit {
     this.isCreateModalOpen.set(false);
   }
 
-  submitCreateKpi(): void {
-    const code = this.newCode().trim().toUpperCase();
-    const name = this.newName().trim();
-
-    if (!code || code === 'KPI-') {
-      this.createError.set('Vui lòng nhập Mã KPI hợp lệ (VD: KPI-RET-03).');
-      return;
-    }
-    if (!name) {
-      this.createError.set('Vui lòng nhập Tên KPI.');
-      return;
-    }
-
-    if (this.kpis().some((k) => k.code.toUpperCase() === code)) {
-      this.createError.set(`Mã KPI '${code}' đã tồn tại trong hệ thống.`);
-      return;
-    }
-
-    const payload: KpiDefinitionSavePayload = {
-      code,
-      name,
-      kpiGroupId: this.newGroupId() || (this.groups()[0]?.id ?? ''),
-      unit: this.newUnit(),
-      direction: this.newDirection(),
-      aggregationType: this.newAggregation(),
-      formula: this.newFormula().trim() || null,
-      description: this.newDescription().trim() || null,
-      maxAchievementPercent: 150,
-    };
-
-    this.kpiService.createKpi(payload).subscribe({
-      next: (res) => {
-        const created: KpiDefinition = {
-          ...res.data,
-          kpiGroupName:
-            this.groups().find((g) => g.id === payload.kpiGroupId)?.name ?? 'Kinh doanh',
-          depositMultipliers: [],
-          roleWeights: [
-            { id: 'rw-c1', role: 'Teller', weight: 40 },
-            { id: 'rw-c2', role: 'RBO', weight: 60 },
-          ],
-        };
-
-        this.kpis.set([created, ...this.kpis()]);
-        this.selectKpi(created);
-        this.closeCreateModal();
-        this.showToast('success', `Đã tạo KPI mới '${code}' thành công.`);
-      },
-      error: () => {
-        this.createError.set('Không thể tạo KPI. Vui lòng kiểm tra lại dữ liệu.');
-      },
-    });
+  onKpiCreated(created: KpiDefinition): void {
+    this.kpis.set([created, ...this.kpis()]);
+    this.selectKpi(created);
+    this.isCreateModalOpen.set(false);
+    this.showToast('success', `Đã tạo KPI mới '${created.code}' thành công.`);
   }
 
   openEditModal(): void {
