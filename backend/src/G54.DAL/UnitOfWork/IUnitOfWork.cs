@@ -18,6 +18,8 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IRepository<Verification> Verifications { get; }
     IRepository<WorkTypeKpi> WorkTypeKpis { get; }
     IRepository<KpiDefinition> KpiDefinitions { get; }
+    IRepository<Department> Departments { get; }
+    IRepository<JobPosition> JobPositions { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;
 

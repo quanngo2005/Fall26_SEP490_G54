@@ -21,6 +21,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
         return services;
     }
 }
