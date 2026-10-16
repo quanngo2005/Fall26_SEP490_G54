@@ -174,14 +174,33 @@ app-employee-profile {
   .language-button {
     height: 27px;
     padding: 0 8px;
-    border: 0;
+    border: 1px solid #dcdfe4;
     border-radius: 4px;
     background: #f2f4f6;
     font:
-      700 9px 'JetBrains Mono',
+      700 10px 'JetBrains Mono',
       Consolas,
       monospace;
     white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+
+    &:hover {
+      background: #e4e7eb;
+      border-color: #cbd0d7;
+    }
+
+    .active-locale {
+      color: #004b87;
+      font-weight: 800;
+      text-decoration: underline;
+    }
+
+    .locale-sep {
+      color: #9aa0a6;
+    }
   }
   .header-icon,
   .account-button {

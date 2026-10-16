@@ -19,6 +19,7 @@ export interface WorkPreviewItem {
   priorityTone: SemanticTone;
   deadline: string;
   deadlineNote: string;
+  dueDate?: string;
   status: string;
   statusTone: SemanticTone;
   progress: number;
@@ -31,6 +32,9 @@ export interface EmployeeKpiItem {
   weight: string;
   target: string;
   actual: string;
+  targetValue?: number;
+  actualValue?: number;
+  isCurrency?: boolean;
   progress: number;
   progressText: string;
   source: string;
@@ -44,6 +48,7 @@ export interface PerformanceReview {
   score: string;
   grade: string;
   gradeTone: SemanticTone;
+  reviewDate?: string;
   status?: string;
   description: string;
   managerNote?: string;
@@ -51,6 +56,7 @@ export interface PerformanceReview {
 
 export interface AuditEvent {
   time: string;
+  eventDate?: string;
   kind: string;
   title: string;
   detail: string;
@@ -71,6 +77,7 @@ export interface EmployeeProfilePageData {
     contract: string;
     status: string;
     branchCode: string;
+    joinDate?: string;
   };
   navigation: EmployeeNavigationGroup[];
   workPreview: WorkPreviewItem[];
