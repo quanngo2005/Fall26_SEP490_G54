@@ -47,6 +47,7 @@ services:
       BootstrapAdmin__Enabled: ${BOOTSTRAP_ADMIN_ENABLED:-false}
       BootstrapAdmin__Email: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      SeedData__DemoPassword: ${SEED_DEMO_PASSWORD:-}
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bpms_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
     depends_on:
       postgres:
