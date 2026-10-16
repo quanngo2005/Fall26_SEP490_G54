@@ -20,7 +20,7 @@ public interface IResultSubmissionService
         Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task<SubmissionDetailDto?> GetSubmissionByIdAsync(
+    Task<SubmissionDetailDto> GetSubmissionByIdAsync(
         Guid submissionId,
         Guid userId,
         CancellationToken cancellationToken = default);

@@ -4,7 +4,7 @@ namespace G54.BLL.Services;
 
 public interface IVerificationService
 {
-    Task<VerificationDossierDto?> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default);
+    Task<VerificationDossierDto> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
     Task<VerificationDecisionResultDto> SubmitDecisionAsync(
         Guid submissionId,
