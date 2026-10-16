@@ -1,3 +1,5 @@
+using Serilog.Context;
+
 namespace G54.Api.Middleware;
 
 public sealed class TraceIdMiddleware(RequestDelegate next)
@@ -18,6 +20,10 @@ public sealed class TraceIdMiddleware(RequestDelegate next)
             return Task.CompletedTask;
         });
 
-        await next(context);
+        using (LogContext.PushProperty("TraceId", context.TraceIdentifier))
+        {
+            await next(context);
+        }
     }
 }
+
