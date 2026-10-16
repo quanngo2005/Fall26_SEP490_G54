@@ -14,6 +14,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     contract: 'HĐ Không thời hạn',
     status: 'Đang làm việc (Active)',
     branchCode: 'BR-02',
+    joinDate: '2023-03-15',
   },
   navigation: [
     {
@@ -52,6 +53,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       priorityTone: 'red',
       deadline: 'Còn 04 giờ 20p',
       deadlineNote: '18:00 hôm nay',
+      dueDate: '2026-10-16T18:00:00',
       status: 'Cần sửa đổi (Revision)',
       statusTone: 'amber',
       progress: 60,
@@ -65,6 +67,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       priorityTone: 'amber',
       deadline: 'Còn 2 ngày',
       deadlineNote: '28/10/2026',
+      dueDate: '2026-10-28T18:00:00',
       status: 'Chờ duyệt (Review)',
       statusTone: 'blue',
       progress: 100,
@@ -78,6 +81,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       priorityTone: 'neutral',
       deadline: 'Còn 4 ngày',
       deadlineNote: '30/10/2026',
+      dueDate: '2026-10-30T18:00:00',
       status: 'Đang thực hiện',
       statusTone: 'neutral',
       progress: 25,
@@ -91,6 +95,9 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       weight: '30%',
       target: '350.0 Triệu VND',
       actual: '315.2 Triệu VND',
+      targetValue: 350000000,
+      actualValue: 315200000,
+      isCurrency: true,
       progress: 90,
       progressText: '90.0%',
       source: 'Core Banking GL Auto-verified',
@@ -102,6 +109,9 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       weight: '25%',
       target: '45.0 Tỷ VND',
       actual: '38.5 Tỷ VND',
+      targetValue: 45000000000,
+      actualValue: 38500000000,
+      isCurrency: true,
       progress: 85.5,
       progressText: '85.5%',
       source: 'Hệ thống LOS (4 hợp đồng giải ngân)',
@@ -113,6 +123,9 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
       weight: '20%',
       target: '18.0 Tỷ VND',
       actual: '19.2 Tỷ VND',
+      targetValue: 18000000000,
+      actualValue: 19200000000,
+      isCurrency: true,
       progress: 100,
       progressText: '106.6%',
       source: 'Vượt chỉ tiêu (+6.6%)',
@@ -144,6 +157,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
   reviews: [
     {
       period: 'Kỳ đánh giá: Tháng 10/2026',
+      reviewDate: '2026-10-31',
       state: 'Dự kiến',
       stateTone: 'blue',
       score: '84.2 Điểm',
@@ -155,6 +169,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     },
     {
       period: 'Kỳ đánh giá: Quý 2/2026',
+      reviewDate: '2026-06-30',
       state: 'Đã chốt (Finalized)',
       stateTone: 'green',
       score: '88.5 Điểm',
@@ -166,6 +181,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     },
     {
       period: 'Kỳ đánh giá: Quý 1/2026',
+      reviewDate: '2026-03-31',
       state: 'Đã chốt (Finalized)',
       stateTone: 'green',
       score: '82.0 Điểm',
@@ -178,6 +194,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
   auditLog: [
     {
       time: '14:15 hôm nay',
+      eventDate: '2026-10-16T14:15:00',
       kind: 'Thao tác cán bộ',
       title: 'Nộp kết quả thẩm định cho công việc #WRK-202610-0115',
       detail: 'Gửi tới: Bộ phận Phê duyệt Độc lập',
@@ -185,6 +202,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     },
     {
       time: '09:30 hôm nay',
+      eventDate: '2026-10-16T09:30:00',
       kind: 'Phản hồi quản lý',
       title: 'Yêu cầu bổ sung sao kê dòng tiền cho hồ sơ #WRK-202610-0102 từ Trưởng phòng',
       detail: 'Ghi chú: “Bổ sung đối soát Q3/2026 trước 18:00”',
@@ -192,6 +210,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     },
     {
       time: 'Hôm qua, 16:45',
+      eventDate: '2026-10-15T16:45:00',
       kind: 'Hệ thống xác thực',
       title: 'Kết quả tư vấn tiền gửi được duyệt, tự động cộng +16.8 điểm vào KPI CASA tháng 10.',
       detail: '',
@@ -200,6 +219,7 @@ export const EMPLOYEE_PROFILE: EmployeeProfilePageData = {
     },
     {
       time: '03/10/2026',
+      eventDate: '2026-10-03T08:00:00',
       kind: 'Điều phối chiến dịch',
       title: 'Được phân công công việc mới từ Chiến dịch Khách hàng Chiến lược Q4/2026',
       detail: 'Giao bởi: Khối Bán hàng & Dịch vụ',

@@ -1,0 +1,518 @@
+<div class="kpi-workspace-root">
+  <!-- Toast notification -->
+  @if (toast(); as t) {
+    <div class="toast-banner" [ngClass]="'toast-' + t.type">
+      <span class="toast-icon">
+        @if (t.type === 'success') {
+          ✔
+        } @else if (t.type === 'error') {
+          ✕
+        } @else {
+          ℹ
+        }
+      </span>
+      <span class="toast-text">{{ t.message }}</span>
+    </div>
+  }
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-icon">🏛️</span>
+        <span class="brand-title">BPMS</span>
+        <span class="brand-subtitle">BANKING WORKSPACE</span>
+      </div>
+    </div>
+
+    <div class="topbar-search">
+      <div class="search-field">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          placeholder="Tìm kiếm trong workspace..."
+          aria-label="Tìm kiếm trong workspace"
+        />
+        <kbd class="search-kbd">⌘ K</kbd>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button class="icon-button" type="button" aria-label="Thông báo">
+        <span class="bell-icon">🔔</span>
+        <span class="notification-dot"></span>
+      </button>
+
+      <div class="user-pill">
+        <div class="avatar-badge">TB</div>
+        <div class="user-info">
+          <span class="user-name">Tran Van B</span>
+          <span class="user-role">Trưởng phòng</span>
+        </div>
+        <span class="dropdown-arrow">˅</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace-layout">
+    <!-- Left Sidebar (Navigation) -->
+    <aside class="sidebar">
+      <div class="dept-workspace-card">
+        <span class="dept-workspace-label">DEPARTMENT WORKSPACE</span>
+        <div class="dept-workspace-select">
+          <div class="dept-info">
+            <strong>Quản lý phòng ban</strong>
+            <small>DEPT_MANAGER • DM-002</small>
+          </div>
+          <span class="switch-icon">⇅</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-group">
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">⊞</span>
+            <span>Tổng quan</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">💼</span>
+            <span>Công việc của phòng</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">📋</span>
+            <span>Phê duyệt</span>
+          </a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-section-title">CHIẾN LƯỢC & HIỆU SUẤT</span>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">🎯</span>
+            <span>Mục tiêu chiến lược</span>
+          </a>
+          <a class="nav-link active" href="javascript:void(0)">
+            <span class="nav-icon">🎛</span>
+            <span>KPI Definitions</span>
+            <span class="active-dot">•</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">⚖</span>
+            <span>Phân bổ KPI</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">📊</span>
+            <span>Báo cáo hiệu suất</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a class="nav-link" href="javascript:void(0)">
+          <span class="nav-icon">❓</span>
+          <span>Trợ giúp</span>
+        </a>
+        <a class="nav-link" href="javascript:void(0)">
+          <span class="nav-icon">⚙</span>
+          <span>Cài đặt</span>
+        </a>
+        <div class="system-status">
+          <span class="status-indicator"></span>
+          <span>Hệ thống đang hoạt động</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Catalog Column (KPI List) -->
+    <section class="catalog-panel">
+      <div class="catalog-header">
+        <span class="screen-code">SCR-STRAT-02</span>
+        <h1 class="catalog-title">KPI Definitions</h1>
+        <p class="catalog-desc">Danh mục chỉ số và cấu hình đo lường hiệu suất.</p>
+      </div>
+
+      <!-- Filters & Actions -->
+      <div class="catalog-controls">
+        <div class="filter-input-wrap">
+          <span class="input-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Tìm mã/tên KPI..."
+            [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)"
+            aria-label="Tìm mã hoặc tên KPI"
+          />
+        </div>
+
+        <div class="filter-select-wrap">
+          <select
+            [ngModel]="groupFilter()"
+            (ngModelChange)="groupFilter.set($event)"
+            aria-label="Lọc theo nhóm KPI"
+          >
+            <option value="all">Tất cả nhóm</option>
+            @for (g of groups(); track g.id) {
+              <option [value]="g.id">{{ g.name }}</option>
+            }
+          </select>
+        </div>
+
+        <button type="button" class="btn-create-kpi" (click)="openCreateModal()">
+          <span>+ Tạo KPI Mới</span>
+        </button>
+      </div>
+
+      <!-- List Count Header -->
+      <div class="catalog-count-row">
+        <span class="catalog-label">DANH MỤC KPI</span>
+        <span class="count-badge">
+          {{ filteredKpis().length < 10 ? '0' + filteredKpis().length : filteredKpis().length }} KPI
+        </span>
+      </div>
+
+      <!-- Cards List -->
+      <div class="kpi-cards-scroll">
+        @if (loading()) {
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <span>Đang tải danh mục KPI...</span>
+          </div>
+        } @else if (filteredKpis().length === 0) {
+          <div class="empty-state">
+            <span class="empty-icon">📂</span>
+            <strong>Không tìm thấy KPI phù hợp</strong>
+            <p>Vui lòng thử tìm với từ khóa khác hoặc xóa bộ lọc.</p>
+            <button
+              type="button"
+              class="btn-reset-filter"
+              (click)="searchTerm.set(''); groupFilter.set('all')"
+            >
+              Đặt lại bộ lọc
+            </button>
+          </div>
+        } @else {
+          <div class="kpi-cards-list">
+            @for (item of filteredKpis(); track item.id) {
+              <div
+                class="kpi-card"
+                role="button"
+                tabindex="0"
+                [class.selected]="selectedKpi()?.id === item.id"
+                (click)="selectKpi(item)"
+                (keydown.enter)="selectKpi(item)"
+                (keydown.space)="selectKpi(item)"
+              >
+                <div class="card-top-row">
+                  <span class="kpi-code-pill">{{ item.code }}</span>
+                  @if (selectedKpi()?.id === item.id) {
+                    <span class="card-status-icon selected-check">✔</span>
+                  } @else {
+                    <span class="card-status-icon arrow-icon">↗</span>
+                  }
+                </div>
+
+                <div class="card-name-row">
+                  <strong class="kpi-name">{{ item.name }}</strong>
+                </div>
+
+                <div class="card-bottom-row">
+                  @if (item.direction === 'HigherBetter') {
+                    <span class="direction-badge higher"> <i>↗</i> Higher Better </span>
+                  } @else if (item.direction === 'LowerBetter') {
+                    <span class="direction-badge lower"> <i>↘</i> Lower Better </span>
+                  } @else {
+                    <span class="direction-badge target"> <i>•</i> On Target </span>
+                  }
+
+                  <span class="group-name">{{ item.kpiGroupName }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Bottom Tip -->
+      <div class="catalog-tip">
+        <span class="tip-icon">ℹ</span>
+        <span>Chọn một thẻ KPI để xem và cập nhật cấu hình.</span>
+      </div>
+    </section>
+
+    <!-- Main Detail & Configuration Area -->
+    <main class="config-workspace">
+      @if (selectedKpi(); as kpi) {
+        <div class="workspace-header">
+          <div class="header-titles">
+            <div class="title-with-badge">
+              <h2>Cấu hình KPI: {{ editCode() }}</h2>
+              <div class="header-actions">
+                <span class="active-status-badge">
+                  <span class="dot"></span>
+                  <span>Đang áp dụng</span>
+                </span>
+                <button type="button" class="btn-edit-kpi" (click)="openEditModal()">
+                  ✎ Chỉnh sửa
+                </button>
+              </div>
+            </div>
+            <p class="header-subtitle">
+              Thiết lập thông tin, phương pháp đo lường và quy tắc phân bổ KPI.
+            </p>
+          </div>
+        </div>
+
+        <div class="workspace-scrollable">
+          <!-- Card 1: Thông tin KPI -->
+          <div class="form-card">
+            <h3 class="card-title">Thông tin KPI</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="kpiCodeInput">Mã KPI</label>
+                <div class="input-with-lock">
+                  <input id="kpiCodeInput" type="text" [value]="editCode()" disabled />
+                  <span class="lock-icon" title="Mã KPI là định danh duy nhất không thể đổi"
+                    >🔒</span
+                  >
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="kpiNameInput">Tên KPI <span class="required">*</span></label>
+                <input
+                  id="kpiNameInput"
+                  type="text"
+                  [ngModel]="editName()"
+                  (ngModelChange)="editName.set($event)"
+                  placeholder="Nhập tên KPI..."
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="kpiGroupSelect">Nhóm KPI</label>
+                <select
+                  id="kpiGroupSelect"
+                  [ngModel]="editGroupId()"
+                  (ngModelChange)="editGroupId.set($event)"
+                >
+                  @for (g of groups(); track g.id) {
+                    <option [value]="g.id">{{ g.name }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group full-width">
+                <label for="kpiDescTextarea">Mô tả</label>
+                <textarea
+                  id="kpiDescTextarea"
+                  rows="2"
+                  [ngModel]="editDescription()"
+                  (ngModelChange)="editDescription.set($event)"
+                  placeholder="Mô tả mục đích và cách tính KPI..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Phương pháp đo lường -->
+          <div class="form-card">
+            <h3 class="card-title">Phương pháp đo lường</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="kpiUnitSelect">Đơn vị</label>
+                <select
+                  id="kpiUnitSelect"
+                  [ngModel]="editUnit()"
+                  (ngModelChange)="editUnit.set($event)"
+                >
+                  <option value="VND">VND</option>
+                  <option value="%">%</option>
+                  <option value="Giao dịch">Giao dịch</option>
+                  <option value="Hồ sơ">Hồ sơ</option>
+                  <option value="Điểm">Điểm</option>
+                  <option value="Số lượng">Số lượng</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <span class="label-text">Chiều đánh giá</span>
+                <div class="segmented-control">
+                  <button
+                    type="button"
+                    class="segment-btn"
+                    [class.active]="editDirection() === 'HigherBetter'"
+                    (click)="setDirection('HigherBetter')"
+                  >
+                    • Càng cao càng tốt
+                  </button>
+                  <button
+                    type="button"
+                    class="segment-btn"
+                    [class.active]="editDirection() === 'LowerBetter'"
+                    (click)="setDirection('LowerBetter')"
+                  >
+                    Càng thấp càng tốt
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="kpiAggSelect">Phép tổng hợp</label>
+                <select
+                  id="kpiAggSelect"
+                  [ngModel]="editAggregationType()"
+                  (ngModelChange)="editAggregationType.set($event)"
+                >
+                  <option value="Sum">Sum</option>
+                  <option value="Ratio">Ratio</option>
+                  <option value="Avg">Avg</option>
+                  <option value="NoAggregation">NoAggregation</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="kpiFormulaInput">Công thức</label>
+                <input
+                  id="kpiFormulaInput"
+                  type="text"
+                  [ngModel]="editFormula()"
+                  (ngModelChange)="editFormula.set($event)"
+                  placeholder="Ví dụ: FORMULA_SUM_DEPOSIT"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Hệ số nhân theo loại tiền gửi -->
+          <div class="form-card">
+            <div class="card-header-with-badge">
+              <h3 class="card-title">Hệ số nhân theo loại tiền gửi</h3>
+              <span class="rule-badge">BR-33</span>
+            </div>
+
+            <div class="dynamic-rows-list">
+              @for (item of depositMultipliers(); track item.id || $index; let idx = $index) {
+                <div class="dynamic-row">
+                  <span class="row-label">{{ item.label }}</span>
+                  <div class="row-input-box">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      [ngModel]="item.value"
+                      (ngModelChange)="updateMultiplierValue(idx, $event)"
+                      aria-label="Giá trị hệ số"
+                    />
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Card 4: Trọng số theo vai trò -->
+          <div class="form-card">
+            <div class="card-header-with-badge">
+              <h3 class="card-title">Trọng số theo vai trò</h3>
+              <span class="rule-badge">BR-06/49</span>
+            </div>
+
+            <div class="dynamic-rows-list">
+              @for (item of roleWeights(); track item.id || $index; let idx = $index) {
+                <div class="dynamic-row">
+                  <span class="row-label">{{ item.role }}</span>
+                  <div class="row-input-box with-unit">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      max="100"
+                      [ngModel]="item.weight"
+                      (ngModelChange)="updateRoleWeightValue(idx, $event)"
+                      aria-label="Trọng số phần trăm"
+                    />
+                    <span class="unit-tag">%</span>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Weight Validation Banner -->
+            @if (isWeightValid()) {
+              <div class="validation-banner success">
+                <span class="banner-icon">✔</span>
+                <span>Total weight validation passed (100%)</span>
+              </div>
+            } @else {
+              <div class="validation-banner warning">
+                <span class="banner-icon">⚠</span>
+                <span>
+                  Tổng trọng số hiện tại là {{ totalRoleWeight() }}%. Bắt buộc phải bằng đúng 100%
+                  theo quy tắc BR-06/49.
+                </span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Sticky Footer Action Bar -->
+        <footer class="workspace-footer">
+          <div class="audit-info">
+            <span class="sync-icon">🔄</span>
+            <span class="sync-text">Đồng bộ với máy chủ</span>
+            <span class="audit-details">Audit: Synced Server Time | DM-002</span>
+          </div>
+
+          <div class="footer-actions">
+            <button
+              type="button"
+              class="btn-cancel"
+              (click)="cancelChanges()"
+              [disabled]="saving() || !isDirty()"
+            >
+              Hủy Thay Đổi
+            </button>
+
+            <button
+              type="button"
+              class="btn-save"
+              (click)="saveConfig()"
+              [disabled]="saving() || !isWeightValid()"
+            >
+              @if (saving()) {
+                <span class="mini-spinner"></span>
+                <span>Đang lưu...</span>
+              } @else {
+                <span>💾 LƯU CẤU HÌNH</span>
+              }
+            </button>
+          </div>
+        </footer>
+      } @else {
+        <div class="no-selection-state">
+          <span class="no-sel-icon">📋</span>
+          <h3>Chưa chọn KPI nào</h3>
+          <p>Vui lòng chọn một KPI từ danh mục bên trái để xem và chỉnh sửa cấu hình.</p>
+        </div>
+      }
+    </main>
+  </div>
+
+  <!-- Edit KPI Modal -->
+  @if (isEditModalOpen() && selectedKpi(); as kpi) {
+    <app-kpi-edit-modal
+      [kpi]="kpi"
+      [groups]="groups()"
+      (closed)="closeEditModal()"
+      (saved)="onKpiEdited($event)"
+    />
+  }
+
+  <!-- Create KPI Modal (SCR-STRAT-02-M1) -->
+  @if (isCreateModalOpen()) {
+    <app-kpi-create-modal
+      [groups]="groups()"
+      [existingCodes]="existingCodes()"
+      (closed)="closeCreateModal()"
+      (created)="onKpiCreated($event)"
+    />
+  }
+</div>

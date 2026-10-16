@@ -50,6 +50,18 @@ var passwordEncoder = scope.ServiceProvider.GetRequiredService<IPasswordEncoder>
 var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
 Console.WriteLine("Seeding master data (departments, positions, employees, accounts, KPIs, work types)...");
 await seeder.SeedAsync(passwordEncoder.Encode);
+
+if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
+{
+    var demoPassword = Environment.GetEnvironmentVariable("SeedData__DemoPassword");
+    var demoPasswordHash = string.IsNullOrEmpty(demoPassword)
+        ? null
+        : passwordEncoder.Encode(demoPassword);
+    await seeder.SeedFromSqlAsync(demoPasswordHash);
+    Console.WriteLine(demoPasswordHash is null
+        ? "Development seed data applied (no demo accounts: SeedData__DemoPassword not set)."
+        : "Development seed data and demo accounts applied.");
+}
 if (bootstrapAdminEnabled)
 {
     await seeder.SeedDevelopmentAdminAsync(

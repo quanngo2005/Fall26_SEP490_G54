@@ -66,3 +66,8 @@ nunit-*.xml
 .agents/
 GEMINI.md
 .gemini/
+/.claude
+CLAUDE.md
+AGENTS.md
+AGENTS.md
+/diagrams
