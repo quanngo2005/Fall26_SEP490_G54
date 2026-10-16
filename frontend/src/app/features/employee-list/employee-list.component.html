@@ -1,0 +1,497 @@
+<app-shell activeKey="employees">
+  <div class="employee-page">
+    <!-- Top toolbar & actions -->
+    <header class="page-header">
+      <div class="breadcrumb-trail">
+        <nav aria-label="Đường dẫn điều hướng">
+          <ol class="breadcrumb">
+            <li><span class="icon" aria-hidden="true">▦</span> Tổ chức</li>
+            <li><span>›</span></li>
+            <li>
+              <button type="button" class="link-btn" (click)="navigateToDepartment('dept-pkh-cn')">
+                Phòng ban
+              </button>
+            </li>
+            @if (data()?.filterOptions?.departments; as depts) {
+              @for (d of depts; track d.id) {
+                @if (selectedDepartment() === d.id) {
+                  <li><span>›</span></li>
+                  <li>
+                    <button type="button" class="link-btn" (click)="navigateToDepartment(d.id)">
+                      {{ d.name }} ({{ d.code }})
+                    </button>
+                  </li>
+                }
+              }
+            }
+            <li><span>›</span></li>
+            <li aria-current="page" class="active">Danh bạ Cán bộ</li>
+          </ol>
+        </nav>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="btn btn--secondary" (click)="exportReport()">
+          <span aria-hidden="true">↓</span> Xuất Excel / Báo cáo
+        </button>
+
+        <div class="dropdown-wrap">
+          <button
+            type="button"
+            class="btn btn--secondary"
+            [attr.aria-expanded]="isMenuOpen()"
+            (click)="toggleAdminMenu()"
+          >
+            <span aria-hidden="true">⚙</span> Thao tác quản trị ▾
+          </button>
+          @if (isMenuOpen()) {
+            <div class="dropdown-menu" role="menu">
+              <button type="button" role="menuitem" (click)="syncHrms()">
+                ⟳ Đồng bộ tức thì HRMS
+              </button>
+              <button type="button" role="menuitem" (click)="isMenuOpen.set(false); exportReport()">
+                ⊙ Kết xuất danh sách phân công
+              </button>
+            </div>
+          }
+        </div>
+
+        <button type="button" class="btn btn--primary" (click)="openAddModal()">
+          <span aria-hidden="true">+</span> Thêm Cán bộ Nhân sự
+        </button>
+      </div>
+    </header>
+
+    <!-- Screen Title & Meta -->
+    <section class="title-banner" aria-labelledby="screen-title">
+      <div class="title-main">
+        <div class="title-row">
+          <h1 id="screen-title">Danh sách Cán bộ Nhân viên</h1>
+          <span class="screen-chip">SCR-EMP-VIEW-01</span>
+        </div>
+        <p class="subtitle">
+          <strong>{{ data()?.total ?? 0 }} cán bộ nhân viên</strong> trong phạm vi quản lý:
+          <span class="highlight">{{
+            data()?.scopeInfo?.description ?? 'Phòng Khách hàng Cá nhân & Khối Bán lẻ'
+          }}</span>
+        </p>
+      </div>
+
+      <div class="scope-badges">
+        <span class="scope-pill">
+          <i class="check-icon" aria-hidden="true">✓</i> Scope:
+          {{ data()?.scopeInfo?.scopeName ?? 'Department & Subtree' }}
+        </span>
+        <span class="sync-pill">
+          <i class="sync-icon" aria-hidden="true">⟳</i> Đồng bộ HRMS:
+          {{ data()?.scopeInfo?.syncTime ?? 'Hôm nay 14:30:20' }}
+        </span>
+      </div>
+    </section>
+
+    <!-- Summary Metrics Grid -->
+    @if (viewState() === 'loading') {
+      <div class="summary-grid">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="card summary-card skeleton-box">
+            <app-skeleton width="50%" height="14px" />
+            <app-skeleton width="40%" height="32px" />
+            <app-skeleton width="70%" height="12px" />
+          </div>
+        }
+      </div>
+    } @else if (data()?.metrics; as metrics) {
+      <section class="summary-grid" aria-label="Thống kê nhân sự">
+        <button
+          type="button"
+          class="card summary-card"
+          [class.card--active]="!selectedStatus()"
+          (click)="selectedStatus.set(''); updateQueryParams()"
+        >
+          <div class="card-head">
+            <span class="card-label">TỔNG SỐ CÁN BỘ</span>
+            <span class="card-icon card-icon--neutral" aria-hidden="true">👥</span>
+          </div>
+          <div class="card-value mono">{{ metrics.total }}</div>
+          <div class="card-footer">
+            Chỉ tiêu định biên: <strong>{{ metrics.targetQuota }}</strong>
+            <span class="rate-badge">{{ metrics.quotaPercent }}%</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="card summary-card"
+          [class.card--active]="selectedStatus() === 'active'"
+          (click)="selectStatusCard('active')"
+        >
+          <div class="card-head">
+            <span class="card-label">ĐANG LÀM VIỆC</span>
+            <span class="card-icon card-icon--green" aria-hidden="true">✓</span>
+          </div>
+          <div class="card-value mono">{{ metrics.active }}</div>
+          <div class="card-footer card-footer--success">
+            <span class="status-dot"></span> Khả dụng trực tiếp
+            <strong>{{ metrics.activePercent }}%</strong>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="card summary-card"
+          [class.card--active]="selectedStatus() === 'on_leave'"
+          (click)="selectStatusCard('on_leave')"
+        >
+          <div class="card-head">
+            <span class="card-label">NGHỈ PHÉP / TẠM HOÃN</span>
+            <span class="card-icon card-icon--neutral" aria-hidden="true">📅</span>
+          </div>
+          <div class="card-value mono">
+            {{ metrics.onLeave < 10 ? '0' + metrics.onLeave : metrics.onLeave }}
+          </div>
+          <div class="card-footer">
+            {{ metrics.onLeaveMaternity }} Thai sản • {{ metrics.onLeaveAnnual }} Phép năm
+            <span class="rate-badge">{{ metrics.onLeavePercent }}%</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="card summary-card"
+          [class.card--active]="selectedStatus() === 'probation'"
+          (click)="selectStatusCard('probation')"
+        >
+          <div class="card-head">
+            <span class="card-label">CHỜ NHẬN / THỬ VIỆC</span>
+            <span class="card-icon card-icon--amber" aria-hidden="true">⏳</span>
+          </div>
+          <div class="card-value mono">
+            {{ metrics.probation < 10 ? '0' + metrics.probation : metrics.probation }}
+          </div>
+          <div class="card-footer card-footer--warning">
+            {{ metrics.probationApprentice }} Tập sự • {{ metrics.probationContractPending }} Chờ ký
+            HĐ
+            <span class="highlight-tag">Tập sự Q1</span>
+          </div>
+        </button>
+      </section>
+    }
+
+    <!-- Position Distribution Pills -->
+    @if (data()?.positionDistribution; as dist) {
+      <section class="card position-distribution" aria-label="Cơ cấu chức danh">
+        <span class="dist-label"><span aria-hidden="true">◫</span> CƠ CẤU CHỨC DANH:</span>
+        <div class="dist-pills" role="tablist">
+          @for (item of dist; track item.positionId) {
+            <button
+              type="button"
+              class="dist-pill"
+              [class.dist-pill--active]="
+                (item.positionId === 'all' && !selectedPosition()) ||
+                selectedPosition() === item.positionId
+              "
+              (click)="selectPositionChip(item.positionId)"
+            >
+              {{ item.title }} <span class="dist-count mono">{{ item.count }}</span>
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- Search & Filter Controls -->
+    <section class="card filter-section" aria-label="Bộ lọc tìm kiếm cán bộ">
+      <div class="filter-controls">
+        <label class="search-input-wrap">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            class="search-input"
+            placeholder="Họ tên cán bộ, mã NV (NV-xxxxx), email, ..."
+            [value]="search()"
+            (input)="onSearchInput($event)"
+            aria-label="Tìm kiếm cán bộ"
+          />
+        </label>
+
+        <div class="select-group">
+          <select
+            class="filter-select"
+            aria-label="Lọc theo phòng ban"
+            [value]="selectedDepartment()"
+            (change)="onDepartmentChange($event)"
+          >
+            <option value="">Tất cả Phòng ban</option>
+            @for (dept of data()?.filterOptions?.departments; track dept.id) {
+              <option [value]="dept.id">{{ dept.name }} ({{ dept.code }})</option>
+            }
+          </select>
+
+          <select
+            class="filter-select"
+            aria-label="Lọc theo chức danh"
+            [value]="selectedPosition()"
+            (change)="onPositionChange($event)"
+          >
+            <option value="">Tất cả Chức danh</option>
+            @for (pos of data()?.filterOptions?.positions; track pos.id) {
+              <option [value]="pos.id">{{ pos.name }}</option>
+            }
+          </select>
+
+          <select
+            class="filter-select"
+            aria-label="Lọc theo trạng thái"
+            [value]="selectedStatus()"
+            (change)="onStatusChange($event)"
+          >
+            <option value="">Tất cả trạng thái</option>
+            @for (st of data()?.filterOptions?.statuses; track st.value) {
+              <option [value]="st.value">{{ st.label }}</option>
+            }
+          </select>
+
+          <select
+            class="filter-select"
+            aria-label="Lọc theo quản lý"
+            [value]="selectedManager()"
+            (change)="onManagerChange($event)"
+          >
+            <option value="">Tất cả Quản lý</option>
+            @for (mgr of data()?.filterOptions?.managers; track mgr.id) {
+              <option [value]="mgr.id">{{ mgr.name }}</option>
+            }
+          </select>
+
+          @if (activeFilterCount() > 0) {
+            <button
+              type="button"
+              class="btn-reset"
+              (click)="resetFilters()"
+              title="Xóa tất cả bộ lọc"
+            >
+              ✕ Xóa bộ lọc ({{ activeFilterCount() }})
+            </button>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Employee Data Table -->
+    <section class="card table-card" aria-label="Bảng danh sách cán bộ">
+      @if (viewState() === 'error') {
+        <app-empty-state
+          icon="!"
+          tone="error"
+          title="Không thể tải danh sách cán bộ"
+          [description]="errorMessage()"
+        >
+          <button type="button" class="btn btn--primary" (click)="retry()">Thử lại</button>
+        </app-empty-state>
+      } @else {
+        <app-data-table
+          caption="Danh sách cán bộ nhân viên"
+          [columns]="tableColumns"
+          [rows]="data()?.items ?? []"
+          [totalItems]="data()?.total ?? 0"
+          [pageSize]="pageSize()"
+          [loading]="viewState() === 'loading'"
+          [rowClickable]="true"
+          (rowClick)="navigateToEmployee($event.id)"
+          emptyTitle="Không tìm thấy cán bộ nào"
+          emptyDescription="Thử thay đổi từ khóa tìm kiếm hoặc các điều kiện lọc."
+        >
+          <!-- Cán bộ / Mã NV -->
+          <ng-template appCell="fullName" let-row>
+            <div class="employee-cell">
+              @if (row.avatarUrl) {
+                <img [src]="row.avatarUrl" [alt]="row.fullName" class="avatar-img" />
+              } @else {
+                <div class="avatar-circle" aria-hidden="true">
+                  {{ initials(row.fullName) }}
+                </div>
+              }
+              <div class="employee-meta">
+                <span class="emp-name">{{ row.fullName }}</span>
+                <span class="emp-sub">
+                  <span class="mono emp-code">{{ row.code }}</span>
+                  <span class="dot-separator">•</span>
+                  <span class="emp-email">{{ row.email }}</span>
+                </span>
+              </div>
+            </div>
+          </ng-template>
+
+          <!-- Phòng ban -->
+          <ng-template appCell="departmentName" let-row>
+            <div class="dept-cell">
+              <button
+                type="button"
+                class="dept-link"
+                (click)="$event.stopPropagation(); navigateToDepartment(row.departmentId)"
+              >
+                {{ row.departmentName }}
+              </button>
+              <span class="mono dept-code">{{ row.departmentCode }}</span>
+            </div>
+          </ng-template>
+
+          <!-- Vị trí chức danh -->
+          <ng-template appCell="positionTitle" let-row>
+            <div class="pos-cell">
+              <span class="pos-title">{{ row.positionTitle }}</span>
+              <span class="pos-sub">
+                <span class="mono pos-code">{{ row.positionCode }}</span>
+                <span class="dot-separator">•</span>
+                <span class="pos-level">{{ row.level }}</span>
+              </span>
+            </div>
+          </ng-template>
+
+          <!-- Quản lý trực tiếp -->
+          <ng-template appCell="managerName" let-row>
+            @if (row.managerName) {
+              <div class="mgr-cell">
+                <span class="mgr-avatar" aria-hidden="true">{{ initials(row.managerName) }}</span>
+                <div class="mgr-meta">
+                  <button
+                    type="button"
+                    class="mgr-link"
+                    (click)="$event.stopPropagation(); navigateToEmployee(row.managerId)"
+                  >
+                    {{ row.managerName }}
+                  </button>
+                  <span class="mgr-sub">{{ row.managerPosition }}</span>
+                </div>
+              </div>
+            } @else {
+              <span class="muted-text">—</span>
+            }
+          </ng-template>
+
+          <!-- Việc active -->
+          <ng-template appCell="activeWorkCount" let-row>
+            <span class="work-badge" [class.work-badge--zero]="row.activeWorkCount === 0">
+              {{ row.activeWorkCount < 10 ? '0' + row.activeWorkCount : row.activeWorkCount }} việc
+            </span>
+          </ng-template>
+
+          <!-- Trạng thái -->
+          <ng-template appCell="status" let-row>
+            <app-status-badge [label]="row.statusLabel" [tone]="statusTone(row.status)" />
+          </ng-template>
+
+          <!-- Chi tiết -->
+          <ng-template appCell="actions" let-row>
+            <button
+              type="button"
+              class="btn-detail"
+              (click)="$event.stopPropagation(); navigateToEmployee(row.id)"
+            >
+              Chi tiết →
+            </button>
+          </ng-template>
+        </app-data-table>
+      }
+    </section>
+
+    <!-- Modal: Thêm Cán bộ Nhân sự -->
+    <app-modal
+      [open]="isAddModalOpen()"
+      title="Thêm Mới Cán bộ Nhân sự"
+      size="md"
+      (closed)="closeAddModal()"
+    >
+      <form [formGroup]="addForm" class="add-form" (ngSubmit)="submitAddForm()">
+        <div class="form-row">
+          <label class="form-label" for="add-fullname">
+            Họ và tên cán bộ <span class="required">*</span>
+          </label>
+          <input
+            id="add-fullname"
+            type="text"
+            class="form-control"
+            formControlName="fullName"
+            placeholder="Ví dụ: Nguyễn Văn B"
+          />
+          <app-form-error [control]="addForm.get('fullName')" />
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="form-label" for="add-code">
+              Mã Cán bộ (NV-xxxxx) <span class="required">*</span>
+            </label>
+            <input
+              id="add-code"
+              type="text"
+              class="form-control mono"
+              formControlName="code"
+              placeholder="NV-00890"
+            />
+            <app-form-error
+              [control]="addForm.get('code')"
+              [customMessages]="{ pattern: 'Mã cán bộ phải đúng định dạng NV-xxxxx (5 chữ số).' }"
+            />
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="add-email">
+              Email cơ quan <span class="required">*</span>
+            </label>
+            <input
+              id="add-email"
+              type="email"
+              class="form-control"
+              formControlName="email"
+              placeholder="ten.nv@apexbank.vn"
+            />
+            <app-form-error [control]="addForm.get('email')" />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="form-label" for="add-dept">
+              Phòng ban / Đơn vị <span class="required">*</span>
+            </label>
+            <select id="add-dept" class="form-control" formControlName="departmentId">
+              <option value="">-- Chọn đơn vị --</option>
+              @for (dept of data()?.filterOptions?.departments; track dept.id) {
+                <option [value]="dept.id">{{ dept.name }}</option>
+              }
+            </select>
+            <app-form-error [control]="addForm.get('departmentId')" />
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="add-pos">
+              Vị trí chức danh <span class="required">*</span>
+            </label>
+            <select id="add-pos" class="form-control" formControlName="positionId">
+              <option value="">-- Chọn chức danh --</option>
+              @for (pos of data()?.filterOptions?.positions; track pos.id) {
+                <option [value]="pos.id">{{ pos.name }}</option>
+              }
+            </select>
+            <app-form-error [control]="addForm.get('positionId')" />
+          </div>
+        </div>
+
+        <div class="modal-actions" modal-footer>
+          <button
+            type="button"
+            class="btn btn--secondary"
+            [disabled]="isSaving()"
+            (click)="closeAddModal()"
+          >
+            Hủy bỏ
+          </button>
+          <button type="submit" class="btn btn--primary" [disabled]="isSaving()">
+            {{ isSaving() ? 'Đang lưu…' : 'Xác nhận tạo hồ sơ' }}
+          </button>
+        </div>
+      </form>
+    </app-modal>
+  </div>
+</app-shell>

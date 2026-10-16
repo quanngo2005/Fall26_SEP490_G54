@@ -1,0 +1,26 @@
+@use './tokens' as t;
+
+.message {
+  margin: 0;
+  color: t.$slate-600;
+}
+.btn {
+  @include t.button-base;
+}
+.btn--confirm {
+  border-color: t.$navy;
+  background: t.$navy;
+  color: t.$white;
+
+  &:hover:not(:disabled) {
+    background: t.$navy-dark;
+  }
+}
+.btn--danger {
+  border-color: t.$accent-red;
+  background: t.$accent-red;
+
+  &:hover:not(:disabled) {
+    background: #c90510;
+  }
+}

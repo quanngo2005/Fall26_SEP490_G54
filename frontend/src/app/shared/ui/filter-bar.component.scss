@@ -1,0 +1,100 @@
+@use './tokens' as t;
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.search {
+  display: flex;
+  min-width: 240px;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid t.$slate-300;
+  border-radius: t.$radius-base;
+  background: t.$white;
+  color: t.$slate-500;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: t.$slate-400;
+  }
+
+  &:focus-within {
+    border-color: t.$navy;
+    box-shadow: t.$focus-ring;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: t.$slate-900;
+    font: 400 13px/18px t.$font-body;
+
+    &::placeholder {
+      color: t.$slate-400;
+    }
+  }
+}
+.search__icon {
+  font-size: 16px;
+  color: t.$slate-400;
+}
+.select {
+  height: 38px;
+  max-width: 100%;
+  padding: 0 32px 0 12px;
+  border: 1px solid t.$slate-300;
+  border-radius: t.$radius-base;
+  background: t.$white
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat right 10px center;
+  appearance: none;
+  color: t.$slate-900;
+  font: 400 13px/18px t.$font-body;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: t.$slate-400;
+  }
+
+  &:focus {
+    border-color: t.$navy;
+    box-shadow: t.$focus-ring;
+    outline: 0;
+  }
+}
+.reset {
+  @include t.button-base;
+  min-height: 38px;
+  border-color: transparent;
+  background: transparent;
+  color: t.$slate-600;
+
+  &:hover:not(:disabled) {
+    background: t.$slate-100;
+    color: t.$slate-900;
+  }
+}
+.extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+
+  &:empty {
+    display: none;
+  }
+}

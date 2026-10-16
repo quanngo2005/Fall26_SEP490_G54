@@ -1,0 +1,86 @@
+// Design tokens sourced from frontend/docs/DESIGN.md (Apex Enterprise Banking).
+$navy: #002b49;
+$navy-dark: #0f172a;
+$accent-red: #e30613;
+$slate-900: #1e293b;
+$slate-800: #1e293b;
+$slate-700: #334155;
+$slate-600: #475569;
+$slate-500: #64748b;
+$slate-400: #94a3b8;
+$slate-300: #cbd5e1;
+$slate-200: #e2e8f0;
+$slate-100: #f1f5f9;
+$slate-50: #f8fafc;
+$white: #fff;
+
+$success-bg: #ecfdf5;
+$success-fg: #047857;
+$success-border: #a7f3d0;
+$success-fill: #059669;
+$warning-bg: #fffbeb;
+$warning-fg: #b45309;
+$warning-border: #fde68a;
+$warning-fill: #d97706;
+$danger-bg: #fff1f2;
+$danger-fg: #be123c;
+$danger-border: #fecdd3;
+$danger-fill: #e11d48;
+$info-bg: #eff6ff;
+$info-fg: #1d4ed8;
+$info-border: #bfdbfe;
+$info-fill: #2563eb;
+
+$font-heading: Manrope, Inter, 'Segoe UI', Arial, sans-serif;
+$font-body: Inter, 'Segoe UI', Arial, sans-serif;
+$font-mono: 'JetBrains Mono', Consolas, monospace;
+
+$radius-base: 4px;
+$radius-container: 8px;
+
+$shadow-resting:
+  0 1px 3px 0 rgba(15, 23, 42, 0.05),
+  0 1px 2px -1px rgba(15, 23, 42, 0.03);
+$shadow-floating:
+  0 4px 6px -1px rgba(15, 23, 42, 0.07),
+  0 2px 4px -2px rgba(15, 23, 42, 0.05);
+$shadow-modal:
+  0 20px 25px -5px rgba(15, 23, 42, 0.12),
+  0 8px 10px -6px rgba(15, 23, 42, 0.08);
+
+$focus-ring: 0 0 0 3px rgba(0, 43, 73, 0.18);
+
+@mixin focus-visible {
+  &:focus-visible {
+    outline: 2px solid $navy;
+    outline-offset: 2px;
+  }
+}
+
+@mixin button-base {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid $slate-300;
+  border-radius: $radius-base;
+  background: $white;
+  color: $slate-900;
+  cursor: pointer;
+  font: 600 13px/1 $font-body;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+  @include focus-visible;
+
+  &:hover:not(:disabled) {
+    background: $slate-100;
+  }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}

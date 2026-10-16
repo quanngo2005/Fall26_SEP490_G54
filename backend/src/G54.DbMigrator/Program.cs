@@ -46,11 +46,12 @@ var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
 Console.WriteLine("Applying database migrations...");
 await dbContext.Database.MigrateAsync();
+var passwordEncoder = scope.ServiceProvider.GetRequiredService<IPasswordEncoder>();
 var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-await seeder.SeedAsync();
+Console.WriteLine("Seeding master data (departments, positions, employees, accounts, KPIs, work types)...");
+await seeder.SeedAsync(passwordEncoder.Encode);
 if (bootstrapAdminEnabled)
 {
-    var passwordEncoder = scope.ServiceProvider.GetRequiredService<IPasswordEncoder>();
     await seeder.SeedDevelopmentAdminAsync(
         bootstrapAdminEmail!,
         passwordEncoder.Encode(bootstrapAdminPassword!));

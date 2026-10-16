@@ -1,0 +1,421 @@
+<app-shell activeKey="departments">
+  @switch (viewState()) {
+    @case ('loading') {
+      <div class="stack" role="status" aria-busy="true" aria-label="Đang tải thông tin phòng ban">
+        <section class="card skeleton-card">
+          <app-skeleton width="260px" height="14px" />
+          <app-skeleton width="45%" height="30px" />
+          <app-skeleton width="70%" />
+          <app-skeleton width="60%" />
+        </section>
+        <section class="card skeleton-card">
+          <app-skeleton width="30%" height="18px" />
+          <app-skeleton />
+          <app-skeleton width="80%" />
+        </section>
+        <section class="card skeleton-card">
+          <app-skeleton width="30%" height="18px" />
+          <app-skeleton />
+          <app-skeleton />
+        </section>
+        <section class="card skeleton-card">
+          <app-skeleton width="30%" height="18px" />
+          <app-skeleton height="40px" />
+          <app-skeleton height="40px" />
+        </section>
+      </div>
+    }
+    @case ('notFound') {
+      <section class="card">
+        <app-empty-state
+          icon="?"
+          title="Không tìm thấy phòng ban"
+          description="Phòng ban được yêu cầu không tồn tại hoặc đã bị xóa."
+        >
+          <button type="button" class="btn btn--primary" (click)="go('department-list')">
+            Quay lại danh sách phòng ban
+          </button>
+        </app-empty-state>
+      </section>
+    }
+    @case ('forbidden') {
+      <section class="card">
+        <app-empty-state
+          icon="🔒"
+          title="Truy cập bị hạn chế"
+          description="Bạn không có quyền xem phòng ban này."
+        >
+          <button type="button" class="btn btn--primary" (click)="go('department-list')">
+            Quay lại danh sách phòng ban
+          </button>
+        </app-empty-state>
+      </section>
+    }
+    @case ('error') {
+      <section class="card">
+        <app-empty-state
+          icon="!"
+          tone="error"
+          title="Không thể tải phòng ban"
+          description="Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại."
+        >
+          <button type="button" class="btn btn--primary" (click)="retry()">Thử lại</button>
+        </app-empty-state>
+      </section>
+    }
+    @default {
+      @if (detail(); as d) {
+        <div class="stack">
+          <!-- Breadcrumb + header actions -->
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            <ol>
+              <li><span>Tổ chức</span></li>
+              <li>
+                <button type="button" class="link" (click)="go('department-list')">
+                  Phòng ban
+                </button>
+              </li>
+              @for (ancestor of d.ancestors; track ancestor.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="link"
+                    (click)="go('department-detail', { departmentId: ancestor.id })"
+                  >
+                    {{ ancestor.name }}
+                  </button>
+                </li>
+              }
+              <li aria-current="page">{{ d.name }}</li>
+            </ol>
+          </nav>
+
+          <!-- Department header -->
+          <section class="card header" aria-labelledby="dept-name">
+            <div class="header__top">
+              <button type="button" class="btn" (click)="go('department-view')">
+                ← Quay lại Department View
+              </button>
+              <div class="menu-wrap">
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  aria-haspopup="menu"
+                  [attr.aria-expanded]="menuOpen()"
+                  (click)="toggleMenu()"
+                >
+                  Thao tác khác ▾
+                </button>
+                @if (menuOpen()) {
+                  <div class="menu" role="menu">
+                    <button type="button" role="menuitem" (click)="go('department-view')">
+                      Xem Department View
+                    </button>
+                    @if (d.permissions.canViewKpi) {
+                      <button type="button" role="menuitem" (click)="go('department-kpi')">
+                        Xem KPI phòng ban
+                      </button>
+                    }
+                    @if (d.permissions.canViewWork) {
+                      <button type="button" role="menuitem" (click)="go('department-work')">
+                        Xem công việc phòng ban
+                      </button>
+                    }
+                    @if (d.permissions.canViewPerformance) {
+                      <button type="button" role="menuitem" (click)="go('department-performance')">
+                        Xem hiệu suất
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="header__body">
+              <div class="header__identity">
+                <div class="header__chips">
+                  <span class="chip mono">{{ d.code }}</span>
+                  <span class="chip">{{ d.type }}</span>
+                  <app-status-badge [label]="statusLabel(d.status)" [tone]="statusTone(d.status)" />
+                </div>
+                <h1 id="dept-name">{{ d.name }}</h1>
+                <p class="description">{{ d.description }}</p>
+              </div>
+
+              @if (d.manager; as manager) {
+                <button
+                  type="button"
+                  class="manager"
+                  [attr.aria-label]="'Xem hồ sơ trưởng đơn vị ' + manager.fullName"
+                  (click)="go('employee-detail', { employeeId: manager.employeeId })"
+                >
+                  <span class="avatar" aria-hidden="true">{{ initials(manager.fullName) }}</span>
+                  <span class="manager__text">
+                    <small>Trưởng đơn vị</small>
+                    <strong>{{ manager.fullName }}</strong>
+                    <span class="manager__position">{{ manager.positionTitle }}</span>
+                    <span class="mono manager__code">{{ manager.employeeCode }}</span>
+                  </span>
+                </button>
+              } @else {
+                <div class="manager manager--empty">
+                  <small>Trưởng đơn vị</small>
+                  <span>Chưa có trưởng đơn vị</span>
+                </div>
+              }
+            </div>
+          </section>
+
+          <!-- Summary -->
+          <section class="summary" aria-label="Tóm tắt phòng ban">
+            <article class="card stat">
+              <span class="stat__label">Tổng nhân sự</span>
+              <strong class="stat__value mono">
+                {{ d.employeeCount }}<small> / {{ d.headcountQuota }} định biên</small>
+              </strong>
+              @if (d.permissions.canViewEmployees) {
+                <button type="button" class="link" (click)="go('employee-list')">
+                  Xem nhân sự →
+                </button>
+              }
+            </article>
+            <article class="card stat">
+              <span class="stat__label">Đang làm việc</span>
+              <strong class="stat__value mono">{{ d.activeEmployeeCount }}</strong>
+              <span class="stat__hint">cán bộ đang hoạt động</span>
+            </article>
+            <article class="card stat">
+              <span class="stat__label">Đơn vị trực thuộc</span>
+              <strong class="stat__value mono">{{ d.children.length }}</strong>
+              <span class="stat__hint">tổ / nhóm chuyên môn</span>
+            </article>
+            <article class="card stat">
+              <span class="stat__label">Tỷ lệ bám định biên</span>
+              <strong class="stat__value mono">{{ headcountRate() }}%</strong>
+              <span class="stat__hint">nhân sự hiện có / định biên</span>
+            </article>
+          </section>
+
+          <!-- Quick navigation -->
+          @if (
+            d.permissions.canViewKpi ||
+            d.permissions.canViewWork ||
+            d.permissions.canViewPerformance
+          ) {
+            <section class="quick" aria-label="Điều hướng nhanh">
+              @if (d.permissions.canViewKpi) {
+                <button
+                  type="button"
+                  class="card quick__item"
+                  (click)="go('department-kpi', { period: 'current' })"
+                >
+                  <span class="quick__title">Chỉ tiêu &amp; KPI phòng ban</span>
+                  <span class="quick__desc">Xem tiến độ chỉ tiêu theo kỳ hiện tại.</span>
+                  <span class="quick__cta">Xem KPI →</span>
+                </button>
+              }
+              @if (d.permissions.canViewWork) {
+                <button type="button" class="card quick__item" (click)="go('department-work')">
+                  <span class="quick__title">Quản lý công việc</span>
+                  <span class="quick__desc">Công việc vận hành đang triển khai.</span>
+                  <span class="quick__cta">Xem công việc →</span>
+                </button>
+              }
+              @if (d.permissions.canViewPerformance) {
+                <button
+                  type="button"
+                  class="card quick__item"
+                  (click)="go('department-performance', { period: 'current' })"
+                >
+                  <span class="quick__title">Đánh giá hiệu suất</span>
+                  <span class="quick__desc">Hiệu suất tổng hợp của phòng ban.</span>
+                  <span class="quick__cta">Xem báo cáo →</span>
+                </button>
+              }
+            </section>
+          }
+
+          <div class="two-col">
+            <!-- Department information + hierarchy -->
+            <section class="card" aria-labelledby="info-title">
+              <h2 id="info-title" class="card__title">Thông tin tổ chức</h2>
+              <dl class="info">
+                <div>
+                  <dt>Đơn vị cấp trên</dt>
+                  <dd>
+                    @if (d.parent; as parent) {
+                      <button
+                        type="button"
+                        class="link"
+                        (click)="go('department-detail', { departmentId: parent.id })"
+                      >
+                        {{ parent.name }}
+                      </button>
+                      <span class="mono muted">{{ parent.code }}</span>
+                    } @else {
+                      <span class="muted">Đơn vị cấp cao nhất</span>
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt>Loại đơn vị</dt>
+                  <dd>{{ d.type }}</dd>
+                </div>
+                <div>
+                  <dt>Ngày thành lập</dt>
+                  <dd class="mono">{{ d.createdDate | date: 'dd/MM/yyyy' }}</dd>
+                </div>
+                <div>
+                  <dt>Địa điểm làm việc</dt>
+                  <dd>{{ d.location }}</dd>
+                </div>
+              </dl>
+
+              <div class="hierarchy-head">
+                <h3>Cây phân cấp trực thuộc</h3>
+                <button
+                  type="button"
+                  class="link"
+                  [attr.aria-expanded]="hierarchyExpanded()"
+                  (click)="toggleHierarchy()"
+                >
+                  {{ hierarchyExpanded() ? 'Thu gọn' : 'Mở rộng' }}
+                </button>
+              </div>
+              <ul class="tree" aria-label="Cây phân cấp">
+                @for (ancestor of d.ancestors; track ancestor.id; let depth = $index) {
+                  <li [style.padding-left.px]="depth * 16">
+                    <button
+                      type="button"
+                      class="link"
+                      (click)="go('department-detail', { departmentId: ancestor.id })"
+                    >
+                      {{ ancestor.name }}
+                    </button>
+                    <span class="mono muted">{{ ancestor.code }}</span>
+                  </li>
+                }
+                <li class="tree__current" [style.padding-left.px]="d.ancestors.length * 16">
+                  <strong>{{ d.name }}</strong>
+                  <span class="mono muted">{{ d.code }}</span>
+                </li>
+                @if (hierarchyExpanded()) {
+                  @for (child of d.children; track child.id) {
+                    <li [style.padding-left.px]="(d.ancestors.length + 1) * 16">
+                      <button
+                        type="button"
+                        class="link"
+                        (click)="go('department-detail', { departmentId: child.id })"
+                      >
+                        {{ child.name }}
+                      </button>
+                      <span class="mono muted">{{ child.code }}</span>
+                    </li>
+                  }
+                }
+              </ul>
+            </section>
+
+            <!-- Child departments -->
+            <section class="card" aria-labelledby="children-title">
+              <h2 id="children-title" class="card__title">
+                Các đơn vị trực thuộc <span class="count mono">{{ d.children.length }}</span>
+              </h2>
+              @if (d.children.length === 0) {
+                <app-empty-state icon="◫" title="Không có đơn vị trực thuộc" />
+              } @else {
+                <ul class="children">
+                  @for (child of d.children; track child.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="child"
+                        [attr.aria-label]="'Xem chi tiết ' + child.name"
+                        (click)="go('department-detail', { departmentId: child.id })"
+                      >
+                        <span class="child__head">
+                          <span class="mono muted">{{ child.code }}</span>
+                          <app-status-badge
+                            [label]="statusLabel(child.status)"
+                            [tone]="statusTone(child.status)"
+                          />
+                        </span>
+                        <strong>{{ child.name }}</strong>
+                        <span class="child__meta">
+                          Trưởng đơn vị: {{ child.managerName }} ·
+                          <span class="mono">{{ child.employeeCount }}</span> cán bộ
+                        </span>
+                        <span class="quick__cta">Xem chi tiết →</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </section>
+          </div>
+
+          <!-- Employees preview -->
+          @if (d.permissions.canViewEmployees) {
+            <section class="card" aria-labelledby="employees-title">
+              <div class="card__head">
+                <h2 id="employees-title" class="card__title">
+                  Danh sách nhân sự phòng ban
+                  <span class="count mono">{{ d.employeeCount }}</span>
+                </h2>
+              </div>
+              <div class="card__filter">
+                <app-filter-bar
+                  searchPlaceholder="Tìm theo tên cán bộ, mã NV…"
+                  [searchValue]="search()"
+                  [filters]="employeeFilters()"
+                  [filterValues]="filterValues()"
+                  (searchChange)="onSearch($event)"
+                  (filterChange)="onFilter($event)"
+                  (filtersReset)="resetFilters()"
+                >
+                  <button type="button" class="btn" (click)="go('employee-list')">
+                    Xem tất cả {{ d.employeeCount }} nhân sự
+                  </button>
+                </app-filter-bar>
+              </div>
+              <app-data-table
+                caption="Danh sách nhân sự phòng ban"
+                [columns]="employeeColumns"
+                [rows]="filteredEmployees()"
+                [trackBy]="employeeTrack"
+                [rowLabel]="employeeLabel"
+                [pageSize]="5"
+                [rowClickable]="true"
+                emptyTitle="Chưa có nhân sự nào"
+                [emptyDescription]="
+                  search() || filterValues()['position']
+                    ? 'Không có cán bộ nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có cán bộ nào được phân công vào phòng ban này.'
+                "
+                (rowClick)="go('employee-detail', { employeeId: $event.id })"
+              >
+                <ng-template appCell="fullName" let-row>
+                  <span class="person">
+                    <span class="avatar avatar--sm" aria-hidden="true">{{
+                      initials(row.fullName)
+                    }}</span>
+                    <span class="person__text">
+                      <strong>{{ row.fullName }}</strong>
+                      <span class="mono muted">{{ row.code }}</span>
+                    </span>
+                  </span>
+                </ng-template>
+                <ng-template appCell="status" let-row>
+                  <app-status-badge
+                    [label]="statusLabel(row.status)"
+                    [tone]="statusTone(row.status)"
+                  />
+                </ng-template>
+              </app-data-table>
+            </section>
+          }
+        </div>
+      }
+    }
+  }
+</app-shell>

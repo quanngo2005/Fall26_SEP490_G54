@@ -1,0 +1,109 @@
+<div class="table-wrap">
+  <table class="table">
+    <caption class="sr-only">
+      {{
+        caption()
+      }}
+    </caption>
+    <thead>
+      <tr>
+        @for (column of columns(); track column.key) {
+          <th
+            scope="col"
+            [style.width]="column.width"
+            [class.align-end]="column.align === 'end'"
+            [attr.aria-sort]="ariaSort(column)"
+          >
+            @if (column.sortable) {
+              <button type="button" class="sort" (click)="toggleSort(column)">
+                <span>{{ column.header }}</span>
+                <span
+                  class="sort__icon"
+                  [class.sort__icon--active]="sort()?.key === column.key"
+                  aria-hidden="true"
+                >
+                  @if (sort()?.key === column.key) {
+                    {{ sort()?.direction === 'asc' ? '↑' : '↓' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            } @else {
+              {{ column.header }}
+            }
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @if (loading()) {
+        @for (index of skeletonRows; track index) {
+          <tr aria-hidden="true">
+            @for (column of columns(); track column.key) {
+              <td><app-skeleton height="16px" /></td>
+            }
+          </tr>
+        }
+      } @else if (!errorMessage() && visibleRows().length > 0) {
+        @for (row of visibleRows(); track trackBy()(row)) {
+          <tr
+            [class.row--clickable]="rowClickable()"
+            [attr.tabindex]="rowClickable() ? 0 : null"
+            [attr.role]="rowClickable() ? 'link' : null"
+            [attr.aria-label]="rowClickable() ? rowLabel()(row) : null"
+            (click)="rowClickable() && rowClick.emit(row)"
+            (keydown)="rowClickable() && onRowKeydown($event, row)"
+          >
+            @for (column of columns(); track column.key) {
+              <td [class.align-end]="column.align === 'end'" [class.mono]="column.mono">
+                @let cell = template(column.key);
+                @if (cell) {
+                  <ng-container
+                    [ngTemplateOutlet]="cell"
+                    [ngTemplateOutletContext]="context(row, column.key)"
+                  />
+                } @else {
+                  {{ cellValue(row, column.key) }}
+                }
+              </td>
+            }
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+
+  @if (!loading() && errorMessage()) {
+    <app-empty-state
+      icon="!"
+      tone="error"
+      title="Không tải được dữ liệu"
+      [description]="errorMessage()"
+    >
+      <button type="button" class="btn" (click)="retry.emit()">Thử lại</button>
+    </app-empty-state>
+  } @else if (!loading() && visibleRows().length === 0) {
+    <app-empty-state [title]="emptyTitle()" [description]="emptyDescription()" />
+  }
+</div>
+
+@if (!loading() && !errorMessage() && total() > 0) {
+  <nav class="pager" aria-label="Phân trang">
+    <span class="pager__range" aria-live="polite">{{ rangeLabel() }}</span>
+    <div class="pager__controls">
+      <button type="button" class="btn" [disabled]="page() <= 1" (click)="goTo(page() - 1)">
+        ‹ Trước
+      </button>
+      <span class="pager__page">Trang {{ page() }} / {{ pageCount() }}</span>
+      <button
+        type="button"
+        class="btn"
+        [disabled]="page() >= pageCount()"
+        (click)="goTo(page() + 1)"
+      >
+        Sau ›
+      </button>
+    </div>
+  </nav>
+}

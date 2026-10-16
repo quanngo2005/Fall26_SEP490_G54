@@ -22,6 +22,24 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'employees',
+    title: 'Danh sách Cán bộ Nhân viên',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/employee-list/employee-list.component').then(
+        (module) => module.EmployeeListComponent,
+      ),
+  },
+  {
+    path: 'departments/:departmentId',
+    title: 'Chi tiết phòng ban',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/department-detail/department-detail.component').then(
+        (module) => module.DepartmentDetailComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>

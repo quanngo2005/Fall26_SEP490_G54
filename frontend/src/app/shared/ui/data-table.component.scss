@@ -1,0 +1,118 @@
+@use './tokens' as t;
+
+:host {
+  display: block;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: t.$slate-900;
+  font: 400 13px/18px t.$font-body;
+}
+th {
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid t.$slate-200;
+  background: t.$slate-50;
+  color: t.$slate-500;
+  font: 600 12px/16px t.$font-body;
+  letter-spacing: 0.04em;
+  text-align: start;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+td {
+  height: 48px;
+  padding: 6px 12px;
+  border-bottom: 1px solid t.$slate-100;
+  vertical-align: middle;
+}
+.align-end {
+  text-align: end;
+}
+.mono {
+  font: 500 13px/18px t.$font-mono;
+  letter-spacing: -0.01em;
+}
+tbody tr:hover {
+  background: t.$slate-50;
+}
+.row--clickable {
+  cursor: pointer;
+  @include t.focus-visible;
+
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+}
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  @include t.focus-visible;
+
+  &:hover {
+    color: t.$slate-900;
+  }
+}
+.sort__icon {
+  font-size: 12px;
+  color: t.$slate-400;
+  transition: color 0.15s ease;
+}
+.sort__icon--active {
+  color: t.$navy;
+  font-weight: 700;
+}
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid t.$slate-200;
+  color: t.$slate-500;
+  font: 400 12px/16px t.$font-body;
+}
+.pager__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pager__page {
+  font-family: t.$font-mono;
+  font-size: 12px;
+  color: t.$slate-700;
+}
+.btn {
+  @include t.button-base;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-color: t.$slate-300;
+
+  &:hover:not(:disabled) {
+    border-color: t.$slate-400;
+    color: t.$slate-900;
+  }
+}

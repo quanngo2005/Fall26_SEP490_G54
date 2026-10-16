@@ -1,0 +1,41 @@
+<div class="frame">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true">EB</span>
+      <span class="brand__copy">
+        <strong>ENTERPRISE CORE</strong>
+        <small>HR ADMIN / DEPARTMENT MANAGER</small>
+      </span>
+    </div>
+    <div class="topbar__main">
+      <strong class="topbar__title">Hệ thống Quản trị &amp; Điều hành Ngân hàng</strong>
+      <span class="topbar__spacer"></span>
+      <span class="topbar__user">
+        <strong>{{ user()?.fullName ?? 'Người dùng' }}</strong>
+        <small>{{ user()?.roles?.[0] ?? '' }}</small>
+      </span>
+    </div>
+  </header>
+
+  <aside class="sidebar" aria-label="Điều hướng chính">
+    @for (group of navigation; track group.title) {
+      <section class="nav-group">
+        <h2>{{ group.title }}</h2>
+        @for (item of group.items; track item.key) {
+          <button
+            type="button"
+            class="nav-item"
+            [class.nav-item--active]="item.key === activeKey()"
+            [attr.aria-current]="item.key === activeKey() ? 'page' : null"
+            (click)="open(item)"
+          >
+            <span aria-hidden="true">{{ item.icon }}</span>
+            {{ item.label }}
+          </button>
+        }
+      </section>
+    }
+  </aside>
+
+  <main class="content"><ng-content /></main>
+</div>

@@ -12,6 +12,7 @@
 - Start all containers: `./run.ps1 -Docker` or `docker compose --env-file docker/.env -f docker/docker-compose.yml up --build`.
 - Backend validation: `./scripts/codereview-backend.ps1`.
 - Frontend validation: `./scripts/codereview-frontend.ps1`.
+- Generate API client: `./scripts/generate-api.ps1` or `npm run generate-api` (in frontend).
 
 ## Skills
 

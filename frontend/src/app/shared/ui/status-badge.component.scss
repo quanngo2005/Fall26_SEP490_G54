@@ -1,0 +1,46 @@
+@use './tokens' as t;
+
+:host {
+  display: inline-flex;
+}
+.badge {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid t.$slate-200;
+  border-radius: 9999px;
+  background: t.$slate-100;
+  color: #334155;
+  font: 500 11px/1 t.$font-mono;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge--success {
+  border-color: t.$success-border;
+  background: t.$success-bg;
+  color: t.$success-fg;
+}
+.badge--warning {
+  border-color: t.$warning-border;
+  background: t.$warning-bg;
+  color: t.$warning-fg;
+}
+.badge--danger {
+  border-color: t.$danger-border;
+  background: t.$danger-bg;
+  color: t.$danger-fg;
+}
+.badge--info {
+  border-color: t.$info-border;
+  background: t.$info-bg;
+  color: t.$info-fg;
+}

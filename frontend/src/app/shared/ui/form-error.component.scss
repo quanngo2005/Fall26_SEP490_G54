@@ -1,0 +1,25 @@
+@use './tokens' as t;
+
+.errors {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: t.$danger-fg;
+  font: 500 12px/16px t.$font-body;
+}
+
+.error-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  & + .error-item {
+    margin-top: 2px;
+  }
+}
+
+.error-icon {
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
+}

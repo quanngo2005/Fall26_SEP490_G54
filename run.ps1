@@ -41,12 +41,21 @@ function Import-DevelopmentEnvironment {
 function Test-Endpoint {
     param([string]$Uri)
 
-    try {
-        $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 2
-        return $response.StatusCode -ge 200 -and $response.StatusCode -lt 400
-    } catch {
-        return $false
+    $candidates = @($Uri)
+    if ($Uri -like "*://localhost:*") {
+        $candidates += ($Uri -replace "://localhost:", "://127.0.0.1:")
     }
+
+    foreach ($target in $candidates) {
+        try {
+            $response = Invoke-WebRequest -Uri $target -UseBasicParsing -TimeoutSec 3
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
+                return $true
+            }
+        } catch {
+        }
+    }
+    return $false
 }
 
 function Wait-ForEndpoint {

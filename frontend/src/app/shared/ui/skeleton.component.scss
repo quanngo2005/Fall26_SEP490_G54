@@ -1,0 +1,26 @@
+@use './tokens' as t;
+
+:host {
+  display: block;
+}
+.skeleton {
+  display: block;
+  max-width: 100%;
+  border-radius: t.$radius-base;
+  background: linear-gradient(90deg, t.$slate-100 25%, t.$slate-200 37%, t.$slate-100 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
