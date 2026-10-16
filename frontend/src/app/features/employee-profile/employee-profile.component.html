@@ -10,26 +10,48 @@
       </a>
       <div class="topbar-main">
         <div class="product-title">
-          <strong>Hệ thống Quản trị &amp; Điều hành Ngân hàng</strong
-          ><span>Enterprise Portal - Employee Workspace</span>
+          <strong>{{ 'common.appTitle' | translate }}</strong>
+          <span>{{ 'common.appSubtitle' | translate }}</span>
         </div>
         <label class="global-search"
           ><span aria-hidden="true">⌕</span
           ><input
             type="search"
-            placeholder="Search công việc, mã hồ sơ, KPI..."
-            aria-label="Search công việc, mã hồ sơ, KPI..."
+            [placeholder]="'common.searchPlaceholder' | translate"
+            [attr.aria-label]="'common.searchPlaceholder' | translate"
         /></label>
-        <button class="language-button" type="button">VI&nbsp; / &nbsp;EN</button>
-        <button class="header-icon" type="button" aria-label="Trợ giúp">?</button>
-        <button class="header-icon notification" type="button" aria-label="Thông báo">
+        <button
+          id="language-toggle-btn"
+          class="language-button"
+          type="button"
+          (click)="toggleLanguage()"
+          [attr.aria-label]="'common.language' | translate"
+        >
+          <span [class.active-locale]="currentLanguage() === 'vi'">VI</span>
+          <span class="locale-sep">&nbsp;/&nbsp;</span>
+          <span [class.active-locale]="currentLanguage() === 'en'">EN</span>
+        </button>
+        <button class="header-icon" type="button" [attr.aria-label]="'common.help' | translate">
+          ?
+        </button>
+        <button
+          class="header-icon notification"
+          type="button"
+          [attr.aria-label]="'common.notifications' | translate"
+        >
           ♧<i></i>
         </button>
         <span class="header-separator"></span>
         <div class="signed-in">
           <strong>Nguyễn Văn A <i></i></strong><span>Senior RM • NV-00182</span>
         </div>
-        <button class="account-button" type="button" aria-label="Tài khoản người dùng">♙</button>
+        <button
+          class="account-button"
+          type="button"
+          [attr.aria-label]="'common.userAccount' | translate"
+        >
+          ♙
+        </button>
       </div>
     </header>
 
@@ -84,9 +106,11 @@
           </div>
           <div class="toolbar-actions">
             <button type="button" class="button button-secondary">
-              ← Quay lại Danh sách Cán bộ
+              {{ 'common.backToList' | translate }}
             </button>
-            <button type="button" class="button button-secondary">⊙ Xuất hồ sơ cán bộ</button>
+            <button type="button" class="button button-secondary">
+              {{ 'common.exportProfile' | translate }}
+            </button>
             <div class="action-menu-wrap">
               <button
                 type="button"
@@ -94,12 +118,12 @@
                 (click)="toggleMoreActions()"
                 [attr.aria-expanded]="showMoreActions()"
               >
-                Thao tác khác⌄
+                {{ 'common.moreActions' | translate }}
               </button>
               @if (showMoreActions()) {
                 <div class="action-menu">
-                  <button type="button">Chỉnh sửa hồ sơ</button
-                  ><button type="button">Xem lịch sử thay đổi</button>
+                  <button type="button">{{ 'common.editProfile' | translate }}</button>
+                  <button type="button">{{ 'common.viewHistory' | translate }}</button>
                 </div>
               }
             </div>
@@ -117,8 +141,8 @@
           <div class="employee-details">
             <div class="employee-heading">
               <h1 id="employee-name">{{ data.employee.name }}</h1>
-              <span class="id-chip">{{ data.employee.id }}</span
-              ><span class="employment-chip"
+              <span class="id-chip">{{ data.employee.id }}</span>
+              <span class="employment-chip"
                 >◉ {{ data.employee.status }} · {{ data.employee.branchCode }}</span
               >
             </div>
@@ -128,21 +152,29 @@
             <div class="employee-department">▤ {{ data.employee.department }}</div>
             <div class="employee-contact">
               <span
-                >♧ Báo cáo: <strong>{{ data.employee.manager }}</strong></span
+                >♧ {{ 'employee.reportsTo' | translate }}
+                <strong>{{ data.employee.manager }}</strong></span
               >
               <span
                 >✉ <strong>{{ data.employee.email }}</strong></span
               >
               <span
-                >♧ Ext. <strong>{{ data.employee.extension }}</strong></span
+                >♧ {{ 'employee.extension' | translate }}
+                <strong>{{ data.employee.extension }}</strong></span
               >
               <span>▣ {{ data.employee.contract }}</span>
+              <span
+                >◷ Ngày vào NH: <strong>{{ data.employee.joinDate | appDate }}</strong></span
+              >
             </div>
           </div>
           <aside class="approval-card">
-            <div><span>Trạng thái kiểm duyệt</span><strong class="cleared">CLEARED</strong></div>
-            <strong class="permission">Quyền hạn Cấp III (RM-HQ)</strong
-            ><span class="lock-status">♙ Khóa hồ sơ: Mở (Editable)</span>
+            <div>
+              <span>{{ 'employee.approvalStatus' | translate }}</span>
+              <strong class="cleared">{{ 'employee.cleared' | translate }}</strong>
+            </div>
+            <strong class="permission">{{ 'employee.permissionLevel' | translate }}</strong>
+            <span class="lock-status">{{ 'employee.profileLock' | translate }}</span>
           </aside>
         </section>
 
@@ -269,21 +301,23 @@
 
         <section class="surface-card work-card">
           <div class="section-heading">
-            <h2>Công việc được giao (Assigned Work Preview)</h2>
-            <span class="count-chip">03 việc đang hoạt động</span
-            ><button type="button" class="heading-link">Xem tất cả công việc →</button>
+            <h2>{{ 'employee.assignedWorksTitle' | translate }}</h2>
+            <span class="count-chip">{{ 'employee.activeWorksCount' | translate }}</span>
+            <button type="button" class="heading-link">
+              {{ 'employee.viewAllWorks' | translate }} →
+            </button>
           </div>
           <div class="table-scroll">
             <table class="work-table">
               <thead>
                 <tr>
-                  <th>MÃ CV<br />(WORK ID)</th>
-                  <th>TÊN CÔNG VIỆC &amp; LOẠI HỒ SƠ</th>
-                  <th>MỨC ƯU<br />TIÊN</th>
-                  <th>HẠN SLA</th>
-                  <th>TRẠNG THÁI</th>
-                  <th>TIẾN ĐỘ</th>
-                  <th>THAO<br />TÁC</th>
+                  <th>{{ 'employee.workIdCol' | translate }}</th>
+                  <th>{{ 'employee.workNameCol' | translate }}</th>
+                  <th>{{ 'employee.workPriorityCol' | translate }}</th>
+                  <th>{{ 'employee.workDeadlineCol' | translate }}</th>
+                  <th>{{ 'employee.workStatusCol' | translate }}</th>
+                  <th>{{ 'employee.workProgressCol' | translate }}</th>
+                  <th>{{ 'employee.workActionsCol' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -291,8 +325,8 @@
                   <tr>
                     <td class="work-id">{{ work.id }}</td>
                     <td class="work-title">
-                      <strong>{{ work.title }}</strong
-                      ><small>{{ work.metadata }}</small>
+                      <strong>{{ work.title }}</strong>
+                      <small>{{ work.metadata }}</small>
                     </td>
                     <td>
                       <span class="table-pill" [class]="'table-pill tone-' + work.priorityTone">{{
@@ -300,8 +334,10 @@
                       }}</span>
                     </td>
                     <td class="deadline" [class.urgent]="work.priorityTone === 'red'">
-                      <strong>{{ work.deadline }}</strong
-                      ><small>{{ work.deadlineNote }}</small>
+                      <strong>{{ work.deadline }}</strong>
+                      <small>{{
+                        work.dueDate ? (work.dueDate | appDate) : work.deadlineNote
+                      }}</small>
                     </td>
                     <td>
                       <span class="table-pill" [class]="'table-pill tone-' + work.statusTone">{{
@@ -318,7 +354,11 @@
                         ><small>{{ work.progress }}%</small>
                       </div>
                     </td>
-                    <td><button class="row-link" type="button">Chi tiết →</button></td>
+                    <td>
+                      <button class="row-link" type="button">
+                        {{ 'common.details' | translate }} →
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -328,33 +368,45 @@
 
         <section class="surface-card kpi-card">
           <div class="section-heading">
-            <h2>Tổng quan Chỉ số KPI (Kỳ Tháng 10/2026)</h2>
-            <span class="verified-chip">● Đã liên kết Verified Works (BR-04/BR-06)</span
-            ><button type="button" class="heading-link">Xem chi tiết KPI cá nhân →</button>
+            <h2>{{ 'employee.kpiOverviewTitle' | translate }}</h2>
+            <span class="verified-chip">● {{ 'employee.kpiLinkedBadge' | translate }}</span>
+            <button type="button" class="heading-link">
+              {{ 'common.viewKpiDetails' | translate }}
+            </button>
           </div>
           <div class="table-scroll">
             <table class="kpi-table">
               <thead>
                 <tr>
-                  <th>TÊN CHỈ SỐ KPI</th>
-                  <th>TRỌNG<br />SỐ</th>
-                  <th>CHỈ TIÊU<br />(TARGET)</th>
-                  <th>THỰC HIỆN<br />(VERIFIED)</th>
-                  <th>TIẾN ĐỘ ĐẠT</th>
-                  <th>NGUỒN GỐC DỮ LIỆU /<br />TRACEABILITY</th>
+                  <th>{{ 'employee.kpiNameCol' | translate }}</th>
+                  <th>{{ 'employee.kpiWeightCol' | translate }}</th>
+                  <th>{{ 'employee.kpiTargetCol' | translate }}</th>
+                  <th>{{ 'employee.kpiActualCol' | translate }}</th>
+                  <th>{{ 'employee.kpiProgressCol' | translate }}</th>
+                  <th>{{ 'employee.kpiSourceCol' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (kpi of data.kpis; track kpi.code) {
                   <tr>
                     <td>
-                      <strong>{{ kpi.title }}</strong
-                      ><small>Mã chỉ tiêu: {{ kpi.code }}</small>
+                      <strong>{{ kpi.title }}</strong>
+                      <small>Mã chỉ tiêu: {{ kpi.code }}</small>
                     </td>
                     <td class="mono-cell">{{ kpi.weight }}</td>
-                    <td class="mono-cell muted-cell">{{ kpi.target }}</td>
+                    <td class="mono-cell muted-cell">
+                      @if (kpi.isCurrency && kpi.targetValue) {
+                        {{ kpi.targetValue | vndCurrency }}
+                      } @else {
+                        {{ kpi.target }}
+                      }
+                    </td>
                     <td class="mono-cell actual-cell" [class.green-text]="kpi.tone === 'green'">
-                      {{ kpi.actual }}
+                      @if (kpi.isCurrency && kpi.actualValue) {
+                        {{ kpi.actualValue | vndCurrency }}
+                      } @else {
+                        {{ kpi.actual }}
+                      }
                     </td>
                     <td>
                       <div class="kpi-progress">
@@ -380,10 +432,7 @@
           </div>
           <div class="kpi-note">
             <span>◉</span>
-            <p>
-              Nguyên tắc BR-06: Bài nộp chưa được nghiệm thu sẽ không kết chuyển vào chỉ số thực
-              hiện (Submitted ≠ Contribution).
-            </p>
+            <p>{{ 'employee.kpiRuleBR06' | translate }}</p>
             <code>Audit Hash: #7A2F-OCT2026</code>
           </div>
         </section>
@@ -392,25 +441,28 @@
           <article class="surface-card reviews-card">
             <div class="section-heading">
               <span class="section-icon">♙</span>
-              <h2>Lịch sử Đánh giá Hiệu suất</h2>
-              <button type="button" class="heading-link">Chi tiết Đánh giá →</button>
+              <h2>{{ 'employee.performanceReviewHistory' | translate }}</h2>
+              <button type="button" class="heading-link">
+                {{ 'common.details' | translate }} →
+              </button>
             </div>
             <div class="review-list">
               @for (review of data.reviews; track review.period) {
                 <article class="review-item">
                   <div class="review-period">
-                    <strong>{{ review.period }}</strong
-                    ><span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{
+                    <strong>{{ review.period }}</strong>
+                    @if (review.reviewDate) {
+                      <small class="review-date-badge">({{ review.reviewDate | appDate }})</small>
+                    }
+                    <span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{
                       review.state
                     }}</span>
                   </div>
                   <div class="review-score">
                     <strong [class.green-text]="review.gradeTone === 'green'">{{
                       review.score
-                    }}</strong
-                    ><span [class]="'grade-chip grade-' + review.gradeTone">{{
-                      review.grade
-                    }}</span>
+                    }}</strong>
+                    <span [class]="'grade-chip grade-' + review.gradeTone">{{ review.grade }}</span>
                     @if (review.status) {
                       <small>• &nbsp;{{ review.status }}</small>
                     }
@@ -425,15 +477,15 @@
               }
             </div>
             <div class="review-footer">
-              <span>Quy chuẩn: HR-PERF-POLICY-2026</span
-              ><button type="button">Xuất báo cáo Performance PDF →</button>
+              <span>{{ 'employee.performanceStandard' | translate }}</span>
+              <button type="button">{{ 'common.exportPdf' | translate }}</button>
             </div>
           </article>
 
           <article class="surface-card audit-card">
             <div class="section-heading">
               <span class="section-icon">◴</span>
-              <h2>Nhật ký Hoạt động Gần đây</h2>
+              <h2>{{ 'employee.recentAuditLog' | translate }}</h2>
               <span class="section-spec">Audit Log</span>
             </div>
             <ol class="audit-list">
@@ -450,8 +502,12 @@
                   }}</span>
                   <div>
                     <p class="audit-meta">
-                      <strong>{{ event.time }}</strong
-                      ><span>• &nbsp;{{ event.kind }}</span>
+                      <strong>{{
+                        event.eventDate
+                          ? (event.eventDate | appDate: 'DD/MM/YYYY HH:mm')
+                          : event.time
+                      }}</strong>
+                      <span>• &nbsp;{{ event.kind }}</span>
                     </p>
                     <p class="audit-title">{{ event.title }}</p>
                     @if (event.detail) {
@@ -465,8 +521,8 @@
               }
             </ol>
             <div class="audit-footer">
-              <span>Nhật ký lưu trữ bất biến (Immutable Log)</span
-              ><button type="button">Toàn bộ lịch sử (18) →</button>
+              <span>{{ 'employee.immutableLog' | translate }}</span>
+              <button type="button">{{ 'common.viewAllHistory' | translate }}</button>
             </div>
           </article>
         </section>
