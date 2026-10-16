@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.Api.Health;
+using G54.Api.Logging;
 using G54.Api.Middleware;
 using G54.Api.Services;
 using G54.Api.Swagger;
@@ -21,7 +22,9 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
-builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Configuration(context.Configuration));
+builder.Host.UseSerilog((context, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.FromLogContext());
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || System.Text.Encoding.UTF8.GetByteCount(jwtKey) < 32)
@@ -169,7 +172,12 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 app.UseMiddleware<TraceIdMiddleware>();
 app.UseExceptionHandler();
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = SerilogLoggingHelper.DefaultMessageTemplate;
+    options.GetLevel = SerilogLoggingHelper.GetRequestLogLevel;
+    options.EnrichDiagnosticContext = SerilogLoggingHelper.EnrichDiagnosticContext;
+});
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
@@ -188,6 +196,7 @@ else
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<UserLogContextMiddleware>();
 app.UseAuthorization();
 app.MapHealthChecks("/health", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
