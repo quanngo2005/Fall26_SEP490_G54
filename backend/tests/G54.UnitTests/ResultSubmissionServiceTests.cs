@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text;
 using G54.Api.Controllers;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Submission;
@@ -278,7 +279,7 @@ public sealed class ResultSubmissionServiceTests
             Assert.NotNull(result);
             Assert.Equal(work.Id, result.WorkId);
             Assert.Equal(1, result.SubmissionNo);
-            Assert.Equal("Submitted", result.Status);
+            Assert.Equal("SUBMITTED", result.Status);
             Assert.Equal(1, result.MetricCount);
             Assert.Equal(0, result.EvidenceCount);
 
@@ -423,7 +424,7 @@ public sealed class ResultSubmissionServiceTests
     }
 
     [Fact]
-    public async Task CreateSubmissionAsync_WorkAlreadySubmitted_ThrowsValidationException()
+    public async Task CreateSubmissionAsync_WorkAlreadySubmitted_ThrowsConflictSubmissionInvalidState()
     {
         var (context, _, service, _, _) = CreateTestEnvironment();
         using (context)
@@ -439,16 +440,17 @@ public sealed class ResultSubmissionServiceTests
                 },
             };
 
-            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
                 service.CreateSubmissionAsync(work.Id, assignee.Id, request));
 
-            Assert.NotNull(ex.Errors);
-            Assert.Contains(ex.Errors, e => e.Contains("SUBMITTED"));
+            Assert.Equal(ErrorCodes.SubmissionInvalidState, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
+            Assert.Contains("SUBMITTED", ex.Message);
         }
     }
 
     [Fact]
-    public async Task CreateSubmissionAsync_WorkDoneOrCancelled_ThrowsValidationException()
+    public async Task CreateSubmissionAsync_WorkDoneOrCancelled_ThrowsConflictSubmissionInvalidState()
     {
         var (context, _, service, _, _) = CreateTestEnvironment();
         using (context)
@@ -464,16 +466,16 @@ public sealed class ResultSubmissionServiceTests
                 },
             };
 
-            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
                 service.CreateSubmissionAsync(work.Id, assignee.Id, request));
 
-            Assert.NotNull(ex.Errors);
-            Assert.Contains(ex.Errors, e => e.Contains("không thể nộp kết quả"));
+            Assert.Equal(ErrorCodes.SubmissionInvalidState, ex.ErrorCode);
+            Assert.Contains("không thể nộp kết quả", ex.Message);
         }
     }
 
     [Fact]
-    public async Task CreateSubmissionAsync_NotAssignee_ThrowsValidationException()
+    public async Task CreateSubmissionAsync_NotAssignee_ThrowsForbiddenException()
     {
         var (context, _, service, _, _) = CreateTestEnvironment();
         using (context)
@@ -501,11 +503,11 @@ public sealed class ResultSubmissionServiceTests
                 },
             };
 
-            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
                 service.CreateSubmissionAsync(work.Id, otherEmployee.Id, request));
 
-            Assert.NotNull(ex.Errors);
-            Assert.Contains(ex.Errors, e => e.Contains("Chỉ người được giao việc"));
+            Assert.Equal(403, ex.StatusCode);
+            Assert.Contains("Chỉ người được giao việc", ex.Message);
         }
     }
 
@@ -568,8 +570,8 @@ public sealed class ResultSubmissionServiceTests
             Assert.Equal(30m, detail.Metrics[0].Value);
             Assert.Equal("KPI-CARD-01", detail.Metrics[0].KpiCode);
 
-            var nonExistent = await service.GetSubmissionByIdAsync(Guid.NewGuid(), assignee.Id);
-            Assert.Null(nonExistent);
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                service.GetSubmissionByIdAsync(Guid.NewGuid(), assignee.Id));
         }
     }
 
@@ -591,7 +593,7 @@ public sealed class ResultSubmissionServiceTests
             var withdrawResult = await service.WithdrawSubmissionAsync(createResult.SubmissionId, assignee.Id);
 
             Assert.NotNull(withdrawResult);
-            Assert.Equal("Withdrawn", withdrawResult.Status);
+            Assert.Equal("WITHDRAWN", withdrawResult.Status);
 
             var updatedWork = await context.Works.FindAsync(work.Id);
             Assert.NotNull(updatedWork);
@@ -600,6 +602,30 @@ public sealed class ResultSubmissionServiceTests
             var updatedSub = await context.ResultSubmissions.FindAsync(createResult.SubmissionId);
             Assert.NotNull(updatedSub);
             Assert.Equal(SubmissionStatus.Withdrawn, updatedSub.Status);
+        }
+    }
+
+    [Fact]
+    public async Task WithdrawSubmissionAsync_AlreadyWithdrawn_ThrowsConflictSubmissionInvalidState()
+    {
+        var (context, _, service, _, _) = CreateTestEnvironment();
+        using (context)
+        {
+            var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context);
+
+            var request = new CreateWorkSubmissionRequestDto
+            {
+                Comment = "Nop roi thu hoi hai lan",
+                MetricItems = new List<SubmissionMetricInputDto> { new(kpi1.Id, 12m, null) },
+            };
+            var createResult = await service.CreateSubmissionAsync(work.Id, assignee.Id, request);
+            await service.WithdrawSubmissionAsync(createResult.SubmissionId, assignee.Id);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.WithdrawSubmissionAsync(createResult.SubmissionId, assignee.Id));
+
+            Assert.Equal(ErrorCodes.SubmissionInvalidState, ex.ErrorCode);
+            Assert.Contains("WITHDRAWN", ex.Message);
         }
     }
 
@@ -735,7 +761,7 @@ public sealed class ResultSubmissionServiceTests
             var apiResponse = Assert.IsType<ApiResponse<SubmissionResultDto>>(createdResult.Value);
             Assert.True(apiResponse.Success);
             Assert.NotNull(apiResponse.Data);
-            Assert.Equal("Submitted", apiResponse.Data.Status);
+            Assert.Equal("SUBMITTED", apiResponse.Data.Status);
         }
     }
 

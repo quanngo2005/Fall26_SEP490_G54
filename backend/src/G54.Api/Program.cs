@@ -6,6 +6,7 @@ using G54.Api.Middleware;
 using G54.Api.Services;
 using G54.Api.Swagger;
 using G54.BLL;
+using G54.BLL.Common.Constants;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Authentication;
@@ -40,7 +41,8 @@ var databaseConnection = builder.Configuration.GetConnectionString("Postgres")
 var redisConnection = builder.Configuration.GetConnectionString("Redis")
     ?? throw new InvalidOperationException("ConnectionStrings:Redis is required.");
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiErrorResponses.InvalidModelState);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
@@ -79,6 +81,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 context.Fail("Access token has been revoked.");
             }
         },
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+            await ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized, ErrorCodes.Unauthorized);
+        },
+        OnForbidden = context =>
+            ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden),
     };
 });
 var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 5);

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Dtos.Submission;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -73,8 +75,8 @@ public sealed partial class ResultSubmissionService(
                     Name: wtk.KpiDefinition.Name,
                     Description: wtk.KpiDefinition.Description,
                     Unit: wtk.KpiDefinition.Unit,
-                    AggregationType: wtk.KpiDefinition.AggregationType.ToString(),
-                    Direction: wtk.KpiDefinition.Direction.ToString(),
+                    AggregationType: wtk.KpiDefinition.AggregationType.ToWire(),
+                    Direction: wtk.KpiDefinition.Direction.ToWire(),
                     IsRequired: wtk.IsRequired,
                     Formula: wtk.KpiDefinition.Formula));
             }
@@ -91,7 +93,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             WorkTitle: work.Title,
-            WorkStatus: work.Status.ToString(),
+            WorkStatus: work.Status.ToWire(),
             AssigneeEmployeeId: work.AssigneeEmployeeId,
             AssigneeEmployeeName: work.AssigneeEmployee?.FullName ?? "",
             AssigneeEmployeeCode: work.AssigneeEmployee?.EmployeeCode ?? "",
@@ -118,6 +120,18 @@ public sealed partial class ResultSubmissionService(
         if (work is null)
         {
             throw new NotFoundException("Công việc", workId);
+        }
+
+        if (work.AssigneeEmployeeId != employee.Id)
+        {
+            throw new ForbiddenException("Chỉ người được giao việc mới có quyền nộp báo cáo kết quả.");
+        }
+
+        if (work.Status is WorkStatus.Submitted or WorkStatus.Verified or WorkStatus.Done or WorkStatus.Cancelled)
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {work.Status.ToWire()}, không thể nộp kết quả.",
+                ErrorCodes.SubmissionInvalidState);
         }
 
         var validationResult = await validator.ValidateAsync(work, employee.Id, request, cancellationToken);
@@ -218,7 +232,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToString(),
+            Status: submission.Status.ToWire(),
             SubmittedAt: submission.SubmittedAt,
             EvidenceCount: uploadedFiles.Count,
             MetricCount: parsedMetrics.Count,
@@ -293,7 +307,7 @@ public sealed partial class ResultSubmissionService(
                 SubmitterEmployeeName: sub.SubmitterEmployee?.FullName ?? "",
                 SubmitterEmployeeCode: sub.SubmitterEmployee?.EmployeeCode ?? "",
                 SubmissionNo: sub.SubmissionNo,
-                Status: sub.Status.ToString(),
+                Status: sub.Status.ToWire(),
                 Comment: cleanComment,
                 SubmittedAt: sub.SubmittedAt,
                 UpdatedAt: sub.UpdatedAt,
@@ -304,7 +318,7 @@ public sealed partial class ResultSubmissionService(
         return result;
     }
 
-    public async Task<SubmissionDetailDto?> GetSubmissionByIdAsync(
+    public async Task<SubmissionDetailDto> GetSubmissionByIdAsync(
         Guid submissionId,
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -315,12 +329,8 @@ public sealed partial class ResultSubmissionService(
             .Include(s => s.Work)
             .Include(s => s.SubmitterEmployee)
             .Include(s => s.Evidences)
-            .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
-
-        if (submission is null)
-        {
-            return null;
-        }
+            .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken)
+            ?? throw new NotFoundException("Đợt nộp kết quả", submissionId);
 
         var (cleanComment, metrics) = ParseStoredComment(submission.Comment);
 
@@ -358,7 +368,7 @@ public sealed partial class ResultSubmissionService(
             SubmitterEmployeeName: submission.SubmitterEmployee?.FullName ?? "",
             SubmitterEmployeeCode: submission.SubmitterEmployee?.EmployeeCode ?? "",
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToString(),
+            Status: submission.Status.ToWire(),
             Comment: cleanComment,
             SubmittedAt: submission.SubmittedAt,
             UpdatedAt: submission.UpdatedAt,
@@ -389,8 +399,9 @@ public sealed partial class ResultSubmissionService(
 
         if (submission.Status != SubmissionStatus.Submitted)
         {
-            throw new ValidationException(
-                $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status}.");
+            throw new ConflictException(
+                $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status.ToWire()}.",
+                ErrorCodes.SubmissionInvalidState);
         }
 
         var work = await unitOfWork.Works.GetByIdAsync(submission.WorkId, cancellationToken);
@@ -418,7 +429,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToString(),
+            Status: submission.Status.ToWire(),
             SubmittedAt: submission.SubmittedAt,
             EvidenceCount: submission.Evidences.Count,
             MetricCount: metrics.Count,

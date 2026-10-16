@@ -22,25 +22,10 @@ public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork) : IWorkSubmi
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(request);
 
+        // Assignee (403) and work state (409) are enforced by ResultSubmissionService before payload validation.
         var errors = new List<string>();
 
-        // 1. Assignee validation
-        if (work.AssigneeEmployeeId != employeeId)
-        {
-            errors.Add("Chỉ người được giao việc mới có quyền nộp báo cáo kết quả.");
-        }
-
-        // 2. Work status validation
-        if (work.Status == WorkStatus.Submitted)
-        {
-            errors.Add("Công việc đang ở trạng thái đã nộp (SUBMITTED) và đang chờ thẩm định.");
-        }
-        else if (work.Status == WorkStatus.Done || work.Status == WorkStatus.Cancelled)
-        {
-            errors.Add($"Công việc ở trạng thái '{work.Status}', không thể nộp kết quả.");
-        }
-
-        // 3. Extract and parse metric items
+        // 1. Extract and parse metric items
         var metrics = request.MetricItems ?? new List<SubmissionMetricInputDto>();
         if (metrics.Count == 0 && !string.IsNullOrWhiteSpace(request.MetricItemsJson))
         {
@@ -56,7 +41,7 @@ public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork) : IWorkSubmi
             }
         }
 
-        // 4. Validate KPI criteria if work belongs to a WorkType
+        // 2. Validate KPI criteria if work belongs to a WorkType
         if (work.WorkTypeId.HasValue)
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -104,7 +89,7 @@ public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork) : IWorkSubmi
             }
         }
 
-        // 5. Validate files if present
+        // 3. Validate files if present
         if (request.Files is { Count: > 0 })
         {
             if (request.Files.Count > 10)

@@ -1,8 +1,10 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Dtos.Verification;
 using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +20,9 @@ public sealed class VerificationService(
             new EventId(1, "VerificationAudit"),
             "Verification audit: Decision={Decision}, SubmissionId={SubmissionId}, VerifierId={VerifierId}");
 
-    public async Task<VerificationDossierDto?> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default)
+    private const string DossierNotFoundMessage = "Không tìm thấy hồ sơ nộp kết quả công việc yêu cầu thẩm định.";
+
+    public async Task<VerificationDossierDto> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default)
     {
         var submission = await db.ResultSubmissions
             .AsNoTracking()
@@ -31,12 +35,8 @@ public sealed class VerificationService(
                     .ThenInclude(wt => wt!.WorkTypeKpis)
                         .ThenInclude(k => k.KpiDefinition)
             .Include(s => s.Evidences)
-            .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
-
-        if (submission is null)
-        {
-            return null;
-        }
+            .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken)
+            ?? throw new NotFoundException(DossierNotFoundMessage);
 
         var submitter = new SubmitterInfoDto(
             submission.SubmitterEmployeeId,
@@ -90,7 +90,7 @@ public sealed class VerificationService(
             submission.Comment,
             evidenceFiles,
             controlStandards,
-            FormatSubmissionStatus(submission.Status));
+            submission.Status.ToWire());
     }
 
     public async Task<VerificationDecisionResultDto> SubmitDecisionAsync(
@@ -121,22 +121,26 @@ public sealed class VerificationService(
 
         if (submission is null)
         {
-            throw new NotFoundException("Không tìm thấy hồ sơ nộp kết quả công việc yêu cầu thẩm định.");
+            throw new NotFoundException(DossierNotFoundMessage);
         }
 
-        // BR-02: Maker-Checker rule: Verifier cannot be the submitter
+        // BR-02: Maker-Checker rule: Verifier cannot be the submitter (business rule violation → 422)
         if (submission.SubmitterEmployeeId == verifier.Id)
         {
-            throw new BusinessRuleException(
-                ErrorCodes.MSG10,
-                "Lỗi kiểm tra: Người thực hiện (Maker) không được phép tự phân công mình làm người phê duyệt (Checker).",
-                403);
+            throw new BusinessRuleException(ErrorCodes.MSG10, statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
-        // BR-08 / Lifecycle: Approved submission is closed and cannot be verified again
+        // BR-13: Approved submission is permanently locked
         if (submission.Status == SubmissionStatus.Approved)
         {
-            throw new ConflictException("Hồ sơ kết quả công việc đã được phê duyệt trước đó và đã đóng vĩnh viễn.");
+            throw new BusinessRuleException(ErrorCodes.MSG23, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (submission.Status is not (SubmissionStatus.Submitted or SubmissionStatus.UnderReview))
+        {
+            throw new ConflictException(
+                $"Hồ sơ đang ở trạng thái {submission.Status.ToWire()}, không thể thẩm định.",
+                ErrorCodes.VerificationInvalidState);
         }
 
         var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
@@ -220,30 +224,38 @@ public sealed class VerificationService(
 
         return new VerificationDecisionResultDto(
             verification.Id,
-            normalizedDecision,
-            FormatSubmissionStatus(newSubmissionStatus),
-            FormatWorkStatus(newWorkStatus),
+            dbDecision.ToApiDecision(),
+            newSubmissionStatus.ToWire(),
+            newWorkStatus.ToWire(),
             now,
             message);
     }
 
     public async Task<List<VerificationHistoryDto>> GetHistoryAsync(Guid submissionId, CancellationToken cancellationToken = default)
     {
-        return await db.Verifications
+        if (!await db.ResultSubmissions.AnyAsync(s => s.Id == submissionId, cancellationToken))
+        {
+            throw new NotFoundException(DossierNotFoundMessage);
+        }
+
+        var verifications = await db.Verifications
             .AsNoTracking()
             .Include(v => v.VerifierEmployee)
             .Where(v => v.ResultSubmissionId == submissionId)
             .OrderBy(v => v.RoundNo)
+            .ToListAsync(cancellationToken);
+
+        return verifications
             .Select(v => new VerificationHistoryDto(
                 v.Id,
                 v.ResultSubmissionId,
                 v.RoundNo,
-                v.Decision.ToString().ToUpperInvariant(),
+                v.Decision.ToApiDecision(),
                 v.Comment,
                 v.VerifierEmployeeId,
                 v.VerifierEmployee.FullName,
                 v.VerifiedAt))
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 
     private static void ValidateDecisionPayload(SubmitVerificationDecisionDto dto)
@@ -285,17 +297,4 @@ public sealed class VerificationService(
             throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
     }
-
-    private static string FormatSubmissionStatus(SubmissionStatus status) => status switch
-    {
-        SubmissionStatus.UnderReview => "UNDER_REVIEW",
-        _ => status.ToString().ToUpperInvariant()
-    };
-
-    private static string FormatWorkStatus(WorkStatus status) => status switch
-    {
-        WorkStatus.InProgress => "IN_PROGRESS",
-        WorkStatus.HandedOver => "HANDED_OVER",
-        _ => status.ToString().ToUpperInvariant()
-    };
 }

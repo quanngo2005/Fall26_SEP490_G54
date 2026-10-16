@@ -151,13 +151,61 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task GetDossierAsync_WhenSubmissionDoesNotExist_ReturnsNull()
+    public async Task GetDossierAsync_WhenSubmissionDoesNotExist_ThrowsNotFoundException()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var result = await service.GetDossierAsync(Guid.NewGuid());
-            Assert.Null(result);
+            var ex = await Assert.ThrowsAsync<NotFoundException>(() => service.GetDossierAsync(Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.NotFound, ex.ErrorCode);
+            Assert.Equal(404, ex.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task GetDossierAsync_ReturnsWireFormatStatus()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, _, _, submission) = await SeedBasicSubmissionAsync(context);
+            submission.Status = SubmissionStatus.UnderReview;
+            await context.SaveChangesAsync();
+
+            var result = await service.GetDossierAsync(submission.Id);
+
+            Assert.Equal("UNDER_REVIEW", result.Status);
+        }
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_WhenSubmissionDoesNotExist_ThrowsNotFoundException()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            await Assert.ThrowsAsync<NotFoundException>(() => service.GetHistoryAsync(Guid.NewGuid()));
+        }
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_MapsNeedMoreInfoToRevisionRequired()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, checkerAccount, _, submission) = await SeedBasicSubmissionAsync(context);
+            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
+            {
+                Decision = "REVISION_REQUIRED",
+                Feedback = "Bổ sung chứng từ đối soát Core Banking.",
+                ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(1),
+            });
+
+            var history = await service.GetHistoryAsync(submission.Id);
+
+            var round = Assert.Single(history);
+            Assert.Equal("REVISION_REQUIRED", round.Decision);
         }
     }
 
@@ -297,12 +345,37 @@ public sealed class VerificationServiceTests
                 service.SubmitDecisionAsync(submission.Id, makerAccount.Id, payload));
 
             Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
-            Assert.Equal(403, ex.StatusCode);
+            Assert.Equal(422, ex.StatusCode);
+        }
+    }
+
+    [Theory]
+    [InlineData(SubmissionStatus.Rejected)]
+    [InlineData(SubmissionStatus.Withdrawn)]
+    [InlineData(SubmissionStatus.Draft)]
+    public async Task SubmitDecisionAsync_WhenNotAwaitingVerification_ThrowsVerificationInvalidState(SubmissionStatus status)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, checkerAccount, _, submission) = await SeedBasicSubmissionAsync(context);
+            submission.Status = status;
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
+                {
+                    Decision = "APPROVED",
+                    VerifiedValue = 1m,
+                }));
+
+            Assert.Equal(ErrorCodes.VerificationInvalidState, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
         }
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WhenAlreadyApproved_ThrowsConflictException()
+    public async Task SubmitDecisionAsync_WhenAlreadyApproved_ThrowsBusinessRuleException_MSG23()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -317,8 +390,11 @@ public sealed class VerificationServiceTests
                 Feedback = "Cố gắng duyệt lần 2.",
             };
 
-            await Assert.ThrowsAsync<ConflictException>(() =>
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, payload));
+
+            Assert.Equal(ErrorCodes.MSG23, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
         }
     }
 
