@@ -1,4 +1,5 @@
 import { Component, HostListener, input, output } from '@angular/core';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 
 export type SubmissionAttachment = {
   name: string;
@@ -46,7 +47,7 @@ export type SubmissionDetail = {
   selector: 'app-submission-detail-modal',
   templateUrl: './submission-detail-modal.component.html',
 })
-export class SubmissionDetailModalComponent {
+export class SubmissionDetailModalComponent extends LocalizedComponent {
   readonly open = input(false);
   readonly submission = input<SubmissionDetail>(defaultSubmission);
 

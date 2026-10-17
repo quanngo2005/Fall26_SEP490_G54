@@ -1,4 +1,5 @@
 import { Component, signal } from '@angular/core';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 
 type KpiMapping = {
   code: string;
@@ -20,7 +21,7 @@ type RelatedItem = { code: string; name: string; status: string };
   selector: 'app-work-type-detail',
   templateUrl: './work-type-detail.component.html',
 })
-export class WorkTypeDetailComponent {
+export class WorkTypeDetailComponent extends LocalizedComponent {
   protected readonly activeTab = signal('overview');
   protected readonly showMoreOverview = signal(false);
   protected readonly showHistory = signal(true);
@@ -86,35 +87,6 @@ export class WorkTypeDetailComponent {
     { code: 'CMP-004', name: 'Digital Banking Onboarding 2026', status: 'Active' },
     { code: 'CMP-007', name: 'Priority Customer Care Month', status: 'Active' },
   ];
-
-  protected readonly navigationGroups = [
-    {
-      title: 'BÀN LÀM VIỆC CÁ NHÂN',
-      items: [
-        ['▦', 'Tổng quan & Dashboard', ''],
-        ['◉', 'Công việc của tôi', '12'],
-        ['⌁', 'Chỉ số KPI cá nhân', ''],
-        ['♧', 'Đánh giá Hiệu suất', ''],
-        ['⟳', 'Yêu cầu Bàn giao', '1'],
-        ['⚒', 'Khiếu nại & Phúc khảo', ''],
-      ],
-    },
-    {
-      title: 'TỔ CHỨC & PHÒNG BAN',
-      items: [
-        ['▦', 'Phòng ban / Đơn vị', ''],
-        ['♙', 'Vị trí / Chức danh', ''],
-        ['▣', 'Hồ sơ Cán bộ', ''],
-      ],
-    },
-    {
-      title: 'THÔNG BÁO & LỊCH TRÌNH',
-      items: [
-        ['⚑', 'Thông báo tác nghiệp', '3'],
-        ['▣', 'Lịch làm việc & SLA', ''],
-      ],
-    },
-  ] as const;
 
   protected get visibleMappings(): KpiMapping[] {
     return this.showHistory() ? this.mappings : this.mappings.filter((item) => !item.expired);

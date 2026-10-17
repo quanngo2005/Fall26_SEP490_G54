@@ -9,9 +9,16 @@ export interface LocaleFormatConfig {
   decimalSeparator: string;
 }
 
+import type localizationData from './localization.json';
+
+export type Localization = typeof localizationData.translations.vi & {
+  units: Record<string, string>;
+  products: Record<string, string>;
+};
+
 export interface LocalizationSchema {
   defaultLocale: SupportedLocale;
   supportedLocales: SupportedLocale[];
   formats: Record<SupportedLocale, LocaleFormatConfig>;
-  translations: Record<SupportedLocale, Record<string, Record<string, string>>>;
+  translations: Record<SupportedLocale, Localization>;
 }

@@ -1,59 +1,72 @@
 <div class="kem-container" role="dialog" aria-modal="true" aria-labelledby="kemTitle">
-  <button type="button" class="kem-backdrop" (click)="close()" aria-label="Đóng cửa sổ"></button>
+  <button
+    type="button"
+    class="kem-backdrop"
+    (click)="close()"
+    [attr.aria-label]="localization.common.close"
+  ></button>
 
   <div class="kem-card">
     <header class="kem-header">
       <div>
-        <h3 id="kemTitle" class="kem-title">Cập nhật Định nghĩa KPI</h3>
+        <h3 id="kemTitle" class="kem-title">{{localization.kpi.editTitle}}</h3>
         <span class="kem-subtitle">
-          Phiên bản: {{ versionLabel() }} | Ngày hiệu lực: {{ effectiveDateLabel() }}
+          {{localization.kpi.version}} {{versionLabel()}} | {{localization.kpi.effectiveDate}}
+          {{effectiveDateLabel()}}
         </span>
       </div>
-      <button type="button" class="kem-close" (click)="close()" aria-label="Đóng">✕</button>
+      <button
+        type="button"
+        class="kem-close"
+        (click)="close()"
+        [attr.aria-label]="localization.common.close"
+      >
+        ✕
+      </button>
     </header>
 
     <div class="kem-body">
       @if (error(); as err) {
-        <div class="kem-error">⚠ {{ err }}</div>
+        <div class="kem-error">⚠ {{err}}</div>
       }
 
       <!-- Thông tin KPI -->
       <section class="kem-section">
-        <h4 class="kem-section-title">Thông tin KPI</h4>
+        <h4 class="kem-section-title">{{localization.kpi.information}}</h4>
         <div class="kem-grid">
           <div class="kem-field">
-            <label for="kemCode">Mã KPI</label>
+            <label for="kemCode">{{localization.kpi.code}}</label>
             <div class="kem-locked">
               <input id="kemCode" type="text" class="mono" [value]="kpi().code" disabled />
-              <span class="kem-lock" title="Mã KPI không thể thay đổi">🔒</span>
+              <span class="kem-lock" [title]="localization.kpi.codeLocked">🔒</span>
             </div>
           </div>
           <div class="kem-field">
-            <label for="kemGroup">Nhóm chỉ số</label>
+            <label for="kemGroup">{{localization.kpi.group}}</label>
             <select id="kemGroup" [ngModel]="groupId()" (ngModelChange)="groupId.set($event)">
               @for (g of groups(); track g.id) {
-                <option [value]="g.id">{{ g.name }}</option>
+                <option [value]="g.id">{{g.name}}</option>
               }
             </select>
           </div>
           <div class="kem-field full">
-            <label for="kemName">Tên KPI</label>
+            <label for="kemName">{{localization.kpi.name}}</label>
             <input
               id="kemName"
               type="text"
               [ngModel]="name()"
               (ngModelChange)="name.set($event)"
-              placeholder="Nhập tên KPI..."
+              [placeholder]="localization.kpi.namePlaceholder"
             />
           </div>
           <div class="kem-field full">
-            <label for="kemDesc">Mô tả</label>
+            <label for="kemDesc">{{localization.kpi.description}}</label>
             <textarea
               id="kemDesc"
               rows="2"
               [ngModel]="description()"
               (ngModelChange)="description.set($event)"
-              placeholder="Mô tả mục đích và cách tính KPI..."
+              [placeholder]="localization.kpi.descriptionPlaceholder"
             ></textarea>
           </div>
         </div>
@@ -61,10 +74,10 @@
 
       <!-- Phương pháp đo lường -->
       <section class="kem-section kem-panel">
-        <h4 class="kem-section-title">Phương pháp đo lường</h4>
+        <h4 class="kem-section-title">{{localization.kpi.measurement}}</h4>
         <div class="kem-grid">
           <div class="kem-field">
-            <span class="kem-label">Loại</span>
+            <span class="kem-label">{{localization.kpi.type}}</span>
             <div class="kem-segment">
               <button
                 type="button"
@@ -74,7 +87,7 @@
                 @if (measurementType() === 'Quantitative') {
                   <span class="dot">•</span>
                 }
-                Định lượng
+                {{localization.kpi.quantitative}}
               </button>
               <button
                 type="button"
@@ -84,20 +97,20 @@
                 @if (measurementType() === 'Qualitative') {
                   <span class="dot">•</span>
                 }
-                Định tính
+                {{localization.kpi.qualitative}}
               </button>
             </div>
           </div>
           <div class="kem-field">
-            <label for="kemUnit">Đơn vị</label>
+            <label for="kemUnit">{{localization.kpi.unit}}</label>
             <select id="kemUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
               @for (u of unitOptions; track u) {
-                <option [value]="u">{{ u }}</option>
+                <option [value]="u">{{localization.units[u] ?? u}}</option>
               }
             </select>
           </div>
           <div class="kem-field">
-            <span class="kem-label">Chiều hướng</span>
+            <span class="kem-label">{{localization.kpi.direction}}</span>
             <div class="kem-radios">
               <label class="kem-radio">
                 <input
@@ -107,7 +120,7 @@
                   [ngModel]="direction()"
                   (ngModelChange)="direction.set($event)"
                 />
-                Càng cao càng tốt
+                {{localization.kpi.higherBetter}}
               </label>
               <label class="kem-radio">
                 <input
@@ -117,31 +130,31 @@
                   [ngModel]="direction()"
                   (ngModelChange)="direction.set($event)"
                 />
-                Càng thấp càng tốt
+                {{localization.kpi.lowerBetter}}
               </label>
             </div>
           </div>
           <div class="kem-field">
-            <label for="kemFormula">Công thức</label>
+            <label for="kemFormula">{{localization.kpi.formula}}</label>
             <input
               id="kemFormula"
               type="text"
               class="mono"
               [ngModel]="formula()"
               (ngModelChange)="formula.set($event)"
-              placeholder="VD: FORMULA_SUM_DEPOSIT"
+              [placeholder]="localization.kpi.formulaPlaceholder"
             />
           </div>
         </div>
         @if (direction() === 'HigherBetter') {
-          <p class="kem-hint">ⓘ Uncapped achievement applied (BR-40a)</p>
+          <p class="kem-hint">ⓘ {{localization.kpi.uncapped}}</p>
         }
       </section>
 
       <!-- Hệ số theo sản phẩm -->
       <section class="kem-section">
         <div class="kem-section-head">
-          <h4 class="kem-section-title">Hệ số theo sản phẩm</h4>
+          <h4 class="kem-section-title">{{localization.kpi.productMultipliers}}</h4>
           <span class="kem-rule">BR-33</span>
         </div>
         <label class="kem-checkbox">
@@ -150,7 +163,7 @@
             [ngModel]="applyMultiplier()"
             (ngModelChange)="applyMultiplier.set($event)"
           />
-          Áp dụng hệ số sản phẩm
+          {{localization.kpi.applyMultiplier}}
         </label>
 
         @if (applyMultiplier()) {
@@ -159,17 +172,23 @@
               <select
                 [ngModel]="m.label"
                 (ngModelChange)="updateMultiplierLabel(i, $event)"
-                aria-label="Sản phẩm"
+                [attr.aria-label]="localization.kpi.product"
               >
                 @if (!productOptions.includes(m.label)) {
-                  <option [value]="m.label">{{ m.label }}</option>
+                  <option [value]="m.label">{{m.label}}</option>
                 }
                 @for (p of productOptions; track p) {
-                  <option [value]="p">{{ p }}</option>
+                  <option [value]="p">{{localization.products[p] ?? p}}</option>
                 }
               </select>
               <div class="kem-stepper">
-                <button type="button" (click)="stepMultiplier(i, -1)" aria-label="Giảm">−</button>
+                <button
+                  type="button"
+                  (click)="stepMultiplier(i, -1)"
+                  [attr.aria-label]="localization.kpi.decrease"
+                >
+                  −
+                </button>
                 <input
                   type="number"
                   step="0.1"
@@ -177,28 +196,36 @@
                   class="mono"
                   [ngModel]="m.value.toFixed(1)"
                   (ngModelChange)="updateMultiplierValue(i, $event)"
-                  aria-label="Hệ số"
+                  [attr.aria-label]="localization.kpi.multiplier"
                 />
-                <button type="button" (click)="stepMultiplier(i, 1)" aria-label="Tăng">+</button>
+                <button
+                  type="button"
+                  (click)="stepMultiplier(i, 1)"
+                  [attr.aria-label]="localization.kpi.increase"
+                >
+                  +
+                </button>
               </div>
               <button
                 type="button"
                 class="kem-remove"
                 (click)="removeMultiplier(i)"
-                aria-label="Xóa sản phẩm"
+                [attr.aria-label]="localization.kpi.removeProduct"
               >
                 ✕
               </button>
             </div>
           }
-          <button type="button" class="kem-add" (click)="addMultiplier()">+ Thêm sản phẩm</button>
+          <button type="button" class="kem-add" (click)="addMultiplier()">
+            {{localization.kpi.addProduct}}
+          </button>
         }
       </section>
 
       <!-- Trọng số theo vai trò -->
       <section class="kem-section">
         <div class="kem-section-head">
-          <h4 class="kem-section-title">Trọng số theo vai trò</h4>
+          <h4 class="kem-section-title">{{localization.kpi.roleWeights}}</h4>
           <span class="kem-rule">BR-06, 49</span>
         </div>
 
@@ -212,11 +239,11 @@
           >
             @for (r of roleWeights(); track r.role) {
               <span class="kem-chip">
-                {{ r.role }}
+                {{r.role}}
                 <button
                   type="button"
                   (click)="removeRole(r.role); $event.stopPropagation()"
-                  [attr.aria-label]="'Bỏ ' + r.role"
+                  [attr.aria-label]="localization.kpi.removeRole + ' ' + r.role"
                 >
                   ✕
                 </button>
@@ -228,7 +255,7 @@
             <ul class="kem-dropdown">
               @for (r of availableRoles(); track r) {
                 <li>
-                  <button type="button" (click)="addRole(r)">{{ r }}</button>
+                  <button type="button" (click)="addRole(r)">{{r}}</button>
                 </li>
               }
             </ul>
@@ -237,7 +264,7 @@
 
         @for (r of roleWeights(); track r.role; let i = $index) {
           <div class="kem-weight-row">
-            <span>Trọng số {{ r.role }}</span>
+            <span>{{localization.kpi.weight}} {{r.role}}</span>
             <div class="kem-percent">
               <input
                 type="number"
@@ -246,7 +273,7 @@
                 class="mono"
                 [ngModel]="r.weight"
                 (ngModelChange)="updateRoleWeight(i, $event)"
-                [attr.aria-label]="'Trọng số ' + r.role"
+                [attr.aria-label]="localization.kpi.weight + ' ' + r.role"
               />
               <span>%</span>
             </div>
@@ -255,10 +282,10 @@
 
         @if (roleWeights().length > 0) {
           @if (isWeightValid()) {
-            <div class="kem-banner success">✓ 100% total weight validation passed</div>
+            <div class="kem-banner success">✓ {{localization.kpi.weightValid}}</div>
           } @else {
             <div class="kem-banner warning">
-              ⚠ Tổng trọng số hiện là {{ totalWeight() }}%. Bắt buộc phải bằng 100%.
+              ⚠ {{localization.kpi.weightPrefix}} {{totalWeight()}}{{localization.kpi.weightSuffix}}
             </div>
           }
         }
@@ -266,10 +293,10 @@
     </div>
 
     <footer class="kem-footer">
-      <span class="kem-audit mono">⟳ Audit: Synced Server Time | DM-001</span>
+      <span class="kem-audit mono">⟳ {{localization.kpi.auditSync}} | DM-001</span>
       <div class="kem-actions">
         <button type="button" class="kem-btn-ghost" (click)="close()" [disabled]="saving()">
-          Hủy bỏ
+          {{localization.common.cancel}}
         </button>
         <button
           type="button"
@@ -277,7 +304,7 @@
           (click)="save()"
           [disabled]="saving() || !isWeightValid()"
         >
-          {{ saving() ? 'Đang lưu...' : 'LƯU & BAN HÀNH CẤU HÌNH' }}
+          {{saving() ? localization.kpi.saving : localization.kpi.publish}}
         </button>
       </div>
     </footer>

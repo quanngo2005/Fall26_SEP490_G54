@@ -2,29 +2,34 @@
   <header class="topbar">
     <a class="brand" routerLink="/home">
       <span class="brand-mark">B</span>
-      <span>BPMS <small>Banking Performance Management System</small></span>
+      <span
+        >BPMS <small>{{localization.login.brand}}</small></span
+      >
     </a>
     <div class="account-menu">
-      <span class="user-name">{{ currentUser()?.fullName ?? 'BPMS user' }}</span>
+      <span class="user-name">{{currentUser()?.fullName ?? localization.home.user}}</span>
       <button type="button" class="logout-button" (click)="logout()" [disabled]="loggingOut()">
-        {{ loggingOut() ? 'Signing out…' : 'Logout' }}
+        {{loggingOut() ? localization.common.signingOut : localization.common.logout}}
       </button>
     </div>
   </header>
 
   <section class="welcome-card">
-    <p class="eyebrow">YOUR WORKSPACE</p>
-    <h1>Welcome, {{ currentUser()?.fullName ?? 'back' }}.</h1>
-    <p>You are signed in to BPMS — Banking Performance Management System.</p>
+    <p class="eyebrow">{{localization.home.workspace}}</p>
+    <h1>
+      {{localization.home.welcome}},
+      {{currentUser()?.fullName ?? localization.home.fallbackName}}.
+    </h1>
+    <p>{{localization.home.signedIn}}</p>
     @if (currentUser()?.roles?.length) {
-      <div class="role-list" aria-label="Assigned roles">
+      <div class="role-list" [attr.aria-label]="localization.home.roles">
         @for (role of currentUser()?.roles; track role) {
-          <span>{{ role }}</span>
+          <span>{{role}}</span>
         }
       </div>
     }
     @if (errorMessage()) {
-      <p class="logout-error" role="alert">{{ errorMessage() }}</p>
+      <p class="logout-error" role="alert">{{errorMessage()}}</p>
     }
   </section>
 </main>

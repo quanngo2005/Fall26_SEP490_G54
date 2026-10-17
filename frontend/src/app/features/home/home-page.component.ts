@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 
 @Component({
   selector: 'app-home-page',
@@ -9,7 +10,7 @@ import { AuthService } from '../../core/auth.service';
   templateUrl: './home-page.component.html',
   styleUrl: './home-page.component.scss',
 })
-export class HomePageComponent {
+export class HomePageComponent extends LocalizedComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -18,7 +19,7 @@ export class HomePageComponent {
   protected readonly errorMessage = signal('');
 
   protected logout(): void {
-    if (this.loggingOut() || !window.confirm('Are you sure you want to sign out?')) {
+    if (this.loggingOut() || !window.confirm(this.localization.home.confirmLogout)) {
       return;
     }
 
@@ -35,7 +36,7 @@ export class HomePageComponent {
           return;
         }
 
-        this.errorMessage.set('Logout failed. Please try again.');
+        this.errorMessage.set(this.localization.home.logoutFailed);
         this.loggingOut.set(false);
       },
       complete: () => this.loggingOut.set(false),

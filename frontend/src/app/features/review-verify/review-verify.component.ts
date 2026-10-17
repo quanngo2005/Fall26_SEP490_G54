@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   APPROVED_MOCK_DOSSIER,
   DEFAULT_MOCK_DOSSIER,
@@ -23,7 +24,7 @@ import { ReviewVerifyService } from './review-verify.service';
   imports: [CommonModule, FormsModule],
   templateUrl: './review-verify.component.html',
 })
-export class ReviewVerifyComponent implements OnInit {
+export class ReviewVerifyComponent extends LocalizedComponent implements OnInit {
   private readonly reviewService = inject(ReviewVerifyService);
 
   // View state and data signals
@@ -181,19 +182,15 @@ export class ReviewVerifyComponent implements OnInit {
 
   openConfirmModal(): void {
     if (this.isMakerCheckerViolated()) {
-      this.validationError.set(
-        'Vi phạm quy tắc BR-02: Cán bộ tự thực hiện công việc không được phép thẩm duyệt hồ sơ của chính mình!',
-      );
+      this.validationError.set(this.localization.review.makerCheckerError);
       return;
     }
     if (!this.isFeedbackValid()) {
-      this.validationError.set(
-        'Ý kiến chỉ đạo & lý do bắt buộc nhập tối thiểu 10 ký tự đối với trường hợp yêu cầu làm lại hoặc từ chối.',
-      );
+      this.validationError.set(this.localization.review.feedbackError);
       return;
     }
     if (!this.isDeadlineValid()) {
-      this.validationError.set('Vui lòng chọn hạn chót nộp lại cho nhân viên.');
+      this.validationError.set(this.localization.review.deadlineError);
       return;
     }
     this.validationError.set(null);
