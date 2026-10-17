@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         return services;
     }
 }

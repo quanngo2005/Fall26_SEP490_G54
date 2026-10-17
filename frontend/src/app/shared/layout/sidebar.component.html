@@ -1,0 +1,156 @@
+@if (navigation.mobileOpen()) {
+  <button
+    class="sidebar-backdrop"
+    type="button"
+    (click)="navigation.closeMobile()"
+    [attr.aria-label]="localization.common.close"
+  ></button>
+}
+<aside
+  id="workspace-sidebar"
+  tabindex="-1"
+  [class.collapsed]="navigation.collapsed()"
+  [class.mobile-open]="navigation.mobileOpen()"
+  [attr.aria-label]="localization.common.mainNavigation"
+  (keydown.escape)="navigation.closeMobile()"
+>
+  <!-- Brand / Logo -->
+  <div class="sidebar-brand">
+    <div class="brand-logo">
+      <span class="brand-logo-text">BP</span>
+    </div>
+    <div class="brand-text expanded-copy">
+      <strong class="brand-name">BPMS</strong>
+      <span class="brand-sub">{{localization.layout.bankingOperations}}</span>
+    </div>
+    <button
+      class="mobile-close expanded-copy"
+      type="button"
+      (click)="navigation.closeMobile()"
+      [attr.aria-label]="localization.common.close"
+    >
+      ×
+    </button>
+  </div>
+
+  <!-- Navigation -->
+  <nav>
+    @if (navigation.loading()) {
+      <p class="expanded-copy empty-menu" role="status">
+        {{localization.sidebarSettings.loading}}
+      </p>
+    } @else if (navigation.loadFailed()) {
+      <p class="expanded-copy empty-menu" role="alert">
+        {{localization.sidebarSettings.loadFailed}}
+      </p>
+      <button
+        type="button"
+        class="nav-item"
+        (click)="navigation.reload()"
+        [attr.aria-label]="localization.sidebarSettings.retry"
+      >
+        <app-layout-icon name="menu" /><span class="expanded-copy">{{localization.sidebarSettings.retry}}</span>
+      </button>
+    }
+    @for (item of navigation.items(); track item.id) {
+      @if (item.children && item.children.length) {
+        <!-- Group with children -->
+        <button
+          class="nav-group-toggle"
+          type="button"
+          (click)="navigation.toggleGroup(item.id)"
+          [attr.aria-expanded]="navigation.isGroupExpanded(item.id)"
+          [attr.aria-label]="localization.menu[item.id]"
+          [title]="localization.menu[item.id]"
+        >
+          <app-layout-icon [name]="item.icon" />
+          <span class="nav-label expanded-copy">{{localization.menu[item.id]}}</span>
+          <span class="group-chevron expanded-copy">
+            <app-layout-icon
+              [name]="navigation.isGroupExpanded(item.id) ? 'chevronDown' : 'chevronDown'"
+            />
+          </span>
+        </button>
+        @if (navigation.isGroupExpanded(item.id)) {
+          <div class="nav-children expanded-copy">
+            @for (child of item.children; track child.id) {
+              @if (child.route) {
+                <a
+                  [routerLink]="child.route"
+                  routerLinkActive="active"
+                  ariaCurrentWhenActive="page"
+                  (click)="navigation.closeMobile()"
+                  [attr.aria-label]="localization.menu[child.id]"
+                  [title]="localization.menu[child.id]"
+                  class="nav-child"
+                >
+                  <app-layout-icon [name]="child.icon" />
+                  <span>{{localization.menu[child.id]}}</span>
+                </a>
+              } @else {
+                <button
+                  class="nav-child unavailable"
+                  type="button"
+                  disabled
+                  [title]="localization.layout.comingSoon"
+                >
+                  <app-layout-icon [name]="child.icon" />
+                  <span>{{localization.menu[child.id]}}</span>
+                </button>
+              }
+            }
+          </div>
+        }
+      } @else if (item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: item.id === 'overview' }"
+          ariaCurrentWhenActive="page"
+          (click)="navigation.closeMobile()"
+          [attr.aria-label]="localization.menu[item.id]"
+          [title]="localization.menu[item.id]"
+          class="nav-item"
+        >
+          <app-layout-icon [name]="item.icon" />
+          <span class="nav-label expanded-copy">{{localization.menu[item.id]}}</span>
+        </a>
+      } @else {
+        <button
+          class="nav-item unavailable"
+          type="button"
+          disabled
+          [attr.aria-label]="localization.menu[item.id] + ' — ' + localization.layout.comingSoon"
+          [title]="localization.menu[item.id]"
+        >
+          <app-layout-icon [name]="item.icon" /><span class="nav-label expanded-copy">{{localization.menu[item.id]}}</span>
+        </button>
+      }
+    } @empty {
+      @if (!navigation.loading() && !navigation.loadFailed()) {
+        <p class="expanded-copy empty-menu">{{localization.layout.noAccess}}</p>
+      }
+    }
+  </nav>
+
+  <!-- Footer -->
+  <footer>
+    <button
+      class="collapse-button"
+      type="button"
+      (click)="navigation.toggleCollapsed()"
+      [attr.aria-label]="
+        navigation.collapsed() ? localization.layout.expand : localization.layout.collapse
+      "
+      [attr.aria-expanded]="!navigation.collapsed()"
+    >
+      <app-layout-icon name="chevron" />
+      <span class="expanded-copy">{{localization.layout.collapse}}</span>
+    </button>
+    <div class="footer-brand expanded-copy">
+      <span>BPMS</span>
+      <span class="footer-dot">·</span>
+      <span>{{localization.layout.secureWorkspace}}</span>
+    </div>
+  </footer>
+</aside>

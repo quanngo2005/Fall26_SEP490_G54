@@ -1,7 +1,16 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
+  {
+    path: 'sidebar-settings',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/sidebar-settings/sidebar-settings.component').then(
+        (m) => m.SidebarSettingsComponent,
+      ),
+  },
   {
     path: 'login',
     loadComponent: () =>
