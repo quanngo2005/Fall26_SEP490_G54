@@ -61,3 +61,13 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Gemini / Antigravity IDE
+.agents/
+GEMINI.md
+.gemini/
+/.claude
+CLAUDE.md
+AGENTS.md
+AGENTS.md
+/diagrams

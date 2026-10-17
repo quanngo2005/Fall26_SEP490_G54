@@ -11,6 +11,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IWorkService, WorkService>();
+        services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
+        services.AddScoped<IKpiMappingService, KpiMappingService>();
+        services.AddScoped<IWorkTypeService, WorkTypeService>();
+        services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<IStorageService, StorageService>();
+        services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
+        services.AddScoped<IEventBus, EventBus>();
+        services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
+        services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
         return services;
     }
 }

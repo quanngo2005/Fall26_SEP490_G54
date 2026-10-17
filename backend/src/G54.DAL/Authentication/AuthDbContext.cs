@@ -169,6 +169,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
                 .HasColumnName("id");
             entity.Property(rolePermission => rolePermission.PermissionId).HasColumnName("permission_id");
             entity.Property(rolePermission => rolePermission.RoleId).HasColumnName("role_id");
+            entity.Property(rolePermission => rolePermission.Scope)
+                .HasMaxLength(50)
+                .HasDefaultValue("Own")
+                .HasColumnName("scope");
             entity.HasOne(rolePermission => rolePermission.Permission)
                 .WithMany(permission => permission.RolePermissions)
                 .HasForeignKey(rolePermission => rolePermission.PermissionId)

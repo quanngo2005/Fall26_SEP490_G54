@@ -154,6 +154,16 @@ npm:       10.x
 
 ## Chạy Project
 
+### Sau khi clone lần đầu
+
+Trên Windows, đảm bảo đã cài .NET SDK 8.0.425, Node.js 22, npm 10 và Docker Desktop; mở Docker Desktop trước khi chạy project. Tạo file cấu hình development nếu chưa có, sau đó khởi động:
+
+```powershell
+if (-not (Test-Path docker/.env)) { Copy-Item docker/.env.example docker/.env }
+./run.ps1
+```
+
+Không cần chạy `npm install` thủ công: `run.ps1` tự cài frontend dependencies nếu `frontend/node_modules` chưa tồn tại. PostgreSQL, Redis và pgAdmin chạy trong Docker; API và frontend chạy native.
 ### Cách 1: Development với hot reload
 
 Đây là cách nên dùng khi lập trình. PostgreSQL, Redis và pgAdmin chạy bằng Docker; API và Angular chạy native với hot reload.
@@ -323,6 +333,15 @@ $env:ConnectionStrings__Postgres = "Host=localhost;Port=5432;Database=postgres;U
 $env:ConnectionStrings__Redis = "localhost:6379,abortConnect=false"
 $env:Jwt__Key = "replace-with-a-random-secret-at-least-32-characters"
 ```
+
+#### JWT key
+
+`Jwt:Key` **không còn nằm trong `appsettings.json`** — bắt buộc truyền qua biến môi trường `Jwt__Key` (API sẽ không khởi động nếu thiếu hoặc ngắn hơn 32 byte).
+
+- Local: đặt `JWT_KEY` trong `docker/.env` (copy từ `docker/.env.example`). `run.ps1`, `run-api.ps1`, `run.sh` và Docker Compose tự đọc và map sang `Jwt__Key`.
+- Sinh key mới: `openssl rand -base64 48` (hoặc PowerShell: `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`).
+- CI/CD: lưu key ở GitHub Secret `JWT_KEY` (Settings → Secrets and variables → Actions), dùng trong workflow qua `${{ secrets.JWT_KEY }}`. Không bao giờ commit key thật.
+- Đổi key sẽ vô hiệu hoá toàn bộ access token đang phát hành; người dùng cần đăng nhập lại.
 
 ## Database Và DbMigrator
 
