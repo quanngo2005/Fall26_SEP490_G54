@@ -1,17 +1,44 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { EmployeeProfileComponent } from './employee-profile.component';
+import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { SidebarConfigurationService } from '../../core/sidebar-configuration.service';
+import { EmployeeProfileComponent } from './employee-profile.component';
 
 describe('EmployeeProfileComponent', () => {
   let component: EmployeeProfileComponent;
   let fixture: ComponentFixture<EmployeeProfileComponent>;
   let i18nService: I18nService;
+  const user = signal({
+    id: 'emp-001',
+    email: 'user@example.test',
+    fullName: 'Nguyễn Văn A',
+    roles: ['EMPLOYEE'],
+    permissions: ['WORK_READ'],
+  });
 
   beforeEach(async () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
       imports: [EmployeeProfileComponent],
-      providers: [I18nService],
+      providers: [
+        I18nService,
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: AuthService,
+          useValue: { currentUser: user.asReadonly(), logout: () => of(null) },
+        },
+        {
+          provide: SidebarConfigurationService,
+          useValue: { current: () => of([]) },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(EmployeeProfileComponent);
@@ -42,18 +69,19 @@ describe('EmployeeProfileComponent', () => {
     expect(component.currentLanguage()).toBe('vi');
   });
 
-  it('should render language toggle button with active locale class', () => {
-    const toggleBtn = fixture.nativeElement.querySelector('#language-toggle-btn');
-    expect(toggleBtn).toBeTruthy();
+  it('should render language toggle button with active locale in HeaderComponent', () => {
+    const buttons = fixture.nativeElement.querySelectorAll('.language-switch button');
+    expect(buttons.length).toBe(2);
 
-    const viSpan = toggleBtn.querySelector('span:first-child');
-    expect(viSpan.classList.contains('active-locale')).toBeTrue();
+    const viBtn = buttons[0];
+    const enBtn = buttons[1];
+    expect(viBtn.classList.contains('selected')).toBeTrue();
 
-    component.toggleLanguage();
+    enBtn.click();
     fixture.detectChanges();
 
-    const enSpan = toggleBtn.querySelector('span:last-child');
-    expect(enSpan.classList.contains('active-locale')).toBeTrue();
+    expect(enBtn.classList.contains('selected')).toBeTrue();
+    expect(i18nService.currentLanguage()).toBe('en');
   });
 
   it('should render date formatted as DD/MM/YYYY', () => {
@@ -71,15 +99,12 @@ describe('EmployeeProfileComponent', () => {
 
   it('should update translated text when toggling language to English', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.product-title strong')?.textContent?.trim()).toBe(
-      'Hệ thống Quản trị & Điều hành Ngân hàng',
-    );
+    expect(compiled.textContent).toContain('Quay lại danh sách cán bộ');
 
     component.toggleLanguage();
     fixture.detectChanges();
 
-    expect(compiled.querySelector('.product-title strong')?.textContent?.trim()).toBe(
-      'Banking Performance Management System',
-    );
+    expect(compiled.textContent).toContain('Back to Employee List');
   });
 });
+

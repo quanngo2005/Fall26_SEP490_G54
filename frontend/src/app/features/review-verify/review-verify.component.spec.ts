@@ -1,6 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { SidebarConfigurationService } from '../../core/sidebar-configuration.service';
 import { environment } from '../../../environments/environment';
 import { ReviewVerifyComponent } from './review-verify.component';
 import { DEFAULT_MOCK_DOSSIER } from './review-verify.data';
@@ -10,11 +16,32 @@ describe('ReviewVerifyComponent', () => {
   let component: ReviewVerifyComponent;
   let fixture: ComponentFixture<ReviewVerifyComponent>;
   let http: HttpTestingController;
+  const user = signal({
+    id: 'emp-mgr-001',
+    email: 'manager@example.test',
+    fullName: 'Trần Văn Quản Lý',
+    roles: ['MANAGER'],
+    permissions: ['VERIFICATION_DECIDE'],
+  });
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ReviewVerifyComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), ReviewVerifyService],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        I18nService,
+        ReviewVerifyService,
+        {
+          provide: AuthService,
+          useValue: { currentUser: user.asReadonly(), logout: () => of(null) },
+        },
+        {
+          provide: SidebarConfigurationService,
+          useValue: { current: () => of([]) },
+        },
+      ],
     }).compileComponents();
 
     http = TestBed.inject(HttpTestingController);

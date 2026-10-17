@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 
 type KpiMapping = {
   code: string;
@@ -19,6 +20,7 @@ type RelatedItem = { code: string; name: string; status: string };
 
 @Component({
   selector: 'app-work-type-detail',
+  imports: [HeaderComponent, SidebarComponent],
   templateUrl: './work-type-detail.component.html',
 })
 export class WorkTypeDetailComponent extends LocalizedComponent {

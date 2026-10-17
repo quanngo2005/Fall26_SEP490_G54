@@ -1,13 +1,14 @@
 import { Component, signal } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { SupportedLocale } from '../../core/i18n/i18n.models';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { I18N_PIPES } from '../../shared/pipes';
 import { EMPLOYEE_PROFILE } from './employee-profile.data';
 
 @Component({
   selector: 'app-employee-profile',
   standalone: true,
-  imports: [...I18N_PIPES],
+  imports: [HeaderComponent, SidebarComponent, ...I18N_PIPES],
   templateUrl: './employee-profile.component.html',
 })
 export class EmployeeProfileComponent extends LocalizedComponent {

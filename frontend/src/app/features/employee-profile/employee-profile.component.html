@@ -1,101 +1,11 @@
-<main class="portal-canvas" [attr.aria-label]="localization.employee.pageAriaLabel">
-  <div class="portal-frame">
-    <header class="topbar">
-      <a class="brand-block" href="#employee-profile" aria-label="Enterprise Banking">
-        <span class="brand-mark">EB</span>
-        <span class="brand-copy"
-          ><strong>Enterprise Banking <small>SEC</small></strong
-          ><span>{{localization.common.brandSubtitle}}</span></span
-        >
-      </a>
-      <div class="topbar-main">
-        <div class="product-title">
-          <strong>{{localization.common.appTitle}}</strong>
-          <span>{{localization.common.appSubtitle}}</span>
-        </div>
-        <label class="global-search"
-          ><span aria-hidden="true">⌕</span
-          ><input
-            type="search"
-            [placeholder]="localization.common.searchPlaceholder"
-            [attr.aria-label]="localization.common.searchPlaceholder"
-        /></label>
-        <button
-          id="language-toggle-btn"
-          class="language-button"
-          type="button"
-          (click)="toggleLanguage()"
-          [attr.aria-label]="localization.common.language"
-        >
-          <span [class.active-locale]="currentLanguage() === 'vi'">VI</span>
-          <span class="locale-sep">&nbsp;/&nbsp;</span>
-          <span [class.active-locale]="currentLanguage() === 'en'">EN</span>
-        </button>
-        <button class="header-icon" type="button" [attr.aria-label]="localization.common.help">
-          ?
-        </button>
-        <button
-          class="header-icon notification"
-          type="button"
-          [attr.aria-label]="localization.common.notifications"
-        >
-          ♧<i></i>
-        </button>
-        <span class="header-separator"></span>
-        <div class="signed-in">
-          <strong>Nguyễn Văn A <i></i></strong><span>Senior RM • NV-00182</span>
-        </div>
-        <button
-          class="account-button"
-          type="button"
-          [attr.aria-label]="localization.common.userAccount"
-        >
-          ♙
-        </button>
-      </div>
-    </header>
-
-    <aside class="sidebar" [attr.aria-label]="localization.common.mainNavigation">
-      <div class="system-status">
-        <span>CORE v2.4.0-SEC</span><b><i></i> {{localization.common.systemOnline}}</b>
-      </div>
-      @for (group of navigationGroups; track group.id) {
-        <section class="nav-section">
-          <h2>{{group.title}}<span class="nav-caret">⌄</span></h2>
-          <nav>
-            @for (item of group.items; track item.id) {
-              <button
-                type="button"
-                class="nav-item"
-                [attr.aria-label]="item.label"
-                [class.active]="activeNavigation() === item.id"
-                (click)="selectNavigation(item.id)"
-              >
-                <span class="nav-icon" aria-hidden="true">{{item.icon}}</span
-                ><span class="nav-text">{{item.label}}</span>
-                @if (item.count) {
-                  <span
-                    class="nav-badge"
-                    [class.warning]="item.count === '1'"
-                    [class.danger]="item.count === '3'"
-                    >{{item.count}}</span
-                  >
-                }
-              </button>
-            }
-          </nav>
-        </section>
-      }
-      <div class="sidebar-footer">
-        <strong>v2.4.0 Enterprise</strong
-        ><span class="sync-state">◉ {{localization.nav.hrmsSynced}}</span
-        ><small>{{localization.nav.coreBankingSystems}}</small>
-      </div>
-    </aside>
-
-    <section class="main-column">
-      <div class="page-content">
-        <section class="page-toolbar" [attr.aria-label]="localization.common.pageInformation">
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content portal-canvas" [attr.aria-label]="localization.employee.pageAriaLabel">
+      <section class="main-column">
+        <div class="page-content">
+          <section class="page-toolbar" [attr.aria-label]="localization.common.pageInformation">
           <div class="page-trail">
             <div>
               <span>▦</span> {{localization.nav.organization}} <b>›</b>
@@ -532,7 +442,8 @@
             </div>
           </article>
         </section>
-      </div>
-    </section>
+        </div>
+      </section>
+    </main>
   </div>
-</main>
+</div>

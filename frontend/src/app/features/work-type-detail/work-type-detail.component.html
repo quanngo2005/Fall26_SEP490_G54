@@ -1,72 +1,10 @@
-<main class="work-type-app" [attr.aria-label]="localization.workType.title">
-  <aside class="sidebar" [attr.aria-label]="localization.common.mainNavigation">
-    <a class="brand" href="#work-type-detail" aria-label="Enterprise Banking">
-      <span class="brand-mark">EB</span>
-      <span class="brand-copy">
-        <strong>Enterprise Banking <small>SEC</small></strong>
-        <span>{{localization.common.brandSubtitle}}</span>
-      </span>
-    </a>
-    <div class="core-status">
-      <span>CORE v2.4.0-SEC</span><b><i></i> {{localization.common.systemOnline}}</b>
-    </div>
-    @for (group of navigationGroups; track group.id) {
-      <section class="nav-group">
-        <h2>{{group.title}} <span>⌄</span></h2>
-        @for (item of group.items; track item.id) {
-          <button type="button" class="nav-item" [class.selected]="item.id === 'employees'">
-            <span class="nav-icon" aria-hidden="true">{{item.icon}}</span>
-            <span class="nav-label">{{item.label}}</span>
-            @if (item.count) {
-              <span
-                class="nav-count"
-                [class.warn]="item.count === '1'"
-                [class.danger]="item.count === '3'"
-                >{{item.count}}</span
-              >
-            }
-          </button>
-        }
-      </section>
-    }
-    <div class="sidebar-footer">
-      <strong>v2.4.0 Enterprise</strong><span>◉ {{localization.nav.hrmsSynced}}</span>
-      <small>{{localization.nav.coreBankingSystems}}</small>
-    </div>
-  </aside>
-
-  <div class="page-shell">
-    <header class="topbar">
-      <label class="global-search"
-        ><span aria-hidden="true">⌕</span
-        ><input
-          type="search"
-          [placeholder]="localization.workType.search"
-          [attr.aria-label]="localization.workType.search"
-      /></label>
-      <div class="topbar-actions">
-        <button
-          type="button"
-          class="icon-button notification"
-          [attr.aria-label]="localization.common.notifications"
-        >
-          ♧<i></i>
-        </button>
-        <button type="button" class="icon-button help" [attr.aria-label]="localization.common.help">
-          ?
-        </button>
-        <span class="top-divider"></span>
-        <div class="user-name">
-          <strong>Nguyễn Văn An <i></i></strong><span>{{localization.workType.adminRole}}</span>
-        </div>
-        <button type="button" class="avatar" [attr.aria-label]="localization.common.userAccount">
-          ♙
-        </button>
-      </div>
-    </header>
-
-    <section class="state-simulation" [attr.aria-label]="localization.workType.simulation">
-      <strong>☷ &nbsp; {{localization.workType.simulation}}:</strong>
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content work-type-app" [attr.aria-label]="localization.workType.title">
+      <section class="state-simulation" [attr.aria-label]="localization.workType.simulation">
+        <strong>☷ &nbsp; {{localization.workType.simulation}}:</strong>
       <div class="state-options">
         <span class="current">{{localization.workType.readyState}}</span
         ><span>{{localization.workType.warningState}}</span
@@ -411,5 +349,6 @@
         ><strong>Enterprise Core Architecture v4.8.2</strong>
       </footer>
     </div>
-  </div>
-</main>
+  </main>
+</div>
+</div>

@@ -17,6 +17,24 @@ input {
   font: inherit;
 }
 
+.workspace-layout {
+  display: flex;
+  min-height: 100dvh;
+  background: #f8fafc;
+}
+
+.workspace-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-content {
+  min-width: 0;
+  flex: 1;
+}
+
 app-employee-profile {
   display: block;
   min-height: 100vh;
@@ -37,7 +55,8 @@ app-employee-profile {
   }
 
   .portal-canvas {
-    min-height: 100vh;
+    min-height: 100%;
+    width: 100%;
     overflow-x: hidden;
     background: #f7f9fb;
   }
@@ -431,9 +450,8 @@ app-employee-profile {
 
   /* Main content and shared cards */
   .main-column {
-    grid-column: 2;
-    grid-row: 2;
     min-width: 0;
+    width: 100%;
     background: #f7f9fb;
   }
   .page-content {
@@ -2280,8 +2298,8 @@ app-work-type-detail {
   }
 
   .page-shell {
-    min-height: 100vh;
-    margin-left: 252px;
+    min-height: auto;
+    margin-left: 0;
   }
   .topbar {
     position: sticky;
