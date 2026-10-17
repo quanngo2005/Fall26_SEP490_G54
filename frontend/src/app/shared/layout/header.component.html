@@ -1,0 +1,129 @@
+<header class="shared-header">
+  <!-- Mobile menu toggle -->
+  <button
+    class="mobile-menu"
+    type="button"
+    (click)="navigation.toggleMobile()"
+    [attr.aria-label]="localization.layout.openMenu"
+    [attr.aria-expanded]="navigation.mobileOpen()"
+    aria-controls="workspace-sidebar"
+  >
+    <app-layout-icon name="menu" />
+  </button>
+
+  <!-- Left: Breadcrumb / page context -->
+  <div class="header-breadcrumb">
+    <div class="breadcrumb-path">
+      <span class="breadcrumb-workspace">{{localization.layout.workspace}}</span>
+      <span class="breadcrumb-sep" aria-hidden="true">/</span>
+      <span class="breadcrumb-page">
+        @if (navigation.currentPageKey(); as pageKey) {
+          {{localization.menu[pageKey]}}
+        } @else {
+          {{localization.layout.workspace}}
+        }
+      </span>
+    </div>
+    <div class="breadcrumb-roles">
+      @for (role of navigation.roles(); track role; let last = $last) {
+        <span>{{localization.workspaceRoles[role] | uppercase}}</span>
+        @if (!last) {
+          <span class="role-dot" aria-hidden="true">·</span>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Center: Search -->
+  <div class="header-search">
+    <label class="search-wrapper" [attr.aria-label]="localization.common.searchPlaceholder">
+      <app-layout-icon name="search" />
+      <input
+        type="search"
+        class="search-input"
+        [placeholder]="localization.layout.searchBpms"
+        [attr.aria-label]="localization.common.searchPlaceholder"
+      />
+    </label>
+  </div>
+
+  <!-- Right: Actions -->
+  <div class="header-actions">
+    <!-- Language switch -->
+    <div class="language-switch" role="group" [attr.aria-label]="localization.common.language">
+      <button
+        type="button"
+        [class.selected]="i18n.currentLanguage() === 'vi'"
+        [attr.aria-pressed]="i18n.currentLanguage() === 'vi'"
+        (click)="i18n.setLanguage('vi')"
+        [attr.aria-label]="localization.layout.vietnamese"
+      >
+        VI
+      </button>
+      <button
+        type="button"
+        [class.selected]="i18n.currentLanguage() === 'en'"
+        [attr.aria-pressed]="i18n.currentLanguage() === 'en'"
+        (click)="i18n.setLanguage('en')"
+        [attr.aria-label]="localization.layout.english"
+      >
+        EN
+      </button>
+    </div>
+
+    <!-- Notifications -->
+    <button
+      class="icon-action notification-btn"
+      type="button"
+      [attr.aria-label]="localization.common.notifications"
+    >
+      <app-layout-icon name="bell" />
+      <span class="notification-badge" aria-hidden="true">3</span>
+    </button>
+
+    <!-- Help -->
+    <button class="icon-action" type="button" [attr.aria-label]="localization.common.help">
+      <app-layout-icon name="help" />
+    </button>
+
+    <!-- User account -->
+    @if (user(); as account) {
+      <div class="account-block">
+        <a
+          class="avatar"
+          routerLink="/employee-profile"
+          [attr.aria-label]="localization.layout.viewProfile"
+          (click)="navigation.closeMobile()"
+          >{{initials}}</a
+        >
+        <div class="account">
+          <strong>{{account.fullName}}</strong>
+          <a
+            class="view-profile-link"
+            routerLink="/employee-profile"
+            (click)="navigation.closeMobile()"
+          >
+            {{localization.layout.viewProfile}}
+          </a>
+        </div>
+        <button
+          class="icon-action logout-button"
+          type="button"
+          [disabled]="loggingOut()"
+          (click)="logout()"
+          [attr.aria-label]="
+            loggingOut() ? localization.common.signingOut : localization.common.logout
+          "
+          [title]="loggingOut() ? localization.common.signingOut : localization.common.logout"
+        >
+          <app-layout-icon name="logout" />
+        </button>
+      </div>
+    } @else {
+      <a routerLink="/login">{{localization.login.signIn}}</a>
+    }
+  </div>
+</header>
+@if (logoutFailed()) {
+  <p class="header-error" role="alert">{{localization.home.logoutFailed}}</p>
+}
