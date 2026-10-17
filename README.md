@@ -32,7 +32,7 @@ Dự án gồm các thành phần:
 - Redis dùng cho distributed cache và health readiness.
 - DbMigrator là console app chuyên dụng để apply EF Core migrations và seed data.
 - Angular standalone application dùng strict TypeScript.
-- nginx serve frontend production và proxy `/api` sang backend.
+- nginx định tuyến theo host: host frontend phục vụ Angular, host API proxy sang backend.
 - Docker Compose khởi động PostgreSQL, Redis, pgAdmin, DbMigrator, API và frontend theo đúng thứ tự.
 - Code review scripts kiểm tra build, test, format, dependency vulnerabilities và các mẫu code không an toàn.
 
@@ -198,8 +198,8 @@ API cũng có thể được chạy độc lập bằng `./run-api.ps1`.
 ## Authentication
 
 - Frontend: `/login`; đăng nhập thành công chuyển tới `/home`. Logout yêu cầu xác nhận, gọi API rồi xóa client session và quay lại `/login`.
-- `POST /api/v1/auth/login` nhận `{ "email", "password", "rememberMe" }`; email được đối chiếu với `employee.email`, mật khẩu được kiểm tra bằng PBKDF2, các role/permission được đưa vào JWT.
-- `POST /api/v1/auth/logout` yêu cầu `Authorization: Bearer <accessToken>` và body `{ "refreshToken": "<refreshToken>" }`. API blacklist access token trong Redis, thu hồi refresh session và ghi audit log.
+- `POST /auth/login` nhận `{ "email", "password", "rememberMe" }`; email được đối chiếu với `employee.email`, mật khẩu được kiểm tra bằng PBKDF2, các role/permission được đưa vào JWT.
+- `POST /auth/logout` yêu cầu `Authorization: Bearer <accessToken>` và body `{ "refreshToken": "<refreshToken>" }`. API blacklist access token trong Redis, thu hồi refresh session và ghi audit log.
 - Login thất bại được ghi audit; sau 5 lần sai liên tiếp account bị khóa 15 phút. Có thể điều chỉnh qua `Authentication__MaxFailedAttempts` và `Authentication__LockoutMinutes`.
 - Không có tài khoản mặc định dùng chung hoặc endpoint đăng ký. Local development có thể bật tài khoản bootstrap bằng `BOOTSTRAP_ADMIN_ENABLED=true` và đặt `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `docker/.env` (file này không commit). DbMigrator chỉ tạo tài khoản khi `ASPNETCORE_ENVIRONMENT=Development`; mặc định bị tắt. Cấu hình máy dev hiện tại dùng `admin@bpms.com` / `12345`; mật khẩu này yếu, chỉ dùng local và cần đổi trước khi dùng môi trường chia sẻ. Các account khác cần được provision/import với hash `pbkdf2-sha256`.
 - Access token hết hạn sau 15 phút. Refresh token được lưu dạng hash phía server, xoay vòng nguyên tử mỗi lần làm mới và hết hạn sau 12 giờ; lựa chọn `rememberMe` kéo dài phiên refresh tối đa 30 ngày.
@@ -264,7 +264,7 @@ Cẩn thận: `down -v` xóa database và cache hiện tại.
 | Dịch vụ    | Native development                 | Full Docker                        |
 | ---------- | ---------------------------------- | ---------------------------------- |
 | Frontend   | http://localhost:4200              | http://localhost:8080              |
-| API Hello  | http://localhost:5000/api/hello    | http://localhost:5000/api/hello    |
+| API Hello  | http://localhost:5000/hello        | http://localhost:5000/hello        |
 | Swagger    | http://localhost:5000/swagger      | http://localhost:5000/swagger      |
 | Liveness   | http://localhost:5000/health       | http://localhost:5000/health       |
 | Readiness  | http://localhost:5000/health/ready | http://localhost:5000/health/ready |
@@ -441,7 +441,8 @@ Khi thêm biến frontend mới:
 nginx production đã được cấu hình sẵn:
 
 - SPA fallback về `index.html`.
-- Proxy `/api/` sang API container.
+- Host `FRONTEND_HOST` (mặc định `localhost`) phục vụ Angular; `API_HOST` (mặc định `api.localhost`) proxy mọi đường dẫn sang API. Không phân biệt HTML/JSON bằng Accept.
+- Docker mặc định: frontend `http://localhost:8080`, API `http://api.localhost:8080`. Đặt `API_URL`, `FRONTEND_ORIGIN`, các host và CORS tương ứng khi đổi cổng/domain. Production dùng HTTPS.
 - Content Security Policy (CSP).
 - `X-Content-Type-Options: nosniff`.
 - `X-Frame-Options: DENY`.
@@ -718,14 +719,14 @@ Kiểm tra các port `4200`, `5000`, `5050`, `5432`, `6379`, `8080` và dừng p
 Kiểm tra:
 
 ```powershell
-Invoke-RestMethod http://localhost:5000/api/hello
+Invoke-RestMethod http://localhost:5000/hello
 Invoke-WebRequest http://localhost:5000/health/ready
 ```
 
 Trong full Docker, kiểm tra proxy:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/hello
+Invoke-RestMethod http://api.localhost:8080/hello
 ```
 
 Kết quả mong đợi:
@@ -744,8 +745,8 @@ Dự án đã được smoke test với:
 - Redis trả về `PONG`.
 - DbMigrator exit `0`, migration table và seed record tồn tại.
 - API `/health` và `/health/ready` trả về `200`.
-- API `/api/hello` trả về `Hello World`.
-- Frontend nginx trả về `200` và proxy `/api/hello` thành công.
+- API `/hello` trả về `Hello World`.
+- Frontend host phục vụ Angular; API host proxy `/hello` tới backend (API yêu cầu token nếu endpoint được bảo vệ).
 - pgAdmin trả về `200`.
 - Backend code review pass.
 - Frontend code review pass, `npm audit --omit=dev` không có vulnerability.

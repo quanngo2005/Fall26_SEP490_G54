@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/work-types")]
+[Route("work-types")]
 [Authorize]
 public sealed class WorkTypeController(IWorkTypeService service) : ControllerBase
 {
@@ -23,7 +23,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpGet("kpis")]
-    [HttpGet("/api/v1/kpis")]
+    [HttpGet("/kpis")]
     [ProducesResponseType<ApiResponse<List<KpiOptionDto>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<List<KpiOptionDto>>>> GetActiveKpis(CancellationToken cancellationToken)
     {
@@ -32,7 +32,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpGet("workflows")]
-    [HttpGet("/api/v1/workflows")]
+    [HttpGet("/workflows")]
     [ProducesResponseType<ApiResponse<List<WorkflowOptionDto>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<List<WorkflowOptionDto>>>> GetWorkflows(CancellationToken cancellationToken)
     {

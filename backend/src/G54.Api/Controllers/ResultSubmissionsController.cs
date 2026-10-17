@@ -14,7 +14,7 @@ namespace G54.Api.Controllers;
 /// </summary>
 [ApiController]
 [Authorize]
-[Route("api/v1")]
+[Route("")]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class ResultSubmissionsController(IResultSubmissionService submissionService) : ControllerBase
 {
@@ -73,7 +73,7 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated alias of GET /api/v1/submissions/{submissionId}.</summary>
+    /// <summary>Deprecated alias of GET /submissions/{submissionId}.</summary>
     [HttpGet("works/{workId:guid}/submissions/{submissionId:guid}")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public Task<ActionResult<ApiResponse<SubmissionDetailDto>>> GetSubmissionByIdLegacy(
@@ -93,7 +93,7 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
         return Ok(ApiResponse.Ok(result, "Thu hồi báo cáo kết quả công việc thành công.", HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated alias of POST /api/v1/submissions/{submissionId}/withdraw.</summary>
+    /// <summary>Deprecated alias of POST /submissions/{submissionId}/withdraw.</summary>
     [HttpPost("works/{workId:guid}/submissions/{submissionId:guid}/withdraw")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public Task<ActionResult<ApiResponse<SubmissionResultDto>>> WithdrawSubmissionLegacy(

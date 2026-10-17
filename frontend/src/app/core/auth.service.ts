@@ -28,7 +28,7 @@ export class AuthService {
 
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.http
-      .post<AuthResponse>(`${environment.apiUrl}/v1/auth/login`, request)
+      .post<AuthResponse>(`${environment.apiUrl}/auth/login`, request)
       .pipe(tap((response) => this.saveSession(response, request.rememberMe)));
   }
 
@@ -42,7 +42,7 @@ export class AuthService {
     if (!this.refreshRequest) {
       const rememberMe = localStorage.getItem(SESSION_KEY) !== null;
       this.refreshRequest = this.http
-        .post<AuthResponse>(`${environment.apiUrl}/v1/auth/refresh`, {
+        .post<AuthResponse>(`${environment.apiUrl}/auth/refresh`, {
           refreshToken: session.refreshToken,
         })
         .pipe(
@@ -65,7 +65,7 @@ export class AuthService {
     return session$
       .pipe(
         switchMap((activeSession) =>
-          this.http.post<{ message: string }>(`${environment.apiUrl}/v1/auth/logout`, {
+          this.http.post<{ message: string }>(`${environment.apiUrl}/auth/logout`, {
             refreshToken: activeSession.refreshToken,
           }),
         ),

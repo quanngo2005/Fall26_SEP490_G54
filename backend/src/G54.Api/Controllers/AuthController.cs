@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/auth")]
+[Route("auth")]
 public sealed class AuthController(IAuthService authService) : ControllerBase
 {
     public const string LoginRateLimitPolicy = "LoginByIp";

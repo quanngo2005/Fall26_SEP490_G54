@@ -40,7 +40,7 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 
 ### 1.2 Nguyên tắc
 1. Service throw `AppException` hoặc lớp con; `GlobalExceptionHandler` map sang envelope. Controller không tự build `ApiResponse.Fail`.
-2. Route: `/api/v1`, danh từ số nhiều, kebab-case. Mỗi endpoint có đúng một route chính tắc; route cũ là alias deprecated, bị ẩn khỏi Swagger.
+2. Route tại root, không prefix API hoặc phiên bản, danh từ số nhiều, kebab-case. Mỗi endpoint có đúng một route chính tắc; alias deprecated bị ẩn khỏi Swagger.
 3. Enum trả ra API dạng UPPER_SNAKE, khớp `[PgName]` trong DB (`SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`…), qua `EnumWireFormat.ToWire()`.
 4. **409** dành cho xung đột trạng thái, **422** dành cho vi phạm business rule (BR-xx).
 
@@ -49,18 +49,18 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ### 2.1 Result Submission
 | Method | Route | Body | Thành công |
 |---|---|---|---|
-| GET | `/api/v1/works/{workId}/submission-context` | — | 200 `SubmissionContextDto` |
-| POST | `/api/v1/works/{workId}/submissions` | multipart: `comment`, `metricItems[]` hoặc `metricItemsJson`, `files[]` | 201 `SubmissionResultDto`, message `MSG06` |
-| GET | `/api/v1/works/{workId}/submissions` | — | 200 `SubmissionDetailDto[]` |
-| GET | `/api/v1/submissions/{submissionId}` | — | 200 `SubmissionDetailDto` |
-| POST | `/api/v1/submissions/{submissionId}/withdraw` | — | 200 `SubmissionResultDto` |
+| GET | `/works/{workId}/submission-context` | — | 200 `SubmissionContextDto` |
+| POST | `/works/{workId}/submissions` | multipart: `comment`, `metricItems[]` hoặc `metricItemsJson`, `files[]` | 201 `SubmissionResultDto`, message `MSG06` |
+| GET | `/works/{workId}/submissions` | — | 200 `SubmissionDetailDto[]` |
+| GET | `/submissions/{submissionId}` | — | 200 `SubmissionDetailDto` |
+| POST | `/submissions/{submissionId}/withdraw` | — | 200 `SubmissionResultDto` |
 
 ### 2.2 Verification
 | Method | Route | Body | Thành công |
 |---|---|---|---|
-| GET | `/api/v1/verifications/{submissionId}/dossier` | — | 200 `VerificationDossierDto` |
-| POST | `/api/v1/verifications/{submissionId}/decision` | `SubmitVerificationDecisionDto` | 200 `VerificationDecisionResultDto` |
-| GET | `/api/v1/verifications/{submissionId}/history` | — | 200 `VerificationHistoryDto[]` |
+| GET | `/verifications/{submissionId}/dossier` | — | 200 `VerificationDossierDto` |
+| POST | `/verifications/{submissionId}/decision` | `SubmitVerificationDecisionDto` | 200 `VerificationDecisionResultDto` |
+| GET | `/verifications/{submissionId}/history` | — | 200 `VerificationHistoryDto[]` |
 
 `SubmitVerificationDecisionDto`:
 ```json
@@ -76,20 +76,20 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ### 2.3 KPI Result *(chỉ contract — implement ở GB-251)*
 | Method | Route | Query | Thành công |
 |---|---|---|---|
-| GET | `/api/v1/works/{workId}/kpi-results` | — | 200 `KpiResultDto[]` |
-| GET | `/api/v1/kpi-results` | `employeeId, kpiDefinitionId, evaluationPeriodId, status, pageIndex, pageSize` | 200 `KpiResultDto[]` + `pagination` |
+| GET | `/works/{workId}/kpi-results` | — | 200 `KpiResultDto[]` |
+| GET | `/kpi-results` | `employeeId, kpiDefinitionId, evaluationPeriodId, status, pageIndex, pageSize` | 200 `KpiResultDto[]` + `pagination` |
 
 DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`).
 
 ### 2.4 Alias deprecated (bị ẩn khỏi Swagger, xóa sau khi FE chuyển route)
 | Alias | Route chính tắc |
 |---|---|
-| `GET /api/v1/works/{workId}/submissions/{submissionId}` | `GET /api/v1/submissions/{submissionId}` |
-| `POST /api/v1/works/{workId}/submissions/{submissionId}/withdraw` | `POST /api/v1/submissions/{submissionId}/withdraw` |
-| `GET /api/v1/verification/dossiers/{submissionId}` *(FE đang dùng)* | `GET /api/v1/verifications/{submissionId}/dossier` |
-| `GET /api/v1/verifications/pending/{submissionId}` | `GET /api/v1/verifications/{submissionId}/dossier` |
-| `POST /api/v1/verification/dossiers/{submissionId}/decision` *(FE đang dùng)* | `POST /api/v1/verifications/{submissionId}/decision` |
-| `GET /api/v1/verification/submissions/{submissionId}/history` | `GET /api/v1/verifications/{submissionId}/history` |
+| `GET /works/{workId}/submissions/{submissionId}` | `GET /submissions/{submissionId}` |
+| `POST /works/{workId}/submissions/{submissionId}/withdraw` | `POST /submissions/{submissionId}/withdraw` |
+| `GET /verification/dossiers/{submissionId}` | `GET /verifications/{submissionId}/dossier` |
+| `GET /verifications/pending/{submissionId}` | `GET /verifications/{submissionId}/dossier` |
+| `POST /verification/dossiers/{submissionId}/decision` | `POST /verifications/{submissionId}/decision` |
+| `GET /verification/submissions/{submissionId}/history` | `GET /verifications/{submissionId}/history` |
 
 ## 3. Error mapping
 

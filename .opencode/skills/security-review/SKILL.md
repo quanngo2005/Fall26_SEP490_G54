@@ -56,9 +56,9 @@ Fix: Filter by current user id in the query and return 404 when not owned.
 - Nothing secret in `src/` or environment files: everything ships to the browser.
 - Do not use `bypassSecurityTrust*`. If unavoidable, add `// security-reviewed: <reason>` on the same or previous line and get approval.
 - Do not assign `innerHTML`, call `eval`, or use `document.write`.
-- The auth interceptor must only add `Authorization` for URLs starting with `environment.apiUrl`.
+- The auth interceptor must only add `Authorization` for the configured API origin and known API resource paths; never use a broad string-prefix check that can leak tokens to third-party URLs.
 - Guards are UX only; the API must enforce authorization.
-- Production `apiUrl` must be HTTPS or relative (`/api`).
+- Production `apiUrl` must be the HTTPS API origin for host-based routing; configure CORS for the frontend origin and CSP connect-src for the API origin. Resource endpoints have no API/version prefix.
 - nginx keeps CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `server_tokens off`.
 
 ## Dependency Vulnerabilities

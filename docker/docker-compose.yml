@@ -63,6 +63,8 @@ services:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bpms_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
       ConnectionStrings__Redis: redis:6379,abortConnect=false
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in docker/.env (see docker/.env.example)}
+      Cors__Origins__0: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      Cors__Origins__1: http://localhost:4200
     ports:
       - "5000:8080"
     depends_on:
@@ -81,7 +83,9 @@ services:
     build:
       context: ../frontend
     environment:
-      API_URL: ${API_URL:-/api}
+      API_URL: ${API_URL:-http://api.localhost:8080}
+      FRONTEND_HOST: ${FRONTEND_HOST:-localhost}
+      API_HOST: ${API_HOST:-api.localhost}
       APP_VERSION: ${APP_VERSION:-dev}
     ports:
       - "${FRONTEND_PORT:-8080}:80"

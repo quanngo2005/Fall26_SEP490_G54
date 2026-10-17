@@ -112,8 +112,9 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
 
   loadData(): void {
     this.loading.set(true);
-    this.kpiService.getGroups().subscribe((groupRes) => {
-      this.groups.set(groupRes.data);
+    this.kpiService.getGroups().subscribe({
+      next: (groupRes) => this.groups.set(groupRes.data),
+      error: () => this.showToast('error', this.localization.kpi.loadFailed),
     });
 
     this.kpiService.getKpis().subscribe({
@@ -127,6 +128,7 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
       },
       error: () => {
         this.loading.set(false);
+        this.showToast('error', this.localization.kpi.loadFailed);
       },
     });
   }

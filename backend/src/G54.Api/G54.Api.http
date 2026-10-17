@@ -1,6 +1,6 @@
 @host = http://localhost:5000
 
-GET {{host}}/api/hello
+GET {{host}}/hello
 Accept: application/json
 
 ###
