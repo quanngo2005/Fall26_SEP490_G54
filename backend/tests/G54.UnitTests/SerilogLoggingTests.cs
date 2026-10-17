@@ -208,16 +208,16 @@ public sealed class SerilogLoggingTests
     }
 
     [Theory]
-    [InlineData(500, "/api/users", false, LogEventLevel.Error)]
-    [InlineData(503, "/api/users", false, LogEventLevel.Error)]
-    [InlineData(200, "/api/users", true, LogEventLevel.Error)]
-    [InlineData(400, "/api/users", false, LogEventLevel.Warning)]
-    [InlineData(401, "/api/users", false, LogEventLevel.Warning)]
-    [InlineData(404, "/api/users", false, LogEventLevel.Warning)]
+    [InlineData(500, "/users", false, LogEventLevel.Error)]
+    [InlineData(503, "/users", false, LogEventLevel.Error)]
+    [InlineData(200, "/users", true, LogEventLevel.Error)]
+    [InlineData(400, "/users", false, LogEventLevel.Warning)]
+    [InlineData(401, "/users", false, LogEventLevel.Warning)]
+    [InlineData(404, "/users", false, LogEventLevel.Warning)]
     [InlineData(200, "/health", false, LogEventLevel.Verbose)]
     [InlineData(200, "/health/ready", false, LogEventLevel.Verbose)]
-    [InlineData(200, "/api/work-types", false, LogEventLevel.Information)]
-    [InlineData(201, "/api/employees", false, LogEventLevel.Information)]
+    [InlineData(200, "/work-types", false, LogEventLevel.Information)]
+    [InlineData(201, "/employees", false, LogEventLevel.Information)]
     public void SerilogLoggingHelper_GetRequestLogLevel_ReturnsExpectedLevel(
         int statusCode,
         string path,

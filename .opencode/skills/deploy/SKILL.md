@@ -14,7 +14,7 @@ description: Use when running, containerizing, configuring, or deploying the G54
 | pgadmin | 5050 | `admin@example.com` / `admin`; connect to host `postgres` |
 | migrator | - | one-shot, must exit 0 |
 | api | 5000 -> 8080 | healthcheck `curl /health` |
-| frontend | 8080 -> 80 | nginx, proxies `/api` to `api:8080` |
+| frontend | 8080 -> 80 | nginx routes FRONTEND_HOST to Angular and API_HOST to `api:8080` |
 
 Startup order: postgres healthy -> migrator completed -> redis healthy -> api healthy -> frontend.
 
@@ -36,6 +36,7 @@ On Windows, one `./run.ps1` invocation starts infrastructure/migrations, opens s
 - `docker/.env.example` is the variable contract; `docker/.env` is local and git-ignored.
 - Backend reads env vars `ConnectionStrings__Postgres`, `ConnectionStrings__Redis`, `Jwt__Key`.
 - Frontend image is built once; `frontend/scripts/replace_env.sh` replaces `__API_URL__` and `__APP_VERSION__` at container start.
+- `API_URL` is the browser-visible API origin without a trailing slash. Defaults: frontend `http://localhost:8080`, API `http://api.localhost:8080`. Configure FRONTEND_HOST, API_HOST, FRONTEND_ORIGIN/CORS and CSP together. API routes have no API/version prefix and nginx never distinguishes HTML/JSON by Accept.
 
 ## Toolchain
 

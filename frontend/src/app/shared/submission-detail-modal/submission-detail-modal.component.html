@@ -10,58 +10,74 @@
     >
       <header class="dialog-header">
         <div class="heading-copy">
-          <h2 id="submission-title">Chi tiết đợt nộp kết quả <span>• Version Details</span></h2>
+          <h2 id="submission-title">
+            {{localization.submission.title}}
+            <span>• {{localization.submission.versionDetails}}</span>
+          </h2>
           <p id="submission-id">
-            Mã nộp: {{ submission().submissionId }} <i>•</i> Task: [{{ submission().taskId }}]
-            {{ submission().taskName }}
+            {{localization.submission.id}} {{submission().submissionId}} <i>•</i>
+            {{localization.submission.task}} [{{submission().taskId}}]
+            {{submission().taskName}}
           </p>
         </div>
-        <button type="button" class="icon-close" aria-label="Đóng" (click)="closed.emit()">
+        <button
+          type="button"
+          class="icon-close"
+          [attr.aria-label]="localization.common.close"
+          (click)="closed.emit()"
+        >
           ×
         </button>
       </header>
 
       <div class="dialog-content">
-        <section class="submission-summary" aria-label="Thông tin đợt nộp">
+        <section class="submission-summary" [attr.aria-label]="localization.submission.summary">
           <div class="summary-copy">
-            <strong>Người nộp: {{ submission().employee }} • {{ submission().role }}</strong>
+            <strong
+              >{{localization.submission.submitter}} {{submission().employee}} •
+              {{submission().role}}</strong
+            >
             <p>
-              Thời điểm nộp: <b>{{ submission().submittedAt }}</b> <i>•</i> Đợt nộp:
-              <b>Lần {{ submission().attempt }}</b> <i>•</i> Chế độ:
-              <em>{{ submission().reviewerMode }}</em>
+              {{localization.submission.submittedAt}} <b>{{submission().submittedAt}}</b>
+              <i>•</i>
+              {{localization.submission.attempt}}
+              <b>{{localization.submission.attemptNumber}} {{submission().attempt}}</b> <i>•</i>
+              {{localization.submission.mode}}
+              <em>{{submission().reviewerMode}}</em>
             </p>
             <p class="decision-line">
-              {{ submission().status }} <i>•</i> Kết luận: {{ submission().conclusion }}
+              {{submission().status}} <i>•</i> {{localization.submission.conclusion}}
+              {{submission().conclusion}}
             </p>
           </div>
           <span class="status-badge" [class]="'status-badge ' + submission().statusKind">
             <i></i
-            >{{
-              submission().statusKind === 'revision' ? 'REVISION REQUIRED' : submission().status
-            }}
+            >{{submission().statusKind === 'revision'
+                ? localization.submission.revision
+                : submission().status}}
           </span>
         </section>
 
         <section class="detail-section">
-          <h3>1. KẾT QUẢ ĐỊNH LƯỢNG ĐÃ NỘP (QUANTITATIVE OUTPUTS)</h3>
+          <h3>{{localization.submission.outputs}}</h3>
           <div class="table-scroll">
             <table class="outputs-table">
               <thead>
                 <tr>
-                  <th>MÃ &amp; TÊN CHỈ SỐ KPI</th>
-                  <th>SỐ LƯỢNG KHAI BÁO</th>
-                  <th>MẪU SỐ QUY MÔ</th>
-                  <th>ĐƠN VỊ TÍNH</th>
+                  <th>{{localization.submission.kpi}}</th>
+                  <th>{{localization.submission.quantity}}</th>
+                  <th>{{localization.submission.scale}}</th>
+                  <th>{{localization.submission.unit}}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>
-                    <strong>{{ submission().kpiCode }}: {{ submission().kpiName }}</strong>
+                    <strong>{{submission().kpiCode}}: {{submission().kpiName}}</strong>
                   </td>
-                  <td class="quantity">{{ submission().quantity }}</td>
-                  <td>{{ submission().scale }}</td>
-                  <td>{{ submission().unit }}</td>
+                  <td class="quantity">{{submission().quantity}}</td>
+                  <td>{{submission().scale}}</td>
+                  <td>{{submission().unit}}</td>
                 </tr>
               </tbody>
             </table>
@@ -69,53 +85,51 @@
         </section>
 
         <section class="detail-section">
-          <h3>2. THUYẾT MINH &amp; DIỄN GIẢI CỦA NHÂN VIÊN</h3>
-          <p class="explanation">{{ submission().explanation }}</p>
+          <h3>{{localization.submission.explanation}}</h3>
+          <p class="explanation">{{submission().explanation}}</p>
         </section>
 
         <section class="detail-section">
-          <h3>3. DANH MỤC HỒ SƠ &amp; TỆP CHỨNG TỪ ĐÍNH KÈM</h3>
+          <h3>{{localization.submission.attachments}}</h3>
           <div class="table-scroll">
             <table class="attachments-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>TÊN TẬP TIN</th>
-                  <th>MÔ TẢ CHỨNG TỪ</th>
-                  <th>DUNG LƯỢNG</th>
-                  <th>THAO TÁC</th>
+                  <th>{{localization.submission.fileName}}</th>
+                  <th>{{localization.submission.fileDescription}}</th>
+                  <th>{{localization.submission.fileSize}}</th>
+                  <th>{{localization.common.actions}}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (file of submission().attachments; track file.name; let index = $index) {
                   <tr>
-                    <td class="row-number">{{ index + 1 }}</td>
+                    <td class="row-number">{{index + 1}}</td>
                     <td class="file-name">
-                      <span class="file-type" [class.pdf]="file.type === 'PDF'">{{
-                        file.type
-                      }}</span>
-                      <strong>{{ file.name }}</strong>
+                      <span class="file-type" [class.pdf]="file.type === 'PDF'">{{file.type}}</span>
+                      <strong>{{file.name}}</strong>
                     </td>
-                    <td>{{ file.description }}</td>
-                    <td class="file-size">{{ file.size }}</td>
+                    <td>{{file.description}}</td>
+                    <td class="file-size">{{file.size}}</td>
                     <td class="file-actions">
                       <button
                         type="button"
                         (click)="attachmentRequested.emit({ attachment: file, action: 'view' })"
                       >
-                        Xem
+                        {{localization.submission.view}}
                       </button>
                       <button
                         type="button"
                         (click)="attachmentRequested.emit({ attachment: file, action: 'download' })"
                       >
-                        Tải về
+                        {{localization.submission.download}}
                       </button>
                     </td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td class="empty-files" colspan="5">Chưa có tệp đính kèm.</td>
+                    <td class="empty-files" colspan="5">{{localization.submission.noFiles}}</td>
                   </tr>
                 }
               </tbody>
@@ -124,31 +138,33 @@
         </section>
 
         <section class="detail-section audit-section">
-          <h3>4. BIÊN BẢN THẨM ĐỊNH CỦA QUẢN LÝ (VERIFICATION AUDIT LOG)</h3>
+          <h3>{{localization.submission.audit}}</h3>
           @for (entry of submission().auditEntries; track entry.timestamp) {
             <article class="audit-entry">
               <div class="audit-heading">
-                <strong><span aria-hidden="true">◉</span> {{ entry.title }}</strong>
-                <span>{{ entry.reviewer }} <i>•</i> {{ entry.timestamp }}</span>
+                <strong><span aria-hidden="true">◉</span> {{entry.title}}</strong>
+                <span>{{entry.reviewer}} <i>•</i> {{entry.timestamp}}</span>
               </div>
-              <p>“{{ entry.message }}”</p>
+              <p>“{{entry.message}}”</p>
             </article>
           } @empty {
-            <p class="empty-audit">Chưa có biên bản thẩm định.</p>
+            <p class="empty-audit">{{localization.submission.noAudit}}</p>
           }
         </section>
       </div>
 
       <footer class="dialog-footer">
-        <button type="button" class="button secondary" (click)="closed.emit()">Đóng lại</button>
+        <button type="button" class="button secondary" (click)="closed.emit()">
+          {{localization.common.close}}
+        </button>
         <div class="footer-actions">
           <button type="button" class="button outline" (click)="requestArchiveDownload()">
-            <span aria-hidden="true">⇩</span> Tải toàn bộ hồ sơ (.ZIP)
+            <span aria-hidden="true">⇩</span> {{localization.submission.downloadArchive}}
           </button>
           @if (submission().statusKind === 'revision') {
             <button type="button" class="button primary" (click)="requestResubmission()">
-              <span aria-hidden="true">↗</span> Nộp lại lần
-              {{ submission().attempt + 1 }} (Re-submit)
+              <span aria-hidden="true">↗</span> {{localization.submission.resubmit}}
+              {{submission().attempt + 1}}
             </button>
           }
         </div>

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import {
   KpiAggregationType,
   KpiDefinition,
@@ -18,7 +19,7 @@ import { UNIT_OPTIONS } from '../kpi-edit-modal/kpi-edit-modal.component';
   templateUrl: './kpi-create-modal.component.html',
   styleUrls: ['../kpi-edit-modal/kpi-edit-modal.component.scss'],
 })
-export class KpiCreateModalComponent implements OnInit {
+export class KpiCreateModalComponent extends LocalizedComponent implements OnInit {
   private readonly kpiService = inject(KpiDefinitionService);
 
   readonly groups = input<KpiGroupOption[]>([]);
@@ -57,15 +58,15 @@ export class KpiCreateModalComponent implements OnInit {
     const name = this.name().trim();
 
     if (!code || code === 'KPI-') {
-      this.error.set('Vui lòng nhập Mã KPI hợp lệ (VD: KPI-RET-03).');
+      this.error.set(this.localization.kpi.codeRequired);
       return;
     }
     if (!name) {
-      this.error.set('Vui lòng nhập Tên KPI.');
+      this.error.set(this.localization.kpi.nameRequired);
       return;
     }
     if (this.existingCodes().some((c) => c.toUpperCase() === code)) {
-      this.error.set(`Mã KPI '${code}' đã tồn tại trong hệ thống.`);
+      this.error.set(this.i18n.translate('kpi.codeExists', { code }));
       return;
     }
 
@@ -90,7 +91,8 @@ export class KpiCreateModalComponent implements OnInit {
         this.created.emit({
           ...res.data,
           kpiGroupName:
-            this.groups().find((g) => g.id === payload.kpiGroupId)?.name ?? 'Kinh doanh',
+            this.groups().find((g) => g.id === payload.kpiGroupId)?.name ??
+            this.localization.kpi.business,
           depositMultipliers: [],
           roleWeights: [
             { id: 'rw-c1', role: 'Teller', weight: 40 },
@@ -100,7 +102,7 @@ export class KpiCreateModalComponent implements OnInit {
       },
       error: () => {
         this.saving.set(false);
-        this.error.set('Không thể tạo KPI. Vui lòng kiểm tra lại dữ liệu.');
+        this.error.set(this.localization.kpi.createFailed);
       },
     });
   }

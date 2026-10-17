@@ -23,7 +23,7 @@ describe('ReviewVerifyComponent', () => {
 
     fixture.detectChanges();
     const req = http.expectOne(
-      `${environment.apiUrl}/v1/verification/dossiers/${DEFAULT_MOCK_DOSSIER.submissionId}`,
+      `${environment.apiUrl}/verifications/${DEFAULT_MOCK_DOSSIER.submissionId}/dossier`,
     );
     req.flush(DEFAULT_MOCK_DOSSIER);
   });
@@ -105,7 +105,7 @@ describe('ReviewVerifyComponent', () => {
 
     component.confirmDecision();
     const req = http.expectOne(
-      `${environment.apiUrl}/v1/verification/dossiers/${DEFAULT_MOCK_DOSSIER.submissionId}/decision`,
+      `${environment.apiUrl}/verifications/${DEFAULT_MOCK_DOSSIER.submissionId}/decision`,
     );
     expect(req.request.method).toBe('POST');
     req.flush({

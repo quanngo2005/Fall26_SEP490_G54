@@ -22,7 +22,7 @@ public sealed record KpiResultDto(
     DateTimeOffset VerifiedAt,
     DateTimeOffset? InvalidatedAt);
 
-/// <summary>Query string for GET /api/v1/kpi-results.</summary>
+/// <summary>Query string for GET /kpi-results.</summary>
 public sealed record KpiResultQueryDto
 {
     public Guid? EmployeeId { get; init; }

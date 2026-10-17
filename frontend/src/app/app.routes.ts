@@ -47,6 +47,7 @@ export const routes: Routes = [
   },
   {
     path: 'kpi-definitions',
+    canActivate: [authGuard],
     title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
     loadComponent: () =>
       import('./features/kpi-definitions/kpi-definitions.component').then(

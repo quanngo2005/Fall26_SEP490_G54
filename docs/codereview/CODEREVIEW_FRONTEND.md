@@ -62,9 +62,9 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] SEC-FE-H01 `[auto]` `npm audit --omit=dev --audit-level=high` reports no High/Critical vulnerabilities in runtime dependencies.
 - [ ] SEC-FE-H02 `[manual]` `[innerHTML]` bindings only render trusted or sanitized content (Angular sanitizer must not be bypassed).
 - [ ] SEC-FE-H03 `[manual]` Tokens are stored with the least exposure possible (prefer HttpOnly cookies; if `localStorage` is used, document XSS risk and keep token lifetime short).
-- [ ] SEC-FE-H04 `[manual]` HTTP interceptor attaches `Authorization` only to requests targeting `environment.apiUrl`, never third-party hosts.
+- [ ] SEC-FE-H04 `[manual]` HTTP interceptor attaches `Authorization` only to known API resource paths on the configured API origin, never third-party hosts or unrelated asset/page requests.
 - [ ] SEC-FE-H05 `[manual]` Redirects after login use an allowlist of internal routes (open redirect prevented).
-- [ ] SEC-FE-H06 `[auto]` Production API URL uses HTTPS or a same-origin relative path (`/api`); no `http://` in `environment.ts`.
+- [ ] SEC-FE-H06 `[auto]` Production API URL uses a runtime placeholder replaced with the HTTPS API origin; no `http://` in `environment.ts`.
 
 ### Medium
 

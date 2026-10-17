@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-API_URL="${API_URL:-http://localhost:5000/api}"
+: "${API_URL:?Set the API origin for host-based routing}"
 APP_VERSION="${APP_VERSION:-unknown}"
 
 find /usr/share/nginx/html -type f -name '*.js' -exec sed -i \

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import {
   KpiDefinition,
   KpiDefinitionSavePayload,
@@ -35,7 +36,7 @@ const MULTIPLIER_STEP = 0.1;
   templateUrl: './kpi-edit-modal.component.html',
   styleUrls: ['./kpi-edit-modal.component.scss'],
 })
-export class KpiEditModalComponent implements OnInit {
+export class KpiEditModalComponent extends LocalizedComponent implements OnInit {
   private readonly kpiService = inject(KpiDefinitionService);
 
   readonly kpi = input.required<KpiDefinition>();
@@ -156,13 +157,11 @@ export class KpiEditModalComponent implements OnInit {
   save(): void {
     const k = this.kpi();
     if (!this.name().trim()) {
-      this.error.set('Tên KPI không được để trống.');
+      this.error.set(this.localization.kpi.nameRequired);
       return;
     }
     if (!this.isWeightValid()) {
-      this.error.set(
-        `Tổng trọng số vai trò hiện là ${this.totalWeight()}%. Bắt buộc phải bằng 100% (BR-06, 49).`,
-      );
+      this.error.set(this.i18n.translate('kpi.weightError', { weight: this.totalWeight() }));
       return;
     }
 
@@ -195,7 +194,7 @@ export class KpiEditModalComponent implements OnInit {
       },
       error: () => {
         this.saving.set(false);
-        this.error.set('Lưu cấu hình thất bại. Vui lòng thử lại.');
+        this.error.set(this.localization.kpi.saveFailed);
       },
     });
   }

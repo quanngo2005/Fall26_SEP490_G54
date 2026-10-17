@@ -1,104 +1,116 @@
 <div class="kem-container" role="dialog" aria-modal="true" aria-labelledby="kcmTitle">
-  <button type="button" class="kem-backdrop" (click)="close()" aria-label="Đóng cửa sổ"></button>
+  <button
+    type="button"
+    class="kem-backdrop"
+    (click)="close()"
+    [attr.aria-label]="localization.common.close"
+  ></button>
 
   <div class="kem-card">
     <header class="kem-header">
       <div>
-        <h3 id="kcmTitle" class="kem-title">Tạo mới KPI Definition</h3>
-        <span class="kem-subtitle">SCR-STRAT-02-M1 • Thêm chỉ số đo lường hiệu suất mới</span>
+        <h3 id="kcmTitle" class="kem-title">{{localization.kpi.createTitle}}</h3>
+        <span class="kem-subtitle">SCR-STRAT-02-M1 • {{localization.kpi.createSubtitle}}</span>
       </div>
-      <button type="button" class="kem-close" (click)="close()" aria-label="Đóng">✕</button>
+      <button
+        type="button"
+        class="kem-close"
+        (click)="close()"
+        [attr.aria-label]="localization.common.close"
+      >
+        ✕
+      </button>
     </header>
 
     <div class="kem-body">
       @if (error(); as err) {
-        <div class="kem-error">⚠ {{ err }}</div>
+        <div class="kem-error">⚠ {{err}}</div>
       }
 
       <section class="kem-section">
         <div class="kem-grid">
           <div class="kem-field">
-            <label for="kcmCode">Mã KPI *</label>
+            <label for="kcmCode">{{localization.kpi.code}} *</label>
             <input
               id="kcmCode"
               type="text"
               class="mono"
-              placeholder="VD: KPI-RET-03"
+              [placeholder]="localization.kpi.codeExample"
               [ngModel]="code()"
               (ngModelChange)="code.set($event)"
             />
           </div>
 
           <div class="kem-field">
-            <label for="kcmName">Tên KPI *</label>
+            <label for="kcmName">{{localization.kpi.name}} *</label>
             <input
               id="kcmName"
               type="text"
-              placeholder="VD: Tăng trưởng thẻ tín dụng"
+              [placeholder]="localization.kpi.nameExample"
               [ngModel]="name()"
               (ngModelChange)="name.set($event)"
             />
           </div>
 
           <div class="kem-field">
-            <label for="kcmGroup">Nhóm KPI</label>
+            <label for="kcmGroup">{{localization.kpi.group}}</label>
             <select id="kcmGroup" [ngModel]="groupId()" (ngModelChange)="groupId.set($event)">
               @for (g of groups(); track g.id) {
-                <option [value]="g.id">{{ g.name }}</option>
+                <option [value]="g.id">{{g.name}}</option>
               }
             </select>
           </div>
 
           <div class="kem-field">
-            <label for="kcmUnit">Đơn vị</label>
+            <label for="kcmUnit">{{localization.kpi.unit}}</label>
             <select id="kcmUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
               @for (u of unitOptions; track u) {
-                <option [value]="u">{{ u }}</option>
+                <option [value]="u">{{localization.units[u] ?? u}}</option>
               }
             </select>
           </div>
 
           <div class="kem-field">
-            <label for="kcmDirection">Chiều đánh giá</label>
+            <label for="kcmDirection">{{localization.kpi.direction}}</label>
             <select
               id="kcmDirection"
               [ngModel]="direction()"
               (ngModelChange)="direction.set($event)"
             >
-              <option value="HigherBetter">Càng cao càng tốt (Higher Better)</option>
-              <option value="LowerBetter">Càng thấp càng tốt (Lower Better)</option>
-              <option value="OnTarget">Đúng mục tiêu (On Target)</option>
+              <option value="HigherBetter">{{localization.kpi.higherBetter}}</option>
+              <option value="LowerBetter">{{localization.kpi.lowerBetter}}</option>
+              <option value="OnTarget">{{localization.kpi.onTarget}}</option>
             </select>
           </div>
 
           <div class="kem-field">
-            <label for="kcmAgg">Phép tổng hợp</label>
+            <label for="kcmAgg">{{localization.kpi.aggregation}}</label>
             <select id="kcmAgg" [ngModel]="aggregation()" (ngModelChange)="aggregation.set($event)">
-              <option value="Sum">Sum</option>
-              <option value="Ratio">Ratio</option>
-              <option value="Avg">Avg</option>
-              <option value="NoAggregation">NoAggregation</option>
+              <option value="Sum">{{localization.kpi.sum}}</option>
+              <option value="Ratio">{{localization.kpi.ratio}}</option>
+              <option value="Avg">{{localization.kpi.average}}</option>
+              <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
             </select>
           </div>
 
           <div class="kem-field full">
-            <label for="kcmFormula">Công thức</label>
+            <label for="kcmFormula">{{localization.kpi.formula}}</label>
             <input
               id="kcmFormula"
               type="text"
               class="mono"
-              placeholder="VD: FORMULA_CREDIT_CARD_GROWTH"
+              [placeholder]="localization.kpi.formulaExample"
               [ngModel]="formula()"
               (ngModelChange)="formula.set($event)"
             />
           </div>
 
           <div class="kem-field full">
-            <label for="kcmDesc">Mô tả</label>
+            <label for="kcmDesc">{{localization.kpi.description}}</label>
             <textarea
               id="kcmDesc"
               rows="3"
-              placeholder="Mô tả chi tiết cách tính và đối tượng áp dụng..."
+              [placeholder]="localization.kpi.detailPlaceholder"
               [ngModel]="description()"
               (ngModelChange)="description.set($event)"
             ></textarea>
@@ -111,10 +123,10 @@
       <span class="kem-audit">SCR-STRAT-02-M1</span>
       <div>
         <button type="button" class="kem-btn-ghost" (click)="close()" [disabled]="saving()">
-          Hủy
+          {{localization.common.cancel}}
         </button>
         <button type="button" class="kem-btn-primary" (click)="submit()" [disabled]="saving()">
-          {{ saving() ? 'Đang tạo...' : 'Tạo KPI' }}
+          {{saving() ? localization.kpi.creating : localization.kpi.create}}
         </button>
       </div>
     </footer>

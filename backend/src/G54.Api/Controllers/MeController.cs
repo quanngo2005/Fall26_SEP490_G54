@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/me")]
+[Route("me")]
 [Authorize]
 public sealed class MeController(IPermissionService permissionService) : ControllerBase
 {

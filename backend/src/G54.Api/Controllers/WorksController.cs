@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/works")]
+[Route("works")]
 [Authorize]
 public sealed class WorksController(IWorkService workService) : ControllerBase
 {

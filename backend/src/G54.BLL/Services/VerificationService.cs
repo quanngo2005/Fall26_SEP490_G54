@@ -64,8 +64,8 @@ public sealed class VerificationService(
                 e.FileName,
                 e.FileSize,
                 e.MimeType,
-                $"/api/v1/evidence/{e.Id}/preview",
-                $"/api/v1/evidence/{e.Id}/download"))
+                $"/evidence/{e.Id}/preview",
+                $"/evidence/{e.Id}/download"))
             .ToList();
 
         var controlStandards = new List<ControlStandardDto>

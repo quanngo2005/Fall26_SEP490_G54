@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("hello")]
 public sealed class HelloController(IHelloService helloService) : ControllerBase
 {
     [HttpGet]

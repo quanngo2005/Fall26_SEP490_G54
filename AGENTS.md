@@ -22,6 +22,7 @@ Load the matching skill before working:
 | Controllers, services, entities, backend tests | `backend-feature` |
 | Schema, migrations, seeds, DbMigrator | `db-migration` |
 | Angular components, routes, services, env vars | `frontend-feature` |
+| UI text, templates, localization dictionaries, language switching | `frontend-feature` (Localization section) |
 | Running review scripts, reports | `code-review` |
 | Security review, Critical/High/Medium/Low findings | `security-review` |
 | Docker, run scripts, nginx, deployment | `deploy` |
@@ -32,9 +33,12 @@ Load the matching skill before working:
 - Never put business logic in controllers or access `AppDbContext` from controllers.
 - Every schema change requires an EF Core migration; deployment migrations run through DbMigrator.
 - Never hardcode deployment URLs or secrets. Add frontend placeholders to both environment files and `replace_env.sh`.
+- For frontend API clients and backend endpoints, follow `docs/api/API_CONVENTIONS.md` and a shared feature contract in `docs/api/` before implementation, regardless of which side is built first. Match routes, DTOs, envelopes, identifier/enum types, pagination, and errors; do not conceal failed API calls or empty responses with automatic mock success.
 - Critical and High security findings block completion; fix them before finishing.
 - Run the applicable code-review script before declaring work complete.
 - Do not edit generated reports manually or weaken review scripts to make them pass.
+- For every frontend UI change, load `frontend-feature`, follow its Localization section, and use typed `{{localization.section.key}}` template bindings with no padding inside braces. Localize labels, placeholders, accessibility text, validation messages, toasts, and confirmation dialogs in both Vietnamese and English.
+- Keep translation dictionaries under `translations.vi` and `translations.en`; `formats` contains formatting configuration only. Verify identical key sets and live language switching; do not hide malformed dictionaries with casts or merges from `formats`.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

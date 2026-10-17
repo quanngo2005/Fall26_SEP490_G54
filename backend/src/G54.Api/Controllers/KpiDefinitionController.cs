@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/kpi-definitions")]
+[Route("kpi-definitions")]
 [Authorize]
 public sealed class KpiDefinitionController(IKpiDefinitionService service) : ControllerBase
 {

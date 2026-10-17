@@ -44,7 +44,7 @@ describe('AuthService', () => {
       .login({ email: 'person@example.test', password: 'password', rememberMe: true })
       .subscribe();
 
-    const request = http.expectOne(`${environment.apiUrl}/v1/auth/login`);
+    const request = http.expectOne(`${environment.apiUrl}/auth/login`);
     expect(request.request.method).toBe('POST');
     expect(request.request.body.rememberMe).toBeTrue();
     request.flush(response);
@@ -59,7 +59,7 @@ describe('AuthService', () => {
     localStorage.setItem('g54.auth.session', JSON.stringify(response));
     authService.logout().subscribe();
 
-    const request = http.expectOne(`${environment.apiUrl}/v1/auth/logout`);
+    const request = http.expectOne(`${environment.apiUrl}/auth/logout`);
     expect(request.request.body.refreshToken).toBe('refresh-token');
     request.flush({ message: 'Logout successful' });
 
@@ -78,7 +78,7 @@ describe('AuthService', () => {
       expect(authenticated).toBeTrue();
     });
 
-    const request = http.expectOne(`${environment.apiUrl}/v1/auth/refresh`);
+    const request = http.expectOne(`${environment.apiUrl}/auth/refresh`);
     expect(request.request.method).toBe('POST');
     expect(request.request.body.refreshToken).toBe('refresh-token');
     request.flush(response);

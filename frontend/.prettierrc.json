@@ -2,6 +2,7 @@
   "singleQuote": true,
   "printWidth": 100,
   "trailingComma": "all",
+  "plugins": ["./scripts/prettier-angular-compact.mjs"],
   "overrides": [
     {
       "files": "*.html",

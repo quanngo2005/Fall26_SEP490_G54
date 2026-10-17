@@ -1,43 +1,43 @@
-<main class="portal-canvas" aria-label="Hồ sơ Cán bộ">
+<main class="portal-canvas" [attr.aria-label]="localization.employee.pageAriaLabel">
   <div class="portal-frame">
     <header class="topbar">
       <a class="brand-block" href="#employee-profile" aria-label="Enterprise Banking">
         <span class="brand-mark">EB</span>
         <span class="brand-copy"
           ><strong>Enterprise Banking <small>SEC</small></strong
-          ><span>HR ADMIN / EMPLOYEE PORTAL</span></span
+          ><span>{{localization.common.brandSubtitle}}</span></span
         >
       </a>
       <div class="topbar-main">
         <div class="product-title">
-          <strong>{{ 'common.appTitle' | translate }}</strong>
-          <span>{{ 'common.appSubtitle' | translate }}</span>
+          <strong>{{localization.common.appTitle}}</strong>
+          <span>{{localization.common.appSubtitle}}</span>
         </div>
         <label class="global-search"
           ><span aria-hidden="true">⌕</span
           ><input
             type="search"
-            [placeholder]="'common.searchPlaceholder' | translate"
-            [attr.aria-label]="'common.searchPlaceholder' | translate"
+            [placeholder]="localization.common.searchPlaceholder"
+            [attr.aria-label]="localization.common.searchPlaceholder"
         /></label>
         <button
           id="language-toggle-btn"
           class="language-button"
           type="button"
           (click)="toggleLanguage()"
-          [attr.aria-label]="'common.language' | translate"
+          [attr.aria-label]="localization.common.language"
         >
           <span [class.active-locale]="currentLanguage() === 'vi'">VI</span>
           <span class="locale-sep">&nbsp;/&nbsp;</span>
           <span [class.active-locale]="currentLanguage() === 'en'">EN</span>
         </button>
-        <button class="header-icon" type="button" [attr.aria-label]="'common.help' | translate">
+        <button class="header-icon" type="button" [attr.aria-label]="localization.common.help">
           ?
         </button>
         <button
           class="header-icon notification"
           type="button"
-          [attr.aria-label]="'common.notifications' | translate"
+          [attr.aria-label]="localization.common.notifications"
         >
           ♧<i></i>
         </button>
@@ -48,37 +48,37 @@
         <button
           class="account-button"
           type="button"
-          [attr.aria-label]="'common.userAccount' | translate"
+          [attr.aria-label]="localization.common.userAccount"
         >
           ♙
         </button>
       </div>
     </header>
 
-    <aside class="sidebar" aria-label="Điều hướng chính">
+    <aside class="sidebar" [attr.aria-label]="localization.common.mainNavigation">
       <div class="system-status">
-        <span>CORE v2.4.0-SEC</span><b><i></i> Online</b>
+        <span>CORE v2.4.0-SEC</span><b><i></i> {{localization.common.systemOnline}}</b>
       </div>
-      @for (group of data.navigation; track group.title) {
+      @for (group of navigationGroups; track group.id) {
         <section class="nav-section">
-          <h2>{{ group.title }}<span class="nav-caret">⌄</span></h2>
+          <h2>{{group.title}}<span class="nav-caret">⌄</span></h2>
           <nav>
-            @for (item of group.items; track item.label) {
+            @for (item of group.items; track item.id) {
               <button
                 type="button"
                 class="nav-item"
                 [attr.aria-label]="item.label"
-                [class.active]="activeNavigation() === item.label"
-                (click)="selectNavigation(item.label)"
+                [class.active]="activeNavigation() === item.id"
+                (click)="selectNavigation(item.id)"
               >
-                <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span
-                ><span class="nav-text">{{ item.label }}</span>
+                <span class="nav-icon" aria-hidden="true">{{item.icon}}</span
+                ><span class="nav-text">{{item.label}}</span>
                 @if (item.count) {
                   <span
                     class="nav-badge"
                     [class.warning]="item.count === '1'"
                     [class.danger]="item.count === '3'"
-                    >{{ item.count }}</span
+                    >{{item.count}}</span
                   >
                 }
               </button>
@@ -87,29 +87,39 @@
         </section>
       }
       <div class="sidebar-footer">
-        <strong>v2.4.0 Enterprise</strong><span class="sync-state">◉ HRMS Synced</span
-        ><small>Core Banking Systems &amp; Compliance</small>
+        <strong>v2.4.0 Enterprise</strong
+        ><span class="sync-state">◉ {{localization.nav.hrmsSynced}}</span
+        ><small>{{localization.nav.coreBankingSystems}}</small>
       </div>
     </aside>
 
     <section class="main-column">
       <div class="page-content">
-        <section class="page-toolbar" aria-label="Thông tin trang">
+        <section class="page-toolbar" [attr.aria-label]="localization.common.pageInformation">
           <div class="page-trail">
-            <div><span>▦</span> Tổ chức &amp; Phòng ban <b>›</b> Danh sách cán bộ <b>›</b></div>
-            <div>Khối Bán hàng &amp; Dịch vụ <b>›</b> Phòng KH Cá nhân <b>›</b></div>
+            <div>
+              <span>▦</span> {{localization.nav.organization}} <b>›</b>
+              {{localization.review.employeeList}} <b>›</b>
+            </div>
+            <div>
+              {{localization.employee.salesDivision}} <b>›</b>
+              {{localization.employee.retailDepartment}} <b>›</b>
+            </div>
             <div class="screen-meta">
-              <span class="employee-code">{{ data.employee.id }}</span
-              ><span>SCREEN ID: SCR-EMP-02</span><i>•</i
-              ><strong>Compliance Guard v2.4<br />Active</strong>
+              <span class="employee-code">{{data.employee.id}}</span
+              ><span>{{localization.employee.screenId}}</span
+              ><i>•</i
+              ><strong
+                >{{localization.common.complianceGuard}}<br />{{localization.common.active}}</strong
+              >
             </div>
           </div>
           <div class="toolbar-actions">
             <button type="button" class="button button-secondary">
-              {{ 'common.backToList' | translate }}
+              {{localization.common.backToList}}
             </button>
             <button type="button" class="button button-secondary">
-              {{ 'common.exportProfile' | translate }}
+              {{localization.common.exportProfile}}
             </button>
             <div class="action-menu-wrap">
               <button
@@ -118,12 +128,12 @@
                 (click)="toggleMoreActions()"
                 [attr.aria-expanded]="showMoreActions()"
               >
-                {{ 'common.moreActions' | translate }}
+                {{localization.common.moreActions}}
               </button>
               @if (showMoreActions()) {
                 <div class="action-menu">
-                  <button type="button">{{ 'common.editProfile' | translate }}</button>
-                  <button type="button">{{ 'common.viewHistory' | translate }}</button>
+                  <button type="button">{{localization.common.editProfile}}</button>
+                  <button type="button">{{localization.common.viewHistory}}</button>
                 </div>
               }
             </div>
@@ -135,95 +145,101 @@
             <img
               class="employee-photo"
               src="/assets/employee-nv-00182.jpg"
-              alt="Ảnh Nguyễn Văn A"
-            /><span class="photo-status">● ACTIVE</span>
+              [alt]="localization.employee.photo + ' ' + data.employee.name"
+            /><span class="photo-status">● {{localization.common.active}}</span>
           </div>
           <div class="employee-details">
             <div class="employee-heading">
-              <h1 id="employee-name">{{ data.employee.name }}</h1>
-              <span class="id-chip">{{ data.employee.id }}</span>
+              <h1 id="employee-name">{{data.employee.name}}</h1>
+              <span class="id-chip">{{data.employee.id}}</span>
               <span class="employment-chip"
-                >◉ {{ data.employee.status }} · {{ data.employee.branchCode }}</span
+                >◉ {{data.employee.status}} · {{data.employee.branchCode}}</span
               >
             </div>
             <div class="employee-title">
-              {{ data.employee.title }} <span>({{ data.employee.roleCode }}) ↗</span> <b>•</b>
+              {{data.employee.title}} <span>({{data.employee.roleCode}}) ↗</span> <b>•</b>
             </div>
-            <div class="employee-department">▤ {{ data.employee.department }}</div>
+            <div class="employee-department">▤ {{data.employee.department}}</div>
             <div class="employee-contact">
               <span
-                >♧ {{ 'employee.reportsTo' | translate }}
-                <strong>{{ data.employee.manager }}</strong></span
+                >♧ {{localization.employee.reportsTo}}
+                <strong>{{data.employee.manager}}</strong></span
               >
               <span
-                >✉ <strong>{{ data.employee.email }}</strong></span
+                >✉ <strong>{{data.employee.email}}</strong></span
               >
               <span
-                >♧ {{ 'employee.extension' | translate }}
-                <strong>{{ data.employee.extension }}</strong></span
+                >♧ {{localization.employee.extension}}
+                <strong>{{data.employee.extension}}</strong></span
               >
-              <span>▣ {{ data.employee.contract }}</span>
+              <span>▣ {{data.employee.contract}}</span>
               <span
-                >◷ Ngày vào NH: <strong>{{ data.employee.joinDate | appDate }}</strong></span
+                >◷ {{localization.employee.joinDate}}
+                <strong>{{data.employee.joinDate | appDate}}</strong></span
               >
             </div>
           </div>
           <aside class="approval-card">
             <div>
-              <span>{{ 'employee.approvalStatus' | translate }}</span>
-              <strong class="cleared">{{ 'employee.cleared' | translate }}</strong>
+              <span>{{localization.employee.approvalStatus}}</span>
+              <strong class="cleared">{{localization.employee.cleared}}</strong>
             </div>
-            <strong class="permission">{{ 'employee.permissionLevel' | translate }}</strong>
-            <span class="lock-status">{{ 'employee.profileLock' | translate }}</span>
+            <strong class="permission">{{localization.employee.permissionLevel}}</strong>
+            <span class="lock-status">{{localization.employee.profileLock}}</span>
           </aside>
         </section>
 
-        <section class="summary-grid" aria-label="Chỉ số cán bộ">
+        <section class="summary-grid" [attr.aria-label]="localization.employee.metrics">
           <article class="summary-card surface-card">
             <div class="summary-heading">
-              <span>CÔNG VIỆC ĐANG XỬ LÝ</span><b class="summary-icon blue">▣</b>
+              <span>{{localization.employee.activeWorks}}</span
+              ><b class="summary-icon blue">▣</b>
             </div>
             <strong class="summary-number">03</strong>
             <div class="summary-foot">
-              <span class="inline-tag red-tag">◷ 1 việc sắp đến hạn SLA</span
+              <span class="inline-tag red-tag">◷ {{localization.employee.nearDeadline}}</span
               ><span class="arrow">→</span>
             </div>
-            <small>Context: EmployeeId = NV-00182, Active</small>
+            <small>{{localization.employee.activeWorksHint}}</small>
           </article>
           <article class="summary-card surface-card">
             <div class="summary-heading">
-              <span
-                >CHỜ THẨM ĐỊNH /<br />
-                REVIEW</span
+              <span>{{localization.employee.pendingReviews}}</span
               ><b class="summary-icon amber">☷</b>
             </div>
             <strong class="summary-number amber-text">01</strong>
             <div class="summary-foot">
-              <span>Công thẩm định độc lập</span><span class="arrow">→</span>
+              <span>{{localization.employee.independentAudit}}</span
+              ><span class="arrow">→</span>
             </div>
-            <small>Status hồ sơ bài nộp (Độc lập trạng thái CB)</small>
+            <small>{{localization.employee.pendingReviewsHint}}</small>
           </article>
           <article class="summary-card surface-card">
             <div class="summary-heading">
-              <span>TIẾN ĐỘ KPI KỲ NÀY</span><b class="summary-icon green">⌁</b>
+              <span>{{localization.employee.kpiProgress}}</span
+              ><b class="summary-icon green">⌁</b>
             </div>
             <strong class="summary-number">82.4<small>%</small></strong>
             <div class="summary-progress"><i style="width: 82.4%"></i></div>
             <div class="summary-foot">
-              <span>Target: 100 • Tháng 10/2026</span><span class="arrow">→</span>
+              <span>{{localization.employee.kpiTargetMonth}}</span
+              ><span class="arrow">→</span>
             </div>
-            <small>BR-04: Auto Verified Work Calculation</small>
+            <small>{{localization.employee.kpiProgressHint}}</small>
           </article>
           <article class="summary-card surface-card">
             <div class="summary-heading">
-              <span>HIỆU SUẤT &amp; XẾP LOẠI</span><b class="summary-icon neutral">♜</b>
+              <span>{{localization.employee.performanceRating}}</span
+              ><b class="summary-icon neutral">♜</b>
             </div>
-            <strong class="summary-number">84.2 <span class="grade-chip">Loại B</span></strong>
+            <strong class="summary-number"
+              >84.2 <span class="grade-chip">{{localization.employee.gradeB}}</span></strong
+            >
             <div class="summary-foot">
-              <span>Hạng đơn vị: <b>04 / 28 cán bộ</b></span
+              <span>{{localization.employee.unitRank}}</span
               ><span class="arrow">→</span>
             </div>
-            <small>Employee Performance Drill-down</small>
+            <small>{{localization.employee.performanceHint}}</small>
           </article>
         </section>
 
@@ -231,118 +247,120 @@
           <article class="surface-card organization-card">
             <div class="section-heading">
               <span class="section-icon">♧</span>
-              <h2>Thông tin Tổ chức &amp; Ngạch bậc</h2>
-              <span class="section-spec">Mục 9 Spec</span>
+              <h2>{{localization.employee.orgGradeTitle}}</h2>
+              <span class="section-spec">{{localization.employee.orgSpec}}</span>
             </div>
             <div class="grade-info">
-              <span>Mã ngạch &amp; Bậc định biên</span
+              <span>{{localization.employee.gradeCode}}</span
               ><strong>HQ-RM-L4 (Senior Relationship Officer Level 4) <b>Tier A</b></strong>
             </div>
             <div class="organization-facts">
               <div>
-                <span>Khối nghiệp vụ</span><strong>Khối Bán hàng &amp; Dịch vụ</strong
+                <span>{{localization.employee.businessDivision}}</span
+                ><strong>{{localization.employee.salesDivision}}</strong
                 ><small>Division: RB-CENTRAL</small>
               </div>
               <div>
-                <span>Chi nhánh quản lý</span><strong>Hội sở chính (Hà Nội)</strong
+                <span>{{localization.employee.managingBranch}}</span
+                ><strong>{{localization.employee.headOffice}}</strong
                 ><small>Branch Code: BR-001</small>
               </div>
             </div>
             <div class="competency-info">
-              <span>Profile đánh giá năng lực áp dụng</span
-              ><strong>Khung chuẩn năng lực RM Doanh nghiệp 2026-v2</strong><b>♢</b>
+              <span>{{localization.employee.competencyFramework}}</span
+              ><strong>{{localization.employee.competencyName}}</strong
+              ><b>♢</b>
             </div>
             <div class="organization-footer">
-              <span>Đồng bộ từ HRMS Core: 04:00 AM hôm nay</span
-              ><button type="button">Lịch sử thay đổi ngạch bậc →</button>
+              <span>{{localization.employee.hrmsSyncTime}}</span
+              ><button type="button">{{localization.employee.gradeHistory}}</button>
             </div>
           </article>
 
           <article class="surface-card reporting-card">
             <div class="section-heading">
               <span class="section-icon">☷</span>
-              <h2>Cây phân cấp Báo cáo (Reporting Tree)</h2>
-              <span class="section-spec">Mục 10<br />Spec</span>
+              <h2>{{localization.employee.reportingTree}}</h2>
+              <span class="section-spec">{{localization.employee.reportingSpec}}</span>
             </div>
             <div class="manager-node">
               <span class="person-initials manager-initials">TH</span>
               <div>
-                <small>QUẢN LÝ TRỰC TIẾP &nbsp; NV-00421</small><strong>Trần Thu Hương</strong
-                ><span>Trưởng phòng Khách hàng Cá nhân</span>
+                <small>{{localization.employee.directManager}} &nbsp; NV-00421</small
+                ><strong>Trần Thu Hương</strong
+                ><span>{{localization.employee.managerTitle}}</span>
               </div>
-              <button type="button">Xem hồ sơ →</button>
+              <button type="button">{{localization.common.viewProfile}}</button>
             </div>
-            <div class="report-label">↓ &nbsp; BÁO CÁO TRỰC TIẾP</div>
+            <div class="report-label">↓ &nbsp; {{localization.employee.directReports}}</div>
             <div class="current-node">
               <span class="person-initials">NA</span>
               <div>
-                <small>CÁN BỘ HIỆN TẠI &nbsp; NV-00182</small
-                ><strong>{{ data.employee.name }}</strong
-                ><span>{{ data.employee.title }}</span>
+                <small>{{localization.employee.currentEmployee}} &nbsp; NV-00182</small
+                ><strong>{{data.employee.name}}</strong
+                ><span>{{data.employee.title}}</span>
               </div>
-              <b>Đang xem</b>
+              <b>{{localization.employee.currentViewing}}</b>
             </div>
-            <div class="direct-label">↳ &nbsp; HƯỚNG DẪN / DIRECT REPORTS (2 CÁN BỘ)</div>
+            <div class="direct-label">
+              ↳ &nbsp; {{localization.employee.guidanceDirectReports}}
+            </div>
             <div class="direct-reports">
               <article>
-                <small>NV-00319</small><strong>Vũ Minh Đức</strong><span>Chuyên viên QHKH</span
-                ><button type="button">Xem hồ sơ ↗</button>
+                <small>NV-00319</small><strong>Vũ Minh Đức</strong
+                ><span>{{localization.employee.relationshipOfficer}}</span
+                ><button type="button">{{localization.common.viewProfile}}</button>
               </article>
               <article>
                 <small>NV-00561</small><strong>Phạm Hồng Quân</strong
-                ><span>Thực tập sinh tín dụng</span><button type="button">Xem hồ sơ ↗</button>
+                ><span>{{localization.employee.creditIntern}}</span
+                ><button type="button">{{localization.common.viewProfile}}</button>
               </article>
             </div>
             <div class="reporting-footer">
-              <button type="button">Xem toàn bộ sơ đồ tổ chức phòng ban →</button>
+              <button type="button">{{localization.common.viewOrgChart}}</button>
             </div>
           </article>
         </section>
 
         <section class="surface-card work-card">
           <div class="section-heading">
-            <h2>{{ 'employee.assignedWorksTitle' | translate }}</h2>
-            <span class="count-chip">{{ 'employee.activeWorksCount' | translate }}</span>
+            <h2>{{localization.employee.assignedWorksTitle}}</h2>
+            <span class="count-chip">{{localization.employee.activeWorksCount}}</span>
             <button type="button" class="heading-link">
-              {{ 'employee.viewAllWorks' | translate }} →
+              {{localization.employee.viewAllWorks}} →
             </button>
           </div>
           <div class="table-scroll">
             <table class="work-table">
               <thead>
                 <tr>
-                  <th>{{ 'employee.workIdCol' | translate }}</th>
-                  <th>{{ 'employee.workNameCol' | translate }}</th>
-                  <th>{{ 'employee.workPriorityCol' | translate }}</th>
-                  <th>{{ 'employee.workDeadlineCol' | translate }}</th>
-                  <th>{{ 'employee.workStatusCol' | translate }}</th>
-                  <th>{{ 'employee.workProgressCol' | translate }}</th>
-                  <th>{{ 'employee.workActionsCol' | translate }}</th>
+                  <th>{{localization.employee.workIdCol}}</th>
+                  <th>{{localization.employee.workNameCol}}</th>
+                  <th>{{localization.employee.workPriorityCol}}</th>
+                  <th>{{localization.employee.workDeadlineCol}}</th>
+                  <th>{{localization.employee.workStatusCol}}</th>
+                  <th>{{localization.employee.workProgressCol}}</th>
+                  <th>{{localization.employee.workActionsCol}}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (work of data.workPreview; track work.id) {
                   <tr>
-                    <td class="work-id">{{ work.id }}</td>
+                    <td class="work-id">{{work.id}}</td>
                     <td class="work-title">
-                      <strong>{{ work.title }}</strong>
-                      <small>{{ work.metadata }}</small>
+                      <strong>{{work.title}}</strong>
+                      <small>{{work.metadata}}</small>
                     </td>
                     <td>
-                      <span class="table-pill" [class]="'table-pill tone-' + work.priorityTone">{{
-                        work.priority
-                      }}</span>
+                      <span class="table-pill" [class]="'table-pill tone-' + work.priorityTone">{{work.priority}}</span>
                     </td>
                     <td class="deadline" [class.urgent]="work.priorityTone === 'red'">
-                      <strong>{{ work.deadline }}</strong>
-                      <small>{{
-                        work.dueDate ? (work.dueDate | appDate) : work.deadlineNote
-                      }}</small>
+                      <strong>{{work.deadline}}</strong>
+                      <small>{{work.dueDate ? (work.dueDate | appDate) : work.deadlineNote}}</small>
                     </td>
                     <td>
-                      <span class="table-pill" [class]="'table-pill tone-' + work.statusTone">{{
-                        work.status
-                      }}</span>
+                      <span class="table-pill" [class]="'table-pill tone-' + work.statusTone">{{work.status}}</span>
                     </td>
                     <td>
                       <div class="progress-cell">
@@ -351,12 +369,12 @@
                             [class]="'tone-fill tone-' + work.progressTone"
                             [style.width.%]="work.progress"
                           ></i></span
-                        ><small>{{ work.progress }}%</small>
+                        ><small>{{work.progress}}%</small>
                       </div>
                     </td>
                     <td>
                       <button class="row-link" type="button">
-                        {{ 'common.details' | translate }} →
+                        {{localization.common.details}} →
                       </button>
                     </td>
                   </tr>
@@ -368,44 +386,44 @@
 
         <section class="surface-card kpi-card">
           <div class="section-heading">
-            <h2>{{ 'employee.kpiOverviewTitle' | translate }}</h2>
-            <span class="verified-chip">● {{ 'employee.kpiLinkedBadge' | translate }}</span>
+            <h2>{{localization.employee.kpiOverviewTitle}}</h2>
+            <span class="verified-chip">● {{localization.employee.kpiLinkedBadge}}</span>
             <button type="button" class="heading-link">
-              {{ 'common.viewKpiDetails' | translate }}
+              {{localization.common.viewKpiDetails}}
             </button>
           </div>
           <div class="table-scroll">
             <table class="kpi-table">
               <thead>
                 <tr>
-                  <th>{{ 'employee.kpiNameCol' | translate }}</th>
-                  <th>{{ 'employee.kpiWeightCol' | translate }}</th>
-                  <th>{{ 'employee.kpiTargetCol' | translate }}</th>
-                  <th>{{ 'employee.kpiActualCol' | translate }}</th>
-                  <th>{{ 'employee.kpiProgressCol' | translate }}</th>
-                  <th>{{ 'employee.kpiSourceCol' | translate }}</th>
+                  <th>{{localization.employee.kpiNameCol}}</th>
+                  <th>{{localization.employee.kpiWeightCol}}</th>
+                  <th>{{localization.employee.kpiTargetCol}}</th>
+                  <th>{{localization.employee.kpiActualCol}}</th>
+                  <th>{{localization.employee.kpiProgressCol}}</th>
+                  <th>{{localization.employee.kpiSourceCol}}</th>
                 </tr>
               </thead>
               <tbody>
                 @for (kpi of data.kpis; track kpi.code) {
                   <tr>
                     <td>
-                      <strong>{{ kpi.title }}</strong>
-                      <small>Mã chỉ tiêu: {{ kpi.code }}</small>
+                      <strong>{{kpi.title}}</strong>
+                      <small>{{localization.employee.kpiCode}} {{kpi.code}}</small>
                     </td>
-                    <td class="mono-cell">{{ kpi.weight }}</td>
+                    <td class="mono-cell">{{kpi.weight}}</td>
                     <td class="mono-cell muted-cell">
                       @if (kpi.isCurrency && kpi.targetValue) {
-                        {{ kpi.targetValue | vndCurrency }}
+                        {{kpi.targetValue | vndCurrency}}
                       } @else {
-                        {{ kpi.target }}
+                        {{kpi.target}}
                       }
                     </td>
                     <td class="mono-cell actual-cell" [class.green-text]="kpi.tone === 'green'">
                       @if (kpi.isCurrency && kpi.actualValue) {
-                        {{ kpi.actualValue | vndCurrency }}
+                        {{kpi.actualValue | vndCurrency}}
                       } @else {
-                        {{ kpi.actual }}
+                        {{kpi.actual}}
                       }
                     </td>
                     <td>
@@ -415,15 +433,11 @@
                             [class]="'tone-fill tone-' + kpi.tone"
                             [style.width.%]="kpi.progress"
                           ></i></span
-                        ><small [class.green-text]="kpi.tone === 'green'">{{
-                          kpi.progressText
-                        }}</small>
+                        ><small [class.green-text]="kpi.tone === 'green'">{{kpi.progressText}}</small>
                       </div>
                     </td>
                     <td>
-                      <span class="source-chip" [class.green-source]="kpi.tone === 'green'">{{
-                        kpi.source
-                      }}</span>
+                      <span class="source-chip" [class.green-source]="kpi.tone === 'green'">{{kpi.source}}</span>
                     </td>
                   </tr>
                 }
@@ -432,7 +446,7 @@
           </div>
           <div class="kpi-note">
             <span>◉</span>
-            <p>{{ 'employee.kpiRuleBR06' | translate }}</p>
+            <p>{{localization.employee.kpiRuleBR06}}</p>
             <code>Audit Hash: #7A2F-OCT2026</code>
           </div>
         </section>
@@ -441,88 +455,80 @@
           <article class="surface-card reviews-card">
             <div class="section-heading">
               <span class="section-icon">♙</span>
-              <h2>{{ 'employee.performanceReviewHistory' | translate }}</h2>
+              <h2>{{localization.employee.performanceReviewHistory}}</h2>
               <button type="button" class="heading-link">
-                {{ 'common.details' | translate }} →
+                {{localization.common.details}} →
               </button>
             </div>
             <div class="review-list">
               @for (review of data.reviews; track review.period) {
                 <article class="review-item">
                   <div class="review-period">
-                    <strong>{{ review.period }}</strong>
+                    <strong>{{review.period}}</strong>
                     @if (review.reviewDate) {
-                      <small class="review-date-badge">({{ review.reviewDate | appDate }})</small>
+                      <small class="review-date-badge">({{review.reviewDate | appDate}})</small>
                     }
-                    <span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{
-                      review.state
-                    }}</span>
+                    <span class="state-chip" [class]="'state-chip tone-' + review.stateTone">{{review.state}}</span>
                   </div>
                   <div class="review-score">
-                    <strong [class.green-text]="review.gradeTone === 'green'">{{
-                      review.score
-                    }}</strong>
-                    <span [class]="'grade-chip grade-' + review.gradeTone">{{ review.grade }}</span>
+                    <strong [class.green-text]="review.gradeTone === 'green'">{{review.score}}</strong>
+                    <span [class]="'grade-chip grade-' + review.gradeTone">{{review.grade}}</span>
                     @if (review.status) {
-                      <small>• &nbsp;{{ review.status }}</small>
+                      <small>• &nbsp;{{review.status}}</small>
                     }
                   </div>
                   @if (review.description) {
-                    <p>{{ review.description }}</p>
+                    <p>{{review.description}}</p>
                   }
                   @if (review.managerNote) {
-                    <blockquote>{{ review.managerNote }}</blockquote>
+                    <blockquote>{{review.managerNote}}</blockquote>
                   }
                 </article>
               }
             </div>
             <div class="review-footer">
-              <span>{{ 'employee.performanceStandard' | translate }}</span>
-              <button type="button">{{ 'common.exportPdf' | translate }}</button>
+              <span>{{localization.employee.performanceStandard}}</span>
+              <button type="button">{{localization.common.exportPdf}}</button>
             </div>
           </article>
 
           <article class="surface-card audit-card">
             <div class="section-heading">
               <span class="section-icon">◴</span>
-              <h2>{{ 'employee.recentAuditLog' | translate }}</h2>
-              <span class="section-spec">Audit Log</span>
+              <h2>{{localization.employee.recentAuditLog}}</h2>
+              <span class="section-spec">{{localization.employee.auditLog}}</span>
             </div>
             <ol class="audit-list">
               @for (event of data.auditLog; track event.time) {
                 <li [class]="'audit-event tone-border-' + event.tone">
-                  <span class="timeline-marker">{{
-                    event.tone === 'green'
+                  <span class="timeline-marker">{{event.tone === 'green'
                       ? '✓'
                       : event.tone === 'amber'
                         ? '↻'
                         : event.tone === 'blue'
                           ? '♧'
-                          : '▣'
-                  }}</span>
+                          : '▣'}}</span>
                   <div>
                     <p class="audit-meta">
-                      <strong>{{
-                        event.eventDate
+                      <strong>{{event.eventDate
                           ? (event.eventDate | appDate: 'DD/MM/YYYY HH:mm')
-                          : event.time
-                      }}</strong>
-                      <span>• &nbsp;{{ event.kind }}</span>
+                          : event.time}}</strong>
+                      <span>• &nbsp;{{event.kind}}</span>
                     </p>
-                    <p class="audit-title">{{ event.title }}</p>
+                    <p class="audit-title">{{event.title}}</p>
                     @if (event.detail) {
-                      <p class="audit-detail">{{ event.detail }}</p>
+                      <p class="audit-detail">{{event.detail}}</p>
                     }
                     @if (event.source) {
-                      <p class="audit-source">{{ event.source }}</p>
+                      <p class="audit-source">{{event.source}}</p>
                     }
                   </div>
                 </li>
               }
             </ol>
             <div class="audit-footer">
-              <span>{{ 'employee.immutableLog' | translate }}</span>
-              <button type="button">{{ 'common.viewAllHistory' | translate }}</button>
+              <span>{{localization.employee.immutableLog}}</span>
+              <button type="button">{{localization.common.viewAllHistory}}</button>
             </div>
           </article>
         </section>

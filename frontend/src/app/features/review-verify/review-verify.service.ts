@@ -18,7 +18,7 @@ export class ReviewVerifyService {
 
   getDossier(submissionId?: string): Observable<DossierInspection> {
     const id = submissionId || DEFAULT_MOCK_DOSSIER.submissionId;
-    return this.http.get<DossierInspection>(`${this.apiUrl}/v1/verification/dossiers/${id}`).pipe(
+    return this.http.get<DossierInspection>(`${this.apiUrl}/verifications/${id}/dossier`).pipe(
       catchError(() => {
         // Gracefully fallback to sample dossier for local review or offline mode
         return of({
@@ -34,10 +34,7 @@ export class ReviewVerifyService {
     payload: AuditDecisionPayload,
   ): Observable<AuditDecisionResponse> {
     return this.http
-      .post<AuditDecisionResponse>(
-        `${this.apiUrl}/v1/verification/dossiers/${submissionId}/decision`,
-        payload,
-      )
+      .post<AuditDecisionResponse>(`${this.apiUrl}/verifications/${submissionId}/decision`, payload)
       .pipe(
         catchError(() => {
           // Gracefully fallback to simulated response when backend endpoint is not yet connected
