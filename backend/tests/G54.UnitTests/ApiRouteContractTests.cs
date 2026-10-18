@@ -10,6 +10,7 @@ public sealed class ApiRouteContractTests
     [Theory]
     [InlineData(typeof(AuthController), "auth")]
     [InlineData(typeof(EmployeeController), "employees")]
+    [InlineData(typeof(DepartmentsController), "departments")]
     [InlineData(typeof(WorksController), "works")]
     [InlineData(typeof(WorkTypeController), "work-types")]
     [InlineData(typeof(MeController), "me")]

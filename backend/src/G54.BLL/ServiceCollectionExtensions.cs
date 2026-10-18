@@ -1,5 +1,6 @@
 using G54.BLL.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace G54.BLL;
 
@@ -23,6 +24,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         return services;
     }

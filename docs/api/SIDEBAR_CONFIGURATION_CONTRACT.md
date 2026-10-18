@@ -10,7 +10,7 @@ ordered union of their role menus, filtered by their permission claims.
 
 - `GET /sidebar-configurations/current`: configurations for the caller's recognized
   workspace roles. Unknown roles produce `data: []`.
-- `GET /sidebar-configurations`: admin only; all six workspace role configurations.
+- `GET /sidebar-configurations`: admin only; configurations for all workspace roles.
 - `PUT /sidebar-configurations/{role}`: admin only; replace ordered menu identifiers.
   `role` is one of `employee`, `departmentManager`, `branchManager`, `hr`, `qa`, `admin`.
   Role aliases in authentication map to these workspace roles.
@@ -23,9 +23,10 @@ Request: `{ itemIds: string[], version: integer, routes?: { [menuId]: string } }
 `routes` contains per-role route overrides for selected items only. Omitted keys
 use the catalog route; an empty string explicitly disables navigation. Omitting
 the whole field preserves existing overrides (backward-compatible older clients).
-Routes must be exactly one of `/home`, `/employee-profile`, `/work-type-detail`,
-`/review-verify`, `/kpi-definitions`, `/sidebar-settings`, or empty. No external URLs,
-query strings, hashes or arbitrary routes. `/sidebar-settings` is admin-only.
+Routes must be an internal application route from the supported allowlist (backend:
+`SidebarCatalog.Routes`; frontend: `NavigationService.routeOptions`), or empty. Both
+lists must stay identical; this document intentionally does not duplicate them. No
+external URLs, query strings, hashes or arbitrary routes. `/sidebar-settings` is admin-only.
 Group `organization` has no route override; it expands children. Admin's required
 `systemConfiguration` route cannot be changed away from `/sidebar-settings`.
 Route changes do not change the menu's required permission or destination API authorization.

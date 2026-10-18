@@ -23,6 +23,15 @@ export const routes: Routes = [
       import('./features/home/home-page.component').then((module) => module.HomePageComponent),
   },
   {
+    path: 'departments',
+    canActivate: [authGuard],
+    title: 'Department View',
+    loadComponent: () =>
+      import('./features/departments/department-view.component').then(
+        (module) => module.DepartmentViewComponent,
+      ),
+  },
+  {
     path: 'employee-profile',
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>

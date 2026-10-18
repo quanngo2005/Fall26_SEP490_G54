@@ -84,7 +84,7 @@ describe('ReviewVerifyComponent', () => {
 
     component.openConfirmModal();
     expect(component.showConfirmModal()).toBeFalse();
-    expect(component.validationError()).toContain('BR-02');
+    expect(component.validationError()).toBe(component.localization.review.makerCheckerError);
   });
 
   it('should handle document zoom and page navigation', () => {
