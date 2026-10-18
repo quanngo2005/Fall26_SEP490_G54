@@ -4,74 +4,54 @@ import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
   {
-    path: 'sidebar-settings',
-    canActivate: [authGuard, adminGuard],
-    loadComponent: () =>
-      import('./features/sidebar-settings/sidebar-settings.component').then(
-        (m) => m.SidebarSettingsComponent,
-      ),
-  },
-  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),
   },
   {
+    path: 'auth',
+    loadChildren: () => import('./features/auth/auth.routes').then((m) => m.routes),
+  },
+  {
     path: 'home',
     canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/home/home-page.component').then((module) => module.HomePageComponent),
+    loadChildren: () => import('./features/home/home.routes').then((m) => m.routes),
   },
   {
     path: 'departments',
     canActivate: [authGuard],
-    title: 'Department View',
-    loadComponent: () =>
-      import('./features/departments/department-view.component').then(
-        (module) => module.DepartmentViewComponent,
-      ),
+    loadChildren: () => import('./features/departments/departments.routes').then((m) => m.routes),
   },
   {
     path: 'employee-profile',
-    title: 'Hồ sơ Cán bộ',
-    loadComponent: () =>
-      import('./features/employee-profile/employee-profile.component').then(
-        (module) => module.EmployeeProfileComponent,
-      ),
-  },
-  {
-    path: 'work-type-detail',
-    title: 'Work Type Detail',
-    loadComponent: () =>
-      import('./features/work-type-detail/work-type-detail.component').then(
-        (m) => m.WorkTypeDetailComponent,
-      ),
-  },
-  {
-    path: 'review-verify',
-    title: 'Thẩm định kết quả công việc',
-    loadComponent: () =>
-      import('./features/review-verify/review-verify.component').then(
-        (m) => m.ReviewVerifyComponent,
-      ),
-  },
-  {
-    path: 'review-verify/:submissionId',
-    title: 'Thẩm định kết quả công việc',
-    loadComponent: () =>
-      import('./features/review-verify/review-verify.component').then(
-        (m) => m.ReviewVerifyComponent,
-      ),
+    canActivate: [authGuard],
+    loadChildren: () =>
+      import('./features/employee-profile/employee-profile.routes').then((m) => m.routes),
   },
   {
     path: 'kpi-definitions',
     canActivate: [authGuard],
-    title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
-    loadComponent: () =>
-      import('./features/kpi-definitions/kpi-definitions.component').then(
-        (m) => m.KpiDefinitionsComponent,
-      ),
+    loadChildren: () =>
+      import('./features/kpi-definitions/kpi-definitions.routes').then((m) => m.routes),
   },
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  {
+    path: 'review-verify',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      import('./features/review-verify/review-verify.routes').then((m) => m.routes),
+  },
+  {
+    path: 'work-type-detail',
+    canActivate: [authGuard],
+    loadChildren: () =>
+      import('./features/work-type-detail/work-type-detail.routes').then((m) => m.routes),
+  },
+  {
+    path: 'sidebar-settings',
+    canActivate: [authGuard, adminGuard],
+    loadChildren: () =>
+      import('./features/sidebar-settings/sidebar-settings.routes').then((m) => m.routes),
+  },
+  { path: '', pathMatch: 'full', redirectTo: 'home' },
   { path: '**', redirectTo: 'login' },
 ];

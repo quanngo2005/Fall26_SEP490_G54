@@ -107,4 +107,3 @@ describe('EmployeeProfileComponent', () => {
     expect(compiled.textContent).toContain('Back to Employee List');
   });
 });
-

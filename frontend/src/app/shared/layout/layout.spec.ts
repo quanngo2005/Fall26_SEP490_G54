@@ -8,6 +8,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { SidebarConfigurationService } from '../../core/sidebar-configuration.service';
 import { HeaderComponent } from './header.component';
 import { SidebarComponent } from './sidebar.component';
+import { WorkspaceLayoutComponent } from './workspace-layout.component';
 import { NavigationService, ROLE_MENUS, WorkspaceRole } from './navigation.service';
 
 describe('Shared workspace layout', () => {
@@ -230,5 +231,14 @@ describe('Shared workspace layout', () => {
     expect(navigation.mobileOpen()).toBeTrue();
     navigation.closeMobile();
     expect(navigation.mobileOpen()).toBeFalse();
+  });
+  it('renders sidebar, header and content inside WorkspaceLayoutComponent', () => {
+    signIn(['EMPLOYEE']);
+    const fixture = TestBed.createComponent(WorkspaceLayoutComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-sidebar')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-header')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('main.workspace-content')).not.toBeNull();
+    fixture.destroy();
   });
 });
