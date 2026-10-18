@@ -1,0 +1,135 @@
+@if (isWarning() && !isLocked()) {
+  <div
+    class="idle-warning-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="idle-warning-title"
+  >
+    <div class="idle-warning-card">
+      <div class="idle-warning-header">
+        <div class="warning-icon-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </div>
+        <div class="warning-header-text">
+          <h3 id="idle-warning-title" class="warning-title">
+            {{localization.sessionLock.warningTitle}}
+          </h3>
+          @if (isSensitive()) {
+            <span class="security-badge badge-sensitive">{{localization.sessionLock.sensitiveNotice}}</span>
+          } @else {
+            <span class="security-badge badge-standard">{{localization.sessionLock.standardNotice}}</span>
+          }
+        </div>
+      </div>
+
+      <div class="idle-warning-body">
+        <p class="warning-description">{{warningMessage()}}</p>
+      </div>
+
+      <div class="idle-warning-actions">
+        <button type="button" class="btn-secondary" (click)="lockNow()">
+          {{localization.sessionLock.lockNow}}
+        </button>
+        <button type="button" class="btn-primary" (click)="stayLoggedIn()">
+          {{localization.sessionLock.stayLoggedIn}}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (isLocked()) {
+  <div
+    class="lock-screen-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="lock-screen-title"
+  >
+    <div class="lock-screen-card">
+      <div class="lock-screen-header">
+        <div class="lock-icon-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h2 id="lock-screen-title" class="lock-title">
+          {{localization.sessionLock.lockedTitle}}
+        </h2>
+        <p class="lock-subtitle">{{localization.sessionLock.lockedSubtitle}}</p>
+        <div class="lock-badge-wrap">
+          @if (isSensitive()) {
+            <span class="security-badge badge-sensitive">{{localization.sessionLock.sensitiveNotice}}</span>
+          } @else {
+            <span class="security-badge badge-standard">{{localization.sessionLock.standardNotice}}</span>
+          }
+        </div>
+      </div>
+
+      @if (currentUser(); as user) {
+        <div class="user-identity-card">
+          <div class="user-avatar-circle" aria-hidden="true">
+            {{userInitials()}}
+          </div>
+          <div class="user-details">
+            <span class="user-fullname">{{user.fullName}}</span>
+            <span class="user-email">{{user.email}}</span>
+            @if (user.roles.length > 0) {
+              <span class="user-role-pill">{{user.roles[0]}}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <form class="lock-unlock-form" (ngSubmit)="unlock()">
+        <div class="form-group">
+          <label for="lock-password-input" class="form-label">{{localization.sessionLock.passwordLabel}}</label>
+          <div class="input-wrapper">
+            <input
+              id="lock-password-input"
+              type="password"
+              class="form-input"
+              [class.input-error]="errorMessage()"
+              [placeholder]="localization.sessionLock.passwordPlaceholder"
+              [ngModel]="password()"
+              (ngModelChange)="onPasswordInput($event)"
+              name="password"
+              autocomplete="current-password"
+              [disabled]="isSubmitting()"
+              required
+            />
+          </div>
+          @if (errorMessage()) {
+            <p class="error-text" role="alert">{{errorMessage()}}</p>
+          }
+        </div>
+
+        <div class="lock-actions">
+          <button
+            type="submit"
+            class="btn-primary btn-unlock"
+            [disabled]="isSubmitting() || !password().trim()"
+          >
+            @if (isSubmitting()) {
+              <span class="spinner" aria-hidden="true"></span>
+              {{localization.sessionLock.unlocking}}
+            } @else {
+              {{localization.sessionLock.unlock}}
+            }
+          </button>
+          <button
+            type="button"
+            class="btn-secondary btn-logout"
+            (click)="logout()"
+            [disabled]="isSubmitting()"
+          >
+            {{localization.sessionLock.logout}}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

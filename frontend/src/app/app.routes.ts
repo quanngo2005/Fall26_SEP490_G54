@@ -25,18 +25,21 @@ export const routes: Routes = [
   {
     path: 'employee-profile',
     canActivate: [authGuard],
+    data: { sensitive: true },
     loadChildren: () =>
       import('./features/employee-profile/employee-profile.routes').then((m) => m.routes),
   },
   {
     path: 'kpi-definitions',
     canActivate: [authGuard],
+    data: { sensitive: true },
     loadChildren: () =>
       import('./features/kpi-definitions/kpi-definitions.routes').then((m) => m.routes),
   },
   {
     path: 'review-verify',
     canActivate: [authGuard],
+    data: { sensitive: true },
     loadChildren: () =>
       import('./features/review-verify/review-verify.routes').then((m) => m.routes),
   },
@@ -49,6 +52,7 @@ export const routes: Routes = [
   {
     path: 'sidebar-settings',
     canActivate: [authGuard, adminGuard],
+    data: { sensitive: true },
     loadChildren: () =>
       import('./features/sidebar-settings/sidebar-settings.routes').then((m) => m.routes),
   },
