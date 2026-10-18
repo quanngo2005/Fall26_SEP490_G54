@@ -1,9 +1,18 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiResponse, PagedResult } from './kpi-definition.models';
-import { KpiOption, WorkflowOption, WorkTypeDetail, WorkTypeFilter } from './work-type.models';
+import { toHttpParams, unwrapResponse } from './api-utils';
+import { ApiResponse, PagedResult } from './api.models';
+import { parseWireEnum } from './enum-wire';
+import {
+  WORK_TYPE_STATUS_FIRST_ORDINAL,
+  WORK_TYPE_STATUSES,
+  WorkTypeDetail,
+  WorkTypeFilter,
+} from './work-type.models';
+
+type RawWorkType = Omit<WorkTypeDetail, 'status'> & { status: unknown };
 
 @Injectable({ providedIn: 'root' })
 export class WorkTypeService {
@@ -12,54 +21,24 @@ export class WorkTypeService {
 
   list(filter: WorkTypeFilter = {}): Observable<PagedResult<WorkTypeDetail>> {
     return this.http
-      .get<ApiResponse<PagedResult<WorkTypeDetail>>>(this.url, { params: this.params(filter) })
-      .pipe(map((response) => this.unwrap(response)));
+      .get<ApiResponse<PagedResult<RawWorkType>>>(this.url, { params: toHttpParams(filter) })
+      .pipe(
+        map((response) => unwrapResponse(response, 'work type list')),
+        map((page) => ({ ...page, items: page.items.map((item) => this.adapt(item)) })),
+      );
   }
 
   detail(id: string): Observable<WorkTypeDetail> {
-    return this.http
-      .get<ApiResponse<WorkTypeDetail>>(`${this.url}/${encodeURIComponent(id)}`)
-      .pipe(map((response) => this.unwrap(response)));
+    return this.http.get<ApiResponse<RawWorkType>>(`${this.url}/${encodeURIComponent(id)}`).pipe(
+      map((response) => unwrapResponse(response, 'work type')),
+      map((item) => this.adapt(item)),
+    );
   }
 
-  activeKpis(): Observable<KpiOption[]> {
-    return this.http
-      .get<ApiResponse<KpiOption[]>>(`${this.url}/kpis`)
-      .pipe(map((response) => this.unwrap(response)));
-  }
-
-  workflows(): Observable<WorkflowOption[]> {
-    return this.http
-      .get<ApiResponse<WorkflowOption[]>>(`${this.url}/workflows`)
-      .pipe(map((response) => this.unwrap(response)));
-  }
-
-  changeStatus(id: string, status: string): Observable<string> {
-    return this.http
-      .patch<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}/status`, { status })
-      .pipe(map((response) => response.message || 'Status updated'));
-  }
-
-  delete(id: string): Observable<string> {
-    return this.http
-      .delete<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}`)
-      .pipe(map((response) => response.message || 'WorkType deleted'));
-  }
-
-  private params(filter: WorkTypeFilter) {
-    let params = new HttpParams();
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null && value !== '') {
-        params = params.set(key, String(value));
-      }
-    }
-    return params;
-  }
-
-  private unwrap<T>(response: ApiResponse<T>): T {
-    if (!response.success || response.data == null) {
-      throw new Error(response.message || 'Invalid work type response');
-    }
-    return response.data;
+  private adapt(raw: RawWorkType): WorkTypeDetail {
+    return {
+      ...raw,
+      status: parseWireEnum(WORK_TYPE_STATUSES, raw.status, WORK_TYPE_STATUS_FIRST_ORDINAL),
+    };
   }
 }

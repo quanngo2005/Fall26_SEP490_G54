@@ -1,192 +1,166 @@
-import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+﻿import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
-import { catchError, finalize, of } from 'rxjs';
-import { EmployeeDetail } from '../../core/employee.models';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import {
+  catchError,
+  combineLatest,
+  distinctUntilChanged,
+  EMPTY,
+  finalize,
+  map,
+  Observable,
+  of,
+  Subject,
+  switchMap,
+  tap,
+} from 'rxjs';
+import { apiErrorStatus } from '../../core/api-utils';
+import { DepartmentService } from '../../core/department.service';
+import { DepartmentMember } from '../../core/department.models';
+import { EmployeeDetail, EmployeeStatus } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { I18N_PIPES } from '../../shared/pipes';
+import { displayNumber, initials } from '../../shared/ui/display';
 
-export interface AssignedWorkItem {
-  id: string;
-  title: string;
-  metadata: string;
-  priority: string;
-  priorityClass: string;
-  deadline: string;
-  status: string;
-  statusClass: string;
-  progress: number;
-}
-
-export interface KpiProgressItem {
-  code: string;
-  title: string;
-  weight: string;
-  target: string;
-  actual: string;
-  progress: number;
-}
-
-const SAMPLE_EMPLOYEE: EmployeeDetail = {
-  id: '00000000-0000-0000-0000-000000000001',
-  employeeCode: 'NV-00182',
-  fullName: 'Nguyễn Văn An',
-  email: 'an.nv@bank.vn',
-  phone: '(024) 3888 1234',
-  departmentId: '00000000-0000-0000-0000-000000000010',
-  departmentCode: 'RB-HN-01',
-  departmentName: 'Phòng Khách hàng Cá nhân',
-  jobPositionId: '00000000-0000-0000-0000-000000000020',
-  jobPositionCode: 'POS-RM-SR',
-  jobPositionTitle: 'Chuyên viên QHKH Doanh nghiệp Cấp cao',
-  managerId: '00000000-0000-0000-0000-000000000030',
-  managerCode: 'MGR-001',
-  managerName: 'Trần Văn Quản Lý',
-  status: 'ACTIVE',
-  directReportsCount: 4,
-  lastSyncAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+const CANDIDATE_PAGE_SIZE = 20;
 
 @Component({
   selector: 'app-employee-detail',
-  standalone: true,
-  imports: [CommonModule, HeaderComponent, SidebarComponent, ...I18N_PIPES],
+  imports: [FormsModule, RouterLink, HeaderComponent, SidebarComponent],
   templateUrl: './employee-detail.component.html',
-  styleUrls: ['./employee-detail.component.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
+    './employee-detail.component.scss',
+  ],
 })
-export class EmployeeDetailComponent extends LocalizedComponent implements OnInit {
-  private readonly api = inject(EmployeeService);
+export class EmployeeDetailComponent extends LocalizedComponent {
+  private readonly employees = inject(EmployeeService);
+  private readonly departments = inject(DepartmentService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly reload = new Subject<void>();
 
-  readonly employee = signal<EmployeeDetail | null>(SAMPLE_EMPLOYEE);
-  readonly loading = signal<boolean>(false);
-  readonly failed = signal<boolean>(false);
-  readonly showMoreActions = signal<boolean>(false);
-  readonly activeTab = signal<'works' | 'kpis' | 'history'>('works');
+  protected readonly employeeId = signal<string | null>(null);
+  protected readonly employee = signal<EmployeeDetail | null>(null);
+  /** Roster row of the employee; null when the department roster has no data for them. */
+  protected readonly roster = signal<DepartmentMember | null>(null);
+  protected readonly candidates = signal<EmployeeDetail[]>([]);
+  protected readonly candidateTotal = signal(0);
+  protected readonly loading = signal(true);
+  protected readonly failed = signal(false);
+  protected readonly notFound = signal(false);
+  protected keyword = '';
 
-  readonly works = signal<AssignedWorkItem[]>([
-    {
-      id: 'WRK-202610-0102',
-      title: 'Thẩm định cấp tín dụng Cty CP Minh Phát',
-      metadata: 'WT-LND-02 v1.3 • Hồ sơ Doanh nghiệp SME',
-      priority: 'GẤP',
-      priorityClass: 'badge-danger',
-      deadline: 'Còn 04 giờ 20p',
-      status: 'Cần sửa đổi (Revision)',
-      statusClass: 'badge-warning',
-      progress: 60,
-    },
-    {
-      id: 'WRK-202610-0115',
-      title: 'Tiếp thị gói thẻ tín dụng cho Ban TGĐ Techcorp',
-      metadata: 'WT-CRD-01 • Chương trình Payroll VIP',
-      priority: 'CAO',
-      priorityClass: 'badge-warning',
-      deadline: 'Còn 2 ngày',
-      status: 'Đang thực hiện',
-      statusClass: 'badge-info',
-      progress: 45,
-    },
-    {
-      id: 'WRK-202610-0089',
-      title: 'Xử lý khiếu nại phí giao dịch CIF #8812',
-      metadata: 'WT-CS-04 • Tiếp nhận qua Tổng đài',
-      priority: 'TRUNG BÌNH',
-      priorityClass: 'badge-secondary',
-      deadline: 'Hôm nay',
-      status: 'Chờ thẩm định',
-      statusClass: 'badge-primary',
-      progress: 90,
-    },
-  ]);
+  constructor() {
+    super();
+    this.reload
+      .pipe(
+        switchMap(() => {
+          this.loading.set(true);
+          this.failed.set(false);
+          this.notFound.set(false);
+          const id = this.employeeId();
+          return (id ? this.loadDetail(id) : this.loadCandidates()).pipe(
+            catchError((error: unknown) => {
+              this.notFound.set(apiErrorStatus(error) === 404);
+              this.failed.set(true);
+              return EMPTY;
+            }),
+            finalize(() => this.loading.set(false)),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
 
-  readonly kpis = signal<KpiProgressItem[]>([
-    {
-      code: 'KPI-REV-01',
-      title: 'Doanh số huy động mới phát sinh',
-      weight: '35%',
-      target: '15.000.000.000 VND',
-      actual: '12.450.000.000 VND',
-      progress: 83,
-    },
-    {
-      code: 'KPI-CSAT-02',
-      title: 'Chỉ số hài lòng khách hàng (CSAT)',
-      weight: '25%',
-      target: '90%',
-      actual: '94%',
-      progress: 104,
-    },
-    {
-      code: 'KPI-ERR-03',
-      title: 'Tỷ lệ hồ sơ lỗi nghiệp vụ tiếp nhận',
-      weight: '20%',
-      target: '< 2.0%',
-      actual: '0.8%',
-      progress: 100,
-    },
-  ]);
-
-  ngOnInit(): void {
-    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      const id = params.get('id');
-      this.loadEmployee(id || undefined);
-    });
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
+      .pipe(
+        map(([params, query]) => params.get('id') ?? query.get('id')),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((id) => {
+        this.employeeId.set(id);
+        this.employee.set(null);
+        this.roster.set(null);
+        this.reload.next();
+      });
   }
 
-  loadEmployee(id?: string): void {
-    this.loading.set(true);
-    this.failed.set(false);
+  protected refresh(): void {
+    this.reload.next();
+  }
 
-    if (id) {
-      this.api
-        .detail(id)
-        .pipe(
-          catchError(() => {
-            // Graceful fallback to sample employee for dev preview
-            return of(SAMPLE_EMPLOYEE);
-          }),
-          finalize(() => this.loading.set(false)),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe({
-          next: (emp) => this.employee.set(emp),
-          error: () => this.failed.set(true),
-        });
-    } else {
-      this.api
-        .list({ pageSize: 1 })
-        .pipe(
-          catchError(() => {
-            return of({ items: [SAMPLE_EMPLOYEE], totalCount: 1, page: 1, pageSize: 1 });
-          }),
-          finalize(() => this.loading.set(false)),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe({
-          next: (res) => {
-            if (res.items && res.items.length > 0) {
-              this.employee.set(res.items[0]);
-            } else {
-              this.employee.set(SAMPLE_EMPLOYEE);
-            }
-          },
-          error: () => this.failed.set(true),
-        });
+  protected search(): void {
+    this.reload.next();
+  }
+
+  protected display(value: number | null | undefined): string {
+    return displayNumber(
+      value,
+      this.i18n.currentLanguage(),
+      this.localization.employee.notAvailable,
+    );
+  }
+
+  protected text(value: string | null | undefined): string {
+    return value?.trim() ? value : this.localization.employee.notAvailable;
+  }
+
+  protected initials(name: string): string {
+    return initials(name);
+  }
+
+  protected statusLabel(status: EmployeeStatus | null): string {
+    const text = this.localization.employee;
+    switch (status) {
+      case 'ACTIVE':
+        return text.statusActive;
+      case 'INACTIVE':
+        return text.statusInactive;
+      case 'ON_LEAVE':
+        return text.statusOnLeave;
+      case 'TERMINATED':
+        return text.statusTerminated;
+      default:
+        return text.notAvailable;
     }
   }
 
-  toggleMoreActions(): void {
-    this.showMoreActions.update((v) => !v);
+  protected isActive(status: EmployeeStatus | null): boolean {
+    return status === 'ACTIVE';
   }
 
-  setTab(tab: 'works' | 'kpis' | 'history'): void {
-    this.activeTab.set(tab);
+  private loadDetail(id: string): Observable<void> {
+    return this.employees.detail(id).pipe(
+      tap((employee) => this.employee.set(employee)),
+      switchMap((employee) =>
+        this.departments
+          .members(employee.departmentId, { keyword: employee.employeeCode, pageSize: 10 })
+          .pipe(
+            map((page) => page.items.find((member) => member.id === employee.id) ?? null),
+            // The roster is secondary data scoped by the department permission; N/A when unavailable.
+            catchError(() => of(null)),
+          ),
+      ),
+      tap((member) => this.roster.set(member)),
+      map(() => undefined),
+    );
+  }
+
+  private loadCandidates(): Observable<void> {
+    return this.employees
+      .list({ keyword: this.keyword.trim(), pageSize: CANDIDATE_PAGE_SIZE })
+      .pipe(
+        tap((page) => {
+          this.candidates.set(page.items);
+          this.candidateTotal.set(page.totalCount);
+        }),
+        map(() => undefined),
+      );
   }
 }
 

@@ -1,8 +1,11 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
+import { DepartmentService } from '../../core/department.service';
+import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { EmployeeDetailComponent } from './employee-detail.component';
 
@@ -11,84 +14,143 @@ class HeaderStub {}
 @Component({ selector: 'app-sidebar', template: '' })
 class SidebarStub {}
 
-describe('EmployeeDetailComponent', () => {
-  const mockEmployee = {
-    id: 'emp-123',
-    employeeCode: 'NV-00182',
-    fullName: 'Nguyễn Văn An',
-    email: 'an.nv@bank.vn',
-    phone: '(024) 3888 1234',
-    departmentId: 'dept-01',
-    departmentCode: 'RB-HN-01',
-    departmentName: 'Phòng Khách hàng Cá nhân',
-    jobPositionId: 'pos-01',
-    jobPositionCode: 'POS-RM-SR',
-    jobPositionTitle: 'Chuyên viên QHKH Doanh nghiệp Cấp cao',
-    managerId: 'mgr-01',
-    managerCode: 'MGR-001',
-    managerName: 'Trần Văn Quản Lý',
-    status: 'ACTIVE' as const,
-    directReportsCount: 4,
-    lastSyncAt: '2026-10-18T10:00:00Z',
-    updatedAt: '2026-10-18T10:00:00Z',
-  };
+const employee: EmployeeDetail = {
+  id: '5eed0000-0000-0000-0007-000000000004',
+  employeeCode: 'NV004',
+  fullName: 'Lê Minh Châu',
+  email: 'chau@example.test',
+  phone: null,
+  departmentId: '5eed0000-0000-0000-0001-000000000004',
+  departmentCode: 'CN-HN-KD1',
+  departmentName: 'Nhóm Kinh doanh 1',
+  jobPositionId: '5eed0000-0000-0000-0006-000000000001',
+  jobPositionCode: 'CV-KD',
+  jobPositionTitle: 'Chuyên viên Kinh doanh',
+  managerId: null,
+  managerCode: null,
+  managerName: null,
+  status: 'ACTIVE',
+  directReportsCount: 0,
+  lastSyncAt: '2026-10-01T00:00:00+00:00',
+  updatedAt: '2026-10-01T00:00:00+00:00',
+};
+const emptyPage = { items: [], totalCount: 0, page: 1, pageSize: 20 };
 
-  const api = {
-    list: jasmine.createSpy('list'),
-    detail: jasmine.createSpy('detail'),
-  };
+describe('EmployeeDetailComponent', () => {
+  const employees = { detail: jasmine.createSpy('detail'), list: jasmine.createSpy('list') };
+  const departments = { members: jasmine.createSpy('members') };
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   beforeEach(async () => {
-    api.list.and.returnValue(of({ items: [mockEmployee], totalCount: 1, page: 1, pageSize: 20 }));
-    api.detail.and.returnValue(of(mockEmployee));
-
+    employees.detail.calls.reset();
+    employees.list.calls.reset();
+    departments.members.calls.reset();
+    employees.list.and.returnValue(of(emptyPage));
+    employees.detail.and.returnValue(of(employee));
+    departments.members.and.returnValue(of(emptyPage));
+    params = new BehaviorSubject(convertToParamMap({}));
+    query = new BehaviorSubject(convertToParamMap({}));
     await TestBed.configureTestingModule({
       imports: [EmployeeDetailComponent],
-      providers: [provideRouter([]), { provide: EmployeeService, useValue: api }],
+      providers: [
+        provideRouter([]),
+        { provide: EmployeeService, useValue: employees },
+        { provide: DepartmentService, useValue: departments },
+        { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: query } },
+      ],
     })
       .overrideComponent(EmployeeDetailComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent] },
         add: { imports: [HeaderStub, SidebarStub] },
       })
       .compileComponents();
+    TestBed.inject(I18nService).setLanguage('vi');
   });
 
-  it('renders employee detail with full info', () => {
+  it('shows a real empty picker without sample employees and switches language live', () => {
     const fixture = TestBed.createComponent(EmployeeDetailComponent);
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.textContent).toContain('Nguyễn Văn An');
-    expect(root.textContent).toContain('NV-00182');
-    expect(root.textContent).toContain('Phòng Khách hàng Cá nhân');
-    expect(root.textContent).toContain('Chuyên viên QHKH Doanh nghiệp Cấp cao');
+    expect(employees.detail).not.toHaveBeenCalled();
+    expect(root.textContent).toContain('Không tìm thấy cán bộ');
+    expect(root.textContent).not.toContain('Nguyễn Văn An');
+    expect(root.querySelector('input[type="search"]')?.getAttribute('aria-label')).toBe(
+      'Tìm theo tên, mã cán bộ hoặc email...',
+    );
+    TestBed.inject(I18nService).setLanguage('en');
+    fixture.detectChanges();
+    expect(root.textContent).toContain('No employees found');
+    expect(root.querySelector('input[type="search"]')?.getAttribute('aria-label')).toBe(
+      'Search by name, employee code or email...',
+    );
   });
 
-  it('switches between works and kpis tabs', () => {
+  it('loads the employee from the query id and renders N/A for missing data', () => {
+    query.next(convertToParamMap({ id: employee.id }));
     const fixture = TestBed.createComponent(EmployeeDetailComponent);
     fixture.detectChanges();
-    const buttons = fixture.nativeElement.querySelectorAll('.tab-btn');
-    expect(buttons.length).toBe(2);
-
-    // Click KPI tab
-    buttons[1].click();
-    fixture.detectChanges();
-    expect(fixture.componentInstance.activeTab()).toBe('kpis');
-    expect(fixture.nativeElement.textContent).toContain('KPI-REV-01');
-
-    // Click Works tab
-    buttons[0].click();
-    fixture.detectChanges();
-    expect(fixture.componentInstance.activeTab()).toBe('works');
-    expect(fixture.nativeElement.textContent).toContain('WRK-202610-0102');
+    const root: HTMLElement = fixture.nativeElement;
+    expect(employees.detail).toHaveBeenCalledWith(employee.id);
+    expect(departments.members).toHaveBeenCalledWith(employee.departmentId, {
+      keyword: 'NV004',
+      pageSize: 10,
+    });
+    expect(root.textContent).toContain('Lê Minh Châu');
+    expect(root.textContent).toContain('N/A');
+    expect(root.textContent).not.toContain('(024)');
   });
 
-  it('handles error state and provides retry functionality', () => {
-    api.list.and.returnValue(throwError(() => new Error('Network error')));
-    api.detail.and.returnValue(throwError(() => new Error('Network error')));
-
+  it('uses the path id and shows roster figures when present', () => {
+    params.next(convertToParamMap({ id: employee.id }));
+    departments.members.and.returnValue(
+      of({
+        items: [
+          {
+            id: employee.id,
+            employeeCode: 'NV004',
+            fullName: employee.fullName,
+            departmentId: employee.departmentId,
+            departmentName: employee.departmentName,
+            jobPositionId: employee.jobPositionId,
+            jobPositionTitle: employee.jobPositionTitle,
+            status: 'ACTIVE',
+            openWorkCount: 7,
+            performanceScore: 88.5,
+          },
+        ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 10,
+      }),
+    );
     const fixture = TestBed.createComponent(EmployeeDetailComponent);
     fixture.detectChanges();
-    // Verify component creates and is resilient
-    expect(fixture.componentInstance).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('88,5');
+    expect(fixture.nativeElement.textContent).toContain('7');
+  });
+
+  it('still renders the profile when the department roster is forbidden', () => {
+    query.next(convertToParamMap({ id: employee.id }));
+    departments.members.and.returnValue(throwError(() => new Error('403')));
+    const fixture = TestBed.createComponent(EmployeeDetailComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Lê Minh Châu');
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('shows an error with retry and never substitutes sample data', () => {
+    query.next(convertToParamMap({ id: employee.id }));
+    employees.detail.and.returnValue(throwError(() => new Error('500')));
+    const fixture = TestBed.createComponent(EmployeeDetailComponent);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Không thể tải');
+    expect(root.textContent).not.toContain('Nguyễn Văn An');
+    employees.detail.and.returnValue(of(employee));
+    root.querySelector<HTMLButtonElement>('[role="alert"] button')?.click();
+    fixture.detectChanges();
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(root.textContent).toContain('Lê Minh Châu');
   });
 });

@@ -11,10 +11,7 @@ export interface LocaleFormatConfig {
 
 import type localizationData from './localization.json';
 
-export type Localization = typeof localizationData.translations.vi & {
-  units: Record<string, string>;
-  products: Record<string, string>;
-};
+export type Localization = typeof localizationData.translations.vi;
 
 export interface LocalizationSchema {
   defaultLocale: SupportedLocale;

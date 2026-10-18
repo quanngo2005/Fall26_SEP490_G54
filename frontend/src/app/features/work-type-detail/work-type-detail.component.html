@@ -2,287 +2,155 @@
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
-    <main
-      class="workspace-content work-type-app"
-      [attr.aria-label]="localization.workType.title"
-      [attr.aria-busy]="loading()"
-    >
-      <div class="content">
-        <!-- Title & Breadcrumb Area -->
-        <section class="title-area">
-          <div class="title-main">
-            <div class="breadcrumbs">
-              <span>{{localization.workType.management}}</span>
-              <span class="sep">/</span>
-              <strong>{{localization.workType.title}}</strong>
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && workType()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.workType.breadcrumb}}</p>
+          <p class="eyebrow">{{localization.workType.eyebrow}}</p>
+        </div>
+        <div class="field department-picker">
+          <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
+          <select
+            id="work-type-select"
+            class="select"
+            [attr.aria-label]="localization.workType.selectWorkType"
+            [(ngModel)]="selectedId"
+            (ngModelChange)="changeWorkType()"
+          >
+            @for (item of workTypes(); track item.id) {
+              <option [value]="item.id">{{item.code}} · {{item.name}}</option>
+            }
+          </select>
+        </div>
+      </div>
+      @if (loading() && !workType()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.workType.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.workType.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="refresh()">
+            {{localization.workType.retry}}
+          </button>
+        </div>
+      } @else if (workType(); as data) {
+        <section class="hero surface-card">
+          <div class="hero-mark"><app-layout-icon name="myWork" /></div>
+          <div class="hero-copy">
+            <div class="title-line">
+              <h1>{{data.name}}</h1>
+              <span class="status-badge" [class.is-muted]="data.status !== 'ACTIVE'">{{statusLabel(data.status)}}</span>
             </div>
-            <div class="title-row">
-              <h1>
-                {{workType()?.name || localization.workType.name}}
-              </h1>
-              <span class="code-chip">{{workType()?.code || 'WT-2026-008'}}</span>
-              <span class="status-chip"
-                ><i></i> {{workType()?.status || localization.workType.active}}</span
-              >
-            </div>
-          </div>
-          <div class="title-actions">
-            <span class="readonly"><span>♙</span> {{localization.workType.readonly}}</span>
-            <div class="actions-group">
-              <button class="button secondary" type="button" (click)="loadWorkType(workType()?.id)">
-                ↻ {{localization.department.retry}}
-              </button>
-              <button class="button primary" type="button" (click)="toggleEditMode()">
-                {{isEditing() ? localization.workType.save : localization.workType.edit}}
-              </button>
-            </div>
+            <p>{{data.code}}</p>
           </div>
         </section>
-
-        <!-- Status & Certification Banner -->
-        <section
-          class="ready-banner surface"
-          [attr.aria-label]="localization.workType.configurationStatus"
-        >
-          <span class="ready-icon">✓</span>
-          <div class="banner-text">
-            <strong>
-              {{localization.workType.ready}}
-              <small>{{localization.workType.certified}}</small>
-            </strong>
-            <p>{{localization.workType.readyHint}}</p>
-          </div>
-          <span class="cert-date">{{localization.workType.certDate}}</span>
+        <section class="metrics-grid" [attr.aria-label]="localization.workType.metricsLabel">
+          <article class="metric-card surface-card metric-navy">
+            <div class="metric-label">{{localization.workType.mappedKpis}}</div>
+            <strong>{{data.kpis.length}}</strong>
+            <span>{{localization.workType.mappedKpisHint}}</span>
+          </article>
+          <article class="metric-card surface-card metric-blue">
+            <div class="metric-label">{{localization.workType.requiredKpis}}</div>
+            <strong>{{requiredCount(data)}}</strong>
+            <span>{{localization.workType.requiredKpisHint}}</span>
+          </article>
         </section>
-
-        <!-- Navigation Tabs -->
-        <nav class="tabs" [attr.aria-label]="localization.workType.sections">
-          <button
-            type="button"
-            class="tab-link"
-            [class.active]="activeTab() === 'overview'"
-            (click)="selectTab('overview')"
-          >
-            ⓘ {{localization.workType.overview}}
-          </button>
-          <button
-            type="button"
-            class="tab-link"
-            [class.active]="activeTab() === 'workflow'"
-            (click)="selectTab('workflow')"
-          >
-            ⛓ {{localization.workType.workflow}}
-          </button>
-          <button
-            type="button"
-            class="tab-link"
-            [class.active]="activeTab() === 'kpi-mappings'"
-            (click)="selectTab('kpi-mappings')"
-          >
-            ▥ {{localization.workType.mappings}}
-            <span class="badge">{{visibleKpis.length}}</span>
-          </button>
-          <button
-            type="button"
-            class="tab-link"
-            [class.active]="activeTab() === 'job-positions'"
-            (click)="selectTab('job-positions')"
-          >
-            ♙ {{localization.workType.positions}}
-            <span class="badge">{{visibleJobPositions.length}}</span>
-          </button>
-          <button
-            type="button"
-            class="tab-link"
-            [class.active]="activeTab() === 'campaigns'"
-            (click)="selectTab('campaigns')"
-          >
-            ⚑ {{localization.workType.campaigns}}
-            <span class="badge">{{visibleCampaigns.length}}</span>
-          </button>
-        </nav>
-
-        <!-- Tab Panel: Overview -->
-        @if (activeTab() === 'overview') {
-          <section class="surface card-panel" id="overview">
-            <div class="section-title">
-              <h2><span class="heading-icon">ⓘ</span> {{localization.workType.overview}}</h2>
-              <small>{{localization.workType.scope}}</small>
+        <div class="dashboard-grid">
+          <section class="panel surface-card" aria-labelledby="overview-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="overview-title">{{localization.workType.overview}}</h2>
+                <p>{{localization.workType.overviewHint}}</p>
+              </div>
             </div>
             <p class="overview-copy">
-              {{workType()?.description || localization.workType.overviewCopy}}
+              {{data.description ?? localization.workType.notAvailable}}
             </p>
-            @if (showMoreOverview()) {
-              <div class="overview-extra">
-                <p>{{localization.workType.overviewMore}}</p>
+            <dl class="detail-list">
+              <div>
+                <dt>{{localization.workType.workflow}}</dt>
+                <dd>{{data.workflowName}}</dd>
               </div>
-            }
-            <div class="overview-footer">
-              <button class="link-btn" type="button" (click)="toggleOverview()">
-                {{showMoreOverview()
-                    ? localization.workType.showLess
-                    : localization.workType.showMore}}
-              </button>
-              <div class="meta-tag">
-                {{localization.workType.updatedAt}}:
-                <strong>{{workType()?.createdAt | date: 'shortDate'}}</strong>
+              <div>
+                <dt>{{localization.workType.createdAt}}</dt>
+                <dd class="mono">{{i18n.formatDate(data.createdAt, 'DD/MM/YYYY HH:mm')}}</dd>
               </div>
-            </div>
+            </dl>
           </section>
-        }
-
-        <!-- Tab Panel: Workflow -->
-        @if (activeTab() === 'workflow') {
-          <section class="surface card-panel" id="workflow">
-            <div class="section-title">
-              <h2><span class="heading-icon">⛓</span> {{localization.workType.workflow}}</h2>
-              <span class="status-pill active">{{localization.workType.effectiveStatus}}</span>
+        </div>
+        <section class="panel surface-card" aria-labelledby="mappings-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="mappings-title">{{localization.workType.mappings}}</h2>
+              <p>{{localization.workType.mappingsHint}}</p>
             </div>
-            <div class="workflow-box">
-              <div class="wf-details">
-                <span class="wf-label">{{localization.workType.workflowName}}:</span>
-                <strong>{{workType()?.workflowName || 'WF-LND-02 v1.3'}}</strong>
-              </div>
-              <p class="workflow-description">
-                {{localization.workType.workflowCopy}}
-              </p>
-            </div>
-          </section>
-        }
-
-        <!-- Tab Panel: KPI Mappings -->
-        @if (activeTab() === 'kpi-mappings') {
-          <section class="surface card-panel" id="kpi-mappings">
-            <div class="section-title">
-              <h2>
-                <span class="heading-icon">⌁</span> {{localization.workType.mappings}}
-                <span class="count-pill"
-                  >{{visibleKpis.length}} {{localization.workType.indicatorCount}}</span
-                >
-              </h2>
-              <div class="section-actions">
-                <label class="history-toggle">
-                  <input
-                    type="checkbox"
-                    [checked]="showHistory()"
-                    (change)="toggleHistory($event)"
-                  />
-                  {{localization.workType.showHistory}}
-                </label>
-                <button class="button secondary" type="button">
-                  {{localization.workType.addMapping}}
-                </button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                [checked]="includeHistory()"
+                (change)="toggleHistory($event)"
+              />
+              {{localization.workType.showHistory}}
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{localization.workType.kpiCode}}</th>
+                  <th>{{localization.workType.kpiName}}</th>
+                  <th>{{localization.workType.requirement}}</th>
+                  <th>{{localization.workType.period}}</th>
+                  <th>{{localization.workType.status}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (kpi of visibleKpis(data); track kpi.kpiDefinitionId) {
                   <tr>
-                    <th>{{localization.workType.code}}</th>
-                    <th>{{localization.workType.kpiName}}</th>
-                    <th>{{localization.workType.required}}</th>
-                    <th>{{localization.workType.period}}</th>
-                    <th>{{localization.workType.status}}</th>
+                    <td class="mono">{{kpi.kpiCode}}</td>
+                    <td>
+                      <strong>{{kpi.kpiName}}</strong>
+                    </td>
+                    <td>
+                      <span class="status-badge" [class.is-muted]="!kpi.isRequired">{{kpi.isRequired
+                          ? localization.workType.required
+                          : localization.workType.optional}}</span>
+                    </td>
+                    <td class="mono">
+                      {{i18n.formatDate(kpi.effectiveFrom)}} –
+                      {{kpi.effectiveTo
+                          ? i18n.formatDate(kpi.effectiveTo)
+                          : localization.workType.noEndDate}}
+                    </td>
+                    <td>
+                      <span
+                        class="status-badge"
+                        [class.is-muted]="mappingState(kpi) === 'expired'"
+                        [class.is-info]="mappingState(kpi) === 'upcoming'"
+                        >{{mappingLabel(kpi)}}</span
+                      >
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  @for (mapping of visibleKpis; track mapping.kpiCode) {
-                    <tr>
-                      <td class="mono font-semibold">{{mapping.kpiCode}}</td>
-                      <td>
-                        <strong>{{mapping.kpiName}}</strong>
-                      </td>
-                      <td>
-                        <span class="required-pill" [class.optional]="!mapping.isRequired">
-                          {{mapping.isRequired
-                              ? localization.workType.required
-                              : localization.workType.optional}}
-                        </span>
-                      </td>
-                      <td class="mono">
-                        {{mapping.effectiveFrom}} – {{mapping.effectiveTo || '–'}}
-                      </td>
-                      <td>
-                        <span class="status-pill active">{{localization.workType.current}}</span>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          </section>
-        }
-
-        <!-- Tab Panel: Job Positions -->
-        @if (activeTab() === 'job-positions') {
-          <section class="surface card-panel" id="job-positions">
-            <div class="section-title">
-              <h2>
-                <span class="heading-icon">♙</span> {{localization.workType.positions}}
-                <span class="count-pill"
-                  >{{visibleJobPositions.length}} {{localization.workType.positionCount}}</span
-                >
-              </h2>
-              <button class="button secondary" type="button">
-                {{localization.workType.addPosition}}
-              </button>
-            </div>
-            <div class="search-box-wrap">
-              <input
-                type="search"
-                class="search-input"
-                [placeholder]="localization.workType.positionSearch"
-                [value]="positionSearch()"
-                (input)="setPositionSearch($event)"
-              />
-            </div>
-            <div class="related-list">
-              @for (item of visibleJobPositions; track item.code) {
-                <div class="item-row">
-                  <span class="item-code">{{item.code}}</span>
-                  <span class="item-name">{{item.name}}</span>
-                  <span class="status-pill active">{{item.status}}</span>
-                </div>
-              }
-            </div>
-          </section>
-        }
-
-        <!-- Tab Panel: Campaigns -->
-        @if (activeTab() === 'campaigns') {
-          <section class="surface card-panel" id="campaigns">
-            <div class="section-title">
-              <h2>
-                <span class="heading-icon">⚑</span> {{localization.workType.campaigns}}
-                <span class="count-pill"
-                  >{{visibleCampaigns.length}} {{localization.workType.campaignCount}}</span
-                >
-              </h2>
-              <button class="button secondary" type="button">
-                {{localization.workType.addCampaign}}
-              </button>
-            </div>
-            <div class="search-box-wrap">
-              <input
-                type="search"
-                class="search-input"
-                [placeholder]="localization.workType.campaignSearch"
-                [value]="campaignSearch()"
-                (input)="setCampaignSearch($event)"
-              />
-            </div>
-            <div class="related-list">
-              @for (item of visibleCampaigns; track item.code) {
-                <div class="item-row">
-                  <span class="item-code">{{item.code}}</span>
-                  <span class="item-name">{{item.name}}</span>
-                  <span class="status-pill active">{{item.status}}</span>
-                </div>
-              }
-            </div>
-          </section>
-        }
-      </div>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="empty-cell">{{localization.workType.noMappings}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      } @else {
+        <div class="state-card">
+          <p>{{localization.workType.noWorkTypes}}</p>
+        </div>
+      }
     </main>
   </div>
 </div>
