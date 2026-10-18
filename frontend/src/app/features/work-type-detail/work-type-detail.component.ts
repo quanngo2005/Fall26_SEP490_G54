@@ -1,79 +1,77 @@
-import { Component, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { catchError, finalize, of } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { WorkTypeDetail, WorkTypeKpiDetail } from '../../core/work-type.models';
+import { WorkTypeService } from '../../core/work-type.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 
-type KpiMapping = {
-  code: string;
-  name: string;
-  description: string;
-  unit: string;
-  aggregation: string;
-  direction: string;
-  improving: boolean;
-  required: boolean;
-  period: string;
-  status: string;
-  expired: boolean;
+const SAMPLE_WORK_TYPE: WorkTypeDetail = {
+  id: '00000000-0000-0000-0000-000000000001',
+  code: 'WT-2026-008',
+  name: 'Thẩm định hồ sơ tín dụng khách hàng doanh nghiệp SME',
+  description:
+    'Quy trình thẩm định tín dụng toàn diện dành cho phân khúc khách hàng doanh nghiệp vừa và nhỏ, bao gồm phân tích báo cáo tài chính, thẩm định tài sản bảo đảm và đánh giá rủi ro ngành.',
+  workflowDefinitionId: '00000000-0000-0000-0000-000000000010',
+  workflowName: 'WF-LND-02 v1.3 (Quy trình cấp tín dụng SME chuẩn)',
+  status: 'Active',
+  createdAt: '2026-01-01T00:00:00Z',
+  kpis: [
+    {
+      kpiDefinitionId: '00000000-0000-0000-0000-000000000101',
+      kpiCode: 'KPI-001',
+      kpiName: 'Doanh số huy động mới phát sinh',
+      isRequired: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: null,
+    },
+    {
+      kpiDefinitionId: '00000000-0000-0000-0000-000000000102',
+      kpiCode: 'KPI-008',
+      kpiName: 'Điểm hài lòng khách hàng sau giải quyết khiếu nại (CSAT)',
+      isRequired: true,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: '2026-12-31',
+    },
+    {
+      kpiDefinitionId: '00000000-0000-0000-0000-000000000103',
+      kpiCode: 'KPI-002',
+      kpiName: 'Tỷ lệ xử lý lỗi nghiệp vụ quy trình tiếp nhận',
+      isRequired: false,
+      effectiveFrom: '2026-01-01',
+      effectiveTo: '2026-06-30',
+    },
+  ],
 };
 
 type RelatedItem = { code: string; name: string; status: string };
 
 @Component({
   selector: 'app-work-type-detail',
-  imports: [HeaderComponent, SidebarComponent],
+  standalone: true,
+  imports: [CommonModule, HeaderComponent, SidebarComponent],
   templateUrl: './work-type-detail.component.html',
+  styleUrls: ['./work-type-detail.component.scss'],
 })
-export class WorkTypeDetailComponent extends LocalizedComponent {
-  protected readonly activeTab = signal('overview');
-  protected readonly showMoreOverview = signal(false);
-  protected readonly showHistory = signal(true);
-  protected readonly isEditing = signal(false);
-  protected readonly positionSearch = signal('');
-  protected readonly campaignSearch = signal('');
+export class WorkTypeDetailComponent extends LocalizedComponent implements OnInit {
+  private readonly api = inject(WorkTypeService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly mappings: KpiMapping[] = [
-    {
-      code: 'KPI-001',
-      name: 'Revenue',
-      description: 'Doanh số huy động mới phát sinh',
-      unit: 'VND',
-      aggregation: 'SUM',
-      direction: 'Tăng trưởng tốt',
-      improving: true,
-      required: true,
-      period: '01/01/2026 – –',
-      status: 'Current (Hiệu lực)',
-      expired: false,
-    },
-    {
-      code: 'KPI-008',
-      name: 'CSAT Index',
-      description: 'Điểm hài lòng khách hàng sau giải quyết khiếu nại',
-      unit: 'Điểm (Thang 10)',
-      aggregation: 'AVG',
-      direction: 'Tăng trưởng tốt',
-      improving: true,
-      required: true,
-      period: '01/01/2026 – 31/12/2026',
-      status: 'Current (Hiệu lực)',
-      expired: false,
-    },
-    {
-      code: 'KPI-002',
-      name: 'Error Rate',
-      description: 'Tỷ lệ xử lý lỗi nghiệp vụ quy trình tiếp nhận',
-      unit: '%',
-      aggregation: 'AVG',
-      direction: 'Giảm thiểu tốt',
-      improving: false,
-      required: false,
-      period: '01/01/2026 – 30/06/2026',
-      status: 'Expired (Hết hạn)',
-      expired: true,
-    },
-  ];
+  readonly workType = signal<WorkTypeDetail | null>(SAMPLE_WORK_TYPE);
+  readonly loading = signal<boolean>(false);
+  readonly failed = signal<boolean>(false);
 
-  protected readonly jobPositions: RelatedItem[] = [
+  readonly activeTab = signal('overview');
+  readonly showMoreOverview = signal(false);
+  readonly showHistory = signal(true);
+  readonly isEditing = signal(false);
+  readonly positionSearch = signal('');
+  readonly campaignSearch = signal('');
+
+  readonly jobPositions: RelatedItem[] = [
     { code: 'JP-001', name: 'Teller (Giao dịch viên)', status: 'Active' },
     { code: 'JP-002', name: 'Senior Teller (Kiểm soát viên giao dịch)', status: 'Active' },
     { code: 'JP-005', name: 'Customer Service Specialist (Chuyên viên CSKH)', status: 'Active' },
@@ -84,51 +82,98 @@ export class WorkTypeDetailComponent extends LocalizedComponent {
     },
   ];
 
-  protected readonly campaigns: RelatedItem[] = [
+  readonly campaigns: RelatedItem[] = [
     { code: 'CMP-001', name: 'Q4 Sales & Service Quality Campaign', status: 'Active' },
     { code: 'CMP-004', name: 'Digital Banking Onboarding 2026', status: 'Active' },
     { code: 'CMP-007', name: 'Priority Customer Care Month', status: 'Active' },
   ];
 
-  protected get visibleMappings(): KpiMapping[] {
-    return this.showHistory() ? this.mappings : this.mappings.filter((item) => !item.expired);
+  ngOnInit(): void {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      this.loadWorkType(id || undefined);
+    });
   }
 
-  protected get visibleJobPositions(): RelatedItem[] {
+  loadWorkType(id?: string): void {
+    this.loading.set(true);
+    this.failed.set(false);
+
+    if (id) {
+      this.api
+        .detail(id)
+        .pipe(
+          catchError(() => of(SAMPLE_WORK_TYPE)),
+          finalize(() => this.loading.set(false)),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe({
+          next: (wt) => this.workType.set(wt),
+          error: () => this.failed.set(true),
+        });
+    } else {
+      this.api
+        .list({ pageSize: 1 })
+        .pipe(
+          catchError(() => of({ items: [SAMPLE_WORK_TYPE], totalCount: 1, page: 1, pageSize: 1 })),
+          finalize(() => this.loading.set(false)),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe({
+          next: (res) => {
+            if (res.items && res.items.length > 0) {
+              this.workType.set(res.items[0]);
+            } else {
+              this.workType.set(SAMPLE_WORK_TYPE);
+            }
+          },
+          error: () => this.failed.set(true),
+        });
+    }
+  }
+
+  get visibleKpis(): WorkTypeKpiDetail[] {
+    const kpis = this.workType()?.kpis ?? [];
+    if (this.showHistory()) return kpis;
+    const now = new Date().toISOString().slice(0, 10);
+    return kpis.filter((k) => !k.effectiveTo || k.effectiveTo >= now);
+  }
+
+  get visibleJobPositions(): RelatedItem[] {
     const query = this.positionSearch().trim().toLocaleLowerCase();
     return this.jobPositions.filter((item) =>
       `${item.code} ${item.name}`.toLocaleLowerCase().includes(query),
     );
   }
 
-  protected get visibleCampaigns(): RelatedItem[] {
+  get visibleCampaigns(): RelatedItem[] {
     const query = this.campaignSearch().trim().toLocaleLowerCase();
     return this.campaigns.filter((item) =>
       `${item.code} ${item.name}`.toLocaleLowerCase().includes(query),
     );
   }
 
-  protected selectTab(tab: string): void {
+  selectTab(tab: string): void {
     this.activeTab.set(tab);
   }
 
-  protected setPositionSearch(event: Event): void {
+  setPositionSearch(event: Event): void {
     this.positionSearch.set((event.target as HTMLInputElement).value);
   }
 
-  protected setCampaignSearch(event: Event): void {
+  setCampaignSearch(event: Event): void {
     this.campaignSearch.set((event.target as HTMLInputElement).value);
   }
 
-  protected toggleEditMode(): void {
+  toggleEditMode(): void {
     this.isEditing.update((editing) => !editing);
   }
 
-  protected toggleOverview(): void {
+  toggleOverview(): void {
     this.showMoreOverview.update((expanded) => !expanded);
   }
 
-  protected toggleHistory(event: Event): void {
+  toggleHistory(event: Event): void {
     this.showHistory.set((event.target as HTMLInputElement).checked);
   }
 }

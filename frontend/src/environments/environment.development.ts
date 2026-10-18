@@ -1,6 +1,4 @@
-import { Environment } from './environment.model';
-
-export const environment: Environment = {
+export const environment = {
   production: false,
   apiUrl: 'http://localhost:5000',
   appVersion: 'dev',

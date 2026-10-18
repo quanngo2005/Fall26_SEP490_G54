@@ -1,0 +1,262 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <!-- Page Toolbar -->
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <nav class="breadcrumb" aria-label="breadcrumb">
+            <span>{{localization.nav.organization}}</span>
+            <span class="sep">/</span>
+            <span>{{localization.review.employeeList}}</span>
+            <span class="sep">/</span>
+            <span class="current">{{employee()?.fullName}}</span>
+          </nav>
+          <div class="title-meta">
+            <span class="code-badge">{{employee()?.employeeCode}}</span>
+            <span class="status-pill status-active">{{employee()?.status}}</span>
+          </div>
+        </div>
+        <div class="toolbar-actions">
+          <button
+            type="button"
+            class="button button-secondary"
+            (click)="loadEmployee(employee()?.id)"
+          >
+            ↻ {{localization.department.retry}}
+          </button>
+          <div class="action-dropdown">
+            <button
+              type="button"
+              class="button button-primary"
+              (click)="toggleMoreActions()"
+              [attr.aria-expanded]="showMoreActions()"
+            >
+              {{localization.common.moreActions}} ▾
+            </button>
+            @if (showMoreActions()) {
+              <div class="dropdown-menu">
+                <button type="button" class="dropdown-item">
+                  {{localization.common.editProfile}}
+                </button>
+                <button type="button" class="dropdown-item">
+                  {{localization.common.viewHistory}}
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- State: Loading or Failed -->
+      @if (loading() && !employee()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.department.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.department.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="loadEmployee()">
+            {{localization.department.retry}}
+          </button>
+        </div>
+      } @else if (employee(); as emp) {
+        <!-- Employee Profile Header Hero Card -->
+        <section class="employee-hero surface-card">
+          <div class="avatar-box">
+            <div class="avatar-circle">
+              <span>{{emp.fullName.slice(0, 2).toUpperCase()}}</span>
+            </div>
+            <span class="online-indicator" aria-hidden="true">●</span>
+          </div>
+          <div class="hero-info">
+            <div class="name-row">
+              <h1>{{emp.fullName}}</h1>
+              <span class="id-tag">{{emp.employeeCode}}</span>
+              <span class="role-badge">{{emp.jobPositionCode}}</span>
+            </div>
+            <p class="job-title">{{emp.jobPositionTitle}}</p>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">▤ {{localization.department.departmentLabel}}:</span>
+                <strong>{{emp.departmentName}} ({{emp.departmentCode}})</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">♧ {{localization.employee.reportsTo}}:</span>
+                <strong>{{emp.managerName || localization.department.notAvailable}}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">✉ Email:</span>
+                <strong>{{emp.email}}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">☎ {{localization.employee.extension}}:</span>
+                <strong>{{emp.phone || '(024) 3888 1234'}}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">👥 {{localization.employee.directReports}}:</span>
+                <strong>{{emp.directReportsCount}}</strong>
+              </div>
+            </div>
+          </div>
+          <div class="hero-badge-box">
+            <div class="kpi-mini-card">
+              <span class="kpi-score">94.5%</span>
+              <span class="kpi-score-label">{{localization.employee.performanceRating}}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- KPI & Performance Statistics Grid -->
+        <section class="stats-grid">
+          <div class="stat-card surface-card">
+            <span class="stat-icon">📋</span>
+            <div class="stat-data">
+              <span class="stat-val">12</span>
+              <span class="stat-desc">{{localization.employee.activeWorks}}</span>
+            </div>
+          </div>
+          <div class="stat-card surface-card">
+            <span class="stat-icon warning">⏱</span>
+            <div class="stat-data">
+              <span class="stat-val">2</span>
+              <span class="stat-desc">{{localization.employee.nearDeadline}}</span>
+            </div>
+          </div>
+          <div class="stat-card surface-card">
+            <span class="stat-icon info">📑</span>
+            <div class="stat-data">
+              <span class="stat-val">3</span>
+              <span class="stat-desc">{{localization.employee.pendingReviews}}</span>
+            </div>
+          </div>
+          <div class="stat-card surface-card">
+            <span class="stat-icon success">🎯</span>
+            <div class="stat-data">
+              <span class="stat-val">88.5%</span>
+              <span class="stat-desc">{{localization.employee.kpiProgress}}</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Content Tabs -->
+        <div class="content-tabs">
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="activeTab() === 'works'"
+            (click)="setTab('works')"
+          >
+            {{localization.employee.assignedWorksTitle}} ({{works().length}})
+          </button>
+          <button
+            type="button"
+            class="tab-btn"
+            [class.active]="activeTab() === 'kpis'"
+            (click)="setTab('kpis')"
+          >
+            {{localization.employee.kpiOverviewTitle}} ({{kpis().length}})
+          </button>
+        </div>
+
+        <!-- Tab 1: Assigned Works -->
+        @if (activeTab() === 'works') {
+          <section class="table-card surface-card">
+            <div class="card-header">
+              <h2>{{localization.employee.assignedWorksTitle}}</h2>
+              <span class="badge-count"
+                >{{works().length}} {{localization.employee.activeWorksHint}}</span
+              >
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>{{localization.employee.workIdCol}}</th>
+                    <th>{{localization.employee.workNameCol}}</th>
+                    <th>{{localization.employee.workPriorityCol}}</th>
+                    <th>{{localization.employee.workDeadlineCol}}</th>
+                    <th>{{localization.employee.workStatusCol}}</th>
+                    <th>{{localization.employee.workProgressCol}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (w of works(); track w.id) {
+                    <tr>
+                      <td class="font-mono">{{w.id}}</td>
+                      <td>
+                        <strong>{{w.title}}</strong>
+                        <div class="table-subtext">{{w.metadata}}</div>
+                      </td>
+                      <td>
+                        <span class="pill" [class]="w.priorityClass">{{w.priority}}</span>
+                      </td>
+                      <td>{{w.deadline}}</td>
+                      <td>
+                        <span class="pill" [class]="w.statusClass">{{w.status}}</span>
+                      </td>
+                      <td>
+                        <div class="progress-wrap">
+                          <div class="progress-bar" [style.width.%]="w.progress"></div>
+                          <span>{{w.progress}}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        <!-- Tab 2: KPI Breakdown -->
+        @if (activeTab() === 'kpis') {
+          <section class="table-card surface-card">
+            <div class="card-header">
+              <h2>{{localization.employee.kpiOverviewTitle}}</h2>
+              <span class="badge-count">{{localization.employee.kpiRuleBR06}}</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>{{localization.employee.kpiCode}}</th>
+                    <th>{{localization.employee.kpiNameCol}}</th>
+                    <th>{{localization.employee.kpiWeightCol}}</th>
+                    <th>{{localization.employee.kpiTargetCol}}</th>
+                    <th>{{localization.employee.kpiActualCol}}</th>
+                    <th>{{localization.employee.kpiProgressCol}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (k of kpis(); track k.code) {
+                    <tr>
+                      <td class="font-mono">{{k.code}}</td>
+                      <td>
+                        <strong>{{k.title}}</strong>
+                      </td>
+                      <td>{{k.weight}}</td>
+                      <td>{{k.target}}</td>
+                      <td class="font-semibold">{{k.actual}}</td>
+                      <td>
+                        <div class="progress-wrap">
+                          <div
+                            class="progress-bar"
+                            [style.width.%]="k.progress > 100 ? 100 : k.progress"
+                          ></div>
+                          <span>{{k.progress}}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      }
+    </main>
+  </div>
+</div>

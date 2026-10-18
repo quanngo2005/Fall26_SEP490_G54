@@ -223,6 +223,7 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/departments',
+    '/employee-detail',
     '/employee-profile',
     '/work-type-detail',
     '/review-verify',

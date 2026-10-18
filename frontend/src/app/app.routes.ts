@@ -23,11 +23,16 @@ export const routes: Routes = [
     loadChildren: () => import('./features/departments/departments.routes').then((m) => m.routes),
   },
   {
-    path: 'employee-profile',
+    path: 'employee-detail',
     canActivate: [authGuard],
     data: { sensitive: true },
     loadChildren: () =>
-      import('./features/employee-profile/employee-profile.routes').then((m) => m.routes),
+      import('./features/employee-detail/employee-detail.routes').then((m) => m.routes),
+  },
+  {
+    path: 'employee-profile',
+    redirectTo: 'employee-detail',
+    pathMatch: 'full',
   },
   {
     path: 'kpi-definitions',
@@ -56,6 +61,6 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./features/sidebar-settings/sidebar-settings.routes').then((m) => m.routes),
   },
-  { path: '', pathMatch: 'full', redirectTo: 'home' },
+  { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];
