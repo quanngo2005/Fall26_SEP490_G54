@@ -1,0 +1,332 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && overview()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.department.breadcrumb}}</p>
+          <p class="eyebrow">{{localization.department.period}}</p>
+        </div>
+        <div class="field department-picker">
+          <label for="department-select">{{localization.department.departmentLabel}}</label>
+          <select
+            id="department-select"
+            class="select"
+            [attr.aria-label]="localization.department.selectDepartment"
+            [(ngModel)]="departmentId"
+            (ngModelChange)="changeDepartment()"
+          >
+            @for (department of departments(); track department.id) {
+              <option [value]="department.id">{{department.code}} · {{department.name}}</option>
+            }
+          </select>
+        </div>
+      </div>
+      @if (loading() && !overview()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.department.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.department.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="loadDepartments()">
+            {{localization.department.retry}}
+          </button>
+        </div>
+      } @else if (overview(); as data) {
+        <section class="department-hero surface-card">
+          <div class="department-mark"><app-layout-icon name="departments" /></div>
+          <div class="department-heading">
+            <div class="title-line">
+              <h1>{{data.department.name}}</h1>
+              <span class="status-badge" [class.is-muted]="data.department.status !== 'ACTIVE'">{{statusLabel(data.department.status)}}</span>
+            </div>
+            <p>
+              {{data.department.code}} ·
+              {{data.department.ancestors.at(-1)?.name ?? localization.department.notAvailable}}
+            </p>
+            <span class="manager"
+              >{{localization.department.manager}}
+              <strong>{{data.department.manager?.fullName ?? localization.department.notAvailable}}</strong></span
+            >
+          </div>
+          <div class="field hero-period">
+            <label for="department-period">{{localization.department.periodLabel}}</label>
+            <select
+              id="department-period"
+              class="select"
+              [(ngModel)]="periodId"
+              (ngModelChange)="refresh()"
+            >
+              <option value="">
+                {{localization.department.currentPeriod}}
+                @if (data.period?.name; as periodName) {
+                  · {{periodName}}
+                }
+              </option>
+              @for (period of data.availablePeriods; track period.id) {
+                <option [value]="period.id">{{period.name}}</option>
+              }
+            </select>
+          </div>
+        </section>
+        <section class="metrics-grid" [attr.aria-label]="localization.department.summary">
+          <article class="metric-card surface-card metric-navy">
+            <div class="metric-label">{{localization.department.totalEmployees}}</div>
+            <strong>{{data.metrics.employeeCount}}</strong>
+            <span
+              >{{localization.department.employeesActive}}:
+              {{data.metrics.activeEmployeeCount}}</span
+            >
+          </article>
+          <article class="metric-card surface-card metric-blue">
+            <div class="metric-label">{{localization.department.openWorks}}</div>
+            <strong>{{data.metrics.openWorkCount}}</strong>
+            <span
+              >{{localization.department.worksNeedAttention}}:
+              {{data.metrics.attentionWorkCount}}</span
+            >
+          </article>
+          <article class="metric-card surface-card metric-green">
+            <div class="metric-label">{{localization.department.averagePerformance}}</div>
+            <strong>{{display(data.performance.average)}}</strong>
+            <span>{{localization.department.performanceThisMonth}}</span>
+          </article>
+          <article class="metric-card surface-card metric-orange">
+            <div class="metric-label">{{localization.department.pendingReviews}}</div>
+            <strong>{{data.metrics.pendingReviewCount}}</strong>
+            <span>{{localization.department.reviewsAwaiting}}</span>
+          </article>
+        </section>
+        <div class="dashboard-grid">
+          <section class="panel surface-card" aria-labelledby="performance-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="performance-title">{{localization.department.performanceTitle}}</h2>
+                <p>{{localization.department.performanceHint}}</p>
+              </div>
+            </div>
+            <div class="performance-summary">
+              <div>
+                <span>{{localization.department.average}}</span
+                ><strong>{{display(data.performance.average)}}</strong>
+              </div>
+              <div>
+                <span>{{localization.department.target}}</span
+                ><strong>{{display(data.performance.target)}}</strong>
+              </div>
+              <div>
+                <span>{{localization.department.change}}</span
+                ><strong>{{display(data.performance.changeFromPrevious)}}</strong>
+              </div>
+            </div>
+            <div class="bar-list">
+              @for (kpi of data.performance.kpis; track kpi.kpiDefinitionId) {
+                <div class="bar-row">
+                  <div class="bar-label">
+                    <span>{{kpi.name}}</span
+                    ><strong
+                      >{{display(kpi.achievementPercent)}}
+                      @if (kpi.achievementPercent !== null) {
+                        %
+                      }
+                    </strong>
+                  </div>
+                  <p>
+                    {{localization.department.actual}}: {{display(kpi.actualValue)}} /
+                    {{display(kpi.targetValue)}} {{kpi.unit}}
+                  </p>
+                  @if (kpi.achievementPercent !== null) {
+                    <div class="progress-track">
+                      <span
+                        class="progress-fill green"
+                        [style.width.%]="width(kpi.achievementPercent)"
+                      ></span>
+                    </div>
+                  }
+                </div>
+              } @empty {
+                <p>{{localization.department.noPerformance}}</p>
+              }
+            </div>
+            <p class="panel-footnote">{{localization.department.performanceFootnote}}</p>
+          </section>
+          <section class="panel surface-card" aria-labelledby="work-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="work-title">{{localization.department.workTitle}}</h2>
+                <p>{{localization.department.workHint}}</p>
+              </div>
+            </div>
+            <div class="work-list">
+              @for (work of data.workMix; track work.workTypeId) {
+                <div class="work-item">
+                  <span class="dot navy"></span
+                  ><span>{{work.name ?? localization.department.notAvailable}}</span
+                  ><strong>{{work.count}}</strong>
+                </div>
+              } @empty {
+                <p>{{localization.department.noWorks}}</p>
+              }
+            </div>
+            <div class="compact-note">
+              <span class="dot green"></span>{{localization.department.workNote}}
+              <strong>{{display(data.operational.completedInPeriod)}}</strong>
+            </div>
+          </section>
+        </div>
+        <section class="operational panel surface-card">
+          <div class="panel-heading">
+            <div>
+              <h2>{{localization.department.operationalTitle}}</h2>
+              <p>{{localization.department.operationalHint}}</p>
+            </div>
+            <span class="last-sync"
+              >{{localization.department.lastSync}}
+              {{i18n.formatDate(data.department.lastSyncAt, 'DD/MM/YYYY HH:mm')}}</span
+            >
+          </div>
+          <div class="operational-grid">
+            <div class="operation-card">
+              <span>{{localization.department.waiting}}</span
+              ><strong>{{data.operational.waiting}}</strong>
+            </div>
+            <div class="operation-card blue">
+              <span>{{localization.department.inProgress}}</span
+              ><strong>{{data.operational.inProgress}}</strong>
+            </div>
+            <div class="operation-card orange">
+              <span>{{localization.department.overdue}}</span
+              ><strong>{{data.operational.overdue}}</strong>
+            </div>
+            <div class="operation-card red">
+              <span>{{localization.department.escalated}}</span
+              ><strong>{{display(data.operational.escalated)}}</strong>
+            </div>
+            <div class="operation-card green">
+              <span>{{localization.department.completed}}</span
+              ><strong>{{display(data.operational.completedInPeriod)}}</strong>
+            </div>
+          </div>
+        </section>
+        <section class="panel surface-card members-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>{{localization.department.membersTitle}}</h2>
+              <p>{{data.department.name}} · {{members().totalCount}}</p>
+            </div>
+          </div>
+          <form class="filters" (ngSubmit)="refresh()">
+            <input
+              type="search"
+              class="input"
+              name="keyword"
+              [(ngModel)]="keyword"
+              [placeholder]="localization.department.searchMember"
+              [attr.aria-label]="localization.department.searchMember"
+            />
+            <select
+              class="select"
+              name="status"
+              [(ngModel)]="status"
+              (ngModelChange)="refresh()"
+              [attr.aria-label]="localization.department.filterStatus"
+            >
+              <option value="">{{localization.department.allStatuses}}</option>
+              @for (value of statuses; track value) {
+                <option [value]="value">{{statusLabel(value)}}</option>
+              }
+            </select>
+            <button type="submit" class="button button-primary">
+              {{localization.department.search}}
+            </button>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{localization.department.memberCol}}</th>
+                  <th>{{localization.department.roleCol}}</th>
+                  <th>{{localization.department.workCol}}</th>
+                  <th>{{localization.department.performanceCol}}</th>
+                  <th>{{localization.department.statusCol}}</th>
+                  <th>{{localization.department.actionCol}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (member of members().items; track member.id) {
+                  <tr>
+                    <td>
+                      <div class="member-name">
+                        <span class="member-avatar navy">{{initials(member.fullName)}}</span
+                        ><span
+                          ><strong>{{member.fullName}}</strong
+                          ><small>{{member.employeeCode}}</small></span
+                        >
+                      </div>
+                    </td>
+                    <td>{{member.jobPositionTitle}}</td>
+                    <td>{{member.openWorkCount}} {{localization.department.tasks}}</td>
+                    <td>
+                      <div class="performance-cell">
+                        <span>{{display(member.performanceScore)}}</span>
+                        @if (member.performanceScore !== null) {
+                          <i><b [style.width.%]="width(member.performanceScore)"></b></i>
+                        }
+                      </div>
+                    </td>
+                    <td>
+                      <span class="online-status" [class.leave]="member.status !== 'ACTIVE'">{{statusLabel(member.status)}}</span>
+                    </td>
+                    <td>
+                      <a
+                        class="table-action"
+                        routerLink="/employee-profile"
+                        [queryParams]="{ id: member.id }"
+                        >{{localization.department.viewMember}}</a
+                      >
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" class="empty-cell">{{localization.department.noMembers}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="toolbar-actions">
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="page <= 1"
+              (click)="nextPage(-1)"
+            >
+              {{localization.department.previous}}
+            </button>
+            <span class="page-indicator"
+              >{{localization.department.page}} {{members().page}} / {{totalPages()}}</span
+            >
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="page * members().pageSize >= members().totalCount"
+              (click)="nextPage(1)"
+            >
+              {{localization.department.next}}
+            </button>
+          </div>
+        </section>
+      } @else {
+        <div class="state-card">
+          <p>{{localization.department.noDepartments}}</p>
+        </div>
+      }
+    </main>
+  </div>
+</div>

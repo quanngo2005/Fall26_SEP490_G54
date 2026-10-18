@@ -15,6 +15,7 @@
           <label for="sidebar-role">{{localization.sidebarSettings.role}}</label>
           <select
             id="sidebar-role"
+            class="role-select"
             [value]="selectedRole()"
             (change)="selectRole($event)"
             [disabled]="saving()"
@@ -26,6 +27,19 @@
           <button type="button" (click)="restoreDefaults()" [disabled]="saving()">
             {{localization.sidebarSettings.defaults}}
           </button>
+          <div class="actions">
+            <button type="button" (click)="cancel()" [disabled]="saving() || !dirty()">
+              {{localization.common.cancel}}
+            </button>
+            <button
+              type="button"
+              class="primary"
+              (click)="save()"
+              [disabled]="saving() || !dirty()"
+            >
+              {{saving() ? localization.sidebarSettings.saving : localization.common.save}}
+            </button>
+          </div>
         </div>
         <p class="note">{{localization.sidebarSettings.permissionsNote}}</p>
         @if (error(); as errorKey) {
@@ -154,14 +168,6 @@
               }
             }
           </section>
-        </div>
-        <div class="actions">
-          <button type="button" (click)="cancel()" [disabled]="saving() || !dirty()">
-            {{localization.common.cancel}}
-          </button>
-          <button type="button" class="primary" (click)="save()" [disabled]="saving() || !dirty()">
-            {{saving() ? localization.sidebarSettings.saving : localization.common.save}}
-          </button>
         </div>
       }
     </main>

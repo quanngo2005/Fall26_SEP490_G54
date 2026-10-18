@@ -9,22 +9,20 @@ namespace G54.DAL.Migrations;
 public partial class AddScopeToRolePermission : Migration
 {
     /// <inheritdoc />
+    /// <remarks>
+    /// Idempotent: the embedded ERD script used by <c>InitialProgestSchema</c> already creates
+    /// <c>role_permission.scope</c> on newly created databases, while databases created before
+    /// that script changed do not have it yet.
+    /// </remarks>
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<string>(
-            name: "scope",
-            table: "role_permission",
-            type: "character varying(50)",
-            maxLength: 50,
-            nullable: false,
-            defaultValue: "Own");
+        migrationBuilder.Sql(
+            "ALTER TABLE role_permission ADD COLUMN IF NOT EXISTS scope character varying(50) NOT NULL DEFAULT 'Own';");
     }
 
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropColumn(
-            name: "scope",
-            table: "role_permission");
+        migrationBuilder.Sql("ALTER TABLE role_permission DROP COLUMN IF EXISTS scope;");
     }
 }

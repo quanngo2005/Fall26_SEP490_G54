@@ -1,0 +1,202 @@
+﻿/* Shared form controls */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field label {
+  color: #64748b;
+  font:
+    600 11px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.department-picker {
+  width: min(380px, 100%);
+}
+.select,
+.input {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #1e293b;
+  font:
+    400 14px Inter,
+    sans-serif;
+  padding: 0 12px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+.select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 36px;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+}
+.select option {
+  background: #fff;
+  color: #1e293b;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+.input::placeholder {
+  color: #94a3b8;
+}
+.select:hover,
+.input:hover {
+  border-color: #94a3b8;
+}
+.select:focus,
+.input:focus {
+  border-color: #002b49;
+  box-shadow: 0 0 0 3px rgb(0 43 73 / 10%);
+  outline: none;
+}
+.select:focus-visible,
+.input:focus-visible {
+  outline: none;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font:
+    600 13px Inter,
+    sans-serif;
+  padding: 0 16px;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.button:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.button-primary {
+  background: #002b49;
+  color: #fff;
+}
+.button-primary:hover:not(:disabled) {
+  background: #0f172a;
+}
+.button-secondary {
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+.button-secondary:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.toolbar-actions {
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #f1f5f9;
+  margin: 0 -18px;
+  padding: 12px 18px;
+}
+.page-indicator {
+  color: #64748b;
+  font:
+    500 12px 'JetBrains Mono',
+    monospace;
+}
+
+/* Loading / error / empty states */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  font-size: 14px;
+  padding: 48px 24px;
+  text-align: center;
+}
+.state-card p {
+  margin: 0;
+}
+.state-error {
+  border-style: solid;
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+/* Only appears if a refresh is slow; fast switches stay visually seamless. */
+.workspace-content {
+  position: relative;
+}
+.refresh-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  animation: bar-in 0.2s ease 400ms forwards;
+}
+.refresh-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: #002b49;
+  animation: bar-slide 1.1s ease-in-out infinite;
+}
+@keyframes bar-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #002b49;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
