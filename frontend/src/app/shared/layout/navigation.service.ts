@@ -158,7 +158,7 @@ const ITEMS: readonly NavigationItem[] = [
     id: 'organization',
     icon: 'organization',
     children: [
-      { id: 'departments', icon: 'departments' },
+      { id: 'departments', icon: 'departments', route: '/departments' },
       { id: 'jobPositions', icon: 'jobPositions' },
       { id: 'reportingLines', icon: 'reportingLines' },
     ],
@@ -222,6 +222,7 @@ export class NavigationService {
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
   readonly routeOptions = [
     '/home',
+    '/departments',
     '/employee-profile',
     '/work-type-detail',
     '/review-verify',
