@@ -1,5 +1,8 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import {
   INITIAL_MOCK_GROUPS,
@@ -47,7 +50,12 @@ describe('KpiDefinitionsComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [KpiDefinitionsComponent],
-      providers: [{ provide: KpiDefinitionService, useValue: mockService }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: KpiDefinitionService, useValue: mockService },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(KpiDefinitionsComponent);

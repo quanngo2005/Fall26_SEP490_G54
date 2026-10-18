@@ -12,13 +12,21 @@ import {
   RoleWeightItem,
 } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
 import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
 
 @Component({
   selector: 'app-kpi-definitions',
   standalone: true,
-  imports: [CommonModule, FormsModule, KpiCreateModalComponent, KpiEditModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    KpiCreateModalComponent,
+    KpiEditModalComponent,
+    HeaderComponent,
+    SidebarComponent,
+  ],
   templateUrl: './kpi-definitions.component.html',
   styleUrls: ['./kpi-definitions.component.scss'],
 })

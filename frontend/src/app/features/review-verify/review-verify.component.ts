@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import {
   APPROVED_MOCK_DOSSIER,
   DEFAULT_MOCK_DOSSIER,
@@ -21,7 +22,7 @@ import { ReviewVerifyService } from './review-verify.service';
 @Component({
   selector: 'app-review-verify',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, HeaderComponent, SidebarComponent],
   templateUrl: './review-verify.component.html',
 })
 export class ReviewVerifyComponent extends LocalizedComponent implements OnInit {
@@ -226,9 +227,14 @@ export class ReviewVerifyComponent extends LocalizedComponent implements OnInit 
         this.showConfirmModal.set(false);
         this.decisionResult.set(response);
       },
-      error: () => {
+      error: (err) => {
         this.isSubmitting.set(false);
         this.showConfirmModal.set(false);
+        const errMsg =
+          err?.error?.message ??
+          err?.message ??
+          'Gửi quyết định thẩm định thất bại. Vui lòng thử lại sau.';
+        this.validationError.set(errMsg);
       },
     });
   }

@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { ReviewVerifyComponent } from './review-verify.component';
 import { DEFAULT_MOCK_DOSSIER } from './review-verify.data';
@@ -14,7 +15,12 @@ describe('ReviewVerifyComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ReviewVerifyComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), ReviewVerifyService],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        ReviewVerifyService,
+      ],
     }).compileComponents();
 
     http = TestBed.inject(HttpTestingController);
@@ -133,5 +139,32 @@ describe('ReviewVerifyComponent', () => {
     component.switchScenario('approved');
     expect(component.viewState()).toBe('success');
     expect(component.selectedDecision()).toBe('APPROVED');
+  });
+
+  it('should set viewState to error when loadDossier API fails', () => {
+    component.loadDossier('test-fail-id');
+    const req = http.expectOne(`${environment.apiUrl}/verifications/test-fail-id/dossier`);
+    req.flush('Failed to load dossier', { status: 500, statusText: 'Internal Server Error' });
+
+    expect(component.viewState()).toBe('error');
+  });
+
+  it('should set validationError when submitDecision API fails', () => {
+    component.switchScenario('default');
+    component.openConfirmModal();
+    component.confirmDecision();
+
+    const req = http.expectOne(
+      `${environment.apiUrl}/verifications/${DEFAULT_MOCK_DOSSIER.submissionId}/decision`,
+    );
+    req.flush(
+      { message: 'Mã hồ sơ không hợp lệ hoặc đã được xử lý.' },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    expect(component.isSubmitting()).toBeFalse();
+    expect(component.showConfirmModal()).toBeFalse();
+    expect(component.decisionResult()).toBeNull();
+    expect(component.validationError()).toContain('Mã hồ sơ không hợp lệ');
   });
 });

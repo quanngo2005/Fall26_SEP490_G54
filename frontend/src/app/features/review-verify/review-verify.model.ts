@@ -89,3 +89,77 @@ export interface AuditDecisionResponse {
   verifiedAt: string;
   message: string;
 }
+
+export interface ApiResponse<T> {
+  success: boolean;
+  status: number;
+  data: T;
+  message?: string | null;
+  errorCode?: string | null;
+  traceId?: string | null;
+}
+
+export interface SubmitterInfoDto {
+  employeeId?: string;
+  employeeCode?: string;
+  fullName?: string;
+  jobPosition?: string;
+  department?: string;
+}
+
+export interface KpiItemDto {
+  kpiDefinitionId?: string | null;
+  kpiCode?: string;
+  kpiName?: string;
+  declaredValue?: number;
+  unit?: string;
+}
+
+export interface EvidenceItemDto {
+  fileId?: string;
+  fileName?: string;
+  fileSize?: number | null;
+  fileSizeText?: string;
+  mimeType?: string | null;
+  previewUrl?: string;
+  downloadUrl?: string;
+}
+
+export interface ControlStandardDto {
+  id: string;
+  name: string;
+  passed?: boolean;
+}
+
+export interface VerificationDossierDto {
+  submissionId?: string;
+  submissionCode?: string;
+  submissionNo?: number;
+  version?: string;
+  workId?: string;
+  workCode?: string;
+  workTitle?: string;
+  submitter?: SubmitterInfoDto;
+  submittedAt?: string;
+  submittedAtIso?: string;
+  submittedAtText?: string;
+  attemptNumber?: number;
+  deadlineText?: string;
+  kpiItem?: KpiItemDto;
+  narrative?: string;
+  evidenceFiles?: EvidenceItemDto[];
+  controlStandards?: ControlStandardDto[];
+  documentPreview?: DocumentInspectionData;
+  officialVerifiedValue?: number;
+  verificationCode?: string;
+  status?: string;
+}
+
+export interface VerificationDecisionResultDto {
+  verificationId?: string;
+  decision?: string;
+  submissionStatus?: string;
+  workStatus?: string;
+  verifiedAt?: string;
+  message?: string;
+}
