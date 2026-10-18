@@ -12,7 +12,7 @@ describe('SidebarConfigurationService', () => {
     role: 'employee',
     itemIds: ['overview', 'myProfile'],
     version: 2,
-    routes: { myProfile: '/employee-profile' },
+    routes: { myProfile: '/employee-detail' },
   };
   beforeEach(() => {
     TestBed.configureTestingModule({
