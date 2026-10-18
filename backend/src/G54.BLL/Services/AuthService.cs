@@ -224,6 +224,7 @@ public sealed class AuthService(
             Id = Guid.NewGuid(),
             ActorId = actorId,
             Action = action,
+            OccurredAt = DateTimeOffset.UtcNow,
             IpAddress = ipAddress,
         });
     }
