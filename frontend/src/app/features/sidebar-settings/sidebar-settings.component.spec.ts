@@ -128,8 +128,13 @@ describe('SidebarSettingsComponent', () => {
     route.dispatchEvent(new Event('change'));
     expect(route.value).toBe('/kpi-definitions');
     expect(component.routeFor('myProfile')).toBe('/kpi-definitions');
-    expect(fixture.nativeElement.querySelector('datalist').querySelectorAll('option').length).toBe(
-      5,
+    const offered = Array.from<HTMLOptionElement>(
+      fixture.nativeElement.querySelector('datalist').querySelectorAll('option'),
+    ).map((option) => option.value);
+    expect(offered).toEqual(
+      TestBed.inject(NavigationService).routeOptions.filter(
+        (route) => route !== '/sidebar-settings',
+      ),
     );
     component.clearRoute('myProfile');
     fixture.detectChanges();
