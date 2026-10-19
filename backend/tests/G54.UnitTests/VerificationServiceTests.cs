@@ -249,6 +249,33 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
+    public async Task SubmitDecisionAsync_WhenWorkIsNotSubmitted_ThrowsConflictAndKeepsWorkStatus()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
+            work.Status = WorkStatus.InProgress;
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
+                {
+                    Decision = "APPROVED",
+                    VerifiedValue = 15m,
+                    Feedback = "Hồ sơ đầy đủ.",
+                }));
+
+            Assert.Equal(ErrorCodes.VerificationInvalidState, ex.ErrorCode);
+
+            var unchangedWork = await context.Works.FindAsync(work.Id);
+            Assert.NotNull(unchangedWork);
+            Assert.Equal(WorkStatus.InProgress, unchangedWork.Status);
+            Assert.Empty(context.Verifications);
+        }
+    }
+
+    [Fact]
     public async Task SubmitDecisionAsync_WhenRevisionRequired_UpdatesStatusAndSetsFeedback()
     {
         var (context, service) = CreateTestEnvironment();

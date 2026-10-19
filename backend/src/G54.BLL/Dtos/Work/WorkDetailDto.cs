@@ -17,4 +17,6 @@ public sealed record WorkDetailDto(
     DateOnly? PlannedStartDate,
     DateOnly? PlannedEndDate,
     decimal? EstimatedHours,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool IsOverdue = false,
+    IReadOnlyList<string>? AvailableTriggers = null);

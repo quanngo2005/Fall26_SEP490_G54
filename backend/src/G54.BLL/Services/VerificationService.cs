@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Verification;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -144,25 +145,32 @@ public sealed class VerificationService(
         }
 
         var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
-        var (dbDecision, newSubmissionStatus, newWorkStatus, actionText) = normalizedDecision switch
+        var (dbDecision, newSubmissionStatus, workTrigger, actionText) = normalizedDecision switch
         {
             "APPROVED" => (
                 VerificationDecision.Approved,
                 SubmissionStatus.Approved,
-                WorkStatus.Verified,
+                WorkTrigger.Approve,
                 "Phê duyệt kết quả hoàn tất"),
             "REVISION_REQUIRED" => (
                 VerificationDecision.NeedMoreInfo,
                 SubmissionStatus.UnderReview,
-                WorkStatus.InProgress,
+                WorkTrigger.RequestRevision,
                 "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
             "REJECTED" => (
                 VerificationDecision.Rejected,
                 SubmissionStatus.Rejected,
-                WorkStatus.Rejected,
+                WorkTrigger.Reject,
                 "Đã từ chối hồ sơ kết quả công việc"),
             _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
         };
+
+        if (!WorkStateMachine.TryFire(submission.Work.Status, workTrigger, out var newWorkStatus))
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {submission.Work.Status.ToWire()}, không thể thẩm định.",
+                ErrorCodes.VerificationInvalidState);
+        }
 
         var nextRoundNo = submission.Verifications.Count > 0
             ? submission.Verifications.Max(v => v.RoundNo) + 1

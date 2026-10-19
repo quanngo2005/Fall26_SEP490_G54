@@ -2,6 +2,7 @@ using G54.Api.Controllers;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Work;
 using G54.BLL.Services;
 using G54.DAL;
@@ -434,6 +435,175 @@ public sealed class WorkServiceTests
             var envelope = Assert.IsType<ApiResponse>(notFound.Value);
             Assert.False(envelope.Success);
             Assert.Equal(ErrorCodes.NotFound, envelope.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task TransitionWorkAsync_ValidTransition_UpdatesStatus()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var workType = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "WT-TR-1",
+                Name = "Transition WT 1",
+                Status = RecordStatus.Active,
+                WorkflowDefinitionId = Guid.NewGuid(),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var employee = new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "EMP-TR-1",
+                FullName = "Transition User 1",
+                Email = "tr1@bank.com",
+                Status = EmployeeStatus.Active,
+            };
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "WRK-TEST-001",
+                Title = "Test Work",
+                Status = WorkStatus.New,
+                AssigneeEmployeeId = employee.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.WorkTypes.AddAsync(workType);
+            await context.Employees.AddAsync(employee);
+            await context.Works.AddAsync(work);
+            await context.SaveChangesAsync();
+
+            var result = await service.TransitionWorkAsync(
+                work.Id,
+                new TransitionWorkRequestDto(WorkTrigger.Start));
+
+            Assert.Equal("InProgress", result.Status);
+            Assert.Contains("Submit", result.AvailableTriggers!);
+
+            var updated = await context.Works.FindAsync(work.Id);
+            Assert.NotNull(updated);
+            Assert.Equal(WorkStatus.InProgress, updated.Status);
+        }
+    }
+
+    [Fact]
+    public async Task TransitionWorkAsync_InvalidTransition_ThrowsConflict()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var workType = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "WT-TR-2",
+                Name = "Transition WT 2",
+                Status = RecordStatus.Active,
+                WorkflowDefinitionId = Guid.NewGuid(),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var employee = new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "EMP-TR-2",
+                FullName = "Transition User 2",
+                Email = "tr2@bank.com",
+                Status = EmployeeStatus.Active,
+            };
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "WRK-TEST-002",
+                Title = "Test Work 2",
+                Status = WorkStatus.New,
+                AssigneeEmployeeId = employee.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.WorkTypes.AddAsync(workType);
+            await context.Employees.AddAsync(employee);
+            await context.Works.AddAsync(work);
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.TransitionWorkAsync(
+                    work.Id,
+                    new TransitionWorkRequestDto(WorkTrigger.Complete)));
+
+            Assert.Equal(ErrorCodes.WorkInvalidTransition, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task TransitionWorkAsync_NotFound_ThrowsNotFound()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                service.TransitionWorkAsync(
+                    Guid.NewGuid(),
+                    new TransitionWorkRequestDto(WorkTrigger.Start)));
+        }
+    }
+
+    [Fact]
+    public async Task WorksController_Transition_Valid_ReturnsOk()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var workType = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "WT-TR-3",
+                Name = "Transition WT 3",
+                Status = RecordStatus.Active,
+                WorkflowDefinitionId = Guid.NewGuid(),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var employee = new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "EMP-TR-3",
+                FullName = "Transition User 3",
+                Email = "tr3@bank.com",
+                Status = EmployeeStatus.Active,
+            };
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "WRK-TEST-003",
+                Title = "Test Work 3",
+                Status = WorkStatus.New,
+                AssigneeEmployeeId = employee.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.WorkTypes.AddAsync(workType);
+            await context.Employees.AddAsync(employee);
+            await context.Works.AddAsync(work);
+            await context.SaveChangesAsync();
+
+            var controller = new WorksController(service)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-trans" },
+                },
+            };
+
+            var actionResult = await controller.Transition(
+                work.Id,
+                new TransitionWorkRequestDto(WorkTrigger.Start),
+                CancellationToken.None);
+
+            var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
+            var envelope = Assert.IsType<ApiResponse<WorkDetailDto>>(okResult.Value);
+            Assert.True(envelope.Success);
+            Assert.Equal("InProgress", envelope.Data!.Status);
         }
     }
 }

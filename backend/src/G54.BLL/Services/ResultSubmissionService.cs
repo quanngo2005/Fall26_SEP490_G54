@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Submission;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -127,7 +128,7 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Chỉ người được giao việc mới có quyền nộp báo cáo kết quả.");
         }
 
-        if (work.Status is WorkStatus.Submitted or WorkStatus.Verified or WorkStatus.Done or WorkStatus.Cancelled)
+        if (!WorkStateMachine.CanFire(work.Status, WorkTrigger.Submit))
         {
             throw new ConflictException(
                 $"Công việc đang ở trạng thái {work.Status.ToWire()}, không thể nộp kết quả.",
@@ -201,7 +202,12 @@ public sealed partial class ResultSubmissionService(
             if (workToUpdate is not null)
             {
                 var fromState = workToUpdate.Status;
-                workToUpdate.Status = WorkStatus.Submitted;
+                var toState = WorkStateMachine.TryFire(fromState, WorkTrigger.Submit, out var nextState)
+                    ? nextState
+                    : throw new ConflictException(
+                        $"Công việc đang ở trạng thái {fromState.ToWire()}, không thể nộp kết quả.",
+                        ErrorCodes.SubmissionInvalidState);
+                workToUpdate.Status = toState;
                 workToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
                 unitOfWork.Works.Update(workToUpdate);
 
@@ -210,7 +216,7 @@ public sealed partial class ResultSubmissionService(
                     workToUpdate.Code,
                     workToUpdate.Id,
                     fromState,
-                    WorkStatus.Submitted,
+                    toState,
                     employee.Id,
                     null);
             }
@@ -410,11 +416,18 @@ public sealed partial class ResultSubmissionService(
             throw new NotFoundException("Công việc", submission.WorkId);
         }
 
+        if (!WorkStateMachine.TryFire(work.Status, WorkTrigger.Withdraw, out var workStatusAfterWithdraw))
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {work.Status.ToWire()}, không thể thu hồi báo cáo.",
+                ErrorCodes.SubmissionInvalidState);
+        }
+
         submission.Status = SubmissionStatus.Withdrawn;
         submission.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.ResultSubmissions.Update(submission);
 
-        work.Status = WorkStatus.InProgress;
+        work.Status = workStatusAfterWithdraw;
         work.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.Works.Update(work);
 

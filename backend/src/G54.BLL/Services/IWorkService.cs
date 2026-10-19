@@ -11,4 +11,9 @@ public interface IWorkService
     Task<WorkDetailDto?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    Task<WorkDetailDto> TransitionWorkAsync(
+        Guid id,
+        TransitionWorkRequestDto request,
+        CancellationToken cancellationToken = default);
 }

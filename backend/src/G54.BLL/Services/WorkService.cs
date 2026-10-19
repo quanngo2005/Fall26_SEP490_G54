@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Work;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -108,24 +109,11 @@ public sealed class WorkService(
 
         LogWorkCreated(logger, work.Code, work.AssigneeEmployeeId, null);
 
-        return new WorkDetailDto(
-            Id: work.Id,
-            Code: work.Code,
-            Title: work.Title,
-            Description: work.Description,
-            WorkTypeId: work.WorkTypeId,
-            WorkTypeName: workType.Name,
-            BusinessCampaignId: campaign?.Id,
-            BusinessCampaignName: campaign?.Name,
-            AssigneeEmployeeId: assignee.Id,
-            AssigneeEmployeeName: assignee.FullName,
-            AssigneeEmployeeCode: assignee.EmployeeCode,
-            Priority: work.Priority.ToString(),
-            Status: work.Status.ToString(),
-            PlannedStartDate: work.PlannedStartDate,
-            PlannedEndDate: work.PlannedEndDate,
-            EstimatedHours: work.EstimatedHours,
-            UpdatedAt: work.UpdatedAt);
+        work.WorkType = workType;
+        work.AssigneeEmployee = assignee;
+        work.BusinessCampaign = campaign;
+
+        return MapToDetailDto(work);
     }
 
     public async Task<WorkDetailDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -135,6 +123,39 @@ public sealed class WorkService(
         {
             return null;
         }
+
+        return MapToDetailDto(work);
+    }
+
+    public async Task<WorkDetailDto> TransitionWorkAsync(
+        Guid id,
+        TransitionWorkRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var work = await unitOfWork.Works.GetByIdAsync(id, cancellationToken);
+        if (work is null)
+        {
+            throw new NotFoundException("Công việc", id);
+        }
+
+        var nextStatus = WorkStateMachine.Fire(work.Status, request.Trigger);
+        work.Status = nextStatus;
+        work.UpdatedAt = DateTimeOffset.UtcNow;
+
+        unitOfWork.Works.Update(work);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var detailed = await unitOfWork.Works.GetWithDetailsAsync(id, cancellationToken);
+        return detailed is not null ? MapToDetailDto(detailed) : MapToDetailDto(work);
+    }
+
+    private static WorkDetailDto MapToDetailDto(Work work)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var isOverdue = WorkStateMachine.IsOverdue(work.Status, work.PlannedEndDate, today);
+        var availableTriggers = WorkStateMachine.GetAvailableTriggers(work.Status)
+            .Select(t => t.ToString())
+            .ToArray();
 
         return new WorkDetailDto(
             Id: work.Id,
@@ -153,7 +174,9 @@ public sealed class WorkService(
             PlannedStartDate: work.PlannedStartDate,
             PlannedEndDate: work.PlannedEndDate,
             EstimatedHours: work.EstimatedHours,
-            UpdatedAt: work.UpdatedAt);
+            UpdatedAt: work.UpdatedAt,
+            IsOverdue: isOverdue,
+            AvailableTriggers: availableTriggers);
     }
 
     private async Task<string> GenerateUniqueWorkCodeAsync(CancellationToken cancellationToken)

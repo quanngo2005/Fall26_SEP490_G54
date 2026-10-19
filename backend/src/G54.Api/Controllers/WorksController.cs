@@ -52,4 +52,17 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("{id:guid}/transitions")]
+    [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<WorkDetailDto>>> Transition(
+        Guid id,
+        [FromBody] TransitionWorkRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.TransitionWorkAsync(id, request, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Chuyển trạng thái công việc thành công.", HttpContext.TraceIdentifier));
+    }
 }
