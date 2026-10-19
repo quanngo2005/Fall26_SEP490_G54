@@ -2,17 +2,7 @@
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
-    <main
-      class="workspace-content"
-      style="
-        padding: 0;
-        display: flex;
-        flex: 1;
-        min-height: 0;
-        overflow: hidden;
-        background-color: #f8fafc;
-      "
-    >
+    <main class="workspace-content">
       <!-- Toast notification -->
       @if (toast(); as t) {
         <div class="toast-banner" [ngClass]="'toast-' + t.type">
@@ -32,7 +22,6 @@
       <!-- Catalog Column (KPI List) -->
       <section class="catalog-panel">
         <div class="catalog-header">
-          <span class="screen-code">SCR-STRAT-02</span>
           <h1 class="catalog-title">{{localization.kpi.definitions}}</h1>
           <p class="catalog-desc">{{localization.kpi.catalogDescription}}</p>
         </div>
@@ -371,7 +360,7 @@
             <div class="audit-info">
               <span class="sync-icon">🔄</span>
               <span class="sync-text">{{localization.kpi.serverSync}}</span>
-              <span class="audit-details">{{localization.kpi.auditSync}} | DM-002</span>
+              <span class="audit-details">{{localization.kpi.auditSync}}</span>
             </div>
 
             <div class="footer-actions">
@@ -420,7 +409,7 @@
     />
   }
 
-  <!-- Create KPI Modal (SCR-STRAT-02-M1) -->
+  <!-- Create KPI Modal -->
   @if (isCreateModalOpen()) {
     <app-kpi-create-modal
       [groups]="groups()"

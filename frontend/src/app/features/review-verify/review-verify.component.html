@@ -2,12 +2,7 @@
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
-    <main
-      id="Container"
-      class="workspace-content app-container"
-      role="main"
-      style="padding: 0; overflow-y: auto"
-    >
+    <main id="Container" class="workspace-content app-container" role="main">
       <!-- Simulation & Scenario Testing Toolbar -->
       <header
         class="scenario-toolbar"
@@ -15,7 +10,6 @@
         [attr.aria-label]="localization.review.scenarios"
       >
         <div class="scenario-brand">
-          <span class="toolbar-tag">GB-172 / SCR-REV-03</span>
           <strong>{{localization.review.title}}</strong>
         </div>
         <div class="scenario-actions">
@@ -89,7 +83,6 @@
               {{localization.review.verificationPrefix}}
               {{dossier()?.workTitle || localization.review.defaultWorkTitle}}
             </h1>
-            <span class="screen-badge">SCR-REV-03</span>
           </div>
         </div>
       </section>
@@ -657,7 +650,7 @@
           {{dossier()?.verificationCode || 'VER-2026-089-R1'}} &bull;
           {{localization.review.creditStandard}}
         </div>
-        <div>Architecture v4.8.2</div>
+        <div>{{localization.common.complianceGuard}}</div>
       </footer>
     </main>
   </div>
