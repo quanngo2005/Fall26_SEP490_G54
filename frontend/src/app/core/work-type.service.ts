@@ -26,7 +26,8 @@ export class WorkTypeService {
   private params(filter: WorkTypeFilter): HttpParams {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
+      if (value !== undefined && value !== null && value !== '')
+        params = params.set(key, String(value));
     }
     return params;
   }

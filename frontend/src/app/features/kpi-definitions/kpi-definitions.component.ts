@@ -50,8 +50,8 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
   readonly editGroupId = signal<string>('');
   readonly editDescription = signal<string>('');
   readonly editUnit = signal<string>('VND');
-  readonly editDirection = signal<KpiDirection>('HigherBetter');
-  readonly editAggregationType = signal<KpiAggregationType>('Sum');
+  readonly editDirection = signal<KpiDirection>('HIGHER_BETTER');
+  readonly editAggregationType = signal<KpiAggregationType>('SUM');
   readonly editFormula = signal<string>('');
   readonly depositMultipliers = signal<MultiplierItem[]>([]);
   readonly roleWeights = signal<RoleWeightItem[]>([]);
@@ -98,6 +98,10 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
     return Math.abs(this.totalRoleWeight() - 100) < 0.001;
   });
 
+  readonly weightErrorMessage = computed(() =>
+    this.i18n.translate('kpi.weightError', { weight: this.totalRoleWeight() }),
+  );
+
   readonly isDirty = computed(() => {
     const sel = this.selectedKpi();
     if (!sel) {
@@ -120,14 +124,14 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
 
   loadData(): void {
     this.loading.set(true);
-    this.kpiService.getGroups().subscribe({
-      next: (groupRes) => this.groups.set(groupRes.data),
+    this.kpiService.groups().subscribe({
+      next: (groups) => this.groups.set(groups),
       error: () => this.showToast('error', this.localization.kpi.loadFailed),
     });
 
-    this.kpiService.getKpis().subscribe({
+    this.kpiService.list().subscribe({
       next: (res) => {
-        const items = res.data.items ?? [];
+        const items = res.items ?? [];
         this.kpis.set(items);
         if (items.length > 0 && !this.selectedKpi()) {
           this.selectKpi(items[0]);
@@ -200,10 +204,10 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
       maxAchievementPercent: kpi.maxAchievementPercent,
     };
 
-    this.kpiService.updateKpi(kpi.id, payload).subscribe({
-      next: (res) => {
+    this.kpiService.update(kpi.id, payload).subscribe({
+      next: (res: KpiDefinition) => {
         const updatedKpi: KpiDefinition = {
-          ...res.data,
+          ...res,
           kpiGroupName:
             this.groups().find((g) => g.id === this.editGroupId())?.name ?? kpi.kpiGroupName,
           depositMultipliers: [...this.depositMultipliers()],
@@ -261,14 +265,14 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
     this.kpis.set(this.kpis().map((item) => (item.id === updated.id ? updated : item)));
     this.selectKpi(updated);
     this.isEditModalOpen.set(false);
-    this.showToast('success', this.i18n.translate('kpi.published', { code: updated.code }));
+    this.showToast('success', this.localization.kpi.saved);
   }
 
   addMultiplier(): void {
     const current = [...this.depositMultipliers()];
     current.push({
       id: 'm-' + Date.now(),
-      label: this.localization.kpi.newDepositType,
+      label: this.localization.kpi.productName,
       value: 1.0,
     });
     this.depositMultipliers.set(current);
@@ -290,7 +294,7 @@ export class KpiDefinitionsComponent extends LocalizedComponent implements OnIni
     const current = [...this.roleWeights()];
     current.push({
       id: 'rw-' + Date.now(),
-      role: this.localization.kpi.newRole,
+      role: this.localization.kpi.roleName,
       weight: 0,
     });
     this.roleWeights.set(current);

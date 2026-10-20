@@ -187,7 +187,7 @@ export class ReviewVerifyComponent extends LocalizedComponent implements OnInit 
       return;
     }
     if (!this.isFeedbackValid()) {
-      this.validationError.set(this.localization.review.feedbackError);
+      this.validationError.set(this.localization.review.feedbackShortError);
       return;
     }
     if (!this.isDeadlineValid()) {

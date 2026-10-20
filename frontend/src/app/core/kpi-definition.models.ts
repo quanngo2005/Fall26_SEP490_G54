@@ -13,6 +13,19 @@ export const KPI_STATUSES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED'] as const
 export type KpiDirection = (typeof KPI_DIRECTIONS)[number];
 export type KpiAggregationType = (typeof KPI_AGGREGATIONS)[number];
 export type KpiStatus = (typeof KPI_STATUSES)[number];
+export type KpiMeasurementType = 'Quantitative' | 'Qualitative';
+
+export interface MultiplierItem {
+  id?: string;
+  label: string;
+  value: number;
+}
+
+export interface RoleWeightItem {
+  id?: string;
+  role: string;
+  weight: number;
+}
 
 export interface KpiDefinition {
   id: string;
@@ -28,6 +41,12 @@ export interface KpiDefinition {
   maxAchievementPercent: number | null;
   status: KpiStatus;
   updatedAt: string;
+  version?: string;
+  effectiveDate?: string;
+  measurementType?: KpiMeasurementType;
+  applyProductMultiplier?: boolean;
+  depositMultipliers?: MultiplierItem[];
+  roleWeights?: RoleWeightItem[];
 }
 
 export interface KpiGroupOption {

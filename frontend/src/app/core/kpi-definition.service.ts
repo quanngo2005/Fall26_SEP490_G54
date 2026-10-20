@@ -43,13 +43,15 @@ export class KpiDefinitionService {
   private params(filter: KpiFilter): HttpParams {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null && value !== '') params = params.set(key, String(value));
+      if (value !== undefined && value !== null && value !== '')
+        params = params.set(key, String(value));
     }
     return params;
   }
 
   private unwrap<T>(response: ApiResponse<T>): T {
-    if (!response.success || response.data == null) throw new Error('Invalid KPI definition response');
+    if (!response.success || response.data == null)
+      throw new Error('Invalid KPI definition response');
     return response.data;
   }
 }

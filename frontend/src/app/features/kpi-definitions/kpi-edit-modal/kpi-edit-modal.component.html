@@ -105,7 +105,7 @@
             <label for="kemUnit">{{localization.kpi.unit}}</label>
             <select id="kemUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
               @for (u of unitOptions; track u) {
-                <option [value]="u">{{localization.units[u] ?? u}}</option>
+                <option [value]="u">{{u}}</option>
               }
             </select>
           </div>
@@ -116,7 +116,7 @@
                 <input
                   type="radio"
                   name="kemDirection"
-                  value="HigherBetter"
+                  value="HIGHER_BETTER"
                   [ngModel]="direction()"
                   (ngModelChange)="direction.set($event)"
                 />
@@ -126,7 +126,7 @@
                 <input
                   type="radio"
                   name="kemDirection"
-                  value="LowerBetter"
+                  value="LOWER_BETTER"
                   [ngModel]="direction()"
                   (ngModelChange)="direction.set($event)"
                 />
@@ -146,7 +146,7 @@
             />
           </div>
         </div>
-        @if (direction() === 'HigherBetter') {
+        @if (direction() === 'HIGHER_BETTER') {
           <p class="kem-hint">ⓘ {{localization.kpi.uncapped}}</p>
         }
       </section>
@@ -178,7 +178,7 @@
                   <option [value]="m.label">{{m.label}}</option>
                 }
                 @for (p of productOptions; track p) {
-                  <option [value]="p">{{localization.products[p] ?? p}}</option>
+                  <option [value]="p">{{p}}</option>
                 }
               </select>
               <div class="kem-stepper">

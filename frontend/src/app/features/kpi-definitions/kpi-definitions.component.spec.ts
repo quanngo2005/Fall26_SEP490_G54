@@ -4,13 +4,72 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import {
-  INITIAL_MOCK_GROUPS,
-  INITIAL_MOCK_KPIS,
-  KpiDefinitionService,
-} from '../../core/kpi-definition.service';
+import { KpiDefinition, KpiGroupOption } from '../../core/kpi-definition.models';
+import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
 import { KpiDefinitionsComponent } from './kpi-definitions.component';
+
+const MOCK_GROUPS: KpiGroupOption[] = [
+  { id: 'grp-001', code: 'BUS', name: 'Kinh doanh' },
+  { id: 'grp-002', code: 'OPS', name: 'Vận hành' },
+];
+
+const MOCK_KPIS: KpiDefinition[] = [
+  {
+    id: 'kpi-1',
+    code: 'KPI-RET-01',
+    name: 'Tổng số dư huy động mới',
+    kpiGroupId: 'grp-001',
+    kpiGroupName: 'Kinh doanh',
+    description: 'Tổng số dư tiền gửi mở mới tại chi nhánh',
+    formula: 'SUM(new_deposit_amount)',
+    unit: 'VND',
+    aggregationType: 'SUM',
+    direction: 'HIGHER_BETTER',
+    maxAchievementPercent: 150,
+    status: 'ACTIVE',
+    updatedAt: '2026-10-01T08:00:00Z',
+    depositMultipliers: [],
+    roleWeights: [
+      { id: 'rw-1', role: 'Teller', weight: 40 },
+      { id: 'rw-2', role: 'RBO', weight: 60 },
+    ],
+  },
+  {
+    id: 'kpi-2',
+    code: 'KPI-OP-02',
+    name: 'Tỷ lệ lỗi hồ sơ tín dụng',
+    kpiGroupId: 'grp-002',
+    kpiGroupName: 'Vận hành',
+    description: 'Tỷ lệ lỗi trên tổng số hồ sơ tiếp nhận',
+    formula: 'error_count / total_dossier * 100',
+    unit: '%',
+    aggregationType: 'RATIO',
+    direction: 'LOWER_BETTER',
+    maxAchievementPercent: 100,
+    status: 'ACTIVE',
+    updatedAt: '2026-10-02T08:00:00Z',
+    depositMultipliers: [],
+    roleWeights: [],
+  },
+  {
+    id: 'kpi-3',
+    code: 'KPI-CS-03',
+    name: 'Mức độ hài lòng khách hàng (CSAT)',
+    kpiGroupId: 'grp-001',
+    kpiGroupName: 'Kinh doanh',
+    description: 'Điểm CSAT khảo sát định kỳ',
+    formula: 'AVG(csat_score)',
+    unit: 'Điểm',
+    aggregationType: 'AVG',
+    direction: 'HIGHER_BETTER',
+    maxAchievementPercent: 100,
+    status: 'ACTIVE',
+    updatedAt: '2026-10-03T08:00:00Z',
+    depositMultipliers: [],
+    roleWeights: [],
+  },
+];
 
 describe('KpiDefinitionsComponent', () => {
   let component: KpiDefinitionsComponent;
@@ -19,34 +78,25 @@ describe('KpiDefinitionsComponent', () => {
 
   beforeEach(async () => {
     mockService = jasmine.createSpyObj<KpiDefinitionService>('KpiDefinitionService', [
-      'getKpis',
-      'getGroups',
-      'getKpiById',
-      'createKpi',
-      'updateKpi',
-      'changeStatus',
+      'list',
+      'groups',
+      'create',
+      'update',
     ]);
 
-    mockService.getKpis.and.returnValue(
+    mockService.list.and.returnValue(
       of({
-        success: true,
-        status: 200,
-        data: {
-          items: [...INITIAL_MOCK_KPIS],
-          totalCount: INITIAL_MOCK_KPIS.length,
-          page: 1,
-          pageSize: 10,
-        },
+        items: [...MOCK_KPIS],
+        totalCount: MOCK_KPIS.length,
+        page: 1,
+        pageSize: 10,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
       }),
     );
 
-    mockService.getGroups.and.returnValue(
-      of({
-        success: true,
-        status: 200,
-        data: [...INITIAL_MOCK_GROUPS],
-      }),
-    );
+    mockService.groups.and.returnValue(of([...MOCK_GROUPS]));
 
     await TestBed.configureTestingModule({
       imports: [KpiDefinitionsComponent],
@@ -105,50 +155,42 @@ describe('KpiDefinitionsComponent', () => {
     expect(component.selectedKpi()?.id).toBe(kpi2.id);
     expect(component.editCode()).toBe(kpi2.code);
     expect(component.editName()).toBe(kpi2.name);
-    expect(component.editDirection()).toBe('LowerBetter');
+    expect(component.editDirection()).toBe('LOWER_BETTER');
   });
 
   it('should save KPI configuration when valid', () => {
     const targetKpi = component.selectedKpi()!;
-    mockService.updateKpi.and.returnValue(
+    mockService.update.and.returnValue(
       of({
-        success: true,
-        status: 200,
-        data: {
-          ...targetKpi,
-          name: 'Tên KPI Đã Cập Nhật',
-        },
+        ...targetKpi,
+        name: 'Tên KPI Đã Cập Nhật',
       }),
     );
 
     component.editName.set('Tên KPI Đã Cập Nhật');
     component.saveConfig();
 
-    expect(mockService.updateKpi).toHaveBeenCalled();
+    expect(mockService.update).toHaveBeenCalled();
     expect(component.selectedKpi()?.name).toBe('Tên KPI Đã Cập Nhật');
     expect(component.toast()?.type).toBe('success');
   });
 
   it('should open modal and create a new KPI definition', () => {
-    mockService.createKpi.and.returnValue(
+    mockService.create.and.returnValue(
       of({
-        success: true,
-        status: 201,
-        data: {
-          id: 'new-kpi-id',
-          code: 'KPI-NEW-99',
-          name: 'Chỉ số mới',
-          kpiGroupId: 'grp-001',
-          kpiGroupName: 'Kinh doanh',
-          description: 'Mô tả',
-          formula: null,
-          unit: 'VND',
-          aggregationType: 'Sum',
-          direction: 'HigherBetter',
-          maxAchievementPercent: 100,
-          status: 'Active',
-          updatedAt: new Date().toISOString(),
-        },
+        id: 'new-kpi-id',
+        code: 'KPI-NEW-99',
+        name: 'Chỉ số mới',
+        kpiGroupId: 'grp-001',
+        kpiGroupName: 'Kinh doanh',
+        description: 'Mô tả',
+        formula: null,
+        unit: 'VND',
+        aggregationType: 'SUM',
+        direction: 'HIGHER_BETTER',
+        maxAchievementPercent: 100,
+        status: 'ACTIVE',
+        updatedAt: new Date().toISOString(),
       }),
     );
 
@@ -166,7 +208,7 @@ describe('KpiDefinitionsComponent', () => {
     modal.submit();
     fixture.detectChanges();
 
-    expect(mockService.createKpi).toHaveBeenCalled();
+    expect(mockService.create).toHaveBeenCalled();
     expect(component.isCreateModalOpen()).toBeFalse();
     expect(component.kpis().some((k) => k.code === 'KPI-NEW-99')).toBeTrue();
     expect(component.selectedKpi()?.code).toBe('KPI-NEW-99');
@@ -183,7 +225,7 @@ describe('KpiDefinitionsComponent', () => {
 
     modal.submit();
 
-    expect(mockService.createKpi).not.toHaveBeenCalled();
+    expect(mockService.create).not.toHaveBeenCalled();
     expect(modal.error()).toContain('KPI-RET-01');
     expect(component.isCreateModalOpen()).toBeTrue();
   });

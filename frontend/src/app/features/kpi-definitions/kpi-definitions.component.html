@@ -112,11 +112,11 @@
                   </div>
 
                   <div class="card-bottom-row">
-                    @if (item.direction === 'HigherBetter') {
+                    @if (item.direction === 'HIGHER_BETTER') {
                       <span class="direction-badge higher">
                         <i>↗</i> {{localization.kpi.higherBetter}}
                       </span>
-                    } @else if (item.direction === 'LowerBetter') {
+                    } @else if (item.direction === 'LOWER_BETTER') {
                       <span class="direction-badge lower">
                         <i>↘</i> {{localization.kpi.lowerBetter}}
                       </span>
@@ -229,10 +229,10 @@
                   >
                     <option value="VND">VND</option>
                     <option value="%">%</option>
-                    <option value="Giao dịch">{{localization.kpi.transactions}}</option>
-                    <option value="Hồ sơ">{{localization.kpi.dossiers}}</option>
-                    <option value="Điểm">{{localization.kpi.points}}</option>
-                    <option value="Số lượng">{{localization.kpi.quantity}}</option>
+                    <option value="Giao dịch">Giao dịch</option>
+                    <option value="Hồ sơ">Hồ sơ</option>
+                    <option value="Điểm">Điểm</option>
+                    <option value="Số lượng">Số lượng</option>
                   </select>
                 </div>
 
@@ -242,16 +242,16 @@
                     <button
                       type="button"
                       class="segment-btn"
-                      [class.active]="editDirection() === 'HigherBetter'"
-                      (click)="setDirection('HigherBetter')"
+                      [class.active]="editDirection() === 'HIGHER_BETTER'"
+                      (click)="setDirection('HIGHER_BETTER')"
                     >
                       • {{localization.kpi.higherBetter}}
                     </button>
                     <button
                       type="button"
                       class="segment-btn"
-                      [class.active]="editDirection() === 'LowerBetter'"
-                      (click)="setDirection('LowerBetter')"
+                      [class.active]="editDirection() === 'LOWER_BETTER'"
+                      (click)="setDirection('LOWER_BETTER')"
                     >
                       {{localization.kpi.lowerBetter}}
                     </button>
@@ -265,10 +265,10 @@
                     [ngModel]="editAggregationType()"
                     (ngModelChange)="editAggregationType.set($event)"
                   >
-                    <option value="Sum">{{localization.kpi.sum}}</option>
-                    <option value="Ratio">{{localization.kpi.ratio}}</option>
-                    <option value="Avg">{{localization.kpi.average}}</option>
-                    <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
+                    <option value="SUM">{{localization.kpi.sum}}</option>
+                    <option value="RATIO">{{localization.kpi.ratio}}</option>
+                    <option value="AVG">{{localization.kpi.average}}</option>
+                    <option value="NO_AGGREGATION">{{localization.kpi.noAggregation}}</option>
                   </select>
                 </div>
 
@@ -295,7 +295,7 @@
               <div class="dynamic-rows-list">
                 @for (item of depositMultipliers(); track item.id || $index; let idx = $index) {
                   <div class="dynamic-row">
-                    <span class="row-label">{{localization.products[item.label] ?? item.label}}</span>
+                    <span class="row-label">{{item.label}}</span>
                     <div class="row-input-box">
                       <input
                         type="number"
@@ -347,9 +347,7 @@
               } @else {
                 <div class="validation-banner warning">
                   <span class="banner-icon">⚠</span>
-                  <span>
-                    {{localization.kpi.weightPrefix}} {{totalRoleWeight()}}{{localization.kpi.weightSuffix}}
-                  </span>
+                  <span>{{weightErrorMessage()}}</span>
                 </div>
               }
             </div>
@@ -359,8 +357,8 @@
           <footer class="workspace-footer">
             <div class="audit-info">
               <span class="sync-icon">🔄</span>
-              <span class="sync-text">{{localization.kpi.serverSync}}</span>
-              <span class="audit-details">{{localization.kpi.auditSync}}</span>
+              <span class="sync-text">{{localization.kpi.draftTitle}}</span>
+              <span class="audit-details">{{localization.kpi.draftHint}}</span>
             </div>
 
             <div class="footer-actions">

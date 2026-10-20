@@ -55,7 +55,7 @@ export class KpiEditModalComponent extends LocalizedComponent implements OnInit 
   readonly description = signal<string>('');
   readonly measurementType = signal<KpiMeasurementType>('Quantitative');
   readonly unit = signal<string>('VND');
-  readonly direction = signal<KpiDirection>('HigherBetter');
+  readonly direction = signal<KpiDirection>('HIGHER_BETTER');
   readonly formula = signal<string>('');
   readonly applyMultiplier = signal<boolean>(true);
   readonly multipliers = signal<MultiplierItem[]>([]);
@@ -180,11 +180,11 @@ export class KpiEditModalComponent extends LocalizedComponent implements OnInit 
       maxAchievementPercent: k.maxAchievementPercent,
     };
 
-    this.kpiService.updateKpi(k.id, payload).subscribe({
-      next: (res) => {
+    this.kpiService.update(k.id, payload).subscribe({
+      next: (res: KpiDefinition) => {
         this.saving.set(false);
         this.saved.emit({
-          ...res.data,
+          ...res,
           kpiGroupName: this.groups().find((g) => g.id === this.groupId())?.name ?? k.kpiGroupName,
           measurementType: this.measurementType(),
           applyProductMultiplier: this.applyMultiplier(),

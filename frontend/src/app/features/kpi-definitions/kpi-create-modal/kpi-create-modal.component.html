@@ -65,7 +65,7 @@
             <label for="kcmUnit">{{localization.kpi.unit}}</label>
             <select id="kcmUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
               @for (u of unitOptions; track u) {
-                <option [value]="u">{{localization.units[u] ?? u}}</option>
+                <option [value]="u">{{u}}</option>
               }
             </select>
           </div>
@@ -77,19 +77,19 @@
               [ngModel]="direction()"
               (ngModelChange)="direction.set($event)"
             >
-              <option value="HigherBetter">{{localization.kpi.higherBetter}}</option>
-              <option value="LowerBetter">{{localization.kpi.lowerBetter}}</option>
-              <option value="OnTarget">{{localization.kpi.onTarget}}</option>
+              <option value="HIGHER_BETTER">{{localization.kpi.higherBetter}}</option>
+              <option value="LOWER_BETTER">{{localization.kpi.lowerBetter}}</option>
+              <option value="ON_TARGET">{{localization.kpi.onTarget}}</option>
             </select>
           </div>
 
           <div class="kem-field">
             <label for="kcmAgg">{{localization.kpi.aggregation}}</label>
             <select id="kcmAgg" [ngModel]="aggregation()" (ngModelChange)="aggregation.set($event)">
-              <option value="Sum">{{localization.kpi.sum}}</option>
-              <option value="Ratio">{{localization.kpi.ratio}}</option>
-              <option value="Avg">{{localization.kpi.average}}</option>
-              <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
+              <option value="SUM">{{localization.kpi.sum}}</option>
+              <option value="RATIO">{{localization.kpi.ratio}}</option>
+              <option value="AVG">{{localization.kpi.average}}</option>
+              <option value="NO_AGGREGATION">{{localization.kpi.noAggregation}}</option>
             </select>
           </div>
 

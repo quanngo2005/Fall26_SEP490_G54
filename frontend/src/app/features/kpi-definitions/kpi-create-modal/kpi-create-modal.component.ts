@@ -35,8 +35,8 @@ export class KpiCreateModalComponent extends LocalizedComponent implements OnIni
   readonly name = signal<string>('');
   readonly groupId = signal<string>('');
   readonly unit = signal<string>('VND');
-  readonly direction = signal<KpiDirection>('HigherBetter');
-  readonly aggregation = signal<KpiAggregationType>('Sum');
+  readonly direction = signal<KpiDirection>('HIGHER_BETTER');
+  readonly aggregation = signal<KpiAggregationType>('SUM');
   readonly formula = signal<string>('');
   readonly description = signal<string>('');
 
@@ -85,14 +85,12 @@ export class KpiCreateModalComponent extends LocalizedComponent implements OnIni
     this.error.set(null);
     this.saving.set(true);
 
-    this.kpiService.createKpi(payload).subscribe({
-      next: (res) => {
+    this.kpiService.create(payload).subscribe({
+      next: (res: KpiDefinition) => {
         this.saving.set(false);
         this.created.emit({
-          ...res.data,
-          kpiGroupName:
-            this.groups().find((g) => g.id === payload.kpiGroupId)?.name ??
-            this.localization.kpi.business,
+          ...res,
+          kpiGroupName: this.groups().find((g) => g.id === payload.kpiGroupId)?.name ?? '',
           depositMultipliers: [],
           roleWeights: [
             { id: 'rw-c1', role: 'Teller', weight: 40 },
