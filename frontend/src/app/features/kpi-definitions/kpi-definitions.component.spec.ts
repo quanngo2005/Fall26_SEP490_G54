@@ -7,6 +7,7 @@ import { KpiDefinition } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
+import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
 import { KpiDefinitionsComponent } from './kpi-definitions.component';
 
 @Component({ selector: 'app-header', template: '' })
@@ -166,5 +167,23 @@ describe('KpiDefinitionsComponent', () => {
     modal['submit']();
     expect(api.create).toHaveBeenCalled();
     expect(api.create.calls.mostRecent().args[0].code).toBe('NEW-1');
+  });
+
+  it('opens edit modal and saves changes through KpiEditModalComponent', async () => {
+    api.update.and.returnValue(of({ ...kpi, name: 'Cập nhật từ modal' }));
+    const fixture = await create();
+    fixture.componentInstance['openEdit']();
+    fixture.detectChanges();
+
+    const editModal = fixture.debugElement.query(By.directive(KpiEditModalComponent))
+      .componentInstance as KpiEditModalComponent;
+    expect(editModal).toBeTruthy();
+    editModal['name'].set('Cập nhật từ modal');
+    editModal['save']();
+    fixture.detectChanges();
+
+    expect(api.update).toHaveBeenCalled();
+    expect(fixture.componentInstance['selected']()?.name).toBe('Cập nhật từ modal');
+    expect(fixture.componentInstance['editOpen']()).toBeFalse();
   });
 });

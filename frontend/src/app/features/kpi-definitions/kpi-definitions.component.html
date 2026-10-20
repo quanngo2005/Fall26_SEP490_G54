@@ -142,6 +142,9 @@
                   </div>
                   <p>{{localization.kpi.configurationHint}}</p>
                 </div>
+                <button type="button" class="button button-secondary" (click)="openEdit()">
+                  {{localization.kpi.edit}}
+                </button>
               </div>
               <form class="form-grid" (ngSubmit)="save()">
                 <div class="field">
@@ -370,6 +373,16 @@
       [units]="unitSuggestions()"
       (closed)="closeCreate()"
       (created)="onCreated($event)"
+    />
+  }
+
+  @if (editOpen() && selected(); as kpi) {
+    <app-kpi-edit-modal
+      [kpi]="kpi"
+      [groups]="groups()"
+      [units]="unitSuggestions()"
+      (closed)="closeEdit()"
+      (saved)="onEdited($event)"
     />
   }
 </div>

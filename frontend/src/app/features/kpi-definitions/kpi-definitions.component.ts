@@ -14,6 +14,7 @@ import {
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
+import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
 
 export interface DraftRow {
   key: number;
@@ -37,7 +38,13 @@ const NOTICE_MS = 5000;
 
 @Component({
   selector: 'app-kpi-definitions',
-  imports: [FormsModule, HeaderComponent, SidebarComponent, KpiCreateModalComponent],
+  imports: [
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    KpiCreateModalComponent,
+    KpiEditModalComponent,
+  ],
   templateUrl: './kpi-definitions.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -67,6 +74,7 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
   protected readonly saving = signal(false);
   protected readonly notice = signal<Notice | null>(null);
   protected readonly createOpen = signal(false);
+  protected readonly editOpen = signal(false);
   protected readonly roleRows = signal<DraftRow[]>([]);
   protected readonly multiplierRows = signal<DraftRow[]>([]);
 
@@ -232,6 +240,24 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
     this.page = 1;
     this.select(created);
     this.refresh();
+  }
+
+  protected openEdit(): void {
+    if (this.selected()) {
+      this.editOpen.set(true);
+    }
+  }
+
+  protected closeEdit(): void {
+    this.editOpen.set(false);
+  }
+
+  protected onEdited(updated: KpiDefinition): void {
+    this.editOpen.set(false);
+    this.kpis.update((list) => list.map((item) => (item.id === updated.id ? updated : item)));
+    this.selected.set(updated);
+    this.form = this.formOf(updated);
+    this.show('success', 'kpi.saved');
   }
 
   protected dismissNotice(): void {
