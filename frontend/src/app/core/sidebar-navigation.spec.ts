@@ -79,7 +79,7 @@ describe('Configured sidebar navigation', () => {
           version: 1,
           routes: {
             myProfile: '/work-type-detail',
-            departments: '/employee-profile',
+            departments: '/employee-detail',
             kpiDefinitions: '/home',
           },
         },
@@ -91,7 +91,7 @@ describe('Configured sidebar navigation', () => {
       '/work-type-detail',
     );
     expect(navigation.items().find((item) => item.id === 'organization')?.children?.[0].route).toBe(
-      '/employee-profile',
+      '/employee-detail',
     );
     expect(navigation.items().some((item) => item.id === 'kpiDefinitions')).toBeFalse();
   });

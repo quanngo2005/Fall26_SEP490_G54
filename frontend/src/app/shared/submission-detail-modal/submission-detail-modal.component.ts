@@ -61,6 +61,10 @@ export class SubmissionDetailModalComponent extends LocalizedComponent {
     if (this.open()) this.closed.emit();
   }
 
+  close(): void {
+    this.closed.emit();
+  }
+
   closeOnBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) this.closed.emit();
   }

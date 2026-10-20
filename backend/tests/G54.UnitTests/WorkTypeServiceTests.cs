@@ -173,7 +173,7 @@ public sealed class WorkTypeServiceTests
             Assert.Equal("WT-CARD-01", created.Code);
             Assert.Equal("Credit Card Issuance", created.Name);
             Assert.Equal("Card Workflow", created.WorkflowName);
-            Assert.Equal(WorkTypeStatus.Active, created.Status);
+            Assert.Equal("ACTIVE", created.Status);
             Assert.Single(created.Kpis);
             Assert.Equal("KPI-REVENUE", created.Kpis[0].KpiCode);
             Assert.True(created.Kpis[0].IsRequired);
@@ -407,7 +407,7 @@ public sealed class WorkTypeServiceTests
             var filter = new WorkTypeFilterDto
             {
                 Keyword = "Consumer",
-                Status = WorkTypeStatus.Active,
+                Status = "ACTIVE",
             };
 
             var result = await service.GetWorkTypesAsync(filter);
@@ -556,7 +556,7 @@ public sealed class WorkTypeServiceTests
             await context.WorkTypes.AddAsync(wt);
             await context.SaveChangesAsync();
 
-            await service.ChangeStatusAsync(wt.Id, new WorkTypeStatusDto { Status = WorkTypeStatus.Archived });
+            await service.ChangeStatusAsync(wt.Id, new WorkTypeStatusDto { Status = "ARCHIVED" });
 
             var dbWt = await context.WorkTypes.FindAsync(wt.Id);
             Assert.NotNull(dbWt);

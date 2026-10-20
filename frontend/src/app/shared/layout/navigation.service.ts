@@ -152,8 +152,8 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'myPerformance', icon: 'myPerformance' },
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
   { id: 'notifications', icon: 'notifications' },
-  { id: 'myProfile', icon: 'myProfile', route: '/employee-profile' },
-  { id: 'employees', icon: 'people', route: '/employee-profile' },
+  { id: 'myProfile', icon: 'myProfile', route: '/employee-detail' },
+  { id: 'employees', icon: 'people', route: '/employee-detail' },
   {
     id: 'organization',
     icon: 'organization',
@@ -223,7 +223,7 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/departments',
-    '/employee-profile',
+    '/employee-detail',
     '/work-type-detail',
     '/review-verify',
     '/kpi-definitions',

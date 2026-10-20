@@ -2,6 +2,11 @@ using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.KpiDefinition;
 
+/// <summary>
+/// Enum members are UPPER_SNAKE API values: `AggregationType` (<see cref="KpiAggregationType"/>) SUM, RATIO, AVG, NO_AGGREGATION;
+/// `Direction` (<see cref="KpiDirection"/>) HIGHER_BETTER, LOWER_BETTER, ON_TARGET;
+/// `Status` (<see cref="KpiStatus"/>) DRAFT, ACTIVE, INACTIVE, ARCHIVED.
+/// </summary>
 public sealed record KpiDefinitionDto(
     Guid Id,
     Guid KpiGroupId,
@@ -11,8 +16,8 @@ public sealed record KpiDefinitionDto(
     string? Description,
     string? Formula,
     string Unit,
-    KpiAggregationType AggregationType,
-    KpiDirection Direction,
+    string AggregationType,
+    string Direction,
     decimal? MaxAchievementPercent,
-    KpiStatus Status,
+    string Status,
     DateTimeOffset UpdatedAt);

@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Employee;
 
@@ -29,5 +28,6 @@ public sealed class CreateEmployeeDto
 
     public Guid? ManagerId { get; set; }
 
-    public EmployeeStatus? Status { get; set; } = EmployeeStatus.Active;
+    /// <summary>Optional UPPER_SNAKE status (ACTIVE, INACTIVE, ON_LEAVE, TERMINATED); defaults to ACTIVE.</summary>
+    public string? Status { get; set; }
 }

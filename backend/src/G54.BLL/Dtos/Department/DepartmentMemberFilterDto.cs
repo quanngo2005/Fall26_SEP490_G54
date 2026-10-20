@@ -6,7 +6,7 @@ public sealed class DepartmentMemberFilterDto
 
     public Guid? JobPositionId { get; set; }
 
-    /// <summary>Wire value: ACTIVE, INACTIVE, ON_LEAVE or TERMINATED.</summary>
+    /// <summary>API value: ACTIVE, INACTIVE, ON_LEAVE or TERMINATED.</summary>
     public string? Status { get; set; }
 
     public Guid? PeriodId { get; set; }

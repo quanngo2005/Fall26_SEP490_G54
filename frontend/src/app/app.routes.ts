@@ -32,11 +32,19 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'employee-profile',
+    path: 'employee-detail',
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
-      import('./features/employee-profile/employee-profile.component').then(
-        (module) => module.EmployeeProfileComponent,
+      import('./features/employee-detail/employee-detail.component').then(
+        (m) => m.EmployeeDetailComponent,
+      ),
+  },
+  {
+    path: 'employee-detail/:id',
+    title: 'Hồ sơ Cán bộ',
+    loadComponent: () =>
+      import('./features/employee-detail/employee-detail.component').then(
+        (m) => m.EmployeeDetailComponent,
       ),
   },
   {

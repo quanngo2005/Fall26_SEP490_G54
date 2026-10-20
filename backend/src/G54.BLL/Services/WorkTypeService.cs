@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.WorkType;
 using G54.DAL;
@@ -89,6 +90,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var status = EnumApiFormat.ParseEnum<RecordStatus>(filter.Status, "status");
         var query = db.WorkTypes.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -100,9 +102,9 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 (w.Description != null && w.Description.Contains(keyword)));
         }
 
-        if (filter.Status.HasValue)
+        if (status.HasValue)
         {
-            var recordStatus = ToRecordStatus(filter.Status.Value);
+            var recordStatus = status.Value;
             query = query.Where(w => w.Status == recordStatus);
         }
 
@@ -123,7 +125,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Description,
                 w.WorkflowDefinitionId,
                 w.WorkflowDefinition.Name,
-                ToWorkTypeStatus(w.Status),
+                w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
                     .OrderBy(k => k.KpiDefinition.Code)
@@ -154,7 +156,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Description,
                 w.WorkflowDefinitionId,
                 w.WorkflowDefinition.Name,
-                ToWorkTypeStatus(w.Status),
+                w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
                     .OrderBy(k => k.KpiDefinition.Code)
@@ -225,15 +227,12 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         WorkTypeStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        if (!Enum.IsDefined(dto.Status))
-        {
-            throw new ValidationException("Trạng thái loại công việc không hợp lệ.");
-        }
+        var status = EnumApiFormat.ParseRequiredEnum<RecordStatus>(dto.Status, "status");
 
         var workType = await db.WorkTypes.SingleOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new NotFoundException("WorkType", id);
 
-        workType.Status = ToRecordStatus(dto.Status);
+        workType.Status = status;
         workType.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -356,22 +355,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             throw new ValidationException("Quy trình phê duyệt (WorkflowDefinitionId) là bắt buộc.");
         }
     }
-
-    private static WorkTypeStatus ToWorkTypeStatus(RecordStatus status) => status switch
-    {
-        RecordStatus.Active => WorkTypeStatus.Active,
-        RecordStatus.Inactive => WorkTypeStatus.Inactive,
-        RecordStatus.Archived => WorkTypeStatus.Archived,
-        _ => WorkTypeStatus.Inactive,
-    };
-
-    private static RecordStatus ToRecordStatus(WorkTypeStatus status) => status switch
-    {
-        WorkTypeStatus.Active => RecordStatus.Active,
-        WorkTypeStatus.Inactive => RecordStatus.Inactive,
-        WorkTypeStatus.Archived => RecordStatus.Archived,
-        _ => RecordStatus.Inactive,
-    };
 
     private static string? NormalizeOptional(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

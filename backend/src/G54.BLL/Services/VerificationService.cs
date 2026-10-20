@@ -90,7 +90,7 @@ public sealed class VerificationService(
             submission.Comment,
             evidenceFiles,
             controlStandards,
-            submission.Status.ToWire());
+            submission.Status.ToEnumString());
     }
 
     public async Task<VerificationDecisionResultDto> SubmitDecisionAsync(
@@ -139,7 +139,7 @@ public sealed class VerificationService(
         if (submission.Status is not (SubmissionStatus.Submitted or SubmissionStatus.UnderReview))
         {
             throw new ConflictException(
-                $"Hồ sơ đang ở trạng thái {submission.Status.ToWire()}, không thể thẩm định.",
+                $"Hồ sơ đang ở trạng thái {submission.Status.ToEnumString()}, không thể thẩm định.",
                 ErrorCodes.VerificationInvalidState);
         }
 
@@ -225,8 +225,8 @@ public sealed class VerificationService(
         return new VerificationDecisionResultDto(
             verification.Id,
             dbDecision.ToApiDecision(),
-            newSubmissionStatus.ToWire(),
-            newWorkStatus.ToWire(),
+            newSubmissionStatus.ToEnumString(),
+            newWorkStatus.ToEnumString(),
             now,
             message);
     }

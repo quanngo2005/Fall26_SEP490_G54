@@ -33,8 +33,8 @@ public sealed class DepartmentService(
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var status = ParseWire<RecordStatus>(filter.Status, "status");
-        var level = ParseWire<DepartmentLevelType>(filter.LevelType, "levelType");
+        var status = ParseEnum<RecordStatus>(filter.Status, "status");
+        var level = ParseEnum<DepartmentLevelType>(filter.LevelType, "levelType");
 
         var org = await LoadOrgAsync(cancellationToken);
         var visible = await ResolveVisibleAsync(accountId, org, cancellationToken);
@@ -77,8 +77,8 @@ public sealed class DepartmentService(
                 n.Id,
                 n.Code,
                 n.Name,
-                n.Level.ToWire(),
-                n.Status.ToWire(),
+                n.Level.ToEnumString(),
+                n.Status.ToEnumString(),
                 n.ParentId,
                 n.ParentId.HasValue && org.Nodes.TryGetValue(n.ParentId.Value, out var parent) ? parent.Name : null,
                 org.Subtree(n.Id).Sum(id => counts.GetValueOrDefault(id)),
@@ -143,7 +143,7 @@ public sealed class DepartmentService(
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var status = ParseWire<EmployeeStatus>(filter.Status, "status");
+        var status = ParseEnum<EmployeeStatus>(filter.Status, "status");
 
         var org = await LoadOrgAsync(cancellationToken);
         await EnsureAccessibleAsync(accountId, departmentId, org, cancellationToken);
@@ -218,7 +218,7 @@ public sealed class DepartmentService(
                 r.DepartmentName,
                 r.JobPositionId,
                 r.JobPositionTitle,
-                r.Status.ToWire(),
+                r.Status.ToEnumString(),
                 openCounts.GetValueOrDefault(r.Id),
                 scores.TryGetValue(r.Id, out var score) ? score : null))
             .ToList();
@@ -243,8 +243,8 @@ public sealed class DepartmentService(
             node.Code,
             node.Name,
             node.Description,
-            node.Level.ToWire(),
-            node.Status.ToWire(),
+            node.Level.ToEnumString(),
+            node.Status.ToEnumString(),
             node.ParentId,
             org.Ancestors(departmentId),
             manager,
@@ -504,7 +504,7 @@ public sealed class DepartmentService(
                     a.Code,
                     a.Name,
                     a.Unit,
-                    a.Direction.ToWire(),
+                    a.Direction.ToEnumString(),
                     a.TargetValue,
                     actual,
                     Achievement(a.Direction, a.TargetValue, actual, a.MaxAchievementPercent));
@@ -625,7 +625,7 @@ public sealed class DepartmentService(
     }
 
     private static EvaluationPeriodDto ToDto(EvaluationPeriod p) =>
-        new(p.Id, p.Code, p.Name, p.PeriodType.ToWire(), p.StartDate, p.EndDate);
+        new(p.Id, p.Code, p.Name, p.PeriodType.ToEnumString(), p.StartDate, p.EndDate);
 
     // ----- Organization & access ------------------------------------------------------------
 
@@ -718,25 +718,8 @@ public sealed class DepartmentService(
         return org.Subtree(rootId).ToHashSet();
     }
 
-    private static TEnum? ParseWire<TEnum>(string? value, string field)
-        where TEnum : struct, Enum
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        foreach (var candidate in Enum.GetValues<TEnum>())
-        {
-            if (string.Equals(candidate.ToWire(), trimmed, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate;
-            }
-        }
-
-        throw new ValidationException($"Giá trị '{value}' không hợp lệ cho tham số '{field}'.");
-    }
+    private static TEnum? ParseEnum<TEnum>(string? value, string field)
+        where TEnum : struct, Enum => EnumApiFormat.ParseEnum<TEnum>(value, field);
 
     private DateOnly Today() => DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
 

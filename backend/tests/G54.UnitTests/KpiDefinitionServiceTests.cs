@@ -64,7 +64,7 @@ public sealed class KpiDefinitionServiceTests
         var filter = new KpiFilterDto
         {
             Keyword = "REV",
-            Status = KpiStatus.Active,
+            Status = "ACTIVE",
             Page = 1,
             PageSize = 10,
         };
@@ -176,8 +176,8 @@ public sealed class KpiDefinitionServiceTests
             Name = "SLA Compliance",
             Description = "Percentage of requests handled within SLA",
             Unit = "%",
-            AggregationType = KpiAggregationType.Avg,
-            Direction = KpiDirection.HigherBetter,
+            AggregationType = "AVG",
+            Direction = "HIGHER_BETTER",
             MaxAchievementPercent = 120,
         };
 
@@ -185,7 +185,7 @@ public sealed class KpiDefinitionServiceTests
 
         Assert.NotNull(created);
         Assert.Equal("KPI-SLA", created.Code);
-        Assert.Equal(KpiStatus.Draft, created.Status);
+        Assert.Equal("DRAFT", created.Status);
     }
 
     [Fact]
@@ -223,8 +223,8 @@ public sealed class KpiDefinitionServiceTests
             Code = "KPI-DUP",
             Name = "Another Duplicate",
             Unit = "%",
-            AggregationType = KpiAggregationType.Sum,
-            Direction = KpiDirection.HigherBetter,
+            AggregationType = "SUM",
+            Direction = "HIGHER_BETTER",
         };
 
         await Assert.ThrowsAsync<ConflictException>(() => service.CreateKpiAsync(dto));
@@ -242,8 +242,8 @@ public sealed class KpiDefinitionServiceTests
             Code = "KPI-NOGROUP",
             Name = "No Group",
             Unit = "%",
-            AggregationType = KpiAggregationType.Sum,
-            Direction = KpiDirection.HigherBetter,
+            AggregationType = "SUM",
+            Direction = "HIGHER_BETTER",
         };
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.CreateKpiAsync(dto));
@@ -301,8 +301,8 @@ public sealed class KpiDefinitionServiceTests
             Code = "KPI-HR-NEW",
             Name = "New Name",
             Unit = "Persons",
-            AggregationType = KpiAggregationType.Sum,
-            Direction = KpiDirection.HigherBetter,
+            AggregationType = "SUM",
+            Direction = "HIGHER_BETTER",
             MaxAchievementPercent = 100,
         };
 
@@ -341,7 +341,7 @@ public sealed class KpiDefinitionServiceTests
         await context.SaveChangesAsync();
 
         var service = new KpiDefinitionService(context);
-        await service.ChangeStatusAsync(kpi.Id, new KpiStatusDto { Status = KpiStatus.Active });
+        await service.ChangeStatusAsync(kpi.Id, new KpiStatusDto { Status = "ACTIVE" });
 
         var updated = await context.KpiDefinitions.FindAsync(kpi.Id);
         Assert.NotNull(updated);

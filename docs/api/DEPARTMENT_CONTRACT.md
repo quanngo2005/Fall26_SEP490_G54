@@ -31,7 +31,7 @@ List results contain only visible departments.
 - **N/A rule:** a value with no data source or no data yet is `null` (never `0`, never a sample
   value). The client renders `null` as N/A. Counts are `0` when there is genuinely nothing to count.
 - Enums are UPPER_SNAKE strings matching PostgreSQL names (`DEPARTMENT`, `ON_LEAVE`, `HIGHER_BETTER`).
-  Query filters accept the same wire values, case-insensitively; an unknown value is 400 `VALIDATION_ERROR`.
+  Query filters accept the same API values, case-insensitively; an unknown value is 400 `VALIDATION_ERROR`.
 - IDs are GUID strings. Timestamps are ISO 8601 with offset. Date-only values are `YYYY-MM-DD`.
 - Decimals are rounded to 2 places. "Today" and period boundaries use UTC.
 

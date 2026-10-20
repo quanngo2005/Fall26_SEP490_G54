@@ -1,0 +1,26 @@
+.hero-mark {
+  border-radius: 50%;
+}
+.filters {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.filters .input {
+  flex: 1;
+  min-width: 160px;
+}
+.subtext {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+a.button {
+  text-decoration: none;
+}
+@media (max-width: 620px) {
+  .filters {
+    flex-direction: column;
+  }
+}

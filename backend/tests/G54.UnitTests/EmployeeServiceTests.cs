@@ -131,7 +131,7 @@ public sealed class EmployeeServiceTests
             Assert.Equal("MGR-001", resultKeyword.Items[0].ManagerCode);
 
             // Filter by status Active
-            var filterByStatus = new EmployeeFilterDto { Status = EmployeeStatus.Active };
+            var filterByStatus = new EmployeeFilterDto { Status = "ACTIVE" };
             var resultStatus = await service.GetEmployeesAsync(filterByStatus);
             Assert.Equal(2, resultStatus.TotalCount);
 
@@ -334,7 +334,7 @@ public sealed class EmployeeServiceTests
                 Phone = "0912345678",
                 DepartmentId = dept.Id,
                 JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
+                Status = "ACTIVE",
             };
 
             var created = await service.CreateEmployeeAsync(dto);
@@ -520,7 +520,7 @@ public sealed class EmployeeServiceTests
                 Phone = "0909090909",
                 DepartmentId = dept.Id,
                 JobPositionId = position.Id,
-                Status = EmployeeStatus.OnLeave,
+                Status = "ON_LEAVE",
             };
 
             var updated = await service.UpdateEmployeeAsync(employee.Id, updateDto);
@@ -528,7 +528,7 @@ public sealed class EmployeeServiceTests
             Assert.Equal("EMP-MOD", updated.EmployeeCode);
             Assert.Equal("Modified Name", updated.FullName);
             Assert.Equal("mod@company.com", updated.Email);
-            Assert.Equal(EmployeeStatus.OnLeave, updated.Status);
+            Assert.Equal("ON_LEAVE", updated.Status);
         }
     }
 
@@ -564,7 +564,7 @@ public sealed class EmployeeServiceTests
                 DepartmentId = dept.Id,
                 JobPositionId = position.Id,
                 ManagerId = employee.Id,
-                Status = EmployeeStatus.Active,
+                Status = "ACTIVE",
             };
 
             await Assert.ThrowsAsync<ValidationException>(() => service.UpdateEmployeeAsync(employee.Id, updateDto));
@@ -620,7 +620,7 @@ public sealed class EmployeeServiceTests
                 DepartmentId = dept.Id,
                 JobPositionId = position.Id,
                 ManagerId = empB.Id,
-                Status = EmployeeStatus.Active,
+                Status = "ACTIVE",
             };
 
             await Assert.ThrowsAsync<ValidationException>(() => service.UpdateEmployeeAsync(empA.Id, updateDto));
@@ -651,7 +651,7 @@ public sealed class EmployeeServiceTests
             await context.Employees.AddAsync(employee);
             await context.SaveChangesAsync();
 
-            await service.ChangeStatusAsync(employee.Id, new EmployeeStatusDto { Status = EmployeeStatus.Terminated });
+            await service.ChangeStatusAsync(employee.Id, new EmployeeStatusDto { Status = "TERMINATED" });
 
             var inDb = await context.Employees.FindAsync(employee.Id);
             Assert.NotNull(inDb);
