@@ -1,7 +1,8 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { toHttpParams, unwrapResponse } from './api-utils';
 import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
 import {
@@ -18,40 +19,25 @@ export class KpiDefinitionService {
 
   list(filter: KpiFilter = {}): Observable<PagedResult<KpiDefinition>> {
     return this.http
-      .get<ApiResponse<PagedResult<KpiDefinition>>>(this.url, { params: this.params(filter) })
-      .pipe(map((response) => this.unwrap(response)));
+      .get<ApiResponse<PagedResult<KpiDefinition>>>(this.url, { params: toHttpParams(filter) })
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition list')));
   }
 
   groups(): Observable<KpiGroupOption[]> {
     return this.http
       .get<ApiResponse<KpiGroupOption[]>>(`${this.url}/groups`)
-      .pipe(map((response) => this.unwrap(response)));
+      .pipe(map((response) => unwrapResponse(response, 'KPI group')));
   }
 
   create(payload: KpiDefinitionSavePayload): Observable<KpiDefinition> {
     return this.http
       .post<ApiResponse<KpiDefinition>>(this.url, payload)
-      .pipe(map((response) => this.unwrap(response)));
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition')));
   }
 
   update(id: string, payload: KpiDefinitionSavePayload): Observable<KpiDefinition> {
     return this.http
       .put<ApiResponse<KpiDefinition>>(`${this.url}/${encodeURIComponent(id)}`, payload)
-      .pipe(map((response) => this.unwrap(response)));
-  }
-
-  private params(filter: KpiFilter): HttpParams {
-    let params = new HttpParams();
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null && value !== '')
-        params = params.set(key, String(value));
-    }
-    return params;
-  }
-
-  private unwrap<T>(response: ApiResponse<T>): T {
-    if (!response.success || response.data == null)
-      throw new Error('Invalid KPI definition response');
-    return response.data;
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition')));
   }
 }

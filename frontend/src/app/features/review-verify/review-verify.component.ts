@@ -1,303 +1,281 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { catchError, EMPTY, finalize, forkJoin, map, of, Subject, switchMap, tap } from 'rxjs';
+import { apiErrorCode, apiErrorStatus } from '../../core/api-utils';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import {
-  APPROVED_MOCK_DOSSIER,
-  DEFAULT_MOCK_DOSSIER,
-  MAKER_CHECKER_VIOLATION_DOSSIER,
-} from './review-verify.data';
-import {
-  AuditDecisionPayload,
-  AuditDecisionResponse,
   ControlStandard,
   DecisionType,
-  DossierInspection,
-  DossierViewState,
-  EvidenceFile,
-} from './review-verify.model';
-import { ReviewVerifyService } from './review-verify.service';
+  VerificationDecisionPayload,
+  VerificationDecisionResult,
+  VerificationDossier,
+  VerificationHistoryItem,
+} from '../../core/verification.models';
+import { VerificationService } from '../../core/verification.service';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { displayBytes, displayNumber, initials } from '../../shared/ui/display';
+
+const MIN_FEEDBACK_LENGTH = 10;
+const DECIDABLE = ['SUBMITTED', 'UNDER_REVIEW'];
 
 @Component({
   selector: 'app-review-verify',
   standalone: true,
-  imports: [CommonModule, FormsModule, HeaderComponent, SidebarComponent],
+  imports: [FormsModule, HeaderComponent, SidebarComponent],
   templateUrl: './review-verify.component.html',
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/modal.scss',
+    './review-verify.component.scss',
+  ],
 })
-export class ReviewVerifyComponent extends LocalizedComponent implements OnInit {
-  private readonly reviewService = inject(ReviewVerifyService);
+export class ReviewVerifyComponent extends LocalizedComponent {
+  private readonly api = inject(VerificationService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly reload = new Subject<void>();
 
-  // View state and data signals
-  readonly viewState = signal<DossierViewState>('success');
-  readonly dossier = signal<DossierInspection | null>(DEFAULT_MOCK_DOSSIER);
-  readonly currentUserId = signal<string>('EMP-MGR-001'); // Manager Tran Van Quan Ly
+  protected readonly submissionId = signal<string | null>(null);
+  protected readonly dossier = signal<VerificationDossier | null>(null);
+  protected readonly history = signal<VerificationHistoryItem[]>([]);
+  protected readonly standards = signal<ControlStandard[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly failed = signal(false);
+  protected readonly notFound = signal(false);
 
-  // Inspection viewer state signals
-  readonly activeFileId = signal<string>('8b849202-b2d2-4309-8438-2f1bfb8ec012');
-  readonly docZoom = signal<number>(100);
-  readonly docCurrentPage = signal<number>(1);
+  protected readonly decision = signal<DecisionType | null>(null);
+  protected readonly verifiedValue = signal<number | null>(null);
+  protected readonly feedback = signal('');
+  protected readonly deadline = signal('');
+  protected readonly confirmOpen = signal(false);
+  protected readonly submitting = signal(false);
+  protected readonly result = signal<VerificationDecisionResult | null>(null);
+  protected readonly errorKey = signal<string | null>(null);
+  protected readonly showValidation = signal(false);
 
-  // Decision form signals
-  readonly controlStandards = signal<ControlStandard[]>([...DEFAULT_MOCK_DOSSIER.controlStandards]);
-  readonly verifiedValue = signal<number>(15);
-  readonly selectedDecision = signal<DecisionType>('REVISION_REQUIRED');
-  readonly feedback = signal<string>(
-    'Chiều ngày 05/10 scan thiếu chữ ký trang 3 của 2 hồ sơ KH (CIF #8812 và #8819).\nYêu cầu nhân viên scan bổ sung đầy đủ chữ ký để thẩm định lại!',
+  protected readonly canDecide = computed(() => {
+    const status = this.dossier()?.status;
+    return !!status && DECIDABLE.includes(status);
+  });
+  protected readonly feedbackRequired = computed(
+    () => this.decision() === 'REVISION_REQUIRED' || this.decision() === 'REJECTED',
   );
-  readonly resubmitDeadline = signal<string>('2026-10-08T17:30');
-
-  // UI interaction signals
-  readonly showConfirmModal = signal<boolean>(false);
-  readonly isSubmitting = signal<boolean>(false);
-  readonly decisionResult = signal<AuditDecisionResponse | null>(null);
-  readonly validationError = signal<string | null>(null);
-  readonly activeNav = signal<string>('Thẩm định kết quả');
-  readonly simulationScenario = signal<string>('default');
-
-  // Computed state rules
-  readonly isMakerCheckerViolated = computed(() => {
-    const currentDossier = this.dossier();
-    if (!currentDossier) {
-      return false;
-    }
-    return currentDossier.submitter.employeeId === this.currentUserId();
+  protected readonly feedbackValid = computed(
+    () => !this.feedbackRequired() || this.feedback().trim().length >= MIN_FEEDBACK_LENGTH,
+  );
+  protected readonly deadlineValid = computed(() => {
+    if (this.decision() !== 'REVISION_REQUIRED') return true;
+    const time = new Date(this.deadline()).getTime();
+    return Number.isFinite(time) && time > Date.now();
   });
-
-  readonly isAllStandardsPassed = computed(() => {
-    return this.controlStandards().every((std) => std.passed);
+  protected readonly valueValid = computed(() => {
+    if (this.decision() !== 'APPROVED') return true;
+    const value = this.verifiedValue();
+    return value !== null && value >= 0;
   });
+  protected readonly formValid = computed(
+    () =>
+      this.decision() !== null && this.feedbackValid() && this.deadlineValid() && this.valueValid(),
+  );
 
-  readonly isFeedbackValid = computed(() => {
-    const dec = this.selectedDecision();
-    if (dec === 'APPROVED') {
-      return true;
-    }
-    return this.feedback().trim().length >= 10;
-  });
+  constructor() {
+    super();
+    this.reload
+      .pipe(
+        switchMap(() => {
+          const id = this.submissionId();
+          if (!id) {
+            this.loading.set(false);
+            return EMPTY;
+          }
+          this.loading.set(true);
+          this.failed.set(false);
+          this.notFound.set(false);
+          return forkJoin({
+            dossier: this.api.dossier(id),
+            // History is supplementary; the dossier must still render when it is unavailable.
+            history: this.api.history(id).pipe(catchError(() => of([]))),
+          }).pipe(
+            tap(({ dossier, history }) => this.apply(dossier, history)),
+            catchError((error: unknown) => {
+              this.notFound.set(apiErrorStatus(error) === 404);
+              this.failed.set(true);
+              return EMPTY;
+            }),
+            finalize(() => this.loading.set(false)),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
 
-  readonly isDeadlineValid = computed(() => {
-    if (this.selectedDecision() !== 'REVISION_REQUIRED') {
-      return true;
-    }
-    return this.resubmitDeadline().trim().length > 0;
-  });
-
-  readonly canSubmitDecision = computed(() => {
-    if (this.isMakerCheckerViolated()) {
-      return false;
-    }
-    if (this.viewState() !== 'success') {
-      return false;
-    }
-    if (this.isSubmitting()) {
-      return false;
-    }
-    return this.isFeedbackValid() && this.isDeadlineValid() && this.verifiedValue() >= 0;
-  });
-
-  readonly activeEvidenceFile = computed(() => {
-    const currentDossier = this.dossier();
-    if (!currentDossier) {
-      return null;
-    }
-    return (
-      currentDossier.evidenceFiles.find((f) => f.fileId === this.activeFileId()) ??
-      currentDossier.evidenceFiles[0]
-    );
-  });
-
-  ngOnInit(): void {
-    this.loadDossier();
+    this.route.paramMap
+      .pipe(
+        map((params) => params.get('submissionId')),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((id) => {
+        this.submissionId.set(id);
+        this.dossier.set(null);
+        this.history.set([]);
+        this.result.set(null);
+        this.reload.next();
+      });
   }
 
-  loadDossier(submissionId?: string): void {
-    this.viewState.set('loading');
-    this.reviewService.getDossier(submissionId).subscribe({
-      next: (data) => {
-        this.dossier.set(data);
-        this.controlStandards.set([...data.controlStandards]);
-        this.verifiedValue.set(data.officialVerifiedValue);
-        this.docCurrentPage.set(data.documentPreview.currentPage);
-        this.docZoom.set(data.documentPreview.zoomPercent);
-        if (data.evidenceFiles.length > 0) {
-          this.activeFileId.set(data.evidenceFiles[1]?.fileId ?? data.evidenceFiles[0].fileId);
-        }
-        this.viewState.set('success');
-      },
-      error: () => {
-        this.viewState.set('error');
-      },
-    });
+  protected refresh(): void {
+    this.reload.next();
   }
 
-  toggleStandard(standardId: string): void {
-    this.controlStandards.update((list) =>
-      list.map((std) => (std.id === standardId ? { ...std, passed: !std.passed } : std)),
+  protected toggleStandard(id: string): void {
+    this.standards.update((list) =>
+      list.map((standard) =>
+        standard.id === id ? { ...standard, passed: !standard.passed } : standard,
+      ),
     );
   }
 
-  selectDecision(decision: DecisionType): void {
-    if (this.isMakerCheckerViolated()) {
-      return;
-    }
-    this.selectedDecision.set(decision);
-    this.validationError.set(null);
+  protected selectDecision(decision: DecisionType): void {
+    this.decision.set(decision);
+    this.errorKey.set(null);
   }
 
-  setVerifiedValue(event: Event): void {
-    const val = Number((event.target as HTMLInputElement).value);
-    if (!Number.isNaN(val) && val >= 0) {
-      this.verifiedValue.set(val);
-    }
+  protected setVerifiedValue(raw: string | number | null): void {
+    const value = raw === '' || raw === null ? null : Number(raw);
+    this.verifiedValue.set(value !== null && Number.isFinite(value) ? value : null);
   }
 
-  setFeedback(event: Event): void {
-    this.feedback.set((event.target as HTMLTextAreaElement).value);
+  protected openConfirm(): void {
+    this.showValidation.set(true);
+    if (!this.formValid()) return;
+    this.errorKey.set(null);
+    this.confirmOpen.set(true);
   }
 
-  setResubmitDeadline(event: Event): void {
-    this.resubmitDeadline.set((event.target as HTMLInputElement).value);
+  protected closeConfirm(): void {
+    if (!this.submitting()) this.confirmOpen.set(false);
   }
 
-  zoomIn(): void {
-    this.docZoom.update((z) => Math.min(200, z + 15));
-  }
-
-  zoomOut(): void {
-    this.docZoom.update((z) => Math.max(50, z - 15));
-  }
-
-  prevPage(): void {
-    this.docCurrentPage.update((p) => Math.max(1, p - 1));
-  }
-
-  nextPage(): void {
-    const total = this.dossier()?.documentPreview.totalPages ?? 3;
-    this.docCurrentPage.update((p) => Math.min(total, p + 1));
-  }
-
-  selectFile(file: EvidenceFile): void {
-    this.activeFileId.set(file.fileId);
-  }
-
-  openConfirmModal(): void {
-    if (this.isMakerCheckerViolated()) {
-      this.validationError.set(this.localization.review.makerCheckerError);
-      return;
-    }
-    if (!this.isFeedbackValid()) {
-      this.validationError.set(this.localization.review.feedbackShortError);
-      return;
-    }
-    if (!this.isDeadlineValid()) {
-      this.validationError.set(this.localization.review.deadlineError);
-      return;
-    }
-    this.validationError.set(null);
-    this.showConfirmModal.set(true);
-  }
-
-  closeConfirmModal(): void {
-    this.showConfirmModal.set(false);
-  }
-
-  confirmDecision(): void {
-    const currentDossier = this.dossier();
-    if (!currentDossier || !this.canSubmitDecision()) {
-      return;
-    }
-
-    this.isSubmitting.set(true);
-    const payload: AuditDecisionPayload = {
-      decision: this.selectedDecision(),
-      verifiedValue: this.verifiedValue(),
-      checklistResults: this.controlStandards().map((std) => ({
-        standardId: std.id,
-        isPassed: std.passed,
-      })),
-      feedback: this.feedback(),
+  protected confirm(): void {
+    const id = this.submissionId();
+    const decision = this.decision();
+    if (!id || !decision || !this.formValid() || this.submitting()) return;
+    const payload: VerificationDecisionPayload = {
+      decision,
+      verifiedValue: decision === 'APPROVED' ? this.verifiedValue() : null,
+      feedback: this.feedback().trim() || null,
       resubmitDeadline:
-        this.selectedDecision() === 'REVISION_REQUIRED' ? this.resubmitDeadline() : undefined,
+        decision === 'REVISION_REQUIRED' ? new Date(this.deadline()).toISOString() : null,
+      checklistResults: this.standards().map((standard) => ({
+        standardId: standard.id,
+        isPassed: standard.passed,
+      })),
     };
-
-    this.reviewService.submitDecision(currentDossier.submissionId, payload).subscribe({
-      next: (response) => {
-        this.isSubmitting.set(false);
-        this.showConfirmModal.set(false);
-        this.decisionResult.set(response);
-      },
-      error: (err) => {
-        this.isSubmitting.set(false);
-        this.showConfirmModal.set(false);
-        const errMsg =
-          err?.error?.message ??
-          err?.message ??
-          'Gửi quyết định thẩm định thất bại. Vui lòng thử lại sau.';
-        this.validationError.set(errMsg);
-      },
-    });
+    this.submitting.set(true);
+    this.api
+      .submitDecision(id, payload)
+      .pipe(
+        finalize(() => this.submitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (result) => {
+          this.confirmOpen.set(false);
+          this.result.set(result);
+          this.showValidation.set(false);
+          this.reload.next();
+        },
+        error: (error: unknown) => {
+          this.confirmOpen.set(false);
+          this.errorKey.set(this.errorKeyFor(error));
+        },
+      });
   }
 
-  resetDecisionState(): void {
-    this.decisionResult.set(null);
-    this.validationError.set(null);
+  protected dismissResult(): void {
+    this.result.set(null);
   }
 
-  selectNav(item: string): void {
-    this.activeNav.set(item);
+  protected errorText(): string {
+    const key = this.errorKey();
+    return key ? this.i18n.translate(key) : '';
   }
 
-  switchScenario(scenario: string): void {
-    this.simulationScenario.set(scenario);
-    this.decisionResult.set(null);
-    this.validationError.set(null);
+  protected display(value: number | null | undefined): string {
+    return displayNumber(value, this.i18n.currentLanguage(), this.localization.review.notAvailable);
+  }
 
-    switch (scenario) {
-      case 'default':
-        this.viewState.set('success');
-        this.currentUserId.set('EMP-MGR-001');
-        this.dossier.set(DEFAULT_MOCK_DOSSIER);
-        this.controlStandards.set([...DEFAULT_MOCK_DOSSIER.controlStandards]);
-        this.selectedDecision.set('REVISION_REQUIRED');
-        this.verifiedValue.set(DEFAULT_MOCK_DOSSIER.officialVerifiedValue);
-        this.feedback.set(
-          'Chiều ngày 05/10 scan thiếu chữ ký trang 3 của 2 hồ sơ KH (CIF #8812 và #8819).\nYêu cầu nhân viên scan bổ sung đầy đủ chữ ký để thẩm định lại!',
-        );
-        this.resubmitDeadline.set('2026-10-08T17:30');
-        break;
+  protected size(bytes: number | null): string {
+    return displayBytes(bytes, this.i18n.currentLanguage(), this.localization.review.notAvailable);
+  }
 
-      case 'approved':
-        this.viewState.set('success');
-        this.currentUserId.set('EMP-MGR-001');
-        this.dossier.set(APPROVED_MOCK_DOSSIER);
-        this.controlStandards.set([...APPROVED_MOCK_DOSSIER.controlStandards]);
-        this.selectedDecision.set('APPROVED');
-        this.verifiedValue.set(APPROVED_MOCK_DOSSIER.officialVerifiedValue);
-        this.feedback.set('Hồ sơ hợp lệ, số lượng đối soát khớp với sao kê Core Banking.');
-        break;
+  protected initials(name: string): string {
+    return initials(name);
+  }
 
-      case 'maker-checker':
-        this.viewState.set('success');
-        this.currentUserId.set('EMP-MGR-001');
-        this.dossier.set(MAKER_CHECKER_VIOLATION_DOSSIER);
-        this.controlStandards.set([...DEFAULT_MOCK_DOSSIER.controlStandards]);
-        this.selectedDecision.set('APPROVED');
-        break;
+  protected statusLabel(status: string): string {
+    const text = this.localization.review;
+    switch (status) {
+      case 'DRAFT':
+        return text.statusDraft;
+      case 'SUBMITTED':
+        return text.statusSubmitted;
+      case 'UNDER_REVIEW':
+        return text.statusUnderReview;
+      case 'APPROVED':
+        return text.statusApproved;
+      case 'REJECTED':
+        return text.statusRejected;
+      case 'WITHDRAWN':
+        return text.statusWithdrawn;
+      default:
+        return text.notAvailable;
+    }
+  }
 
-      case 'loading':
-        this.viewState.set('loading');
-        break;
+  protected decisionLabel(decision: string): string {
+    const text = this.localization.review;
+    switch (decision) {
+      case 'APPROVED':
+        return text.approvedSummary;
+      case 'REVISION_REQUIRED':
+        return text.revisionSummary;
+      case 'REJECTED':
+        return text.rejectedSummary;
+      case 'PENDING':
+        return text.pendingSummary;
+      default:
+        return text.notAvailable;
+    }
+  }
 
-      case 'empty':
-        this.viewState.set('empty');
-        this.dossier.set(null);
-        break;
+  private apply(dossier: VerificationDossier, history: VerificationHistoryItem[]): void {
+    this.dossier.set(dossier);
+    this.history.set(history);
+    this.standards.set(dossier.controlStandards.map((standard) => ({ ...standard })));
+    if (this.verifiedValue() === null) {
+      this.verifiedValue.set(dossier.kpiItem?.declaredValue ?? null);
+    }
+  }
 
-      case 'error':
-        this.viewState.set('error');
-        this.dossier.set(null);
-        break;
+  /** Branches on the stable HTTP status / errorCode, never on the message text. */
+  private errorKeyFor(error: unknown): string {
+    switch (apiErrorCode(error)) {
+      case 'MSG10':
+        return 'review.makerCheckerError';
+      case 'MSG23':
+        return 'review.lockedError';
+      case 'VERIFICATION_INVALID_STATE':
+        return 'review.invalidStateError';
+      case 'VALIDATION_ERROR':
+        return 'review.validationError';
+      case 'NOT_FOUND':
+        return 'review.notFound';
+      default:
+        return apiErrorStatus(error) === 403 ? 'review.forbiddenError' : 'review.decisionFailed';
     }
   }
 }

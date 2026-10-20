@@ -1,321 +1,363 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
+import { apiErrorStatus } from '../../core/api-utils';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
-  KpiAggregationType,
+  KPI_AGGREGATIONS,
+  KPI_DIRECTIONS,
   KpiDefinition,
   KpiDefinitionSavePayload,
-  KpiDirection,
   KpiGroupOption,
-  MultiplierItem,
-  RoleWeightItem,
 } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { KpiCreateModalComponent } from './kpi-create-modal/kpi-create-modal.component';
-import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component';
+
+export interface DraftRow {
+  key: number;
+  label: string;
+  value: number;
+}
+
+interface Notice {
+  kind: 'success' | 'error';
+  key: string;
+  params?: Record<string, string | number>;
+}
+
+interface KpiDrafts {
+  roles: DraftRow[];
+  multipliers: DraftRow[];
+}
+
+const PAGE_SIZE = 20;
+const NOTICE_MS = 5000;
 
 @Component({
   selector: 'app-kpi-definitions',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    KpiCreateModalComponent,
-    KpiEditModalComponent,
-    HeaderComponent,
-    SidebarComponent,
-  ],
+  imports: [FormsModule, HeaderComponent, SidebarComponent, KpiCreateModalComponent],
   templateUrl: './kpi-definitions.component.html',
-  styleUrls: ['./kpi-definitions.component.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/modal.scss',
+    './kpi-definitions.component.scss',
+  ],
 })
-export class KpiDefinitionsComponent extends LocalizedComponent implements OnInit {
-  private readonly kpiService = inject(KpiDefinitionService);
+export class KpiDefinitionsComponent extends LocalizedComponent {
+  private readonly api = inject(KpiDefinitionService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly reload = new Subject<void>();
+  /** Session-only drafts per KPI. They are never sent to the API (docs/api/KPI_DEFINITION_CONTRACT.md). */
+  private readonly drafts = new Map<string, KpiDrafts>();
+  private draftKey = 0;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Data signals
-  readonly loading = signal<boolean>(false);
-  readonly saving = signal<boolean>(false);
-  readonly kpis = signal<KpiDefinition[]>([]);
-  readonly groups = signal<KpiGroupOption[]>([]);
-  readonly selectedKpi = signal<KpiDefinition | null>(null);
+  protected readonly directions = KPI_DIRECTIONS;
+  protected readonly aggregations = KPI_AGGREGATIONS;
 
-  // Search & Filter
-  readonly searchTerm = signal<string>('');
-  readonly groupFilter = signal<string>('all');
+  protected readonly kpis = signal<KpiDefinition[]>([]);
+  protected readonly groups = signal<KpiGroupOption[]>([]);
+  protected readonly totalCount = signal(0);
+  protected readonly selected = signal<KpiDefinition | null>(null);
+  protected readonly loading = signal(true);
+  protected readonly failed = signal(false);
+  protected readonly saving = signal(false);
+  protected readonly notice = signal<Notice | null>(null);
+  protected readonly createOpen = signal(false);
+  protected readonly roleRows = signal<DraftRow[]>([]);
+  protected readonly multiplierRows = signal<DraftRow[]>([]);
 
-  // Form editing state
-  readonly editCode = signal<string>('');
-  readonly editName = signal<string>('');
-  readonly editGroupId = signal<string>('');
-  readonly editDescription = signal<string>('');
-  readonly editUnit = signal<string>('VND');
-  readonly editDirection = signal<KpiDirection>('HIGHER_BETTER');
-  readonly editAggregationType = signal<KpiAggregationType>('SUM');
-  readonly editFormula = signal<string>('');
-  readonly depositMultipliers = signal<MultiplierItem[]>([]);
-  readonly roleWeights = signal<RoleWeightItem[]>([]);
+  protected keyword = '';
+  protected groupId = '';
+  protected page = 1;
+  protected form = this.emptyForm();
 
-  // Create Modal state
-  readonly isCreateModalOpen = signal<boolean>(false);
-
-  // Edit Modal state
-  readonly isEditModalOpen = signal<boolean>(false);
-
-  // Toast notification
-  readonly toast = signal<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-
-  // Computed state
-  readonly filteredKpis = computed(() => {
-    const list = this.kpis();
-    const query = this.searchTerm().trim().toLowerCase();
-    const grp = this.groupFilter();
-
-    return list.filter((item) => {
-      const matchQuery =
-        !query ||
-        item.code.toLowerCase().includes(query) ||
-        item.name.toLowerCase().includes(query) ||
-        (item.description && item.description.toLowerCase().includes(query));
-
-      const matchGroup = grp === 'all' || item.kpiGroupId === grp || item.kpiGroupName === grp;
-
-      return matchQuery && matchGroup;
-    });
-  });
-
-  readonly existingCodes = computed(() => this.kpis().map((k) => k.code));
-
-  readonly totalRoleWeight = computed(() => {
-    return this.roleWeights().reduce((acc, curr) => acc + (Number(curr.weight) || 0), 0);
-  });
-
-  readonly isWeightValid = computed(() => {
-    const weights = this.roleWeights();
-    if (weights.length === 0) {
-      return true;
-    }
-    return Math.abs(this.totalRoleWeight() - 100) < 0.001;
-  });
-
-  readonly weightErrorMessage = computed(() =>
-    this.i18n.translate('kpi.weightError', { weight: this.totalRoleWeight() }),
+  protected readonly unitSuggestions = computed(() =>
+    [
+      ...new Set(
+        this.kpis()
+          .map((kpi) => kpi.unit)
+          .filter(Boolean),
+      ),
+    ].sort(),
+  );
+  protected readonly roleTotal = computed(() =>
+    this.roleRows().reduce((sum, row) => sum + (Number(row.value) || 0), 0),
   );
 
-  readonly isDirty = computed(() => {
-    const sel = this.selectedKpi();
-    if (!sel) {
-      return false;
-    }
-    return (
-      this.editName() !== sel.name ||
-      this.editDescription() !== (sel.description ?? '') ||
-      this.editGroupId() !== sel.kpiGroupId ||
-      this.editUnit() !== sel.unit ||
-      this.editDirection() !== sel.direction ||
-      this.editAggregationType() !== sel.aggregationType ||
-      this.editFormula() !== (sel.formula ?? '')
+  constructor() {
+    super();
+    this.reload
+      .pipe(
+        switchMap(() => {
+          this.loading.set(true);
+          this.failed.set(false);
+          return this.api
+            .list({
+              keyword: this.keyword.trim(),
+              kpiGroupId: this.groupId,
+              page: this.page,
+              pageSize: PAGE_SIZE,
+            })
+            .pipe(
+              catchError(() => {
+                this.failed.set(true);
+                return EMPTY;
+              }),
+              finalize(() => this.loading.set(false)),
+            );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((page) => {
+        this.kpis.set(page.items);
+        this.totalCount.set(page.totalCount);
+        const current = this.selected();
+        this.select(page.items.find((kpi) => kpi.id === current?.id) ?? page.items[0] ?? null);
+      });
+
+    this.api
+      .groups()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (groups) => this.groups.set(groups),
+        error: () => this.show('error', 'kpi.loadFailed'),
+      });
+    this.destroyRef.onDestroy(() => this.noticeTimer && clearTimeout(this.noticeTimer));
+    this.refresh();
+  }
+
+  protected refresh(resetPage = false): void {
+    if (resetPage) this.page = 1;
+    this.reload.next();
+  }
+
+  protected resetFilters(): void {
+    this.keyword = '';
+    this.groupId = '';
+    this.refresh(true);
+  }
+
+  protected turnPage(delta: number): void {
+    this.page += delta;
+    this.refresh();
+  }
+
+  protected totalPages(): number {
+    return Math.max(1, Math.ceil(this.totalCount() / PAGE_SIZE));
+  }
+
+  protected select(kpi: KpiDefinition | null): void {
+    this.stashDrafts();
+    this.selected.set(kpi);
+    this.form = kpi ? this.formOf(kpi) : this.emptyForm();
+    const draft = kpi ? this.drafts.get(kpi.id) : undefined;
+    this.roleRows.set(draft ? draft.roles.map((row) => ({ ...row })) : []);
+    this.multiplierRows.set(draft ? draft.multipliers.map((row) => ({ ...row })) : []);
+  }
+
+  protected isDirty(): boolean {
+    const kpi = this.selected();
+    if (!kpi) return false;
+    const saved = this.formOf(kpi);
+    return (Object.keys(saved) as (keyof typeof saved)[]).some(
+      (key) => saved[key] !== this.form[key],
     );
-  });
-
-  ngOnInit(): void {
-    this.loadData();
   }
 
-  loadData(): void {
-    this.loading.set(true);
-    this.kpiService.groups().subscribe({
-      next: (groups) => this.groups.set(groups),
-      error: () => this.showToast('error', this.localization.kpi.loadFailed),
-    });
-
-    this.kpiService.list().subscribe({
-      next: (res) => {
-        const items = res.items ?? [];
-        this.kpis.set(items);
-        if (items.length > 0 && !this.selectedKpi()) {
-          this.selectKpi(items[0]);
-        }
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.showToast('error', this.localization.kpi.loadFailed);
-      },
-    });
+  protected cancelChanges(): void {
+    const kpi = this.selected();
+    if (!kpi) return;
+    this.form = this.formOf(kpi);
+    this.show('success', 'kpi.reverted');
   }
 
-  selectKpi(kpi: KpiDefinition): void {
-    this.selectedKpi.set(kpi);
-    this.editCode.set(kpi.code);
-    this.editName.set(kpi.name);
-    this.editGroupId.set(kpi.kpiGroupId);
-    this.editDescription.set(kpi.description ?? '');
-    this.editUnit.set(kpi.unit);
-    this.editDirection.set(kpi.direction);
-    this.editAggregationType.set(kpi.aggregationType);
-    this.editFormula.set(kpi.formula ?? '');
-
-    // Multipliers & Weights
-    this.depositMultipliers.set(kpi.depositMultipliers ? [...kpi.depositMultipliers] : []);
-    this.roleWeights.set(
-      kpi.roleWeights && kpi.roleWeights.length > 0
-        ? [...kpi.roleWeights]
-        : [
-            { id: 'rw-1', role: 'Teller', weight: 40 },
-            { id: 'rw-2', role: 'RBO', weight: 60 },
-          ],
-    );
-  }
-
-  setDirection(direction: KpiDirection): void {
-    this.editDirection.set(direction);
-  }
-
-  saveConfig(): void {
-    const kpi = this.selectedKpi();
-    if (!kpi) {
+  protected save(): void {
+    const kpi = this.selected();
+    if (!kpi || this.saving()) return;
+    if (!this.form.name.trim()) {
+      this.show('error', 'kpi.nameRequired');
       return;
     }
-
-    if (!this.editName().trim()) {
-      this.showToast('error', this.localization.kpi.nameRequired);
+    if (!this.form.unit.trim()) {
+      this.show('error', 'kpi.unitRequired');
       return;
     }
-
-    if (!this.isWeightValid()) {
-      this.showToast(
-        'error',
-        this.i18n.translate('kpi.weightError', { weight: this.totalRoleWeight() }),
-      );
-      return;
-    }
-
-    this.saving.set(true);
     const payload: KpiDefinitionSavePayload = {
-      kpiGroupId: this.editGroupId(),
-      code: this.editCode(),
-      name: this.editName().trim(),
-      description: this.editDescription().trim() || null,
-      formula: this.editFormula().trim() || null,
-      unit: this.editUnit().trim(),
-      aggregationType: this.editAggregationType(),
-      direction: this.editDirection(),
-      maxAchievementPercent: kpi.maxAchievementPercent,
+      kpiGroupId: this.form.kpiGroupId,
+      code: kpi.code,
+      name: this.form.name.trim(),
+      description: this.form.description.trim() || null,
+      formula: this.form.formula.trim() || null,
+      unit: this.form.unit.trim(),
+      aggregationType: this.form.aggregationType,
+      direction: this.form.direction,
+      maxAchievementPercent: this.parseMax(this.form.maxAchievementPercent),
     };
-
-    this.kpiService.update(kpi.id, payload).subscribe({
-      next: (res: KpiDefinition) => {
-        const updatedKpi: KpiDefinition = {
-          ...res,
-          kpiGroupName:
-            this.groups().find((g) => g.id === this.editGroupId())?.name ?? kpi.kpiGroupName,
-          depositMultipliers: [...this.depositMultipliers()],
-          roleWeights: [...this.roleWeights()],
-        };
-
-        // Update in list
-        const updatedList = this.kpis().map((item) => (item.id === kpi.id ? updatedKpi : item));
-        this.kpis.set(updatedList);
-        this.selectedKpi.set(updatedKpi);
-        this.saving.set(false);
-        this.showToast('success', this.localization.kpi.saved);
-      },
-      error: () => {
-        this.saving.set(false);
-        this.showToast('error', this.localization.kpi.saveFailed);
-      },
-    });
+    this.saving.set(true);
+    this.api
+      .update(kpi.id, payload)
+      .pipe(
+        finalize(() => this.saving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (updated) => {
+          this.kpis.update((list) => list.map((item) => (item.id === updated.id ? updated : item)));
+          this.selected.set(updated);
+          this.form = this.formOf(updated);
+          this.show('success', 'kpi.saved');
+        },
+        error: (error: unknown) =>
+          this.show('error', apiErrorStatus(error) === 404 ? 'kpi.notFound' : 'kpi.saveFailed'),
+      });
   }
 
-  cancelChanges(): void {
-    const kpi = this.selectedKpi();
-    if (kpi) {
-      this.selectKpi(kpi);
-      this.showToast('info', this.localization.kpi.reverted);
+  protected openCreate(): void {
+    this.createOpen.set(true);
+  }
+
+  protected closeCreate(): void {
+    this.createOpen.set(false);
+  }
+
+  protected onCreated(created: KpiDefinition): void {
+    this.createOpen.set(false);
+    this.show('success', 'kpi.created', { code: created.code });
+    this.keyword = '';
+    this.groupId = '';
+    this.page = 1;
+    this.select(created);
+    this.refresh();
+  }
+
+  protected dismissNotice(): void {
+    this.notice.set(null);
+  }
+
+  protected noticeText(): string {
+    const notice = this.notice();
+    return notice ? this.i18n.translate(notice.key, notice.params) : '';
+  }
+
+  protected directionLabel(direction: string): string {
+    const text = this.localization.kpi;
+    switch (direction) {
+      case 'HIGHER_BETTER':
+        return text.higherBetter;
+      case 'LOWER_BETTER':
+        return text.lowerBetter;
+      case 'ON_TARGET':
+        return text.onTarget;
+      default:
+        return text.notAvailable;
     }
   }
 
-  openCreateModal(): void {
-    this.isCreateModalOpen.set(true);
-  }
-
-  closeCreateModal(): void {
-    this.isCreateModalOpen.set(false);
-  }
-
-  onKpiCreated(created: KpiDefinition): void {
-    this.kpis.set([created, ...this.kpis()]);
-    this.selectKpi(created);
-    this.isCreateModalOpen.set(false);
-    this.showToast('success', this.i18n.translate('kpi.created', { code: created.code }));
-  }
-
-  openEditModal(): void {
-    if (this.selectedKpi()) {
-      this.isEditModalOpen.set(true);
+  protected aggregationLabel(aggregation: string): string {
+    const text = this.localization.kpi;
+    switch (aggregation) {
+      case 'SUM':
+        return text.sum;
+      case 'RATIO':
+        return text.ratio;
+      case 'AVG':
+        return text.average;
+      case 'NO_AGGREGATION':
+        return text.noAggregation;
+      default:
+        return text.notAvailable;
     }
   }
 
-  closeEditModal(): void {
-    this.isEditModalOpen.set(false);
+  protected statusLabel(status: string | null): string {
+    const text = this.localization.kpi;
+    switch (status) {
+      case 'DRAFT':
+        return text.statusDraft;
+      case 'ACTIVE':
+        return text.statusActive;
+      case 'INACTIVE':
+        return text.statusInactive;
+      case 'ARCHIVED':
+        return text.statusArchived;
+      default:
+        return text.notAvailable;
+    }
   }
 
-  onKpiEdited(updated: KpiDefinition): void {
-    this.kpis.set(this.kpis().map((item) => (item.id === updated.id ? updated : item)));
-    this.selectKpi(updated);
-    this.isEditModalOpen.set(false);
-    this.showToast('success', this.localization.kpi.saved);
+  protected addRow(target: 'roles' | 'multipliers'): void {
+    const row: DraftRow = { key: ++this.draftKey, label: '', value: target === 'roles' ? 0 : 1 };
+    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
+    rows.update((list) => [...list, row]);
   }
 
-  addMultiplier(): void {
-    const current = [...this.depositMultipliers()];
-    current.push({
-      id: 'm-' + Date.now(),
-      label: this.localization.kpi.productName,
-      value: 1.0,
-    });
-    this.depositMultipliers.set(current);
+  protected removeRow(target: 'roles' | 'multipliers', key: number): void {
+    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
+    rows.update((list) => list.filter((row) => row.key !== key));
   }
 
-  removeMultiplier(index: number): void {
-    const current = [...this.depositMultipliers()];
-    current.splice(index, 1);
-    this.depositMultipliers.set(current);
+  protected editRow(
+    target: 'roles' | 'multipliers',
+    key: number,
+    patch: Partial<Pick<DraftRow, 'label' | 'value'>>,
+  ): void {
+    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
+    rows.update((list) => list.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
 
-  updateMultiplierValue(index: number, val: number): void {
-    const current = [...this.depositMultipliers()];
-    current[index] = { ...current[index], value: val };
-    this.depositMultipliers.set(current);
+  protected rowLabel(event: Event): string {
+    return (event.target as HTMLInputElement).value;
   }
 
-  addRoleWeight(): void {
-    const current = [...this.roleWeights()];
-    current.push({
-      id: 'rw-' + Date.now(),
-      role: this.localization.kpi.roleName,
-      weight: 0,
-    });
-    this.roleWeights.set(current);
+  protected rowValue(event: Event): number {
+    return Number((event.target as HTMLInputElement).value) || 0;
   }
 
-  removeRoleWeight(index: number): void {
-    const current = [...this.roleWeights()];
-    current.splice(index, 1);
-    this.roleWeights.set(current);
+  private stashDrafts(): void {
+    const previous = this.selected();
+    if (!previous) return;
+    this.drafts.set(previous.id, { roles: this.roleRows(), multipliers: this.multiplierRows() });
   }
 
-  updateRoleWeightValue(index: number, val: number): void {
-    const current = [...this.roleWeights()];
-    current[index] = { ...current[index], weight: Number(val) || 0 };
-    this.roleWeights.set(current);
+  private show(kind: Notice['kind'], key: string, params?: Notice['params']): void {
+    this.notice.set({ kind, key, params });
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = setTimeout(() => this.notice.set(null), NOTICE_MS);
   }
 
-  private showToast(type: 'success' | 'error' | 'info', message: string): void {
-    this.toast.set({ type, message });
-    setTimeout(() => {
-      this.toast.set(null);
-    }, 4000);
+  private parseMax(value: number | null | string): number | null {
+    if (value === null || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private formOf(kpi: KpiDefinition) {
+    return {
+      name: kpi.name,
+      kpiGroupId: kpi.kpiGroupId,
+      description: kpi.description ?? '',
+      unit: kpi.unit,
+      direction: kpi.direction,
+      aggregationType: kpi.aggregationType,
+      formula: kpi.formula ?? '',
+      maxAchievementPercent: kpi.maxAchievementPercent as number | null | string,
+    };
+  }
+
+  private emptyForm() {
+    return {
+      name: '',
+      kpiGroupId: '',
+      description: '',
+      unit: '',
+      direction: 'HIGHER_BETTER' as KpiDefinition['direction'],
+      aggregationType: 'SUM' as KpiDefinition['aggregationType'],
+      formula: '',
+      maxAchievementPercent: null as number | null | string,
+    };
   }
 }
