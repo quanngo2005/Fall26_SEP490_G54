@@ -10,7 +10,7 @@ of truth for both sides. Read existing contracts and controllers before choosing
    when only one side is being implemented. Record whether each endpoint is planned
    or implemented. Do not claim an endpoint exists without checking the backend.
 2. Specify HTTP method, full route, authentication/permission, path/query parameters,
-   request and response fields/types/nullability, enum wire values, pagination,
+   request and response fields/types/nullability, enum API values, pagination,
    success/error status codes, and representative JSON examples.
 3. Use the same contract for TypeScript API models and BLL request/response DTOs.
    Keep presentation-only models separate; use explicit adapters when needed.

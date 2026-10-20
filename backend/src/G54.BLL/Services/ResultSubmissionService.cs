@@ -75,8 +75,8 @@ public sealed partial class ResultSubmissionService(
                     Name: wtk.KpiDefinition.Name,
                     Description: wtk.KpiDefinition.Description,
                     Unit: wtk.KpiDefinition.Unit,
-                    AggregationType: wtk.KpiDefinition.AggregationType.ToWire(),
-                    Direction: wtk.KpiDefinition.Direction.ToWire(),
+                    AggregationType: wtk.KpiDefinition.AggregationType.ToEnumString(),
+                    Direction: wtk.KpiDefinition.Direction.ToEnumString(),
                     IsRequired: wtk.IsRequired,
                     Formula: wtk.KpiDefinition.Formula));
             }
@@ -93,7 +93,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             WorkTitle: work.Title,
-            WorkStatus: work.Status.ToWire(),
+            WorkStatus: work.Status.ToEnumString(),
             AssigneeEmployeeId: work.AssigneeEmployeeId,
             AssigneeEmployeeName: work.AssigneeEmployee?.FullName ?? "",
             AssigneeEmployeeCode: work.AssigneeEmployee?.EmployeeCode ?? "",
@@ -130,7 +130,7 @@ public sealed partial class ResultSubmissionService(
         if (work.Status is WorkStatus.Submitted or WorkStatus.Verified or WorkStatus.Done or WorkStatus.Cancelled)
         {
             throw new ConflictException(
-                $"Công việc đang ở trạng thái {work.Status.ToWire()}, không thể nộp kết quả.",
+                $"Công việc đang ở trạng thái {work.Status.ToEnumString()}, không thể nộp kết quả.",
                 ErrorCodes.SubmissionInvalidState);
         }
 
@@ -232,7 +232,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToWire(),
+            Status: submission.Status.ToEnumString(),
             SubmittedAt: submission.SubmittedAt,
             EvidenceCount: uploadedFiles.Count,
             MetricCount: parsedMetrics.Count,
@@ -307,7 +307,7 @@ public sealed partial class ResultSubmissionService(
                 SubmitterEmployeeName: sub.SubmitterEmployee?.FullName ?? "",
                 SubmitterEmployeeCode: sub.SubmitterEmployee?.EmployeeCode ?? "",
                 SubmissionNo: sub.SubmissionNo,
-                Status: sub.Status.ToWire(),
+                Status: sub.Status.ToEnumString(),
                 Comment: cleanComment,
                 SubmittedAt: sub.SubmittedAt,
                 UpdatedAt: sub.UpdatedAt,
@@ -368,7 +368,7 @@ public sealed partial class ResultSubmissionService(
             SubmitterEmployeeName: submission.SubmitterEmployee?.FullName ?? "",
             SubmitterEmployeeCode: submission.SubmitterEmployee?.EmployeeCode ?? "",
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToWire(),
+            Status: submission.Status.ToEnumString(),
             Comment: cleanComment,
             SubmittedAt: submission.SubmittedAt,
             UpdatedAt: submission.UpdatedAt,
@@ -400,7 +400,7 @@ public sealed partial class ResultSubmissionService(
         if (submission.Status != SubmissionStatus.Submitted)
         {
             throw new ConflictException(
-                $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status.ToWire()}.",
+                $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status.ToEnumString()}.",
                 ErrorCodes.SubmissionInvalidState);
         }
 
@@ -429,7 +429,7 @@ public sealed partial class ResultSubmissionService(
             WorkId: work.Id,
             WorkCode: work.Code,
             SubmissionNo: submission.SubmissionNo,
-            Status: submission.Status.ToWire(),
+            Status: submission.Status.ToEnumString(),
             SubmittedAt: submission.SubmittedAt,
             EvidenceCount: submission.Evidences.Count,
             MetricCount: metrics.Count,

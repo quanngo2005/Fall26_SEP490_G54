@@ -2,7 +2,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiResponse, PagedResult } from './kpi-definition.models';
+import { ApiResponse } from './api-response.model';
+import { PagedResult } from './paged-result.model';
 import {
   DepartmentDetail,
   DepartmentFilter,

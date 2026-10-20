@@ -1,4 +1,4 @@
-import { PagedResult } from './kpi-definition.models';
+import { PagedResult } from './paged-result.model';
 
 export type DepartmentStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 export type DepartmentLevel = 'BRANCH' | 'DEPARTMENT' | 'TEAM';

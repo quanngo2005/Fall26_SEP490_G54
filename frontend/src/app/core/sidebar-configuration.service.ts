@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiResponse } from './kpi-definition.models';
+import { ApiResponse } from './api-response.model';
 import type { MenuKey, WorkspaceRole } from '../shared/layout/navigation.service';
 
 export interface SidebarConfiguration {

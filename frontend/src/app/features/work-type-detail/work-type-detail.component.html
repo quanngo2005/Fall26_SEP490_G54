@@ -1,415 +1,156 @@
-<main class="work-type-app" [attr.aria-label]="localization.workType.title">
-  <aside class="sidebar" [attr.aria-label]="localization.common.mainNavigation">
-    <a class="brand" href="#work-type-detail" aria-label="Enterprise Banking">
-      <span class="brand-mark">EB</span>
-      <span class="brand-copy">
-        <strong>Enterprise Banking <small>SEC</small></strong>
-        <span>{{localization.common.brandSubtitle}}</span>
-      </span>
-    </a>
-    <div class="core-status">
-      <span>CORE v2.4.0-SEC</span><b><i></i> {{localization.common.systemOnline}}</b>
-    </div>
-    @for (group of navigationGroups; track group.id) {
-      <section class="nav-group">
-        <h2>{{group.title}} <span>⌄</span></h2>
-        @for (item of group.items; track item.id) {
-          <button type="button" class="nav-item" [class.selected]="item.id === 'employees'">
-            <span class="nav-icon" aria-hidden="true">{{item.icon}}</span>
-            <span class="nav-label">{{item.label}}</span>
-            @if (item.count) {
-              <span
-                class="nav-count"
-                [class.warn]="item.count === '1'"
-                [class.danger]="item.count === '3'"
-                >{{item.count}}</span
-              >
-            }
-          </button>
-        }
-      </section>
-    }
-    <div class="sidebar-footer">
-      <strong>v2.4.0 Enterprise</strong><span>◉ {{localization.nav.hrmsSynced}}</span>
-      <small>{{localization.nav.coreBankingSystems}}</small>
-    </div>
-  </aside>
-
-  <div class="page-shell">
-    <header class="topbar">
-      <label class="global-search"
-        ><span aria-hidden="true">⌕</span
-        ><input
-          type="search"
-          [placeholder]="localization.workType.search"
-          [attr.aria-label]="localization.workType.search"
-      /></label>
-      <div class="topbar-actions">
-        <button
-          type="button"
-          class="icon-button notification"
-          [attr.aria-label]="localization.common.notifications"
-        >
-          ♧<i></i>
-        </button>
-        <button type="button" class="icon-button help" [attr.aria-label]="localization.common.help">
-          ?
-        </button>
-        <span class="top-divider"></span>
-        <div class="user-name">
-          <strong>Nguyễn Văn An <i></i></strong><span>{{localization.workType.adminRole}}</span>
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && workType()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.workType.breadcrumb}}</p>
+          <p class="eyebrow">{{localization.workType.eyebrow}}</p>
         </div>
-        <button type="button" class="avatar" [attr.aria-label]="localization.common.userAccount">
-          ♙
-        </button>
-      </div>
-    </header>
-
-    <section class="state-simulation" [attr.aria-label]="localization.workType.simulation">
-      <strong>☷ &nbsp; {{localization.workType.simulation}}:</strong>
-      <div class="state-options">
-        <span class="current">{{localization.workType.readyState}}</span
-        ><span>{{localization.workType.warningState}}</span
-        ><span>{{localization.workType.errorState}}</span
-        ><span>{{localization.workType.emptyState}}</span>
-      </div>
-    </section>
-
-    <div class="content">
-      <section class="title-area">
-        <div class="title-main">
-          <div class="breadcrumbs">
-            <a href="#work-type-list">{{localization.workType.backToList}}</a
-            ><span>/</span><span>{{localization.workType.management}}</span
-            ><span>/</span><strong>{{localization.workType.title}}</strong>
-          </div>
-          <div class="title-row">
-            <h1>
-              {{localization.workType.name}}
-              <span>({{localization.workType.nameSubtitle}})</span>
-            </h1>
-            <button class="code-chip" type="button">WT-2026-008 ⧉</button
-            ><span class="status-chip"><i></i> {{localization.workType.active}}</span>
-          </div>
-        </div>
-        <div class="title-actions">
-          <span class="readonly"><span>♙</span> {{localization.workType.readonly}}</span>
-          <div>
-            <button class="button secondary" type="button">
-              ◴ &nbsp;{{localization.workType.history}}</button
-            ><button class="button primary" type="button" (click)="toggleEditMode()">
-              {{isEditing() ? localization.workType.save : localization.workType.edit}}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="ready-banner" [attr.aria-label]="localization.workType.configurationStatus">
-        <span class="ready-icon">✓</span>
-        <div>
-          <strong
-            >{{localization.workType.ready}}
-            <small>{{localization.workType.certified}}</small></strong
+        <div class="field department-picker">
+          <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
+          <select
+            id="work-type-select"
+            class="select"
+            [attr.aria-label]="localization.workType.selectWorkType"
+            [(ngModel)]="selectedId"
+            (ngModelChange)="changeWorkType()"
           >
-          <p>
-            {{localization.workType.readyHint}}
-          </p>
+            @for (item of workTypes(); track item.id) {
+              <option [value]="item.id">{{item.code}} · {{item.name}}</option>
+            }
+          </select>
         </div>
-        <span class="cert-date">{{localization.workType.certDate}}</span>
-      </section>
-
-      <nav class="tabs" [attr.aria-label]="localization.workType.sections">
-        <a
-          href="#overview"
-          [class.active]="activeTab() === 'overview'"
-          (click)="selectTab('overview')"
-          >ⓘ &nbsp;{{localization.workType.overview}}</a
-        >
-        <a
-          href="#workflow"
-          [class.active]="activeTab() === 'workflow'"
-          (click)="selectTab('workflow')"
-          >⛓ &nbsp;{{localization.workType.workflow}}</a
-        >
-        <a
-          href="#kpi-mappings"
-          [class.active]="activeTab() === 'kpi-mappings'"
-          (click)="selectTab('kpi-mappings')"
-          >▥ &nbsp;{{localization.workType.mappings}} <small>3</small></a
-        >
-        <a
-          href="#job-positions"
-          [class.active]="activeTab() === 'job-positions'"
-          (click)="selectTab('job-positions')"
-          >♙ &nbsp;{{localization.workType.positions}} <small>12</small></a
-        >
-        <a
-          href="#campaigns"
-          [class.active]="activeTab() === 'campaigns'"
-          (click)="selectTab('campaigns')"
-          >⚑ &nbsp;{{localization.workType.campaigns}} <small>4</small></a
-        >
-        <a href="#usage" [class.active]="activeTab() === 'usage'" (click)="selectTab('usage')"
-          >▣ &nbsp;{{localization.workType.usage}}</a
-        >
-      </nav>
-
-      <section class="surface overview-card" id="overview">
-        <div class="section-title">
-          <h2><span class="heading-icon">ⓘ</span> {{localization.workType.overview}}</h2>
-          <small>{{localization.workType.scope}}</small>
+      </div>
+      @if (loading() && !workType()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.workType.loading}}</p>
         </div>
-        <p class="overview-copy">
-          {{localization.workType.overviewCopy}}
-          @if (showMoreOverview()) {
-            {{localization.workType.overviewMore}}
-          }
-        </p>
-        <button class="text-action" type="button" (click)="toggleOverview()">
-          {{showMoreOverview() ? localization.workType.showLess : localization.workType.showMore}}⌄
-        </button>
-        <div class="updated-at">
-          ◷ &nbsp;{{localization.workType.updatedAt}} <b>06 Oct 2026, 14:32</b>
-          {{localization.workType.updatedBy}}
-        </div>
-      </section>
-
-      <section class="surface workflow-card" id="workflow">
-        <div class="section-title">
-          <h2><span class="heading-icon">⛓</span> {{localization.workType.workflow}}</h2>
-          <small>Engine: Camunda BPM v8.4 Enterprise</small>
-        </div>
-        <div class="workflow-grid">
-          <div>
-            <span>{{localization.workType.workflowCode}}</span
-            ><strong class="mono linkish">WF-EMP-001 ↗</strong>
-          </div>
-          <div>
-            <span>{{localization.workType.workflowName}}</span
-            ><strong>{{localization.workType.workflowValue}}</strong
-            ><small>({{localization.workType.workflowSubtitle}})</small>
-          </div>
-          <div>
-            <span>{{localization.workType.version}}</span
-            ><strong
-              >v1.2 <span class="version-tag">{{localization.workType.issued}}</span></strong
-            >
-          </div>
-          <div>
-            <span>{{localization.workType.effectiveStatus}}</span
-            ><strong class="active-text"><i></i> {{localization.workType.active}}</strong>
-          </div>
-          <button class="view-workflow" type="button">
-            {{localization.workType.viewWorkflow}} &nbsp;◉
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.workType.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="refresh()">
+            {{localization.workType.retry}}
           </button>
         </div>
-        <p class="workflow-description">
-          <b>{{localization.workType.workflowDescription}}</b>
-          {{localization.workType.workflowCopy}}
-        </p>
-      </section>
-
-      <section class="surface mappings-card" id="kpi-mappings">
-        <div class="section-title">
-          <h2>
-            <span class="heading-icon">⌁</span> {{localization.workType.mappings}}
-            <small class="count-pill"
-              >{{visibleMappings.length}} {{localization.workType.indicatorCount}}</small
-            >
-          </h2>
-          <div class="section-actions">
-            <label class="history-toggle"
-              ><input type="checkbox" [checked]="showHistory()" (change)="toggleHistory($event)" />
-              {{localization.workType.showHistory}}</label
-            ><button class="button secondary" type="button">
-              {{localization.workType.addMapping}}
-            </button>
+      } @else if (workType(); as data) {
+        <section class="hero surface-card">
+          <div class="hero-mark"><app-layout-icon name="myWork" /></div>
+          <div class="hero-copy">
+            <div class="title-line">
+              <h1>{{data.name}}</h1>
+              <span class="status-badge" [class.is-muted]="data.status !== 'ACTIVE'">{{statusLabel(data.status)}}</span>
+            </div>
+            <p>{{data.code}}</p>
           </div>
+        </section>
+        <section class="metrics-grid" [attr.aria-label]="localization.workType.metricsLabel">
+          <article class="metric-card surface-card metric-navy">
+            <div class="metric-label">{{localization.workType.mappedKpis}}</div>
+            <strong>{{data.kpis.length}}</strong>
+            <span>{{localization.workType.mappedKpisHint}}</span>
+          </article>
+          <article class="metric-card surface-card metric-blue">
+            <div class="metric-label">{{localization.workType.requiredKpis}}</div>
+            <strong>{{requiredCount(data)}}</strong>
+            <span>{{localization.workType.requiredKpisHint}}</span>
+          </article>
+        </section>
+        <div class="dashboard-grid">
+          <section class="panel surface-card" aria-labelledby="overview-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="overview-title">{{localization.workType.overview}}</h2>
+                <p>{{localization.workType.overviewHint}}</p>
+              </div>
+            </div>
+            <p class="overview-copy">
+              {{data.description ?? localization.workType.notAvailable}}
+            </p>
+            <dl class="detail-list">
+              <div>
+                <dt>{{localization.workType.workflow}}</dt>
+                <dd>{{data.workflowName}}</dd>
+              </div>
+              <div>
+                <dt>{{localization.workType.createdAt}}</dt>
+                <dd class="mono">{{i18n.formatDate(data.createdAt, 'DD/MM/YYYY HH:mm')}}</dd>
+              </div>
+            </dl>
+          </section>
         </div>
-        <div class="table-wrap">
-          <table class="mapping-table">
-            <thead>
-              <tr>
-                <th>{{localization.workType.code}}</th>
-                <th>{{localization.workType.kpiName}}</th>
-                <th>{{localization.workType.unit}}</th>
-                <th>{{localization.workType.aggregation}}</th>
-                <th>{{localization.workType.direction}}</th>
-                <th>{{localization.workType.required}}</th>
-                <th>{{localization.workType.period}}</th>
-                <th>{{localization.workType.status}}</th>
-                <th>{{localization.common.actions}}</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (mapping of visibleMappings; track mapping.code) {
-                <tr [class.expired-row]="mapping.expired">
-                  <td class="mono">{{mapping.code}} ↗</td>
-                  <td>
-                    <strong>{{mapping.name}}</strong
-                    ><small>{{mapping.description}}</small>
-                  </td>
-                  <td>{{mapping.unit}}</td>
-                  <td>
-                    <span class="aggregation">{{mapping.aggregation}}</span>
-                  </td>
-                  <td class="direction" [class.down]="!mapping.improving">
-                    {{mapping.improving ? '⌁ ↑' : '⌁ ↓'}}
-                    {{mapping.improving ? localization.workType.higher : localization.workType.lower}}
-                  </td>
-                  <td>
-                    <span class="required" [class.optional]="!mapping.required">{{mapping.required
-                        ? localization.workType.required
-                        : localization.workType.optional}}</span>
-                  </td>
-                  <td class="mono">{{mapping.period}}</td>
-                  <td>
-                    <span class="mapping-status" [class.expired-status]="mapping.expired"
-                      ><i></i
-                      >{{mapping.expired
-                          ? localization.workType.expired
-                          : localization.workType.current}}</span
-                    >
-                  </td>
-                  <td>
-                    <button
-                      class="row-action"
-                      type="button"
-                      [attr.aria-label]="localization.common.view + ' ' + mapping.code"
-                    >
-                      ◉
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div class="related-grid">
-        <section class="surface related-card" id="job-positions">
-          <div class="section-title">
-            <h2>
-              <span class="heading-icon">♙</span> {{localization.workType.positions}}
-              <small class="count-pill">12 {{localization.workType.positionCount}}</small>
-            </h2>
-            <button class="button secondary" type="button">
-              {{localization.workType.addPosition}}
-            </button>
-          </div>
-          <div class="related-controls">
-            <label class="table-search"
-              ><span>⌕</span
-              ><input
-                type="search"
-                [placeholder]="localization.workType.positionSearch"
-                [value]="positionSearch()"
-                (input)="setPositionSearch($event)" /></label
-            ><a href="#job-positions">{{localization.workType.viewAllPositions}}</a>
+        <section class="panel surface-card" aria-labelledby="mappings-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="mappings-title">{{localization.workType.mappings}}</h2>
+              <p>{{localization.workType.mappingsHint}}</p>
+            </div>
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                [checked]="includeHistory()"
+                (change)="toggleHistory($event)"
+              />
+              {{localization.workType.showHistory}}
+            </label>
           </div>
           <div class="table-wrap">
-            <table class="related-table">
+            <table>
               <thead>
                 <tr>
-                  <th>{{localization.workType.positionCode}}</th>
-                  <th>{{localization.workType.positionName}}</th>
+                  <th>{{localization.workType.kpiCode}}</th>
+                  <th>{{localization.workType.kpiName}}</th>
+                  <th>{{localization.workType.requirement}}</th>
+                  <th>{{localization.workType.period}}</th>
                   <th>{{localization.workType.status}}</th>
                 </tr>
               </thead>
               <tbody>
-                @for (position of visibleJobPositions; track position.code) {
+                @for (kpi of visibleKpis(data); track kpi.kpiDefinitionId) {
                   <tr>
-                    <td class="mono">{{position.code}}</td>
-                    <td>{{position.name}}</td>
+                    <td class="mono">{{kpi.kpiCode}}</td>
                     <td>
-                      <span class="small-active">{{localization.common.active}}</span>
+                      <strong>{{kpi.kpiName}}</strong>
                     </td>
+                    <td>
+                      <span class="status-badge" [class.is-muted]="!kpi.isRequired">{{kpi.isRequired
+                          ? localization.workType.required
+                          : localization.workType.optional}}</span>
+                    </td>
+                    <td class="mono">
+                      {{i18n.formatDate(kpi.effectiveFrom)}} –
+                      {{kpi.effectiveTo
+                          ? i18n.formatDate(kpi.effectiveTo)
+                          : localization.workType.noEndDate}}
+                    </td>
+                    <td>
+                      <span
+                        class="status-badge"
+                        [class.is-muted]="mappingState(kpi) === 'expired'"
+                        [class.is-info]="mappingState(kpi) === 'upcoming'"
+                        >{{mappingLabel(kpi)}}</span
+                      >
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="empty-cell">{{localization.workType.noMappings}}</td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
         </section>
-        <section class="surface related-card" id="campaigns">
-          <div class="section-title">
-            <h2>
-              <span class="heading-icon">⚑</span> {{localization.workType.campaigns}}
-              <small class="count-pill">4 {{localization.workType.campaignCount}}</small>
-            </h2>
-            <button class="button secondary" type="button">
-              {{localization.workType.addCampaign}}
-            </button>
-          </div>
-          <div class="related-controls">
-            <label class="table-search"
-              ><span>⌕</span
-              ><input
-                type="search"
-                [placeholder]="localization.workType.campaignSearch"
-                [value]="campaignSearch()"
-                (input)="setCampaignSearch($event)" /></label
-            ><a href="#campaigns">{{localization.workType.viewAllCampaigns}}</a>
-          </div>
-          <div class="table-wrap">
-            <table class="related-table">
-              <thead>
-                <tr>
-                  <th>{{localization.workType.campaignCode}}</th>
-                  <th>{{localization.workType.campaignName}}</th>
-                  <th>{{localization.workType.status}}</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (campaign of visibleCampaigns; track campaign.code) {
-                  <tr>
-                    <td class="mono">{{campaign.code}}</td>
-                    <td>{{campaign.name}}</td>
-                    <td>
-                      <span class="small-active">{{localization.common.active}}</span>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <section class="surface usage-card" id="usage">
-        <div class="section-title">
-          <h2><span class="heading-icon">▣</span> {{localization.workType.usage}}</h2>
-          <small>{{localization.workType.realtime}}</small>
+      } @else {
+        <div class="state-card">
+          <p>{{localization.workType.noWorkTypes}}</p>
         </div>
-        <div class="usage-grid">
-          <article class="usage-tile">
-            <div>
-              <span class="usage-label">{{localization.workType.totalWorks}}</span
-              ><strong>128</strong
-              ><a href="#usage"
-                >{{localization.workType.viewWorks}} &nbsp;<span>{{localization.workType.viewWorksHint}}</span></a
-              >
-            </div>
-            <span class="usage-icon navy">▤</span>
-          </article>
-          <article class="usage-tile">
-            <div>
-              <span class="usage-label">{{localization.workType.activeWorks}}</span
-              ><strong class="green-number"
-                >17 <small>{{localization.workType.workload}}</small></strong
-              ><a href="#usage"
-                >{{localization.workType.viewActiveWorks}} &nbsp;<span>{{localization.workType.viewActiveHint}}</span></a
-              >
-            </div>
-            <span class="usage-icon green">◴</span>
-          </article>
-        </div>
-      </section>
-
-      <footer class="audit-footer">
-        <span>♙ {{localization.workType.auditFooter}}</span
-        ><strong>Enterprise Core Architecture v4.8.2</strong>
-      </footer>
-    </div>
+      }
+    </main>
   </div>
-</main>
+</div>

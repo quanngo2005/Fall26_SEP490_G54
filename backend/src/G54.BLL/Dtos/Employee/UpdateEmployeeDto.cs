@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Employee;
 
@@ -29,6 +28,7 @@ public sealed class UpdateEmployeeDto
 
     public Guid? ManagerId { get; set; }
 
+    /// <summary>UPPER_SNAKE status: ACTIVE, INACTIVE, ON_LEAVE, TERMINATED.</summary>
     [Required(ErrorMessage = "Trạng thái nhân viên là bắt buộc.")]
-    public EmployeeStatus Status { get; set; }
+    public string Status { get; set; } = string.Empty;
 }

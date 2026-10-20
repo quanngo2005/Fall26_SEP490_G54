@@ -1,4 +1,5 @@
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.KpiDefinition;
 using G54.DAL;
@@ -15,6 +16,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var status = EnumApiFormat.ParseEnum<KpiStatus>(filter.Status, "status");
+        var aggregationType = EnumApiFormat.ParseEnum<KpiAggregationType>(filter.AggregationType, "aggregationType");
         var query = db.KpiDefinitions.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -26,9 +29,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
                 (kpi.Description != null && kpi.Description.Contains(keyword)));
         }
 
-        if (filter.Status.HasValue)
+        if (status.HasValue)
         {
-            query = query.Where(kpi => kpi.Status == filter.Status.Value);
+            query = query.Where(kpi => kpi.Status == status.Value);
         }
 
         if (filter.KpiGroupId.HasValue)
@@ -36,9 +39,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             query = query.Where(kpi => kpi.KpiGroupId == filter.KpiGroupId.Value);
         }
 
-        if (filter.AggregationType.HasValue)
+        if (aggregationType.HasValue)
         {
-            query = query.Where(kpi => kpi.AggregationType == filter.AggregationType.Value);
+            query = query.Where(kpi => kpi.AggregationType == aggregationType.Value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -55,10 +58,10 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
                 kpi.Description,
                 kpi.Formula,
                 kpi.Unit,
-                kpi.AggregationType,
-                kpi.Direction,
+                kpi.AggregationType.ToEnumString(),
+                kpi.Direction.ToEnumString(),
                 kpi.MaxAchievementPercent,
-                kpi.Status,
+                kpi.Status.ToEnumString(),
                 kpi.UpdatedAt))
             .ToListAsync(cancellationToken);
 
@@ -79,10 +82,10 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
                 kpi.Description,
                 kpi.Formula,
                 kpi.Unit,
-                kpi.AggregationType,
-                kpi.Direction,
+                kpi.AggregationType.ToEnumString(),
+                kpi.Direction.ToEnumString(),
                 kpi.MaxAchievementPercent,
-                kpi.Status,
+                kpi.Status.ToEnumString(),
                 kpi.UpdatedAt))
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -101,7 +104,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         KpiDefinitionSaveDto dto,
         CancellationToken cancellationToken = default)
     {
-        Validate(dto);
+        var (aggregationType, direction) = Validate(dto);
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, null, cancellationToken);
         await EnsureGroupExistsAsync(dto.KpiGroupId, cancellationToken);
@@ -115,8 +118,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             Description = NormalizeOptional(dto.Description),
             Formula = NormalizeOptional(dto.Formula),
             Unit = dto.Unit.Trim(),
-            AggregationType = dto.AggregationType,
-            Direction = dto.Direction,
+            AggregationType = aggregationType,
+            Direction = direction,
             MaxAchievementPercent = dto.MaxAchievementPercent,
             Status = KpiStatus.Draft,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -132,7 +135,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         KpiDefinitionSaveDto dto,
         CancellationToken cancellationToken = default)
     {
-        Validate(dto);
+        var (aggregationType, direction) = Validate(dto);
         var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new NotFoundException("KPI Definition", id);
 
@@ -146,8 +149,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         kpi.Description = NormalizeOptional(dto.Description);
         kpi.Formula = NormalizeOptional(dto.Formula);
         kpi.Unit = dto.Unit.Trim();
-        kpi.AggregationType = dto.AggregationType;
-        kpi.Direction = dto.Direction;
+        kpi.AggregationType = aggregationType;
+        kpi.Direction = direction;
         kpi.MaxAchievementPercent = dto.MaxAchievementPercent;
         kpi.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -160,15 +163,12 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         KpiStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        if (!Enum.IsDefined(dto.Status))
-        {
-            throw new ValidationException("Trạng thái KPI không hợp lệ.");
-        }
+        var status = EnumApiFormat.ParseRequiredEnum<KpiStatus>(dto.Status, "status");
 
         var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new NotFoundException("KPI Definition", id);
 
-        kpi.Status = dto.Status;
+        kpi.Status = status;
         kpi.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -198,7 +198,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             ?? throw new NotFoundException("KPI Definition", id);
     }
 
-    private static void Validate(KpiDefinitionSaveDto dto)
+    private static (KpiAggregationType AggregationType, KpiDirection Direction) Validate(KpiDefinitionSaveDto dto)
     {
         if (dto.KpiGroupId == Guid.Empty || string.IsNullOrWhiteSpace(dto.Code) || dto.Code.Trim().Length > 50 ||
             string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 255 ||
@@ -207,15 +207,15 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             throw new ValidationException("Nhóm KPI, mã, tên và đơn vị là bắt buộc; mã tối đa 50, tên 255 và đơn vị 50 ký tự.");
         }
 
-        if (!Enum.IsDefined(dto.AggregationType) || !Enum.IsDefined(dto.Direction))
-        {
-            throw new ValidationException("Cách tổng hợp hoặc chiều KPI không hợp lệ.");
-        }
+        var aggregationType = EnumApiFormat.ParseRequiredEnum<KpiAggregationType>(dto.AggregationType, "aggregationType");
+        var direction = EnumApiFormat.ParseRequiredEnum<KpiDirection>(dto.Direction, "direction");
 
         if (dto.MaxAchievementPercent is <= 0)
         {
             throw new ValidationException("Mức trần phần trăm hoàn thành phải lớn hơn 0.");
         }
+
+        return (aggregationType, direction);
     }
 
     private static string? NormalizeOptional(string? value) =>
