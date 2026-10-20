@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
+        services.AddScoped<ICampaignService, CampaignService>();
         return services;
     }
 }
