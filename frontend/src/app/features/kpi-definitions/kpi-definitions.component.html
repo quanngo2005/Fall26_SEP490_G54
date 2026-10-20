@@ -11,7 +11,7 @@
           ℹ
         }
       </span>
-      <span class="toast-text">{{ t.message }}</span>
+      <span class="toast-text">{{t.message}}</span>
     </div>
   }
 
@@ -21,7 +21,7 @@
       <div class="brand">
         <span class="brand-icon">🏛️</span>
         <span class="brand-title">BPMS</span>
-        <span class="brand-subtitle">BANKING WORKSPACE</span>
+        <span class="brand-subtitle">{{localization.kpi.workspace}}</span>
       </div>
     </div>
 
@@ -30,15 +30,19 @@
         <span class="search-icon">🔍</span>
         <input
           type="text"
-          placeholder="Tìm kiếm trong workspace..."
-          aria-label="Tìm kiếm trong workspace"
+          [placeholder]="localization.kpi.searchWorkspace"
+          [attr.aria-label]="localization.kpi.searchWorkspace"
         />
         <kbd class="search-kbd">⌘ K</kbd>
       </div>
     </div>
 
     <div class="topbar-right">
-      <button class="icon-button" type="button" aria-label="Thông báo">
+      <button
+        class="icon-button"
+        type="button"
+        [attr.aria-label]="localization.common.notifications"
+      >
         <span class="bell-icon">🔔</span>
         <span class="notification-dot"></span>
       </button>
@@ -47,7 +51,7 @@
         <div class="avatar-badge">TB</div>
         <div class="user-info">
           <span class="user-name">Tran Van B</span>
-          <span class="user-role">Trưởng phòng</span>
+          <span class="user-role">{{localization.kpi.manager}}</span>
         </div>
         <span class="dropdown-arrow">˅</span>
       </div>
@@ -58,10 +62,10 @@
     <!-- Left Sidebar (Navigation) -->
     <aside class="sidebar">
       <div class="dept-workspace-card">
-        <span class="dept-workspace-label">DEPARTMENT WORKSPACE</span>
+        <span class="dept-workspace-label">{{localization.kpi.departmentWorkspace}}</span>
         <div class="dept-workspace-select">
           <div class="dept-info">
-            <strong>Quản lý phòng ban</strong>
+            <strong>{{localization.kpi.departmentManagement}}</strong>
             <small>DEPT_MANAGER • DM-002</small>
           </div>
           <span class="switch-icon">⇅</span>
@@ -72,36 +76,36 @@
         <div class="nav-group">
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">⊞</span>
-            <span>Tổng quan</span>
+            <span>{{localization.kpi.overview}}</span>
           </a>
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">💼</span>
-            <span>Công việc của phòng</span>
+            <span>{{localization.kpi.departmentTasks}}</span>
           </a>
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">📋</span>
-            <span>Phê duyệt</span>
+            <span>{{localization.kpi.approvals}}</span>
           </a>
         </div>
 
         <div class="nav-group">
-          <span class="nav-section-title">CHIẾN LƯỢC & HIỆU SUẤT</span>
+          <span class="nav-section-title">{{localization.kpi.strategy}}</span>
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">🎯</span>
-            <span>Mục tiêu chiến lược</span>
+            <span>{{localization.kpi.strategicTargets}}</span>
           </a>
           <a class="nav-link active" href="javascript:void(0)">
             <span class="nav-icon">🎛</span>
-            <span>KPI Definitions</span>
+            <span>{{localization.kpi.definitions}}</span>
             <span class="active-dot">•</span>
           </a>
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">⚖</span>
-            <span>Phân bổ KPI</span>
+            <span>{{localization.kpi.allocation}}</span>
           </a>
           <a class="nav-link" href="javascript:void(0)">
             <span class="nav-icon">📊</span>
-            <span>Báo cáo hiệu suất</span>
+            <span>{{localization.kpi.reports}}</span>
           </a>
         </div>
       </nav>
@@ -109,15 +113,15 @@
       <div class="sidebar-footer">
         <a class="nav-link" href="javascript:void(0)">
           <span class="nav-icon">❓</span>
-          <span>Trợ giúp</span>
+          <span>{{localization.common.help}}</span>
         </a>
         <a class="nav-link" href="javascript:void(0)">
           <span class="nav-icon">⚙</span>
-          <span>Cài đặt</span>
+          <span>{{localization.kpi.settings}}</span>
         </a>
         <div class="system-status">
           <span class="status-indicator"></span>
-          <span>Hệ thống đang hoạt động</span>
+          <span>{{localization.kpi.systemRunning}}</span>
         </div>
       </div>
     </aside>
@@ -126,8 +130,8 @@
     <section class="catalog-panel">
       <div class="catalog-header">
         <span class="screen-code">SCR-STRAT-02</span>
-        <h1 class="catalog-title">KPI Definitions</h1>
-        <p class="catalog-desc">Danh mục chỉ số và cấu hình đo lường hiệu suất.</p>
+        <h1 class="catalog-title">{{localization.kpi.definitions}}</h1>
+        <p class="catalog-desc">{{localization.kpi.catalogDescription}}</p>
       </div>
 
       <!-- Filters & Actions -->
@@ -136,10 +140,10 @@
           <span class="input-icon">🔍</span>
           <input
             type="text"
-            placeholder="Tìm mã/tên KPI..."
+            [placeholder]="localization.kpi.searchKpi"
             [ngModel]="searchTerm()"
             (ngModelChange)="searchTerm.set($event)"
-            aria-label="Tìm mã hoặc tên KPI"
+            [attr.aria-label]="localization.kpi.searchKpi"
           />
         </div>
 
@@ -147,25 +151,25 @@
           <select
             [ngModel]="groupFilter()"
             (ngModelChange)="groupFilter.set($event)"
-            aria-label="Lọc theo nhóm KPI"
+            [attr.aria-label]="localization.kpi.filterGroup"
           >
-            <option value="all">Tất cả nhóm</option>
+            <option value="all">{{localization.kpi.allGroups}}</option>
             @for (g of groups(); track g.id) {
-              <option [value]="g.id">{{ g.name }}</option>
+              <option [value]="g.id">{{g.name}}</option>
             }
           </select>
         </div>
 
         <button type="button" class="btn-create-kpi" (click)="openCreateModal()">
-          <span>+ Tạo KPI Mới</span>
+          <span>{{localization.kpi.createNew}}</span>
         </button>
       </div>
 
       <!-- List Count Header -->
       <div class="catalog-count-row">
-        <span class="catalog-label">DANH MỤC KPI</span>
+        <span class="catalog-label">{{localization.kpi.catalog}}</span>
         <span class="count-badge">
-          {{ filteredKpis().length < 10 ? '0' + filteredKpis().length : filteredKpis().length }} KPI
+          {{filteredKpis().length < 10 ? '0' + filteredKpis().length : filteredKpis().length}} KPI
         </span>
       </div>
 
@@ -174,19 +178,19 @@
         @if (loading()) {
           <div class="loading-state">
             <div class="spinner"></div>
-            <span>Đang tải danh mục KPI...</span>
+            <span>{{localization.kpi.loading}}</span>
           </div>
         } @else if (filteredKpis().length === 0) {
           <div class="empty-state">
             <span class="empty-icon">📂</span>
-            <strong>Không tìm thấy KPI phù hợp</strong>
-            <p>Vui lòng thử tìm với từ khóa khác hoặc xóa bộ lọc.</p>
+            <strong>{{localization.kpi.empty}}</strong>
+            <p>{{localization.kpi.emptyHint}}</p>
             <button
               type="button"
               class="btn-reset-filter"
               (click)="searchTerm.set(''); groupFilter.set('all')"
             >
-              Đặt lại bộ lọc
+              {{localization.kpi.resetFilters}}
             </button>
           </div>
         } @else {
@@ -202,7 +206,7 @@
                 (keydown.space)="selectKpi(item)"
               >
                 <div class="card-top-row">
-                  <span class="kpi-code-pill">{{ item.code }}</span>
+                  <span class="kpi-code-pill">{{item.code}}</span>
                   @if (selectedKpi()?.id === item.id) {
                     <span class="card-status-icon selected-check">✔</span>
                   } @else {
@@ -211,19 +215,25 @@
                 </div>
 
                 <div class="card-name-row">
-                  <strong class="kpi-name">{{ item.name }}</strong>
+                  <strong class="kpi-name">{{item.name}}</strong>
                 </div>
 
                 <div class="card-bottom-row">
                   @if (item.direction === 'HigherBetter') {
-                    <span class="direction-badge higher"> <i>↗</i> Higher Better </span>
+                    <span class="direction-badge higher">
+                      <i>↗</i> {{localization.kpi.higherBetter}}
+                    </span>
                   } @else if (item.direction === 'LowerBetter') {
-                    <span class="direction-badge lower"> <i>↘</i> Lower Better </span>
+                    <span class="direction-badge lower">
+                      <i>↘</i> {{localization.kpi.lowerBetter}}
+                    </span>
                   } @else {
-                    <span class="direction-badge target"> <i>•</i> On Target </span>
+                    <span class="direction-badge target">
+                      <i>•</i> {{localization.kpi.onTarget}}
+                    </span>
                   }
 
-                  <span class="group-name">{{ item.kpiGroupName }}</span>
+                  <span class="group-name">{{item.kpiGroupName}}</span>
                 </div>
               </div>
             }
@@ -234,7 +244,7 @@
       <!-- Bottom Tip -->
       <div class="catalog-tip">
         <span class="tip-icon">ℹ</span>
-        <span>Chọn một thẻ KPI để xem và cập nhật cấu hình.</span>
+        <span>{{localization.kpi.selectHint}}</span>
       </div>
     </section>
 
@@ -244,19 +254,19 @@
         <div class="workspace-header">
           <div class="header-titles">
             <div class="title-with-badge">
-              <h2>Cấu hình KPI: {{ editCode() }}</h2>
+              <h2>{{localization.kpi.configuration}} {{editCode()}}</h2>
               <div class="header-actions">
                 <span class="active-status-badge">
                   <span class="dot"></span>
-                  <span>Đang áp dụng</span>
+                  <span>{{localization.kpi.applying}}</span>
                 </span>
                 <button type="button" class="btn-edit-kpi" (click)="openEditModal()">
-                  ✎ Chỉnh sửa
+                  ✎ {{localization.kpi.edit}}
                 </button>
               </div>
             </div>
             <p class="header-subtitle">
-              Thiết lập thông tin, phương pháp đo lường và quy tắc phân bổ KPI.
+              {{localization.kpi.configurationHint}}
             </p>
           </div>
         </div>
@@ -264,50 +274,50 @@
         <div class="workspace-scrollable">
           <!-- Card 1: Thông tin KPI -->
           <div class="form-card">
-            <h3 class="card-title">Thông tin KPI</h3>
+            <h3 class="card-title">{{localization.kpi.information}}</h3>
             <div class="form-grid">
               <div class="form-group">
-                <label for="kpiCodeInput">Mã KPI</label>
+                <label for="kpiCodeInput">{{localization.kpi.code}}</label>
                 <div class="input-with-lock">
                   <input id="kpiCodeInput" type="text" [value]="editCode()" disabled />
-                  <span class="lock-icon" title="Mã KPI là định danh duy nhất không thể đổi"
-                    >🔒</span
-                  >
+                  <span class="lock-icon" [title]="localization.kpi.codeLocked">🔒</span>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="kpiNameInput">Tên KPI <span class="required">*</span></label>
+                <label for="kpiNameInput"
+                  >{{localization.kpi.name}} <span class="required">*</span></label
+                >
                 <input
                   id="kpiNameInput"
                   type="text"
                   [ngModel]="editName()"
                   (ngModelChange)="editName.set($event)"
-                  placeholder="Nhập tên KPI..."
+                  [placeholder]="localization.kpi.namePlaceholder"
                 />
               </div>
 
               <div class="form-group">
-                <label for="kpiGroupSelect">Nhóm KPI</label>
+                <label for="kpiGroupSelect">{{localization.kpi.group}}</label>
                 <select
                   id="kpiGroupSelect"
                   [ngModel]="editGroupId()"
                   (ngModelChange)="editGroupId.set($event)"
                 >
                   @for (g of groups(); track g.id) {
-                    <option [value]="g.id">{{ g.name }}</option>
+                    <option [value]="g.id">{{g.name}}</option>
                   }
                 </select>
               </div>
 
               <div class="form-group full-width">
-                <label for="kpiDescTextarea">Mô tả</label>
+                <label for="kpiDescTextarea">{{localization.kpi.description}}</label>
                 <textarea
                   id="kpiDescTextarea"
                   rows="2"
                   [ngModel]="editDescription()"
                   (ngModelChange)="editDescription.set($event)"
-                  placeholder="Mô tả mục đích và cách tính KPI..."
+                  [placeholder]="localization.kpi.descriptionPlaceholder"
                 ></textarea>
               </div>
             </div>
@@ -315,10 +325,10 @@
 
           <!-- Card 2: Phương pháp đo lường -->
           <div class="form-card">
-            <h3 class="card-title">Phương pháp đo lường</h3>
+            <h3 class="card-title">{{localization.kpi.measurement}}</h3>
             <div class="form-grid">
               <div class="form-group">
-                <label for="kpiUnitSelect">Đơn vị</label>
+                <label for="kpiUnitSelect">{{localization.kpi.unit}}</label>
                 <select
                   id="kpiUnitSelect"
                   [ngModel]="editUnit()"
@@ -326,15 +336,15 @@
                 >
                   <option value="VND">VND</option>
                   <option value="%">%</option>
-                  <option value="Giao dịch">Giao dịch</option>
-                  <option value="Hồ sơ">Hồ sơ</option>
-                  <option value="Điểm">Điểm</option>
-                  <option value="Số lượng">Số lượng</option>
+                  <option value="Giao dịch">{{localization.kpi.transactions}}</option>
+                  <option value="Hồ sơ">{{localization.kpi.dossiers}}</option>
+                  <option value="Điểm">{{localization.kpi.points}}</option>
+                  <option value="Số lượng">{{localization.kpi.quantity}}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <span class="label-text">Chiều đánh giá</span>
+                <span class="label-text">{{localization.kpi.direction}}</span>
                 <div class="segmented-control">
                   <button
                     type="button"
@@ -342,7 +352,7 @@
                     [class.active]="editDirection() === 'HigherBetter'"
                     (click)="setDirection('HigherBetter')"
                   >
-                    • Càng cao càng tốt
+                    • {{localization.kpi.higherBetter}}
                   </button>
                   <button
                     type="button"
@@ -350,33 +360,33 @@
                     [class.active]="editDirection() === 'LowerBetter'"
                     (click)="setDirection('LowerBetter')"
                   >
-                    Càng thấp càng tốt
+                    {{localization.kpi.lowerBetter}}
                   </button>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="kpiAggSelect">Phép tổng hợp</label>
+                <label for="kpiAggSelect">{{localization.kpi.aggregation}}</label>
                 <select
                   id="kpiAggSelect"
                   [ngModel]="editAggregationType()"
                   (ngModelChange)="editAggregationType.set($event)"
                 >
-                  <option value="Sum">Sum</option>
-                  <option value="Ratio">Ratio</option>
-                  <option value="Avg">Avg</option>
-                  <option value="NoAggregation">NoAggregation</option>
+                  <option value="Sum">{{localization.kpi.sum}}</option>
+                  <option value="Ratio">{{localization.kpi.ratio}}</option>
+                  <option value="Avg">{{localization.kpi.average}}</option>
+                  <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
                 </select>
               </div>
 
               <div class="form-group">
-                <label for="kpiFormulaInput">Công thức</label>
+                <label for="kpiFormulaInput">{{localization.kpi.formula}}</label>
                 <input
                   id="kpiFormulaInput"
                   type="text"
                   [ngModel]="editFormula()"
                   (ngModelChange)="editFormula.set($event)"
-                  placeholder="Ví dụ: FORMULA_SUM_DEPOSIT"
+                  [placeholder]="localization.kpi.formulaPlaceholder"
                 />
               </div>
             </div>
@@ -385,14 +395,14 @@
           <!-- Card 3: Hệ số nhân theo loại tiền gửi -->
           <div class="form-card">
             <div class="card-header-with-badge">
-              <h3 class="card-title">Hệ số nhân theo loại tiền gửi</h3>
+              <h3 class="card-title">{{localization.kpi.depositMultipliers}}</h3>
               <span class="rule-badge">BR-33</span>
             </div>
 
             <div class="dynamic-rows-list">
               @for (item of depositMultipliers(); track item.id || $index; let idx = $index) {
                 <div class="dynamic-row">
-                  <span class="row-label">{{ item.label }}</span>
+                  <span class="row-label">{{localization.products[item.label] ?? item.label}}</span>
                   <div class="row-input-box">
                     <input
                       type="number"
@@ -400,7 +410,7 @@
                       min="0"
                       [ngModel]="item.value"
                       (ngModelChange)="updateMultiplierValue(idx, $event)"
-                      aria-label="Giá trị hệ số"
+                      [attr.aria-label]="localization.kpi.multiplierValue"
                     />
                   </div>
                 </div>
@@ -411,14 +421,14 @@
           <!-- Card 4: Trọng số theo vai trò -->
           <div class="form-card">
             <div class="card-header-with-badge">
-              <h3 class="card-title">Trọng số theo vai trò</h3>
+              <h3 class="card-title">{{localization.kpi.roleWeights}}</h3>
               <span class="rule-badge">BR-06/49</span>
             </div>
 
             <div class="dynamic-rows-list">
               @for (item of roleWeights(); track item.id || $index; let idx = $index) {
                 <div class="dynamic-row">
-                  <span class="row-label">{{ item.role }}</span>
+                  <span class="row-label">{{item.role}}</span>
                   <div class="row-input-box with-unit">
                     <input
                       type="number"
@@ -427,7 +437,7 @@
                       max="100"
                       [ngModel]="item.weight"
                       (ngModelChange)="updateRoleWeightValue(idx, $event)"
-                      aria-label="Trọng số phần trăm"
+                      [attr.aria-label]="localization.kpi.percentWeight"
                     />
                     <span class="unit-tag">%</span>
                   </div>
@@ -439,14 +449,13 @@
             @if (isWeightValid()) {
               <div class="validation-banner success">
                 <span class="banner-icon">✔</span>
-                <span>Total weight validation passed (100%)</span>
+                <span>{{localization.kpi.weightValid}}</span>
               </div>
             } @else {
               <div class="validation-banner warning">
                 <span class="banner-icon">⚠</span>
                 <span>
-                  Tổng trọng số hiện tại là {{ totalRoleWeight() }}%. Bắt buộc phải bằng đúng 100%
-                  theo quy tắc BR-06/49.
+                  {{localization.kpi.weightPrefix}} {{totalRoleWeight()}}{{localization.kpi.weightSuffix}}
                 </span>
               </div>
             }
@@ -457,8 +466,8 @@
         <footer class="workspace-footer">
           <div class="audit-info">
             <span class="sync-icon">🔄</span>
-            <span class="sync-text">Đồng bộ với máy chủ</span>
-            <span class="audit-details">Audit: Synced Server Time | DM-002</span>
+            <span class="sync-text">{{localization.kpi.serverSync}}</span>
+            <span class="audit-details">{{localization.kpi.auditSync}} | DM-002</span>
           </div>
 
           <div class="footer-actions">
@@ -468,7 +477,7 @@
               (click)="cancelChanges()"
               [disabled]="saving() || !isDirty()"
             >
-              Hủy Thay Đổi
+              {{localization.kpi.cancelChanges}}
             </button>
 
             <button
@@ -479,9 +488,9 @@
             >
               @if (saving()) {
                 <span class="mini-spinner"></span>
-                <span>Đang lưu...</span>
+                <span>{{localization.kpi.saving}}</span>
               } @else {
-                <span>💾 LƯU CẤU HÌNH</span>
+                <span>💾 {{localization.kpi.saveConfiguration}}</span>
               }
             </button>
           </div>
@@ -489,8 +498,8 @@
       } @else {
         <div class="no-selection-state">
           <span class="no-sel-icon">📋</span>
-          <h3>Chưa chọn KPI nào</h3>
-          <p>Vui lòng chọn một KPI từ danh mục bên trái để xem và chỉnh sửa cấu hình.</p>
+          <h3>{{localization.kpi.noSelection}}</h3>
+          <p>{{localization.kpi.noSelectionHint}}</p>
         </div>
       }
     </main>

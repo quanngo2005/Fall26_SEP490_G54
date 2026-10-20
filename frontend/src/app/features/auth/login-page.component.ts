@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { LoginBrandPanelComponent } from './login-brand-panel.component';
 
 @Component({
@@ -11,7 +12,7 @@ import { LoginBrandPanelComponent } from './login-brand-panel.component';
   templateUrl: './login-page.component.html',
   styleUrl: './login-page.component.scss',
 })
-export class LoginPageComponent {
+export class LoginPageComponent extends LocalizedComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
 
@@ -45,10 +46,10 @@ export class LoginPageComponent {
       error: (error: HttpErrorResponse) => {
         this.errorMessage.set(
           error.status === 403
-            ? 'Your account is locked. Please contact your administrator.'
+            ? this.localization.login.accountLocked
             : error.status === 401
-              ? 'The email or password is incorrect.'
-              : 'We could not sign you in. Please try again.',
+              ? this.localization.login.invalidCredentials
+              : this.localization.login.failed,
         );
         this.submitting.set(false);
       },

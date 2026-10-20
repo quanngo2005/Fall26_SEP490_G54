@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { I18nService } from '../../core/i18n/i18n.service';
+import { Component, signal } from '@angular/core';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { SupportedLocale } from '../../core/i18n/i18n.models';
 import { I18N_PIPES } from '../../shared/pipes';
 import { EMPLOYEE_PROFILE } from './employee-profile.data';
@@ -10,10 +10,9 @@ import { EMPLOYEE_PROFILE } from './employee-profile.data';
   imports: [...I18N_PIPES],
   templateUrl: './employee-profile.component.html',
 })
-export class EmployeeProfileComponent {
-  protected readonly i18n = inject(I18nService);
+export class EmployeeProfileComponent extends LocalizedComponent {
   protected readonly data = EMPLOYEE_PROFILE;
-  protected readonly activeNavigation = signal('Hồ sơ Cán bộ');
+  protected readonly activeNavigation = signal('employees');
   protected readonly showMoreActions = signal(false);
 
   readonly currentLanguage = this.i18n.currentLanguage;

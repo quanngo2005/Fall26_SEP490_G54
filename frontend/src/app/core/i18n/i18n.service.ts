@@ -8,7 +8,15 @@ const STORAGE_KEY = 'bpms_language';
   providedIn: 'root',
 })
 export class I18nService {
-  private readonly schema: LocalizationSchema = localizationData as unknown as LocalizationSchema;
+  private readonly schema: LocalizationSchema = {
+    ...localizationData,
+    defaultLocale: 'vi',
+    supportedLocales: ['vi', 'en'],
+  };
+
+  get localization() {
+    return this.schema.translations[this.currentLanguage()];
+  }
 
   readonly currentLanguage = signal<SupportedLocale>(this.getInitialLanguage());
 

@@ -1,7 +1,16 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
+  {
+    path: 'sidebar-settings',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/sidebar-settings/sidebar-settings.component').then(
+        (m) => m.SidebarSettingsComponent,
+      ),
+  },
   {
     path: 'login',
     loadComponent: () =>
@@ -12,6 +21,15 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/home/home-page.component').then((module) => module.HomePageComponent),
+  },
+  {
+    path: 'departments',
+    canActivate: [authGuard],
+    title: 'Department View',
+    loadComponent: () =>
+      import('./features/departments/department-view.component').then(
+        (module) => module.DepartmentViewComponent,
+      ),
   },
   {
     path: 'employee-profile',
@@ -65,6 +83,7 @@ export const routes: Routes = [
   },
   {
     path: 'kpi-definitions',
+    canActivate: [authGuard],
     title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
     loadComponent: () =>
       import('./features/kpi-definitions/kpi-definitions.component').then(

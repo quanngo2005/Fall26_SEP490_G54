@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   KpiAggregationType,
   KpiDefinition,
@@ -21,7 +22,7 @@ import { KpiEditModalComponent } from './kpi-edit-modal/kpi-edit-modal.component
   templateUrl: './kpi-definitions.component.html',
   styleUrls: ['./kpi-definitions.component.scss'],
 })
-export class KpiDefinitionsComponent implements OnInit {
+export class KpiDefinitionsComponent extends LocalizedComponent implements OnInit {
   private readonly kpiService = inject(KpiDefinitionService);
 
   // Data signals
@@ -111,8 +112,9 @@ export class KpiDefinitionsComponent implements OnInit {
 
   loadData(): void {
     this.loading.set(true);
-    this.kpiService.getGroups().subscribe((groupRes) => {
-      this.groups.set(groupRes.data);
+    this.kpiService.getGroups().subscribe({
+      next: (groupRes) => this.groups.set(groupRes.data),
+      error: () => this.showToast('error', this.localization.kpi.loadFailed),
     });
 
     this.kpiService.getKpis().subscribe({
@@ -126,6 +128,7 @@ export class KpiDefinitionsComponent implements OnInit {
       },
       error: () => {
         this.loading.set(false);
+        this.showToast('error', this.localization.kpi.loadFailed);
       },
     });
   }
@@ -164,14 +167,14 @@ export class KpiDefinitionsComponent implements OnInit {
     }
 
     if (!this.editName().trim()) {
-      this.showToast('error', 'Tên KPI không được để trống.');
+      this.showToast('error', this.localization.kpi.nameRequired);
       return;
     }
 
     if (!this.isWeightValid()) {
       this.showToast(
         'error',
-        `Tổng trọng số vai trò hiện là ${this.totalRoleWeight()}%. Bắt buộc phải bằng 100% theo quy tắc BR-06/49.`,
+        this.i18n.translate('kpi.weightError', { weight: this.totalRoleWeight() }),
       );
       return;
     }
@@ -204,11 +207,11 @@ export class KpiDefinitionsComponent implements OnInit {
         this.kpis.set(updatedList);
         this.selectedKpi.set(updatedKpi);
         this.saving.set(false);
-        this.showToast('success', 'Đã lưu cấu hình KPI thành công.');
+        this.showToast('success', this.localization.kpi.saved);
       },
       error: () => {
         this.saving.set(false);
-        this.showToast('error', 'Lưu cấu hình thất bại. Vui lòng thử lại.');
+        this.showToast('error', this.localization.kpi.saveFailed);
       },
     });
   }
@@ -217,7 +220,7 @@ export class KpiDefinitionsComponent implements OnInit {
     const kpi = this.selectedKpi();
     if (kpi) {
       this.selectKpi(kpi);
-      this.showToast('info', 'Đã hoàn tác các thay đổi.');
+      this.showToast('info', this.localization.kpi.reverted);
     }
   }
 
@@ -233,7 +236,7 @@ export class KpiDefinitionsComponent implements OnInit {
     this.kpis.set([created, ...this.kpis()]);
     this.selectKpi(created);
     this.isCreateModalOpen.set(false);
-    this.showToast('success', `Đã tạo KPI mới '${created.code}' thành công.`);
+    this.showToast('success', this.i18n.translate('kpi.created', { code: created.code }));
   }
 
   openEditModal(): void {
@@ -250,14 +253,14 @@ export class KpiDefinitionsComponent implements OnInit {
     this.kpis.set(this.kpis().map((item) => (item.id === updated.id ? updated : item)));
     this.selectKpi(updated);
     this.isEditModalOpen.set(false);
-    this.showToast('success', `Đã cập nhật và ban hành cấu hình KPI '${updated.code}'.`);
+    this.showToast('success', this.i18n.translate('kpi.published', { code: updated.code }));
   }
 
   addMultiplier(): void {
     const current = [...this.depositMultipliers()];
     current.push({
       id: 'm-' + Date.now(),
-      label: 'Loại tiền gửi mới',
+      label: this.localization.kpi.newDepositType,
       value: 1.0,
     });
     this.depositMultipliers.set(current);
@@ -279,7 +282,7 @@ export class KpiDefinitionsComponent implements OnInit {
     const current = [...this.roleWeights()];
     current.push({
       id: 'rw-' + Date.now(),
-      role: 'Chức danh mới',
+      role: this.localization.kpi.newRole,
       weight: 0,
     });
     this.roleWeights.set(current);

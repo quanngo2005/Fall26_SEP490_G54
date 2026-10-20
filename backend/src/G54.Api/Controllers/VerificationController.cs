@@ -12,7 +12,7 @@ namespace G54.Api.Controllers;
 /// Errors are raised as AppException by the service and mapped by GlobalExceptionHandler.
 /// </summary>
 [ApiController]
-[Route("api/v1/verifications")]
+[Route("verifications")]
 [Authorize]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class VerificationController(IVerificationService service) : ControllerBase
@@ -28,8 +28,8 @@ public sealed class VerificationController(IVerificationService service) : Contr
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated aliases of GET /api/v1/verifications/{submissionId}/dossier (FE review-verify still calls the first one).</summary>
-    [HttpGet("/api/v1/verification/dossiers/{submissionId:guid}")]
+    /// <summary>Deprecated aliases of GET /verifications/{submissionId}/dossier.</summary>
+    [HttpGet("/verification/dossiers/{submissionId:guid}")]
     [HttpGet("pending/{submissionId:guid}")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public Task<ActionResult<ApiResponse<VerificationDossierDto>>> GetDossierLegacy(
@@ -51,8 +51,8 @@ public sealed class VerificationController(IVerificationService service) : Contr
         return Ok(ApiResponse.Ok(result, result.Message, HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated alias of POST /api/v1/verifications/{submissionId}/decision (FE review-verify still calls it).</summary>
-    [HttpPost("/api/v1/verification/dossiers/{submissionId:guid}/decision")]
+    /// <summary>Deprecated alias of POST /verifications/{submissionId}/decision.</summary>
+    [HttpPost("/verification/dossiers/{submissionId:guid}/decision")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public Task<ActionResult<ApiResponse<VerificationDecisionResultDto>>> SubmitDecisionLegacy(
         Guid submissionId,
@@ -70,8 +70,8 @@ public sealed class VerificationController(IVerificationService service) : Contr
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated alias of GET /api/v1/verifications/{submissionId}/history.</summary>
-    [HttpGet("/api/v1/verification/submissions/{submissionId:guid}/history")]
+    /// <summary>Deprecated alias of GET /verifications/{submissionId}/history.</summary>
+    [HttpGet("/verification/submissions/{submissionId:guid}/history")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public Task<ActionResult<ApiResponse<List<VerificationHistoryDto>>>> GetHistoryLegacy(
         Guid submissionId,

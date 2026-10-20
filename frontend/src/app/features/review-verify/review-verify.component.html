@@ -1,19 +1,19 @@
 <div class="workspace-viewport">
   <!-- Simulation & Scenario Testing Toolbar -->
-  <header class="scenario-toolbar" role="region" aria-label="Bộ điều khiển giả lập kịch bản">
+  <header class="scenario-toolbar" role="region" [attr.aria-label]="localization.review.scenarios">
     <div class="scenario-brand">
       <span class="toolbar-tag">GB-172 / SCR-REV-03</span>
-      <strong>Review &amp; Verify Work Submission</strong>
+      <strong>{{localization.review.title}}</strong>
     </div>
     <div class="scenario-actions">
-      <span class="scenario-label">Kịch bản kiểm thử:</span>
+      <span class="scenario-label">{{localization.review.scenarioLabel}}</span>
       <button
         type="button"
         class="scenario-chip"
         [class.active]="simulationScenario() === 'default'"
         (click)="switchScenario('default')"
       >
-        Mẫu V1 (Yêu cầu làm lại)
+        {{localization.review.revisionScenario}}
       </button>
       <button
         type="button"
@@ -21,7 +21,7 @@
         [class.active]="simulationScenario() === 'approved'"
         (click)="switchScenario('approved')"
       >
-        Mẫu V2 (Đã duyệt)
+        {{localization.review.approvedScenario}}
       </button>
       <button
         type="button"
@@ -29,7 +29,7 @@
         [class.active]="simulationScenario() === 'maker-checker'"
         (click)="switchScenario('maker-checker')"
       >
-        Vi phạm BR-02 (Maker-Checker)
+        {{localization.review.violationScenario}}
       </button>
       <button
         type="button"
@@ -37,7 +37,7 @@
         [class.active]="simulationScenario() === 'loading'"
         (click)="switchScenario('loading')"
       >
-        Loading
+        {{localization.review.loadingScenario}}
       </button>
       <button
         type="button"
@@ -45,7 +45,7 @@
         [class.active]="simulationScenario() === 'empty'"
         (click)="switchScenario('empty')"
       >
-        Empty
+        {{localization.review.emptyScenario}}
       </button>
       <button
         type="button"
@@ -53,7 +53,7 @@
         [class.active]="simulationScenario() === 'error'"
         (click)="switchScenario('error')"
       >
-        Error
+        {{localization.review.errorScenario}}
       </button>
     </div>
   </header>
@@ -62,7 +62,7 @@
     <!-- ======================================================================
          1. ASIDE NAVIGATION FRAME (Figma Component: Aside, 260px)
          ====================================================================== -->
-    <aside id="Aside" class="app-aside" aria-label="Thanh điều hướng chính">
+    <aside id="Aside" class="app-aside" [attr.aria-label]="localization.common.mainNavigation">
       <div class="brand-header">
         <div class="brand-logo-badge">EB</div>
         <div class="brand-info">
@@ -70,17 +70,17 @@
             <span>Enterprise Banking</span>
             <span class="sec-tag">SEC</span>
           </div>
-          <div class="brand-sub">HR ADMIN / MANAGER PORTAL</div>
+          <div class="brand-sub">{{localization.review.managerPortal}}</div>
         </div>
       </div>
 
       <div class="system-status-strip">
         <span>CORE v2.4.0-SEC</span>
-        <div class="status-online">Online</div>
+        <div class="status-online">{{localization.common.systemOnline}}</div>
       </div>
 
       <div class="nav-section">
-        <div class="nav-section-title">PHÂN HỆ ĐIỀU HÀNH</div>
+        <div class="nav-section-title">{{localization.review.operations}}</div>
         <ul class="nav-list">
           <li>
             <button
@@ -103,7 +103,7 @@
                   <rect x="14" y="14" width="7" height="7"></rect>
                   <rect x="3" y="14" width="7" height="7"></rect>
                 </svg>
-                <span>Tổng quan Phòng ban</span>
+                <span>{{localization.review.departmentOverview}}</span>
               </span>
             </button>
           </li>
@@ -127,7 +127,7 @@
                     d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
                   ></path>
                 </svg>
-                <span>Phân bổ Chỉ tiêu KPI</span>
+                <span>{{localization.review.kpiAllocation}}</span>
               </span>
             </button>
           </li>
@@ -150,7 +150,7 @@
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <span>Thẩm định kết quả</span>
+                <span>{{localization.review.verification}}</span>
               </span>
               <span class="nav-badge-alert">3</span>
             </button>
@@ -174,7 +174,7 @@
                   <circle cx="12" cy="12" r="10"></circle>
                   <polyline points="12 6 12 12 16 14"></polyline>
                 </svg>
-                <span>Xếp hạng &amp; Đánh giá</span>
+                <span>{{localization.review.ratings}}</span>
               </span>
             </button>
           </li>
@@ -182,7 +182,7 @@
       </div>
 
       <div class="nav-section">
-        <div class="nav-section-title">TỔ CHỨC &amp; PHÒNG BAN</div>
+        <div class="nav-section-title">{{localization.nav.organization}}</div>
         <ul class="nav-list">
           <li>
             <button
@@ -203,7 +203,7 @@
                   <path d="M3 21h18"></path>
                   <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
                 </svg>
-                <span>Phòng ban / Đơn vị</span>
+                <span>{{localization.nav.departments}}</span>
               </span>
             </button>
           </li>
@@ -226,7 +226,7 @@
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <span>Danh sách Cán bộ</span>
+                <span>{{localization.review.employeeList}}</span>
               </span>
             </button>
           </li>
@@ -236,9 +236,9 @@
       <div class="aside-footer">
         <div class="aside-footer-sync">
           <span>v2.4.0 Enterprise</span>
-          <span>HRMS Synced</span>
+          <span>{{localization.nav.hrmsSynced}}</span>
         </div>
-        <div>Core Banking Systems &amp; Compliance</div>
+        <div>{{localization.nav.coreBankingSystems}}</div>
       </div>
     </aside>
 
@@ -248,7 +248,7 @@
     <main id="Container" class="app-container" role="main">
       <header class="top-navbar">
         <div class="nav-search-wrap">
-          <span class="system-title-tag">BPMS &bull; Core Verification</span>
+          <span class="system-title-tag">{{localization.review.coreVerification}}</span>
           <div class="search-input-wrap">
             <svg
               width="14"
@@ -264,8 +264,8 @@
             <input
               type="text"
               class="search-box"
-              placeholder="Tìm kiếm hồ sơ nộp, mã nhân viên..."
-              aria-label="Tìm kiếm hồ sơ"
+              [placeholder]="localization.review.search"
+              [attr.aria-label]="localization.review.search"
             />
           </div>
         </div>
@@ -283,33 +283,37 @@
               <path d="M3 21h18"></path>
               <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
             </svg>
-            <span>P. Khách hàng cá nhân &bull; Hội sở chính</span>
+            <span>{{localization.review.department}}</span>
           </div>
 
           <div class="user-profile-widget">
             <div class="user-avatar-circle">QL</div>
             <div class="user-meta">
               <span class="user-meta-name">Trần Văn Quản Lý</span>
-              <span class="user-meta-role">Trưởng phòng / Dept Manager</span>
+              <span class="user-meta-role">{{localization.review.managerRole}}</span>
             </div>
           </div>
         </div>
       </header>
 
       <!-- Subheader with Breadcrumbs -->
-      <section class="subheader-bar" aria-label="Tiêu đề trang và điều hướng">
+      <section class="subheader-bar" [attr.aria-label]="localization.review.pageHeading">
         <div>
-          <nav class="breadcrumbs-list" aria-label="Breadcrumb">
-            <span>QUẢN LÝ CÔNG VIỆC</span>
+          <nav class="breadcrumbs-list" [attr.aria-label]="localization.review.breadcrumb">
+            <span>{{localization.review.workManagement}}</span>
             <span>/</span>
-            <span>THẨM ĐỊNH KẾT QUẢ</span>
+            <span>{{localization.review.verification}}</span>
             <span>/</span>
             <span class="breadcrumb-code">
-              HỒ SƠ: {{ dossier()?.submissionCode || '#SUB-WRK-2026-089-V1' }}
+              {{localization.review.dossier}}
+              {{dossier()?.submissionCode || '#SUB-WRK-2026-089-V1'}}
             </span>
           </nav>
           <div class="page-main-title">
-            <h1>Thẩm định kết quả: {{ dossier()?.workTitle || 'Mở thẻ tín dụng KH cá nhân' }}</h1>
+            <h1>
+              {{localization.review.verificationPrefix}}
+              {{dossier()?.workTitle || localization.review.defaultWorkTitle}}
+            </h1>
             <span class="screen-badge">SCR-REV-03</span>
           </div>
         </div>
@@ -319,7 +323,7 @@
       @if (viewState() === 'loading') {
         <div class="state-container loading-container" role="status" aria-live="polite">
           <div class="spinner-core"></div>
-          <p>Đang tải dữ liệu hồ sơ thẩm định và chứng từ đối soát...</p>
+          <p>{{localization.review.loading}}</p>
         </div>
       }
 
@@ -337,10 +341,10 @@
             <circle cx="12" cy="12" r="10"></circle>
             <line x1="8" y1="12" x2="16" y2="12"></line>
           </svg>
-          <h2>Không tìm thấy hồ sơ thẩm định</h2>
-          <p>Hồ sơ này không tồn tại hoặc đã được xử lý hoàn tất trong phiên làm việc trước.</p>
+          <h2>{{localization.review.empty}}</h2>
+          <p>{{localization.review.emptyHint}}</p>
           <button type="button" class="btn btn-secondary" (click)="switchScenario('default')">
-            Tải lại hồ sơ mặc định
+            {{localization.review.reloadDefault}}
           </button>
         </div>
       }
@@ -360,10 +364,10 @@
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
-          <h2>Lỗi tải dữ liệu hồ sơ</h2>
-          <p>Không thể kết nối đến máy chủ BPMS để tải hồ sơ chứng từ. Vui lòng thử lại sau.</p>
+          <h2>{{localization.review.loadError}}</h2>
+          <p>{{localization.review.loadErrorHint}}</p>
           <button type="button" class="btn btn-secondary" (click)="loadDossier()">
-            Thử tải lại
+            {{localization.review.retry}}
           </button>
         </div>
       }
@@ -388,11 +392,9 @@
               <line x1="12" y1="17" x2="12.01" y2="17"></line>
             </svg>
             <div>
-              <strong>CẢNH BÁO VI PHẠM QUY TẮC KIỂM SOÁT BỐN MẮT (BR-02 MAKER-CHECKER):</strong>
+              <strong>{{localization.review.violationTitle}}</strong>
               <p>
-                Bạn là người nộp hồ sơ này (Mã NV: {{ d.submitter.employeeCode }}). Theo quy chuẩn
-                ngân hàng, người thực hiện không được phép tự thẩm duyệt kết quả của chính mình. Nút
-                phê duyệt thẩm định đã bị khóa!
+                {{localization.review.violationPrefix}} {{d.submitter.employeeCode}}{{localization.review.violationSuffix}}
               </p>
             </div>
           </div>
@@ -414,21 +416,21 @@
               </svg>
             </div>
             <div class="success-content">
-              <strong>{{ res.message }}</strong>
+              <strong>{{res.message}}</strong>
               <div class="success-meta">
-                <span>Mã biên bản: {{ res.verificationId }}</span>
-                <span>Thời gian: {{ res.verifiedAt }}</span>
-                <span>Trạng thái: {{ res.submissionStatus }}</span>
+                <span>{{localization.review.verificationId}} {{res.verificationId}}</span>
+                <span>{{localization.review.time}} {{res.verifiedAt}}</span>
+                <span>{{localization.review.status}} {{res.submissionStatus}}</span>
               </div>
             </div>
             <button type="button" class="btn btn-secondary btn-sm" (click)="resetDecisionState()">
-              Thẩm định lại
+              {{localization.review.reviewAgain}}
             </button>
           </div>
         }
 
         <!-- DUAL-PANEL WORKSPACE -->
-        <div class="verification-workspace" aria-label="Không gian thẩm định hai cột">
+        <div class="verification-workspace" [attr.aria-label]="localization.review.workspace">
           <!-- PANEL 1: DOSSIER INSPECTION (60%) -->
           <section id="Panel-Dossier" class="dossier-panel" aria-labelledby="dossier-panel-title">
             <div class="panel-header">
@@ -444,51 +446,54 @@
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                   <polyline points="14 2 14 8 20 8"></polyline>
                 </svg>
-                <span>1. Hồ sơ nộp &amp; Minh chứng (Deliverables Dossier)</span>
+                <span>{{localization.review.deliverables}}</span>
               </div>
-              <span class="version-tag">{{ d.version }}</span>
+              <span class="version-tag">{{d.version}}</span>
             </div>
 
             <div class="dossier-body">
               <!-- Submitter summary box -->
               <div class="submitter-summary-box">
                 <div class="submitter-name-row">
-                  {{ d.submitter.fullName }} ({{ d.submitter.jobPosition }}) &bull;
-                  {{ d.submitter.department }}
+                  {{d.submitter.fullName}} ({{d.submitter.jobPosition}}) &bull;
+                  {{d.submitter.department}}
                 </div>
                 <div class="submitter-meta-row">
                   <span>
-                    Nộp lúc: <strong>{{ d.submittedAtText }}</strong>
+                    {{localization.review.submittedAt}} <strong>{{d.submittedAtText}}</strong>
                   </span>
                   <span>
-                    Đợt nộp: <strong>Lần {{ d.attemptNumber }}</strong>
+                    {{localization.review.attempt}}
+                    <strong>{{localization.review.attemptNumber}} {{d.attemptNumber}}</strong>
                   </span>
                   <span>
-                    Hạn chót: <strong>{{ d.deadlineText }}</strong>
+                    {{localization.review.deadline}} <strong>{{d.deadlineText}}</strong>
                   </span>
                 </div>
               </div>
 
               <!-- Declared KPI Table -->
               <div>
-                <div class="sub-section-label">Sản lượng nhân viên khai báo:</div>
-                <table class="kpi-verify-table" aria-label="Bảng sản lượng khai báo">
+                <div class="sub-section-label">{{localization.review.declaredOutput}}</div>
+                <table class="kpi-verify-table" [attr.aria-label]="localization.review.outputTable">
                   <thead>
                     <tr>
-                      <th scope="col">Chỉ số KPI</th>
-                      <th scope="col" class="text-center w-110">Số lượng nộp</th>
-                      <th scope="col" class="w-90">Đơn vị</th>
+                      <th scope="col">{{localization.review.kpi}}</th>
+                      <th scope="col" class="text-center w-110">
+                        {{localization.review.submittedQuantity}}
+                      </th>
+                      <th scope="col" class="w-90">{{localization.review.unit}}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td class="kpi-name-cell">
-                        {{ d.kpiItem.kpiCode }}: {{ d.kpiItem.kpiName }}
+                        {{d.kpiItem.kpiCode}}: {{d.kpiItem.kpiName}}
                       </td>
                       <td class="text-center">
-                        <span class="kpi-value-bold">{{ d.kpiItem.declaredValue }}</span>
+                        <span class="kpi-value-bold">{{d.kpiItem.declaredValue}}</span>
                       </td>
-                      <td class="kpi-unit-cell">{{ d.kpiItem.unit }}</td>
+                      <td class="kpi-unit-cell">{{d.kpiItem.unit}}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -496,16 +501,17 @@
 
               <!-- Narrative Box -->
               <div>
-                <div class="sub-section-label">Thuyết minh quá trình thực hiện:</div>
+                <div class="sub-section-label">{{localization.review.narrative}}</div>
                 <div class="narrative-display-box">
-                  {{ d.narrative }}
+                  {{d.narrative}}
                 </div>
               </div>
 
               <!-- Attached Evidence Files -->
               <div>
                 <div class="sub-section-label">
-                  Danh mục chứng từ đính kèm ({{ d.evidenceFiles.length }} tệp):
+                  {{localization.review.attachmentsPrefix}}{{d.evidenceFiles.length}}
+                  {{localization.review.attachmentsSuffix}}
                 </div>
                 @for (file of d.evidenceFiles; track file.fileId) {
                   <div
@@ -523,7 +529,7 @@
                       >
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                       </svg>
-                      <span>{{ file.fileName }} ({{ file.fileSizeText }})</span>
+                      <span>{{file.fileName}} ({{file.fileSizeText}})</span>
                     </div>
                     <div class="evidence-actions-group">
                       <button
@@ -532,9 +538,13 @@
                         [class.active]="activeFileId() === file.fileId"
                         (click)="selectFile(file)"
                       >
-                        {{ activeFileId() === file.fileId ? 'Đang xem' : 'Soi tệp' }}
+                        {{activeFileId() === file.fileId
+                            ? localization.review.viewing
+                            : localization.review.inspect}}
                       </button>
-                      <button type="button" class="action-btn download">Tải về</button>
+                      <button type="button" class="action-btn download">
+                        {{localization.review.download}}
+                      </button>
                     </div>
                   </div>
                 }
@@ -543,28 +553,28 @@
               <!-- Document Inspection Viewer -->
               <div>
                 <div class="sub-section-label">
-                  Trình soi hồ sơ scan (Document Inspection Viewer):
+                  {{localization.review.viewer}}
                 </div>
                 <div class="pdf-viewer-container">
                   <div class="pdf-viewer-bar">
                     <span class="pdf-file-title">
-                      PDF Preview: {{ d.documentPreview.fileName }}
+                      {{localization.review.pdfPreview}} {{d.documentPreview.fileName}}
                     </span>
                     <div class="pdf-controls">
                       <button
                         type="button"
                         class="pdf-tool-btn"
                         (click)="zoomOut()"
-                        aria-label="Thu nhỏ"
+                        [attr.aria-label]="localization.review.zoomOut"
                       >
                         -
                       </button>
-                      <span class="zoom-text">{{ docZoom() }}%</span>
+                      <span class="zoom-text">{{docZoom()}}%</span>
                       <button
                         type="button"
                         class="pdf-tool-btn"
                         (click)="zoomIn()"
-                        aria-label="Phóng to"
+                        [attr.aria-label]="localization.review.zoomIn"
                       >
                         +
                       </button>
@@ -574,19 +584,20 @@
                         class="pdf-tool-btn"
                         (click)="prevPage()"
                         [disabled]="docCurrentPage() <= 1"
-                        aria-label="Trang trước"
+                        [attr.aria-label]="localization.review.previousPage"
                       >
                         &lt;
                       </button>
                       <span class="page-text">
-                        Trang {{ docCurrentPage() }} / {{ d.documentPreview.totalPages }}
+                        {{localization.review.page}} {{docCurrentPage()}} /
+                        {{d.documentPreview.totalPages}}
                       </span>
                       <button
                         type="button"
                         class="pdf-tool-btn"
                         (click)="nextPage()"
                         [disabled]="docCurrentPage() >= d.documentPreview.totalPages"
-                        aria-label="Trang tiếp"
+                        [attr.aria-label]="localization.review.nextPage"
                       >
                         &gt;
                       </button>
@@ -598,17 +609,19 @@
                     [style.transform]="'scale(' + docZoom() / 100 + ')'"
                   >
                     <div class="doc-mock-title">
-                      {{ d.documentPreview.docTitle }}
+                      {{d.documentPreview.docTitle}}
                     </div>
                     <div class="doc-mock-fields">
-                      &bull; <strong>Bên A (Ngân hàng):</strong> {{ d.documentPreview.bankParty
-                      }}<br />
-                      &bull; <strong>Bên B (Khách hàng):</strong>
-                      {{ d.documentPreview.customerParty }} &bull; Số CIF: {{ d.documentPreview.cif
-                      }}<br />
-                      &bull; <strong>Sản phẩm thẻ:</strong> {{ d.documentPreview.product }} &bull;
-                      Hạn mức: {{ d.documentPreview.creditLimit }}<br />
-                      &bull; <strong>Cán bộ thụ lý:</strong> {{ d.documentPreview.officer }}
+                      &bull; <strong>{{localization.review.bankParty}}</strong>
+                      {{d.documentPreview.bankParty}}<br />
+                      &bull; <strong>{{localization.review.customerParty}}</strong>
+                      {{d.documentPreview.customerParty}} &bull; {{localization.review.cif}}
+                      {{d.documentPreview.cif}}<br />
+                      &bull; <strong>{{localization.review.cardProduct}}</strong>
+                      {{d.documentPreview.product}} &bull; {{localization.review.creditLimit}}
+                      {{d.documentPreview.creditLimit}}<br />
+                      &bull; <strong>{{localization.review.officer}}</strong>
+                      {{d.documentPreview.officer}}
                     </div>
 
                     @if (d.documentPreview.auditPinAnnotation; as pin) {
@@ -625,7 +638,7 @@
                           <line x1="12" y1="8" x2="12" y2="12"></line>
                           <line x1="12" y1="16" x2="12.01" y2="16"></line>
                         </svg>
-                        <span>{{ pin.message }}</span>
+                        <span>{{pin.message}}</span>
                       </div>
                     }
                   </div>
@@ -641,13 +654,13 @@
             aria-labelledby="decision-panel-title"
           >
             <div class="decision-header" id="decision-panel-title">
-              <span>2. QUYẾT ĐỊNH THẨM ĐỊNH (AUDIT DECISION)</span>
+              <span>{{localization.review.decisionTitle}}</span>
             </div>
 
             <div class="decision-body">
               <!-- Checklist of Control Standards -->
               <div>
-                <div class="sub-section-label">Tiêu chuẩn kiểm soát hồ sơ:</div>
+                <div class="sub-section-label">{{localization.review.standards}}</div>
                 <div class="checklist-wrapper">
                   @for (std of controlStandards(); track std.id) {
                     <button
@@ -682,7 +695,7 @@
                           <line x1="6" y1="6" x2="18" y2="18"></line>
                         </svg>
                       }
-                      <span>{{ std.name }}</span>
+                      <span>{{std.name}}</span>
                     </button>
                   }
                 </div>
@@ -691,7 +704,7 @@
               <!-- Verified Value Box -->
               <div>
                 <div class="sub-section-label">
-                  Sản lượng công nhận chính thức (Verified Value):
+                  {{localization.review.verifiedValue}}
                 </div>
                 <div class="verified-val-row">
                   <div class="verified-input-wrap">
@@ -701,23 +714,23 @@
                       [value]="verifiedValue()"
                       (input)="setVerifiedValue($event)"
                       min="0"
-                      aria-label="Sản lượng công nhận chính thức"
+                      [attr.aria-label]="localization.review.verifiedValue"
                     />
-                    <span class="verified-unit">{{ d.kpiItem.unit }}</span>
+                    <span class="verified-unit">{{d.kpiItem.unit}}</span>
                   </div>
                   <span class="verified-note">
-                    (Sẽ ghi nhận chính thức vào sổ cái KPI sau khi hoàn tất phê duyệt)
+                    {{localization.review.verifiedNote}}
                   </span>
                 </div>
               </div>
 
               <!-- Decision Choice Radio Cards -->
               <div>
-                <div class="sub-section-label">Quyết định phê duyệt:</div>
+                <div class="sub-section-label">{{localization.review.approvalDecision}}</div>
                 <div
                   class="decision-cards-group"
                   role="radiogroup"
-                  aria-label="Quyết định thẩm định"
+                  [attr.aria-label]="localization.review.auditDecision"
                 >
                   <!-- Approved -->
                   <div
@@ -737,7 +750,7 @@
                       [checked]="selectedDecision() === 'APPROVED'"
                       tabindex="-1"
                     />
-                    <label for="opt-approved">Phê duyệt (Approved - Ghi nhận điểm)</label>
+                    <label for="opt-approved">{{localization.review.approved}}</label>
                   </div>
 
                   <!-- Revision Required -->
@@ -758,7 +771,7 @@
                       [checked]="selectedDecision() === 'REVISION_REQUIRED'"
                       tabindex="-1"
                     />
-                    <label for="opt-revision">Yêu cầu sửa đổi (Revision Required - Trả về)</label>
+                    <label for="opt-revision">{{localization.review.revision}}</label>
                   </div>
 
                   <!-- Rejected -->
@@ -779,7 +792,7 @@
                       [checked]="selectedDecision() === 'REJECTED'"
                       tabindex="-1"
                     />
-                    <label for="opt-rejected">Từ chối hồ sơ (Rejected - Không công nhận)</label>
+                    <label for="opt-rejected">{{localization.review.rejected}}</label>
                   </div>
                 </div>
               </div>
@@ -787,7 +800,7 @@
               <!-- Feedback Textarea -->
               <div>
                 <div class="sub-section-label">
-                  Ý kiến chỉ đạo &amp; Nội dung cần bổ sung
+                  {{localization.review.feedback}}
                   @if (selectedDecision() !== 'APPROVED') {
                     <span class="required-star">*</span>
                   }
@@ -797,12 +810,12 @@
                   class="feedback-textarea"
                   [value]="feedback()"
                   (input)="setFeedback($event)"
-                  placeholder="Nhập chi tiết ý kiến chỉ đạo, lý do trả về hoặc yêu cầu bổ sung chứng từ..."
+                  [placeholder]="localization.review.feedbackPlaceholder"
                   rows="4"
-                  aria-label="Ý kiến chỉ đạo và nội dung cần bổ sung"
+                  [attr.aria-label]="localization.review.feedback"
                 ></textarea>
                 @if (selectedDecision() !== 'APPROVED' && !isFeedbackValid()) {
-                  <div class="input-error-msg">Ý kiến chỉ đạo bắt buộc tối thiểu 10 ký tự.</div>
+                  <div class="input-error-msg">{{localization.review.feedbackShortError}}</div>
                 }
               </div>
 
@@ -810,7 +823,7 @@
               @if (selectedDecision() === 'REVISION_REQUIRED') {
                 <div class="deadline-row">
                   <label for="deadline-input" class="deadline-label">
-                    Hạn chót nhân viên nộp lại:
+                    {{localization.review.resubmitDeadline}}
                   </label>
                   <input
                     id="deadline-input"
@@ -825,7 +838,7 @@
               <!-- Validation Error Alert -->
               @if (validationError(); as err) {
                 <div class="validation-alert" role="alert">
-                  {{ err }}
+                  {{err}}
                 </div>
               }
             </div>
@@ -833,7 +846,7 @@
             <!-- Decision Footer Actions -->
             <div class="decision-footer">
               <button type="button" class="btn btn-secondary" (click)="switchScenario('default')">
-                Quay lại
+                {{localization.common.back}}
               </button>
 
               <button
@@ -855,7 +868,7 @@
                 >
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
-                <span>Xác nhận quyết định</span>
+                <span>{{localization.review.confirmDecision}}</span>
               </button>
             </div>
           </section>
@@ -865,8 +878,9 @@
       <!-- Bottom Status Strip -->
       <footer class="bottom-status-strip">
         <div>
-          Mã biên bản thẩm định: {{ dossier()?.verificationCode || 'VER-2026-089-R1' }} &bull; Tiêu
-          chuẩn kiểm soát tín dụng ngân hàng
+          {{localization.review.auditCode}}
+          {{dossier()?.verificationCode || 'VER-2026-089-R1'}} &bull;
+          {{localization.review.creditStandard}}
         </div>
         <div>Architecture v4.8.2</div>
       </footer>
@@ -886,12 +900,12 @@
     >
       <div class="modal-dialog">
         <div class="modal-header">
-          <h3 id="confirm-modal-title">Xác nhận quyết định thẩm định</h3>
+          <h3 id="confirm-modal-title">{{localization.review.confirmTitle}}</h3>
           <button
             type="button"
             class="modal-close-btn"
             (click)="closeConfirmModal()"
-            aria-label="Đóng hộp thoại"
+            [attr.aria-label]="localization.common.close"
           >
             &times;
           </button>
@@ -899,56 +913,54 @@
 
         <div class="modal-body">
           <p class="modal-lead">
-            Bạn có chắc chắn muốn xác nhận quyết định thẩm định cho hồ sơ
-            <strong>{{ dossier()?.submissionCode }}</strong
+            {{localization.review.confirmPrompt}}
+            <strong>{{dossier()?.submissionCode}}</strong
             >?
           </p>
 
           <div class="decision-summary-card">
             <div class="summary-line">
-              <span>Hồ sơ:</span>
-              <strong>{{ dossier()?.workTitle }}</strong>
+              <span>{{localization.review.dossier}}</span>
+              <strong>{{dossier()?.workTitle}}</strong>
             </div>
             <div class="summary-line">
-              <span>Cán bộ thực hiện:</span>
-              <strong>{{ dossier()?.submitter?.fullName }}</strong>
+              <span>{{localization.review.performer}}</span>
+              <strong>{{dossier()?.submitter?.fullName}}</strong>
             </div>
             <div class="summary-line">
-              <span>Quyết định thẩm định:</span>
+              <span>{{localization.review.decisionLabel}}</span>
               <strong
                 [class.text-amber]="selectedDecision() === 'REVISION_REQUIRED'"
                 [class.text-emerald]="selectedDecision() === 'APPROVED'"
                 [class.text-rose]="selectedDecision() === 'REJECTED'"
               >
-                {{
-                  selectedDecision() === 'APPROVED'
-                    ? 'PHÊ DUYỆT (APPROVED)'
+                {{selectedDecision() === 'APPROVED'
+                    ? localization.review.approvedSummary
                     : selectedDecision() === 'REVISION_REQUIRED'
-                      ? 'YÊU CẦU LÀM LẠI (REVISION REQUIRED)'
-                      : 'TỪ CHỐI HỒ SƠ (REJECTED)'
-                }}
+                      ? localization.review.revisionSummary
+                      : localization.review.rejectedSummary}}
               </strong>
             </div>
             <div class="summary-line">
-              <span>Sản lượng công nhận:</span>
-              <strong>{{ verifiedValue() }} {{ dossier()?.kpiItem?.unit }}</strong>
+              <span>{{localization.review.recognizedOutput}}</span>
+              <strong>{{verifiedValue()}} {{dossier()?.kpiItem?.unit}}</strong>
             </div>
             @if (selectedDecision() === 'REVISION_REQUIRED') {
               <div class="summary-line">
-                <span>Hạn chót nộp lại:</span>
-                <strong>{{ resubmitDeadline() }}</strong>
+                <span>{{localization.review.deadlineLabel}}</span>
+                <strong>{{resubmitDeadline()}}</strong>
               </div>
             }
             <div class="summary-line summary-notes">
-              <span>Ý kiến chỉ đạo:</span>
-              <p>{{ feedback() }}</p>
+              <span>{{localization.review.feedbackLabel}}</span>
+              <p>{{feedback()}}</p>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()">
-            Hủy bỏ (Esc)
+            {{localization.review.cancelEscape}}
           </button>
           <button
             type="button"
@@ -960,9 +972,9 @@
             (click)="confirmDecision()"
           >
             @if (isSubmitting()) {
-              <span>Đang lưu...</span>
+              <span>{{localization.kpi.saving}}</span>
             } @else {
-              <span>Đồng ý xác nhận (Enter)</span>
+              <span>{{localization.review.confirmEnter}}</span>
             }
           </button>
         </div>

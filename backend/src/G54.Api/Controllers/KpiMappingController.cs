@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/business-objectives/{objectiveId:guid}/kpis")]
+[Route("business-objectives/{objectiveId:guid}/kpis")]
 [Authorize]
 public sealed class KpiMappingController(IKpiMappingService service) : ControllerBase
 {
