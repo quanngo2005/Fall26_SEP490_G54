@@ -90,14 +90,8 @@ export interface AuditDecisionResponse {
   message: string;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  status: number;
-  data: T;
-  message?: string | null;
-  errorCode?: string | null;
-  traceId?: string | null;
-}
+// Centralized response envelope from core/api-response.model
+export type { ApiResponse } from '../../core/api-response.model';
 
 export interface SubmitterInfoDto {
   employeeId?: string;
