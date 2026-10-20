@@ -570,7 +570,7 @@ public sealed class EvaluationServiceTests
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitDepartmentCalibrationAsync(request, manager.Id));
 
-        Assert.Equal(ErrorCodes.BR37, ex.ErrorCode);
+        Assert.Equal(ErrorCodes.TierAQuotaExceeded, ex.ErrorCode);
     }
 
     [Fact]

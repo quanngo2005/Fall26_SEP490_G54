@@ -160,7 +160,7 @@ Save draft or submit department calibration proposal to Executive.
 #### Validation & Business Rules
 - If `isDraft == false`:
   - Tier A count (A1, A2, A3) cannot exceed `maxTierAQuota`.
-  - Throws `BusinessRuleException` with 400 Bad Request if quota exceeded.
+  - Throws `BusinessRuleException` with 400 Bad Request and errorCode `"TIER_A_QUOTA_EXCEEDED"` if quota exceeded (BR-37).
   - Reason is required when `calibratedTier != proposedTier`.
   - Evaluations status transitioned to `IN_REVIEW`.
 - If `isDraft == true`:

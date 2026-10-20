@@ -15,6 +15,9 @@ public static class ErrorCodes
     public const string VerificationInvalidState = "VERIFICATION_INVALID_STATE";
     public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
 
+    // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
+    public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
+
     // Application Message Codes (COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md)
     public const string MSG01 = "MSG01"; // Không tìm thấy kết quả phù hợp
     public const string MSG02 = "MSG02"; // Trường (*) là bắt buộc nhập
@@ -36,7 +39,6 @@ public static class ErrorCodes
     public const string MSG23 = "MSG23"; // Sửa đổi minh chứng đã duyệt bị từ chối (BR-13)
     public const string MSG28 = "MSG28"; // Trừ điểm CLDV thiếu Timestamp (BR-19)
     public const string MSG29 = "MSG29"; // Chuyển phòng ban cho nhân sự còn việc tồn (BR-23)
-    public const string BR37 = "BR37";   // Hạn ngạch phân bổ xếp loại Tier A (BR-37)
 
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
@@ -69,7 +71,7 @@ public static class ErrorCodes
         [MSG23] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
         [MSG28] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [MSG29] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
-        [BR37] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
+        [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

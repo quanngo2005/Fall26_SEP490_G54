@@ -832,7 +832,7 @@ public sealed partial class EvaluationService(
             {
                 var percent = totalEmployees > 0 ? Math.Round(tierACount * 100m / totalEmployees, 1) : 0m;
                 throw new BusinessRuleException(
-                    ErrorCodes.BR37,
+                    ErrorCodes.TierAQuotaExceeded,
                     $"Tỷ lệ xếp loại Tier A ({tierACount}/{totalEmployees} = {percent}%) vượt quá hạn ngạch cho phép tối đa ({maxTierAQuota} suất, tương đương 20%). Vui lòng điều chỉnh lại trước khi trình duyệt.");
             }
         }
