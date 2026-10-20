@@ -19,7 +19,6 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.OpenApi.Models;
 using Serilog;
 using StackExchange.Redis;
-using Swashbuckle.AspNetCore.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
@@ -142,12 +141,7 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "G54 API",
-        Version = "v1",
-        Description = "Hệ thống G54 API phục vụ quản lý công việc và đánh giá KPI. Hầu hết response (thành công và lỗi) dùng envelope ApiResponse gồm: success, status, message, errorCode, errors, traceId, data. Ngoại lệ: lỗi 429 của rate limiter dùng ProblemDetails. Response kèm header X-Trace-Id.",
-    });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "G54 API", Version = "v1" });
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -155,21 +149,8 @@ builder.Services.AddSwaggerGen(options =>
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Description = "Nhập JWT access token. Swagger UI tự thêm tiền tố 'Bearer '. Chỉ dán phần token.",
     });
     options.OperationFilter<AuthorizeCheckOperationFilter>();
-    options.ExampleFilters();
-
-    ReadOnlySpan<string> xmlFiles = ["G54.Api.xml", "G54.BLL.xml"];
-    foreach (var xmlFile in xmlFiles)
-    {
-        var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-        if (File.Exists(xmlPath))
-        {
-            options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
-        }
-    }
-
     options.CustomSchemaIds(type =>
     {
         return BuildSchemaId(type);
@@ -187,7 +168,6 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
-builder.Services.AddSwaggerExamplesFromAssemblyOf<G54.Api.Swagger.Examples.CreateWorkRequestExample>();
 
 var app = builder.Build();
 app.UseMiddleware<TraceIdMiddleware>();
