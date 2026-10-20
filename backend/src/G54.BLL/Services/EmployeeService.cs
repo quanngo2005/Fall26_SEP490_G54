@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Employee;
 using G54.DAL;
@@ -24,6 +25,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var status = EnumWireFormat.ParseWire<EmployeeStatus>(filter.Status, "status");
         var query = db.Employees.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -51,9 +53,9 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             query = query.Where(e => e.ManagerId == filter.ManagerId.Value);
         }
 
-        if (filter.Status.HasValue)
+        if (status.HasValue)
         {
-            query = query.Where(e => e.Status == filter.Status.Value);
+            query = query.Where(e => e.Status == status.Value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -76,7 +78,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
                 e.ManagerId,
                 e.Manager != null ? e.Manager.EmployeeCode : null,
                 e.Manager != null ? e.Manager.FullName : null,
-                e.Status,
+                e.Status.ToWire(),
                 e.InverseManager.Count,
                 e.LastSyncAt,
                 e.UpdatedAt))
@@ -107,7 +109,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
                 e.ManagerId,
                 e.Manager != null ? e.Manager.EmployeeCode : null,
                 e.Manager != null ? e.Manager.FullName : null,
-                e.Status,
+                e.Status.ToWire(),
                 e.InverseManager.Count,
                 e.LastSyncAt,
                 e.UpdatedAt))
@@ -165,6 +167,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         CancellationToken cancellationToken = default)
     {
         ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, dto.Phone, dto.DepartmentId, dto.JobPositionId);
+        var status = EnumWireFormat.ParseWire<EmployeeStatus>(dto.Status, "status") ?? EmployeeStatus.Active;
 
         var code = dto.EmployeeCode.Trim();
         var email = dto.Email.Trim().ToLowerInvariant();
@@ -190,7 +193,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             DepartmentId = dto.DepartmentId,
             JobPositionId = dto.JobPositionId,
             ManagerId = dto.ManagerId == Guid.Empty ? null : dto.ManagerId,
-            Status = dto.Status ?? EmployeeStatus.Active,
+            Status = status,
             LastSyncAt = now,
             UpdatedAt = now,
         };
@@ -208,11 +211,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         CancellationToken cancellationToken = default)
     {
         ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, dto.Phone, dto.DepartmentId, dto.JobPositionId);
-
-        if (!Enum.IsDefined(dto.Status))
-        {
-            throw new ValidationException("Trạng thái nhân viên không hợp lệ.");
-        }
+        var status = EnumWireFormat.ParseRequiredWire<EmployeeStatus>(dto.Status, "status");
 
         var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
@@ -244,7 +243,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         employee.DepartmentId = dto.DepartmentId;
         employee.JobPositionId = dto.JobPositionId;
         employee.ManagerId = managerId;
-        employee.Status = dto.Status;
+        employee.Status = status;
         employee.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -258,15 +257,12 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         EmployeeStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        if (!Enum.IsDefined(dto.Status))
-        {
-            throw new ValidationException("Trạng thái nhân viên không hợp lệ.");
-        }
+        var status = EnumWireFormat.ParseRequiredWire<EmployeeStatus>(dto.Status, "status");
 
         var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
 
-        employee.Status = dto.Status;
+        employee.Status = status;
         employee.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);

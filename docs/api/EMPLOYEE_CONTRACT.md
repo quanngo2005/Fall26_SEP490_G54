@@ -53,15 +53,13 @@ Query: `keyword` (code/name/email/phone contains), `departmentId`, `jobPositionI
 
 ## Enum wire format
 
-Target (per `API_CONVENTIONS.md`): `status` is an UPPER_SNAKE string
-(`ACTIVE | INACTIVE | ON_LEAVE | TERMINATED`).
+`status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED`.
 
-**Current backend behaviour:** ASP.NET Core is registered without a string-enum JSON converter, so
-`status` is currently serialized as its ordinal (`0=ACTIVE, 1=INACTIVE, 2=ON_LEAVE,
-3=TERMINATED`). The client adapter (`core/enum-wire.ts`) accepts both forms, so no client change is
-needed when the backend switches to strings. An unknown value becomes `null` (rendered as N/A),
-never a guessed status. This was inferred from the backend source; it has not been verified against
-a running API.
+Responses are produced with `EnumWireFormat.ToWire()`. The `status` query filter, the optional `status`
+of `POST /employees` (defaults to `ACTIVE`), the required `status` of `PUT /employees/{id}` and the
+`PATCH /employees/{id}/status` body are parsed with `EnumWireFormat.ParseWire()` (case-insensitive). An
+unknown value, a C# member name such as `OnLeave`, or an ordinal such as `2` is 400 `VALIDATION_ERROR`;
+ordinals are no longer accepted. The client reads the string as-is, with no adapter.
 
 ## Identifier hand-off
 

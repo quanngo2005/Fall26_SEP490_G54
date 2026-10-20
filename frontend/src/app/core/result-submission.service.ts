@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiResponse } from './kpi-definition.models';
+import { ApiResponse } from './api-response.model';
 import { SubmissionContext, SubmissionDetail, SubmissionResult } from './result-submission.models';
 
 @Injectable({ providedIn: 'root' })

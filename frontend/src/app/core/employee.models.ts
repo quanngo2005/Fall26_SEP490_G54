@@ -1,11 +1,7 @@
-import { PagedResult } from './api.models';
+import { PagedResult } from './paged-result.model';
 
-/**
- * Canonical values are UPPER_SNAKE; the list order matches the backend enum declaration because the
- * API currently serializes the enum as an ordinal (see enum-wire.ts, docs/api/EMPLOYEE_CONTRACT.md).
- */
-export const EMPLOYEE_STATUSES = ['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'] as const;
-export type EmployeeStatus = (typeof EMPLOYEE_STATUSES)[number];
+/** Wire values are UPPER_SNAKE strings (docs/api/EMPLOYEE_CONTRACT.md). */
+export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
 
 export interface EmployeeDetail {
   id: string;
@@ -22,7 +18,7 @@ export interface EmployeeDetail {
   managerId: string | null;
   managerCode: string | null;
   managerName: string | null;
-  status: EmployeeStatus | null;
+  status: EmployeeStatus;
   directReportsCount: number;
   lastSyncAt: string;
   updatedAt: string;

@@ -568,23 +568,6 @@
         "statusActive": "Đang hoạt động",
         "statusInactive": "Không hoạt động",
         "statusArchived": "Đã lưu trữ"
-      },
-      "sessionLock": {
-        "warningTitle": "Cảnh báo không hoạt động",
-        "warningMessage": "Phiên làm việc sẽ tự động khóa sau {seconds} giây do không có hoạt động.",
-        "stayLoggedIn": "Tiếp tục làm việc",
-        "lockNow": "Khóa ngay",
-        "lockedTitle": "Phiên làm việc đã bị khóa",
-        "lockedSubtitle": "Nhập mật khẩu của bạn để tiếp tục phiên làm việc.",
-        "passwordLabel": "Mật khẩu",
-        "passwordPlaceholder": "Nhập mật khẩu để mở khóa",
-        "passwordError": "Vui lòng nhập mật khẩu.",
-        "invalidPassword": "Mật khẩu không chính xác.",
-        "unlock": "Mở khóa",
-        "unlocking": "Đang mở khóa…",
-        "logout": "Đăng xuất",
-        "standardNotice": "Khóa an toàn: Tự động khóa sau 15 phút không hoạt động (CR-14)",
-        "sensitiveNotice": "Màn hình nhạy cảm: Tự động khóa sau 5 phút không hoạt động (NFR-06)"
       }
     },
     "en": {
@@ -1135,23 +1118,6 @@
         "statusActive": "Active",
         "statusInactive": "Inactive",
         "statusArchived": "Archived"
-      },
-      "sessionLock": {
-        "warningTitle": "Inactivity Warning",
-        "warningMessage": "Your session will automatically lock in {seconds} seconds due to inactivity.",
-        "stayLoggedIn": "Stay Logged In",
-        "lockNow": "Lock Now",
-        "lockedTitle": "Session Locked",
-        "lockedSubtitle": "Enter your password to unlock and resume your session.",
-        "passwordLabel": "Password",
-        "passwordPlaceholder": "Enter password to unlock",
-        "passwordError": "Please enter your password.",
-        "invalidPassword": "Incorrect password.",
-        "unlock": "Unlock Session",
-        "unlocking": "Unlocking…",
-        "logout": "Sign Out",
-        "standardNotice": "Security Lock: Auto-lock after 15 minutes of inactivity (CR-14)",
-        "sensitiveNotice": "Sensitive Screen: Auto-lock after 5 minutes of inactivity (NFR-06)"
       }
     }
   }

@@ -1,10 +1,5 @@
-/**
- * Canonical values are UPPER_SNAKE; the API currently serializes WorkTypeStatus as an ordinal that
- * starts at 1 (see enum-wire.ts, docs/api/WORK_TYPE_CONTRACT.md).
- */
-export const WORK_TYPE_STATUSES = ['ACTIVE', 'INACTIVE', 'ARCHIVED'] as const;
-export const WORK_TYPE_STATUS_FIRST_ORDINAL = 1;
-export type WorkTypeStatus = (typeof WORK_TYPE_STATUSES)[number];
+/** Wire values are UPPER_SNAKE strings (docs/api/WORK_TYPE_CONTRACT.md). */
+export type WorkTypeStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 export interface WorkTypeKpiDetail {
   kpiDefinitionId: string;
@@ -24,7 +19,7 @@ export interface WorkTypeDetail {
   description: string | null;
   workflowDefinitionId: string;
   workflowName: string;
-  status: WorkTypeStatus | null;
+  status: WorkTypeStatus;
   createdAt: string;
   kpis: WorkTypeKpiDetail[];
 }

@@ -18,6 +18,9 @@ describe('KpiDefinitionService real API behavior', () => {
     description: null,
     formula: null,
     unit: 'VND',
+    aggregationType: 'NO_AGGREGATION',
+    direction: 'LOWER_BETTER',
+    status: 'ACTIVE',
     maxAchievementPercent: null,
     updatedAt: '2026-10-14T08:30:00+00:00',
   };
@@ -43,7 +46,7 @@ describe('KpiDefinitionService real API behavior', () => {
 
   afterEach(() => http.verify());
 
-  it('sends filters as query parameters and reads ordinal enums', () => {
+  it('sends filters as query parameters and reads UPPER_SNAKE enums as-is', () => {
     service.list({ keyword: 'hdv', kpiGroupId: 'g1', page: 2, pageSize: 20 }).subscribe((page) => {
       expect(page.items[0].direction).toBe('LOWER_BETTER');
       expect(page.items[0].aggregationType).toBe('NO_AGGREGATION');
@@ -57,28 +60,7 @@ describe('KpiDefinitionService real API behavior', () => {
     request.flush({
       success: true,
       status: 200,
-      data: {
-        items: [{ ...raw, direction: 1, aggregationType: 3, status: 1 }],
-        totalCount: 1,
-        page: 2,
-        pageSize: 20,
-      },
-    });
-  });
-
-  it('also reads UPPER_SNAKE enum strings so a string-enum backend needs no client change', () => {
-    service.list().subscribe((page) => {
-      expect(page.items[0].direction).toBe('ON_TARGET');
-      expect(page.items[0].aggregationType).toBe('AVG');
-    });
-    http.expectOne(url).flush({
-      success: true,
-      data: {
-        items: [{ ...raw, direction: 'ON_TARGET', aggregationType: 'AVG', status: 'DRAFT' }],
-        totalCount: 1,
-        page: 1,
-        pageSize: 20,
-      },
+      data: { items: [raw], totalCount: 1, page: 2, pageSize: 20 },
     });
   });
 
@@ -99,33 +81,27 @@ describe('KpiDefinitionService real API behavior', () => {
     expect(status).toBe(401);
   });
 
-  it('rejects an unknown direction instead of guessing', () => {
+  it('treats a failed envelope as an error instead of returning its data', () => {
     let failed = false;
     service.list().subscribe({ error: () => (failed = true) });
-    http.expectOne(url).flush({
-      success: true,
-      data: {
-        items: [{ ...raw, direction: 99, aggregationType: 0, status: 1 }],
-        totalCount: 1,
-        page: 1,
-        pageSize: 20,
-      },
-    });
+    http.expectOne(url).flush({ success: false, status: 400, errorCode: 'VALIDATION_ERROR' });
     expect(failed).toBeTrue();
   });
 
-  it('writes enum ordinals on create and update', () => {
-    service.create(payload).subscribe();
+  it('writes UPPER_SNAKE enum strings on create and update, never ordinals', () => {
+    service.create(payload).subscribe((created) => expect(created.direction).toBe('LOWER_BETTER'));
     const create = http.expectOne(url);
     expect(create.request.method).toBe('POST');
-    expect(create.request.body.direction).toBe(1);
-    expect(create.request.body.aggregationType).toBe(1);
-    create.flush({ success: true, data: { ...raw, direction: 1, aggregationType: 1, status: 1 } });
+    expect(create.request.body.direction).toBe('LOWER_BETTER');
+    expect(create.request.body.aggregationType).toBe('RATIO');
+    create.flush({ success: true, data: raw });
 
     service.update('k1', payload).subscribe();
     const update = http.expectOne(`${url}/k1`);
     expect(update.request.method).toBe('PUT');
-    update.flush({ success: true, data: { ...raw, direction: 1, aggregationType: 1, status: 1 } });
+    expect(update.request.body.direction).toBe('LOWER_BETTER');
+    expect(update.request.body.aggregationType).toBe('RATIO');
+    update.flush({ success: true, data: raw });
   });
 
   it('does not turn failed writes into mock success', () => {

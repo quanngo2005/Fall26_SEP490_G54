@@ -1,10 +1,10 @@
-// Kept as a re-export so existing imports of the envelope types keep working.
-export type { ApiResponse, PagedResult } from './api.models';
+// Kept as a re-export so any legacy imports of the envelope types keep working.
+export type { ApiResponse } from './api-response.model';
+export type { PagedResult } from './paged-result.model';
 
 /**
- * Canonical values follow docs/api/API_CONVENTIONS.md (UPPER_SNAKE). The order of each list matches
- * the backend enum declaration because the API currently serializes these enums as ordinals
- * (see enum-wire.ts and docs/api/KPI_DEFINITION_CONTRACT.md).
+ * Wire values are UPPER_SNAKE strings, sent and received as-is (docs/api/KPI_DEFINITION_CONTRACT.md).
+ * The lists also feed the select options of the KPI screens.
  */
 export const KPI_DIRECTIONS = ['HIGHER_BETTER', 'LOWER_BETTER', 'ON_TARGET'] as const;
 export const KPI_AGGREGATIONS = ['SUM', 'RATIO', 'AVG', 'NO_AGGREGATION'] as const;
@@ -26,7 +26,7 @@ export interface KpiDefinition {
   aggregationType: KpiAggregationType;
   direction: KpiDirection;
   maxAchievementPercent: number | null;
-  status: KpiStatus | null;
+  status: KpiStatus;
   updatedAt: string;
 }
 

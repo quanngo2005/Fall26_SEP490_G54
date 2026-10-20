@@ -3,23 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { toHttpParams, unwrapResponse } from './api-utils';
-import { ApiResponse, PagedResult } from './api.models';
-import { parseWireEnum, toWireOrdinal } from './enum-wire';
+import { ApiResponse } from './api-response.model';
+import { PagedResult } from './paged-result.model';
 import {
-  KPI_AGGREGATIONS,
-  KPI_DIRECTIONS,
-  KPI_STATUSES,
   KpiDefinition,
   KpiDefinitionSavePayload,
   KpiFilter,
   KpiGroupOption,
 } from './kpi-definition.models';
-
-type RawKpiDefinition = Omit<KpiDefinition, 'status' | 'direction' | 'aggregationType'> & {
-  status: unknown;
-  direction: unknown;
-  aggregationType: unknown;
-};
 
 @Injectable({ providedIn: 'root' })
 export class KpiDefinitionService {
@@ -28,13 +19,8 @@ export class KpiDefinitionService {
 
   list(filter: KpiFilter = {}): Observable<PagedResult<KpiDefinition>> {
     return this.http
-      .get<ApiResponse<PagedResult<RawKpiDefinition>>>(this.url, {
-        params: toHttpParams(filter),
-      })
-      .pipe(
-        map((response) => unwrapResponse(response, 'KPI definition list')),
-        map((page) => ({ ...page, items: page.items.map((item) => this.adapt(item)) })),
-      );
+      .get<ApiResponse<PagedResult<KpiDefinition>>>(this.url, { params: toHttpParams(filter) })
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition list')));
   }
 
   groups(): Observable<KpiGroupOption[]> {
@@ -44,41 +30,14 @@ export class KpiDefinitionService {
   }
 
   create(payload: KpiDefinitionSavePayload): Observable<KpiDefinition> {
-    return this.http.post<ApiResponse<RawKpiDefinition>>(this.url, this.toWire(payload)).pipe(
-      map((response) => unwrapResponse(response, 'KPI definition')),
-      map((item) => this.adapt(item)),
-    );
+    return this.http
+      .post<ApiResponse<KpiDefinition>>(this.url, payload)
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition')));
   }
 
   update(id: string, payload: KpiDefinitionSavePayload): Observable<KpiDefinition> {
     return this.http
-      .put<ApiResponse<RawKpiDefinition>>(
-        `${this.url}/${encodeURIComponent(id)}`,
-        this.toWire(payload),
-      )
-      .pipe(
-        map((response) => unwrapResponse(response, 'KPI definition')),
-        map((item) => this.adapt(item)),
-      );
-  }
-
-  private toWire(payload: KpiDefinitionSavePayload) {
-    return {
-      ...payload,
-      direction: toWireOrdinal(KPI_DIRECTIONS, payload.direction),
-      aggregationType: toWireOrdinal(KPI_AGGREGATIONS, payload.aggregationType),
-    };
-  }
-
-  private adapt(raw: RawKpiDefinition): KpiDefinition {
-    const direction = parseWireEnum(KPI_DIRECTIONS, raw.direction);
-    const aggregationType = parseWireEnum(KPI_AGGREGATIONS, raw.aggregationType);
-    if (!direction || !aggregationType) throw new Error('Invalid KPI definition response');
-    return {
-      ...raw,
-      direction,
-      aggregationType,
-      status: parseWireEnum(KPI_STATUSES, raw.status),
-    };
+      .put<ApiResponse<KpiDefinition>>(`${this.url}/${encodeURIComponent(id)}`, payload)
+      .pipe(map((response) => unwrapResponse(response, 'KPI definition')));
   }
 }

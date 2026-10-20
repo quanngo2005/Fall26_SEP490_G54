@@ -51,15 +51,15 @@ fixed unit list.
 
 ## Enum wire format
 
-Target: `aggregationType` ∈ `SUM | RATIO | AVG | NO_AGGREGATION`, `direction` ∈
+`aggregationType` ∈ `SUM | RATIO | AVG | NO_AGGREGATION`, `direction` ∈
 `HIGHER_BETTER | LOWER_BETTER | ON_TARGET`, `status` ∈ `DRAFT | ACTIVE | INACTIVE | ARCHIVED`.
 
-**Current backend behaviour:** no string-enum converter is registered, so these are serialized as
-declaration ordinals (`SUM=0, RATIO=1, AVG=2, NO_AGGREGATION=3`; `HIGHER_BETTER=0, LOWER_BETTER=1,
-ON_TARGET=2`; `DRAFT=0, ACTIVE=1, INACTIVE=2, ARCHIVED=3`) and request bodies must use ordinals. The
-client adapter (`core/enum-wire.ts`) reads either form and writes ordinals (accepted both by the
-current backend and by a future string-enum backend). Inferred from the backend source, not verified
-against a running API.
+These are UPPER_SNAKE **strings in both directions**: responses are produced with
+`EnumWireFormat.ToWire()`; request bodies (`aggregationType`, `direction`, `PATCH .../status`) and the
+`status` / `aggregationType` query filters are parsed with `EnumWireFormat.ParseWire()`
+(case-insensitive). A blank value for a required field, an unknown value, a C# member name such as
+`HigherBetter`, or an ordinal such as `1` is rejected with 400 `VALIDATION_ERROR`; ordinals are no longer
+accepted. The client sends and reads the strings as-is, with no adapter.
 
 ## Not persisted (client-only drafts)
 

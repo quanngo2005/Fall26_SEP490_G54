@@ -719,24 +719,7 @@ public sealed class DepartmentService(
     }
 
     private static TEnum? ParseWire<TEnum>(string? value, string field)
-        where TEnum : struct, Enum
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var trimmed = value.Trim();
-        foreach (var candidate in Enum.GetValues<TEnum>())
-        {
-            if (string.Equals(candidate.ToWire(), trimmed, StringComparison.OrdinalIgnoreCase))
-            {
-                return candidate;
-            }
-        }
-
-        throw new ValidationException($"Giá trị '{value}' không hợp lệ cho tham số '{field}'.");
-    }
+        where TEnum : struct, Enum => EnumWireFormat.ParseWire<TEnum>(value, field);
 
     private DateOnly Today() => DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
 

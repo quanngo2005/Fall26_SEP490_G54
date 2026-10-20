@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using G54.BLL.Common.Exceptions;
 using G54.DAL.Entities;
 using NpgsqlTypes;
 
@@ -23,6 +24,38 @@ public static class EnumWireFormat
             var field = key.GetType().GetField(name, BindingFlags.Public | BindingFlags.Static);
             return field?.GetCustomAttribute<PgNameAttribute>()?.PgName ?? name.ToUpperInvariant();
         });
+    }
+
+    /// <summary>
+    /// Parses an UPPER_SNAKE wire value (case-insensitive) back to its enum. Returns null when the value is
+    /// blank; an unknown value is a 400 VALIDATION_ERROR. Inverse of <see cref="ToWire{TEnum}"/>.
+    /// </summary>
+    public static TEnum? ParseWire<TEnum>(string? value, string field)
+        where TEnum : struct, Enum
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        foreach (var candidate in Enum.GetValues<TEnum>())
+        {
+            if (string.Equals(candidate.ToWire(), trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        throw new ValidationException($"Giá trị '{value}' không hợp lệ cho tham số '{field}'.");
+    }
+
+    /// <summary>Like <see cref="ParseWire{TEnum}"/> but a blank value is also a 400 VALIDATION_ERROR.</summary>
+    public static TEnum ParseRequiredWire<TEnum>(string? value, string field)
+        where TEnum : struct, Enum
+    {
+        return ParseWire<TEnum>(value, field)
+            ?? throw new ValidationException($"Tham số '{field}' là bắt buộc.");
     }
 
     /// <summary>

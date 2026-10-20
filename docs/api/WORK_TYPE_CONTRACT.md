@@ -51,12 +51,13 @@ work type picker.
 
 ## Enum wire format
 
-Target: `status` is `ACTIVE | INACTIVE | ARCHIVED`.
+`status` ∈ `ACTIVE | INACTIVE | ARCHIVED` (UPPER_SNAKE string, the `RecordStatus` PostgreSQL names).
 
-**Current backend behaviour:** `WorkTypeStatus` has no string converter and its members start at 1,
-so `status` is currently serialized as `1=ACTIVE, 2=INACTIVE, 3=ARCHIVED`. The client adapter
-(`core/enum-wire.ts`) accepts both forms; unknown values become `null` (N/A). Inferred from the
-backend source, not verified against a running API.
+Responses are produced with `EnumWireFormat.ToWire()`. The `status` query filter and the
+`PATCH /work-types/{id}/status` body are parsed with `EnumWireFormat.ParseWire()` (case-insensitive); a
+blank value on the PATCH, an unknown value, or an ordinal such as `1` is 400 `VALIDATION_ERROR`.
+Ordinals (which used to start at 1) are no longer accepted. The client reads the string as-is, with no
+adapter.
 
 ## Not available (not shown)
 

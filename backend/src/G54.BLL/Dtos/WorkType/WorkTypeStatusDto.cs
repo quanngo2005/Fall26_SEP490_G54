@@ -4,6 +4,7 @@ namespace G54.BLL.Dtos.WorkType;
 
 public sealed record WorkTypeStatusDto
 {
-    [EnumDataType(typeof(WorkTypeStatus))]
-    public WorkTypeStatus Status { get; init; }
+    /// <summary>UPPER_SNAKE: ACTIVE, INACTIVE, ARCHIVED.</summary>
+    [Required]
+    public string Status { get; init; } = string.Empty;
 }

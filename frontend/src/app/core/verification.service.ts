@@ -3,7 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { unwrapResponse } from './api-utils';
-import { ApiResponse } from './api.models';
+import { ApiResponse } from './api-response.model';
 import {
   VerificationDecisionPayload,
   VerificationDecisionResult,

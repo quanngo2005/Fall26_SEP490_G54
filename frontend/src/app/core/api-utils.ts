@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { ApiResponse } from './api.models';
+import { ApiResponse } from './api-response.model';
 
 /** Builds query parameters, skipping undefined, null and empty values. */
 export function toHttpParams(filter: object): HttpParams {
