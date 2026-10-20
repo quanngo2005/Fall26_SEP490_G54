@@ -412,4 +412,321 @@ public sealed class EvaluationServiceTests
         Assert.NotEmpty(roster);
         Assert.Contains(roster, r => r.EmployeeId == staff.Id);
     }
+
+    [Fact]
+    public async Task GetDepartmentCalibrationAsync_ReturnsRankedRoster_AndGaussianPoints_AndQuota()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var staff2 = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV002",
+            FullName = "Lê Văn B",
+            Email = "staff2@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            ManagerId = manager.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.Employees.AddAsync(staff2);
+
+        var eval1 = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 90m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        var eval2 = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff2.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 75m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddRangeAsync(eval1, eval2);
+        await context.SaveChangesAsync();
+
+        var result = await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(dept.Id, result.Department.Id);
+        Assert.True(result.RankedRoster.Count >= 2);
+        Assert.Equal(staff.Id, result.RankedRoster[0].EmployeeId);
+        Assert.Equal(1, result.RankedRoster[0].Rank);
+        Assert.NotEmpty(result.BellCurve.Points);
+        Assert.NotNull(result.Quota);
+        Assert.True(result.Quota.MaxTierAQuota >= 1);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_SavesDraft_WithoutEnforcingTierACap()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 80m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new SubmitCalibrationRequestDto(
+            DepartmentId: dept.Id,
+            PeriodId: period.Id,
+            Adjustments: new List<CalibrationAdjustmentItemDto>
+            {
+                new(staff.Id, "A1", "Đặc cách xếp A1 trong bản nháp", false)
+            },
+            Notes: "Lưu nháp thử nghiệm",
+            IsDraft: true);
+
+        var result = await service.SubmitDepartmentCalibrationAsync(request, manager.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("CALCULATED", result.Status);
+
+        var updatedEval = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.NotNull(updatedEval);
+        Assert.Contains("CALIBRATION_JSON", updatedEval.Comment);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_ThrowsBusinessRuleException_WhenTierAExceedsCap()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, _) = await SeedBaseScenarioAsync(context);
+
+        var staffList = new List<Employee>();
+        var evalList = new List<PerformanceEvaluation>();
+        for (int i = 1; i <= 10; i++)
+        {
+            var emp = new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = $"EMP{i:D3}",
+                FullName = $"Nhân Viên {i}",
+                Email = $"emp{i}@progest.local",
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+                ManagerId = manager.Id,
+                Status = EmployeeStatus.Active,
+                LastSyncAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            staffList.Add(emp);
+
+            evalList.Add(new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = emp.Id,
+                EvaluationPeriodId = period.Id,
+                EvaluationProfileId = position.EvaluationProfileId,
+                TotalScore = 70m + i,
+                Status = PerformanceEvaluationStatus.Calculated,
+                CalculatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+        await context.Employees.AddRangeAsync(staffList);
+        await context.PerformanceEvaluations.AddRangeAsync(evalList);
+        await context.SaveChangesAsync();
+
+        var adjustments = new List<CalibrationAdjustmentItemDto>
+        {
+            new(staffList[0].Id, "A1", "Vượt trội 1", false),
+            new(staffList[1].Id, "A1", "Vượt trội 2", false),
+            new(staffList[2].Id, "A2", "Vượt trội 3", false),
+            new(staffList[3].Id, "A3", "Vượt trội 4", false),
+        };
+
+        var request = new SubmitCalibrationRequestDto(
+            DepartmentId: dept.Id,
+            PeriodId: period.Id,
+            Adjustments: adjustments,
+            Notes: "Trình duyệt vượt hạn mức",
+            IsDraft: false);
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SubmitDepartmentCalibrationAsync(request, manager.Id));
+
+        Assert.Equal(ErrorCodes.BR37, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_UpdatesStatusToInReview_WhenValid()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 88m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new SubmitCalibrationRequestDto(
+            DepartmentId: dept.Id,
+            PeriodId: period.Id,
+            Adjustments: new List<CalibrationAdjustmentItemDto>
+            {
+                new(staff.Id, "A2", "Đạt chuẩn nâng hạng A2", false)
+            },
+            Notes: "Trình duyệt đúng quota",
+            IsDraft: false);
+
+        var result = await service.SubmitDepartmentCalibrationAsync(request, manager.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("INREVIEW", result.Status);
+        Assert.True(result.IsQuotaCompliant);
+
+        var updatedEval = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.NotNull(updatedEval);
+        Assert.Equal(PerformanceEvaluationStatus.InReview, updatedEval.Status);
+    }
+
+    [Fact]
+    public async Task GetBranchApprovalOverviewAsync_ReturnsAllDepartments_AndBranchTotals()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 85m,
+            Status = PerformanceEvaluationStatus.InReview,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        Assert.NotNull(overview);
+        Assert.Equal(period.Id, overview.Period.Id);
+        Assert.NotEmpty(overview.Departments);
+        Assert.Contains(overview.Departments, d => d.DepartmentId == dept.Id);
+        Assert.True(overview.TotalEvaluated >= 1);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_RevertsToCalculated_AndStoresFeedback()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 90m,
+            Status = PerformanceEvaluationStatus.InReview,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new RejectCalibrationRequestDto(period.Id, "Tỷ lệ Tier A chưa đồng đều, đề nghị cân chỉnh lại.");
+        var result = await service.RejectDepartmentCalibrationAsync(dept.Id, request, manager.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("REVISION_REQUIRED", result.Status);
+
+        var updatedEval = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.NotNull(updatedEval);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, updatedEval.Status);
+        Assert.Contains("RECALIBRATION_REASON", updatedEval.Comment);
+        Assert.Contains("Tỷ lệ Tier A chưa đồng đều", updatedEval.Comment);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_LocksPeriod_AndMarksAllEvaluationsFinal()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = position.EvaluationProfileId,
+            TotalScore = 92m,
+            Status = PerformanceEvaluationStatus.InReview,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Phê duyệt chính thức toàn chi nhánh.");
+        var result = await service.FinalizeAndLockPeriodAsync(request, manager.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal("LOCKED", result.PeriodStatus);
+        Assert.True(result.TotalEvaluationsFinalized >= 1);
+
+        var updatedPeriod = await context.EvaluationPeriods.FindAsync(period.Id);
+        Assert.NotNull(updatedPeriod);
+        Assert.Equal(PeriodStatus.Locked, updatedPeriod.Status);
+
+        var updatedEval = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.NotNull(updatedEval);
+        Assert.Equal(PerformanceEvaluationStatus.Final, updatedEval.Status);
+        Assert.NotNull(updatedEval.ApprovedAt);
+        Assert.Contains("APPROVAL_COMMENTS", updatedEval.Comment);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_ThrowsWhenPeriodAlreadyLocked()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, _) = await SeedBaseScenarioAsync(context);
+
+        period.Status = PeriodStatus.Locked;
+        await context.SaveChangesAsync();
+
+        var request = new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Khóa lại");
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.FinalizeAndLockPeriodAsync(request, manager.Id));
+
+        Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+    }
 }

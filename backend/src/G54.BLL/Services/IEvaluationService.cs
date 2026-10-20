@@ -23,4 +23,32 @@ public interface IEvaluationService
         Guid? departmentId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
+
+    Task<CalibrationOverviewDto> GetDepartmentCalibrationAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid? positionId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
+        SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<BranchApprovalOverviewDto> GetBranchApprovalOverviewAsync(
+        Guid periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<CalibrationDecisionResultDto> RejectDepartmentCalibrationAsync(
+        Guid departmentId,
+        RejectCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<FinalizeResultDto> FinalizeAndLockPeriodAsync(
+        FinalizeEvaluationPeriodRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
 }
