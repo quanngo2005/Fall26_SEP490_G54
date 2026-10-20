@@ -163,7 +163,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task GetDossierAsync_ReturnsWireFormatStatus()
+    public async Task GetDossierAsync_ReturnsApiFormatStatus()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)

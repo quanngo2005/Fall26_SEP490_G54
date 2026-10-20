@@ -14,54 +14,54 @@ using Xunit;
 namespace G54.UnitTests;
 
 /// <summary>
-/// Pins the enum wire contract (docs/api/API_CONVENTIONS.md): responses carry UPPER_SNAKE strings, never
+/// Pins the enum API format contract (docs/api/API_CONVENTIONS.md): responses carry UPPER_SNAKE strings, never
 /// ordinals; requests and query filters accept the same strings case-insensitively and reject unknown values.
 /// </summary>
-public sealed class EnumWireContractTests
+public sealed class EnumApiFormatContractTests
 {
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
     private static AppDbContext CreateDb() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
-    // ----- EnumWireFormat.ParseWire ---------------------------------------------------------
+    // ----- EnumApiFormat.ParseEnum ---------------------------------------------------------
 
     [Theory]
     [InlineData("ACTIVE", EmployeeStatus.Active)]
     [InlineData("on_leave", EmployeeStatus.OnLeave)]
     [InlineData("  Terminated ", EmployeeStatus.Terminated)]
-    public void ParseWire_AcceptsWireValueCaseInsensitively(string raw, EmployeeStatus expected)
+    public void ParseEnum_AcceptsApiValueCaseInsensitively(string raw, EmployeeStatus expected)
     {
-        Assert.Equal(expected, EnumWireFormat.ParseWire<EmployeeStatus>(raw, "status"));
+        Assert.Equal(expected, EnumApiFormat.ParseEnum<EmployeeStatus>(raw, "status"));
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void ParseWire_BlankValue_ReturnsNull(string? raw)
+    public void ParseEnum_BlankValue_ReturnsNull(string? raw)
     {
-        Assert.Null(EnumWireFormat.ParseWire<EmployeeStatus>(raw, "status"));
+        Assert.Null(EnumApiFormat.ParseEnum<EmployeeStatus>(raw, "status"));
     }
 
     [Theory]
     [InlineData("OnLeave")]
     [InlineData("0")]
     [InlineData("UNKNOWN")]
-    public void ParseWire_UnknownValue_ThrowsValidationException(string raw)
+    public void ParseEnum_UnknownValue_ThrowsValidationException(string raw)
     {
-        // Ordinals and C# member names are deliberately not wire values.
-        Assert.Throws<ValidationException>(() => EnumWireFormat.ParseWire<EmployeeStatus>(raw, "status"));
+        // Ordinals and C# member names are deliberately not API values.
+        Assert.Throws<ValidationException>(() => EnumApiFormat.ParseEnum<EmployeeStatus>(raw, "status"));
     }
 
     [Fact]
-    public void ParseRequiredWire_BlankValue_ThrowsValidationException()
+    public void ParseRequiredEnum_BlankValue_ThrowsValidationException()
     {
-        Assert.Throws<ValidationException>(() => EnumWireFormat.ParseRequiredWire<KpiStatus>(null, "status"));
+        Assert.Throws<ValidationException>(() => EnumApiFormat.ParseRequiredEnum<KpiStatus>(null, "status"));
     }
 
     [Fact]
-    public void ParseWire_IsInverseOfToWire_ForEveryDtoEnum()
+    public void ParseEnum_IsInverseOfToEnumString_ForEveryDtoEnum()
     {
         AssertRoundTrip<EmployeeStatus>();
         AssertRoundTrip<RecordStatus>();
@@ -74,7 +74,7 @@ public sealed class EnumWireContractTests
         {
             foreach (var value in Enum.GetValues<TEnum>())
             {
-                Assert.Equal(value, EnumWireFormat.ParseWire<TEnum>(value.ToWire(), "field"));
+                Assert.Equal(value, EnumApiFormat.ParseEnum<TEnum>(value.ToEnumString(), "field"));
             }
         }
     }
@@ -86,7 +86,7 @@ public sealed class EnumWireContractTests
     {
         var dto = new EmployeeDetailDto(
             Guid.NewGuid(), "E1", "Name", "e@x.test", null, Guid.NewGuid(), "D", "Dept", Guid.NewGuid(), "P", "Pos",
-            null, null, null, EmployeeStatus.OnLeave.ToWire(), 0, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            null, null, null, EmployeeStatus.OnLeave.ToEnumString(), 0, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(dto, Web));
 
@@ -99,8 +99,8 @@ public sealed class EnumWireContractTests
     {
         var dto = new KpiDefinitionDto(
             Guid.NewGuid(), Guid.NewGuid(), "G", "C", "N", null, null, "VND",
-            KpiAggregationType.NoAggregation.ToWire(), KpiDirection.OnTarget.ToWire(), null,
-            KpiStatus.Archived.ToWire(), DateTimeOffset.UtcNow);
+            KpiAggregationType.NoAggregation.ToEnumString(), KpiDirection.OnTarget.ToEnumString(), null,
+            KpiStatus.Archived.ToEnumString(), DateTimeOffset.UtcNow);
 
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(dto, Web));
 
@@ -173,7 +173,7 @@ public sealed class EnumWireContractTests
     };
 
     [Fact]
-    public async Task Employee_CreateWithoutStatus_DefaultsToActiveAndReturnsWireString()
+    public async Task Employee_CreateWithoutStatus_DefaultsToActiveAndReturnsApiString()
     {
         var (db, service, dept, position) = await EmployeeEnvAsync();
         using (db)
@@ -214,7 +214,7 @@ public sealed class EnumWireContractTests
     }
 
     [Fact]
-    public async Task Employee_ChangeStatus_RequiresAValidWireValue()
+    public async Task Employee_ChangeStatus_RequiresAValidApiValue()
     {
         var (db, service, dept, position) = await EmployeeEnvAsync();
         using (db)
@@ -261,7 +261,7 @@ public sealed class EnumWireContractTests
     };
 
     [Fact]
-    public async Task Kpi_CreateReturnsEveryEnumAsWireString()
+    public async Task Kpi_CreateReturnsEveryEnumAsApiString()
     {
         var (db, service, group) = await KpiEnvAsync();
         using (db)
@@ -310,7 +310,7 @@ public sealed class EnumWireContractTests
     }
 
     [Fact]
-    public async Task Kpi_ChangeStatus_RejectsUnknownWireValue()
+    public async Task Kpi_ChangeStatus_RejectsUnknownApiValue()
     {
         var (db, service, group) = await KpiEnvAsync();
         using (db)
@@ -344,7 +344,7 @@ public sealed class EnumWireContractTests
     }
 
     [Fact]
-    public async Task WorkType_StatusIsWireStringInListAndDetail_AndFilterIsCaseInsensitive()
+    public async Task WorkType_StatusIsApiStringInListAndDetail_AndFilterIsCaseInsensitive()
     {
         var (db, service, workflow) = await WorkTypeEnvAsync();
         using (db)

@@ -51,13 +51,13 @@ Query: `keyword` (code/name/email/phone contains), `departmentId`, `jobPositionI
 
 `phone`, `managerId`, `managerCode`, `managerName` are nullable; the client renders `null` as N/A.
 
-## Enum wire format
+## Enum API format
 
 `status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED`.
 
-Responses are produced with `EnumWireFormat.ToWire()`. The `status` query filter, the optional `status`
+Responses are produced with `EnumApiFormat.ToEnumString()`. The `status` query filter, the optional `status`
 of `POST /employees` (defaults to `ACTIVE`), the required `status` of `PUT /employees/{id}` and the
-`PATCH /employees/{id}/status` body are parsed with `EnumWireFormat.ParseWire()` (case-insensitive). An
+`PATCH /employees/{id}/status` body are parsed with `EnumApiFormat.ParseEnum()` (case-insensitive). An
 unknown value, a C# member name such as `OnLeave`, or an ordinal such as `2` is 400 `VALIDATION_ERROR`;
 ordinals are no longer accepted. The client reads the string as-is, with no adapter.
 

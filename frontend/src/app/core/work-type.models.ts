@@ -1,4 +1,4 @@
-/** Wire values are UPPER_SNAKE strings (docs/api/WORK_TYPE_CONTRACT.md). */
+/** API values are UPPER_SNAKE strings (docs/api/WORK_TYPE_CONTRACT.md). */
 export type WorkTypeStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 export interface WorkTypeKpiDetail {

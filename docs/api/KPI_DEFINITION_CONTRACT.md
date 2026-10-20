@@ -49,14 +49,14 @@ text), `aggregationType`, `direction`, `maxAchievementPercent` (nullable, 0.0001
 `unit` is free text. The page suggests the distinct units already returned by the API; there is no
 fixed unit list.
 
-## Enum wire format
+## Enum API format
 
 `aggregationType` ∈ `SUM | RATIO | AVG | NO_AGGREGATION`, `direction` ∈
 `HIGHER_BETTER | LOWER_BETTER | ON_TARGET`, `status` ∈ `DRAFT | ACTIVE | INACTIVE | ARCHIVED`.
 
 These are UPPER_SNAKE **strings in both directions**: responses are produced with
-`EnumWireFormat.ToWire()`; request bodies (`aggregationType`, `direction`, `PATCH .../status`) and the
-`status` / `aggregationType` query filters are parsed with `EnumWireFormat.ParseWire()`
+`EnumApiFormat.ToEnumString()`; request bodies (`aggregationType`, `direction`, `PATCH .../status`) and the
+`status` / `aggregationType` query filters are parsed with `EnumApiFormat.ParseEnum()`
 (case-insensitive). A blank value for a required field, an unknown value, a C# member name such as
 `HigherBetter`, or an ordinal such as `1` is rejected with 400 `VALIDATION_ERROR`; ordinals are no longer
 accepted. The client sends and reads the strings as-is, with no adapter.

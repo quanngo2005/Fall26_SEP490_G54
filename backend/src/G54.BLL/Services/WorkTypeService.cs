@@ -90,7 +90,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var status = EnumWireFormat.ParseWire<RecordStatus>(filter.Status, "status");
+        var status = EnumApiFormat.ParseEnum<RecordStatus>(filter.Status, "status");
         var query = db.WorkTypes.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -125,7 +125,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Description,
                 w.WorkflowDefinitionId,
                 w.WorkflowDefinition.Name,
-                w.Status.ToWire(),
+                w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
                     .OrderBy(k => k.KpiDefinition.Code)
@@ -156,7 +156,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Description,
                 w.WorkflowDefinitionId,
                 w.WorkflowDefinition.Name,
-                w.Status.ToWire(),
+                w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
                     .OrderBy(k => k.KpiDefinition.Code)
@@ -227,7 +227,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         WorkTypeStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        var status = EnumWireFormat.ParseRequiredWire<RecordStatus>(dto.Status, "status");
+        var status = EnumApiFormat.ParseRequiredEnum<RecordStatus>(dto.Status, "status");
 
         var workType = await db.WorkTypes.SingleOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new NotFoundException("WorkType", id);

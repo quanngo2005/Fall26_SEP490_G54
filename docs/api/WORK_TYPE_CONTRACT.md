@@ -49,12 +49,12 @@ work type picker.
 `YYYY-MM-DD`. The mapping state shown in the UI (current / upcoming / expired) is derived from
 `effectiveFrom`/`effectiveTo` against today's UTC date; it is not a wire field.
 
-## Enum wire format
+## Enum API format
 
 `status` ∈ `ACTIVE | INACTIVE | ARCHIVED` (UPPER_SNAKE string, the `RecordStatus` PostgreSQL names).
 
-Responses are produced with `EnumWireFormat.ToWire()`. The `status` query filter and the
-`PATCH /work-types/{id}/status` body are parsed with `EnumWireFormat.ParseWire()` (case-insensitive); a
+Responses are produced with `EnumApiFormat.ToEnumString()`. The `status` query filter and the
+`PATCH /work-types/{id}/status` body are parsed with `EnumApiFormat.ParseEnum()` (case-insensitive); a
 blank value on the PATCH, an unknown value, or an ordinal such as `1` is 400 `VALIDATION_ERROR`.
 Ordinals (which used to start at 1) are no longer accepted. The client reads the string as-is, with no
 adapter.

@@ -1,4 +1,5 @@
-﻿import { Component, DestroyRef, inject, signal } from '@angular/core';
+﻿import { HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -15,7 +16,6 @@ import {
   switchMap,
   tap,
 } from 'rxjs';
-import { apiErrorStatus } from '../../core/api-utils';
 import { DepartmentService } from '../../core/department.service';
 import { DepartmentMember } from '../../core/department.models';
 import { EmployeeDetail, EmployeeStatus } from '../../core/employee.models';
@@ -65,7 +65,7 @@ export class EmployeeDetailComponent extends LocalizedComponent {
           const id = this.employeeId();
           return (id ? this.loadDetail(id) : this.loadCandidates()).pipe(
             catchError((error: unknown) => {
-              this.notFound.set(apiErrorStatus(error) === 404);
+              this.notFound.set(error instanceof HttpErrorResponse && error.status === 404);
               this.failed.set(true);
               return EMPTY;
             }),

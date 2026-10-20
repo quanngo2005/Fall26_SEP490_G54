@@ -4,10 +4,10 @@ public sealed class DepartmentFilterDto
 {
     public string? Keyword { get; set; }
 
-    /// <summary>Wire value: ACTIVE, INACTIVE or ARCHIVED.</summary>
+    /// <summary>API value: ACTIVE, INACTIVE or ARCHIVED.</summary>
     public string? Status { get; set; }
 
-    /// <summary>Wire value: BRANCH, DEPARTMENT or TEAM.</summary>
+    /// <summary>API value: BRANCH, DEPARTMENT or TEAM.</summary>
     public string? LevelType { get; set; }
 
     public Guid? ParentDepartmentId { get; set; }

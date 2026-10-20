@@ -41,7 +41,7 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ### 1.2 Nguyên tắc
 1. Service throw `AppException` hoặc lớp con; `GlobalExceptionHandler` map sang envelope. Controller không tự build `ApiResponse.Fail`.
 2. Route tại root, không prefix API hoặc phiên bản, danh từ số nhiều, kebab-case. Mỗi endpoint có đúng một route chính tắc; alias deprecated bị ẩn khỏi Swagger.
-3. Enum trả ra API dạng UPPER_SNAKE, khớp `[PgName]` trong DB (`SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`…), qua `EnumWireFormat.ToWire()`.
+3. Enum trả ra API dạng UPPER_SNAKE, khớp `[PgName]` trong DB (`SUBMITTED`, `UNDER_REVIEW`, `IN_PROGRESS`…), qua `EnumApiFormat.ToEnumString()`.
 4. **409** dành cho xung đột trạng thái, **422** dành cho vi phạm business rule (BR-xx).
 
 ## 2. Routes

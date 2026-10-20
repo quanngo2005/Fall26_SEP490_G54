@@ -25,7 +25,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var status = EnumWireFormat.ParseWire<EmployeeStatus>(filter.Status, "status");
+        var status = EnumApiFormat.ParseEnum<EmployeeStatus>(filter.Status, "status");
         var query = db.Employees.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -78,7 +78,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
                 e.ManagerId,
                 e.Manager != null ? e.Manager.EmployeeCode : null,
                 e.Manager != null ? e.Manager.FullName : null,
-                e.Status.ToWire(),
+                e.Status.ToEnumString(),
                 e.InverseManager.Count,
                 e.LastSyncAt,
                 e.UpdatedAt))
@@ -109,7 +109,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
                 e.ManagerId,
                 e.Manager != null ? e.Manager.EmployeeCode : null,
                 e.Manager != null ? e.Manager.FullName : null,
-                e.Status.ToWire(),
+                e.Status.ToEnumString(),
                 e.InverseManager.Count,
                 e.LastSyncAt,
                 e.UpdatedAt))
@@ -167,7 +167,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         CancellationToken cancellationToken = default)
     {
         ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, dto.Phone, dto.DepartmentId, dto.JobPositionId);
-        var status = EnumWireFormat.ParseWire<EmployeeStatus>(dto.Status, "status") ?? EmployeeStatus.Active;
+        var status = EnumApiFormat.ParseEnum<EmployeeStatus>(dto.Status, "status") ?? EmployeeStatus.Active;
 
         var code = dto.EmployeeCode.Trim();
         var email = dto.Email.Trim().ToLowerInvariant();
@@ -211,7 +211,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         CancellationToken cancellationToken = default)
     {
         ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, dto.Phone, dto.DepartmentId, dto.JobPositionId);
-        var status = EnumWireFormat.ParseRequiredWire<EmployeeStatus>(dto.Status, "status");
+        var status = EnumApiFormat.ParseRequiredEnum<EmployeeStatus>(dto.Status, "status");
 
         var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
@@ -257,7 +257,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         EmployeeStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        var status = EnumWireFormat.ParseRequiredWire<EmployeeStatus>(dto.Status, "status");
+        var status = EnumApiFormat.ParseRequiredEnum<EmployeeStatus>(dto.Status, "status");
 
         var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);

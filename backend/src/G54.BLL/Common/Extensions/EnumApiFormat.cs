@@ -9,13 +9,13 @@ namespace G54.BLL.Common.Extensions;
 /// <summary>
 /// Converts DAL enums to the UPPER_SNAKE strings exposed by the API, matching their PostgreSQL [PgName].
 /// </summary>
-public static class EnumWireFormat
+public static class EnumApiFormat
 {
     public const string RevisionRequiredDecision = "REVISION_REQUIRED";
 
     private static readonly ConcurrentDictionary<Enum, string> Cache = new();
 
-    public static string ToWire<TEnum>(this TEnum value)
+    public static string ToEnumString<TEnum>(this TEnum value)
         where TEnum : struct, Enum
     {
         return Cache.GetOrAdd(value, static key =>
@@ -27,10 +27,10 @@ public static class EnumWireFormat
     }
 
     /// <summary>
-    /// Parses an UPPER_SNAKE wire value (case-insensitive) back to its enum. Returns null when the value is
-    /// blank; an unknown value is a 400 VALIDATION_ERROR. Inverse of <see cref="ToWire{TEnum}"/>.
+    /// Parses an UPPER_SNAKE API value (case-insensitive) back to its enum. Returns null when the value is
+    /// blank; an unknown value is a 400 VALIDATION_ERROR. Inverse of <see cref="ToEnumString{TEnum}"/>.
     /// </summary>
-    public static TEnum? ParseWire<TEnum>(string? value, string field)
+    public static TEnum? ParseEnum<TEnum>(string? value, string field)
         where TEnum : struct, Enum
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -41,7 +41,7 @@ public static class EnumWireFormat
         var trimmed = value.Trim();
         foreach (var candidate in Enum.GetValues<TEnum>())
         {
-            if (string.Equals(candidate.ToWire(), trimmed, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(candidate.ToEnumString(), trimmed, StringComparison.OrdinalIgnoreCase))
             {
                 return candidate;
             }
@@ -50,11 +50,11 @@ public static class EnumWireFormat
         throw new ValidationException($"Giá trị '{value}' không hợp lệ cho tham số '{field}'.");
     }
 
-    /// <summary>Like <see cref="ParseWire{TEnum}"/> but a blank value is also a 400 VALIDATION_ERROR.</summary>
-    public static TEnum ParseRequiredWire<TEnum>(string? value, string field)
+    /// <summary>Like <see cref="ParseEnum{TEnum}"/> but a blank value is also a 400 VALIDATION_ERROR.</summary>
+    public static TEnum ParseRequiredEnum<TEnum>(string? value, string field)
         where TEnum : struct, Enum
     {
-        return ParseWire<TEnum>(value, field)
+        return ParseEnum<TEnum>(value, field)
             ?? throw new ValidationException($"Tham số '{field}' là bắt buộc.");
     }
 
@@ -63,6 +63,6 @@ public static class EnumWireFormat
     /// </summary>
     public static string ToApiDecision(this VerificationDecision decision)
     {
-        return decision == VerificationDecision.NeedMoreInfo ? RevisionRequiredDecision : decision.ToWire();
+        return decision == VerificationDecision.NeedMoreInfo ? RevisionRequiredDecision : decision.ToEnumString();
     }
 }

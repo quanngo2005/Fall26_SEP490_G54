@@ -1,6 +1,6 @@
 import { PagedResult } from './paged-result.model';
 
-/** Wire values are UPPER_SNAKE strings (docs/api/EMPLOYEE_CONTRACT.md). */
+/** API values are UPPER_SNAKE strings (docs/api/EMPLOYEE_CONTRACT.md). */
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
 
 export interface EmployeeDetail {

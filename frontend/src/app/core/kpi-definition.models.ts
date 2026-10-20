@@ -3,7 +3,7 @@ export type { ApiResponse } from './api-response.model';
 export type { PagedResult } from './paged-result.model';
 
 /**
- * Wire values are UPPER_SNAKE strings, sent and received as-is (docs/api/KPI_DEFINITION_CONTRACT.md).
+ * API values are UPPER_SNAKE strings, sent and received as-is (docs/api/KPI_DEFINITION_CONTRACT.md).
  * The lists also feed the select options of the KPI screens.
  */
 export const KPI_DIRECTIONS = ['HIGHER_BETTER', 'LOWER_BETTER', 'ON_TARGET'] as const;

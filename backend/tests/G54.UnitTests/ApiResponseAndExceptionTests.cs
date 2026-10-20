@@ -195,11 +195,11 @@ public sealed class ApiResponseAndExceptionTests
     }
 
     [Fact]
-    public void EnumWireFormat_UsesPgNameAndApiDecisionVocabulary()
+    public void EnumApiFormat_UsesPgNameAndApiDecisionVocabulary()
     {
-        Assert.Equal("UNDER_REVIEW", SubmissionStatus.UnderReview.ToWire());
-        Assert.Equal("IN_PROGRESS", WorkStatus.InProgress.ToWire());
-        Assert.Equal("HIGHER_BETTER", KpiDirection.HigherBetter.ToWire());
+        Assert.Equal("UNDER_REVIEW", SubmissionStatus.UnderReview.ToEnumString());
+        Assert.Equal("IN_PROGRESS", WorkStatus.InProgress.ToEnumString());
+        Assert.Equal("HIGHER_BETTER", KpiDirection.HigherBetter.ToEnumString());
         Assert.Equal("REVISION_REQUIRED", VerificationDecision.NeedMoreInfo.ToApiDecision());
         Assert.Equal("APPROVED", VerificationDecision.Approved.ToApiDecision());
     }

@@ -2,7 +2,6 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { unwrapResponse } from './api-utils';
 import { ApiResponse } from './api-response.model';
 import {
   VerificationDecisionPayload,
@@ -21,7 +20,7 @@ export class VerificationService {
       .get<ApiResponse<VerificationDossier>>(
         `${this.url}/${encodeURIComponent(submissionId)}/dossier`,
       )
-      .pipe(map((response) => unwrapResponse(response, 'verification dossier')));
+      .pipe(map((response) => this.unwrap(response)));
   }
 
   history(submissionId: string): Observable<VerificationHistoryItem[]> {
@@ -29,7 +28,7 @@ export class VerificationService {
       .get<ApiResponse<VerificationHistoryItem[]>>(
         `${this.url}/${encodeURIComponent(submissionId)}/history`,
       )
-      .pipe(map((response) => unwrapResponse(response, 'verification history')));
+      .pipe(map((response) => this.unwrap(response)));
   }
 
   submitDecision(
@@ -41,6 +40,11 @@ export class VerificationService {
         `${this.url}/${encodeURIComponent(submissionId)}/decision`,
         payload,
       )
-      .pipe(map((response) => unwrapResponse(response, 'verification decision')));
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  private unwrap<T>(response: ApiResponse<T>): T {
+    if (!response.success || response.data == null) throw new Error('Invalid verification response');
+    return response.data;
   }
 }

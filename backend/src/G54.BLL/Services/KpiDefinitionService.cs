@@ -16,8 +16,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
-        var status = EnumWireFormat.ParseWire<KpiStatus>(filter.Status, "status");
-        var aggregationType = EnumWireFormat.ParseWire<KpiAggregationType>(filter.AggregationType, "aggregationType");
+        var status = EnumApiFormat.ParseEnum<KpiStatus>(filter.Status, "status");
+        var aggregationType = EnumApiFormat.ParseEnum<KpiAggregationType>(filter.AggregationType, "aggregationType");
         var query = db.KpiDefinitions.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -58,10 +58,10 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
                 kpi.Description,
                 kpi.Formula,
                 kpi.Unit,
-                kpi.AggregationType.ToWire(),
-                kpi.Direction.ToWire(),
+                kpi.AggregationType.ToEnumString(),
+                kpi.Direction.ToEnumString(),
                 kpi.MaxAchievementPercent,
-                kpi.Status.ToWire(),
+                kpi.Status.ToEnumString(),
                 kpi.UpdatedAt))
             .ToListAsync(cancellationToken);
 
@@ -82,10 +82,10 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
                 kpi.Description,
                 kpi.Formula,
                 kpi.Unit,
-                kpi.AggregationType.ToWire(),
-                kpi.Direction.ToWire(),
+                kpi.AggregationType.ToEnumString(),
+                kpi.Direction.ToEnumString(),
                 kpi.MaxAchievementPercent,
-                kpi.Status.ToWire(),
+                kpi.Status.ToEnumString(),
                 kpi.UpdatedAt))
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -163,7 +163,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         KpiStatusDto dto,
         CancellationToken cancellationToken = default)
     {
-        var status = EnumWireFormat.ParseRequiredWire<KpiStatus>(dto.Status, "status");
+        var status = EnumApiFormat.ParseRequiredEnum<KpiStatus>(dto.Status, "status");
 
         var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new NotFoundException("KPI Definition", id);
@@ -207,8 +207,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             throw new ValidationException("Nhóm KPI, mã, tên và đơn vị là bắt buộc; mã tối đa 50, tên 255 và đơn vị 50 ký tự.");
         }
 
-        var aggregationType = EnumWireFormat.ParseRequiredWire<KpiAggregationType>(dto.AggregationType, "aggregationType");
-        var direction = EnumWireFormat.ParseRequiredWire<KpiDirection>(dto.Direction, "direction");
+        var aggregationType = EnumApiFormat.ParseRequiredEnum<KpiAggregationType>(dto.AggregationType, "aggregationType");
+        var direction = EnumApiFormat.ParseRequiredEnum<KpiDirection>(dto.Direction, "direction");
 
         if (dto.MaxAchievementPercent is <= 0)
         {
