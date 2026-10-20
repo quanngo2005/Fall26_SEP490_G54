@@ -1,124 +1,109 @@
-import { Component, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { CommonModule } from '@angular/common';
+import { Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { apiErrorStatus } from '../../../core/api-utils';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import {
-  KPI_AGGREGATIONS,
-  KPI_DIRECTIONS,
+  KpiAggregationType,
   KpiDefinition,
   KpiDefinitionSavePayload,
+  KpiDirection,
   KpiGroupOption,
 } from '../../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../../core/kpi-definition.service';
+import { UNIT_OPTIONS } from '../kpi-edit-modal/kpi-edit-modal.component';
 
 @Component({
   selector: 'app-kpi-create-modal',
-  imports: [FormsModule],
+  standalone: true,
+  imports: [CommonModule, FormsModule],
   templateUrl: './kpi-create-modal.component.html',
-  styleUrls: ['../../../shared/ui/ui-controls.scss', '../../../shared/ui/modal.scss'],
+  styleUrls: ['../kpi-edit-modal/kpi-edit-modal.component.scss'],
 })
 export class KpiCreateModalComponent extends LocalizedComponent implements OnInit {
-  private readonly api = inject(KpiDefinitionService);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly kpiService = inject(KpiDefinitionService);
 
   readonly groups = input<KpiGroupOption[]>([]);
-  readonly units = input<string[]>([]);
+  readonly existingCodes = input<string[]>([]);
+
   readonly closed = output<void>();
   readonly created = output<KpiDefinition>();
 
-  protected readonly directions = KPI_DIRECTIONS;
-  protected readonly aggregations = KPI_AGGREGATIONS;
-  protected readonly saving = signal(false);
-  protected readonly errorKey = signal<string | null>(null);
+  readonly unitOptions = UNIT_OPTIONS;
 
-  protected code = '';
-  protected name = '';
-  protected kpiGroupId = '';
-  protected unit = '';
-  protected direction: KpiDefinition['direction'] = 'HIGHER_BETTER';
-  protected aggregationType: KpiDefinition['aggregationType'] = 'SUM';
-  protected formula = '';
-  protected description = '';
-  protected maxAchievementPercent: number | string | null = null;
+  // Form state
+  readonly code = signal<string>('KPI-');
+  readonly name = signal<string>('');
+  readonly groupId = signal<string>('');
+  readonly unit = signal<string>('VND');
+  readonly direction = signal<KpiDirection>('HigherBetter');
+  readonly aggregation = signal<KpiAggregationType>('Sum');
+  readonly formula = signal<string>('');
+  readonly description = signal<string>('');
+
+  readonly saving = signal<boolean>(false);
+  readonly error = signal<string | null>(null);
 
   ngOnInit(): void {
-    this.kpiGroupId = this.groups()[0]?.id ?? '';
+    this.groupId.set(this.groups()[0]?.id ?? '');
   }
 
-  protected close(): void {
-    if (!this.saving()) this.closed.emit();
-  }
-
-  protected submit(): void {
-    if (this.saving()) return;
-    const code = this.code.trim().toUpperCase();
-    if (!code) return this.fail('kpi.codeRequired');
-    if (!this.name.trim()) return this.fail('kpi.nameRequired');
-    if (!this.kpiGroupId) return this.fail('kpi.groupRequired');
-    if (!this.unit.trim()) return this.fail('kpi.unitRequired');
-
-    const max =
-      this.maxAchievementPercent === null || this.maxAchievementPercent === ''
-        ? null
-        : Number(this.maxAchievementPercent);
-    const payload: KpiDefinitionSavePayload = {
-      kpiGroupId: this.kpiGroupId,
-      code,
-      name: this.name.trim(),
-      description: this.description.trim() || null,
-      formula: this.formula.trim() || null,
-      unit: this.unit.trim(),
-      aggregationType: this.aggregationType,
-      direction: this.direction,
-      maxAchievementPercent: max !== null && Number.isFinite(max) ? max : null,
-    };
-    this.errorKey.set(null);
-    this.saving.set(true);
-    this.api
-      .create(payload)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (kpi) => {
-          this.saving.set(false);
-          this.created.emit(kpi);
-        },
-        error: (error: unknown) => {
-          this.saving.set(false);
-          this.errorKey.set(apiErrorStatus(error) === 409 ? 'kpi.codeExists' : 'kpi.createFailed');
-        },
-      });
-  }
-
-  protected errorText(): string {
-    const key = this.errorKey();
-    return key ? this.i18n.translate(key, { code: this.code.trim().toUpperCase() }) : '';
-  }
-
-  protected directionLabel(direction: string): string {
-    const text = this.localization.kpi;
-    return direction === 'HIGHER_BETTER'
-      ? text.higherBetter
-      : direction === 'LOWER_BETTER'
-        ? text.lowerBetter
-        : text.onTarget;
-  }
-
-  protected aggregationLabel(aggregation: string): string {
-    const text = this.localization.kpi;
-    switch (aggregation) {
-      case 'SUM':
-        return text.sum;
-      case 'RATIO':
-        return text.ratio;
-      case 'AVG':
-        return text.average;
-      default:
-        return text.noAggregation;
+  close(): void {
+    if (!this.saving()) {
+      this.closed.emit();
     }
   }
 
-  private fail(key: string): void {
-    this.errorKey.set(key);
+  submit(): void {
+    const code = this.code().trim().toUpperCase();
+    const name = this.name().trim();
+
+    if (!code || code === 'KPI-') {
+      this.error.set(this.localization.kpi.codeRequired);
+      return;
+    }
+    if (!name) {
+      this.error.set(this.localization.kpi.nameRequired);
+      return;
+    }
+    if (this.existingCodes().some((c) => c.toUpperCase() === code)) {
+      this.error.set(this.i18n.translate('kpi.codeExists', { code }));
+      return;
+    }
+
+    const payload: KpiDefinitionSavePayload = {
+      code,
+      name,
+      kpiGroupId: this.groupId() || (this.groups()[0]?.id ?? ''),
+      unit: this.unit(),
+      direction: this.direction(),
+      aggregationType: this.aggregation(),
+      formula: this.formula().trim() || null,
+      description: this.description().trim() || null,
+      maxAchievementPercent: 150,
+    };
+
+    this.error.set(null);
+    this.saving.set(true);
+
+    this.kpiService.createKpi(payload).subscribe({
+      next: (res) => {
+        this.saving.set(false);
+        this.created.emit({
+          ...res.data,
+          kpiGroupName:
+            this.groups().find((g) => g.id === payload.kpiGroupId)?.name ??
+            this.localization.kpi.business,
+          depositMultipliers: [],
+          roleWeights: [
+            { id: 'rw-c1', role: 'Teller', weight: 40 },
+            { id: 'rw-c2', role: 'RBO', weight: 60 },
+          ],
+        });
+      },
+      error: () => {
+        this.saving.set(false);
+        this.error.set(this.localization.kpi.createFailed);
+      },
+    });
   }
 }

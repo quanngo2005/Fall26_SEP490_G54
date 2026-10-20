@@ -1,375 +1,527 @@
-<div class="workspace-layout">
-  <app-sidebar />
-  <div class="workspace-main">
-    <app-header />
-    <main class="workspace-content" [attr.aria-busy]="loading()">
-      @if (loading() && kpis().length) {
-        <div class="refresh-bar" aria-hidden="true"></div>
-      }
-      <div class="page-toolbar">
-        <div class="page-heading">
-          <p class="breadcrumb">{{localization.kpi.breadcrumb}}</p>
-          <h1>{{localization.kpi.definitions}}</h1>
-          <p class="page-subtitle">{{localization.kpi.catalogDescription}}</p>
+<div class="kpi-workspace-root">
+  <!-- Toast notification -->
+  @if (toast(); as t) {
+    <div class="toast-banner" [ngClass]="'toast-' + t.type">
+      <span class="toast-icon">
+        @if (t.type === 'success') {
+          ✔
+        } @else if (t.type === 'error') {
+          ✕
+        } @else {
+          ℹ
+        }
+      </span>
+      <span class="toast-text">{{t.message}}</span>
+    </div>
+  }
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-icon">🏛️</span>
+        <span class="brand-title">BPMS</span>
+        <span class="brand-subtitle">{{localization.kpi.workspace}}</span>
+      </div>
+    </div>
+
+    <div class="topbar-search">
+      <div class="search-field">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          [placeholder]="localization.kpi.searchWorkspace"
+          [attr.aria-label]="localization.kpi.searchWorkspace"
+        />
+        <kbd class="search-kbd">⌘ K</kbd>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button
+        class="icon-button"
+        type="button"
+        [attr.aria-label]="localization.common.notifications"
+      >
+        <span class="bell-icon">🔔</span>
+        <span class="notification-dot"></span>
+      </button>
+
+      <div class="user-pill">
+        <div class="avatar-badge">TB</div>
+        <div class="user-info">
+          <span class="user-name">Tran Van B</span>
+          <span class="user-role">{{localization.kpi.manager}}</span>
         </div>
-        <button type="button" class="button button-primary" (click)="openCreate()">
-          {{localization.kpi.createNew}}
+        <span class="dropdown-arrow">˅</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace-layout">
+    <!-- Left Sidebar (Navigation) -->
+    <aside class="sidebar">
+      <div class="dept-workspace-card">
+        <span class="dept-workspace-label">{{localization.kpi.departmentWorkspace}}</span>
+        <div class="dept-workspace-select">
+          <div class="dept-info">
+            <strong>{{localization.kpi.departmentManagement}}</strong>
+            <small>DEPT_MANAGER • DM-002</small>
+          </div>
+          <span class="switch-icon">⇅</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <div class="nav-group">
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">⊞</span>
+            <span>{{localization.kpi.overview}}</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">💼</span>
+            <span>{{localization.kpi.departmentTasks}}</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">📋</span>
+            <span>{{localization.kpi.approvals}}</span>
+          </a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-section-title">{{localization.kpi.strategy}}</span>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">🎯</span>
+            <span>{{localization.kpi.strategicTargets}}</span>
+          </a>
+          <a class="nav-link active" href="javascript:void(0)">
+            <span class="nav-icon">🎛</span>
+            <span>{{localization.kpi.definitions}}</span>
+            <span class="active-dot">•</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">⚖</span>
+            <span>{{localization.kpi.allocation}}</span>
+          </a>
+          <a class="nav-link" href="javascript:void(0)">
+            <span class="nav-icon">📊</span>
+            <span>{{localization.kpi.reports}}</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a class="nav-link" href="javascript:void(0)">
+          <span class="nav-icon">❓</span>
+          <span>{{localization.common.help}}</span>
+        </a>
+        <a class="nav-link" href="javascript:void(0)">
+          <span class="nav-icon">⚙</span>
+          <span>{{localization.kpi.settings}}</span>
+        </a>
+        <div class="system-status">
+          <span class="status-indicator"></span>
+          <span>{{localization.kpi.systemRunning}}</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Catalog Column (KPI List) -->
+    <section class="catalog-panel">
+      <div class="catalog-header">
+        <span class="screen-code">SCR-STRAT-02</span>
+        <h1 class="catalog-title">{{localization.kpi.definitions}}</h1>
+        <p class="catalog-desc">{{localization.kpi.catalogDescription}}</p>
+      </div>
+
+      <!-- Filters & Actions -->
+      <div class="catalog-controls">
+        <div class="filter-input-wrap">
+          <span class="input-icon">🔍</span>
+          <input
+            type="text"
+            [placeholder]="localization.kpi.searchKpi"
+            [ngModel]="searchTerm()"
+            (ngModelChange)="searchTerm.set($event)"
+            [attr.aria-label]="localization.kpi.searchKpi"
+          />
+        </div>
+
+        <div class="filter-select-wrap">
+          <select
+            [ngModel]="groupFilter()"
+            (ngModelChange)="groupFilter.set($event)"
+            [attr.aria-label]="localization.kpi.filterGroup"
+          >
+            <option value="all">{{localization.kpi.allGroups}}</option>
+            @for (g of groups(); track g.id) {
+              <option [value]="g.id">{{g.name}}</option>
+            }
+          </select>
+        </div>
+
+        <button type="button" class="btn-create-kpi" (click)="openCreateModal()">
+          <span>{{localization.kpi.createNew}}</span>
         </button>
       </div>
-      @if (notice(); as n) {
-        <div
-          class="notice"
-          [class.is-error]="n.kind === 'error'"
-          [attr.role]="n.kind === 'error' ? 'alert' : 'status'"
-        >
-          <span>{{noticeText()}}</span>
-          <button
-            type="button"
-            (click)="dismissNotice()"
-            [attr.aria-label]="localization.common.close"
-          >
-            ×
-          </button>
+
+      <!-- List Count Header -->
+      <div class="catalog-count-row">
+        <span class="catalog-label">{{localization.kpi.catalog}}</span>
+        <span class="count-badge">
+          {{filteredKpis().length < 10 ? '0' + filteredKpis().length : filteredKpis().length}} KPI
+        </span>
+      </div>
+
+      <!-- Cards List -->
+      <div class="kpi-cards-scroll">
+        @if (loading()) {
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <span>{{localization.kpi.loading}}</span>
+          </div>
+        } @else if (filteredKpis().length === 0) {
+          <div class="empty-state">
+            <span class="empty-icon">📂</span>
+            <strong>{{localization.kpi.empty}}</strong>
+            <p>{{localization.kpi.emptyHint}}</p>
+            <button
+              type="button"
+              class="btn-reset-filter"
+              (click)="searchTerm.set(''); groupFilter.set('all')"
+            >
+              {{localization.kpi.resetFilters}}
+            </button>
+          </div>
+        } @else {
+          <div class="kpi-cards-list">
+            @for (item of filteredKpis(); track item.id) {
+              <div
+                class="kpi-card"
+                role="button"
+                tabindex="0"
+                [class.selected]="selectedKpi()?.id === item.id"
+                (click)="selectKpi(item)"
+                (keydown.enter)="selectKpi(item)"
+                (keydown.space)="selectKpi(item)"
+              >
+                <div class="card-top-row">
+                  <span class="kpi-code-pill">{{item.code}}</span>
+                  @if (selectedKpi()?.id === item.id) {
+                    <span class="card-status-icon selected-check">✔</span>
+                  } @else {
+                    <span class="card-status-icon arrow-icon">↗</span>
+                  }
+                </div>
+
+                <div class="card-name-row">
+                  <strong class="kpi-name">{{item.name}}</strong>
+                </div>
+
+                <div class="card-bottom-row">
+                  @if (item.direction === 'HigherBetter') {
+                    <span class="direction-badge higher">
+                      <i>↗</i> {{localization.kpi.higherBetter}}
+                    </span>
+                  } @else if (item.direction === 'LowerBetter') {
+                    <span class="direction-badge lower">
+                      <i>↘</i> {{localization.kpi.lowerBetter}}
+                    </span>
+                  } @else {
+                    <span class="direction-badge target">
+                      <i>•</i> {{localization.kpi.onTarget}}
+                    </span>
+                  }
+
+                  <span class="group-name">{{item.kpiGroupName}}</span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Bottom Tip -->
+      <div class="catalog-tip">
+        <span class="tip-icon">ℹ</span>
+        <span>{{localization.kpi.selectHint}}</span>
+      </div>
+    </section>
+
+    <!-- Main Detail & Configuration Area -->
+    <main class="config-workspace">
+      @if (selectedKpi(); as kpi) {
+        <div class="workspace-header">
+          <div class="header-titles">
+            <div class="title-with-badge">
+              <h2>{{localization.kpi.configuration}} {{editCode()}}</h2>
+              <div class="header-actions">
+                <span class="active-status-badge">
+                  <span class="dot"></span>
+                  <span>{{localization.kpi.applying}}</span>
+                </span>
+                <button type="button" class="btn-edit-kpi" (click)="openEditModal()">
+                  ✎ {{localization.kpi.edit}}
+                </button>
+              </div>
+            </div>
+            <p class="header-subtitle">
+              {{localization.kpi.configurationHint}}
+            </p>
+          </div>
         </div>
-      }
-      <div class="kpi-grid">
-        <section class="panel surface-card catalog" aria-labelledby="catalog-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="catalog-title">{{localization.kpi.catalog}}</h2>
-              <p>{{totalCount()}} KPI</p>
+
+        <div class="workspace-scrollable">
+          <!-- Card 1: Thông tin KPI -->
+          <div class="form-card">
+            <h3 class="card-title">{{localization.kpi.information}}</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="kpiCodeInput">{{localization.kpi.code}}</label>
+                <div class="input-with-lock">
+                  <input id="kpiCodeInput" type="text" [value]="editCode()" disabled />
+                  <span class="lock-icon" [title]="localization.kpi.codeLocked">🔒</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="kpiNameInput"
+                  >{{localization.kpi.name}} <span class="required">*</span></label
+                >
+                <input
+                  id="kpiNameInput"
+                  type="text"
+                  [ngModel]="editName()"
+                  (ngModelChange)="editName.set($event)"
+                  [placeholder]="localization.kpi.namePlaceholder"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="kpiGroupSelect">{{localization.kpi.group}}</label>
+                <select
+                  id="kpiGroupSelect"
+                  [ngModel]="editGroupId()"
+                  (ngModelChange)="editGroupId.set($event)"
+                >
+                  @for (g of groups(); track g.id) {
+                    <option [value]="g.id">{{g.name}}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-group full-width">
+                <label for="kpiDescTextarea">{{localization.kpi.description}}</label>
+                <textarea
+                  id="kpiDescTextarea"
+                  rows="2"
+                  [ngModel]="editDescription()"
+                  (ngModelChange)="editDescription.set($event)"
+                  [placeholder]="localization.kpi.descriptionPlaceholder"
+                ></textarea>
+              </div>
             </div>
           </div>
-          <form class="filters" (ngSubmit)="refresh(true)">
-            <input
-              type="search"
-              class="input"
-              name="keyword"
-              [(ngModel)]="keyword"
-              [placeholder]="localization.kpi.searchKpi"
-              [attr.aria-label]="localization.kpi.searchKpi"
-            />
-            <select
-              class="select"
-              name="group"
-              [(ngModel)]="groupId"
-              (ngModelChange)="refresh(true)"
-              [attr.aria-label]="localization.kpi.filterGroup"
-            >
-              <option value="">{{localization.kpi.allGroups}}</option>
-              @for (group of groups(); track group.id) {
-                <option [value]="group.id">{{group.name}}</option>
-              }
-            </select>
-            <button type="submit" class="button button-secondary">
-              {{localization.kpi.search}}
-            </button>
-          </form>
-          @if (loading() && !kpis().length) {
-            <div class="state-card" role="status">
-              <span class="spinner" aria-hidden="true"></span>
-              <p>{{localization.kpi.loading}}</p>
-            </div>
-          } @else if (failed()) {
-            <div class="state-card state-error" role="alert">
-              <p>{{localization.kpi.loadFailed}}</p>
-              <button type="button" class="button button-secondary" (click)="refresh()">
-                {{localization.kpi.retry}}
-              </button>
-            </div>
-          } @else if (kpis().length === 0) {
-            <div class="state-card">
-              <strong>{{localization.kpi.empty}}</strong>
-              <p>{{localization.kpi.emptyHint}}</p>
-              <button type="button" class="button button-secondary" (click)="resetFilters()">
-                {{localization.kpi.resetFilters}}
-              </button>
-            </div>
-          } @else {
-            <ul class="kpi-list">
-              @for (item of kpis(); track item.id) {
-                <li>
+
+          <!-- Card 2: Phương pháp đo lường -->
+          <div class="form-card">
+            <h3 class="card-title">{{localization.kpi.measurement}}</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="kpiUnitSelect">{{localization.kpi.unit}}</label>
+                <select
+                  id="kpiUnitSelect"
+                  [ngModel]="editUnit()"
+                  (ngModelChange)="editUnit.set($event)"
+                >
+                  <option value="VND">VND</option>
+                  <option value="%">%</option>
+                  <option value="Giao dịch">{{localization.kpi.transactions}}</option>
+                  <option value="Hồ sơ">{{localization.kpi.dossiers}}</option>
+                  <option value="Điểm">{{localization.kpi.points}}</option>
+                  <option value="Số lượng">{{localization.kpi.quantity}}</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <span class="label-text">{{localization.kpi.direction}}</span>
+                <div class="segmented-control">
                   <button
                     type="button"
-                    class="kpi-item"
-                    [class.is-selected]="selected()?.id === item.id"
-                    [attr.aria-pressed]="selected()?.id === item.id"
-                    (click)="select(item)"
+                    class="segment-btn"
+                    [class.active]="editDirection() === 'HigherBetter'"
+                    (click)="setDirection('HigherBetter')"
                   >
-                    <span class="mono kpi-code">{{item.code}}</span>
-                    <strong>{{item.name}}</strong>
-                    <span class="kpi-meta">
-                      {{directionLabel(item.direction)}} · {{item.kpiGroupName}}
-                    </span>
+                    • {{localization.kpi.higherBetter}}
                   </button>
-                </li>
-              }
-            </ul>
-            <div class="toolbar-actions">
-              <button
-                type="button"
-                class="button button-secondary"
-                [disabled]="page <= 1"
-                (click)="turnPage(-1)"
-              >
-                {{localization.kpi.previous}}
-              </button>
-              <span class="page-indicator"
-                >{{localization.kpi.page}} {{page}} / {{totalPages()}}</span
-              >
-              <button
-                type="button"
-                class="button button-secondary"
-                [disabled]="page >= totalPages()"
-                (click)="turnPage(1)"
-              >
-                {{localization.kpi.next}}
-              </button>
-            </div>
-          }
-        </section>
+                  <button
+                    type="button"
+                    class="segment-btn"
+                    [class.active]="editDirection() === 'LowerBetter'"
+                    (click)="setDirection('LowerBetter')"
+                  >
+                    {{localization.kpi.lowerBetter}}
+                  </button>
+                </div>
+              </div>
 
-        <section class="config" [attr.aria-label]="localization.kpi.configurationSection">
-          @if (selected(); as kpi) {
-            <div class="panel surface-card">
-              <div class="panel-heading">
-                <div>
-                  <div class="title-line">
-                    <h2>
-                      {{localization.kpi.configuration}} <span class="mono">{{kpi.code}}</span>
-                    </h2>
-                    <span class="status-badge" [class.is-muted]="kpi.status !== 'ACTIVE'">{{statusLabel(kpi.status)}}</span>
+              <div class="form-group">
+                <label for="kpiAggSelect">{{localization.kpi.aggregation}}</label>
+                <select
+                  id="kpiAggSelect"
+                  [ngModel]="editAggregationType()"
+                  (ngModelChange)="editAggregationType.set($event)"
+                >
+                  <option value="Sum">{{localization.kpi.sum}}</option>
+                  <option value="Ratio">{{localization.kpi.ratio}}</option>
+                  <option value="Avg">{{localization.kpi.average}}</option>
+                  <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="kpiFormulaInput">{{localization.kpi.formula}}</label>
+                <input
+                  id="kpiFormulaInput"
+                  type="text"
+                  [ngModel]="editFormula()"
+                  (ngModelChange)="editFormula.set($event)"
+                  [placeholder]="localization.kpi.formulaPlaceholder"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Hệ số nhân theo loại tiền gửi -->
+          <div class="form-card">
+            <div class="card-header-with-badge">
+              <h3 class="card-title">{{localization.kpi.depositMultipliers}}</h3>
+              <span class="rule-badge">BR-33</span>
+            </div>
+
+            <div class="dynamic-rows-list">
+              @for (item of depositMultipliers(); track item.id || $index; let idx = $index) {
+                <div class="dynamic-row">
+                  <span class="row-label">{{localization.products[item.label] ?? item.label}}</span>
+                  <div class="row-input-box">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      [ngModel]="item.value"
+                      (ngModelChange)="updateMultiplierValue(idx, $event)"
+                      [attr.aria-label]="localization.kpi.multiplierValue"
+                    />
                   </div>
-                  <p>{{localization.kpi.configurationHint}}</p>
                 </div>
+              }
+            </div>
+          </div>
+
+          <!-- Card 4: Trọng số theo vai trò -->
+          <div class="form-card">
+            <div class="card-header-with-badge">
+              <h3 class="card-title">{{localization.kpi.roleWeights}}</h3>
+              <span class="rule-badge">BR-06/49</span>
+            </div>
+
+            <div class="dynamic-rows-list">
+              @for (item of roleWeights(); track item.id || $index; let idx = $index) {
+                <div class="dynamic-row">
+                  <span class="row-label">{{item.role}}</span>
+                  <div class="row-input-box with-unit">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      max="100"
+                      [ngModel]="item.weight"
+                      (ngModelChange)="updateRoleWeightValue(idx, $event)"
+                      [attr.aria-label]="localization.kpi.percentWeight"
+                    />
+                    <span class="unit-tag">%</span>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Weight Validation Banner -->
+            @if (isWeightValid()) {
+              <div class="validation-banner success">
+                <span class="banner-icon">✔</span>
+                <span>{{localization.kpi.weightValid}}</span>
               </div>
-              <form class="form-grid" (ngSubmit)="save()">
-                <div class="field">
-                  <label for="kpi-code">{{localization.kpi.code}}</label>
-                  <input id="kpi-code" class="input mono" [value]="kpi.code" disabled />
-                  <p class="hint">{{localization.kpi.codeLocked}}</p>
-                </div>
-                <div class="field">
-                  <label for="kpi-name">{{localization.kpi.name}} *</label>
-                  <input
-                    id="kpi-name"
-                    class="input"
-                    name="name"
-                    maxlength="255"
-                    [(ngModel)]="form.name"
-                    [placeholder]="localization.kpi.namePlaceholder"
-                  />
-                </div>
-                <div class="field">
-                  <label for="kpi-group">{{localization.kpi.group}}</label>
-                  <select id="kpi-group" class="select" name="group" [(ngModel)]="form.kpiGroupId">
-                    @for (group of groups(); track group.id) {
-                      <option [value]="group.id">{{group.name}}</option>
-                    }
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="kpi-unit">{{localization.kpi.unit}} *</label>
-                  <input
-                    id="kpi-unit"
-                    class="input"
-                    name="unit"
-                    maxlength="50"
-                    list="kpi-unit-options"
-                    [(ngModel)]="form.unit"
-                    [placeholder]="localization.kpi.unitPlaceholder"
-                  />
-                  <datalist id="kpi-unit-options">
-                    @for (unit of unitSuggestions(); track unit) {
-                      <option [value]="unit"></option>
-                    }
-                  </datalist>
-                </div>
-                <div class="field">
-                  <label for="kpi-direction">{{localization.kpi.direction}}</label>
-                  <select
-                    id="kpi-direction"
-                    class="select"
-                    name="direction"
-                    [(ngModel)]="form.direction"
-                  >
-                    @for (value of directions; track value) {
-                      <option [value]="value">{{directionLabel(value)}}</option>
-                    }
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="kpi-aggregation">{{localization.kpi.aggregation}}</label>
-                  <select
-                    id="kpi-aggregation"
-                    class="select"
-                    name="aggregation"
-                    [(ngModel)]="form.aggregationType"
-                  >
-                    @for (value of aggregations; track value) {
-                      <option [value]="value">{{aggregationLabel(value)}}</option>
-                    }
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="kpi-formula">{{localization.kpi.formula}}</label>
-                  <input
-                    id="kpi-formula"
-                    class="input mono"
-                    name="formula"
-                    maxlength="1000"
-                    [(ngModel)]="form.formula"
-                    [placeholder]="localization.kpi.formulaPlaceholder"
-                  />
-                </div>
-                <div class="field">
-                  <label for="kpi-max">{{localization.kpi.maxAchievement}}</label>
-                  <input
-                    id="kpi-max"
-                    class="input mono"
-                    name="max"
-                    type="number"
-                    min="0.0001"
-                    max="9999.9999"
-                    step="any"
-                    [(ngModel)]="form.maxAchievementPercent"
-                    [placeholder]="localization.kpi.maxAchievementPlaceholder"
-                  />
-                </div>
-                <div class="field full">
-                  <label for="kpi-description">{{localization.kpi.description}}</label>
-                  <textarea
-                    id="kpi-description"
-                    class="textarea"
-                    name="description"
-                    maxlength="2000"
-                    [(ngModel)]="form.description"
-                    [placeholder]="localization.kpi.descriptionPlaceholder"
-                  ></textarea>
-                </div>
-                <div class="full form-actions">
-                  <span class="mono updated">
-                    {{localization.kpi.updatedAt}}:
-                    {{i18n.formatDate(kpi.updatedAt, 'DD/MM/YYYY HH:mm')}}
-                  </span>
-                  <button
-                    type="button"
-                    class="button button-secondary"
-                    [disabled]="saving() || !isDirty()"
-                    (click)="cancelChanges()"
-                  >
-                    {{localization.kpi.cancelChanges}}
-                  </button>
-                  <button
-                    type="submit"
-                    class="button button-primary"
-                    [disabled]="saving() || !isDirty()"
-                  >
-                    {{saving() ? localization.kpi.saving : localization.kpi.saveConfiguration}}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div class="panel surface-card draft-panel">
-              <div class="panel-heading">
-                <div>
-                  <h2>{{localization.kpi.draftTitle}}</h2>
-                  <p>{{localization.kpi.draftHint}}</p>
-                </div>
-                <span class="status-badge is-warning">{{localization.kpi.notSaved}}</span>
+            } @else {
+              <div class="validation-banner warning">
+                <span class="banner-icon">⚠</span>
+                <span>
+                  {{localization.kpi.weightPrefix}} {{totalRoleWeight()}}{{localization.kpi.weightSuffix}}
+                </span>
               </div>
+            }
+          </div>
+        </div>
 
-              <h3 class="draft-subtitle">{{localization.kpi.roleWeights}}</h3>
-              @for (row of roleRows(); track row.key) {
-                <div class="draft-row">
-                  <input
-                    class="input"
-                    [value]="row.label"
-                    (input)="editRow('roles', row.key, { label: rowLabel($event) })"
-                    [placeholder]="localization.kpi.roleName"
-                    [attr.aria-label]="localization.kpi.roleName"
-                  />
-                  <input
-                    class="input mono"
-                    type="number"
-                    min="0"
-                    max="100"
-                    [value]="row.value"
-                    (input)="editRow('roles', row.key, { value: rowValue($event) })"
-                    [attr.aria-label]="localization.kpi.percentWeight"
-                  />
-                  <button
-                    type="button"
-                    class="button button-secondary"
-                    (click)="removeRow('roles', row.key)"
-                    [attr.aria-label]="localization.kpi.removeRow"
-                  >
-                    ×
-                  </button>
-                </div>
-              }
-              <button type="button" class="button button-secondary" (click)="addRow('roles')">
-                {{localization.kpi.addRole}}
-              </button>
-              @if (roleRows().length) {
-                <p class="panel-footnote" role="status">
-                  {{roleTotal() === 100
-                      ? localization.kpi.weightValid
-                      : i18n.translate('kpi.weightError', { weight: roleTotal() })}}
-                </p>
-              }
+        <!-- Sticky Footer Action Bar -->
+        <footer class="workspace-footer">
+          <div class="audit-info">
+            <span class="sync-icon">🔄</span>
+            <span class="sync-text">{{localization.kpi.serverSync}}</span>
+            <span class="audit-details">{{localization.kpi.auditSync}} | DM-002</span>
+          </div>
 
-              <h3 class="draft-subtitle">{{localization.kpi.depositMultipliers}}</h3>
-              @for (row of multiplierRows(); track row.key) {
-                <div class="draft-row">
-                  <input
-                    class="input"
-                    [value]="row.label"
-                    (input)="editRow('multipliers', row.key, { label: rowLabel($event) })"
-                    [placeholder]="localization.kpi.productName"
-                    [attr.aria-label]="localization.kpi.productName"
-                  />
-                  <input
-                    class="input mono"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    [value]="row.value"
-                    (input)="editRow('multipliers', row.key, { value: rowValue($event) })"
-                    [attr.aria-label]="localization.kpi.multiplierValue"
-                  />
-                  <button
-                    type="button"
-                    class="button button-secondary"
-                    (click)="removeRow('multipliers', row.key)"
-                    [attr.aria-label]="localization.kpi.removeRow"
-                  >
-                    ×
-                  </button>
-                </div>
+          <div class="footer-actions">
+            <button
+              type="button"
+              class="btn-cancel"
+              (click)="cancelChanges()"
+              [disabled]="saving() || !isDirty()"
+            >
+              {{localization.kpi.cancelChanges}}
+            </button>
+
+            <button
+              type="button"
+              class="btn-save"
+              (click)="saveConfig()"
+              [disabled]="saving() || !isWeightValid()"
+            >
+              @if (saving()) {
+                <span class="mini-spinner"></span>
+                <span>{{localization.kpi.saving}}</span>
+              } @else {
+                <span>💾 {{localization.kpi.saveConfiguration}}</span>
               }
-              <button type="button" class="button button-secondary" (click)="addRow('multipliers')">
-                {{localization.kpi.addMultiplier}}
-              </button>
-            </div>
-          } @else if (!loading()) {
-            <div class="state-card">
-              <strong>{{localization.kpi.noSelection}}</strong>
-              <p>{{localization.kpi.noSelectionHint}}</p>
-            </div>
-          }
-        </section>
-      </div>
+            </button>
+          </div>
+        </footer>
+      } @else {
+        <div class="no-selection-state">
+          <span class="no-sel-icon">📋</span>
+          <h3>{{localization.kpi.noSelection}}</h3>
+          <p>{{localization.kpi.noSelectionHint}}</p>
+        </div>
+      }
     </main>
   </div>
 
-  @if (createOpen()) {
+  <!-- Edit KPI Modal -->
+  @if (isEditModalOpen() && selectedKpi(); as kpi) {
+    <app-kpi-edit-modal
+      [kpi]="kpi"
+      [groups]="groups()"
+      (closed)="closeEditModal()"
+      (saved)="onKpiEdited($event)"
+    />
+  }
+
+  <!-- Create KPI Modal (SCR-STRAT-02-M1) -->
+  @if (isCreateModalOpen()) {
     <app-kpi-create-modal
       [groups]="groups()"
-      [units]="unitSuggestions()"
-      (closed)="closeCreate()"
-      (created)="onCreated($event)"
+      [existingCodes]="existingCodes()"
+      (closed)="closeCreateModal()"
+      (created)="onKpiCreated($event)"
     />
   }
 </div>

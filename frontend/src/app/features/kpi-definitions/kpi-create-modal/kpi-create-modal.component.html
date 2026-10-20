@@ -1,151 +1,134 @@
-<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
-  <div
-    class="modal-dialog"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="kpi-create-title"
-    tabindex="-1"
-    (click)="$event.stopPropagation()"
-    (keydown)="$event.stopPropagation()"
-  >
-    <div class="modal-header">
-      <h2 id="kpi-create-title">{{localization.kpi.createTitle}}</h2>
+<div class="kem-container" role="dialog" aria-modal="true" aria-labelledby="kcmTitle">
+  <button
+    type="button"
+    class="kem-backdrop"
+    (click)="close()"
+    [attr.aria-label]="localization.common.close"
+  ></button>
+
+  <div class="kem-card">
+    <header class="kem-header">
+      <div>
+        <h3 id="kcmTitle" class="kem-title">{{localization.kpi.createTitle}}</h3>
+        <span class="kem-subtitle">SCR-STRAT-02-M1 • {{localization.kpi.createSubtitle}}</span>
+      </div>
       <button
         type="button"
-        class="modal-close"
+        class="kem-close"
         (click)="close()"
         [attr.aria-label]="localization.common.close"
       >
-        ×
+        ✕
       </button>
-    </div>
-    <form (ngSubmit)="submit()">
-      <div class="modal-body">
-        @if (errorKey()) {
-          <div class="notice is-error" role="alert">
-            <span>{{errorText()}}</span>
-          </div>
-        }
-        <div class="form-grid">
-          <div class="field">
-            <label for="create-code">{{localization.kpi.code}} *</label>
+    </header>
+
+    <div class="kem-body">
+      @if (error(); as err) {
+        <div class="kem-error">⚠ {{err}}</div>
+      }
+
+      <section class="kem-section">
+        <div class="kem-grid">
+          <div class="kem-field">
+            <label for="kcmCode">{{localization.kpi.code}} *</label>
             <input
-              id="create-code"
-              class="input mono"
-              name="code"
-              maxlength="50"
-              [(ngModel)]="code"
+              id="kcmCode"
+              type="text"
+              class="mono"
               [placeholder]="localization.kpi.codeExample"
+              [ngModel]="code()"
+              (ngModelChange)="code.set($event)"
             />
           </div>
-          <div class="field">
-            <label for="create-name">{{localization.kpi.name}} *</label>
+
+          <div class="kem-field">
+            <label for="kcmName">{{localization.kpi.name}} *</label>
             <input
-              id="create-name"
-              class="input"
-              name="name"
-              maxlength="255"
-              [(ngModel)]="name"
+              id="kcmName"
+              type="text"
               [placeholder]="localization.kpi.nameExample"
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
             />
           </div>
-          <div class="field">
-            <label for="create-group">{{localization.kpi.group}} *</label>
-            <select id="create-group" class="select" name="group" [(ngModel)]="kpiGroupId">
-              @for (group of groups(); track group.id) {
-                <option [value]="group.id">{{group.name}}</option>
+
+          <div class="kem-field">
+            <label for="kcmGroup">{{localization.kpi.group}}</label>
+            <select id="kcmGroup" [ngModel]="groupId()" (ngModelChange)="groupId.set($event)">
+              @for (g of groups(); track g.id) {
+                <option [value]="g.id">{{g.name}}</option>
               }
             </select>
           </div>
-          <div class="field">
-            <label for="create-unit">{{localization.kpi.unit}} *</label>
-            <input
-              id="create-unit"
-              class="input"
-              name="unit"
-              maxlength="50"
-              list="create-unit-options"
-              [(ngModel)]="unit"
-              [placeholder]="localization.kpi.unitPlaceholder"
-            />
-            <datalist id="create-unit-options">
-              @for (option of units(); track option) {
-                <option [value]="option"></option>
-              }
-            </datalist>
-          </div>
-          <div class="field">
-            <label for="create-direction">{{localization.kpi.direction}}</label>
-            <select id="create-direction" class="select" name="direction" [(ngModel)]="direction">
-              @for (value of directions; track value) {
-                <option [value]="value">{{directionLabel(value)}}</option>
+
+          <div class="kem-field">
+            <label for="kcmUnit">{{localization.kpi.unit}}</label>
+            <select id="kcmUnit" [ngModel]="unit()" (ngModelChange)="unit.set($event)">
+              @for (u of unitOptions; track u) {
+                <option [value]="u">{{localization.units[u] ?? u}}</option>
               }
             </select>
           </div>
-          <div class="field">
-            <label for="create-aggregation">{{localization.kpi.aggregation}}</label>
+
+          <div class="kem-field">
+            <label for="kcmDirection">{{localization.kpi.direction}}</label>
             <select
-              id="create-aggregation"
-              class="select"
-              name="aggregation"
-              [(ngModel)]="aggregationType"
+              id="kcmDirection"
+              [ngModel]="direction()"
+              (ngModelChange)="direction.set($event)"
             >
-              @for (value of aggregations; track value) {
-                <option [value]="value">{{aggregationLabel(value)}}</option>
-              }
+              <option value="HigherBetter">{{localization.kpi.higherBetter}}</option>
+              <option value="LowerBetter">{{localization.kpi.lowerBetter}}</option>
+              <option value="OnTarget">{{localization.kpi.onTarget}}</option>
             </select>
           </div>
-          <div class="field">
-            <label for="create-formula">{{localization.kpi.formula}}</label>
+
+          <div class="kem-field">
+            <label for="kcmAgg">{{localization.kpi.aggregation}}</label>
+            <select id="kcmAgg" [ngModel]="aggregation()" (ngModelChange)="aggregation.set($event)">
+              <option value="Sum">{{localization.kpi.sum}}</option>
+              <option value="Ratio">{{localization.kpi.ratio}}</option>
+              <option value="Avg">{{localization.kpi.average}}</option>
+              <option value="NoAggregation">{{localization.kpi.noAggregation}}</option>
+            </select>
+          </div>
+
+          <div class="kem-field full">
+            <label for="kcmFormula">{{localization.kpi.formula}}</label>
             <input
-              id="create-formula"
-              class="input mono"
-              name="formula"
-              maxlength="1000"
-              [(ngModel)]="formula"
+              id="kcmFormula"
+              type="text"
+              class="mono"
               [placeholder]="localization.kpi.formulaExample"
+              [ngModel]="formula()"
+              (ngModelChange)="formula.set($event)"
             />
           </div>
-          <div class="field">
-            <label for="create-max">{{localization.kpi.maxAchievement}}</label>
-            <input
-              id="create-max"
-              class="input mono"
-              name="max"
-              type="number"
-              min="0.0001"
-              max="9999.9999"
-              step="any"
-              [(ngModel)]="maxAchievementPercent"
-              [placeholder]="localization.kpi.maxAchievementPlaceholder"
-            />
-          </div>
-          <div class="field full">
-            <label for="create-description">{{localization.kpi.description}}</label>
+
+          <div class="kem-field full">
+            <label for="kcmDesc">{{localization.kpi.description}}</label>
             <textarea
-              id="create-description"
-              class="textarea"
-              name="description"
-              maxlength="2000"
-              [(ngModel)]="description"
+              id="kcmDesc"
+              rows="3"
               [placeholder]="localization.kpi.detailPlaceholder"
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
             ></textarea>
           </div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button
-          type="button"
-          class="button button-secondary"
-          (click)="close()"
-          [disabled]="saving()"
-        >
+      </section>
+    </div>
+
+    <footer class="kem-footer">
+      <span class="kem-audit">SCR-STRAT-02-M1</span>
+      <div>
+        <button type="button" class="kem-btn-ghost" (click)="close()" [disabled]="saving()">
           {{localization.common.cancel}}
         </button>
-        <button type="submit" class="button button-primary" [disabled]="saving()">
+        <button type="button" class="kem-btn-primary" (click)="submit()" [disabled]="saving()">
           {{saving() ? localization.kpi.creating : localization.kpi.create}}
         </button>
       </div>
-    </form>
+    </footer>
   </div>
 </div>
