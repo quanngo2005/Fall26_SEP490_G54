@@ -18,6 +18,9 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class ResultSubmissionsController(IResultSubmissionService submissionService) : ControllerBase
 {
+    /// <summary>10 files of up to 25 MB plus room for the other form fields; raised only for the submission upload.</summary>
+    private const long MaxSubmissionRequestBytes = (10 * StorageService.DefaultMaxFileSizeBytes) + (1024 * 1024);
+
     [HttpGet("works/{workId:guid}/submission-context")]
     [ProducesResponseType<ApiResponse<SubmissionContextDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
@@ -32,6 +35,8 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
 
     [HttpPost("works/{workId:guid}/submissions")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxSubmissionRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxSubmissionRequestBytes)]
     [ProducesResponseType<ApiResponse<SubmissionResultDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]

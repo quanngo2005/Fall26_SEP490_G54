@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkTypeService, WorkTypeService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
+        services.AddScoped<IEvidenceService, EvidenceService>();
         services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
