@@ -17,8 +17,6 @@ export interface WorkTypeDetail {
   code: string;
   name: string;
   description: string | null;
-  workflowDefinitionId: string;
-  workflowName: string;
   status: WorkTypeStatus;
   createdAt: string;
   kpis: WorkTypeKpiDetail[];

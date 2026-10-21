@@ -32,15 +32,6 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    [HttpGet("workflows")]
-    [HttpGet("/workflows")]
-    [ProducesResponseType<ApiResponse<List<WorkflowOptionDto>>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<List<WorkflowOptionDto>>>> GetWorkflows(CancellationToken cancellationToken)
-    {
-        var result = await service.GetWorkflowsAsync(cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<WorkTypeDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]

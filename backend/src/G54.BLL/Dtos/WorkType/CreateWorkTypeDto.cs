@@ -13,8 +13,5 @@ public sealed record CreateWorkTypeDto
     [StringLength(2000)]
     public string? Description { get; init; }
 
-    [Required]
-    public Guid WorkflowDefinitionId { get; init; }
-
     public List<WorkTypeKpiItemDto> Kpis { get; init; } = [];
 }

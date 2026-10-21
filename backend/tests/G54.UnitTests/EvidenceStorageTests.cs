@@ -357,7 +357,6 @@ public sealed class EvidenceServiceTests : IDisposable
             FilePath = filePath,
             MimeType = "application/pdf",
             FileSize = PdfBytes.Length,
-            UploadedBy = submitter.Id,
             UploadedAt = now,
             UpdatedAt = now,
         };
@@ -529,7 +528,6 @@ public sealed class EvidenceServiceTests : IDisposable
             RiskEventId = Guid.NewGuid(),
             FileName = "risk.pdf",
             FilePath = stored.FilePath,
-            UploadedBy = submitter.Id,
             UploadedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -556,7 +554,6 @@ public sealed class EvidenceServiceTests : IDisposable
             FileName = "bang.xlsx",
             FilePath = stored.FilePath,
             MimeType = "text/html", // a poisoned stored value must not be served
-            UploadedBy = submitter.Id,
             UploadedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -604,7 +601,6 @@ public sealed class EvidenceServiceTests : IDisposable
             ResultSubmissionId = (await _db.ResultSubmissions.SingleAsync()).Id,
             FileName = "bang.xlsx",
             FilePath = stored.FilePath,
-            UploadedBy = submitter.Id,
             UploadedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         };

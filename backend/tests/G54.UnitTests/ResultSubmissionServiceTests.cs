@@ -74,7 +74,6 @@ public sealed class ResultSubmissionServiceTests
             Id = Guid.NewGuid(),
             Code = "POS-TELLER",
             Title = "Teller",
-            EvaluationProfileId = Guid.NewGuid(),
             Status = RecordStatus.Active,
         };
         var assignee = new Employee
@@ -96,20 +95,11 @@ public sealed class ResultSubmissionServiceTests
             IsLocked = false,
         };
 
-        var workflow = new WorkflowDefinition
-        {
-            Id = Guid.NewGuid(),
-            Code = "WF-CARD",
-            Name = "Credit Card Issuance Workflow",
-            Status = WorkflowDefinitionStatus.Active,
-        };
-
         var workType = new WorkType
         {
             Id = Guid.NewGuid(),
             Code = "WT-CARD",
             Name = "Mo the tin dung",
-            WorkflowDefinitionId = workflow.Id,
             Status = RecordStatus.Active,
         };
 
@@ -172,6 +162,7 @@ public sealed class ResultSubmissionServiceTests
             Title = "Mo the tin dung ca nhan",
             WorkTypeId = workType.Id,
             AssigneeEmployeeId = assignee.Id,
+            CreatedBy = assignee.Id,
             Status = workStatus,
             Priority = WorkPriority.High,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -181,7 +172,6 @@ public sealed class ResultSubmissionServiceTests
         await context.JobPositions.AddAsync(jobPosition);
         await context.Employees.AddAsync(assignee);
         await context.Accounts.AddAsync(account);
-        await context.WorkflowDefinitions.AddAsync(workflow);
         await context.WorkTypes.AddAsync(workType);
         await context.KpiGroups.AddAsync(kpiGroup);
         await context.KpiDefinitions.AddRangeAsync(kpi1, kpiRatio);

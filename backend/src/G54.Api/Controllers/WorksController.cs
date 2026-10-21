@@ -1,3 +1,4 @@
+using G54.Api.Authorization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Work;
@@ -20,7 +21,7 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
         [FromBody] CreateWorkRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await workService.CreateWorkAsync(request, cancellationToken);
+        var result = await workService.CreateWorkAsync(request, User.GetRequiredUserId(), cancellationToken);
         var response = ApiResponse.Ok(
             result,
             "Khởi tạo và phân công công việc thành công.",

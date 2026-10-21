@@ -485,12 +485,13 @@ public sealed class DepartmentService(
         var kpiIds = latest.Select(a => a.KpiDefinitionId).ToList();
         var progress = await db.ActualProgresses.AsNoTracking()
             .Where(a => a.Status == ActualProgressStatus.Valid
-                && kpiIds.Contains(a.KpiDefinitionId)
+                && kpiIds.Contains(a.TargetAssignment.KpiDefinitionId)
                 && a.ProgressDate >= period.StartDate
                 && a.ProgressDate <= period.EndDate
-                && a.Employee.Status != EmployeeStatus.Terminated
-                && subtree.Contains(a.Employee.DepartmentId))
-            .Select(a => new ProgressRow(a.KpiDefinitionId, a.Value, a.Denominator))
+                && a.TargetAssignment.Employee != null
+                && a.TargetAssignment.Employee.Status != EmployeeStatus.Terminated
+                && subtree.Contains(a.TargetAssignment.Employee.DepartmentId))
+            .Select(a => new ProgressRow(a.TargetAssignment.KpiDefinitionId, a.Value, a.Denominator))
             .ToListAsync(cancellationToken);
 
         var byKpi = progress.ToLookup(p => p.KpiDefinitionId);

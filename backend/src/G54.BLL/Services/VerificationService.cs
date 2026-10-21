@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Verification;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -136,33 +137,33 @@ public sealed class VerificationService(
             throw new BusinessRuleException(ErrorCodes.MSG23, statusCode: StatusCodes.Status409Conflict);
         }
 
-        if (submission.Status is not (SubmissionStatus.Submitted or SubmissionStatus.UnderReview))
+        var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
+        var (dbDecision, action, newWorkStatus, actionText) = normalizedDecision switch
+        {
+            "APPROVED" => (
+                VerificationDecision.Approved,
+                SubmissionAction.Approve,
+                WorkStatus.Verified,
+                "Phê duyệt kết quả hoàn tất"),
+            "REVISION_REQUIRED" => (
+                VerificationDecision.NeedMoreInfo,
+                SubmissionAction.RequestRevision,
+                WorkStatus.InProgress,
+                "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
+            "REJECTED" => (
+                VerificationDecision.Rejected,
+                SubmissionAction.Reject,
+                WorkStatus.Rejected,
+                "Đã từ chối hồ sơ kết quả công việc"),
+            _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
+        };
+
+        if (!SubmissionStateMachine.TryGetNextStatus(submission.Status, action, out var newSubmissionStatus))
         {
             throw new ConflictException(
                 $"Hồ sơ đang ở trạng thái {submission.Status.ToEnumString()}, không thể thẩm định.",
                 ErrorCodes.VerificationInvalidState);
         }
-
-        var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
-        var (dbDecision, newSubmissionStatus, newWorkStatus, actionText) = normalizedDecision switch
-        {
-            "APPROVED" => (
-                VerificationDecision.Approved,
-                SubmissionStatus.Approved,
-                WorkStatus.Verified,
-                "Phê duyệt kết quả hoàn tất"),
-            "REVISION_REQUIRED" => (
-                VerificationDecision.NeedMoreInfo,
-                SubmissionStatus.UnderReview,
-                WorkStatus.InProgress,
-                "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
-            "REJECTED" => (
-                VerificationDecision.Rejected,
-                SubmissionStatus.Rejected,
-                WorkStatus.Rejected,
-                "Đã từ chối hồ sơ kết quả công việc"),
-            _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
-        };
 
         var nextRoundNo = submission.Verifications.Count > 0
             ? submission.Verifications.Max(v => v.RoundNo) + 1
@@ -204,15 +205,27 @@ public sealed class VerificationService(
             var primaryKpiId = submission.Work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
             if (primaryKpiId.HasValue && dto.VerifiedValue.HasValue)
             {
-                var resultItem = new WorkResultItem
+                var progress = await ResolveProgressAsync(
+                    primaryKpiId.Value,
+                    submission.SubmitterEmployeeId,
+                    DateOnly.FromDateTime(now.UtcDateTime),
+                    dto.VerifiedValue.Value,
+                    now,
+                    cancellationToken);
+
+                // A verified result item must feed an employee target's progress; without an active target there is nothing to attribute it to.
+                if (progress is not null)
                 {
-                    Id = Guid.NewGuid(),
-                    VerifiedWorkResultId = verifiedResult.Id,
-                    KpiDefinitionId = primaryKpiId.Value,
-                    Value = dto.VerifiedValue.Value,
-                    UpdatedAt = now,
-                };
-                db.WorkResultItems.Add(resultItem);
+                    db.WorkResultItems.Add(new WorkResultItem
+                    {
+                        Id = Guid.NewGuid(),
+                        VerifiedWorkResultId = verifiedResult.Id,
+                        ActualProgressId = progress.Id,
+                        EmployeeId = submission.SubmitterEmployeeId,
+                        Value = dto.VerifiedValue.Value,
+                        UpdatedAt = now,
+                    });
+                }
             }
         }
 
@@ -296,5 +309,50 @@ public sealed class VerificationService(
         {
             throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
+    }
+
+    private async Task<ActualProgress?> ResolveProgressAsync(
+        Guid kpiDefinitionId,
+        Guid employeeId,
+        DateOnly progressDate,
+        decimal value,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var target = await db.TargetAssignments
+            .Where(t => t.KpiDefinitionId == kpiDefinitionId
+                && t.EmployeeId == employeeId
+                && t.Status == TargetAssignmentStatus.Active
+                && t.EvaluationPeriod.StartDate <= progressDate
+                && t.EvaluationPeriod.EndDate >= progressDate)
+            .OrderBy(t => t.EvaluationPeriod.EndDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (target is null)
+        {
+            return null;
+        }
+
+        var progress = db.ActualProgresses.Local
+                .FirstOrDefault(p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate)
+            ?? await db.ActualProgresses.FirstOrDefaultAsync(
+                p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate,
+                cancellationToken);
+        if (progress is null)
+        {
+            progress = new ActualProgress
+            {
+                Id = Guid.NewGuid(),
+                TargetAssignmentId = target.Id,
+                ProgressDate = progressDate,
+                Value = 0,
+                Status = ActualProgressStatus.Valid,
+                UpdatedAt = now,
+            };
+            db.ActualProgresses.Add(progress);
+        }
+
+        progress.Value += value;
+        progress.UpdatedAt = now;
+        return progress;
     }
 }

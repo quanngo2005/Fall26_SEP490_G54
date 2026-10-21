@@ -139,7 +139,7 @@ public sealed class CampaignService(
                 cwt.WorkTypeId,
                 cwt.WorkType.Code,
                 cwt.WorkType.Name,
-                cwt.WorkType.WorkflowDefinition != null ? cwt.WorkType.WorkflowDefinition.Name : null,
+                null,
                 cwt.WorkType.Description,
                 null))
             .ToListAsync(cancellationToken);
@@ -259,7 +259,7 @@ public sealed class CampaignService(
 
             if (activeCount != distinctEmployeeIds.Count)
             {
-                throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động (BR-41).");
+                throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động.");
             }
         }
 
@@ -406,7 +406,7 @@ public sealed class CampaignService(
 
                 if (activeCount != distinctEmployeeIds.Count)
                 {
-                    throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động (BR-41).");
+                    throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động.");
                 }
             }
 
@@ -475,8 +475,19 @@ public sealed class CampaignService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        if (request is null || string.IsNullOrWhiteSpace(request.Decision))
+        {
+            throw new ValidationException("Quyết định phê duyệt là bắt buộc và phải là APPROVE hoặc REJECT.");
+        }
+
+        if (request.ApprovedBudget.HasValue && request.ApprovedBudget.Value < 0)
+        {
+            throw new ValidationException("Ngân sách phê duyệt không được là số âm.");
+        }
+
         var campaign = await db.BusinessCampaigns
             .Include(c => c.Participants)
+            .Include(c => c.BusinessObjective)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
         if (campaign is null)
@@ -485,11 +496,11 @@ public sealed class CampaignService(
         }
 
         var currentEmployee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
-        if (currentEmployee != null && campaign.Participants.Any(p => p.EmployeeId == currentEmployee.Id))
+        if (campaign.Participants.Any(p => p.EmployeeId == currentUserId || (currentEmployee != null && p.EmployeeId == currentEmployee.Id)))
         {
             throw new BusinessRuleException(
                 ErrorCodes.MSG10,
-                "Theo quy tắc BR-02 (Maker-Checker), nhân sự tham gia thực hiện chiến dịch không được tự phê duyệt kế hoạch chiến dịch.");
+                "Nhân sự tham gia thực hiện chiến dịch không được tự phê duyệt kế hoạch chiến dịch.");
         }
 
         if (campaign.Status != BusinessCampaignStatus.Planned)
@@ -499,19 +510,38 @@ public sealed class CampaignService(
                 "Chỉ có thể phê duyệt hoặc từ chối chiến dịch ở trạng thái Kế hoạch (PLANNED).");
         }
 
+        if (campaign.BusinessObjective != null && campaign.BusinessObjective.Status == BusinessObjectiveStatus.Cancelled)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.ValidationError,
+                "Mục tiêu kinh doanh liên kết đã bị hủy, không thể phê duyệt chiến dịch.");
+        }
+
         var decision = request.Decision.Trim().ToUpperInvariant();
         string message;
         if (decision == "APPROVE")
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (campaign.EndDate < today)
+            {
+                throw new BusinessRuleException(
+                    ErrorCodes.ValidationError,
+                    "Không thể phê duyệt chiến dịch đã quá hạn kết thúc so với thời gian máy chủ.");
+            }
+
             campaign.Status = BusinessCampaignStatus.Running;
             campaign.UpdatedAt = DateTimeOffset.UtcNow;
-            message = "Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công.";
+            message = string.IsNullOrWhiteSpace(request.Note)
+                ? "Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công."
+                : $"Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công. Ghi chú: {request.Note.Trim()}";
         }
         else if (decision == "REJECT")
         {
             campaign.Status = BusinessCampaignStatus.Cancelled;
             campaign.UpdatedAt = DateTimeOffset.UtcNow;
-            message = "Đã từ chối kế hoạch chiến dịch kinh doanh.";
+            message = string.IsNullOrWhiteSpace(request.Note)
+                ? "Đã từ chối kế hoạch chiến dịch kinh doanh."
+                : $"Đã từ chối kế hoạch chiến dịch kinh doanh. Lý do: {request.Note.Trim()}";
         }
         else
         {
@@ -606,8 +636,11 @@ public sealed class CampaignService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.ValidationError,
-                "Chiến dịch chưa có nhân sự tham gia hợp lệ ở trạng thái hoạt động để phân bổ đầu việc (BR-41).");
+                "Chiến dịch chưa có nhân sự tham gia hợp lệ ở trạng thái hoạt động để phân bổ đầu việc.");
         }
+
+        var creator = await ResolveEmployeeAsync(currentUserId, cancellationToken)
+            ?? throw new ForbiddenException("Không xác định được nhân sự thực hiện thao tác.");
 
         var priority = ParsePriority(request.Priority);
         var estimatedHours = request.EstimatedHours is > 0 ? request.EstimatedHours.Value : 1.0m;
@@ -638,7 +671,7 @@ public sealed class CampaignService(
         var generatedWorks = new List<Work>(totalLeads);
         var todayStr = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var exclusivityEnd = startDate.AddDays(7);
-        var br25Note = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} theo BR-25.";
+        var exclusivityNote = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 
         for (var i = 0; i < totalLeads; i++)
         {
@@ -703,11 +736,11 @@ public sealed class CampaignService(
             string description;
             if (lead != null && (!string.IsNullOrWhiteSpace(lead.CustomerCode) || !string.IsNullOrWhiteSpace(lead.CustomerName) || !string.IsNullOrWhiteSpace(lead.Note)))
             {
-                description = $"Nguồn: {leadPoolSource}. Mã KH: {lead.CustomerCode ?? "N/A"}, Tên KH: {lead.CustomerName ?? "N/A"}. Ghi chú: {lead.Note ?? "Không có"}. {br25Note}";
+                description = $"Nguồn: {leadPoolSource}. Mã KH: {lead.CustomerCode ?? "N/A"}, Tên KH: {lead.CustomerName ?? "N/A"}. Ghi chú: {lead.Note ?? "Không có"}. {exclusivityNote}";
             }
             else
             {
-                description = $"Đầu việc được sinh tự động từ nguồn: {leadPoolSource}. {br25Note}";
+                description = $"Đầu việc được sinh tự động từ nguồn: {leadPoolSource}. {exclusivityNote}";
             }
 
             var work = new Work
@@ -719,6 +752,7 @@ public sealed class CampaignService(
                 WorkTypeId = request.WorkTypeId,
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = assigneeId,
+                CreatedBy = creator.Id,
                 Priority = priority,
                 Status = WorkStatus.New,
                 EstimatedHours = estimatedHours,

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Submission;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -160,19 +161,11 @@ public sealed partial class ResultSubmissionService(
 
                 var nextSubmissionNo = existingSubmissions.Count > 0 ? existingSubmissions.Max(s => s.SubmissionNo) + 1 : 1;
 
-                Guid? workflowDefinitionId = null;
-                if (work.WorkTypeId.HasValue)
-                {
-                    var workType = await unitOfWork.WorkTypes.GetByIdAsync(work.WorkTypeId.Value, ct);
-                    workflowDefinitionId = workType?.WorkflowDefinitionId;
-                }
-
                 var newSubmission = new ResultSubmission
                 {
                     Id = Guid.NewGuid(),
                     WorkId = work.Id,
                     SubmitterEmployeeId = employee.Id,
-                    WorkflowDefinitionId = workflowDefinitionId,
                     SubmissionNo = nextSubmissionNo,
                     Comment = storedComment,
                     Status = SubmissionStatus.Submitted,
@@ -193,7 +186,6 @@ public sealed partial class ResultSubmissionService(
                         MimeType = file.MimeType,
                         FileSize = file.FileSize,
                         Description = request.Comment?.Trim(),
-                        UploadedBy = employee.Id,
                         UploadedAt = DateTimeOffset.UtcNow,
                         UpdatedAt = DateTimeOffset.UtcNow,
                     };
@@ -407,7 +399,7 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Bạn không phải là người đã nộp báo cáo kết quả này.");
         }
 
-        if (submission.Status != SubmissionStatus.Submitted)
+        if (!SubmissionStateMachine.TryGetNextStatus(submission.Status, SubmissionAction.Withdraw, out var statusAfterWithdraw))
         {
             throw new ConflictException(
                 $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status.ToEnumString()}.",
@@ -420,7 +412,7 @@ public sealed partial class ResultSubmissionService(
             throw new NotFoundException("Công việc", submission.WorkId);
         }
 
-        submission.Status = SubmissionStatus.Withdrawn;
+        submission.Status = statusAfterWithdraw;
         submission.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.ResultSubmissions.Update(submission);
 

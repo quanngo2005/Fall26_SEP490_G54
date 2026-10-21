@@ -25,26 +25,15 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<WorkflowOptionDto>> GetWorkflowsAsync(CancellationToken cancellationToken = default)
-    {
-        return await db.WorkflowDefinitions
-            .AsNoTracking()
-            .Where(w => w.Status == WorkflowDefinitionStatus.Active)
-            .OrderBy(w => w.Code)
-            .Select(w => new WorkflowOptionDto(w.Id, w.Code, w.Name))
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<WorkTypeDetailDto> CreateWorkTypeAsync(
         CreateWorkTypeDto dto,
         CancellationToken cancellationToken = default)
     {
-        ValidateInput(dto.Code, dto.Name, dto.WorkflowDefinitionId);
+        ValidateInput(dto.Code, dto.Name);
         ValidateKpiDateRanges(dto.Kpis);
 
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, null, cancellationToken);
-        await EnsureWorkflowExistsAsync(dto.WorkflowDefinitionId, cancellationToken);
 
         var kpiIds = dto.Kpis.Select(k => k.KpiDefinitionId).Distinct().ToList();
         if (kpiIds.Count > 0)
@@ -58,7 +47,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             Code = code,
             Name = dto.Name.Trim(),
             Description = NormalizeOptional(dto.Description),
-            WorkflowDefinitionId = dto.WorkflowDefinitionId,
             Status = RecordStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -108,11 +96,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             query = query.Where(w => w.Status == recordStatus);
         }
 
-        if (filter.WorkflowDefinitionId.HasValue)
-        {
-            query = query.Where(w => w.WorkflowDefinitionId == filter.WorkflowDefinitionId.Value);
-        }
-
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
             .OrderBy(w => w.Code)
@@ -123,8 +106,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Code,
                 w.Name,
                 w.Description,
-                w.WorkflowDefinitionId,
-                w.WorkflowDefinition.Name,
                 w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
@@ -154,8 +135,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Code,
                 w.Name,
                 w.Description,
-                w.WorkflowDefinitionId,
-                w.WorkflowDefinition.Name,
                 w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
@@ -176,7 +155,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         UpdateWorkTypeDto dto,
         CancellationToken cancellationToken = default)
     {
-        ValidateInput(dto.Code, dto.Name, dto.WorkflowDefinitionId);
+        ValidateInput(dto.Code, dto.Name);
         ValidateKpiDateRanges(dto.Kpis);
 
         var workType = await db.WorkTypes
@@ -186,7 +165,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
 
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, id, cancellationToken);
-        await EnsureWorkflowExistsAsync(dto.WorkflowDefinitionId, cancellationToken);
 
         var kpiIds = dto.Kpis.Select(k => k.KpiDefinitionId).Distinct().ToList();
         if (kpiIds.Count > 0)
@@ -197,7 +175,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         workType.Code = code;
         workType.Name = dto.Name.Trim();
         workType.Description = NormalizeOptional(dto.Description);
-        workType.WorkflowDefinitionId = dto.WorkflowDefinitionId;
         workType.UpdatedAt = DateTimeOffset.UtcNow;
 
         db.WorkTypeKpis.RemoveRange(workType.WorkTypeKpis);
@@ -272,17 +249,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         }
     }
 
-    private async Task EnsureWorkflowExistsAsync(Guid workflowId, CancellationToken cancellationToken)
-    {
-        var exists = await db.WorkflowDefinitions.AnyAsync(
-            w => w.Id == workflowId && w.Status == WorkflowDefinitionStatus.Active,
-            cancellationToken);
-        if (!exists)
-        {
-            throw new NotFoundException("Workflow Definition", workflowId);
-        }
-    }
-
     private async Task EnsureKpisActiveAsync(List<Guid> kpiIds, CancellationToken cancellationToken)
     {
         var activeCount = await db.KpiDefinitions.CountAsync(
@@ -338,7 +304,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             ?? throw new NotFoundException("WorkType", id);
     }
 
-    private static void ValidateInput(string code, string name, Guid workflowDefinitionId)
+    private static void ValidateInput(string code, string name)
     {
         if (string.IsNullOrWhiteSpace(code) || code.Trim().Length > 50)
         {
@@ -348,11 +314,6 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
         {
             throw new ValidationException("Tên loại công việc là bắt buộc và tối đa 200 ký tự.");
-        }
-
-        if (workflowDefinitionId == Guid.Empty)
-        {
-            throw new ValidationException("Quy trình phê duyệt (WorkflowDefinitionId) là bắt buộc.");
         }
     }
 

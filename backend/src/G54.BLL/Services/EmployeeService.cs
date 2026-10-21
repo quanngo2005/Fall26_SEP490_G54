@@ -283,7 +283,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             throw new ConflictException("Không thể xóa nhân viên đang là quản lý trực tiếp của nhân viên khác. Vui lòng chuyển giao quản lý trước.");
         }
 
-        var hasWorks = await db.Works.AnyAsync(w => w.AssigneeEmployeeId == id, cancellationToken);
+        var hasWorks = await db.Works.AnyAsync(w => w.AssigneeEmployeeId == id || w.CreatedBy == id, cancellationToken);
         if (hasWorks)
         {
             throw new ConflictException("Không thể xóa nhân viên đã được phân công công việc. Vui lòng chuyển trạng thái sang Thôi việc (Terminated) hoặc Không hoạt động (Inactive).");

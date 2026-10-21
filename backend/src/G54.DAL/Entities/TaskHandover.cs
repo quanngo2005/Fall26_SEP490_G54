@@ -13,6 +13,8 @@ public partial class TaskHandover : IBaseEntity
 
     public Guid ToEmployeeId { get; set; }
 
+    public Guid? ApprovedBy { get; set; }
+
     public string Reason { get; set; } = null!;
 
     public DateTimeOffset HandoverAt { get; set; }
@@ -22,6 +24,8 @@ public partial class TaskHandover : IBaseEntity
     public DateTimeOffset UpdatedAt { get; set; }
 
     public HandoverStatus Status { get; set; }
+
+    public virtual Employee? ApprovedByNavigation { get; set; }
 
     public virtual Employee FromEmployee { get; set; } = null!;
 

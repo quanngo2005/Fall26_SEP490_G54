@@ -23,8 +23,6 @@ public partial class Evidence
 
     public string? Description { get; set; }
 
-    public Guid UploadedBy { get; set; }
-
     public DateTimeOffset UploadedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
@@ -34,6 +32,4 @@ public partial class Evidence
     public virtual ResultSubmission? ResultSubmission { get; set; }
 
     public virtual RiskEvent? RiskEvent { get; set; }
-
-    public virtual Employee UploadedByNavigation { get; set; } = null!;
 }

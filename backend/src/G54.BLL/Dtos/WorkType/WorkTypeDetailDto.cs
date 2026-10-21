@@ -8,8 +8,6 @@ public sealed record WorkTypeDetailDto(
     string Code,
     string Name,
     string? Description,
-    Guid WorkflowDefinitionId,
-    string WorkflowName,
     string Status,
     DateTimeOffset CreatedAt,
     List<WorkTypeKpiDetailDto> Kpis);

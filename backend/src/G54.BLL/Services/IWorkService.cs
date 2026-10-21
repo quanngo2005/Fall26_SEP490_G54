@@ -6,6 +6,7 @@ public interface IWorkService
 {
     Task<WorkDetailDto> CreateWorkAsync(
         CreateWorkRequestDto request,
+        Guid currentUserId,
         CancellationToken cancellationToken = default);
 
     Task<WorkDetailDto?> GetByIdAsync(

@@ -7,7 +7,6 @@ public sealed record WorkTypeFilterDto
     /// <summary>UPPER_SNAKE status filter (ACTIVE, INACTIVE, ARCHIVED); unknown value is 400.</summary>
     public string? Status { get; init; }
 
-    public Guid? WorkflowDefinitionId { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
 }

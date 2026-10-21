@@ -13,8 +13,6 @@ public partial class WorkType
 
     public string? Description { get; set; }
 
-    public Guid WorkflowDefinitionId { get; set; }
-
     public DateTimeOffset UpdatedAt { get; set; }
 
     public RecordStatus Status { get; set; }
@@ -24,8 +22,6 @@ public partial class WorkType
     public virtual ICollection<JobPositionWorkType> JobPositionWorkTypes { get; set; } = new List<JobPositionWorkType>();
 
     public virtual ICollection<WorkTypeKpi> WorkTypeKpis { get; set; } = new List<WorkTypeKpi>();
-
-    public virtual WorkflowDefinition WorkflowDefinition { get; set; } = null!;
 
     public virtual ICollection<Work> Works { get; set; } = new List<Work>();
 }

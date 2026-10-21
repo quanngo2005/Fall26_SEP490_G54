@@ -43,12 +43,18 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, 
  ('5eed0000-0000-0000-0005-000000000006', '5eed0000-0000-0000-0003-000000000003', 'TUAN_THU',  'Tỷ lệ hồ sơ đúng quy trình', 'Hồ sơ đạt / tổng hồ sơ',         'hồ sơ đạt / tổng hồ sơ',         '%',          'RATIO', 'HIGHER_BETTER', 100)
 ON CONFLICT DO NOTHING;
 
+-- Only two job positions; managers hold one of them and get the MANAGER role.
+INSERT INTO job_position (id, code, title, description) VALUES
+ ('5eed0000-0000-0000-0006-000000000001', 'SALES',  'Chuyên viên Kinh doanh', 'Bán hàng, phát triển khách hàng'),
+ ('5eed0000-0000-0000-0006-000000000002', 'TELLER', 'Giao dịch viên',         'Giao dịch tại quầy')
+ON CONFLICT DO NOTHING;
+
 -- ---------------------------------------------------------------------------
--- Evaluation profiles (ACTIVE profiles must total 100% - checked at commit)
+-- Evaluation profiles, one per position (ACTIVE profiles must total 100% - checked at commit)
 -- ---------------------------------------------------------------------------
-INSERT INTO evaluation_profile (id, code, name, description, version, effective_from, status) VALUES
- ('5eed0000-0000-0000-0002-000000000001', 'EP-SALES',  'Hồ sơ đánh giá Sales',          'Chuyên viên kinh doanh',  1, '2026-01-01', 'ACTIVE'),
- ('5eed0000-0000-0000-0002-000000000002', 'EP-TELLER', 'Hồ sơ đánh giá Giao dịch viên', 'Giao dịch viên tại quầy', 1, '2026-01-01', 'ACTIVE')
+INSERT INTO evaluation_profile (id, job_position_id, code, name, description, version, effective_from, status) VALUES
+ ('5eed0000-0000-0000-0002-000000000001', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES',  'Hồ sơ đánh giá Sales',          'Chuyên viên kinh doanh',  1, '2026-01-01', 'ACTIVE'),
+ ('5eed0000-0000-0000-0002-000000000002', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER', 'Hồ sơ đánh giá Giao dịch viên', 'Giao dịch viên tại quầy', 1, '2026-01-01', 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 -- SALES: KD 70 / CLDV 20 / TT 10 - TELLER: KD 20 / CLDV 50 / TT 30
@@ -59,12 +65,6 @@ INSERT INTO evaluation_profile_item (id, evaluation_profile_id, kpi_group_id, we
  ('5eed0000-0000-0000-0004-000000000004', '5eed0000-0000-0000-0002-000000000002', '5eed0000-0000-0000-0003-000000000001', 20, 1),
  ('5eed0000-0000-0000-0004-000000000005', '5eed0000-0000-0000-0002-000000000002', '5eed0000-0000-0000-0003-000000000002', 50, 2),
  ('5eed0000-0000-0000-0004-000000000006', '5eed0000-0000-0000-0002-000000000002', '5eed0000-0000-0000-0003-000000000003', 30, 3)
-ON CONFLICT DO NOTHING;
-
--- Only two job positions; managers hold one of them and get the MANAGER role.
-INSERT INTO job_position (id, code, title, description, evaluation_profile_id) VALUES
- ('5eed0000-0000-0000-0006-000000000001', 'SALES',  'Chuyên viên Kinh doanh', 'Bán hàng, phát triển khách hàng', '5eed0000-0000-0000-0002-000000000001'),
- ('5eed0000-0000-0000-0006-000000000002', 'TELLER', 'Giao dịch viên',         'Giao dịch tại quầy',              '5eed0000-0000-0000-0002-000000000002')
 ON CONFLICT DO NOTHING;
 
 -- NV001 giám đốc CN, NV002 trưởng phòng KD, NV003 trưởng phòng GD; managers first.
@@ -124,15 +124,11 @@ ON CONFLICT DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Work type catalog
 -- ---------------------------------------------------------------------------
-INSERT INTO workflow_definition (id, code, name, description, version) VALUES
- ('5eed0000-0000-0000-000b-000000000001', 'WF-STANDARD', 'Duyệt một cấp', 'Nhân viên nộp, quản lý trực tiếp duyệt', 1)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO work_type (id, code, name, description, workflow_definition_id) VALUES
- ('5eed0000-0000-0000-000c-000000000001', 'MO_TAI_KHOAN', 'Mở tài khoản khách hàng', NULL, '5eed0000-0000-0000-000b-000000000001'),
- ('5eed0000-0000-0000-000c-000000000002', 'HUY_DONG',     'Huy động tiền gửi',       NULL, '5eed0000-0000-0000-000b-000000000001'),
- ('5eed0000-0000-0000-000c-000000000003', 'GIAI_NGAN',    'Giải ngân khoản vay',     NULL, '5eed0000-0000-0000-000b-000000000001'),
- ('5eed0000-0000-0000-000c-000000000004', 'GIAO_DICH',    'Giao dịch tại quầy',      NULL, '5eed0000-0000-0000-000b-000000000001')
+INSERT INTO work_type (id, code, name, description) VALUES
+ ('5eed0000-0000-0000-000c-000000000001', 'MO_TAI_KHOAN', 'Mở tài khoản khách hàng', NULL),
+ ('5eed0000-0000-0000-000c-000000000002', 'HUY_DONG',     'Huy động tiền gửi',       NULL),
+ ('5eed0000-0000-0000-000c-000000000003', 'GIAI_NGAN',    'Giải ngân khoản vay',     NULL),
+ ('5eed0000-0000-0000-000c-000000000004', 'GIAO_DICH',    'Giao dịch tại quầy',      NULL)
 ON CONFLICT DO NOTHING;
 
 -- Fixed ids are required: the overlap trigger excludes rows with the same id.
@@ -224,8 +220,10 @@ ON CONFLICT DO NOTHING;
 -- Plus KH_MOI per Sales (no split) and one DRAFT CSAT target for a Teller.
 -- Rows are inserted parent-first (ORDER BY row_no).
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_by, assigned_at, approved_by, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
 SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
+       CASE WHEN t.kpi_no IN ('000000000001', '000000000002', '000000000003')
+            THEN '5eed0000-0000-0000-0010-000000000001'::uuid END,
        ('5eed0000-0000-0000-0005-' || t.kpi_no)::uuid,
        ('5eed0000-0000-0000-0001-' || t.dept_no)::uuid,
        ('5eed0000-0000-0000-0007-' || t.emp_no)::uuid,
@@ -234,9 +232,7 @@ SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        t.split::target_split_dimension,
        t.target_value,
        t.status::target_assignment_status,
-       ('5eed0000-0000-0000-0007-' || t.assigned_by_no)::uuid,
        now(),
-       CASE WHEN t.status = 'ACTIVE' THEN '5eed0000-0000-0000-0007-000000000001'::uuid END,
        CASE WHEN t.status = 'ACTIVE' THEN now() END,
        t.reason
 FROM (VALUES
@@ -261,11 +257,18 @@ ON CONFLICT DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Work items (open, ready for submission / verification flows)
 -- ---------------------------------------------------------------------------
-INSERT INTO work (id, work_type_id, business_campaign_id, assignee_employee_id, code, title, description, priority, estimated_hours, planned_start_date, planned_end_date, status) VALUES
+WITH seed_work (id, work_type_id, business_campaign_id, assignee_employee_id, code, title, description, priority, estimated_hours, planned_start_date, planned_end_date, status) AS (VALUES
  ('5eed0000-0000-0000-0016-000000000001', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000004', 'W-2026-0001', 'Mở tài khoản cho nhóm KH khu Cầu Giấy',  NULL, 'HIGH',     16,  '2026-10-01', '2026-10-31', 'IN_PROGRESS'),
  ('5eed0000-0000-0000-0016-000000000002', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000004', 'W-2026-0002', 'Huy động tiền gửi KH hiện hữu',           NULL, 'MEDIUM',   24,  '2026-10-05', '2026-11-30', 'NEW'),
  ('5eed0000-0000-0000-0016-000000000003', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000006', 'W-2026-0003', 'Huy động tiền gửi hộ kinh doanh chợ Hôm', NULL, 'HIGH',     24,  '2026-10-01', '2026-11-15', 'IN_PROGRESS'),
  ('5eed0000-0000-0000-0016-000000000004', '5eed0000-0000-0000-000c-000000000003', NULL,                                   '5eed0000-0000-0000-0007-000000000007', 'W-2026-0004', 'Giải ngân vay tiêu dùng hồ sơ A102',      NULL, 'CRITICAL', 8,   '2026-10-10', '2026-10-20', 'NEW'),
  ('5eed0000-0000-0000-0016-000000000005', '5eed0000-0000-0000-000c-000000000004', NULL,                                   '5eed0000-0000-0000-0007-000000000008', 'W-2026-0005', 'Giao dịch tại quầy tháng 10',             NULL, 'MEDIUM',   160, '2026-10-01', '2026-10-31', 'IN_PROGRESS'),
  ('5eed0000-0000-0000-0016-000000000006', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000009', 'W-2026-0006', 'Mở tài khoản tại quầy cho KH vãng lai',   NULL, 'LOW',      40,  '2026-10-01', '2026-12-31', 'IN_PROGRESS')
+)
+INSERT INTO work (id, work_type_id, business_campaign_id, assignee_employee_id, created_by, code, title, description, priority, estimated_hours, planned_start_date, planned_end_date, status)
+SELECT sw.id::uuid, sw.work_type_id::uuid, sw.business_campaign_id::uuid, sw.assignee_employee_id::uuid, COALESCE(e.manager_id, e.id),
+       sw.code, sw.title, sw.description, sw.priority::work_priority, sw.estimated_hours,
+       sw.planned_start_date::date, sw.planned_end_date::date, sw.status::work_status
+FROM seed_work sw
+JOIN employee e ON e.id = sw.assignee_employee_id::uuid
 ON CONFLICT DO NOTHING;
