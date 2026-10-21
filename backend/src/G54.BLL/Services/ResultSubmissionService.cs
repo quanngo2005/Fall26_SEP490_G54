@@ -150,65 +150,75 @@ public sealed partial class ResultSubmissionService(
         var parsedMetrics = ExtractMetricItems(request);
         var storedComment = BuildStoredComment(request.Comment, parsedMetrics);
 
-        var submission = await unitOfWork.ExecuteInTransactionAsync(async ct =>
+        ResultSubmission submission;
+        try
         {
-            var existingSubmissions = await unitOfWork.ResultSubmissions.Query(asNoTracking: false)
-                .Where(s => s.WorkId == workId)
-                .ToListAsync(ct);
-
-            var nextSubmissionNo = existingSubmissions.Count > 0 ? existingSubmissions.Max(s => s.SubmissionNo) + 1 : 1;
-
-            var newSubmission = new ResultSubmission
+            submission = await unitOfWork.ExecuteInTransactionAsync(async ct =>
             {
-                Id = Guid.NewGuid(),
-                WorkId = work.Id,
-                SubmitterEmployeeId = employee.Id,
-                SubmissionNo = nextSubmissionNo,
-                Comment = storedComment,
-                Status = SubmissionStatus.Submitted,
-                SubmittedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
+                var existingSubmissions = await unitOfWork.ResultSubmissions.Query(asNoTracking: false)
+                    .Where(s => s.WorkId == workId)
+                    .ToListAsync(ct);
 
-            await unitOfWork.ResultSubmissions.AddAsync(newSubmission, ct);
+                var nextSubmissionNo = existingSubmissions.Count > 0 ? existingSubmissions.Max(s => s.SubmissionNo) + 1 : 1;
 
-            foreach (var file in uploadedFiles)
-            {
-                var evidence = new Evidence
+                var newSubmission = new ResultSubmission
                 {
                     Id = Guid.NewGuid(),
-                    ResultSubmissionId = newSubmission.Id,
-                    FileName = file.FileName,
-                    FilePath = file.FilePath,
-                    MimeType = file.MimeType,
-                    FileSize = file.FileSize,
-                    Description = request.Comment?.Trim(),
-                    UploadedAt = DateTimeOffset.UtcNow,
+                    WorkId = work.Id,
+                    SubmitterEmployeeId = employee.Id,
+                    SubmissionNo = nextSubmissionNo,
+                    Comment = storedComment,
+                    Status = SubmissionStatus.Submitted,
+                    SubmittedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow,
                 };
-                await unitOfWork.Evidences.AddAsync(evidence, ct);
-            }
 
-            var workToUpdate = await unitOfWork.Works.GetByIdAsync(work.Id, ct);
-            if (workToUpdate is not null)
-            {
-                var fromState = workToUpdate.Status;
-                workToUpdate.Status = WorkStatus.Submitted;
-                workToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
-                unitOfWork.Works.Update(workToUpdate);
+                await unitOfWork.ResultSubmissions.AddAsync(newSubmission, ct);
 
-                LogWorkflowTransition(
-                    logger,
-                    workToUpdate.Code,
-                    workToUpdate.Id,
-                    fromState,
-                    WorkStatus.Submitted,
-                    employee.Id,
-                    null);
-            }
+                foreach (var file in uploadedFiles)
+                {
+                    var evidence = new Evidence
+                    {
+                        Id = Guid.NewGuid(),
+                        ResultSubmissionId = newSubmission.Id,
+                        FileName = file.FileName,
+                        FilePath = file.FilePath,
+                        MimeType = file.MimeType,
+                        FileSize = file.FileSize,
+                        Description = request.Comment?.Trim(),
+                        UploadedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow,
+                    };
+                    await unitOfWork.Evidences.AddAsync(evidence, ct);
+                }
 
-            return newSubmission;
-        }, cancellationToken);
+                var workToUpdate = await unitOfWork.Works.GetByIdAsync(work.Id, ct);
+                if (workToUpdate is not null)
+                {
+                    var fromState = workToUpdate.Status;
+                    workToUpdate.Status = WorkStatus.Submitted;
+                    workToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
+                    unitOfWork.Works.Update(workToUpdate);
+
+                    LogWorkflowTransition(
+                        logger,
+                        workToUpdate.Code,
+                        workToUpdate.Id,
+                        fromState,
+                        WorkStatus.Submitted,
+                        employee.Id,
+                        null);
+                }
+
+                return newSubmission;
+            }, cancellationToken);
+        }
+        catch
+        {
+            // The files are already on disk; without a submission row nothing would ever reference them.
+            await storageService.DeleteEvidenceFilesAsync(uploadedFiles, CancellationToken.None);
+            throw;
+        }
 
         await eventBus.PublishAsync(new WorkSubmittedEvent(
             SubmissionId: submission.Id,

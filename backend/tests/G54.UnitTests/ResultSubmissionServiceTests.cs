@@ -296,7 +296,8 @@ public sealed class ResultSubmissionServiceTests
             {
                 var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context);
 
-                var fileBytes = Encoding.UTF8.GetBytes("fake excel sheet content");
+                // An .xlsx is a ZIP container, so the stored content must start with the ZIP signature.
+                var fileBytes = new byte[] { 0x50, 0x4B, 0x03, 0x04 }.Concat(Encoding.UTF8.GetBytes("fake excel sheet content")).ToArray();
                 var mockFile = new FormFile(
                     baseStream: new MemoryStream(fileBytes),
                     baseStreamOffset: 0,
@@ -329,6 +330,8 @@ public sealed class ResultSubmissionServiceTests
                 Assert.Single(evidences);
                 Assert.Equal("danh_sach_the.xlsx", evidences[0].FileName);
                 Assert.Equal(fileBytes.Length, evidences[0].FileSize);
+                Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", evidences[0].MimeType);
+                Assert.DoesNotContain('/', evidences[0].FilePath);
             }
             finally
             {

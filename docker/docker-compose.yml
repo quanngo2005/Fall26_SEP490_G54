@@ -65,6 +65,9 @@ services:
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in docker/.env (see docker/.env.example)}
       Cors__Origins__0: ${FRONTEND_ORIGIN:-http://localhost:8080}
       Cors__Origins__1: http://localhost:4200
+      Storage__EvidencePath: /app/data/evidence
+    volumes:
+      - evidence_data:/app/data/evidence
     ports:
       - "5000:8080"
     depends_on:
@@ -96,3 +99,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  evidence_data:
