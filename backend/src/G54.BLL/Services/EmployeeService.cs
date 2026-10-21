@@ -1,8 +1,10 @@
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.Employee;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -16,8 +18,27 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
     private static readonly Action<ILogger, string, Guid, Exception?> LogEmployeeAudit =
         LoggerMessage.Define<string, Guid>(LogLevel.Information, new EventId(1, "EmployeeAudit"), "Employee audit: Action={Action}, EntityId={EntityId}");
 
-    private static readonly Regex PhoneRegex = new(@"^[+0-9\s().-]{7,30}$", RegexOptions.Compiled);
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
+
+    private static readonly Expression<Func<Employee, EmployeeDetailDto>> DetailProjection = e => new EmployeeDetailDto(
+        e.Id,
+        e.EmployeeCode,
+        e.FullName,
+        e.Email,
+        e.Phone,
+        e.DepartmentId,
+        e.Department.Code,
+        e.Department.Name,
+        e.JobPositionId,
+        e.JobPosition.Code,
+        e.JobPosition.Title,
+        e.ManagerId,
+        e.Manager != null ? e.Manager.EmployeeCode : null,
+        e.Manager != null ? e.Manager.FullName : null,
+        e.Status.ToEnumString(),
+        e.InverseManager.Count,
+        e.LastSyncAt,
+        e.UpdatedAt);
 
     public async Task<PagedResult<EmployeeDetailDto>> GetEmployeesAsync(
         EmployeeFilterDto filter,
@@ -63,25 +84,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             .OrderBy(e => e.EmployeeCode)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(e => new EmployeeDetailDto(
-                e.Id,
-                e.EmployeeCode,
-                e.FullName,
-                e.Email,
-                e.Phone,
-                e.DepartmentId,
-                e.Department.Code,
-                e.Department.Name,
-                e.JobPositionId,
-                e.JobPosition.Code,
-                e.JobPosition.Title,
-                e.ManagerId,
-                e.Manager != null ? e.Manager.EmployeeCode : null,
-                e.Manager != null ? e.Manager.FullName : null,
-                e.Status.ToEnumString(),
-                e.InverseManager.Count,
-                e.LastSyncAt,
-                e.UpdatedAt))
+            .Select(DetailProjection)
             .ToListAsync(cancellationToken);
 
         return new PagedResult<EmployeeDetailDto>(items, totalCount, page, pageSize);
@@ -94,26 +97,44 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         return await db.Employees
             .AsNoTracking()
             .Where(e => e.Id == id)
-            .Select(e => new EmployeeDetailDto(
-                e.Id,
-                e.EmployeeCode,
-                e.FullName,
-                e.Email,
-                e.Phone,
-                e.DepartmentId,
-                e.Department.Code,
-                e.Department.Name,
-                e.JobPositionId,
-                e.JobPosition.Code,
-                e.JobPosition.Title,
-                e.ManagerId,
-                e.Manager != null ? e.Manager.EmployeeCode : null,
-                e.Manager != null ? e.Manager.FullName : null,
-                e.Status.ToEnumString(),
-                e.InverseManager.Count,
-                e.LastSyncAt,
-                e.UpdatedAt))
+            .Select(DetailProjection)
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<EmployeeDetailDto?> GetEmployeeByCodeAsync(
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        var trimmed = code?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        return await db.Employees
+            .AsNoTracking()
+            .Where(e => e.EmployeeCode == trimmed)
+            .Select(DetailProjection)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<EmployeeDetailDto> GetCurrentEmployeeAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await db.Accounts
+            .AsNoTracking()
+            .Where(a => a.Id == accountId)
+            .Select(a => new { a.EmployeeId, a.IsLocked, a.Employee.Status })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Tài khoản", accountId);
+
+        if (account.IsLocked || account.Status != EmployeeStatus.Active)
+        {
+            throw new ForbiddenException();
+        }
+
+        return await GetRequiredEmployeeAsync(account.EmployeeId, cancellationToken);
     }
 
     public Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(
@@ -210,11 +231,19 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         UpdateEmployeeDto dto,
         CancellationToken cancellationToken = default)
     {
-        ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, dto.Phone, dto.DepartmentId, dto.JobPositionId);
+        // The phone rule is applied below, and only when the phone actually changes, so an employee whose stored
+        // number predates the rule can still have their other details edited.
+        ValidateInput(dto.EmployeeCode, dto.FullName, dto.Email, phone: null, dto.DepartmentId, dto.JobPositionId);
         var status = EnumApiFormat.ParseRequiredEnum<EmployeeStatus>(dto.Status, "status");
 
         var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
+
+        var phone = PhoneRules.Normalize(dto.Phone);
+        if (!string.Equals(phone, employee.Phone, StringComparison.Ordinal))
+        {
+            ValidatePhone(phone);
+        }
 
         var code = dto.EmployeeCode.Trim();
         var email = dto.Email.Trim().ToLowerInvariant();
@@ -239,7 +268,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         employee.EmployeeCode = code;
         employee.FullName = dto.FullName.Trim();
         employee.Email = email;
-        employee.Phone = NormalizeOptional(dto.Phone);
+        employee.Phone = phone;
         employee.DepartmentId = dto.DepartmentId;
         employee.JobPositionId = dto.JobPositionId;
         employee.ManagerId = managerId;
@@ -412,6 +441,15 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             ?? throw new NotFoundException("Nhân viên", id);
     }
 
+    private static void ValidatePhone(string? phone)
+    {
+        var normalized = PhoneRules.Normalize(phone);
+        if (normalized is not null && !PhoneRules.IsValid(normalized))
+        {
+            throw new ValidationException("Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.");
+        }
+    }
+
     private static void ValidateInput(string employeeCode, string fullName, string email, string? phone, Guid departmentId, Guid jobPositionId)
     {
         if (string.IsNullOrWhiteSpace(employeeCode) || employeeCode.Trim().Length > 50)
@@ -429,14 +467,7 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             throw new ValidationException("Email là bắt buộc và phải có định dạng hợp lệ, tối đa 255 ký tự.");
         }
 
-        if (!string.IsNullOrWhiteSpace(phone))
-        {
-            var trimmedPhone = phone.Trim();
-            if (trimmedPhone.Length > 30 || !PhoneRegex.IsMatch(trimmedPhone))
-            {
-                throw new ValidationException("Số điện thoại không hợp lệ, độ dài tối đa 30 ký tự.");
-            }
-        }
+        ValidatePhone(phone);
 
         if (departmentId == Guid.Empty)
         {

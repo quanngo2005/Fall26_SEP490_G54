@@ -87,4 +87,94 @@ describe('AuthService', () => {
     expect(stored.accessToken).toBe('access-token');
     expect(sessionStorage.getItem('g54.auth.session')).toBeNull();
   });
+
+  describe('changePassword', () => {
+    const rotated: AuthResponse = {
+      ...response,
+      accessToken: 'rotated-access',
+      refreshToken: 'rotated-refresh',
+    };
+
+    it('posts the passwords with the current refresh token and swaps in the new session', () => {
+      localStorage.setItem('g54.auth.session', JSON.stringify(response));
+      let result: AuthResponse | undefined;
+      authService
+        .changePassword({ currentPassword: 'old', newPassword: 'new-password-123' })
+        .subscribe((value) => (result = value));
+
+      const request = http.expectOne(`${environment.apiUrl}/me/password`);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({
+        currentPassword: 'old',
+        newPassword: 'new-password-123',
+        refreshToken: 'refresh-token',
+      });
+      request.flush(rotated);
+
+      expect(result?.accessToken).toBe('rotated-access');
+      const stored = JSON.parse(localStorage.getItem('g54.auth.session') ?? '{}') as AuthResponse;
+      expect(stored.refreshToken).toBe('rotated-refresh');
+    });
+
+    it('keeps a non-remembered session in session storage', () => {
+      sessionStorage.setItem('g54.auth.session', JSON.stringify(response));
+      authService
+        .changePassword({ currentPassword: 'old', newPassword: 'new-password-123' })
+        .subscribe();
+
+      http.expectOne(`${environment.apiUrl}/me/password`).flush(rotated);
+
+      expect(localStorage.getItem('g54.auth.session')).toBeNull();
+      const stored = JSON.parse(sessionStorage.getItem('g54.auth.session') ?? '{}') as AuthResponse;
+      expect(stored.refreshToken).toBe('rotated-refresh');
+    });
+
+    it('refreshes an expired access token first and sends the rotated refresh token', () => {
+      const expired: AuthResponse = {
+        ...response,
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      };
+      localStorage.setItem('g54.auth.session', JSON.stringify(expired));
+      authService
+        .changePassword({ currentPassword: 'old', newPassword: 'new-password-123' })
+        .subscribe();
+
+      http.expectOne(`${environment.apiUrl}/auth/refresh`).flush({
+        ...response,
+        refreshToken: 'refreshed-refresh',
+      });
+      const request = http.expectOne(`${environment.apiUrl}/me/password`);
+      expect(request.request.body.refreshToken).toBe('refreshed-refresh');
+      request.flush(rotated);
+    });
+
+    it('does not touch the stored session when the change fails', () => {
+      localStorage.setItem('g54.auth.session', JSON.stringify(response));
+      let status = 0;
+      authService
+        .changePassword({ currentPassword: 'wrong', newPassword: 'new-password-123' })
+        .subscribe({ error: (error) => (status = error.status) });
+
+      http
+        .expectOne(`${environment.apiUrl}/me/password`)
+        .flush(
+          { errorCode: 'INVALID_CURRENT_PASSWORD' },
+          { status: 400, statusText: 'Bad Request' },
+        );
+
+      expect(status).toBe(400);
+      const stored = JSON.parse(localStorage.getItem('g54.auth.session') ?? '{}') as AuthResponse;
+      expect(stored.refreshToken).toBe('refresh-token');
+    });
+
+    it('fails without a request when there is no session', () => {
+      let failed = false;
+      authService
+        .changePassword({ currentPassword: 'old', newPassword: 'new-password-123' })
+        .subscribe({ error: () => (failed = true) });
+
+      http.expectNone(`${environment.apiUrl}/me/password`);
+      expect(failed).toBeTrue();
+    });
+  });
 });

@@ -197,7 +197,7 @@ describe('Shared workspace layout', () => {
     for (const selector of ['.view-profile-link', '.avatar']) {
       TestBed.inject(NavigationService).toggleMobile();
       header.nativeElement.querySelector(selector).click();
-      expect(navigate.calls.mostRecent().args[0].toString()).toBe('/employee-detail');
+      expect(navigate.calls.mostRecent().args[0].toString()).toBe('/employee-detail/me');
       expect(TestBed.inject(NavigationService).mobileOpen()).toBeFalse();
     }
     expect(confirm).not.toHaveBeenCalled();

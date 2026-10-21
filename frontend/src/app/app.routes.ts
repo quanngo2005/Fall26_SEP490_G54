@@ -40,7 +40,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'employee-detail/:id',
+    path: 'employee-detail/:code',
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(

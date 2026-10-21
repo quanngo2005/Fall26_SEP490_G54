@@ -86,6 +86,32 @@ public sealed class RedisAuthSessionStore(IConnectionMultiplexer connectionMulti
         return (int)result == 1;
     }
 
+    public async Task<int> RevokeAllAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var pattern = $"{SessionKeyPrefix}{accountId}:*";
+        var database = connectionMultiplexer.GetDatabase();
+        var removed = 0;
+        // SCAN every primary; KEYS would block Redis. An account holds a handful of sessions, so one DEL per key is fine.
+        foreach (var endpoint in connectionMultiplexer.GetEndPoints())
+        {
+            var server = connectionMultiplexer.GetServer(endpoint);
+            if (server.IsReplica)
+            {
+                continue;
+            }
+
+            await foreach (var key in server.KeysAsync(pattern: pattern).WithCancellation(cancellationToken))
+            {
+                if (await database.KeyDeleteAsync(key))
+                {
+                    removed++;
+                }
+            }
+        }
+
+        return removed;
+    }
+
     private static RedisKey SessionKey(Guid accountId, Guid tokenId) =>
         $"{SessionKeyPrefix}{accountId}:{tokenId}";
 }

@@ -88,9 +88,13 @@ export class DepartmentViewComponent extends LocalizedComponent {
       .subscribe({
         next: (list) => {
           this.departments.set(list.items);
-          const requested = this.route.snapshot.queryParamMap.get('departmentId');
+          // Links carry the department code; `departmentId` is only read for links that predate that.
+          const query = this.route.snapshot.queryParamMap;
+          const requestedCode = query.get('department');
+          const legacyId = query.get('departmentId');
           this.departmentId =
-            list.items.find((d) => d.id === requested)?.id ??
+            list.items.find((d) => d.code === requestedCode)?.id ??
+            list.items.find((d) => d.id === legacyId)?.id ??
             list.items.find((d) => d.levelType === 'DEPARTMENT')?.id ??
             list.items[0]?.id ??
             '';
