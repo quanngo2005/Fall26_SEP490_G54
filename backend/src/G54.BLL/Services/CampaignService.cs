@@ -139,7 +139,7 @@ public sealed class CampaignService(
                 cwt.WorkTypeId,
                 cwt.WorkType.Code,
                 cwt.WorkType.Name,
-                cwt.WorkType.WorkflowDefinition != null ? cwt.WorkType.WorkflowDefinition.Name : null,
+                null,
                 cwt.WorkType.Description,
                 null))
             .ToListAsync(cancellationToken);
@@ -639,6 +639,9 @@ public sealed class CampaignService(
                 "Chiến dịch chưa có nhân sự tham gia hợp lệ ở trạng thái hoạt động để phân bổ đầu việc.");
         }
 
+        var creator = await ResolveEmployeeAsync(currentUserId, cancellationToken)
+            ?? throw new ForbiddenException("Không xác định được nhân sự thực hiện thao tác.");
+
         var priority = ParsePriority(request.Priority);
         var estimatedHours = request.EstimatedHours is > 0 ? request.EstimatedHours.Value : 1.0m;
         var leadPoolSource = string.IsNullOrWhiteSpace(request.LeadPoolSource)
@@ -749,6 +752,7 @@ public sealed class CampaignService(
                 WorkTypeId = request.WorkTypeId,
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = assigneeId,
+                CreatedBy = creator.Id,
                 Priority = priority,
                 Status = WorkStatus.New,
                 EstimatedHours = estimatedHours,

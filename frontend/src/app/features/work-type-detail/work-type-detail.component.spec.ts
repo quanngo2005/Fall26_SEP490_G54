@@ -18,8 +18,6 @@ const workType: WorkTypeDetail = {
   code: 'HUY_DONG',
   name: 'Huy động tiền gửi',
   description: null,
-  workflowDefinitionId: '5eed0000-0000-0000-000d-000000000001',
-  workflowName: 'Quy trình huy động',
   status: 'ACTIVE',
   createdAt: '2026-01-01T00:00:00+00:00',
   kpis: [
@@ -80,7 +78,6 @@ describe('WorkTypeDetailComponent', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(api.list).toHaveBeenCalledWith({ pageSize: 100 });
     expect(root.textContent).toContain('Huy động tiền gửi');
-    expect(root.textContent).toContain('Quy trình huy động');
     expect(root.textContent).not.toContain('WT-2026-008');
     expect(root.querySelector('select')?.getAttribute('aria-label')).toBe('Chọn loại công việc');
     TestBed.inject(I18nService).setLanguage('en');

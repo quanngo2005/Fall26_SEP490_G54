@@ -104,23 +104,6 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
                 _dbContext.Departments.Add(department);
             }
 
-            var evaluationProfile = await _dbContext.EvaluationProfiles
-                .SingleOrDefaultAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
-            if (evaluationProfile is null)
-            {
-                evaluationProfile = new EvaluationProfile
-                {
-                    Code = "DEV_ADMIN",
-                    Name = "Development Administrator",
-                    Description = "Local development bootstrap profile.",
-                    Version = 1,
-                    EffectiveFrom = DateOnly.FromDateTime(now.UtcDateTime),
-                    UpdatedAt = now,
-                    Status = EvaluationProfileStatus.Draft,
-                };
-                _dbContext.EvaluationProfiles.Add(evaluationProfile);
-            }
-
             var jobPosition = await _dbContext.JobPositions
                 .SingleOrDefaultAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
             if (jobPosition is null)
@@ -130,12 +113,28 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
                     Code = "DEV_ADMIN",
                     Title = "Development Administrator",
                     Description = "Local development bootstrap position.",
-                    EvaluationProfile = evaluationProfile,
                     LastSyncAt = now,
                     UpdatedAt = now,
                     Status = RecordStatus.Active,
                 };
                 _dbContext.JobPositions.Add(jobPosition);
+            }
+
+            var hasEvaluationProfile = await _dbContext.EvaluationProfiles
+                .AnyAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
+            if (!hasEvaluationProfile)
+            {
+                _dbContext.EvaluationProfiles.Add(new EvaluationProfile
+                {
+                    Code = "DEV_ADMIN",
+                    Name = "Development Administrator",
+                    Description = "Local development bootstrap profile.",
+                    Version = 1,
+                    EffectiveFrom = DateOnly.FromDateTime(now.UtcDateTime),
+                    JobPosition = jobPosition,
+                    UpdatedAt = now,
+                    Status = EvaluationProfileStatus.Draft,
+                });
             }
 
             employee = new Employee

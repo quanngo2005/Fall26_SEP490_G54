@@ -74,10 +74,6 @@ public sealed partial class EvaluationService(
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.JobPosition)
-                .ThenInclude(jp => jp.EvaluationProfile)
-                    .ThenInclude(ep => ep.EvaluationProfileItems)
-                        .ThenInclude(epi => epi.KpiGroup)
-                            .ThenInclude(kg => kg.KpiDefinitions)
             .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", employeeId);
 
@@ -86,7 +82,7 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", periodId);
 
-        var profile = employee.JobPosition.EvaluationProfile
+        var profile = await FindProfileAsync(employee.JobPositionId, period, cancellationToken)
             ?? throw new NotFoundException("Hồ sơ đánh giá của vị trí công việc", employee.JobPosition.Id);
 
         var targetAssignments = await db.TargetAssignments
@@ -98,8 +94,9 @@ public sealed partial class EvaluationService(
 
         var actualProgresses = await db.ActualProgresses
             .AsNoTracking()
-            .Where(ap => ap.EmployeeId == employeeId
-                && ap.EvaluationPeriodId == periodId
+            .Include(ap => ap.TargetAssignment)
+            .Where(ap => ap.TargetAssignment.EmployeeId == employeeId
+                && ap.TargetAssignment.EvaluationPeriodId == periodId
                 && ap.Status == ActualProgressStatus.Valid)
             .ToListAsync(cancellationToken);
 
@@ -117,13 +114,12 @@ public sealed partial class EvaluationService(
 
         var existingEvaluation = await db.PerformanceEvaluations
             .AsNoTracking()
-            .Include(pe => pe.ReviewerEmployee)
             .FirstOrDefaultAsync(pe => pe.EmployeeId == employeeId && pe.EvaluationPeriodId == periodId, cancellationToken);
 
         var (cleanComment, coachingPlan, qualitativeSaved, _, _, _) = ParseStoredComment(existingEvaluation?.Comment);
 
         var actualsDict = actualProgresses
-            .GroupBy(ap => ap.KpiDefinitionId)
+            .GroupBy(ap => ap.TargetAssignment.KpiDefinitionId)
             .ToDictionary(g => g.Key, g => g.Sum(ap => ap.Value));
 
         var targetsDict = targetAssignments
@@ -290,8 +286,8 @@ public sealed partial class EvaluationService(
             existingEvaluation?.Id,
             existingEvaluation?.TotalScore,
             (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToString().ToUpperInvariant(),
-            existingEvaluation?.ReviewerEmployeeId,
-            existingEvaluation?.ReviewerEmployee?.FullName,
+            null,
+            null,
             existingEvaluation?.CalculatedAt,
             existingEvaluation?.ApprovedAt,
             cleanComment,
@@ -330,10 +326,6 @@ public sealed partial class EvaluationService(
         var employee = await db.Employees
             .AsNoTracking()
             .Include(e => e.JobPosition)
-                .ThenInclude(jp => jp.EvaluationProfile)
-                    .ThenInclude(ep => ep.EvaluationProfileItems)
-                        .ThenInclude(epi => epi.KpiGroup)
-                            .ThenInclude(kg => kg.KpiDefinitions)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", request.EmployeeId);
 
@@ -349,7 +341,7 @@ public sealed partial class EvaluationService(
                 "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc cập nhật đánh giá.");
         }
 
-        var profile = employee.JobPosition.EvaluationProfile
+        var profile = await FindProfileAsync(employee.JobPositionId, period, cancellationToken)
             ?? throw new NotFoundException("Hồ sơ đánh giá của vị trí công việc", employee.JobPosition.Id);
 
         var targetAssignments = await db.TargetAssignments
@@ -361,8 +353,9 @@ public sealed partial class EvaluationService(
 
         var actualProgresses = await db.ActualProgresses
             .AsNoTracking()
-            .Where(ap => ap.EmployeeId == request.EmployeeId
-                && ap.EvaluationPeriodId == request.PeriodId
+            .Include(ap => ap.TargetAssignment)
+            .Where(ap => ap.TargetAssignment.EmployeeId == request.EmployeeId
+                && ap.TargetAssignment.EvaluationPeriodId == request.PeriodId
                 && ap.Status == ActualProgressStatus.Valid)
             .ToListAsync(cancellationToken);
 
@@ -378,7 +371,7 @@ public sealed partial class EvaluationService(
             .ToListAsync(cancellationToken);
 
         var actualsDict = actualProgresses
-            .GroupBy(ap => ap.KpiDefinitionId)
+            .GroupBy(ap => ap.TargetAssignment.KpiDefinitionId)
             .ToDictionary(g => g.Key, g => g.Sum(ap => ap.Value));
 
         var targetsDict = targetAssignments
@@ -461,7 +454,6 @@ public sealed partial class EvaluationService(
         if (existingEvaluation is not null)
         {
             existingEvaluation.TotalScore = finalScore;
-            existingEvaluation.ReviewerEmployeeId = reviewer.Id;
             existingEvaluation.Comment = storedComment;
             existingEvaluation.Status = targetStatus;
             existingEvaluation.CalculatedAt = now;
@@ -478,7 +470,6 @@ public sealed partial class EvaluationService(
                 EvaluationProfileId = profile.Id,
                 TotalScore = finalScore,
                 Status = targetStatus,
-                ReviewerEmployeeId = reviewer.Id,
                 CalculatedAt = now,
                 Comment = storedComment,
                 UpdatedAt = now,
@@ -599,10 +590,6 @@ public sealed partial class EvaluationService(
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.JobPosition)
-                .ThenInclude(jp => jp.EvaluationProfile)
-                    .ThenInclude(ep => ep.EvaluationProfileItems)
-                        .ThenInclude(epi => epi.KpiGroup)
-                            .ThenInclude(kg => kg.KpiDefinitions)
             .Where(e => e.DepartmentId == targetDeptId && e.Status == EmployeeStatus.Active);
 
         if (positionId.HasValue)
@@ -621,6 +608,7 @@ public sealed partial class EvaluationService(
             .Where(pe => pe.EvaluationPeriodId == periodId && employeeIds.Contains(pe.EmployeeId))
             .ToListAsync(cancellationToken);
         var evalDict = evaluations.ToDictionary(pe => pe.EmployeeId, pe => pe);
+        var profilesByPosition = await LoadProfilesByPositionAsync(employees.Select(e => e.JobPositionId), period, cancellationToken);
 
         var targetAssignments = await db.TargetAssignments
             .AsNoTracking()
@@ -637,12 +625,14 @@ public sealed partial class EvaluationService(
 
         var actualProgresses = await db.ActualProgresses
             .AsNoTracking()
-            .Where(ap => employeeIds.Contains(ap.EmployeeId)
-                && ap.EvaluationPeriodId == periodId
+            .Include(ap => ap.TargetAssignment)
+            .Where(ap => ap.TargetAssignment.EmployeeId.HasValue
+                && employeeIds.Contains(ap.TargetAssignment.EmployeeId.Value)
+                && ap.TargetAssignment.EvaluationPeriodId == periodId
                 && ap.Status == ActualProgressStatus.Valid)
             .ToListAsync(cancellationToken);
-        var actualsGroup = actualProgresses.GroupBy(ap => ap.EmployeeId)
-            .ToDictionary(g => g.Key, g => g.GroupBy(a => a.KpiDefinitionId)
+        var actualsGroup = actualProgresses.GroupBy(ap => ap.TargetAssignment.EmployeeId!.Value)
+            .ToDictionary(g => g.Key, g => g.GroupBy(a => a.TargetAssignment.KpiDefinitionId)
                 .ToDictionary(ag => ag.Key, ag => ag.Sum(a => a.Value)));
 
         var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -670,7 +660,7 @@ public sealed partial class EvaluationService(
             var (_, coachingPlan, _, calibData, _, _) = ParseStoredComment(pe?.Comment);
 
             var (businessScore, serviceQualityScore, operationsScore, qualitativeScore, totalScore) =
-                ComputeEmployeeScores(emp, emp.JobPosition?.EvaluationProfile, empTargets, empActuals, empRisks, pe);
+                ComputeEmployeeScores(emp, profilesByPosition.GetValueOrDefault(emp.JobPositionId), empTargets, empActuals, empRisks, pe);
 
             var proposedTier = DetermineProposedTier(totalScore, empRisks);
             var calibratedTier = calibData?.CalibratedTier ?? proposedTier;
@@ -816,6 +806,7 @@ public sealed partial class EvaluationService(
             .ToListAsync(cancellationToken);
 
         var employeeMap = employees.ToDictionary(e => e.Id, e => e);
+        var profilesByPosition = await LoadProfilesByPositionAsync(employees.Select(e => e.JobPositionId), period, cancellationToken);
         var totalEmployees = employees.Count;
         var maxTierAQuota = totalEmployees > 0 ? Math.Max(1, (int)Math.Ceiling(totalEmployees * 0.20m)) : 0;
 
@@ -871,7 +862,6 @@ public sealed partial class EvaluationService(
                     recalibReason,
                     apprComments);
                 existingPe.Status = targetStatus;
-                existingPe.ReviewerEmployeeId = reviewer.Id;
                 existingPe.UpdatedAt = now;
             }
             else
@@ -889,10 +879,9 @@ public sealed partial class EvaluationService(
                     Id = Guid.NewGuid(),
                     EmployeeId = empId,
                     EvaluationPeriodId = request.PeriodId,
-                    EvaluationProfileId = emp.JobPosition?.EvaluationProfileId ?? Guid.Empty,
+                    EvaluationProfileId = profilesByPosition.GetValueOrDefault(emp.JobPositionId)?.Id ?? Guid.Empty,
                     TotalScore = 80m,
                     Status = targetStatus,
-                    ReviewerEmployeeId = reviewer.Id,
                     CalculatedAt = now,
                     Comment = newComment,
                     UpdatedAt = now,
@@ -1393,6 +1382,44 @@ public sealed partial class EvaluationService(
             CalibratedTierDPercent: calibDPercent,
             IsCompliant: isCompliant,
             ComplianceNote: note);
+    }
+
+    private async Task<EvaluationProfile?> FindProfileAsync(
+        Guid jobPositionId,
+        EvaluationPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var profiles = await LoadProfilesByPositionAsync([jobPositionId], period, cancellationToken);
+        return profiles.GetValueOrDefault(jobPositionId);
+    }
+
+    /// <summary>
+    /// A job position keeps its profile history; pick the one effective in the period, then ACTIVE, then the latest.
+    /// </summary>
+    private async Task<Dictionary<Guid, EvaluationProfile>> LoadProfilesByPositionAsync(
+        IEnumerable<Guid> jobPositionIds,
+        EvaluationPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var ids = jobPositionIds.Distinct().ToList();
+        var profiles = await db.EvaluationProfiles
+            .AsNoTracking()
+            .Include(ep => ep.EvaluationProfileItems)
+                .ThenInclude(epi => epi.KpiGroup)
+                    .ThenInclude(kg => kg.KpiDefinitions)
+            .Where(ep => ids.Contains(ep.JobPositionId))
+            .ToListAsync(cancellationToken);
+
+        return profiles
+            .GroupBy(ep => ep.JobPositionId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(ep => ep.EffectiveFrom <= period.EndDate
+                        && (ep.EffectiveTo == null || ep.EffectiveTo >= period.StartDate))
+                    .ThenByDescending(ep => ep.Status == EvaluationProfileStatus.Active)
+                    .ThenByDescending(ep => ep.EffectiveFrom)
+                    .First());
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)

@@ -7,6 +7,8 @@ public partial class KpiGroup
 {
     public Guid Id { get; set; }
 
+    public Guid? ParentKpiGroupId { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string Name { get; set; } = null!;
@@ -19,5 +21,9 @@ public partial class KpiGroup
 
     public virtual ICollection<EvaluationProfileItem> EvaluationProfileItems { get; set; } = new List<EvaluationProfileItem>();
 
+    public virtual ICollection<KpiGroup> InverseParentKpiGroup { get; set; } = new List<KpiGroup>();
+
     public virtual ICollection<KpiDefinition> KpiDefinitions { get; set; } = new List<KpiDefinition>();
+
+    public virtual KpiGroup? ParentKpiGroup { get; set; }
 }

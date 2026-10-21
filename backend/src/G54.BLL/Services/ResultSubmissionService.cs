@@ -158,19 +158,11 @@ public sealed partial class ResultSubmissionService(
 
             var nextSubmissionNo = existingSubmissions.Count > 0 ? existingSubmissions.Max(s => s.SubmissionNo) + 1 : 1;
 
-            Guid? workflowDefinitionId = null;
-            if (work.WorkTypeId.HasValue)
-            {
-                var workType = await unitOfWork.WorkTypes.GetByIdAsync(work.WorkTypeId.Value, ct);
-                workflowDefinitionId = workType?.WorkflowDefinitionId;
-            }
-
             var newSubmission = new ResultSubmission
             {
                 Id = Guid.NewGuid(),
                 WorkId = work.Id,
                 SubmitterEmployeeId = employee.Id,
-                WorkflowDefinitionId = workflowDefinitionId,
                 SubmissionNo = nextSubmissionNo,
                 Comment = storedComment,
                 Status = SubmissionStatus.Submitted,
@@ -191,7 +183,6 @@ public sealed partial class ResultSubmissionService(
                     MimeType = file.MimeType,
                     FileSize = file.FileSize,
                     Description = request.Comment?.Trim(),
-                    UploadedBy = employee.Id,
                     UploadedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow,
                 };

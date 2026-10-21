@@ -82,8 +82,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<WorkTypeKpi> WorkTypeKpis { get; set; }
 
-    public virtual DbSet<WorkflowDefinition> WorkflowDefinitions { get; set; }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
@@ -97,7 +95,6 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<KpiDirection>("public", "kpi_direction")
             .HasPostgresEnum<WorkPriority>("public", "work_priority")
             .HasPostgresEnum<WorkStatus>("public", "work_status")
-            .HasPostgresEnum<WorkflowDefinitionStatus>("public", "workflow_definition_status")
             .HasPostgresEnum<HandoverStatus>("public", "handover_status")
             .HasPostgresEnum<SubmissionStatus>("public", "submission_status")
             .HasPostgresEnum<VerificationDecision>("public", "verification_decision")
@@ -164,13 +161,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_actual_progress_denominator", "denominator IS NULL OR denominator > 0");
             });
 
-            entity.HasIndex(e => e.PerformanceContributionId, "ix_actual_progress_contribution");
-
-            entity.HasIndex(e => new { e.EmployeeId, e.EvaluationPeriodId }, "ix_actual_progress_employee_period");
-
-            entity.HasIndex(e => new { e.KpiDefinitionId, e.EvaluationPeriodId }, "ix_actual_progress_kpi_period");
-
-            entity.HasIndex(e => e.SourceItemId, "uq_actual_progress_source_item").IsUnique();
+            entity.HasIndex(e => new { e.TargetAssignmentId, e.ProgressDate }, "uq_actual_progress_target_date").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -178,12 +169,8 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Denominator)
                 .HasPrecision(18, 4)
                 .HasColumnName("denominator");
-            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
-            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
-            entity.Property(e => e.PerformanceContributionId).HasColumnName("performance_contribution_id");
             entity.Property(e => e.ProgressDate).HasColumnName("progress_date");
-            entity.Property(e => e.SourceItemId).HasColumnName("source_item_id");
+            entity.Property(e => e.TargetAssignmentId).HasColumnName("target_assignment_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -191,30 +178,10 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(18, 4)
                 .HasColumnName("value");
 
-            entity.HasOne(d => d.Employee).WithMany(p => p.ActualProgresses)
-                .HasForeignKey(d => d.EmployeeId)
+            entity.HasOne(d => d.TargetAssignment).WithMany(p => p.ActualProgresses)
+                .HasForeignKey(d => d.TargetAssignmentId)
                 .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_actual_progress_employee");
-
-            entity.HasOne(d => d.EvaluationPeriod).WithMany(p => p.ActualProgresses)
-                .HasForeignKey(d => d.EvaluationPeriodId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_actual_progress_period");
-
-            entity.HasOne(d => d.KpiDefinition).WithMany(p => p.ActualProgresses)
-                .HasForeignKey(d => d.KpiDefinitionId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_actual_progress_kpi");
-
-            entity.HasOne(d => d.PerformanceContribution).WithMany(p => p.ActualProgresses)
-                .HasForeignKey(d => d.PerformanceContributionId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_actual_progress_contribution");
-
-            entity.HasOne(d => d.SourceItem).WithOne(p => p.ActualProgress)
-                .HasForeignKey<ActualProgress>(d => d.SourceItemId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_actual_progress_source_item");
+                .HasConstraintName("fk_actual_progress_target");
 
             entity.Property(e => e.Status)
                 .HasColumnType("actual_progress_status")
@@ -228,9 +195,14 @@ public partial class AppDbContext : DbContext
             entity.ToTable("appeal", table =>
             {
                 table.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
+                table.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
             });
 
             entity.HasIndex(e => e.ResultSubmissionId, "ix_appeal_submission");
+
+            entity.HasIndex(e => e.PerformanceEvaluationId, "ix_appeal_evaluation");
+
+            entity.HasIndex(e => e.ResolvedBy, "ix_appeal_resolved_by");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -241,7 +213,9 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("filed_at");
             entity.Property(e => e.Note).HasColumnName("note");
+            entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
             entity.Property(e => e.Reason).HasColumnName("reason");
+            entity.Property(e => e.ResolvedBy).HasColumnName("resolved_by");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
@@ -251,6 +225,16 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_appeal_employee");
+
+            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.Appeals)
+                .HasForeignKey(d => d.PerformanceEvaluationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_appeal_evaluation");
+
+            entity.HasOne(d => d.ResolvedByNavigation).WithMany(p => p.AppealResolvedByNavigations)
+                .HasForeignKey(d => d.ResolvedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_appeal_resolved_by");
 
             entity.HasOne(d => d.ResultSubmission).WithMany(p => p.Appeals)
                 .HasForeignKey(d => d.ResultSubmissionId)
@@ -292,14 +276,18 @@ public partial class AppDbContext : DbContext
             entity.ToTable("business_campaign", table =>
             {
                 table.HasCheckConstraint("ck_business_campaign_dates", "end_date >= start_date");
+                table.HasCheckConstraint("ck_business_campaign_no_self_parent", "parent_campaign_id IS NULL OR parent_campaign_id <> id");
             });
 
             entity.HasIndex(e => e.Code, "uq_business_campaign_code").IsUnique();
+
+            entity.HasIndex(e => e.ParentCampaignId, "ix_business_campaign_parent");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.BusinessObjectiveId).HasColumnName("business_objective_id");
+            entity.Property(e => e.ParentCampaignId).HasColumnName("parent_campaign_id");
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
@@ -318,6 +306,11 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_business_campaign_objective");
 
+            entity.HasOne(d => d.ParentCampaign).WithMany(p => p.InverseParentCampaign)
+                .HasForeignKey(d => d.ParentCampaignId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_business_campaign_parent");
+
             entity.Property(e => e.Status)
                 .HasColumnType("business_campaign_status")
                 .HasColumnName("status");
@@ -330,9 +323,12 @@ public partial class AppDbContext : DbContext
             entity.ToTable("business_objective", table =>
             {
                 table.HasCheckConstraint("ck_business_objective_dates", "end_date >= start_date");
+                table.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
             });
 
             entity.HasIndex(e => e.Code, "uq_business_objective_code").IsUnique();
+
+            entity.HasIndex(e => e.ParentObjectiveId, "ix_business_objective_parent");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -345,10 +341,16 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
                 .HasColumnName("name");
+            entity.Property(e => e.ParentObjectiveId).HasColumnName("parent_objective_id");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.ParentObjective).WithMany(p => p.InverseParentObjective)
+                .HasForeignKey(d => d.ParentObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_business_objective_parent");
 
             entity.Property(e => e.Status)
                 .HasColumnType("business_objective_status")
@@ -550,6 +552,8 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => new { e.Code, e.Version }, "uq_evaluation_profile_code_version").IsUnique();
 
+            entity.HasIndex(e => new { e.JobPositionId, e.EffectiveFrom }, "uq_evaluation_profile_position_effective").IsUnique();
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
@@ -561,6 +565,7 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_DATE")
                 .HasColumnName("effective_from");
             entity.Property(e => e.EffectiveTo).HasColumnName("effective_to");
+            entity.Property(e => e.JobPositionId).HasColumnName("job_position_id");
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
@@ -570,6 +575,11 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Version)
                 .HasDefaultValue(1)
                 .HasColumnName("version");
+
+            entity.HasOne(d => d.JobPosition).WithMany(p => p.EvaluationProfiles)
+                .HasForeignKey(d => d.JobPositionId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_evaluation_profile_job_position");
 
             entity.Property(e => e.Status)
                 .HasColumnType("evaluation_profile_status")
@@ -652,7 +662,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UploadedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("uploaded_at");
-            entity.Property(e => e.UploadedBy).HasColumnName("uploaded_by");
 
             entity.HasOne(d => d.Appeal).WithMany(p => p.Evidences)
                 .HasForeignKey(d => d.AppealId)
@@ -668,11 +677,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.RiskEventId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_evidence_risk_event");
-
-            entity.HasOne(d => d.UploadedByNavigation).WithMany(p => p.Evidences)
-                .HasForeignKey(d => d.UploadedBy)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_evidence_uploader");
         });
 
         modelBuilder.Entity<JobPosition>(entity =>
@@ -690,7 +694,6 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("code");
             entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.EvaluationProfileId).HasColumnName("evaluation_profile_id");
             entity.Property(e => e.LastSyncAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("last_sync_at");
@@ -700,11 +703,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
-
-            entity.HasOne(d => d.EvaluationProfile).WithMany(p => p.JobPositions)
-                .HasForeignKey(d => d.EvaluationProfileId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_job_position_evaluation_profile");
 
             entity.Property(e => e.Status)
                 .HasColumnType("record_status")
@@ -792,9 +790,14 @@ public partial class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id).HasName("kpi_group_pkey");
 
-            entity.ToTable("kpi_group");
+            entity.ToTable("kpi_group", table =>
+            {
+                table.HasCheckConstraint("ck_kpi_group_no_self_parent", "parent_kpi_group_id IS NULL OR parent_kpi_group_id <> id");
+            });
 
             entity.HasIndex(e => e.Code, "uq_kpi_group_code").IsUnique();
+
+            entity.HasIndex(e => e.ParentKpiGroupId, "ix_kpi_group_parent");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -806,9 +809,15 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
+            entity.Property(e => e.ParentKpiGroupId).HasColumnName("parent_kpi_group_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.ParentKpiGroup).WithMany(p => p.InverseParentKpiGroup)
+                .HasForeignKey(d => d.ParentKpiGroupId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_kpi_group_parent");
 
             entity.Property(e => e.Status)
                 .HasColumnType("kpi_status")
@@ -875,9 +884,6 @@ public partial class AppDbContext : DbContext
 
             entity.ToTable("performance_contribution", table =>
             {
-                table.HasCheckConstraint("ck_performance_contribution_kind", "(kpi_definition_id IS NOT NULL) <> (evaluation_profile_item_id IS NOT NULL)");
-                table.HasCheckConstraint("ck_performance_contribution_kpi_level", "kpi_definition_id IS NULL\r\n            OR (\r\n                parent_contribution_id IS NOT NULL\r\n                AND target_assignment_id IS NOT NULL\r\n                AND target_value_snapshot IS NOT NULL\r\n                AND actual_value IS NOT NULL\r\n                AND weight_snapshot IS NULL\r\n            )");
-                table.HasCheckConstraint("ck_performance_contribution_group_level", "evaluation_profile_item_id IS NULL\r\n            OR (\r\n                parent_contribution_id IS NULL\r\n                AND target_assignment_id IS NULL\r\n                AND target_value_snapshot IS NULL\r\n                AND actual_value IS NULL\r\n                AND weight_snapshot IS NOT NULL\r\n                AND weight_snapshot > 0\r\n                AND weight_snapshot <= 100\r\n            )");
                 table.HasCheckConstraint("ck_performance_contribution_target_version", "target_version_snapshot IS NULL OR target_version_snapshot > 0");
                 table.HasCheckConstraint("ck_performance_contribution_denominator", "actual_denominator IS NULL OR actual_denominator > 0");
                 table.HasCheckConstraint("ck_performance_contribution_achievement_raw", "achievement_percent_raw IS NULL OR achievement_percent_raw >= 0");
@@ -886,17 +892,13 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_performance_contribution_capped_not_above_raw", "achievement_percent_raw IS NULL OR achievement_percent_capped IS NULL OR achievement_percent_capped <= achievement_percent_raw");
             });
 
-            entity.HasIndex(e => e.ParentContributionId, "ix_performance_contribution_parent");
+            entity.HasIndex(e => e.ActualProgressId, "ix_performance_contribution_progress");
 
-            entity.HasIndex(e => e.TargetAssignmentId, "ix_performance_contribution_target");
+            entity.HasIndex(e => new { e.EmployeeId, e.EvaluationPeriodId }, "ix_performance_contribution_employee_period");
 
-            entity.HasIndex(e => new { e.PerformanceEvaluationId, e.EvaluationProfileItemId }, "uq_performance_contribution_group")
-                .IsUnique()
-                .HasFilter("(evaluation_profile_item_id IS NOT NULL)");
+            entity.HasIndex(e => e.PerformanceEvaluationId, "ix_performance_contribution_evaluation");
 
-            entity.HasIndex(e => new { e.PerformanceEvaluationId, e.KpiDefinitionId }, "uq_performance_contribution_kpi")
-                .IsUnique()
-                .HasFilter("(kpi_definition_id IS NOT NULL)");
+            entity.HasIndex(e => e.RiskEventId, "uq_performance_contribution_risk_event").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -910,6 +912,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ActualDenominator)
                 .HasPrecision(18, 4)
                 .HasColumnName("actual_denominator");
+            entity.Property(e => e.ActualProgressId).HasColumnName("actual_progress_id");
             entity.Property(e => e.ActualValue)
                 .HasPrecision(18, 4)
                 .HasColumnName("actual_value");
@@ -918,11 +921,8 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("component_score");
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
             entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
-            entity.Property(e => e.EvaluationProfileItemId).HasColumnName("evaluation_profile_item_id");
-            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
-            entity.Property(e => e.ParentContributionId).HasColumnName("parent_contribution_id");
             entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
-            entity.Property(e => e.TargetAssignmentId).HasColumnName("target_assignment_id");
+            entity.Property(e => e.RiskEventId).HasColumnName("risk_event_id");
             entity.Property(e => e.TargetValueSnapshot)
                 .HasPrecision(18, 4)
                 .HasColumnName("target_value_snapshot");
@@ -934,6 +934,11 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(7, 4)
                 .HasColumnName("weight_snapshot");
 
+            entity.HasOne(d => d.ActualProgress).WithMany(p => p.PerformanceContributions)
+                .HasForeignKey(d => d.ActualProgressId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_performance_contribution_progress");
+
             entity.HasOne(d => d.Employee).WithMany(p => p.PerformanceContributions)
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
@@ -944,49 +949,33 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_performance_contribution_period");
 
-            entity.HasOne(d => d.EvaluationProfileItem).WithMany(p => p.PerformanceContributions)
-                .HasForeignKey(d => d.EvaluationProfileItemId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_performance_contribution_profile_item");
-
-            entity.HasOne(d => d.KpiDefinition).WithMany(p => p.PerformanceContributions)
-                .HasForeignKey(d => d.KpiDefinitionId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_performance_contribution_kpi");
-
-            entity.HasOne(d => d.ParentContribution).WithMany(p => p.InverseParentContribution)
-                .HasForeignKey(d => d.ParentContributionId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("fk_performance_contribution_parent");
-
-            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.PerformanceContributionPerformanceEvaluations)
+            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.PerformanceContributions)
                 .HasForeignKey(d => d.PerformanceEvaluationId)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_performance_contribution_evaluation");
 
-            entity.HasOne(d => d.TargetAssignment).WithMany(p => p.PerformanceContributions)
-                .HasForeignKey(d => d.TargetAssignmentId)
+            entity.HasOne(d => d.RiskEvent).WithOne(p => p.PerformanceContribution)
+                .HasForeignKey<PerformanceContribution>(d => d.RiskEventId)
                 .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_performance_contribution_target");
-
-            entity.HasOne(d => d.PerformanceEvaluationNavigation).WithMany(p => p.PerformanceContributionPerformanceEvaluationNavigations)
-                .HasPrincipalKey(p => new { p.Id, p.EmployeeId, p.EvaluationPeriodId })
-                .HasForeignKey(d => new { d.PerformanceEvaluationId, d.EmployeeId, d.EvaluationPeriodId })
-                .HasConstraintName("fk_performance_contribution_evaluation_identity");
+                .HasConstraintName("fk_performance_contribution_risk_event");
         });
 
         modelBuilder.Entity<PerformanceEvaluation>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("performance_evaluation_pkey");
 
-            entity.ToTable("performance_evaluation");
+            entity.ToTable("performance_evaluation", table =>
+            {
+                table.HasCheckConstraint("ck_performance_evaluation_no_self_parent", "parent_evaluation_id IS NULL OR parent_evaluation_id <> id");
+            });
 
             entity.HasIndex(e => e.EvaluationPeriodId, "ix_performance_evaluation_period");
 
             entity.HasIndex(e => e.EvaluationProfileId, "ix_performance_evaluation_profile");
 
-            entity.HasIndex(e => new { e.EmployeeId, e.EvaluationPeriodId }, "uq_performance_evaluation").IsUnique();
+            entity.HasIndex(e => e.ParentEvaluationId, "ix_performance_evaluation_parent");
 
-            entity.HasIndex(e => new { e.Id, e.EmployeeId, e.EvaluationPeriodId }, "uq_performance_evaluation_identity").IsUnique();
+            entity.HasIndex(e => new { e.EmployeeId, e.EvaluationPeriodId }, "uq_performance_evaluation").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -997,7 +986,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
             entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
             entity.Property(e => e.EvaluationProfileId).HasColumnName("evaluation_profile_id");
-            entity.Property(e => e.ReviewerEmployeeId).HasColumnName("reviewer_employee_id");
+            entity.Property(e => e.ParentEvaluationId).HasColumnName("parent_evaluation_id");
             entity.Property(e => e.TotalScore)
                 .HasPrecision(10, 4)
                 .HasColumnName("total_score");
@@ -1020,10 +1009,10 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_performance_evaluation_profile");
 
-            entity.HasOne(d => d.ReviewerEmployee).WithMany(p => p.PerformanceEvaluationReviewerEmployees)
-                .HasForeignKey(d => d.ReviewerEmployeeId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_performance_evaluation_reviewer");
+            entity.HasOne(d => d.ParentEvaluation).WithMany(p => p.InverseParentEvaluation)
+                .HasForeignKey(d => d.ParentEvaluationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_performance_evaluation_parent");
 
             entity.Property(e => e.Status)
                 .HasColumnType("performance_evaluation_status")
@@ -1089,7 +1078,6 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
             entity.Property(e => e.WorkId).HasColumnName("work_id");
-            entity.Property(e => e.WorkflowDefinitionId).HasColumnName("workflow_definition_id");
 
             entity.HasOne(d => d.SubmitterEmployee).WithMany(p => p.ResultSubmissions)
                 .HasForeignKey(d => d.SubmitterEmployeeId)
@@ -1099,11 +1087,6 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Work).WithMany(p => p.ResultSubmissions)
                 .HasForeignKey(d => d.WorkId)
                 .HasConstraintName("fk_result_submission_work");
-
-            entity.HasOne(d => d.WorkflowDefinition).WithMany(p => p.ResultSubmissions)
-                .HasForeignKey(d => d.WorkflowDefinitionId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_result_submission_workflow_definition");
 
             entity.Property(e => e.Status)
                 .HasColumnType("submission_status")
@@ -1121,6 +1104,8 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.EmployeeId, "ix_risk_event_employee");
 
+            entity.HasIndex(e => e.RecordedBy, "ix_risk_event_recorded_by");
+
             entity.HasIndex(e => e.Code, "uq_risk_event_code").IsUnique();
 
             entity.Property(e => e.Id)
@@ -1135,6 +1120,7 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("event_type");
             entity.Property(e => e.OccurredAt).HasColumnName("occurred_at");
+            entity.Property(e => e.RecordedBy).HasColumnName("recorded_by");
             entity.Property(e => e.ResolvedAt).HasColumnName("resolved_at");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
@@ -1144,6 +1130,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_risk_event_employee");
+
+            entity.HasOne(d => d.RecordedByNavigation).WithMany(p => p.RiskEventRecordedByNavigations)
+                .HasForeignKey(d => d.RecordedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_risk_event_recorded_by");
 
             entity.Property(e => e.Severity)
                 .HasColumnType("risk_event_severity")
@@ -1222,11 +1213,12 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_target_assignment_owner_xor", "(department_id IS NOT NULL) <> (employee_id IS NOT NULL)");
                 table.HasCheckConstraint("ck_target_assignment_version", "version > 0");
                 table.HasCheckConstraint("ck_target_assignment_value", "target_value >= 0");
-                table.HasCheckConstraint("ck_target_assignment_version_link", "(version = 1 AND previous_version_id IS NULL)\r\n            OR\r\n            (version > 1 AND previous_version_id IS NOT NULL)");
                 table.HasCheckConstraint("ck_target_assignment_approval", "(status IN ('ACTIVE', 'SUPERSEDED', 'CLOSED') AND approved_at IS NOT NULL)\r\n            OR status = 'DRAFT'");
                 table.HasCheckConstraint("ck_target_assignment_approved_by_time", "approved_at IS NULL OR approved_at >= created_at");
                 table.HasCheckConstraint("ck_target_assignment_assigned_time", "assigned_at IS NULL OR assigned_at >= created_at");
             });
+
+            entity.HasIndex(e => e.BusinessObjectiveId, "ix_target_assignment_objective");
 
             entity.HasIndex(e => e.KpiDefinitionId, "ix_target_assignment_kpi");
 
@@ -1254,9 +1246,8 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.ApprovedAt).HasColumnName("approved_at");
-            entity.Property(e => e.ApprovedBy).HasColumnName("approved_by");
             entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
-            entity.Property(e => e.AssignedBy).HasColumnName("assigned_by");
+            entity.Property(e => e.BusinessObjectiveId).HasColumnName("business_objective_id");
             entity.Property(e => e.ChangeReason).HasColumnName("change_reason");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
@@ -1266,7 +1257,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
             entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
             entity.Property(e => e.ParentAssignmentId).HasColumnName("parent_assignment_id");
-            entity.Property(e => e.PreviousVersionId).HasColumnName("previous_version_id");
             entity.Property(e => e.TargetValue)
                 .HasPrecision(18, 4)
                 .HasColumnName("target_value");
@@ -1277,15 +1267,10 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValue(1)
                 .HasColumnName("version");
 
-            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.TargetAssignmentApprovedByNavigations)
-                .HasForeignKey(d => d.ApprovedBy)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_target_assignment_approved_by");
-
-            entity.HasOne(d => d.AssignedByNavigation).WithMany(p => p.TargetAssignmentAssignedByNavigations)
-                .HasForeignKey(d => d.AssignedBy)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_target_assignment_assigned_by");
+            entity.HasOne(d => d.BusinessObjective).WithMany(p => p.TargetAssignments)
+                .HasForeignKey(d => d.BusinessObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_objective");
 
             entity.HasOne(d => d.Department).WithMany(p => p.TargetAssignments)
                 .HasForeignKey(d => d.DepartmentId)
@@ -1312,11 +1297,6 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_target_assignment_parent");
 
-            entity.HasOne(d => d.PreviousVersion).WithMany(p => p.InversePreviousVersion)
-                .HasForeignKey(d => d.PreviousVersionId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_target_assignment_previous_version");
-
             entity.Property(e => e.Status)
                 .HasColumnType("target_assignment_status")
                 .HasColumnName("status");
@@ -1338,10 +1318,13 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
 
+            entity.HasIndex(e => e.ApprovedBy, "ix_task_handover_approved_by");
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
+            entity.Property(e => e.ApprovedBy).HasColumnName("approved_by");
             entity.Property(e => e.FromEmployeeId).HasColumnName("from_employee_id");
             entity.Property(e => e.HandoverAt)
                 .HasDefaultValueSql("now()")
@@ -1352,6 +1335,11 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
             entity.Property(e => e.WorkId).HasColumnName("work_id");
+
+            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.TaskHandoverApprovedByNavigations)
+                .HasForeignKey(d => d.ApprovedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_task_handover_approved_by");
 
             entity.HasOne(d => d.FromEmployee).WithMany(p => p.TaskHandoverFromEmployees)
                 .HasForeignKey(d => d.FromEmployeeId)
@@ -1454,25 +1442,17 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_verified_work_result_invalidated_at", "(status = 'VALID' AND invalidated_at IS NULL)\r\n            OR\r\n            (status = 'INVALID' AND invalidated_at IS NOT NULL)");
             });
 
-            entity.HasIndex(e => e.InvalidatedByRiskEventId, "uq_verified_work_result_risk_event").IsUnique();
-
             entity.HasIndex(e => e.VerificationId, "uq_verified_work_result_verification").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.InvalidatedAt).HasColumnName("invalidated_at");
-            entity.Property(e => e.InvalidatedByRiskEventId).HasColumnName("invalidated_by_risk_event_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
             entity.Property(e => e.VerificationId).HasColumnName("verification_id");
             entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
-
-            entity.HasOne(d => d.InvalidatedByRiskEvent).WithOne(p => p.VerifiedWorkResult)
-                .HasForeignKey<VerifiedWorkResult>(d => d.InvalidatedByRiskEventId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_verified_work_result_invalidator");
 
             entity.HasOne(d => d.Verification).WithOne(p => p.VerifiedWorkResult)
                 .HasForeignKey<VerifiedWorkResult>(d => d.VerificationId)
@@ -1492,11 +1472,16 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_work_estimated_hours", "estimated_hours IS NULL OR estimated_hours >= 0");
                 table.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
+                table.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
             });
 
             entity.HasIndex(e => e.AssigneeEmployeeId, "ix_work_assignee");
 
             entity.HasIndex(e => e.BusinessCampaignId, "ix_work_campaign");
+
+            entity.HasIndex(e => e.CreatedBy, "ix_work_created_by");
+
+            entity.HasIndex(e => e.ParentWorkId, "ix_work_parent");
 
             entity.HasIndex(e => e.WorkTypeId, "ix_work_work_type");
 
@@ -1510,10 +1495,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.EstimatedHours)
                 .HasPrecision(10, 2)
                 .HasColumnName("estimated_hours");
+            entity.Property(e => e.ParentWorkId).HasColumnName("parent_work_id");
             entity.Property(e => e.PlannedEndDate).HasColumnName("planned_end_date");
             entity.Property(e => e.PlannedStartDate).HasColumnName("planned_start_date");
             entity.Property(e => e.Title)
@@ -1533,6 +1520,16 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.BusinessCampaignId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_work_campaign");
+
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.WorkCreatedByNavigations)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_work_created_by");
+
+            entity.HasOne(d => d.ParentWork).WithMany(p => p.InverseParentWork)
+                .HasForeignKey(d => d.ParentWorkId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_work_parent");
 
             entity.HasOne(d => d.WorkType).WithMany(p => p.Works)
                 .HasForeignKey(d => d.WorkTypeId)
@@ -1558,19 +1555,22 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
             });
 
-            entity.HasIndex(e => e.KpiDefinitionId, "ix_work_result_item_kpi");
+            entity.HasIndex(e => e.ActualProgressId, "ix_work_result_item_progress");
+
+            entity.HasIndex(e => e.EmployeeId, "ix_work_result_item_employee");
 
             entity.HasIndex(e => e.VerifiedWorkResultId, "ix_work_result_item_result");
 
-            entity.HasIndex(e => new { e.VerifiedWorkResultId, e.KpiDefinitionId }, "uq_work_result_item_kpi").IsUnique();
+            entity.HasIndex(e => new { e.VerifiedWorkResultId, e.ActualProgressId, e.EmployeeId }, "uq_work_result_item_progress_employee").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
+            entity.Property(e => e.ActualProgressId).HasColumnName("actual_progress_id");
             entity.Property(e => e.Denominator)
                 .HasPrecision(18, 4)
                 .HasColumnName("denominator");
-            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1579,10 +1579,15 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("value");
             entity.Property(e => e.VerifiedWorkResultId).HasColumnName("verified_work_result_id");
 
-            entity.HasOne(d => d.KpiDefinition).WithMany(p => p.WorkResultItems)
-                .HasForeignKey(d => d.KpiDefinitionId)
+            entity.HasOne(d => d.ActualProgress).WithMany(p => p.WorkResultItems)
+                .HasForeignKey(d => d.ActualProgressId)
                 .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_work_result_item_kpi");
+                .HasConstraintName("fk_work_result_item_progress");
+
+            entity.HasOne(d => d.Employee).WithMany(p => p.WorkResultItems)
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_work_result_item_employee");
 
             entity.HasOne(d => d.VerifiedWorkResult).WithMany(p => p.WorkResultItems)
                 .HasForeignKey(d => d.VerifiedWorkResultId)
@@ -1610,12 +1615,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
-            entity.Property(e => e.WorkflowDefinitionId).HasColumnName("workflow_definition_id");
-
-            entity.HasOne(d => d.WorkflowDefinition).WithMany(p => p.WorkTypes)
-                .HasForeignKey(d => d.WorkflowDefinitionId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_work_type_workflow_definition");
 
             entity.Property(e => e.Status)
                 .HasColumnType("record_status")
@@ -1657,39 +1656,6 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.WorkType).WithMany(p => p.WorkTypeKpis)
                 .HasForeignKey(d => d.WorkTypeId)
                 .HasConstraintName("fk_work_type_kpi_work_type");
-        });
-
-        modelBuilder.Entity<WorkflowDefinition>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("workflow_definition_pkey");
-
-            entity.ToTable("workflow_definition", table =>
-            {
-                table.HasCheckConstraint("ck_workflow_definition_version", "version > 0");
-            });
-
-            entity.HasIndex(e => new { e.Code, e.Version }, "uq_workflow_definition_code_version").IsUnique();
-
-            entity.Property(e => e.Id)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("id");
-            entity.Property(e => e.Code)
-                .HasMaxLength(50)
-                .HasColumnName("code");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.Name)
-                .HasMaxLength(200)
-                .HasColumnName("name");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.Version)
-                .HasDefaultValue(1)
-                .HasColumnName("version");
-
-            entity.Property(e => e.Status)
-                .HasColumnType("workflow_definition_status")
-                .HasColumnName("status");
         });
 
         OnModelCreatingPartial(modelBuilder);

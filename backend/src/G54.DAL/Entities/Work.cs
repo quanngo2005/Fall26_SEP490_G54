@@ -13,6 +13,10 @@ public partial class Work : IBaseEntity
 
     public Guid AssigneeEmployeeId { get; set; }
 
+    public Guid? ParentWorkId { get; set; }
+
+    public Guid CreatedBy { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string Title { get; set; } = null!;
@@ -33,6 +37,12 @@ public partial class Work : IBaseEntity
     public virtual Employee AssigneeEmployee { get; set; } = null!;
 
     public virtual BusinessCampaign? BusinessCampaign { get; set; }
+
+    public virtual Employee CreatedByNavigation { get; set; } = null!;
+
+    public virtual ICollection<Work> InverseParentWork { get; set; } = new List<Work>();
+
+    public virtual Work? ParentWork { get; set; }
 
     public virtual ICollection<ResultSubmission> ResultSubmissions { get; set; } = new List<ResultSubmission>();
 

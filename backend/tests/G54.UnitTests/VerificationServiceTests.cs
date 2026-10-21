@@ -92,6 +92,7 @@ public sealed class VerificationServiceTests
             Code = "WRK-2026-001",
             Title = "Phát hành thẻ tín dụng đợt 1",
             AssigneeEmployeeId = maker.Id,
+            CreatedBy = maker.Id,
             Status = WorkStatus.Submitted,
             Priority = WorkPriority.Medium,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -131,7 +132,6 @@ public sealed class VerificationServiceTests
                 FilePath = "uploads/scan_the.pdf",
                 FileSize = 1024,
                 MimeType = "application/pdf",
-                UploadedBy = maker.Id,
                 UploadedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };

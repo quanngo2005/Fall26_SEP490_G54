@@ -22,8 +22,6 @@ public partial class EvaluationPeriod
     public PeriodType PeriodType { get; set; }
     public PeriodStatus Status { get; set; }
 
-    public virtual ICollection<ActualProgress> ActualProgresses { get; set; } = new List<ActualProgress>();
-
     public virtual ICollection<EvaluationPeriod> InverseParentPeriod { get; set; } = new List<EvaluationPeriod>();
 
     public virtual EvaluationPeriod? ParentPeriod { get; set; }

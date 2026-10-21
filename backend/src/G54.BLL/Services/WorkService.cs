@@ -17,6 +17,7 @@ public sealed class WorkService(
 
     public async Task<WorkDetailDto> CreateWorkAsync(
         CreateWorkRequestDto request,
+        Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length < 5 || request.Title.Trim().Length > 255)
@@ -83,6 +84,11 @@ public sealed class WorkService(
             }
         }
 
+        var creator = await unitOfWork.Employees.FirstOrDefaultAsync(
+            e => e.Id == currentUserId || (e.Account != null && e.Account.Id == currentUserId),
+            cancellationToken)
+            ?? throw new ForbiddenException("Không xác định được nhân sự khởi tạo công việc.");
+
         var code = await GenerateUniqueWorkCodeAsync(cancellationToken);
         var priority = ParsePriority(request.Priority);
 
@@ -95,6 +101,7 @@ public sealed class WorkService(
             WorkTypeId = workType.Id,
             BusinessCampaignId = campaign?.Id,
             AssigneeEmployeeId = assignee.Id,
+            CreatedBy = creator.Id,
             Priority = priority,
             Status = WorkStatus.New,
             EstimatedHours = request.EstimatedHours,
@@ -106,7 +113,7 @@ public sealed class WorkService(
         await unitOfWork.Works.AddAsync(work, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        LogWorkCreated(logger, work.Code, work.AssigneeEmployeeId, null);
+        LogWorkCreated(logger, work.Code, assignee.Id, null);
 
         return new WorkDetailDto(
             Id: work.Id,

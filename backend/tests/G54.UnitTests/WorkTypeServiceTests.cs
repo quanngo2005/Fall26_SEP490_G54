@@ -76,54 +76,11 @@ public sealed class WorkTypeServiceTests
     }
 
     [Fact]
-    public async Task GetWorkflowsAsync_ReturnsOnlyActiveWorkflows()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            var activeWf = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-ACT",
-                Name = "Active Workflow",
-                Version = 1,
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            var draftWf = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-DFT",
-                Name = "Draft Workflow",
-                Version = 1,
-                Status = WorkflowDefinitionStatus.Draft,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            await context.WorkflowDefinitions.AddRangeAsync(activeWf, draftWf);
-            await context.SaveChangesAsync();
-
-            var result = await service.GetWorkflowsAsync();
-
-            Assert.Single(result);
-            Assert.Equal("WF-ACT", result[0].Code);
-        }
-    }
-
-    [Fact]
     public async Task CreateWorkTypeAsync_ValidData_CreatesSuccessfullyWithKpis()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-CARD",
-                Name = "Card Workflow",
-                Version = 1,
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var group = new KpiGroup
             {
                 Id = Guid.NewGuid(),
@@ -144,7 +101,6 @@ public sealed class WorkTypeServiceTests
                 Status = KpiStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.KpiGroups.AddAsync(group);
             await context.KpiDefinitions.AddAsync(kpi);
             await context.SaveChangesAsync();
@@ -154,7 +110,6 @@ public sealed class WorkTypeServiceTests
                 Code = "WT-CARD-01",
                 Name = "Credit Card Issuance",
                 Description = "Process of issuing new credit cards",
-                WorkflowDefinitionId = workflow.Id,
                 Kpis =
                 [
                     new WorkTypeKpiItemDto
@@ -172,7 +127,6 @@ public sealed class WorkTypeServiceTests
             Assert.NotNull(created);
             Assert.Equal("WT-CARD-01", created.Code);
             Assert.Equal("Credit Card Issuance", created.Name);
-            Assert.Equal("Card Workflow", created.WorkflowName);
             Assert.Equal("ACTIVE", created.Status);
             Assert.Single(created.Kpis);
             Assert.Equal("KPI-REVENUE", created.Kpis[0].KpiCode);
@@ -186,24 +140,14 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-01",
-                Name = "WF 1",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var existing = new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = "WT-DUP",
                 Name = "Existing",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.WorkTypes.AddAsync(existing);
             await context.SaveChangesAsync();
 
@@ -211,27 +155,9 @@ public sealed class WorkTypeServiceTests
             {
                 Code = "WT-DUP",
                 Name = "New with duplicate code",
-                WorkflowDefinitionId = workflow.Id,
             };
 
             await Assert.ThrowsAsync<ConflictException>(() => service.CreateWorkTypeAsync(dto));
-        }
-    }
-
-    [Fact]
-    public async Task CreateWorkTypeAsync_NonExistentWorkflow_ThrowsNotFoundException()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            var dto = new CreateWorkTypeDto
-            {
-                Code = "WT-NOWORKFLOW",
-                Name = "No Workflow",
-                WorkflowDefinitionId = Guid.NewGuid(),
-            };
-
-            await Assert.ThrowsAsync<NotFoundException>(() => service.CreateWorkTypeAsync(dto));
         }
     }
 
@@ -241,14 +167,6 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-02",
-                Name = "WF 2",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var group = new KpiGroup
             {
                 Id = Guid.NewGuid(),
@@ -269,7 +187,6 @@ public sealed class WorkTypeServiceTests
                 Status = KpiStatus.Inactive,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.KpiGroups.AddAsync(group);
             await context.KpiDefinitions.AddAsync(inactiveKpi);
             await context.SaveChangesAsync();
@@ -278,7 +195,6 @@ public sealed class WorkTypeServiceTests
             {
                 Code = "WT-TEST-KPI",
                 Name = "Test Inactive KPI",
-                WorkflowDefinitionId = workflow.Id,
                 Kpis =
                 [
                     new WorkTypeKpiItemDto
@@ -300,15 +216,6 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-03",
-                Name = "WF 3",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.SaveChangesAsync();
 
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -316,7 +223,6 @@ public sealed class WorkTypeServiceTests
             {
                 Code = "WT-DATES",
                 Name = "Invalid Dates",
-                WorkflowDefinitionId = workflow.Id,
                 Kpis =
                 [
                     new WorkTypeKpiItemDto
@@ -339,15 +245,6 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-04",
-                Name = "WF 4",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.SaveChangesAsync();
 
             var kpiId = Guid.NewGuid();
@@ -356,7 +253,6 @@ public sealed class WorkTypeServiceTests
             {
                 Code = "WT-DUP-KPIS",
                 Name = "Duplicate KPIs",
-                WorkflowDefinitionId = workflow.Id,
                 Kpis =
                 [
                     new WorkTypeKpiItemDto { KpiDefinitionId = kpiId, EffectiveFrom = today },
@@ -374,20 +270,11 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-05",
-                Name = "WF 5",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var wt1 = new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = "WT-LOAN-01",
                 Name = "Consumer Loan",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
@@ -396,11 +283,9 @@ public sealed class WorkTypeServiceTests
                 Id = Guid.NewGuid(),
                 Code = "WT-LOAN-02",
                 Name = "Mortgage Loan",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Inactive,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.WorkTypes.AddRangeAsync(wt1, wt2);
             await context.SaveChangesAsync();
 
@@ -424,24 +309,14 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-06",
-                Name = "Workflow 6",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var wt = new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = "WT-GET-01",
                 Name = "Get Test",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.WorkTypes.AddAsync(wt);
             await context.SaveChangesAsync();
 
@@ -449,7 +324,6 @@ public sealed class WorkTypeServiceTests
 
             Assert.NotNull(result);
             Assert.Equal("WT-GET-01", result.Code);
-            Assert.Equal("Workflow 6", result.WorkflowName);
         }
     }
 
@@ -459,14 +333,6 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-07",
-                Name = "Workflow 7",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var group = new KpiGroup
             {
                 Id = Guid.NewGuid(),
@@ -492,12 +358,10 @@ public sealed class WorkTypeServiceTests
                 Id = Guid.NewGuid(),
                 Code = "WT-OLD",
                 Name = "Old Name",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
 
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.KpiGroups.AddAsync(group);
             await context.KpiDefinitions.AddAsync(kpi);
             await context.WorkTypes.AddAsync(wt);
@@ -508,7 +372,6 @@ public sealed class WorkTypeServiceTests
                 Code = "WT-NEW",
                 Name = "New Name",
                 Description = "Updated Description",
-                WorkflowDefinitionId = workflow.Id,
                 Kpis =
                 [
                     new WorkTypeKpiItemDto
@@ -535,24 +398,14 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-08",
-                Name = "Workflow 8",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var wt = new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = "WT-STATUS",
                 Name = "Status Test",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.WorkTypes.AddAsync(wt);
             await context.SaveChangesAsync();
 
@@ -570,24 +423,14 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-09",
-                Name = "Workflow 9",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var wt = new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = "WT-DEL",
                 Name = "Delete Test",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.WorkTypes.AddAsync(wt);
             await context.SaveChangesAsync();
 
@@ -604,14 +447,6 @@ public sealed class WorkTypeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = "WF-10",
-                Name = "Workflow 10",
-                Status = WorkflowDefinitionStatus.Active,
-                UpdatedAt = DateTimeOffset.UtcNow,
-            };
             var employee = new Employee
             {
                 Id = Guid.NewGuid(),
@@ -625,7 +460,6 @@ public sealed class WorkTypeServiceTests
                 Id = Guid.NewGuid(),
                 Code = "WT-HAS-WORKS",
                 Name = "Has Works Test",
-                WorkflowDefinitionId = workflow.Id,
                 Status = RecordStatus.Active,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
@@ -636,6 +470,7 @@ public sealed class WorkTypeServiceTests
                 Title = "Test Work",
                 WorkTypeId = wt.Id,
                 AssigneeEmployeeId = employee.Id,
+                CreatedBy = employee.Id,
                 Priority = WorkPriority.Medium,
                 Status = WorkStatus.New,
                 PlannedStartDate = DateOnly.FromDateTime(DateTime.UtcNow),
@@ -643,7 +478,6 @@ public sealed class WorkTypeServiceTests
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
 
-            await context.WorkflowDefinitions.AddAsync(workflow);
             await context.Employees.AddAsync(employee);
             await context.WorkTypes.AddAsync(wt);
             await context.Works.AddAsync(work);

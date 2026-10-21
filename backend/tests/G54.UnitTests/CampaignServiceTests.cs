@@ -81,21 +81,11 @@ public sealed class CampaignServiceTests
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        var wf = new WorkflowDefinition
-        {
-            Id = Guid.NewGuid(),
-            Code = "WF-STD",
-            Name = "Quy trình Tiêu chuẩn",
-            Status = WorkflowDefinitionStatus.Active,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
         var workType = new WorkType
         {
             Id = Guid.NewGuid(),
             Code = "WT-CALL",
             Name = "Tư vấn Tiết kiệm",
-            WorkflowDefinitionId = wf.Id,
             Status = RecordStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -103,7 +93,6 @@ public sealed class CampaignServiceTests
         await context.Departments.AddAsync(dept);
         await context.JobPositions.AddAsync(pos);
         await context.Employees.AddRangeAsync(emp1, emp2);
-        await context.WorkflowDefinitions.AddAsync(wf);
         await context.WorkTypes.AddAsync(workType);
         await context.BusinessObjectives.AddAsync(objective);
         await context.SaveChangesAsync();
@@ -245,6 +234,7 @@ public sealed class CampaignServiceTests
                 Title = "Nhiệm vụ 1",
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 WorkTypeId = workType.Id,
                 Status = WorkStatus.Done,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -257,6 +247,7 @@ public sealed class CampaignServiceTests
                 Title = "Nhiệm vụ 2",
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 WorkTypeId = workType.Id,
                 Status = WorkStatus.InProgress,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -435,6 +426,7 @@ public sealed class CampaignServiceTests
                 Title = "Nhiệm vụ có hạn 25/11",
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 PlannedEndDate = new DateOnly(2026, 11, 25),
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -513,6 +505,7 @@ public sealed class CampaignServiceTests
                 Title = "Task 1",
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
 
@@ -655,7 +648,7 @@ public sealed class CampaignServiceTests
                     new BatchLeadItemDto("CUST-002", "Trần Bình", "Tiền gửi 300tr")
                 ]);
 
-            var result = await service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid());
+            var result = await service.BatchGenerateWorkAsync(campaign.Id, req, emp1.Id);
 
             Assert.Equal(6, result.TotalGenerated);
             Assert.Equal(2, result.ParticipantCount);
@@ -723,6 +716,7 @@ public sealed class CampaignServiceTests
                 Code = "TSK-PRE-01",
                 Title = "Việc cũ 1",
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 Status = WorkStatus.InProgress,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -733,6 +727,7 @@ public sealed class CampaignServiceTests
                 Code = "TSK-PRE-02",
                 Title = "Việc cũ 2",
                 AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
                 Status = WorkStatus.New,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -753,7 +748,7 @@ public sealed class CampaignServiceTests
                 AllocationRule: "LOAD_BALANCING",
                 TotalLeadsCount: 3);
 
-            var result = await service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid());
+            var result = await service.BatchGenerateWorkAsync(campaign.Id, req, emp1.Id);
             Assert.Equal(3, result.TotalGenerated);
 
             var campaignTasks = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();

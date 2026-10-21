@@ -33,11 +33,9 @@ Recalculation is allowed: calling the endpoint again refreshes the same contribu
 ### Processing
 
 1. Load the evaluation, its period and the employee; check scope and state.
-2. Convert every approved, still `VALID` verified work result item of the evaluated employee whose
-   verification date falls inside the evaluation period into an `actual_progress` row. The conversion
-   is idempotent: a work result item contributes at most once (`source_item_id` is unique). Items that
-   cannot be converted are skipped and logged: a `RATIO` KPI without a positive denominator, a negative
-   value, or a verification date without a `DAY` evaluation period.
+2. Read the `VALID` `actual_progress` rows recorded against the evaluated employee's own target assignments
+   whose `progress_date` falls inside the evaluation period. Calculation never writes progress: rows are
+   created when a result is verified (see the verification flow).
 3. Resolve the target of every `ACTIVE` KPI of the profile's groups: an employee-level `ACTIVE` target of the
    evaluation period wins over a department-level target of the employee's own department; within a level the
    highest `version` wins. Targets of other statuses are ignored.
@@ -45,8 +43,9 @@ Recalculation is allowed: calling the endpoint again refreshes the same contribu
    `SUM` = sum of values, `AVG` = average of values, `RATIO` = sum of values (`actualValue`) over
    sum of denominators (`actualDenominator`). The `AVG` actual is rounded to 4 decimals with banker's
    rounding. A KPI without data is not stored (`null` is N/A, never `0`).
-5. Write one group-level `performance_contribution` per evaluation profile item (weight snapshot) and one
-   KPI-level `performance_contribution` per KPI with a target and data (target and actual snapshots).
+5. Write one `performance_contribution` per KPI with a target and data (target, actual and group weight
+   snapshots), linked to the KPI's latest progress row through `actual_progress_id`. Group scores are
+   computed on every calculation and are not stored. Contributions linked to a risk event are left untouched.
 6. Score through `IPerformanceScoreFormula` (KPI → group → total) and round every score to 4 decimals with
    banker's rounding (`MidpointRounding.ToEven`).
 
@@ -57,9 +56,6 @@ has `totalScore = null`, `calculatedAt = null` and `status = DRAFT`. With a defi
 evaluation becomes `CALCULATED` with `calculatedAt` set. The stored score always reflects the latest
 calculation: when a recalculation cannot determine a total, a previous score is cleared and the status
 returns to `DRAFT`.
-
-Actual progress is not linked to contributions: `actual_progress` is stored at `DAY` level while a
-contribution is stored at the evaluation period level, which the database rejects for non-`DAY` periods.
 
 ### Success — 200
 
@@ -81,7 +77,6 @@ contribution is stored at the evaluation period level, which the database reject
     "updatedAt": "2026-10-21T04:10:00+00:00",
     "groups": [
       {
-        "contributionId": "0b8c8f58-0d44-4e0a-8c56-9a5c1f3f2a01",
         "evaluationProfileItemId": "5eed0000-0000-0000-0004-000000000001",
         "kpiGroupId": "5eed0000-0000-0000-0003-000000000001",
         "kpiGroupCode": "KD",
