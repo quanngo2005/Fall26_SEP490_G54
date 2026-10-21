@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-public sealed class DepartmentService(
+public sealed partial class DepartmentService(
     AppDbContext db,
     IPermissionService permissions,
     TimeProvider time) : IDepartmentService
@@ -54,10 +54,10 @@ public sealed class DepartmentService(
                 || n.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (status.HasValue)
-        {
-            query = query.Where(n => n.Status == status.Value);
-        }
+        // Soft-deleted (ARCHIVED) departments are listed only when asked for explicitly.
+        query = status.HasValue
+            ? query.Where(n => n.Status == status.Value)
+            : query.Where(n => n.Status != RecordStatus.Archived);
 
         if (level.HasValue)
         {
