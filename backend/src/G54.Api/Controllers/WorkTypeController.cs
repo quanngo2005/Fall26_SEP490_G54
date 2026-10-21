@@ -1,3 +1,4 @@
+using G54.Api.Authorization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.WorkType;
@@ -61,6 +62,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpPost]
+    [HasPermission("work-type", "manage", "All")]
     [ProducesResponseType<ApiResponse<WorkTypeDetailDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -75,6 +77,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpPut("{id:guid}")]
+    [HasPermission("work-type", "manage", "All")]
     [ProducesResponseType<ApiResponse<WorkTypeDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -89,6 +92,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpPatch("{id:guid}/status")]
+    [HasPermission("work-type", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -102,6 +106,7 @@ public sealed class WorkTypeController(IWorkTypeService service) : ControllerBas
     }
 
     [HttpDelete("{id:guid}")]
+    [HasPermission("work-type", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
