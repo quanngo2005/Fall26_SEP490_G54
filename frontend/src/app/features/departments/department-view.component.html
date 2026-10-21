@@ -286,8 +286,7 @@
                     <td>
                       <a
                         class="table-action"
-                        routerLink="/employee-detail"
-                        [queryParams]="{ id: member.id }"
+                        [routerLink]="['/employee-detail', member.employeeCode]"
                         >{{localization.department.viewMember}}</a
                       >
                     </td>

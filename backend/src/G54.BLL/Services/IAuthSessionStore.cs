@@ -23,4 +23,8 @@ public interface IAuthSessionStore
         Guid refreshTokenId,
         string refreshTokenHash,
         CancellationToken cancellationToken);
+
+    /// <summary>Removes every session (refresh token) of the account, for example after a password change.</summary>
+    /// <returns>How many sessions were removed.</returns>
+    Task<int> RevokeAllAsync(Guid accountId, CancellationToken cancellationToken);
 }

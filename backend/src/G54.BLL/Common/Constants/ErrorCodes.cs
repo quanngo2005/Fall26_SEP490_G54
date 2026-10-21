@@ -10,6 +10,9 @@ public static class ErrorCodes
     public const string Conflict = "CONFLICT";
     public const string InternalError = "INTERNAL_ERROR";
 
+    // My Profile (docs/api/MY_PROFILE_CONTRACT.md)
+    public const string InvalidCurrentPassword = "INVALID_CURRENT_PASSWORD";
+
     // Submission / Verification / KPI Result lifecycle (docs/api/SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md)
     public const string SubmissionInvalidState = "SUBMISSION_INVALID_STATE";
     public const string VerificationInvalidState = "VERIFICATION_INVALID_STATE";
@@ -51,6 +54,7 @@ public static class ErrorCodes
         [Forbidden] = ("Bạn không có quyền thực hiện thao tác này.", "Access forbidden."),
         [Conflict] = ("Dữ liệu bị xung đột hoặc đã tồn tại.", "Resource conflict or already exists."),
         [InternalError] = ("Đã xảy ra lỗi hệ thống không mong muốn.", "An unexpected system error occurred."),
+        [InvalidCurrentPassword] = ("Mật khẩu hiện tại không đúng.", "The current password is incorrect."),
         [SubmissionInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với báo cáo kết quả.", "The current state does not allow this submission action."),
         [VerificationInvalidState] = ("Hồ sơ không ở trạng thái chờ thẩm định.", "The submission is not awaiting verification."),
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),

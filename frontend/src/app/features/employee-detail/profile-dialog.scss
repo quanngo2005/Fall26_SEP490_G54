@@ -1,0 +1,76 @@
+/* Shared by the change-phone and change-password popups of the employee detail screen. */
+.profile-dialog {
+  width: min(480px, 100%);
+}
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dialog-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.field-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+.field-hint.is-error {
+  color: #ba1a1a;
+}
+.input[aria-invalid='true'] {
+  border-color: #ba1a1a;
+}
+.form-message {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid #fecdd3;
+  border-radius: 4px;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 13px;
+}
+.toggle-passwords {
+  align-self: flex-start;
+}
+.rules {
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+.rules-title {
+  margin: 0 0 6px;
+  color: #64748b;
+  font:
+    600 11px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rules ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rules li {
+  color: #64748b;
+  font-size: 13px;
+}
+.rules li.is-met {
+  color: #047857;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

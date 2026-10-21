@@ -11,7 +11,7 @@
           <p class="breadcrumb">{{localization.employee.breadcrumb}}</p>
           <p class="eyebrow">{{localization.employee.eyebrow}}</p>
         </div>
-        @if (employeeId()) {
+        @if (employeeKey() && !isOwnAddress()) {
           <a class="button button-secondary" routerLink="/employee-detail">
             {{localization.employee.backToList}}
           </a>
@@ -41,7 +41,30 @@
             </div>
             <p>{{emp.employeeCode}} · {{emp.jobPositionTitle}}</p>
           </div>
+          @if (isSelf()) {
+            <div class="hero-actions">
+              <button
+                type="button"
+                class="button button-secondary"
+                aria-haspopup="dialog"
+                (click)="openDialog('phone')"
+              >
+                {{localization.profile.changePhone}}
+              </button>
+              <button
+                type="button"
+                class="button button-primary"
+                aria-haspopup="dialog"
+                (click)="openDialog('password')"
+              >
+                {{localization.profile.changePassword}}
+              </button>
+            </div>
+          }
         </section>
+        @if (notice(); as message) {
+          <p class="page-notice" role="status">{{message}}</p>
+        }
         <section class="metrics-grid" [attr.aria-label]="localization.employee.metricsLabel">
           <article class="metric-card surface-card metric-navy">
             <div class="metric-label">{{localization.employee.directReports}}</div>
@@ -72,7 +95,7 @@
               <dd>
                 <a
                   [routerLink]="['/departments']"
-                  [queryParams]="{ departmentId: emp.departmentId }"
+                  [queryParams]="{ department: emp.departmentCode }"
                   >{{emp.departmentCode}} · {{emp.departmentName}}</a
                 >
               </dd>
@@ -85,7 +108,7 @@
               <dt>{{localization.employee.manager}}</dt>
               <dd>
                 @if (emp.managerId) {
-                  <a [routerLink]="['/employee-detail', emp.managerId]"
+                  <a [routerLink]="['/employee-detail', emp.managerCode]"
                     >{{text(emp.managerCode)}} · {{text(emp.managerName)}}</a
                   >
                 } @else {
@@ -107,6 +130,22 @@
             </div>
           </dl>
         </section>
+        @if (isSelf()) {
+          @if (dialog() === 'phone') {
+            <app-change-phone-dialog
+              [current]="emp.phone"
+              (saved)="phoneChanged()"
+              (closed)="closeDialog()"
+            />
+          }
+          @if (dialog() === 'password') {
+            <app-change-password-dialog
+              [email]="emp.email"
+              (changed)="passwordChanged()"
+              (closed)="closeDialog()"
+            />
+          }
+        }
       } @else {
         <section class="panel surface-card" aria-labelledby="picker-title">
           <div class="panel-heading">
@@ -152,7 +191,7 @@
                       <span class="status-badge" [class.is-muted]="!isActive(item.status)">{{statusLabel(item.status)}}</span>
                     </td>
                     <td>
-                      <a class="link" [routerLink]="['/employee-detail', item.id]">{{localization.employee.view}}</a>
+                      <a class="link" [routerLink]="['/employee-detail', item.employeeCode]">{{localization.employee.view}}</a>
                     </td>
                   </tr>
                 } @empty {

@@ -23,6 +23,20 @@ export class EmployeeService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  /** URLs identify an employee by their (unique) employee code, never by the GUID. */
+  byCode(code: string): Observable<EmployeeDetail> {
+    return this.http
+      .get<ApiResponse<EmployeeDetail>>(`${this.url}/by-code/${encodeURIComponent(code)}`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The signed-in user's own employee record (`/employee-detail/me`). */
+  me(): Observable<EmployeeDetail> {
+    return this.http
+      .get<ApiResponse<EmployeeDetail>>(`${this.url}/me`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   private params(filter: EmployeeFilter): HttpParams {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filter)) {

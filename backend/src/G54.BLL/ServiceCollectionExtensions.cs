@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IWorkService, WorkService>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
         services.AddScoped<IKpiMappingService, KpiMappingService>();

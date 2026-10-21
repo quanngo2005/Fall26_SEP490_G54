@@ -8,7 +8,7 @@ export const routes: Routes = [
       import('./employee-detail.component').then((m) => m.EmployeeDetailComponent),
   },
   {
-    path: ':id',
+    path: ':code',
     title: 'Employee Detail',
     loadComponent: () =>
       import('./employee-detail.component').then((m) => m.EmployeeDetailComponent),

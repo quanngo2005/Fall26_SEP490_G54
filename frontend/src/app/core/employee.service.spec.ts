@@ -67,6 +67,29 @@ describe('EmployeeService', () => {
     request.flush({ success: true, status: 200, data: employee });
   });
 
+  it('loads one employee by an encoded employee code, never by id', () => {
+    service.byCode('NV/004').subscribe((item) => expect(item.employeeCode).toBe('NV004'));
+    const request = http.expectOne(`${url}/by-code/NV%2F004`);
+    expect(request.request.method).toBe('GET');
+    request.flush({ success: true, status: 200, data: employee });
+  });
+
+  it("loads the signed-in user's own record from /employees/me", () => {
+    service.me().subscribe((item) => expect(item.employeeCode).toBe('NV004'));
+    const request = http.expectOne(`${url}/me`);
+    expect(request.request.method).toBe('GET');
+    request.flush({ success: true, status: 200, data: employee });
+  });
+
+  it('treats a failed envelope for by-code and me as an error', () => {
+    let failures = 0;
+    service.byCode('NV999').subscribe({ error: () => failures++ });
+    service.me().subscribe({ error: () => failures++ });
+    http.expectOne(`${url}/by-code/NV999`).flush({ success: false, status: 404 });
+    http.expectOne(`${url}/me`).flush({ success: false, status: 404 });
+    expect(failures).toBe(2);
+  });
+
   it('preserves a genuine empty list', () => {
     service.list().subscribe((page) => expect(page.items).toEqual([]));
     http

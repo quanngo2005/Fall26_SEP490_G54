@@ -91,7 +91,7 @@
       <div class="account-block">
         <a
           class="avatar"
-          routerLink="/employee-detail"
+          routerLink="/employee-detail/me"
           [attr.aria-label]="localization.layout.viewProfile"
           (click)="navigation.closeMobile()"
           >{{initials}}</a
@@ -100,7 +100,7 @@
           <strong>{{account.fullName}}</strong>
           <a
             class="view-profile-link"
-            routerLink="/employee-detail"
+            routerLink="/employee-detail/me"
             (click)="navigation.closeMobile()"
           >
             {{localization.layout.viewProfile}}

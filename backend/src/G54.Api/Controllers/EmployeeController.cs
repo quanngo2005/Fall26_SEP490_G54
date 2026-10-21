@@ -23,6 +23,39 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    /// <summary>The signed-in user's own employee record; <c>/employee-detail/me</c> in the UI.</summary>
+    [HttpGet("me")]
+    [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EmployeeDetailDto>>> GetCurrentEmployee(
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetCurrentEmployeeAsync(User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Employee codes are unique and already shown in the UI, so URLs use them instead of the GUID.</summary>
+    [HttpGet("by-code/{code}")]
+    [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EmployeeDetailDto>>> GetEmployeeByCode(
+        string code,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetEmployeeByCodeAsync(code, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse.Fail(
+                ErrorCodes.NotFound,
+                "Không tìm thấy nhân viên yêu cầu.",
+                traceId: HttpContext.TraceIdentifier,
+                status: StatusCodes.Status404NotFound));
+        }
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
