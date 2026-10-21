@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Submission;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -388,7 +389,7 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Bạn không phải là người đã nộp báo cáo kết quả này.");
         }
 
-        if (submission.Status != SubmissionStatus.Submitted)
+        if (!SubmissionStateMachine.TryGetNextStatus(submission.Status, SubmissionAction.Withdraw, out var statusAfterWithdraw))
         {
             throw new ConflictException(
                 $"Chỉ có thể thu hồi báo cáo ở trạng thái đã nộp (SUBMITTED). Trạng thái hiện tại: {submission.Status.ToEnumString()}.",
@@ -401,7 +402,7 @@ public sealed partial class ResultSubmissionService(
             throw new NotFoundException("Công việc", submission.WorkId);
         }
 
-        submission.Status = SubmissionStatus.Withdrawn;
+        submission.Status = statusAfterWithdraw;
         submission.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.ResultSubmissions.Update(submission);
 
