@@ -44,7 +44,8 @@ export class VerificationService {
   }
 
   private unwrap<T>(response: ApiResponse<T>): T {
-    if (!response.success || response.data == null) throw new Error('Invalid verification response');
+    if (!response.success || response.data == null)
+      throw new Error('Invalid verification response');
     return response.data;
   }
 }

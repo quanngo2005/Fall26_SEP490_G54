@@ -14,6 +14,20 @@ export type KpiDirection = (typeof KPI_DIRECTIONS)[number];
 export type KpiAggregationType = (typeof KPI_AGGREGATIONS)[number];
 export type KpiStatus = (typeof KPI_STATUSES)[number];
 
+export type KpiMeasurementType = 'Quantitative' | 'Qualitative';
+
+export interface MultiplierItem {
+  id?: string;
+  label: string;
+  value: number;
+}
+
+export interface RoleWeightItem {
+  id?: string;
+  role: string;
+  weight: number;
+}
+
 export interface KpiDefinition {
   id: string;
   kpiGroupId: string;
@@ -28,6 +42,12 @@ export interface KpiDefinition {
   maxAchievementPercent: number | null;
   status: KpiStatus;
   updatedAt: string;
+  measurementType?: KpiMeasurementType;
+  applyProductMultiplier?: boolean;
+  depositMultipliers?: MultiplierItem[];
+  roleWeights?: RoleWeightItem[];
+  version?: string;
+  effectiveDate?: string;
 }
 
 export interface KpiGroupOption {
