@@ -192,8 +192,8 @@ Field definitions:
 - `period` nullable; `availablePeriods` lists all non-`DAY` periods, newest `startDate` first.
 - `metrics.employeeCount` excludes `TERMINATED`; `activeEmployeeCount` = `ACTIVE`; `onLeaveEmployeeCount` = `ON_LEAVE`.
 - **Open work** = work whose assignee belongs to the subtree and whose status is `NEW`, `IN_PROGRESS`,
-  `HANDED_OVER`, `SUBMITTED` or `REJECTED`. `attentionWorkCount` = open works that are overdue
-  (`plannedEndDate` before today) or `REJECTED`.
+  `HANDED_OVER`, `SUBMITTED`, `REJECTED` or `OVERDUE`. `attentionWorkCount` = open works that are overdue
+  (status `OVERDUE`, or `plannedEndDate` before today) or `REJECTED`.
 - `metrics.pendingReviewCount` = result submissions in `SUBMITTED` or `UNDER_REVIEW` whose work is assigned in the subtree.
 - `performance.average` = mean of `performance_evaluation.total_score` for the period, over subtree
   employees, evaluations with a non-null score and status other than `DRAFT`. Scale is the stored
@@ -213,8 +213,8 @@ Field definitions:
   `null` if `targetValue` is 0 or `actualValue` is `null`.
 - `workMix`: open works grouped by work type, count descending then name. Works without a work type are one
   entry with `workTypeId`, `code` and `name` all `null`.
-- `operational.waiting` = open works in `NEW`; `inProgress` = `IN_PROGRESS` + `HANDED_OVER`;
-  `overdue` = open works past `plannedEndDate`; `completedInPeriod` = `DONE`/`VERIFIED` works whose
+- `operational.waiting` = open works in `NEW`; `inProgress` = `IN_PROGRESS` + `HANDED_OVER` + `OVERDUE`;
+  `overdue` = open works in status `OVERDUE` or past `plannedEndDate`; `completedInPeriod` = `DONE`/`VERIFIED` works whose
   `updatedAt` falls inside the period (`null` when `period` is `null`).
 - `operational.escalated` has **no data source yet** and is always `null`.
 - `generatedAt` is the server time of the response.

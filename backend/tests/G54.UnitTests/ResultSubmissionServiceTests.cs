@@ -442,6 +442,30 @@ public sealed class ResultSubmissionServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(WorkStatus.New)]
+    [InlineData(WorkStatus.Overdue)]
+    [InlineData(WorkStatus.Rejected)]
+    public async Task CreateSubmissionAsync_WorkAllowedByStateMachine_MovesWorkToSubmitted(WorkStatus startStatus)
+    {
+        var (context, _, service, _, _) = CreateTestEnvironment();
+        using (context)
+        {
+            var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context, startStatus);
+
+            var request = new CreateWorkSubmissionRequestDto
+            {
+                Comment = "Nop tu trang thai " + startStatus,
+                MetricItems = new List<SubmissionMetricInputDto> { new(kpi1.Id, 10m, null) },
+            };
+
+            await service.CreateSubmissionAsync(work.Id, assignee.Id, request);
+
+            var updatedWork = await context.Works.FindAsync(work.Id);
+            Assert.Equal(WorkStatus.Submitted, updatedWork!.Status);
+        }
+    }
+
     [Fact]
     public async Task CreateSubmissionAsync_WorkDoneOrCancelled_ThrowsConflictSubmissionInvalidState()
     {

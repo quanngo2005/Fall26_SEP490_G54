@@ -138,22 +138,22 @@ public sealed class VerificationService(
         }
 
         var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
-        var (dbDecision, action, newWorkStatus, actionText) = normalizedDecision switch
+        var (dbDecision, action, workAction, actionText) = normalizedDecision switch
         {
             "APPROVED" => (
                 VerificationDecision.Approved,
                 SubmissionAction.Approve,
-                WorkStatus.Verified,
+                WorkAction.Verify,
                 "Phê duyệt kết quả hoàn tất"),
             "REVISION_REQUIRED" => (
                 VerificationDecision.NeedMoreInfo,
                 SubmissionAction.RequestRevision,
-                WorkStatus.InProgress,
+                WorkAction.Reopen,
                 "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
             "REJECTED" => (
                 VerificationDecision.Rejected,
                 SubmissionAction.Reject,
-                WorkStatus.Rejected,
+                WorkAction.Reject,
                 "Đã từ chối hồ sơ kết quả công việc"),
             _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
         };
@@ -162,6 +162,13 @@ public sealed class VerificationService(
         {
             throw new ConflictException(
                 $"Hồ sơ đang ở trạng thái {submission.Status.ToEnumString()}, không thể thẩm định.",
+                ErrorCodes.VerificationInvalidState);
+        }
+
+        if (!WorkStateMachine.TryGetNextStatus(submission.Work.Status, workAction, out var newWorkStatus))
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {submission.Work.Status.ToEnumString()}, không thể thẩm định.",
                 ErrorCodes.VerificationInvalidState);
         }
 

@@ -187,6 +187,7 @@ public sealed class ApiResponseAndExceptionTests
     [Theory]
     [InlineData(ErrorCodes.SubmissionInvalidState)]
     [InlineData(ErrorCodes.VerificationInvalidState)]
+    [InlineData(ErrorCodes.WorkInvalidState)]
     [InlineData(ErrorCodes.KpiResultNotFound)]
     public void ErrorCodes_NewLifecycleCodes_HaveBilingualMessages(string code)
     {
@@ -199,6 +200,7 @@ public sealed class ApiResponseAndExceptionTests
     {
         Assert.Equal("UNDER_REVIEW", SubmissionStatus.UnderReview.ToEnumString());
         Assert.Equal("IN_PROGRESS", WorkStatus.InProgress.ToEnumString());
+        Assert.Equal("OVERDUE", WorkStatus.Overdue.ToEnumString());
         Assert.Equal("HIGHER_BETTER", KpiDirection.HigherBetter.ToEnumString());
         Assert.Equal("REVISION_REQUIRED", VerificationDecision.NeedMoreInfo.ToApiDecision());
         Assert.Equal("APPROVED", VerificationDecision.Approved.ToApiDecision());

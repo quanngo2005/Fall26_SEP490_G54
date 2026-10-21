@@ -515,4 +515,32 @@ public sealed class VerificationServiceTests
             Assert.Equal("APPROVED", history[1].Decision);
         }
     }
+
+    [Fact]
+    public async Task SubmitDecisionAsync_WhenDecidingAgainAfterRevisionRequest_AllowsTheSecondDecision()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
+
+            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
+            {
+                Decision = "REVISION_REQUIRED",
+                Feedback = "Bo sung chu ky xac nhan o trang 3.",
+                ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(2),
+            });
+
+            var second = await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
+            {
+                Decision = "APPROVED",
+                VerifiedValue = 1m,
+            });
+
+            Assert.Equal("APPROVED", second.Decision);
+            Assert.Equal("APPROVED", second.SubmissionStatus);
+            Assert.Equal("VERIFIED", second.WorkStatus);
+            Assert.Equal(WorkStatus.Verified, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
 }

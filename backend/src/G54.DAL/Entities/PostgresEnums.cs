@@ -82,6 +82,7 @@ public enum WorkStatus
     [PgName("REJECTED")] Rejected,
     [PgName("DONE")] Done,
     [PgName("CANCELLED")] Cancelled,
+    [PgName("OVERDUE")] Overdue,
 }
 
 public enum HandoverStatus

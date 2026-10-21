@@ -759,6 +759,99 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
+    public async Task BatchGenerateWorkAsync_LoadBalancing_CountsOverdueWorkAsLoad()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, emp1, emp2) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-LOAD-OVD",
+                Name = "Campaign overdue load",
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 10, 31),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Participants.AddRangeAsync(
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp1.Id, UpdatedAt = DateTimeOffset.UtcNow },
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp2.Id, UpdatedAt = DateTimeOffset.UtcNow });
+
+            // emp1 is buried in overdue work; emp2 is idle. Overdue work must still count as load.
+            for (var i = 0; i < 3; i++)
+            {
+                await context.Works.AddAsync(new Work
+                {
+                    Id = Guid.NewGuid(),
+                    Code = $"TSK-OVD-{i}",
+                    Title = $"Overdue {i}",
+                    AssigneeEmployeeId = emp1.Id,
+                    Status = WorkStatus.Overdue,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            var req = new BatchWorkGeneratorRequestDto(
+                WorkTypeId: workType.Id,
+                LeadPoolSource: "Pool",
+                AllocationRule: "LOAD_BALANCING",
+                TotalLeadsCount: 3);
+
+            await service.BatchGenerateWorkAsync(campaign.Id, req, emp1.Id);
+
+            var generated = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();
+            Assert.Equal(3, generated.Count(w => w.AssigneeEmployeeId == emp2.Id));
+        }
+    }
+
+    [Fact]
+    public async Task GetCampaignByIdAsync_OverdueWorkCountsAsInExecution()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, emp1, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-OVD-DETAIL",
+                Name = "Campaign overdue detail",
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 10, 31),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Works.AddAsync(new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "TSK-OVD-D1",
+                Title = "Overdue",
+                BusinessCampaignId = campaign.Id,
+                AssigneeEmployeeId = emp1.Id,
+                Status = WorkStatus.Overdue,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var detail = await service.GetCampaignByIdAsync(campaign.Id);
+
+            Assert.Equal(1, detail.Metrics.InExecutionWorksCount);
+            Assert.Equal(0, detail.Metrics.PendingWorksCount);
+        }
+    }
+    [Fact]
     public async Task BatchGenerateWorkAsync_ThrowsMSG18_WhenDeadlineExceedsCampaignEndDate()
     {
         var (context, service) = CreateTestEnvironment();
