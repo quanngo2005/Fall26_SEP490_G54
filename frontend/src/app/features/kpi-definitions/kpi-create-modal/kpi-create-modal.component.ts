@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { apiErrorStatus } from '../../../core/api-utils';
+import { HttpErrorResponse } from '@angular/common/http';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import {
   KPI_AGGREGATIONS,
@@ -85,7 +85,11 @@ export class KpiCreateModalComponent extends LocalizedComponent implements OnIni
         },
         error: (error: unknown) => {
           this.saving.set(false);
-          this.errorKey.set(apiErrorStatus(error) === 409 ? 'kpi.codeExists' : 'kpi.createFailed');
+          this.errorKey.set(
+            error instanceof HttpErrorResponse && error.status === 409
+              ? 'kpi.codeExists'
+              : 'kpi.createFailed',
+          );
         },
       });
   }

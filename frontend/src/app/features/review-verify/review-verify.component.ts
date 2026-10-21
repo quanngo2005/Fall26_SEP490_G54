@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, map, of, Subject, switchMap, tap } from 'rxjs';
-import { apiErrorCode, apiErrorStatus } from '../../core/api-utils';
+import { HttpErrorResponse } from '@angular/common/http';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   ControlStandard,
@@ -101,7 +101,7 @@ export class ReviewVerifyComponent extends LocalizedComponent {
           }).pipe(
             tap(({ dossier, history }) => this.apply(dossier, history)),
             catchError((error: unknown) => {
-              this.notFound.set(apiErrorStatus(error) === 404);
+              this.notFound.set(error instanceof HttpErrorResponse && error.status === 404);
               this.failed.set(true);
               return EMPTY;
             }),
@@ -263,7 +263,14 @@ export class ReviewVerifyComponent extends LocalizedComponent {
 
   /** Branches on the stable HTTP status / errorCode, never on the message text. */
   private errorKeyFor(error: unknown): string {
-    switch (apiErrorCode(error)) {
+    const status = error instanceof HttpErrorResponse ? error.status : null;
+    const body: unknown = error instanceof HttpErrorResponse ? error.error : null;
+    const code =
+      body && typeof body === 'object' && 'errorCode' in body
+        ? (body as { errorCode?: unknown }).errorCode
+        : null;
+
+    switch (code) {
       case 'MSG10':
         return 'review.makerCheckerError';
       case 'MSG23':
@@ -275,7 +282,7 @@ export class ReviewVerifyComponent extends LocalizedComponent {
       case 'NOT_FOUND':
         return 'review.notFound';
       default:
-        return apiErrorStatus(error) === 403 ? 'review.forbiddenError' : 'review.decisionFailed';
+        return status === 403 ? 'review.forbiddenError' : 'review.decisionFailed';
     }
   }
 }

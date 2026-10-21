@@ -1,8 +1,8 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
-import { apiErrorStatus } from '../../core/api-utils';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   KPI_AGGREGATIONS,
@@ -220,7 +220,12 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
           this.show('success', 'kpi.saved');
         },
         error: (error: unknown) =>
-          this.show('error', apiErrorStatus(error) === 404 ? 'kpi.notFound' : 'kpi.saveFailed'),
+          this.show(
+            'error',
+            error instanceof HttpErrorResponse && error.status === 404
+              ? 'kpi.notFound'
+              : 'kpi.saveFailed',
+          ),
       });
   }
 
