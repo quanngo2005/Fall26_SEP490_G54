@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Verification;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -136,33 +137,33 @@ public sealed class VerificationService(
             throw new BusinessRuleException(ErrorCodes.MSG23, statusCode: StatusCodes.Status409Conflict);
         }
 
-        if (submission.Status is not (SubmissionStatus.Submitted or SubmissionStatus.UnderReview))
+        var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
+        var (dbDecision, action, newWorkStatus, actionText) = normalizedDecision switch
+        {
+            "APPROVED" => (
+                VerificationDecision.Approved,
+                SubmissionAction.Approve,
+                WorkStatus.Verified,
+                "Phê duyệt kết quả hoàn tất"),
+            "REVISION_REQUIRED" => (
+                VerificationDecision.NeedMoreInfo,
+                SubmissionAction.RequestRevision,
+                WorkStatus.InProgress,
+                "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
+            "REJECTED" => (
+                VerificationDecision.Rejected,
+                SubmissionAction.Reject,
+                WorkStatus.Rejected,
+                "Đã từ chối hồ sơ kết quả công việc"),
+            _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
+        };
+
+        if (!SubmissionStateMachine.TryGetNextStatus(submission.Status, action, out var newSubmissionStatus))
         {
             throw new ConflictException(
                 $"Hồ sơ đang ở trạng thái {submission.Status.ToEnumString()}, không thể thẩm định.",
                 ErrorCodes.VerificationInvalidState);
         }
-
-        var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
-        var (dbDecision, newSubmissionStatus, newWorkStatus, actionText) = normalizedDecision switch
-        {
-            "APPROVED" => (
-                VerificationDecision.Approved,
-                SubmissionStatus.Approved,
-                WorkStatus.Verified,
-                "Phê duyệt kết quả hoàn tất"),
-            "REVISION_REQUIRED" => (
-                VerificationDecision.NeedMoreInfo,
-                SubmissionStatus.UnderReview,
-                WorkStatus.InProgress,
-                "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
-            "REJECTED" => (
-                VerificationDecision.Rejected,
-                SubmissionStatus.Rejected,
-                WorkStatus.Rejected,
-                "Đã từ chối hồ sơ kết quả công việc"),
-            _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
-        };
 
         var nextRoundNo = submission.Verifications.Count > 0
             ? submission.Verifications.Max(v => v.RoundNo) + 1
