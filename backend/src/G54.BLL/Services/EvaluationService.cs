@@ -882,7 +882,7 @@ public sealed partial class EvaluationService(
                     EvaluationProfileId = profilesByPosition.GetValueOrDefault(emp.JobPositionId)?.Id ?? Guid.Empty,
                     TotalScore = 80m,
                     Status = targetStatus,
-                        CalculatedAt = now,
+                    CalculatedAt = now,
                     Comment = newComment,
                     UpdatedAt = now,
                 };

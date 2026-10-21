@@ -1,8 +1,10 @@
 namespace G54.BLL.Dtos.Performance;
 
-/// <summary>A KPI group of the evaluation profile with its weight and the KPI contributions beneath it.</summary>
+/// <summary>
+/// A KPI group of the evaluation profile with its weight and the KPI contributions beneath it.
+/// The group score is computed on each calculation and is not stored.
+/// </summary>
 public sealed record PerformanceGroupContributionDto(
-    Guid ContributionId,
     Guid EvaluationProfileItemId,
     Guid KpiGroupId,
     string KpiGroupCode,

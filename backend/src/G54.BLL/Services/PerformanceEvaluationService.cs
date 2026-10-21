@@ -24,11 +24,11 @@ public sealed class PerformanceEvaluationService(
     private const int AllScopeLevel = 4;
     private const int ScoreDecimals = 4;
 
-    private static readonly Action<ILogger, Guid, Guid, int, int, Exception?> LogCalculated =
-        LoggerMessage.Define<Guid, Guid, int, int>(
+    private static readonly Action<ILogger, Guid, Guid, int, Exception?> LogCalculated =
+        LoggerMessage.Define<Guid, Guid, int>(
             LogLevel.Information,
             new EventId(1, "PerformanceCalculated"),
-            "Performance calculated: EvaluationId={EvaluationId}, AccountId={AccountId}, ConvertedProgress={Converted}, SkippedResultItems={Skipped}");
+            "Performance calculated: EvaluationId={EvaluationId}, AccountId={AccountId}, ProgressRows={ProgressRows}");
 
     public async Task<PerformanceEvaluationDto> CalculateAsync(
         Guid accountId,
@@ -53,9 +53,7 @@ public sealed class PerformanceEvaluationService(
 
         var now = time.GetUtcNow();
 
-        var (newProgress, skipped) = await BuildNewProgressAsync(evaluation, now, cancellationToken);
         var progressRows = await LoadProgressRowsAsync(evaluation, cancellationToken);
-        progressRows.AddRange(newProgress.Select(p => new ProgressRow(p.KpiDefinitionId, p.Value, p.Denominator)));
 
         var profileItems = evaluation.EvaluationProfile.EvaluationProfileItems
             .OrderBy(i => i.DisplayOrder)
@@ -67,8 +65,11 @@ public sealed class PerformanceEvaluationService(
             .ToList();
         var targets = await LoadTargetsAsync(evaluation, activeKpiIds, cancellationToken);
 
+        // Risk-event contributions are owned elsewhere; only the KPI rows this calculation writes are managed here.
         var existing = await db.PerformanceContributions
-            .Where(c => c.PerformanceEvaluationId == evaluation.Id)
+            .Include(c => c.ActualProgress)
+                .ThenInclude(a => a!.TargetAssignment)
+            .Where(c => c.PerformanceEvaluationId == evaluation.Id && c.RiskEventId == null)
             .ToListAsync(cancellationToken);
 
         var keptIds = new HashSet<Guid>();
@@ -77,19 +78,6 @@ public sealed class PerformanceEvaluationService(
 
         foreach (var item in profileItems)
         {
-            var group = existing.FirstOrDefault(c => c.EvaluationProfileItemId == item.Id);
-            if (group is null)
-            {
-                group = NewContribution(evaluation, now);
-                group.EvaluationProfileItemId = item.Id;
-                existing.Add(group);
-                db.PerformanceContributions.Add(group);
-            }
-
-            keptIds.Add(group.Id);
-            group.WeightSnapshot = item.WeightPercent;
-            group.UpdatedAt = now;
-
             var kpiEntries = new List<KpiScoreEntry>();
             var kpiDtos = new List<PerformanceKpiContributionDto>();
             var kpis = item.KpiGroup.KpiDefinitions
@@ -99,7 +87,8 @@ public sealed class PerformanceEvaluationService(
             foreach (var kpi in kpis)
             {
                 var target = ResolveTarget(targets, kpi.Id);
-                var actual = Aggregate(kpi.AggregationType, progressRows.Where(r => r.KpiDefinitionId == kpi.Id).ToList());
+                var kpiRows = progressRows.Where(r => r.KpiDefinitionId == kpi.Id).ToList();
+                var actual = Aggregate(kpi.AggregationType, kpiRows);
                 if (target is null || actual is null)
                 {
                     continue;
@@ -116,18 +105,23 @@ public sealed class PerformanceEvaluationService(
                     actual.Value,
                     actual.Denominator)));
 
-                var contribution = existing.FirstOrDefault(c => c.KpiDefinitionId == kpi.Id);
+                var contribution = existing.FirstOrDefault(c =>
+                    !keptIds.Contains(c.Id) && c.ActualProgress?.TargetAssignment.KpiDefinitionId == kpi.Id);
                 if (contribution is null)
                 {
                     contribution = NewContribution(evaluation, now);
-                    contribution.KpiDefinitionId = kpi.Id;
                     existing.Add(contribution);
                     db.PerformanceContributions.Add(contribution);
                 }
 
+                // The KPI is identified through its progress; the latest row anchors the aggregate.
                 keptIds.Add(contribution.Id);
-                contribution.ParentContributionId = group.Id;
-                contribution.TargetAssignmentId = target.Id;
+                contribution.ActualProgressId = kpiRows
+                    .OrderByDescending(r => r.ProgressDate)
+                    .ThenByDescending(r => r.ProgressId)
+                    .First()
+                    .ProgressId;
+                contribution.WeightSnapshot = item.WeightPercent;
                 contribution.TargetValueSnapshot = target.TargetValue;
                 contribution.TargetVersionSnapshot = target.Version;
                 contribution.ActualValue = actual.Value;
@@ -154,27 +148,25 @@ public sealed class PerformanceEvaluationService(
                     score.ComponentScore));
             }
 
-            group.ComponentScore = RoundScore(formula.CalculateGroup(new GroupScoreInput(
+            // Group scores are not persisted: the schema stores contributions per KPI only.
+            var groupScore = RoundScore(formula.CalculateGroup(new GroupScoreInput(
                 item.KpiGroupId,
                 item.KpiGroup.Code,
                 item.WeightPercent,
                 kpiEntries)));
 
-            groupEntries.Add(new GroupScoreEntry(item.KpiGroupId, item.WeightPercent, group.ComponentScore));
+            groupEntries.Add(new GroupScoreEntry(item.KpiGroupId, item.WeightPercent, groupScore));
             groupDtos.Add(new PerformanceGroupContributionDto(
-                group.Id,
                 item.Id,
                 item.KpiGroupId,
                 item.KpiGroup.Code,
                 item.KpiGroup.Name,
                 item.WeightPercent,
-                group.ComponentScore,
+                groupScore,
                 kpiDtos));
         }
 
-        // Children first so the parent link is never left dangling.
-        foreach (var stale in existing.Where(c => !keptIds.Contains(c.Id))
-                     .OrderByDescending(c => c.KpiDefinitionId.HasValue))
+        foreach (var stale in existing.Where(c => !keptIds.Contains(c.Id)))
         {
             db.PerformanceContributions.Remove(stale);
         }
@@ -185,11 +177,10 @@ public sealed class PerformanceEvaluationService(
         evaluation.CalculatedAt = total.HasValue ? now : null;
         evaluation.Status = total.HasValue ? PerformanceEvaluationStatus.Calculated : PerformanceEvaluationStatus.Draft;
         evaluation.UpdatedAt = now;
-        db.ActualProgresses.AddRange(newProgress);
 
         await SaveAsync(cancellationToken);
 
-        LogCalculated(logger, evaluation.Id, accountId, newProgress.Count, skipped, null);
+        LogCalculated(logger, evaluation.Id, accountId, progressRows.Count, null);
 
         return new PerformanceEvaluationDto(
             evaluation.Id,
@@ -315,107 +306,23 @@ public sealed class PerformanceEvaluationService(
         return false;
     }
 
-    // ----- Verified results -> actual progress ----------------------------------------------
+    // ----- Actual progress ------------------------------------------------------------------
 
     /// <summary>
-    /// Converts approved, still valid work result items of the evaluated employee into actual progress.
-    /// Items that already have progress are skipped, so a result contributes at most once.
+    /// Valid progress recorded against the evaluated employee's own targets within the period.
+    /// Progress rows are written when results are verified, so calculation only reads them.
     /// </summary>
-    private async Task<(List<ActualProgress> Rows, int Skipped)> BuildNewProgressAsync(
-        PerformanceEvaluation evaluation,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var period = evaluation.EvaluationPeriod;
-        var from = new DateTimeOffset(period.StartDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        var to = new DateTimeOffset(period.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-
-        var items = await db.WorkResultItems.AsNoTracking()
-            .Where(i => i.VerifiedWorkResult.Status == VerifiedResultStatus.Valid
-                && i.VerifiedWorkResult.Verification.Decision == VerificationDecision.Approved
-                && i.VerifiedWorkResult.Verification.VerifiedAt != null
-                && i.VerifiedWorkResult.Verification.VerifiedAt >= from
-                && i.VerifiedWorkResult.Verification.VerifiedAt < to
-                && i.VerifiedWorkResult.Verification.ResultSubmission.SubmitterEmployeeId == evaluation.EmployeeId
-                && !db.ActualProgresses.Any(a => a.SourceItemId == i.Id))
-            .Select(i => new SourceItem(
-                i.Id,
-                i.KpiDefinitionId,
-                i.KpiDefinition.AggregationType,
-                i.Value,
-                i.Denominator,
-                i.VerifiedWorkResult.Verification.VerifiedAt!.Value))
-            .ToListAsync(cancellationToken);
-
-        if (items.Count == 0)
-        {
-            return ([], 0);
-        }
-
-        var dayPeriods = new Dictionary<DateOnly, Guid>();
-        var days = await db.EvaluationPeriods.AsNoTracking()
-            .Where(p => p.PeriodType == PeriodType.Day
-                && p.StartDate >= period.StartDate
-                && p.EndDate <= period.EndDate)
-            .Select(p => new { p.Id, p.StartDate, p.EndDate })
-            .ToListAsync(cancellationToken);
-        foreach (var day in days.Where(d => d.StartDate == d.EndDate))
-        {
-            dayPeriods.TryAdd(day.StartDate, day.Id);
-        }
-
-        var rows = new List<ActualProgress>();
-        var skipped = 0;
-        foreach (var item in items)
-        {
-            var progressDate = DateOnly.FromDateTime(item.VerifiedAt.UtcDateTime);
-            if (!IsConvertible(item) || !dayPeriods.TryGetValue(progressDate, out var dayPeriodId))
-            {
-                skipped++;
-                continue;
-            }
-
-            rows.Add(new ActualProgress
-            {
-                Id = Guid.NewGuid(),
-                KpiDefinitionId = item.KpiDefinitionId,
-                EmployeeId = evaluation.EmployeeId,
-                EvaluationPeriodId = dayPeriodId,
-                ProgressDate = progressDate,
-                Value = item.Value,
-                Denominator = item.Denominator,
-                SourceItemId = item.Id,
-                Status = ActualProgressStatus.Valid,
-                UpdatedAt = now,
-            });
-        }
-
-        return (rows, skipped);
-    }
-
-    private static bool IsConvertible(SourceItem item)
-    {
-        if (item.Value < 0)
-        {
-            return false;
-        }
-
-        return item.AggregationType == KpiAggregationType.Ratio
-            ? item.Denominator is > 0
-            : item.Denominator is null;
-    }
-
     private async Task<List<ProgressRow>> LoadProgressRowsAsync(
         PerformanceEvaluation evaluation,
         CancellationToken cancellationToken)
     {
         var period = evaluation.EvaluationPeriod;
         return await db.ActualProgresses.AsNoTracking()
-            .Where(a => a.EmployeeId == evaluation.EmployeeId
+            .Where(a => a.TargetAssignment.EmployeeId == evaluation.EmployeeId
                 && a.Status == ActualProgressStatus.Valid
                 && a.ProgressDate >= period.StartDate
                 && a.ProgressDate <= period.EndDate)
-            .Select(a => new ProgressRow(a.KpiDefinitionId, a.Value, a.Denominator))
+            .Select(a => new ProgressRow(a.Id, a.TargetAssignment.KpiDefinitionId, a.ProgressDate, a.Value, a.Denominator))
             .ToListAsync(cancellationToken);
     }
 
@@ -509,15 +416,7 @@ public sealed class PerformanceEvaluationService(
 
     private sealed record DepartmentNode(Guid Id, Guid? ParentId, DepartmentLevelType Level);
 
-    private sealed record SourceItem(
-        Guid Id,
-        Guid KpiDefinitionId,
-        KpiAggregationType AggregationType,
-        decimal Value,
-        decimal? Denominator,
-        DateTimeOffset VerifiedAt);
-
-    private sealed record ProgressRow(Guid KpiDefinitionId, decimal Value, decimal? Denominator);
+    private sealed record ProgressRow(Guid ProgressId, Guid KpiDefinitionId, DateOnly ProgressDate, decimal Value, decimal? Denominator);
 
     private sealed record TargetRow(Guid Id, Guid KpiDefinitionId, bool IsEmployeeLevel, int Version, decimal TargetValue);
 

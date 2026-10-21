@@ -25,8 +25,8 @@ public sealed class PerformanceEvaluationServiceTests
     {
         using var world = await World.CreateAsync();
         var target = world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
-        world.AddResult(world.KpiSum, 30m, null, Day11);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
+        var latest = world.AddProgress(world.KpiSum, 30m, null, Day11);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
@@ -48,15 +48,13 @@ public sealed class PerformanceEvaluationServiceTests
         Assert.Null(kpi.AchievementPercentCapped);
         Assert.Null(kpi.ComponentScore);
 
-        var rows = await world.Db.PerformanceContributions.AsNoTracking().ToListAsync();
-        Assert.Equal(2, rows.Count);
-        var groupRow = Assert.Single(rows, r => r.EvaluationProfileItemId.HasValue);
-        var kpiRow = Assert.Single(rows, r => r.KpiDefinitionId.HasValue);
-        Assert.Equal(70m, groupRow.WeightSnapshot);
-        Assert.Equal(groupRow.Id, kpiRow.ParentContributionId);
-        Assert.Equal(world.Employee.Id, kpiRow.EmployeeId);
-        Assert.Equal(world.Period.Id, kpiRow.EvaluationPeriodId);
-        Assert.Null(kpiRow.WeightSnapshot);
+        var row = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
+        Assert.Equal(kpi.ContributionId, row.Id);
+        Assert.Equal(latest.Id, row.ActualProgressId);
+        Assert.Equal(70m, row.WeightSnapshot);
+        Assert.Equal(world.Employee.Id, row.EmployeeId);
+        Assert.Equal(world.Period.Id, row.EvaluationPeriodId);
+        Assert.Null(row.RiskEventId);
 
         var stored = await world.Db.PerformanceEvaluations.AsNoTracking().SingleAsync();
         Assert.Null(stored.TotalScore);
@@ -64,118 +62,90 @@ public sealed class PerformanceEvaluationServiceTests
     }
 
     [Fact]
-    public async Task Calculate_ConvertsVerifiedItemsToDayLevelActualProgress()
+    public async Task Calculate_IsIdempotent_AndNeverDuplicatesContributions()
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        var first = world.AddResult(world.KpiSum, 10m, null, Day10);
-        var second = world.AddResult(world.KpiSum, 30m, null, Day11);
-        await world.SaveAsync();
-
-        await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
-
-        var progress = await world.Db.ActualProgresses.AsNoTracking().OrderBy(p => p.ProgressDate).ToListAsync();
-        Assert.Equal(2, progress.Count);
-        Assert.Equal(first.Id, progress[0].SourceItemId);
-        Assert.Equal(second.Id, progress[1].SourceItemId);
-        Assert.Equal(world.DayPeriods[DateOnly.FromDateTime(Day10.UtcDateTime)], progress[0].EvaluationPeriodId);
-        Assert.Equal(new DateOnly(2026, 10, 11), progress[1].ProgressDate);
-        Assert.All(progress, p =>
-        {
-            Assert.Equal(world.Employee.Id, p.EmployeeId);
-            Assert.Equal(ActualProgressStatus.Valid, p.Status);
-            Assert.Equal(world.KpiSum.Id, p.KpiDefinitionId);
-            Assert.Null(p.PerformanceContributionId);
-        });
-    }
-
-    [Fact]
-    public async Task Calculate_IsIdempotent_AndNeverDuplicatesProgressOrContributions()
-    {
-        using var world = await World.CreateAsync();
-        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
 
         var first = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
         var second = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         Assert.Equal(1, await world.Db.ActualProgresses.CountAsync());
-        Assert.Equal(2, await world.Db.PerformanceContributions.CountAsync());
-        Assert.Equal(first.Groups[0].ContributionId, second.Groups[0].ContributionId);
+        Assert.Equal(1, await world.Db.PerformanceContributions.CountAsync());
         Assert.Equal(first.Groups[0].Kpis[0].ContributionId, second.Groups[0].Kpis[0].ContributionId);
         Assert.Equal(10m, second.Groups[0].Kpis[0].ActualValue);
     }
 
     [Fact]
-    public async Task Calculate_PicksUpNewVerifiedResultsOnRecalculation()
+    public async Task Calculate_PicksUpNewProgressOnRecalculation()
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
         await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        world.AddResult(world.KpiSum, 5m, null, Day11);
+        var latest = world.AddProgress(world.KpiSum, 5m, null, Day11);
         await world.SaveAsync();
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         Assert.Equal(15m, dto.Groups[0].Kpis[0].ActualValue);
-        Assert.Equal(2, await world.Db.ActualProgresses.CountAsync());
-        Assert.Equal(2, await world.Db.PerformanceContributions.CountAsync());
+        var row = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
+        Assert.Equal(latest.Id, row.ActualProgressId);
     }
 
     [Fact]
-    public async Task Calculate_IgnoresResultsThatAreNotEligible()
+    public async Task Calculate_IgnoresProgressThatIsNotEligible()
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddTarget(world.KpiRatio, 10m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 5m, null, Day10);
-        world.AddResult(world.KpiSum, 100m, null, Day10, resultStatus: VerifiedResultStatus.Invalid);
-        world.AddResult(world.KpiSum, 100m, null, new DateTimeOffset(2026, 11, 2, 8, 0, 0, TimeSpan.Zero));
-        world.AddResult(world.KpiSum, 100m, null, new DateTimeOffset(2026, 9, 30, 23, 59, 0, TimeSpan.Zero));
-        world.AddResult(world.KpiSum, 100m, null, Day10, submitter: world.OtherEmployee);
-        world.AddResult(world.KpiSum, -1m, null, Day10);
-        world.AddResult(world.KpiSum, 100m, null, new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.Zero));
-        world.AddResult(world.KpiRatio, 1m, null, Day10);
-        world.AddResult(world.KpiRatio, 1m, 0m, Day10);
-        world.AddResult(world.KpiSum, 7m, 3m, Day10);
+        world.AddProgress(world.KpiSum, 5m, null, Day10);
+        world.AddProgress(world.KpiSum, 100m, null, Day11, status: ActualProgressStatus.Invalid);
+        world.AddProgress(world.KpiSum, 100m, null, new DateTimeOffset(2026, 11, 2, 8, 0, 0, TimeSpan.Zero));
+        world.AddProgress(world.KpiSum, 100m, null, new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero));
+        world.AddProgress(world.KpiSum, 100m, null, new DateTimeOffset(2026, 10, 12, 8, 0, 0, TimeSpan.Zero), owner: world.OtherEmployee);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        var progress = await world.Db.ActualProgresses.AsNoTracking().SingleAsync();
-        Assert.Equal(5m, progress.Value);
         var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
         Assert.Equal(world.KpiSum.Id, kpi.KpiDefinitionId);
         Assert.Equal(5m, kpi.ActualValue);
     }
 
     [Fact]
-    public async Task Calculate_DoesNotReuseResultsAlreadyConvertedForAnotherEmployeeRow()
+    public async Task Calculate_LeavesRiskEventContributionsUntouched()
     {
         using var world = await World.CreateAsync();
-        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        var item = world.AddResult(world.KpiSum, 10m, null, Day10);
-        world.Db.ActualProgresses.Add(new ActualProgress
+        var risk = new RiskEvent
         {
             Id = Guid.NewGuid(),
-            KpiDefinitionId = world.KpiSum.Id,
             EmployeeId = world.Employee.Id,
-            EvaluationPeriodId = world.DayPeriods[DateOnly.FromDateTime(Day10.UtcDateTime)],
-            ProgressDate = DateOnly.FromDateTime(Day10.UtcDateTime),
-            Value = 10m,
-            SourceItemId = item.Id,
-            Status = ActualProgressStatus.Valid,
+            RecordedBy = world.Manager.Id,
+            Code = "RISK-1",
+            EventType = "LATE",
+            Description = "Late delivery",
+            OccurredAt = Day10,
+            UpdatedAt = Now,
+        };
+        world.Db.RiskEvents.Add(risk);
+        world.Db.PerformanceContributions.Add(new PerformanceContribution
+        {
+            Id = Guid.NewGuid(),
+            PerformanceEvaluationId = world.Evaluation.Id,
+            EmployeeId = world.Employee.Id,
+            EvaluationPeriodId = world.Period.Id,
+            RiskEventId = risk.Id,
             UpdatedAt = Now,
         });
         await world.SaveAsync();
 
-        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+        await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        Assert.Equal(1, await world.Db.ActualProgresses.CountAsync());
-        Assert.Equal(10m, dto.Groups[0].Kpis[0].ActualValue);
+        var row = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
+        Assert.Equal(risk.Id, row.RiskEventId);
     }
 
     [Fact]
@@ -184,13 +154,13 @@ public sealed class PerformanceEvaluationServiceTests
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
         world.AddTarget(world.KpiAvg, 5m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiRatio, 1m, 2m, Day10);
+        world.AddProgress(world.KpiRatio, 1m, 2m, Day10);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         Assert.Empty(Assert.Single(dto.Groups).Kpis);
-        Assert.Equal(1, await world.Db.PerformanceContributions.CountAsync());
+        Assert.Equal(0, await world.Db.PerformanceContributions.CountAsync());
     }
 
     [Fact]
@@ -199,10 +169,10 @@ public sealed class PerformanceEvaluationServiceTests
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiRatio, 10m, employeeLevel: false, version: 1);
         world.AddTarget(world.KpiAvg, 5m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiRatio, 2m, 10m, Day10);
-        world.AddResult(world.KpiRatio, 3m, 10m, Day11);
-        world.AddResult(world.KpiAvg, 4m, null, Day10);
-        world.AddResult(world.KpiAvg, 5m, null, Day11);
+        world.AddProgress(world.KpiRatio, 2m, 10m, Day10);
+        world.AddProgress(world.KpiRatio, 3m, 10m, Day11);
+        world.AddProgress(world.KpiAvg, 4m, null, Day10);
+        world.AddProgress(world.KpiAvg, 5m, null, Day11);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
@@ -221,7 +191,7 @@ public sealed class PerformanceEvaluationServiceTests
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
         await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
@@ -234,8 +204,7 @@ public sealed class PerformanceEvaluationServiceTests
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         Assert.Empty(Assert.Single(dto.Groups).Kpis);
-        var remaining = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
-        Assert.True(remaining.EvaluationProfileItemId.HasValue);
+        Assert.Equal(0, await world.Db.PerformanceContributions.CountAsync());
     }
 
     // ----- Targets --------------------------------------------------------------------------
@@ -249,7 +218,7 @@ public sealed class PerformanceEvaluationServiceTests
         var employeeTarget = world.AddTarget(world.KpiSum, 80m, employeeLevel: true, version: 1);
         world.AddTarget(world.KpiSum, 999m, employeeLevel: true, version: 5, status: TargetAssignmentStatus.Draft);
         world.AddTarget(world.KpiSum, 888m, employeeLevel: true, version: 6, status: TargetAssignmentStatus.Superseded);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
@@ -266,7 +235,7 @@ public sealed class PerformanceEvaluationServiceTests
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
         world.AddTarget(world.KpiSum, 120m, employeeLevel: false, version: 2);
         world.AddTarget(world.KpiSum, 777m, employeeLevel: false, version: 3, departmentId: world.DeptB.Id);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
@@ -283,7 +252,7 @@ public sealed class PerformanceEvaluationServiceTests
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiSum, 10m, null, Day10);
+        world.AddProgress(world.KpiSum, 10m, null, Day10);
         await world.SaveAsync();
         var formula = new FakeScoreFormula(
             new KpiScoreResult(12.34565m, 12.34555m, 1.00005m),
@@ -313,7 +282,7 @@ public sealed class PerformanceEvaluationServiceTests
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiRatio, 10m, employeeLevel: false, version: 1);
-        world.AddResult(world.KpiRatio, 2m, 10m, Day10);
+        world.AddProgress(world.KpiRatio, 2m, 10m, Day10);
         await world.SaveAsync();
         var formula = new FakeScoreFormula(new KpiScoreResult(null, null, null), null, null);
 
@@ -527,7 +496,7 @@ public sealed class PerformanceEvaluationServiceTests
 
     private sealed class World : IDisposable
     {
-        private int _sequence;
+        private readonly Dictionary<(Guid KpiId, Guid EmployeeId), TargetAssignment> _carriers = [];
 
         public required AppDbContext Db { get; init; }
         public required Department Branch { get; init; }
@@ -597,6 +566,7 @@ public sealed class PerformanceEvaluationServiceTests
             var profile = new EvaluationProfile
             {
                 Id = Guid.NewGuid(),
+                JobPositionId = position.Id,
                 Code = "EP",
                 Name = "Profile",
                 Version = 1,
@@ -719,71 +689,49 @@ public sealed class PerformanceEvaluationServiceTests
             return target;
         }
 
-        public WorkResultItem AddResult(
+        /// <summary>
+        /// Records progress on the owner's own target for the KPI, as verification does.
+        /// The carrier target is superseded so it never competes in target resolution.
+        /// </summary>
+        public ActualProgress AddProgress(
             KpiDefinition kpi,
             decimal value,
             decimal? denominator,
-            DateTimeOffset verifiedAt,
-            Employee? submitter = null,
-            VerifiedResultStatus resultStatus = VerifiedResultStatus.Valid)
+            DateTimeOffset recordedAt,
+            Employee? owner = null,
+            ActualProgressStatus status = ActualProgressStatus.Valid)
         {
-            var owner = submitter ?? Employee;
-            _sequence++;
+            var employee = owner ?? Employee;
+            if (!_carriers.TryGetValue((kpi.Id, employee.Id), out var carrier))
+            {
+                carrier = new TargetAssignment
+                {
+                    Id = Guid.NewGuid(),
+                    KpiDefinitionId = kpi.Id,
+                    EmployeeId = employee.Id,
+                    EvaluationPeriodId = Period.Id,
+                    Version = 1,
+                    TargetValue = 0m,
+                    Status = TargetAssignmentStatus.Superseded,
+                    CreatedAt = Now,
+                    UpdatedAt = Now,
+                };
+                Db.TargetAssignments.Add(carrier);
+                _carriers[(kpi.Id, employee.Id)] = carrier;
+            }
 
-            var work = new Work
+            var progress = new ActualProgress
             {
                 Id = Guid.NewGuid(),
-                Code = $"W-{_sequence}",
-                Title = $"Work {_sequence}",
-                AssigneeEmployeeId = owner.Id,
-                Status = WorkStatus.Verified,
-                Priority = WorkPriority.Medium,
-                UpdatedAt = Now,
-            };
-            var submission = new ResultSubmission
-            {
-                Id = Guid.NewGuid(),
-                WorkId = work.Id,
-                SubmitterEmployeeId = owner.Id,
-                SubmissionNo = 1,
-                Status = SubmissionStatus.Approved,
-                SubmittedAt = verifiedAt,
-                UpdatedAt = Now,
-            };
-            var verification = new Verification
-            {
-                Id = Guid.NewGuid(),
-                ResultSubmissionId = submission.Id,
-                VerifierEmployeeId = Manager.Id,
-                RoundNo = 1,
-                Decision = VerificationDecision.Approved,
-                VerifiedAt = verifiedAt,
-                UpdatedAt = Now,
-            };
-            var result = new VerifiedWorkResult
-            {
-                Id = Guid.NewGuid(),
-                VerificationId = verification.Id,
-                VerifiedAt = verifiedAt,
-                Status = resultStatus,
-                UpdatedAt = Now,
-            };
-            var item = new WorkResultItem
-            {
-                Id = Guid.NewGuid(),
-                VerifiedWorkResultId = result.Id,
-                KpiDefinitionId = kpi.Id,
+                TargetAssignmentId = carrier.Id,
+                ProgressDate = DateOnly.FromDateTime(recordedAt.UtcDateTime),
                 Value = value,
                 Denominator = denominator,
+                Status = status,
                 UpdatedAt = Now,
             };
-
-            Db.Works.Add(work);
-            Db.ResultSubmissions.Add(submission);
-            Db.Verifications.Add(verification);
-            Db.VerifiedWorkResults.Add(result);
-            Db.WorkResultItems.Add(item);
-            return item;
+            Db.ActualProgresses.Add(progress);
+            return progress;
         }
 
         public void Dispose() => Db.Dispose();

@@ -341,9 +341,9 @@ public sealed class EnumApiFormatContractTests
         using (db)
         {
             var active = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-A", Name = "A"});
+                new CreateWorkTypeDto { Code = "WT-A", Name = "A" });
             var archived = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-B", Name = "B"});
+                new CreateWorkTypeDto { Code = "WT-B", Name = "B" });
             await service.ChangeStatusAsync(archived.Id, new WorkTypeStatusDto { Status = "archived" });
 
             Assert.Equal("ACTIVE", active.Status);
@@ -364,7 +364,7 @@ public sealed class EnumApiFormatContractTests
         using (db)
         {
             var created = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-C", Name = "C"});
+                new CreateWorkTypeDto { Code = "WT-C", Name = "C" });
 
             await Assert.ThrowsAsync<ValidationException>(
                 () => service.ChangeStatusAsync(created.Id, new WorkTypeStatusDto { Status = status }));
