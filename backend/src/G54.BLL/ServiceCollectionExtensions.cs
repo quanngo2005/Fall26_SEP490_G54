@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<ICampaignService, CampaignService>();
+        services.AddHostedService<WorkOverdueBackgroundService>();
         return services;
     }
 }

@@ -13,7 +13,8 @@ namespace G54.BLL.Services;
 
 public sealed class VerificationService(
     AppDbContext db,
-    ILogger<VerificationService> logger) : IVerificationService
+    ILogger<VerificationService> logger,
+    TimeProvider time) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -138,22 +139,22 @@ public sealed class VerificationService(
         }
 
         var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
-        var (dbDecision, action, newWorkStatus, actionText) = normalizedDecision switch
+        var (dbDecision, action, workAction, actionText) = normalizedDecision switch
         {
             "APPROVED" => (
                 VerificationDecision.Approved,
                 SubmissionAction.Approve,
-                WorkStatus.Verified,
+                WorkAction.Verify,
                 "Phê duyệt kết quả hoàn tất"),
             "REVISION_REQUIRED" => (
                 VerificationDecision.NeedMoreInfo,
                 SubmissionAction.RequestRevision,
-                WorkStatus.InProgress,
+                WorkAction.Reopen,
                 "Yêu cầu bổ sung/làm lại đã được gửi tới cán bộ nộp"),
             "REJECTED" => (
                 VerificationDecision.Rejected,
                 SubmissionAction.Reject,
-                WorkStatus.Rejected,
+                WorkAction.Reject,
                 "Đã từ chối hồ sơ kết quả công việc"),
             _ => throw new ValidationException("Quyết định thẩm định không hợp lệ.")
         };
@@ -165,11 +166,18 @@ public sealed class VerificationService(
                 ErrorCodes.VerificationInvalidState);
         }
 
+        if (!WorkStateMachine.TryGetNextStatus(submission.Work.Status, workAction, out var newWorkStatus))
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {submission.Work.Status.ToEnumString()}, không thể thẩm định.",
+                ErrorCodes.VerificationInvalidState);
+        }
+
         var nextRoundNo = submission.Verifications.Count > 0
             ? submission.Verifications.Max(v => v.RoundNo) + 1
             : 1;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = time.GetUtcNow();
         var verification = new Verification
         {
             Id = Guid.NewGuid(),
@@ -208,7 +216,7 @@ public sealed class VerificationService(
                 var progress = await ResolveProgressAsync(
                     primaryKpiId.Value,
                     submission.SubmitterEmployeeId,
-                    DateOnly.FromDateTime(now.UtcDateTime),
+                    time.GetBusinessToday(),
                     dto.VerifiedValue.Value,
                     now,
                     cancellationToken);

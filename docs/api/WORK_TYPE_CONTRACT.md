@@ -47,7 +47,7 @@ work type picker.
 
 `description` and `kpis[].effectiveTo` are nullable (`null` end date = no end). Date-only values are
 `YYYY-MM-DD`. The mapping state shown in the UI (current / upcoming / expired) is derived from
-`effectiveFrom`/`effectiveTo` against today's UTC date; it is not a wire field.
+`effectiveFrom`/`effectiveTo` against today's date in Vietnam (UTC+7); it is not a wire field.
 
 ## Enum API format
 
