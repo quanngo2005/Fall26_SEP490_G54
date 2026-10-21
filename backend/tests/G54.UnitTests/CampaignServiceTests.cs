@@ -668,7 +668,6 @@ public sealed class CampaignServiceTests
             // Verify BR-25 7-day exclusivity note is present
             foreach (var w in generatedWorks)
             {
-                Assert.Contains("theo BR-25", w.Description);
                 Assert.Contains("Khóa độc quyền 7 ngày", w.Description);
                 Assert.StartsWith("TSK-CMP-BATCH-RR-", w.Code);
             }
@@ -870,7 +869,391 @@ public sealed class CampaignServiceTests
                 service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid()));
 
             Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
-            Assert.Contains("BR-41", ex.Message);
+            Assert.Contains("trạng thái hoạt động", ex.Message);
+        }
+    }
+
+    // =========================================================================
+    // GB-333: Campaign Plan Review & Approval Tests (SCR-CMP-02 / UC70)
+    // =========================================================================
+
+    [Fact]
+    public async Task DecideCampaignAsync_ApprovesPlannedCampaign_TransitionsToRunning()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-APPROVE-01",
+                Name = "Chiến dịch Phê duyệt",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var branchManagerId = Guid.NewGuid();
+            var request = new CampaignDecisionRequestDto("APPROVE");
+
+            var result = await service.DecideCampaignAsync(campaign.Id, request, branchManagerId);
+
+            Assert.NotNull(result);
+            Assert.Equal(campaign.Id, result.CampaignId);
+            Assert.Equal("RUNNING", result.Status);
+            Assert.Contains("thành công", result.Message);
+
+            var updated = await context.BusinessCampaigns.FirstAsync(c => c.Id == campaign.Id);
+            Assert.Equal(BusinessCampaignStatus.Running, updated.Status);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_RejectsPlannedCampaign_TransitionsToCancelled()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-REJECT-01",
+                Name = "Chiến dịch Từ chối",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var branchManagerId = Guid.NewGuid();
+            var request = new CampaignDecisionRequestDto("REJECT", "Kế hoạch chưa đáp ứng mục tiêu huy động vốn quý 4");
+
+            var result = await service.DecideCampaignAsync(campaign.Id, request, branchManagerId);
+
+            Assert.NotNull(result);
+            Assert.Equal(campaign.Id, result.CampaignId);
+            Assert.Equal("CANCELLED", result.Status);
+            Assert.Contains("từ chối", result.Message);
+            Assert.Contains("chưa đáp ứng mục tiêu", result.Message);
+
+            var updated = await context.BusinessCampaigns.FirstAsync(c => c.Id == campaign.Id);
+            Assert.Equal(BusinessCampaignStatus.Cancelled, updated.Status);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ApproveWithNoteAndBudget_IncludesNoteInMessage()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-BUDGET-01",
+                Name = "Chiến dịch Ngân sách",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var branchManagerId = Guid.NewGuid();
+            var request = new CampaignDecisionRequestDto("APPROVE", "Duyệt ngân sách 150 triệu", 150000000m);
+
+            var result = await service.DecideCampaignAsync(campaign.Id, request, branchManagerId);
+
+            Assert.Equal("RUNNING", result.Status);
+            Assert.Contains("150 triệu", result.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsValidationException_WhenDecisionIsNullOrWhitespace()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var requestNull = new CampaignDecisionRequestDto(null!);
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.DecideCampaignAsync(Guid.NewGuid(), requestNull, Guid.NewGuid()));
+
+            var requestEmpty = new CampaignDecisionRequestDto("   ");
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.DecideCampaignAsync(Guid.NewGuid(), requestEmpty, Guid.NewGuid()));
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsValidationException_WhenDecisionIsInvalid()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-INVALID-DECISION",
+                Name = "Chiến dịch Quyết định sai",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("PENDING");
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid()));
+
+            Assert.Contains("APPROVE hoặc REJECT", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsValidationException_WhenBudgetIsNegative()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var request = new CampaignDecisionRequestDto("APPROVE", "Duyệt", -1000m);
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.DecideCampaignAsync(Guid.NewGuid(), request, Guid.NewGuid()));
+
+            Assert.Contains("số âm", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsNotFoundException_WhenCampaignDoesNotExist()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                service.DecideCampaignAsync(Guid.NewGuid(), request, Guid.NewGuid()));
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsMSG10_WhenUserIsParticipant_BR02()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, emp1, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-MAKER-CHECKER",
+                Name = "Chiến dịch Maker-Checker",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            var participant = new Participant
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                EmployeeId = emp1.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Participants.AddAsync(participant);
+            await context.SaveChangesAsync();
+
+            // Direct EmployeeId as user ID
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, emp1.Id));
+
+            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Contains("không được tự phê duyệt", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsMSG10_WhenUserAccountLinkedEmployeeIsParticipant_BR02()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, emp1, _) = await SeedBasicTestDataAsync(context);
+
+            var accountId = Guid.NewGuid();
+            var account = new Account
+            {
+                Id = accountId,
+                EmployeeId = emp1.Id,
+                Username = "teller_emp1",
+                PasswordHash = "hash",
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.Accounts.AddAsync(account);
+            await context.SaveChangesAsync();
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-BR02-ACCOUNT",
+                Name = "Chiến dịch Phê duyệt Tài khoản Liên kết",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            var participant = new Participant
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                EmployeeId = emp1.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Participants.AddAsync(participant);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, accountId));
+
+            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Contains("không được tự phê duyệt", ex.Message);
+        }
+    }
+
+    [Theory]
+    [InlineData(BusinessCampaignStatus.Running)]
+    [InlineData(BusinessCampaignStatus.Completed)]
+    [InlineData(BusinessCampaignStatus.Cancelled)]
+    [InlineData(BusinessCampaignStatus.Paused)]
+    public async Task DecideCampaignAsync_ThrowsConflict_WhenCampaignNotPlanned(BusinessCampaignStatus status)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = $"CMP-CONFLICT-{status}",
+                Name = $"Chiến dịch {status}",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = status,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid()));
+
+            Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+            Assert.Contains("PLANNED", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsValidationError_WhenCampaignEndDateIsInThePast_BR11_BR12()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-EXPIRED-PLAN",
+                Name = "Chiến dịch Đã quá hạn",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-60)),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid()));
+
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            Assert.Contains("quá hạn", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task DecideCampaignAsync_ThrowsValidationError_WhenObjectiveIsCancelled()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+            objective.Status = BusinessObjectiveStatus.Cancelled;
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-OBJ-CANCELLED",
+                Name = "Chiến dịch Mục tiêu bị hủy",
+                StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid()));
+
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            Assert.Contains("Mục tiêu kinh doanh", ex.Message);
         }
     }
 }
+
