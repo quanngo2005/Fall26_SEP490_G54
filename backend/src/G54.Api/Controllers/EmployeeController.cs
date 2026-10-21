@@ -1,3 +1,4 @@
+using G54.Api.Authorization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Employee;
@@ -71,6 +72,7 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
     }
 
     [HttpPost]
+    [HasPermission("employee", "manage", "All")]
     [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -85,6 +87,7 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
     }
 
     [HttpPut("{id:guid}")]
+    [HasPermission("employee", "manage", "All")]
     [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -99,6 +102,7 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
     }
 
     [HttpPatch("{id:guid}/status")]
+    [HasPermission("employee", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -112,6 +116,7 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
     }
 
     [HttpDelete("{id:guid}")]
+    [HasPermission("employee", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]

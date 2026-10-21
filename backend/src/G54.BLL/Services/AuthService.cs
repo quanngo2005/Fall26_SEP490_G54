@@ -133,7 +133,7 @@ public sealed class AuthService(
             return null;
         }
 
-        if (account.Employee.Status != EmployeeStatus.Active)
+        if (account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             var revoked = await sessionStore.RevokeAsync(
                 currentToken.AccountId,

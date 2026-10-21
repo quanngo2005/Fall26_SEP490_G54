@@ -1,981 +1,414 @@
-<div class="workspace-viewport">
-  <!-- Simulation & Scenario Testing Toolbar -->
-  <header class="scenario-toolbar" role="region" [attr.aria-label]="localization.review.scenarios">
-    <div class="scenario-brand">
-      <span class="toolbar-tag">GB-172 / SCR-REV-03</span>
-      <strong>{{localization.review.title}}</strong>
-    </div>
-    <div class="scenario-actions">
-      <span class="scenario-label">{{localization.review.scenarioLabel}}</span>
-      <button
-        type="button"
-        class="scenario-chip"
-        [class.active]="simulationScenario() === 'default'"
-        (click)="switchScenario('default')"
-      >
-        {{localization.review.revisionScenario}}
-      </button>
-      <button
-        type="button"
-        class="scenario-chip"
-        [class.active]="simulationScenario() === 'approved'"
-        (click)="switchScenario('approved')"
-      >
-        {{localization.review.approvedScenario}}
-      </button>
-      <button
-        type="button"
-        class="scenario-chip chip-warning"
-        [class.active]="simulationScenario() === 'maker-checker'"
-        (click)="switchScenario('maker-checker')"
-      >
-        {{localization.review.violationScenario}}
-      </button>
-      <button
-        type="button"
-        class="scenario-chip"
-        [class.active]="simulationScenario() === 'loading'"
-        (click)="switchScenario('loading')"
-      >
-        {{localization.review.loadingScenario}}
-      </button>
-      <button
-        type="button"
-        class="scenario-chip"
-        [class.active]="simulationScenario() === 'empty'"
-        (click)="switchScenario('empty')"
-      >
-        {{localization.review.emptyScenario}}
-      </button>
-      <button
-        type="button"
-        class="scenario-chip"
-        [class.active]="simulationScenario() === 'error'"
-        (click)="switchScenario('error')"
-      >
-        {{localization.review.errorScenario}}
-      </button>
-    </div>
-  </header>
-
-  <div class="screen-root">
-    <!-- ======================================================================
-         1. ASIDE NAVIGATION FRAME (Figma Component: Aside, 260px)
-         ====================================================================== -->
-    <aside id="Aside" class="app-aside" [attr.aria-label]="localization.common.mainNavigation">
-      <div class="brand-header">
-        <div class="brand-logo-badge">EB</div>
-        <div class="brand-info">
-          <div class="brand-title-row">
-            <span>Enterprise Banking</span>
-            <span class="sec-tag">SEC</span>
-          </div>
-          <div class="brand-sub">{{localization.review.managerPortal}}</div>
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && dossier()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.review.breadcrumb}}</p>
+          <p class="eyebrow">{{localization.review.eyebrow}}</p>
         </div>
       </div>
-
-      <div class="system-status-strip">
-        <span>CORE v2.4.0-SEC</span>
-        <div class="status-online">{{localization.common.systemOnline}}</div>
-      </div>
-
-      <div class="nav-section">
-        <div class="nav-section-title">{{localization.review.operations}}</div>
-        <ul class="nav-list">
-          <li>
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="activeNav() === 'Tổng quan Phòng ban'"
-              (click)="selectNav('Tổng quan Phòng ban')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <rect x="3" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="14" width="7" height="7"></rect>
-                  <rect x="3" y="14" width="7" height="7"></rect>
-                </svg>
-                <span>{{localization.review.departmentOverview}}</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="activeNav() === 'Phân bổ Chỉ tiêu KPI'"
-              (click)="selectNav('Phân bổ Chỉ tiêu KPI')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                  ></path>
-                </svg>
-                <span>{{localization.review.kpiAllocation}}</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="nav-item active"
-              [class.active]="activeNav() === 'Thẩm định kết quả'"
-              (click)="selectNav('Thẩm định kết quả')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <span>{{localization.review.verification}}</span>
-              </span>
-              <span class="nav-badge-alert">3</span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="activeNav() === 'Xếp hạng & Đánh giá'"
-              (click)="selectNav('Xếp hạng & Đánh giá')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                <span>{{localization.review.ratings}}</span>
-              </span>
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div class="nav-section">
-        <div class="nav-section-title">{{localization.nav.organization}}</div>
-        <ul class="nav-list">
-          <li>
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="activeNav() === 'Phòng ban / Đơn vị'"
-              (click)="selectNav('Phòng ban / Đơn vị')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M3 21h18"></path>
-                  <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
-                </svg>
-                <span>{{localization.nav.departments}}</span>
-              </span>
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="activeNav() === 'Danh sách Cán bộ'"
-              (click)="selectNav('Danh sách Cán bộ')"
-            >
-              <span class="nav-item-content">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <span>{{localization.review.employeeList}}</span>
-              </span>
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div class="aside-footer">
-        <div class="aside-footer-sync">
-          <span>v2.4.0 Enterprise</span>
-          <span>{{localization.nav.hrmsSynced}}</span>
+      @if (result(); as res) {
+        <div class="notice" role="status">
+          <span>
+            {{res.message}} · {{localization.review.verificationId}}
+            <span class="mono">{{res.verificationId}}</span> · {{decisionLabel(res.decision)}}
+          </span>
+          <button
+            type="button"
+            (click)="dismissResult()"
+            [attr.aria-label]="localization.common.close"
+          >
+            ×
+          </button>
         </div>
-        <div>{{localization.nav.coreBankingSystems}}</div>
-      </div>
-    </aside>
-
-    <!-- ======================================================================
-         2. CONTAINER FRAME (Figma Component: Container)
-         ====================================================================== -->
-    <main id="Container" class="app-container" role="main">
-      <header class="top-navbar">
-        <div class="nav-search-wrap">
-          <span class="system-title-tag">{{localization.review.coreVerification}}</span>
-          <div class="search-input-wrap">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
-              type="text"
-              class="search-box"
-              [placeholder]="localization.review.search"
-              [attr.aria-label]="localization.review.search"
-            />
-          </div>
+      }
+      @if (errorKey()) {
+        <div class="notice is-error" role="alert">
+          <span>{{errorText()}}</span>
         </div>
-
-        <div class="top-actions-right">
-          <div class="top-org-badge">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M3 21h18"></path>
-              <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
-            </svg>
-            <span>{{localization.review.department}}</span>
-          </div>
-
-          <div class="user-profile-widget">
-            <div class="user-avatar-circle">QL</div>
-            <div class="user-meta">
-              <span class="user-meta-name">Trần Văn Quản Lý</span>
-              <span class="user-meta-role">{{localization.review.managerRole}}</span>
-            </div>
-          </div>
+      }
+      @if (!submissionId()) {
+        <div class="state-card">
+          <p>{{localization.review.noSubmission}}</p>
         </div>
-      </header>
-
-      <!-- Subheader with Breadcrumbs -->
-      <section class="subheader-bar" [attr.aria-label]="localization.review.pageHeading">
-        <div>
-          <nav class="breadcrumbs-list" [attr.aria-label]="localization.review.breadcrumb">
-            <span>{{localization.review.workManagement}}</span>
-            <span>/</span>
-            <span>{{localization.review.verification}}</span>
-            <span>/</span>
-            <span class="breadcrumb-code">
-              {{localization.review.dossier}}
-              {{dossier()?.submissionCode || '#SUB-WRK-2026-089-V1'}}
-            </span>
-          </nav>
-          <div class="page-main-title">
-            <h1>
-              {{localization.review.verificationPrefix}}
-              {{dossier()?.workTitle || localization.review.defaultWorkTitle}}
-            </h1>
-            <span class="screen-badge">SCR-REV-03</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- STATE: LOADING -->
-      @if (viewState() === 'loading') {
-        <div class="state-container loading-container" role="status" aria-live="polite">
-          <div class="spinner-core"></div>
+      } @else if (loading() && !dossier()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
           <p>{{localization.review.loading}}</p>
         </div>
-      }
-
-      <!-- STATE: EMPTY -->
-      @if (viewState() === 'empty') {
-        <div class="state-container empty-container" role="alert">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#64748B"
-            stroke-width="1.5"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="8" y1="12" x2="16" y2="12"></line>
-          </svg>
-          <h2>{{localization.review.empty}}</h2>
-          <p>{{localization.review.emptyHint}}</p>
-          <button type="button" class="btn btn-secondary" (click)="switchScenario('default')">
-            {{localization.review.reloadDefault}}
-          </button>
-        </div>
-      }
-
-      <!-- STATE: ERROR -->
-      @if (viewState() === 'error') {
-        <div class="state-container error-container" role="alert">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#DC2626"
-            stroke-width="1.5"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <h2>{{localization.review.loadError}}</h2>
-          <p>{{localization.review.loadErrorHint}}</p>
-          <button type="button" class="btn btn-secondary" (click)="loadDossier()">
-            {{localization.review.retry}}
-          </button>
-        </div>
-      }
-
-      <!-- STATE: SUCCESS / CONTENT -->
-      @if (viewState() === 'success' && dossier(); as d) {
-        <!-- MAKER-CHECKER VIOLATION WARNING (BR-02) -->
-        @if (isMakerCheckerViolated()) {
-          <div class="maker-checker-alert" role="alert">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-              ></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            <div>
-              <strong>{{localization.review.violationTitle}}</strong>
-              <p>
-                {{localization.review.violationPrefix}} {{d.submitter.employeeCode}}{{localization.review.violationSuffix}}
-              </p>
-            </div>
-          </div>
-        }
-
-        <!-- SUBMISSION SUCCESS BANNER -->
-        @if (decisionResult(); as res) {
-          <div class="success-result-banner" role="status" aria-live="polite">
-            <div class="success-icon-wrap">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-              >
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </div>
-            <div class="success-content">
-              <strong>{{res.message}}</strong>
-              <div class="success-meta">
-                <span>{{localization.review.verificationId}} {{res.verificationId}}</span>
-                <span>{{localization.review.time}} {{res.verifiedAt}}</span>
-                <span>{{localization.review.status}} {{res.submissionStatus}}</span>
-              </div>
-            </div>
-            <button type="button" class="btn btn-secondary btn-sm" (click)="resetDecisionState()">
-              {{localization.review.reviewAgain}}
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{notFound() ? localization.review.notFound : localization.review.loadError}}</p>
+          @if (!notFound()) {
+            <button type="button" class="button button-secondary" (click)="refresh()">
+              {{localization.review.retry}}
             </button>
+          }
+        </div>
+      } @else if (dossier(); as d) {
+        <section class="hero surface-card">
+          <div class="hero-mark" aria-hidden="true">{{initials(d.submitter.fullName)}}</div>
+          <div class="hero-copy">
+            <div class="title-line">
+              <h1>{{d.workTitle}}</h1>
+              <span
+                class="status-badge"
+                [class.is-warning]="canDecide()"
+                [class.is-muted]="d.status === 'WITHDRAWN' || d.status === 'DRAFT'"
+                [class.is-danger]="d.status === 'REJECTED'"
+                >{{statusLabel(d.status)}}</span
+              >
+            </div>
+            <p>
+              <span class="mono">{{d.submissionCode}}</span> · {{d.workCode}} ·
+              {{localization.review.attemptNumber}} {{d.submissionNo}}
+            </p>
           </div>
-        }
+        </section>
 
-        <!-- DUAL-PANEL WORKSPACE -->
-        <div class="verification-workspace" [attr.aria-label]="localization.review.workspace">
-          <!-- PANEL 1: DOSSIER INSPECTION (60%) -->
-          <section id="Panel-Dossier" class="dossier-panel" aria-labelledby="dossier-panel-title">
-            <div class="panel-header">
-              <div class="panel-header-title" id="dossier-panel-title">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-                <span>{{localization.review.deliverables}}</span>
+        <div class="verify-grid">
+          <section class="panel surface-card" aria-labelledby="dossier-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="dossier-title">{{localization.review.deliverables}}</h2>
+                <p>{{localization.review.deliverablesHint}}</p>
               </div>
-              <span class="version-tag">{{d.version}}</span>
+            </div>
+            <dl class="detail-list">
+              <div>
+                <dt>{{localization.review.submitter}}</dt>
+                <dd>
+                  {{d.submitter.fullName}}
+                  <span class="mono muted">({{d.submitter.employeeCode}})</span>
+                </dd>
+              </div>
+              <div>
+                <dt>{{localization.review.position}}</dt>
+                <dd>{{d.submitter.jobPosition}} · {{d.submitter.department}}</dd>
+              </div>
+              <div>
+                <dt>{{localization.review.submittedAt}}</dt>
+                <dd class="mono">{{i18n.formatDate(d.submittedAt, 'DD/MM/YYYY HH:mm')}}</dd>
+              </div>
+            </dl>
+
+            <h3 class="section-title">{{localization.review.declaredOutput}}</h3>
+            <div class="table-wrap">
+              <table [attr.aria-label]="localization.review.outputTable">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.review.kpi}}</th>
+                    <th scope="col" class="num">{{localization.review.submittedQuantity}}</th>
+                    <th scope="col">{{localization.review.unit}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @if (d.kpiItem; as item) {
+                    <tr>
+                      <td>
+                        <strong>{{item.kpiName}}</strong>
+                        <div class="muted mono">{{item.kpiCode}}</div>
+                      </td>
+                      <td class="num mono">{{display(item.declaredValue)}}</td>
+                      <td>{{item.unit}}</td>
+                    </tr>
+                  } @else {
+                    <tr>
+                      <td colspan="3" class="empty-cell">{{localization.review.noKpiItem}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
 
-            <div class="dossier-body">
-              <!-- Submitter summary box -->
-              <div class="submitter-summary-box">
-                <div class="submitter-name-row">
-                  {{d.submitter.fullName}} ({{d.submitter.jobPosition}}) &bull;
-                  {{d.submitter.department}}
-                </div>
-                <div class="submitter-meta-row">
-                  <span>
-                    {{localization.review.submittedAt}} <strong>{{d.submittedAtText}}</strong>
-                  </span>
-                  <span>
-                    {{localization.review.attempt}}
-                    <strong>{{localization.review.attemptNumber}} {{d.attemptNumber}}</strong>
-                  </span>
-                  <span>
-                    {{localization.review.deadline}} <strong>{{d.deadlineText}}</strong>
-                  </span>
-                </div>
-              </div>
+            <h3 class="section-title">{{localization.review.narrative}}</h3>
+            <p class="narrative">{{d.narrative ?? localization.review.notAvailable}}</p>
 
-              <!-- Declared KPI Table -->
-              <div>
-                <div class="sub-section-label">{{localization.review.declaredOutput}}</div>
-                <table class="kpi-verify-table" [attr.aria-label]="localization.review.outputTable">
-                  <thead>
-                    <tr>
-                      <th scope="col">{{localization.review.kpi}}</th>
-                      <th scope="col" class="text-center w-110">
-                        {{localization.review.submittedQuantity}}
-                      </th>
-                      <th scope="col" class="w-90">{{localization.review.unit}}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td class="kpi-name-cell">
-                        {{d.kpiItem.kpiCode}}: {{d.kpiItem.kpiName}}
-                      </td>
-                      <td class="text-center">
-                        <span class="kpi-value-bold">{{d.kpiItem.declaredValue}}</span>
-                      </td>
-                      <td class="kpi-unit-cell">{{d.kpiItem.unit}}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Narrative Box -->
-              <div>
-                <div class="sub-section-label">{{localization.review.narrative}}</div>
-                <div class="narrative-display-box">
-                  {{d.narrative}}
-                </div>
-              </div>
-
-              <!-- Attached Evidence Files -->
-              <div>
-                <div class="sub-section-label">
-                  {{localization.review.attachmentsPrefix}}{{d.evidenceFiles.length}}
-                  {{localization.review.attachmentsSuffix}}
-                </div>
-                @for (file of d.evidenceFiles; track file.fileId) {
-                  <div
-                    class="evidence-item-row"
-                    [class.active-preview]="activeFileId() === file.fileId"
+            <h3 class="section-title">
+              {{localization.review.attachments}} ({{d.evidenceFiles.length}})
+            </h3>
+            <ul class="file-list">
+              @for (file of d.evidenceFiles; track file.fileId) {
+                <li>
+                  <strong>{{file.fileName}}</strong>
+                  <span class="muted mono"
+                    >{{file.mimeType ?? localization.review.notAvailable}} ·
+                    {{size(file.fileSize)}}</span
                   >
-                    <div class="evidence-title-group">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                      >
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      </svg>
-                      <span>{{file.fileName}} ({{file.fileSizeText}})</span>
-                    </div>
-                    <div class="evidence-actions-group">
-                      <button
-                        type="button"
-                        class="action-btn inspect"
-                        [class.active]="activeFileId() === file.fileId"
-                        (click)="selectFile(file)"
-                      >
-                        {{activeFileId() === file.fileId
-                            ? localization.review.viewing
-                            : localization.review.inspect}}
-                      </button>
-                      <button type="button" class="action-btn download">
-                        {{localization.review.download}}
-                      </button>
-                    </div>
-                  </div>
-                }
-              </div>
+                </li>
+              } @empty {
+                <li class="muted">{{localization.review.noFiles}}</li>
+              }
+            </ul>
+            <p class="panel-footnote">{{localization.review.previewUnavailable}}</p>
 
-              <!-- Document Inspection Viewer -->
+            <h3 class="section-title">{{localization.review.historyTitle}}</h3>
+            <div class="table-wrap">
+              <table [attr.aria-label]="localization.review.historyTitle">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.review.round}}</th>
+                    <th scope="col">{{localization.review.decisionLabel}}</th>
+                    <th scope="col">{{localization.review.verifier}}</th>
+                    <th scope="col">{{localization.review.time}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of history(); track item.verificationId) {
+                    <tr>
+                      <td class="mono">{{item.roundNo}}</td>
+                      <td>
+                        <span class="status-badge" [class.is-muted]="item.decision === 'PENDING'">{{decisionLabel(item.decision)}}</span>
+                        @if (item.comment) {
+                          <div class="muted">{{item.comment}}</div>
+                        }
+                      </td>
+                      <td>{{item.verifierFullName}}</td>
+                      <td class="mono">
+                        {{item.verifiedAt
+                            ? i18n.formatDate(item.verifiedAt, 'DD/MM/YYYY HH:mm')
+                            : localization.review.notAvailable}}
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="4" class="empty-cell">{{localization.review.noHistory}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel surface-card" aria-labelledby="decision-title">
+            <div class="panel-heading">
               <div>
-                <div class="sub-section-label">
-                  {{localization.review.viewer}}
-                </div>
-                <div class="pdf-viewer-container">
-                  <div class="pdf-viewer-bar">
-                    <span class="pdf-file-title">
-                      {{localization.review.pdfPreview}} {{d.documentPreview.fileName}}
-                    </span>
-                    <div class="pdf-controls">
-                      <button
-                        type="button"
-                        class="pdf-tool-btn"
-                        (click)="zoomOut()"
-                        [attr.aria-label]="localization.review.zoomOut"
-                      >
-                        -
-                      </button>
-                      <span class="zoom-text">{{docZoom()}}%</span>
-                      <button
-                        type="button"
-                        class="pdf-tool-btn"
-                        (click)="zoomIn()"
-                        [attr.aria-label]="localization.review.zoomIn"
-                      >
-                        +
-                      </button>
-                      <span class="divider">|</span>
-                      <button
-                        type="button"
-                        class="pdf-tool-btn"
-                        (click)="prevPage()"
-                        [disabled]="docCurrentPage() <= 1"
-                        [attr.aria-label]="localization.review.previousPage"
-                      >
-                        &lt;
-                      </button>
-                      <span class="page-text">
-                        {{localization.review.page}} {{docCurrentPage()}} /
-                        {{d.documentPreview.totalPages}}
-                      </span>
-                      <button
-                        type="button"
-                        class="pdf-tool-btn"
-                        (click)="nextPage()"
-                        [disabled]="docCurrentPage() >= d.documentPreview.totalPages"
-                        [attr.aria-label]="localization.review.nextPage"
-                      >
-                        &gt;
-                      </button>
-                    </div>
-                  </div>
+                <h2 id="decision-title">{{localization.review.decisionTitle}}</h2>
+                <p>{{localization.review.decisionHint}}</p>
+              </div>
+            </div>
+            @if (!canDecide()) {
+              <p class="panel-footnote" role="status">{{localization.review.notDecidable}}</p>
+            } @else {
+              <form (ngSubmit)="openConfirm()" class="decision-form">
+                <fieldset class="standards">
+                  <legend>{{localization.review.standards}}</legend>
+                  @for (standard of standards(); track standard.id) {
+                    <label class="checkbox">
+                      <input
+                        type="checkbox"
+                        [name]="'std-' + standard.id"
+                        [checked]="standard.passed"
+                        (change)="toggleStandard(standard.id)"
+                      />
+                      {{standard.name}}
+                    </label>
+                  } @empty {
+                    <p class="muted">{{localization.review.noStandards}}</p>
+                  }
+                </fieldset>
 
-                  <div
-                    class="pdf-sheet-canvas"
-                    [style.transform]="'scale(' + docZoom() / 100 + ')'"
-                  >
-                    <div class="doc-mock-title">
-                      {{d.documentPreview.docTitle}}
-                    </div>
-                    <div class="doc-mock-fields">
-                      &bull; <strong>{{localization.review.bankParty}}</strong>
-                      {{d.documentPreview.bankParty}}<br />
-                      &bull; <strong>{{localization.review.customerParty}}</strong>
-                      {{d.documentPreview.customerParty}} &bull; {{localization.review.cif}}
-                      {{d.documentPreview.cif}}<br />
-                      &bull; <strong>{{localization.review.cardProduct}}</strong>
-                      {{d.documentPreview.product}} &bull; {{localization.review.creditLimit}}
-                      {{d.documentPreview.creditLimit}}<br />
-                      &bull; <strong>{{localization.review.officer}}</strong>
-                      {{d.documentPreview.officer}}
-                    </div>
+                <fieldset class="choices">
+                  <legend>{{localization.review.approvalDecision}}</legend>
+                  <label class="choice" [class.is-selected]="decision() === 'APPROVED'">
+                    <input
+                      type="radio"
+                      name="decision"
+                      value="APPROVED"
+                      [checked]="decision() === 'APPROVED'"
+                      (change)="selectDecision('APPROVED')"
+                    />
+                    {{localization.review.approved}}
+                  </label>
+                  <label class="choice" [class.is-selected]="decision() === 'REVISION_REQUIRED'">
+                    <input
+                      type="radio"
+                      name="decision"
+                      value="REVISION_REQUIRED"
+                      [checked]="decision() === 'REVISION_REQUIRED'"
+                      (change)="selectDecision('REVISION_REQUIRED')"
+                    />
+                    {{localization.review.revision}}
+                  </label>
+                  <label class="choice" [class.is-selected]="decision() === 'REJECTED'">
+                    <input
+                      type="radio"
+                      name="decision"
+                      value="REJECTED"
+                      [checked]="decision() === 'REJECTED'"
+                      (change)="selectDecision('REJECTED')"
+                    />
+                    {{localization.review.rejected}}
+                  </label>
+                  @if (showValidation() && !decision()) {
+                    <p class="field-error" role="alert">
+                      {{localization.review.decisionRequired}}
+                    </p>
+                  }
+                </fieldset>
 
-                    @if (d.documentPreview.auditPinAnnotation; as pin) {
-                      <div class="audit-pin-annotation">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="8" x2="12" y2="12"></line>
-                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                        <span>{{pin.message}}</span>
-                      </div>
+                @if (decision() === 'APPROVED') {
+                  <div class="field">
+                    <label for="verified-value">
+                      {{localization.review.verifiedValue}}
+                      @if (d.kpiItem; as item) {
+                        <span class="muted">({{item.unit}})</span>
+                      }
+                    </label>
+                    <input
+                      id="verified-value"
+                      class="input mono"
+                      type="number"
+                      min="0"
+                      step="any"
+                      name="verifiedValue"
+                      [value]="verifiedValue() ?? ''"
+                      (input)="setVerifiedValue($any($event.target).value)"
+                    />
+                    <p class="hint">{{localization.review.verifiedNote}}</p>
+                    @if (showValidation() && !valueValid()) {
+                      <p class="field-error" role="alert">{{localization.review.valueError}}</p>
                     }
                   </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- PANEL 2: AUDIT DECISION (40%) -->
-          <section
-            id="Panel-Decision"
-            class="decision-panel"
-            aria-labelledby="decision-panel-title"
-          >
-            <div class="decision-header" id="decision-panel-title">
-              <span>{{localization.review.decisionTitle}}</span>
-            </div>
-
-            <div class="decision-body">
-              <!-- Checklist of Control Standards -->
-              <div>
-                <div class="sub-section-label">{{localization.review.standards}}</div>
-                <div class="checklist-wrapper">
-                  @for (std of controlStandards(); track std.id) {
-                    <button
-                      type="button"
-                      class="check-row-btn"
-                      [class.pass]="std.passed"
-                      [class.fail]="!std.passed"
-                      (click)="toggleStandard(std.id)"
-                      [attr.aria-pressed]="std.passed"
-                    >
-                      @if (std.passed) {
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.5"
-                        >
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      } @else {
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.5"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                      }
-                      <span>{{std.name}}</span>
-                    </button>
-                  }
-                </div>
-              </div>
-
-              <!-- Verified Value Box -->
-              <div>
-                <div class="sub-section-label">
-                  {{localization.review.verifiedValue}}
-                </div>
-                <div class="verified-val-row">
-                  <div class="verified-input-wrap">
-                    <input
-                      type="number"
-                      class="verified-input"
-                      [value]="verifiedValue()"
-                      (input)="setVerifiedValue($event)"
-                      min="0"
-                      [attr.aria-label]="localization.review.verifiedValue"
-                    />
-                    <span class="verified-unit">{{d.kpiItem.unit}}</span>
-                  </div>
-                  <span class="verified-note">
-                    {{localization.review.verifiedNote}}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Decision Choice Radio Cards -->
-              <div>
-                <div class="sub-section-label">{{localization.review.approvalDecision}}</div>
-                <div
-                  class="decision-cards-group"
-                  role="radiogroup"
-                  [attr.aria-label]="localization.review.auditDecision"
-                >
-                  <!-- Approved -->
-                  <div
-                    class="decision-option-card"
-                    [class.active-approved]="selectedDecision() === 'APPROVED'"
-                    (click)="selectDecision('APPROVED')"
-                    (keydown.enter)="selectDecision('APPROVED')"
-                    (keydown.space)="selectDecision('APPROVED')"
-                    tabindex="0"
-                    role="radio"
-                    [attr.aria-checked]="selectedDecision() === 'APPROVED'"
-                  >
-                    <input
-                      type="radio"
-                      id="opt-approved"
-                      name="decision_choice"
-                      [checked]="selectedDecision() === 'APPROVED'"
-                      tabindex="-1"
-                    />
-                    <label for="opt-approved">{{localization.review.approved}}</label>
-                  </div>
-
-                  <!-- Revision Required -->
-                  <div
-                    class="decision-option-card"
-                    [class.active-revision]="selectedDecision() === 'REVISION_REQUIRED'"
-                    (click)="selectDecision('REVISION_REQUIRED')"
-                    (keydown.enter)="selectDecision('REVISION_REQUIRED')"
-                    (keydown.space)="selectDecision('REVISION_REQUIRED')"
-                    tabindex="0"
-                    role="radio"
-                    [attr.aria-checked]="selectedDecision() === 'REVISION_REQUIRED'"
-                  >
-                    <input
-                      type="radio"
-                      id="opt-revision"
-                      name="decision_choice"
-                      [checked]="selectedDecision() === 'REVISION_REQUIRED'"
-                      tabindex="-1"
-                    />
-                    <label for="opt-revision">{{localization.review.revision}}</label>
-                  </div>
-
-                  <!-- Rejected -->
-                  <div
-                    class="decision-option-card"
-                    [class.active-rejected]="selectedDecision() === 'REJECTED'"
-                    (click)="selectDecision('REJECTED')"
-                    (keydown.enter)="selectDecision('REJECTED')"
-                    (keydown.space)="selectDecision('REJECTED')"
-                    tabindex="0"
-                    role="radio"
-                    [attr.aria-checked]="selectedDecision() === 'REJECTED'"
-                  >
-                    <input
-                      type="radio"
-                      id="opt-rejected"
-                      name="decision_choice"
-                      [checked]="selectedDecision() === 'REJECTED'"
-                      tabindex="-1"
-                    />
-                    <label for="opt-rejected">{{localization.review.rejected}}</label>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Feedback Textarea -->
-              <div>
-                <div class="sub-section-label">
-                  {{localization.review.feedback}}
-                  @if (selectedDecision() !== 'APPROVED') {
-                    <span class="required-star">*</span>
-                  }
-                  :
-                </div>
-                <textarea
-                  class="feedback-textarea"
-                  [value]="feedback()"
-                  (input)="setFeedback($event)"
-                  [placeholder]="localization.review.feedbackPlaceholder"
-                  rows="4"
-                  [attr.aria-label]="localization.review.feedback"
-                ></textarea>
-                @if (selectedDecision() !== 'APPROVED' && !isFeedbackValid()) {
-                  <div class="input-error-msg">{{localization.review.feedbackShortError}}</div>
                 }
-              </div>
 
-              <!-- Resubmit Deadline Picker (Conditionally displayed when Revision Required) -->
-              @if (selectedDecision() === 'REVISION_REQUIRED') {
-                <div class="deadline-row">
-                  <label for="deadline-input" class="deadline-label">
-                    {{localization.review.resubmitDeadline}}
-                  </label>
-                  <input
-                    id="deadline-input"
-                    type="datetime-local"
-                    class="deadline-input"
-                    [value]="resubmitDeadline()"
-                    (input)="setResubmitDeadline($event)"
-                  />
-                </div>
-              }
+                @if (decision()) {
+                  <div class="field">
+                    <label for="feedback">
+                      {{localization.review.feedback}}
+                      @if (feedbackRequired()) {
+                        <span aria-hidden="true">*</span>
+                      }
+                    </label>
+                    <textarea
+                      id="feedback"
+                      class="textarea"
+                      name="feedback"
+                      maxlength="2000"
+                      [value]="feedback()"
+                      (input)="feedback.set($any($event.target).value)"
+                      [placeholder]="localization.review.feedbackPlaceholder"
+                    ></textarea>
+                    @if (showValidation() && !feedbackValid()) {
+                      <p class="field-error" role="alert">
+                        {{localization.review.feedbackShortError}}
+                      </p>
+                    }
+                  </div>
+                }
 
-              <!-- Validation Error Alert -->
-              @if (validationError(); as err) {
-                <div class="validation-alert" role="alert">
-                  {{err}}
-                </div>
-              }
-            </div>
+                @if (decision() === 'REVISION_REQUIRED') {
+                  <div class="field">
+                    <label for="deadline">{{localization.review.resubmitDeadline}} *</label>
+                    <input
+                      id="deadline"
+                      class="input mono"
+                      type="datetime-local"
+                      name="deadline"
+                      [value]="deadline()"
+                      (input)="deadline.set($any($event.target).value)"
+                    />
+                    @if (showValidation() && !deadlineValid()) {
+                      <p class="field-error" role="alert">
+                        {{localization.review.deadlineError}}
+                      </p>
+                    }
+                  </div>
+                }
 
-            <!-- Decision Footer Actions -->
-            <div class="decision-footer">
-              <button type="button" class="btn btn-secondary" (click)="switchScenario('default')">
-                {{localization.common.back}}
-              </button>
-
-              <button
-                type="button"
-                class="btn"
-                [class.btn-amber-solid]="selectedDecision() === 'REVISION_REQUIRED'"
-                [class.btn-emerald-solid]="selectedDecision() === 'APPROVED'"
-                [class.btn-rose-solid]="selectedDecision() === 'REJECTED'"
-                [disabled]="!canSubmitDecision() || isMakerCheckerViolated()"
-                (click)="openConfirmModal()"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <span>{{localization.review.confirmDecision}}</span>
-              </button>
-            </div>
+                <button type="submit" class="button button-primary" [disabled]="submitting()">
+                  {{localization.review.confirmDecision}}
+                </button>
+              </form>
+            }
           </section>
+        </div>
+      } @else {
+        <div class="state-card">
+          <p>{{localization.review.empty}}</p>
         </div>
       }
-
-      <!-- Bottom Status Strip -->
-      <footer class="bottom-status-strip">
-        <div>
-          {{localization.review.auditCode}}
-          {{dossier()?.verificationCode || 'VER-2026-089-R1'}} &bull;
-          {{localization.review.creditStandard}}
-        </div>
-        <div>Architecture v4.8.2</div>
-      </footer>
     </main>
   </div>
 
-  <!-- ======================================================================
-       CONFIRMATION MODAL DIALOG (CR-12 / CR-13 Keyboard Navigable)
-       ====================================================================== -->
-  @if (showConfirmModal()) {
+  @if (confirmOpen()) {
     <div
       class="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-modal-title"
-      (keydown.escape)="closeConfirmModal()"
+      (click)="closeConfirm()"
+      (keydown.escape)="closeConfirm()"
+      role="presentation"
     >
-      <div class="modal-dialog">
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
         <div class="modal-header">
-          <h3 id="confirm-modal-title">{{localization.review.confirmTitle}}</h3>
+          <h2 id="confirm-title">{{localization.review.confirmTitle}}</h2>
           <button
             type="button"
-            class="modal-close-btn"
-            (click)="closeConfirmModal()"
+            class="modal-close"
+            (click)="closeConfirm()"
             [attr.aria-label]="localization.common.close"
           >
-            &times;
+            ×
           </button>
         </div>
-
         <div class="modal-body">
-          <p class="modal-lead">
+          <p>
             {{localization.review.confirmPrompt}}
-            <strong>{{dossier()?.submissionCode}}</strong
-            >?
+            <strong class="mono">{{dossier()?.submissionCode}}</strong>
           </p>
-
-          <div class="decision-summary-card">
-            <div class="summary-line">
-              <span>{{localization.review.dossier}}</span>
-              <strong>{{dossier()?.workTitle}}</strong>
+          <dl class="detail-list">
+            <div>
+              <dt>{{localization.review.decisionLabel}}</dt>
+              <dd>{{decisionLabel(decision() ?? '')}}</dd>
             </div>
-            <div class="summary-line">
-              <span>{{localization.review.performer}}</span>
-              <strong>{{dossier()?.submitter?.fullName}}</strong>
-            </div>
-            <div class="summary-line">
-              <span>{{localization.review.decisionLabel}}</span>
-              <strong
-                [class.text-amber]="selectedDecision() === 'REVISION_REQUIRED'"
-                [class.text-emerald]="selectedDecision() === 'APPROVED'"
-                [class.text-rose]="selectedDecision() === 'REJECTED'"
-              >
-                {{selectedDecision() === 'APPROVED'
-                    ? localization.review.approvedSummary
-                    : selectedDecision() === 'REVISION_REQUIRED'
-                      ? localization.review.revisionSummary
-                      : localization.review.rejectedSummary}}
-              </strong>
-            </div>
-            <div class="summary-line">
-              <span>{{localization.review.recognizedOutput}}</span>
-              <strong>{{verifiedValue()}} {{dossier()?.kpiItem?.unit}}</strong>
-            </div>
-            @if (selectedDecision() === 'REVISION_REQUIRED') {
-              <div class="summary-line">
-                <span>{{localization.review.deadlineLabel}}</span>
-                <strong>{{resubmitDeadline()}}</strong>
+            @if (decision() === 'APPROVED') {
+              <div>
+                <dt>{{localization.review.recognizedOutput}}</dt>
+                <dd class="mono">{{display(verifiedValue())}} {{dossier()?.kpiItem?.unit}}</dd>
               </div>
             }
-            <div class="summary-line summary-notes">
-              <span>{{localization.review.feedbackLabel}}</span>
-              <p>{{feedback()}}</p>
-            </div>
-          </div>
+            @if (decision() === 'REVISION_REQUIRED') {
+              <div>
+                <dt>{{localization.review.deadlineLabel}}</dt>
+                <dd class="mono">{{i18n.formatDate(deadline(), 'DD/MM/YYYY HH:mm')}}</dd>
+              </div>
+            }
+            @if (feedback().trim()) {
+              <div class="full-row">
+                <dt>{{localization.review.feedbackLabel}}</dt>
+                <dd>{{feedback()}}</dd>
+              </div>
+            }
+          </dl>
         </div>
-
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" (click)="closeConfirmModal()">
-            {{localization.review.cancelEscape}}
+          <button
+            type="button"
+            class="button button-secondary"
+            (click)="closeConfirm()"
+            [disabled]="submitting()"
+          >
+            {{localization.common.cancel}}
           </button>
           <button
             type="button"
-            class="btn"
-            [class.btn-amber-solid]="selectedDecision() === 'REVISION_REQUIRED'"
-            [class.btn-emerald-solid]="selectedDecision() === 'APPROVED'"
-            [class.btn-rose-solid]="selectedDecision() === 'REJECTED'"
-            [disabled]="isSubmitting()"
-            (click)="confirmDecision()"
+            class="button button-primary"
+            (click)="confirm()"
+            [disabled]="submitting()"
           >
-            @if (isSubmitting()) {
-              <span>{{localization.kpi.saving}}</span>
-            } @else {
-              <span>{{localization.review.confirmEnter}}</span>
-            }
+            {{submitting() ? localization.review.submitting : localization.review.confirmAction}}
           </button>
         </div>
       </div>
