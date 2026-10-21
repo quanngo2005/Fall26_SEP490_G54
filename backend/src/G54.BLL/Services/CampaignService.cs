@@ -475,8 +475,19 @@ public sealed class CampaignService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
+        if (request is null || string.IsNullOrWhiteSpace(request.Decision))
+        {
+            throw new ValidationException("Quyết định phê duyệt là bắt buộc và phải là APPROVE hoặc REJECT.");
+        }
+
+        if (request.ApprovedBudget.HasValue && request.ApprovedBudget.Value < 0)
+        {
+            throw new ValidationException("Ngân sách phê duyệt không được là số âm.");
+        }
+
         var campaign = await db.BusinessCampaigns
             .Include(c => c.Participants)
+            .Include(c => c.BusinessObjective)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
         if (campaign is null)
@@ -485,7 +496,7 @@ public sealed class CampaignService(
         }
 
         var currentEmployee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
-        if (currentEmployee != null && campaign.Participants.Any(p => p.EmployeeId == currentEmployee.Id))
+        if (campaign.Participants.Any(p => p.EmployeeId == currentUserId || (currentEmployee != null && p.EmployeeId == currentEmployee.Id)))
         {
             throw new BusinessRuleException(
                 ErrorCodes.MSG10,
@@ -499,19 +510,38 @@ public sealed class CampaignService(
                 "Chỉ có thể phê duyệt hoặc từ chối chiến dịch ở trạng thái Kế hoạch (PLANNED).");
         }
 
+        if (campaign.BusinessObjective != null && campaign.BusinessObjective.Status == BusinessObjectiveStatus.Cancelled)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.ValidationError,
+                "Mục tiêu kinh doanh liên kết đã bị hủy, không thể phê duyệt chiến dịch.");
+        }
+
         var decision = request.Decision.Trim().ToUpperInvariant();
         string message;
         if (decision == "APPROVE")
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (campaign.EndDate < today)
+            {
+                throw new BusinessRuleException(
+                    ErrorCodes.ValidationError,
+                    "Không thể phê duyệt chiến dịch đã quá hạn kết thúc so với thời gian máy chủ (BR-11, BR-12).");
+            }
+
             campaign.Status = BusinessCampaignStatus.Running;
             campaign.UpdatedAt = DateTimeOffset.UtcNow;
-            message = "Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công.";
+            message = string.IsNullOrWhiteSpace(request.Note)
+                ? "Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công."
+                : $"Đã phê duyệt kế hoạch chiến dịch kinh doanh thành công. Ghi chú: {request.Note.Trim()}";
         }
         else if (decision == "REJECT")
         {
             campaign.Status = BusinessCampaignStatus.Cancelled;
             campaign.UpdatedAt = DateTimeOffset.UtcNow;
-            message = "Đã từ chối kế hoạch chiến dịch kinh doanh.";
+            message = string.IsNullOrWhiteSpace(request.Note)
+                ? "Đã từ chối kế hoạch chiến dịch kinh doanh."
+                : $"Đã từ chối kế hoạch chiến dịch kinh doanh. Lý do: {request.Note.Trim()}";
         }
         else
         {
