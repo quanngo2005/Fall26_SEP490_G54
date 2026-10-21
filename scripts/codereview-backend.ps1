@@ -34,6 +34,34 @@ $checks = @(
     @{ Id = "BE-01"; Severity = "Gate"; Name = "Restore"; Test = { Invoke-Native { dotnet restore $solution } } },
     @{ Id = "BE-02"; Severity = "Gate"; Name = "Release build (warnings as errors)"; Test = { Invoke-Native { dotnet build $solution -c Release --no-restore } } },
     @{ Id = "BE-03"; Severity = "Gate"; Name = "Unit tests"; Test = { Invoke-Native { dotnet test $solution -c Release --no-build } } },
+    @{ Id = "BE-07"; Severity = "Gate"; Name = "Line coverage thresholds (migrations excluded)"; Test = {
+        $resultsDir = Join-Path ([IO.Path]::GetTempPath()) "g54-coverage-$([guid]::NewGuid().ToString('N'))"
+        $output = dotnet test $solution -c Release --no-build --settings (Join-Path $backend "coverlet.runsettings") --collect:"XPlat Code Coverage" --results-directory $resultsDir 2>&1 | Out-String
+        $ran = ($LASTEXITCODE -eq 0)
+        Write-Host $output
+        $file = Get-ChildItem -Path $resultsDir -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($output -match 'Application Control policy' -and $env:CI -ne "true") {
+            # Windows App Control blocks the DLLs coverlet rewrites on some machines. Measure inside a Linux container instead
+            # (needs Docker plus the compose Postgres/Redis, see coverage-in-docker.ps1); without Docker report it loudly.
+            docker info *> $null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Application Control blocked coverage on this host; measuring inside a Docker container."
+                $dockerOut = Join-Path ([IO.Path]::GetTempPath()) "g54-coverage-docker-$([guid]::NewGuid().ToString('N'))"
+                & (Join-Path $PSScriptRoot "coverage-in-docker.ps1") -OutDir $dockerOut | Out-Host
+                $ran = ($LASTEXITCODE -eq 0)
+                $file = Get-ChildItem -Path $dockerOut -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
+            }
+            else {
+                Write-Warning "Coverage could not run on this machine (Application Control blocked it and Docker is unavailable). Thresholds were NOT checked."
+                $script:findings += "  - SKIPPED locally: Application Control blocked coverlet and Docker is unavailable; thresholds enforced only in CI"
+                return $true
+            }
+        }
+        if (-not $ran -or $null -eq $file) { $script:findings += "  - coverage run failed or produced no report"; return $false }
+        Copy-Item -LiteralPath $file.FullName -Destination (Join-Path (Split-Path -Parent $report) "coverage.cobertura.xml") -Force
+        $passed = Invoke-Native { & (Join-Path $PSScriptRoot "check-coverage.ps1") -CoberturaFile $file.FullName }
+        if (-not $passed) { $script:findings += "  - a line coverage threshold was not met (see check-coverage.ps1 output)" }
+        $passed } },
     @{ Id = "BE-04"; Severity = "Gate"; Name = "Formatting"; Test = { Invoke-Native { dotnet format $solution --verify-no-changes --no-restore } } },
     @{ Id = "BE-06"; Severity = "Gate"; Name = "Controllers do not access DAL/AppDbContext"; Test = { Test-NoMatch $controllerFiles 'using G54\.DAL|AppDbContext' } },
     @{ Id = "SEC-BE-C01"; Severity = "Critical"; Name = "No hardcoded private keys, cloud keys, or production credentials"; Test = {
