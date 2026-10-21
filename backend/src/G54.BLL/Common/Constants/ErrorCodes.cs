@@ -15,6 +15,9 @@ public static class ErrorCodes
     public const string VerificationInvalidState = "VERIFICATION_INVALID_STATE";
     public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
 
+    // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
+    public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
+
     // Application Message Codes (COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md)
     public const string MSG01 = "MSG01"; // Không tìm thấy kết quả phù hợp
     public const string MSG02 = "MSG02"; // Trường (*) là bắt buộc nhập
@@ -48,6 +51,7 @@ public static class ErrorCodes
         [SubmissionInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với báo cáo kết quả.", "The current state does not allow this submission action."),
         [VerificationInvalidState] = ("Hồ sơ không ở trạng thái chờ thẩm định.", "The submission is not awaiting verification."),
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
+        [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
         [MSG01] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
         [MSG02] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),
         [MSG03] = ("Cập nhật thành công.", "Update successfully."),

@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         return services;
     }
 }
