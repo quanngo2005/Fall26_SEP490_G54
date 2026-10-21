@@ -668,7 +668,6 @@ public sealed class CampaignServiceTests
             // Verify BR-25 7-day exclusivity note is present
             foreach (var w in generatedWorks)
             {
-                Assert.Contains("theo BR-25", w.Description);
                 Assert.Contains("Khóa độc quyền 7 ngày", w.Description);
                 Assert.StartsWith("TSK-CMP-BATCH-RR-", w.Code);
             }
@@ -870,7 +869,7 @@ public sealed class CampaignServiceTests
                 service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid()));
 
             Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
-            Assert.Contains("BR-41", ex.Message);
+            Assert.Contains("trạng thái hoạt động", ex.Message);
         }
     }
 
@@ -1099,7 +1098,7 @@ public sealed class CampaignServiceTests
                 service.DecideCampaignAsync(campaign.Id, request, emp1.Id));
 
             Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
-            Assert.Contains("BR-02", ex.Message);
+            Assert.Contains("không được tự phê duyệt", ex.Message);
         }
     }
 
@@ -1152,7 +1151,7 @@ public sealed class CampaignServiceTests
                 service.DecideCampaignAsync(campaign.Id, request, accountId));
 
             Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
-            Assert.Contains("BR-02", ex.Message);
+            Assert.Contains("không được tự phê duyệt", ex.Message);
         }
     }
 

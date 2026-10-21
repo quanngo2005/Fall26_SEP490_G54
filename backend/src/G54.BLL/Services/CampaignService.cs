@@ -259,7 +259,7 @@ public sealed class CampaignService(
 
             if (activeCount != distinctEmployeeIds.Count)
             {
-                throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động (BR-41).");
+                throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động.");
             }
         }
 
@@ -406,7 +406,7 @@ public sealed class CampaignService(
 
                 if (activeCount != distinctEmployeeIds.Count)
                 {
-                    throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động (BR-41).");
+                    throw new ValidationException("Một hoặc nhiều nhân sự tham gia không tồn tại hoặc không ở trạng thái hoạt động.");
                 }
             }
 
@@ -500,7 +500,7 @@ public sealed class CampaignService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.MSG10,
-                "Theo quy tắc BR-02 (Maker-Checker), nhân sự tham gia thực hiện chiến dịch không được tự phê duyệt kế hoạch chiến dịch.");
+                "Nhân sự tham gia thực hiện chiến dịch không được tự phê duyệt kế hoạch chiến dịch.");
         }
 
         if (campaign.Status != BusinessCampaignStatus.Planned)
@@ -526,7 +526,7 @@ public sealed class CampaignService(
             {
                 throw new BusinessRuleException(
                     ErrorCodes.ValidationError,
-                    "Không thể phê duyệt chiến dịch đã quá hạn kết thúc so với thời gian máy chủ (BR-11, BR-12).");
+                    "Không thể phê duyệt chiến dịch đã quá hạn kết thúc so với thời gian máy chủ.");
             }
 
             campaign.Status = BusinessCampaignStatus.Running;
@@ -636,7 +636,7 @@ public sealed class CampaignService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.ValidationError,
-                "Chiến dịch chưa có nhân sự tham gia hợp lệ ở trạng thái hoạt động để phân bổ đầu việc (BR-41).");
+                "Chiến dịch chưa có nhân sự tham gia hợp lệ ở trạng thái hoạt động để phân bổ đầu việc.");
         }
 
         var priority = ParsePriority(request.Priority);
@@ -668,7 +668,7 @@ public sealed class CampaignService(
         var generatedWorks = new List<Work>(totalLeads);
         var todayStr = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var exclusivityEnd = startDate.AddDays(7);
-        var br25Note = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} theo BR-25.";
+        var exclusivityNote = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 
         for (var i = 0; i < totalLeads; i++)
         {
@@ -733,11 +733,11 @@ public sealed class CampaignService(
             string description;
             if (lead != null && (!string.IsNullOrWhiteSpace(lead.CustomerCode) || !string.IsNullOrWhiteSpace(lead.CustomerName) || !string.IsNullOrWhiteSpace(lead.Note)))
             {
-                description = $"Nguồn: {leadPoolSource}. Mã KH: {lead.CustomerCode ?? "N/A"}, Tên KH: {lead.CustomerName ?? "N/A"}. Ghi chú: {lead.Note ?? "Không có"}. {br25Note}";
+                description = $"Nguồn: {leadPoolSource}. Mã KH: {lead.CustomerCode ?? "N/A"}, Tên KH: {lead.CustomerName ?? "N/A"}. Ghi chú: {lead.Note ?? "Không có"}. {exclusivityNote}";
             }
             else
             {
-                description = $"Đầu việc được sinh tự động từ nguồn: {leadPoolSource}. {br25Note}";
+                description = $"Đầu việc được sinh tự động từ nguồn: {leadPoolSource}. {exclusivityNote}";
             }
 
             var work = new Work
