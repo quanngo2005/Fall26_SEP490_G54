@@ -1,9 +1,8 @@
 # Department view
 
-Status: backend implemented (read-only). Frontend typed client implemented in
-`frontend/src/app/core/department.service.ts`; the department page uses this real client.
+Status: backend implemented (view, tree, create/update/status/soft delete). Frontend typed client implemented in
+`frontend/src/app/core/department.service.ts` (read endpoints only; the management endpoints have no UI yet).
 Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`.
-Write operations (create/update/status/delete a department) are **planned, not implemented**.
 
 ## Authorization
 
@@ -18,6 +17,9 @@ The BLL validates an active, unlocked database account and additionally restrict
 | `All` / `System` / full access | every department |
 | `Branch` | subtree of the nearest `BRANCH` ancestor-or-self of the caller's department (root-most ancestor when none) |
 | `Department` / `Dept` | subtree of the caller's own department |
+
+Write endpoints (`POST`, `PUT`, `PATCH .../status`, `DELETE`) additionally require `department:manage` with scope `All`
+(`ADMIN` via full access) and are not limited to the caller's subtree.
 
 A department outside that set returns 403 `FORBIDDEN`; an unknown id returns 404 `NOT_FOUND`.
 List results contain only visible departments.
@@ -70,6 +72,25 @@ Query: `keyword` (code/name, case-insensitive contains), `status` (`ACTIVE|INACT
 
 `employeeCount` is the subtree count. `childDepartmentCount` counts direct children.
 `parentDepartmentId` / `parentDepartmentName` are `null` for roots.
+`ARCHIVED` (soft-deleted) departments are omitted unless `status=ARCHIVED` is requested.
+
+### `GET /departments/tree`
+
+The departments visible to the caller as a forest, children ordered by `code`; `ARCHIVED` ones are omitted.
+A node is a root when it has no parent or its parent is outside the caller's scope.
+
+```json
+[
+  {
+    "id": "5eed0000-0000-0000-0001-000000000001", "code": "CN-HN", "name": "Chi nhánh Hà Nội",
+    "levelType": "BRANCH", "status": "ACTIVE",
+    "directEmployeeCount": 0, "employeeCount": 5,
+    "children": [ { "id": "…", "code": "CN-HN-KD", "…": "same shape, recursive", "children": [] } ]
+  }
+]
+```
+
+`directEmployeeCount` counts only the node itself, `employeeCount` the whole subtree (both exclude `TERMINATED`).
 
 ### `GET /departments/{id}`
 
@@ -229,6 +250,45 @@ overview), `page` (default 1), `pageSize` (default 20, clamped 1..100). Ordered 
 `openWorkCount` uses the open-work definition above. `performanceScore` is the member's scored
 evaluation for the period (same rules as `performance.average`), `null` when absent.
 
+## Management
+
+Bodies are camelCase JSON. Enums are the UPPER_SNAKE API values (case-insensitive on input).
+
+### `POST /departments` → 201 `DepartmentDetail`
+
+```json
+{ "code": "CN-HN-KT", "name": "Phòng Kế toán", "description": "Tuỳ chọn", "levelType": "DEPARTMENT", "parentDepartmentId": "5eed0000-0000-0000-0001-000000000001" }
+```
+
+`PUT /departments/{id}` takes the same body and returns 200 `DepartmentDetail`; the status is not part of it.
+A new department is always `ACTIVE`.
+
+Rules (400 `VALIDATION_ERROR` unless stated):
+
+- `code`: required, ≤ 50, letters/digits/`-`/`_` only (URL-safe, it is used as `?department=<code>`); trimmed and stored
+  **upper-case**; unique, case-insensitively → 409 `CONFLICT`. An archived department keeps its code reserved.
+- `name`: required, ≤ 200. `description`: optional, ≤ 1000; blank becomes `null`. `levelType`: required.
+- Hierarchy: `BRANCH` is a root (`parentDepartmentId` must be omitted). `DEPARTMENT` and `TEAM` require a parent of a
+  **strictly higher** level (`BRANCH` > `DEPARTMENT` > `TEAM`). Unknown parent → 404.
+- On update the parent may not be the department itself or one of its descendants (no cycles; the database also
+  enforces this), and the new `levelType` must stay above the levels of its existing children.
+- The parent must be `ACTIVE` when a department is created or moved under it (keeping an inactive parent is fine).
+
+### `PATCH /departments/{id}/status` → 200 `DepartmentDetail`
+
+Body `{ "status": "ACTIVE" | "INACTIVE" | "ARCHIVED" }`. Setting the current value is a no-op.
+
+- Leaving `ACTIVE` (stop operating) → 409 while the department has `ACTIVE` children or non-`TERMINATED` employees; the
+  message gives the count. Employees cannot be assigned to a non-`ACTIVE` department (employee API rule).
+- Returning to `ACTIVE` → 400 when its parent is not `ACTIVE`.
+
+### `DELETE /departments/{id}` → 200 (soft delete)
+
+The row is **kept** and set to `ARCHIVED`, so employees' history, targets and works stay intact; it disappears from
+`GET /departments` (unless `status=ARCHIVED`) and from the tree. 409 while it has non-`ARCHIVED` children or
+non-`TERMINATED` employees. Deleting an already archived department succeeds without change; unknown id → 404.
+There is no hard delete and no restore endpoint; `PATCH .../status` with `ACTIVE`/`INACTIVE` restores one.
+
 ## Errors
 
 | Status | `errorCode` | When |
@@ -236,7 +296,8 @@ evaluation for the period (same rules as `performance.average`), `null` when abs
 | 400 | `VALIDATION_ERROR` | invalid enum filter, `DAY` period, malformed GUID/number |
 | 401 | none (framework) | missing/invalid token; may have no JSON body |
 | 403 | none (framework) or `FORBIDDEN` | lacks `evaluation:read` (framework), or department outside granted scope (`FORBIDDEN`) |
-| 404 | `NOT_FOUND` | unknown department or period |
+| 404 | `NOT_FOUND` | unknown department, parent or period |
+| 409 | `CONFLICT` | duplicate code; stopping/deleting a department that still has live children or employees |
 | 500 | `INTERNAL_ERROR` | unexpected |
 
 The client shows real errors and empty states; it never substitutes sample data.

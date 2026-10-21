@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace G54.Api.Controllers;
 
-/// <summary>Read-only department view. Contract: docs/api/DEPARTMENT_CONTRACT.md.</summary>
+/// <summary>Department view, tree and management. Contract: docs/api/DEPARTMENT_CONTRACT.md.</summary>
 [ApiController]
 [Route("departments")]
 [HasPermission("evaluation", "read", "Dept")]
@@ -22,6 +22,74 @@ public sealed class DepartmentsController(IDepartmentService service) : Controll
     {
         var result = await service.GetDepartmentsAsync(User.GetRequiredUserId(), filter, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("tree")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<DepartmentTreeNodeDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DepartmentTreeNodeDto>>>> GetTree(
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetTreeAsync(User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost]
+    [HasPermission("department", "manage", "All")]
+    [ProducesResponseType<ApiResponse<DepartmentDetailDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<DepartmentDetailDto>>> CreateDepartment(
+        [FromBody] CreateDepartmentDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.CreateDepartmentAsync(dto, cancellationToken);
+        var response = ApiResponse.Ok(result, "Tạo phòng ban thành công.", HttpContext.TraceIdentifier);
+        return CreatedAtAction(nameof(GetDepartment), new { id = result.Id }, response);
+    }
+
+    [HttpPut("{id:guid}")]
+    [HasPermission("department", "manage", "All")]
+    [ProducesResponseType<ApiResponse<DepartmentDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<DepartmentDetailDto>>> UpdateDepartment(
+        Guid id,
+        [FromBody] UpdateDepartmentDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.UpdateDepartmentAsync(id, dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật phòng ban thành công.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    [HasPermission("department", "manage", "All")]
+    [ProducesResponseType<ApiResponse<DepartmentDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<DepartmentDetailDto>>> ChangeStatus(
+        Guid id,
+        [FromBody] DepartmentStatusDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ChangeStatusAsync(id, dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật trạng thái phòng ban thành công.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [HasPermission("department", "manage", "All")]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse>> DeleteDepartment(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await service.DeleteDepartmentAsync(id, cancellationToken);
+        return Ok(ApiResponse.Ok("Xóa phòng ban thành công.", HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:guid}")]
