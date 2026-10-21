@@ -152,11 +152,11 @@ public sealed class EnumApiFormatContractTests
             Id = Guid.NewGuid(),
             Code = "P1",
             Title = "Pos",
-            EvaluationProfileId = profile.Id,
             Status = RecordStatus.Active,
             LastSyncAt = now,
             UpdatedAt = now,
         };
+        profile.JobPositionId = position.Id;
         db.AddRange(profile, dept, position);
         await db.SaveChangesAsync();
         return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance), dept, position);
@@ -327,32 +327,23 @@ public sealed class EnumApiFormatContractTests
 
     // ----- Work type -------------------------------------------------------------------------
 
-    private static async Task<(AppDbContext Db, WorkTypeService Service, WorkflowDefinition Workflow)> WorkTypeEnvAsync()
+    private static async Task<(AppDbContext Db, WorkTypeService Service)> WorkTypeEnvAsync()
     {
         var db = CreateDb();
-        var workflow = new WorkflowDefinition
-        {
-            Id = Guid.NewGuid(),
-            Code = "WF",
-            Name = "Workflow",
-            Status = WorkflowDefinitionStatus.Active,
-            UpdatedAt = DateTimeOffset.UtcNow,
-        };
-        db.WorkflowDefinitions.Add(workflow);
         await db.SaveChangesAsync();
-        return (db, new WorkTypeService(db, NullLogger<WorkTypeService>.Instance), workflow);
+        return (db, new WorkTypeService(db, NullLogger<WorkTypeService>.Instance));
     }
 
     [Fact]
     public async Task WorkType_StatusIsApiStringInListAndDetail_AndFilterIsCaseInsensitive()
     {
-        var (db, service, workflow) = await WorkTypeEnvAsync();
+        var (db, service) = await WorkTypeEnvAsync();
         using (db)
         {
             var active = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-A", Name = "A", WorkflowDefinitionId = workflow.Id });
+                new CreateWorkTypeDto { Code = "WT-A", Name = "A"});
             var archived = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-B", Name = "B", WorkflowDefinitionId = workflow.Id });
+                new CreateWorkTypeDto { Code = "WT-B", Name = "B"});
             await service.ChangeStatusAsync(archived.Id, new WorkTypeStatusDto { Status = "archived" });
 
             Assert.Equal("ACTIVE", active.Status);
@@ -369,11 +360,11 @@ public sealed class EnumApiFormatContractTests
     [InlineData("Deleted")]
     public async Task WorkType_ChangeStatusWithMissingOrUnknownValue_ThrowsValidationException(string status)
     {
-        var (db, service, workflow) = await WorkTypeEnvAsync();
+        var (db, service) = await WorkTypeEnvAsync();
         using (db)
         {
             var created = await service.CreateWorkTypeAsync(
-                new CreateWorkTypeDto { Code = "WT-C", Name = "C", WorkflowDefinitionId = workflow.Id });
+                new CreateWorkTypeDto { Code = "WT-C", Name = "C"});
 
             await Assert.ThrowsAsync<ValidationException>(
                 () => service.ChangeStatusAsync(created.Id, new WorkTypeStatusDto { Status = status }));
@@ -383,7 +374,7 @@ public sealed class EnumApiFormatContractTests
     [Fact]
     public async Task WorkType_ListFilterWithUnknownValue_ThrowsValidationException()
     {
-        var (db, service, _) = await WorkTypeEnvAsync();
+        var (db, service) = await WorkTypeEnvAsync();
         using (db)
         {
             await Assert.ThrowsAsync<ValidationException>(

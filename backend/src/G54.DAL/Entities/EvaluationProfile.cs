@@ -7,6 +7,8 @@ public partial class EvaluationProfile
 {
     public Guid Id { get; set; }
 
+    public Guid JobPositionId { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string Name { get; set; } = null!;
@@ -25,7 +27,7 @@ public partial class EvaluationProfile
 
     public virtual ICollection<EvaluationProfileItem> EvaluationProfileItems { get; set; } = new List<EvaluationProfileItem>();
 
-    public virtual ICollection<JobPosition> JobPositions { get; set; } = new List<JobPosition>();
+    public virtual JobPosition JobPosition { get; set; } = null!;
 
     public virtual ICollection<PerformanceEvaluation> PerformanceEvaluations { get; set; } = new List<PerformanceEvaluation>();
 }

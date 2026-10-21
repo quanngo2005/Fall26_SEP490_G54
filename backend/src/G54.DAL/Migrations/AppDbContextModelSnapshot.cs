@@ -44,7 +44,6 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "verified_result_status", new[] { "VALID", "INVALID" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "work_priority", new[] { "LOW", "MEDIUM", "HIGH", "CRITICAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "work_status", new[] { "NEW", "IN_PROGRESS", "HANDED_OVER", "SUBMITTED", "VERIFIED", "REJECTED", "DONE", "CANCELLED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "workflow_definition_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED" });
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
@@ -125,33 +124,17 @@ namespace G54.DAL.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("denominator");
 
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("employee_id");
-
-                    b.Property<Guid>("EvaluationPeriodId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("evaluation_period_id");
-
-                    b.Property<Guid>("KpiDefinitionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("kpi_definition_id");
-
-                    b.Property<Guid?>("PerformanceContributionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("performance_contribution_id");
-
                     b.Property<DateOnly>("ProgressDate")
                         .HasColumnType("date")
                         .HasColumnName("progress_date");
 
-                    b.Property<Guid?>("SourceItemId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("source_item_id");
-
                     b.Property<int>("Status")
                         .HasColumnType("actual_progress_status")
                         .HasColumnName("status");
+
+                    b.Property<Guid>("TargetAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_assignment_id");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -167,15 +150,7 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("actual_progress_pkey");
 
-                    b.HasIndex("EvaluationPeriodId");
-
-                    b.HasIndex(new[] { "PerformanceContributionId" }, "ix_actual_progress_contribution");
-
-                    b.HasIndex(new[] { "EmployeeId", "EvaluationPeriodId" }, "ix_actual_progress_employee_period");
-
-                    b.HasIndex(new[] { "KpiDefinitionId", "EvaluationPeriodId" }, "ix_actual_progress_kpi_period");
-
-                    b.HasIndex(new[] { "SourceItemId" }, "uq_actual_progress_source_item")
+                    b.HasIndex(new[] { "TargetAssignmentId", "ProgressDate" }, "uq_actual_progress_target_date")
                         .IsUnique();
 
                     b.ToTable("actual_progress", null, t =>
@@ -212,12 +187,20 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("note");
 
+                    b.Property<Guid?>("PerformanceEvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("performance_evaluation_id");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("reason");
 
-                    b.Property<Guid>("ResultSubmissionId")
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.Property<Guid?>("ResultSubmissionId")
                         .HasColumnType("uuid")
                         .HasColumnName("result_submission_id");
 
@@ -236,11 +219,17 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("EmployeeId");
 
+                    b.HasIndex(new[] { "PerformanceEvaluationId" }, "ix_appeal_evaluation");
+
+                    b.HasIndex(new[] { "ResolvedBy" }, "ix_appeal_resolved_by");
+
                     b.HasIndex(new[] { "ResultSubmissionId" }, "ix_appeal_submission");
 
                     b.ToTable("appeal", null, t =>
                         {
                             t.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
+
+                            t.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
                         });
                 });
 
@@ -308,6 +297,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentCampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_campaign_id");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -327,12 +320,16 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("BusinessObjectiveId");
 
+                    b.HasIndex(new[] { "ParentCampaignId" }, "ix_business_campaign_parent");
+
                     b.HasIndex(new[] { "Code" }, "uq_business_campaign_code")
                         .IsUnique();
 
                     b.ToTable("business_campaign", null, t =>
                         {
                             t.HasCheckConstraint("ck_business_campaign_dates", "end_date >= start_date");
+
+                            t.HasCheckConstraint("ck_business_campaign_no_self_parent", "parent_campaign_id IS NULL OR parent_campaign_id <> id");
                         });
                 });
 
@@ -364,6 +361,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentObjectiveId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_objective_id");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -381,12 +382,16 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("business_objective_pkey");
 
+                    b.HasIndex(new[] { "ParentObjectiveId" }, "ix_business_objective_parent");
+
                     b.HasIndex(new[] { "Code" }, "uq_business_objective_code")
                         .IsUnique();
 
                     b.ToTable("business_objective", null, t =>
                         {
                             t.HasCheckConstraint("ck_business_objective_dates", "end_date >= start_date");
+
+                            t.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
                         });
                 });
 
@@ -655,6 +660,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("date")
                         .HasColumnName("effective_to");
 
+                    b.Property<Guid>("JobPositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_position_id");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -685,6 +694,9 @@ namespace G54.DAL.Migrations
                         .HasFilter("(status = 'ACTIVE'::evaluation_profile_status)");
 
                     b.HasIndex(new[] { "Code", "Version" }, "uq_evaluation_profile_code_version")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "JobPositionId", "EffectiveFrom" }, "uq_evaluation_profile_position_effective")
                         .IsUnique();
 
                     b.ToTable("evaluation_profile", null, t =>
@@ -801,14 +813,8 @@ namespace G54.DAL.Migrations
                         .HasColumnName("uploaded_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid>("UploadedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("uploaded_by");
-
                     b.HasKey("Id")
                         .HasName("evidence_pkey");
-
-                    b.HasIndex("UploadedBy");
 
                     b.HasIndex(new[] { "AppealId" }, "ix_evidence_appeal");
 
@@ -842,10 +848,6 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
-                    b.Property<Guid>("EvaluationProfileId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("evaluation_profile_id");
-
                     b.Property<DateTimeOffset>("LastSyncAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -870,8 +872,6 @@ namespace G54.DAL.Migrations
 
                     b.HasKey("Id")
                         .HasName("job_position_pkey");
-
-                    b.HasIndex("EvaluationProfileId");
 
                     b.HasIndex(new[] { "Code" }, "uq_job_position_code")
                         .IsUnique();
@@ -1011,6 +1011,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("ParentKpiGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_kpi_group_id");
+
                     b.Property<int>("Status")
                         .HasColumnType("kpi_status")
                         .HasColumnName("status");
@@ -1024,10 +1028,15 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("kpi_group_pkey");
 
+                    b.HasIndex(new[] { "ParentKpiGroupId" }, "ix_kpi_group_parent");
+
                     b.HasIndex(new[] { "Code" }, "uq_kpi_group_code")
                         .IsUnique();
 
-                    b.ToTable("kpi_group", (string)null);
+                    b.ToTable("kpi_group", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_kpi_group_no_self_parent", "parent_kpi_group_id IS NULL OR parent_kpi_group_id <> id");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ObjectiveKpi", b =>
@@ -1119,6 +1128,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("actual_denominator");
 
+                    b.Property<Guid?>("ActualProgressId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actual_progress_id");
+
                     b.Property<decimal?>("ActualValue")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
@@ -1137,25 +1150,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("evaluation_period_id");
 
-                    b.Property<Guid?>("EvaluationProfileItemId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("evaluation_profile_item_id");
-
-                    b.Property<Guid?>("KpiDefinitionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("kpi_definition_id");
-
-                    b.Property<Guid?>("ParentContributionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("parent_contribution_id");
-
-                    b.Property<Guid>("PerformanceEvaluationId")
+                    b.Property<Guid?>("PerformanceEvaluationId")
                         .HasColumnType("uuid")
                         .HasColumnName("performance_evaluation_id");
 
-                    b.Property<Guid?>("TargetAssignmentId")
+                    b.Property<Guid?>("RiskEventId")
                         .HasColumnType("uuid")
-                        .HasColumnName("target_assignment_id");
+                        .HasColumnName("risk_event_id");
 
                     b.Property<decimal?>("TargetValueSnapshot")
                         .HasPrecision(18, 4)
@@ -1180,27 +1181,16 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("performance_contribution_pkey");
 
-                    b.HasIndex("EmployeeId");
-
                     b.HasIndex("EvaluationPeriodId");
 
-                    b.HasIndex("EvaluationProfileItemId");
+                    b.HasIndex(new[] { "EmployeeId", "EvaluationPeriodId" }, "ix_performance_contribution_employee_period");
 
-                    b.HasIndex("KpiDefinitionId");
+                    b.HasIndex(new[] { "PerformanceEvaluationId" }, "ix_performance_contribution_evaluation");
 
-                    b.HasIndex("PerformanceEvaluationId", "EmployeeId", "EvaluationPeriodId");
+                    b.HasIndex(new[] { "ActualProgressId" }, "ix_performance_contribution_progress");
 
-                    b.HasIndex(new[] { "ParentContributionId" }, "ix_performance_contribution_parent");
-
-                    b.HasIndex(new[] { "TargetAssignmentId" }, "ix_performance_contribution_target");
-
-                    b.HasIndex(new[] { "PerformanceEvaluationId", "EvaluationProfileItemId" }, "uq_performance_contribution_group")
-                        .IsUnique()
-                        .HasFilter("(evaluation_profile_item_id IS NOT NULL)");
-
-                    b.HasIndex(new[] { "PerformanceEvaluationId", "KpiDefinitionId" }, "uq_performance_contribution_kpi")
-                        .IsUnique()
-                        .HasFilter("(kpi_definition_id IS NOT NULL)");
+                    b.HasIndex(new[] { "RiskEventId" }, "uq_performance_contribution_risk_event")
+                        .IsUnique();
 
                     b.ToTable("performance_contribution", null, t =>
                         {
@@ -1211,12 +1201,6 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_performance_contribution_capped_not_above_raw", "achievement_percent_raw IS NULL OR achievement_percent_capped IS NULL OR achievement_percent_capped <= achievement_percent_raw");
 
                             t.HasCheckConstraint("ck_performance_contribution_denominator", "actual_denominator IS NULL OR actual_denominator > 0");
-
-                            t.HasCheckConstraint("ck_performance_contribution_group_level", "evaluation_profile_item_id IS NULL\r\n            OR (\r\n                parent_contribution_id IS NULL\r\n                AND target_assignment_id IS NULL\r\n                AND target_value_snapshot IS NULL\r\n                AND actual_value IS NULL\r\n                AND weight_snapshot IS NOT NULL\r\n                AND weight_snapshot > 0\r\n                AND weight_snapshot <= 100\r\n            )");
-
-                            t.HasCheckConstraint("ck_performance_contribution_kind", "(kpi_definition_id IS NOT NULL) <> (evaluation_profile_item_id IS NOT NULL)");
-
-                            t.HasCheckConstraint("ck_performance_contribution_kpi_level", "kpi_definition_id IS NULL\r\n            OR (\r\n                parent_contribution_id IS NOT NULL\r\n                AND target_assignment_id IS NOT NULL\r\n                AND target_value_snapshot IS NOT NULL\r\n                AND actual_value IS NOT NULL\r\n                AND weight_snapshot IS NULL\r\n            )");
 
                             t.HasCheckConstraint("ck_performance_contribution_target_version", "target_version_snapshot IS NULL OR target_version_snapshot > 0");
 
@@ -1256,9 +1240,9 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("evaluation_profile_id");
 
-                    b.Property<Guid?>("ReviewerEmployeeId")
+                    b.Property<Guid?>("ParentEvaluationId")
                         .HasColumnType("uuid")
-                        .HasColumnName("reviewer_employee_id");
+                        .HasColumnName("parent_evaluation_id");
 
                     b.Property<int>("Status")
                         .HasColumnType("performance_evaluation_status")
@@ -1278,7 +1262,7 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("performance_evaluation_pkey");
 
-                    b.HasIndex("ReviewerEmployeeId");
+                    b.HasIndex(new[] { "ParentEvaluationId" }, "ix_performance_evaluation_parent");
 
                     b.HasIndex(new[] { "EvaluationPeriodId" }, "ix_performance_evaluation_period");
 
@@ -1287,10 +1271,10 @@ namespace G54.DAL.Migrations
                     b.HasIndex(new[] { "EmployeeId", "EvaluationPeriodId" }, "uq_performance_evaluation")
                         .IsUnique();
 
-                    b.HasIndex(new[] { "Id", "EmployeeId", "EvaluationPeriodId" }, "uq_performance_evaluation_identity")
-                        .IsUnique();
-
-                    b.ToTable("performance_evaluation", (string)null);
+                    b.ToTable("performance_evaluation", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_performance_evaluation_no_self_parent", "parent_evaluation_id IS NULL OR parent_evaluation_id <> id");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.PermissionRecord", b =>
@@ -1389,16 +1373,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("work_id");
 
-                    b.Property<Guid?>("WorkflowDefinitionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("workflow_definition_id");
-
                     b.HasKey("Id")
                         .HasName("result_submission_pkey");
 
                     b.HasIndex("SubmitterEmployeeId");
-
-                    b.HasIndex("WorkflowDefinitionId");
 
                     b.HasIndex(new[] { "WorkId" }, "ix_result_submission_work");
 
@@ -1444,6 +1422,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by");
+
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("resolved_at");
@@ -1466,6 +1448,8 @@ namespace G54.DAL.Migrations
                         .HasName("risk_event_pkey");
 
                     b.HasIndex(new[] { "EmployeeId" }, "ix_risk_event_employee");
+
+                    b.HasIndex(new[] { "RecordedBy" }, "ix_risk_event_recorded_by");
 
                     b.HasIndex(new[] { "Code" }, "uq_risk_event_code")
                         .IsUnique();
@@ -1630,17 +1614,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("approved_at");
 
-                    b.Property<Guid?>("ApprovedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("approved_by");
-
                     b.Property<DateTimeOffset?>("AssignedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("assigned_at");
 
-                    b.Property<Guid?>("AssignedBy")
+                    b.Property<Guid?>("BusinessObjectiveId")
                         .HasColumnType("uuid")
-                        .HasColumnName("assigned_by");
+                        .HasColumnName("business_objective_id");
 
                     b.Property<string>("ChangeReason")
                         .HasColumnType("text")
@@ -1672,10 +1652,6 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("parent_assignment_id");
 
-                    b.Property<Guid?>("PreviousVersionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("previous_version_id");
-
                     b.Property<int?>("SplitDimension")
                         .HasColumnType("target_split_dimension")
                         .HasColumnName("split_dimension");
@@ -1704,17 +1680,13 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("target_assignment_pkey");
 
-                    b.HasIndex("ApprovedBy");
-
-                    b.HasIndex("AssignedBy");
-
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("EmployeeId");
 
-                    b.HasIndex("PreviousVersionId");
-
                     b.HasIndex(new[] { "KpiDefinitionId" }, "ix_target_assignment_kpi");
+
+                    b.HasIndex(new[] { "BusinessObjectiveId" }, "ix_target_assignment_objective");
 
                     b.HasIndex(new[] { "ParentAssignmentId" }, "ix_target_assignment_parent");
 
@@ -1749,8 +1721,6 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_target_assignment_value", "target_value >= 0");
 
                             t.HasCheckConstraint("ck_target_assignment_version", "version > 0");
-
-                            t.HasCheckConstraint("ck_target_assignment_version_link", "(version = 1 AND previous_version_id IS NULL)\r\n            OR\r\n            (version > 1 AND previous_version_id IS NOT NULL)");
                         });
                 });
 
@@ -1765,6 +1735,10 @@ namespace G54.DAL.Migrations
                     b.Property<DateTimeOffset?>("AcceptedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("accepted_at");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by");
 
                     b.Property<Guid>("FromEmployeeId")
                         .HasColumnType("uuid")
@@ -1805,6 +1779,8 @@ namespace G54.DAL.Migrations
                     b.HasIndex("FromEmployeeId");
 
                     b.HasIndex("ToEmployeeId");
+
+                    b.HasIndex(new[] { "ApprovedBy" }, "ix_task_handover_approved_by");
 
                     b.HasIndex(new[] { "WorkId" }, "ix_task_handover_work");
 
@@ -1919,10 +1895,6 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("invalidated_at");
 
-                    b.Property<Guid?>("InvalidatedByRiskEventId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("invalidated_by_risk_event_id");
-
                     b.Property<int>("Status")
                         .HasColumnType("verified_result_status")
                         .HasColumnName("status");
@@ -1945,9 +1917,6 @@ namespace G54.DAL.Migrations
                         .HasName("verified_work_result_pkey");
 
                     b.HasIndex(new[] { "Status" }, "ix_verified_work_result_status");
-
-                    b.HasIndex(new[] { "InvalidatedByRiskEventId" }, "uq_verified_work_result_risk_event")
-                        .IsUnique();
 
                     b.HasIndex(new[] { "VerificationId" }, "uq_verified_work_result_verification")
                         .IsUnique();
@@ -1980,6 +1949,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
 
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
@@ -1988,6 +1961,10 @@ namespace G54.DAL.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("estimated_hours");
+
+                    b.Property<Guid?>("ParentWorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_work_id");
 
                     b.Property<DateOnly?>("PlannedEndDate")
                         .HasColumnType("date")
@@ -2028,6 +2005,10 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "BusinessCampaignId" }, "ix_work_campaign");
 
+                    b.HasIndex(new[] { "CreatedBy" }, "ix_work_created_by");
+
+                    b.HasIndex(new[] { "ParentWorkId" }, "ix_work_parent");
+
                     b.HasIndex(new[] { "WorkTypeId" }, "ix_work_work_type");
 
                     b.HasIndex(new[] { "Code" }, "uq_work_code")
@@ -2036,6 +2017,8 @@ namespace G54.DAL.Migrations
                     b.ToTable("work", null, t =>
                         {
                             t.HasCheckConstraint("ck_work_estimated_hours", "estimated_hours IS NULL OR estimated_hours >= 0");
+
+                            t.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
 
                             t.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
                         });
@@ -2049,14 +2032,18 @@ namespace G54.DAL.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid>("ActualProgressId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actual_progress_id");
+
                     b.Property<decimal?>("Denominator")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("denominator");
 
-                    b.Property<Guid>("KpiDefinitionId")
+                    b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
-                        .HasColumnName("kpi_definition_id");
+                        .HasColumnName("employee_id");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -2076,11 +2063,13 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("work_result_item_pkey");
 
-                    b.HasIndex(new[] { "KpiDefinitionId" }, "ix_work_result_item_kpi");
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_work_result_item_employee");
+
+                    b.HasIndex(new[] { "ActualProgressId" }, "ix_work_result_item_progress");
 
                     b.HasIndex(new[] { "VerifiedWorkResultId" }, "ix_work_result_item_result");
 
-                    b.HasIndex(new[] { "VerifiedWorkResultId", "KpiDefinitionId" }, "uq_work_result_item_kpi")
+                    b.HasIndex(new[] { "VerifiedWorkResultId", "ActualProgressId", "EmployeeId" }, "uq_work_result_item_progress_employee")
                         .IsUnique();
 
                     b.ToTable("work_result_item", null, t =>
@@ -2125,14 +2114,8 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid>("WorkflowDefinitionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("workflow_definition_id");
-
                     b.HasKey("Id")
                         .HasName("work_type_pkey");
-
-                    b.HasIndex("WorkflowDefinitionId");
 
                     b.HasIndex(new[] { "Code" }, "uq_work_type_code")
                         .IsUnique();
@@ -2192,58 +2175,6 @@ namespace G54.DAL.Migrations
                         });
                 });
 
-            modelBuilder.Entity("G54.DAL.Entities.WorkflowDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("code");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("workflow_definition_status")
-                        .HasColumnName("status");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<int>("Version")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasColumnName("version");
-
-                    b.HasKey("Id")
-                        .HasName("workflow_definition_pkey");
-
-                    b.HasIndex(new[] { "Code", "Version" }, "uq_workflow_definition_code_version")
-                        .IsUnique();
-
-                    b.ToTable("workflow_definition", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_workflow_definition_version", "version > 0");
-                        });
-                });
-
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
                 {
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
@@ -2258,48 +2189,14 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.ActualProgress", b =>
                 {
-                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                    b.HasOne("G54.DAL.Entities.TargetAssignment", "TargetAssignment")
                         .WithMany("ActualProgresses")
-                        .HasForeignKey("EmployeeId")
+                        .HasForeignKey("TargetAssignmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_actual_progress_employee");
+                        .HasConstraintName("fk_actual_progress_target");
 
-                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EvaluationPeriod")
-                        .WithMany("ActualProgresses")
-                        .HasForeignKey("EvaluationPeriodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_actual_progress_period");
-
-                    b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
-                        .WithMany("ActualProgresses")
-                        .HasForeignKey("KpiDefinitionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_actual_progress_kpi");
-
-                    b.HasOne("G54.DAL.Entities.PerformanceContribution", "PerformanceContribution")
-                        .WithMany("ActualProgresses")
-                        .HasForeignKey("PerformanceContributionId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_actual_progress_contribution");
-
-                    b.HasOne("G54.DAL.Entities.WorkResultItem", "SourceItem")
-                        .WithOne("ActualProgress")
-                        .HasForeignKey("G54.DAL.Entities.ActualProgress", "SourceItemId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_actual_progress_source_item");
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("EvaluationPeriod");
-
-                    b.Navigation("KpiDefinition");
-
-                    b.Navigation("PerformanceContribution");
-
-                    b.Navigation("SourceItem");
+                    b.Navigation("TargetAssignment");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Appeal", b =>
@@ -2311,14 +2208,29 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_appeal_employee");
 
+                    b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "PerformanceEvaluation")
+                        .WithMany("Appeals")
+                        .HasForeignKey("PerformanceEvaluationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_appeal_evaluation");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "ResolvedByNavigation")
+                        .WithMany("AppealResolvedByNavigations")
+                        .HasForeignKey("ResolvedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_appeal_resolved_by");
+
                     b.HasOne("G54.DAL.Entities.ResultSubmission", "ResultSubmission")
                         .WithMany("Appeals")
                         .HasForeignKey("ResultSubmissionId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_appeal_submission");
 
                     b.Navigation("Employee");
+
+                    b.Navigation("PerformanceEvaluation");
+
+                    b.Navigation("ResolvedByNavigation");
 
                     b.Navigation("ResultSubmission");
                 });
@@ -2342,7 +2254,26 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_business_campaign_objective");
 
+                    b.HasOne("G54.DAL.Entities.BusinessCampaign", "ParentCampaign")
+                        .WithMany("InverseParentCampaign")
+                        .HasForeignKey("ParentCampaignId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_business_campaign_parent");
+
                     b.Navigation("BusinessObjective");
+
+                    b.Navigation("ParentCampaign");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.BusinessObjective", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.BusinessObjective", "ParentObjective")
+                        .WithMany("InverseParentObjective")
+                        .HasForeignKey("ParentObjectiveId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_business_objective_parent");
+
+                    b.Navigation("ParentObjective");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.CampaignWorkType", b =>
@@ -2417,6 +2348,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("ParentPeriod");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.EvaluationProfile", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.JobPosition", "JobPosition")
+                        .WithMany("EvaluationProfiles")
+                        .HasForeignKey("JobPositionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_profile_job_position");
+
+                    b.Navigation("JobPosition");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.EvaluationProfileItem", b =>
                 {
                     b.HasOne("G54.DAL.Entities.EvaluationProfile", "EvaluationProfile")
@@ -2458,32 +2401,11 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_evidence_risk_event");
 
-                    b.HasOne("G54.DAL.Entities.Employee", "UploadedByNavigation")
-                        .WithMany("Evidences")
-                        .HasForeignKey("UploadedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_evidence_uploader");
-
                     b.Navigation("Appeal");
 
                     b.Navigation("ResultSubmission");
 
                     b.Navigation("RiskEvent");
-
-                    b.Navigation("UploadedByNavigation");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
-                {
-                    b.HasOne("G54.DAL.Entities.EvaluationProfile", "EvaluationProfile")
-                        .WithMany("JobPositions")
-                        .HasForeignKey("EvaluationProfileId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_job_position_evaluation_profile");
-
-                    b.Navigation("EvaluationProfile");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.JobPositionWorkType", b =>
@@ -2517,6 +2439,17 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_kpi_definition_group");
 
                     b.Navigation("KpiGroup");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.KpiGroup", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.KpiGroup", "ParentKpiGroup")
+                        .WithMany("InverseParentKpiGroup")
+                        .HasForeignKey("ParentKpiGroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kpi_group_parent");
+
+                    b.Navigation("ParentKpiGroup");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ObjectiveKpi", b =>
@@ -2563,6 +2496,12 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.PerformanceContribution", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.ActualProgress", "ActualProgress")
+                        .WithMany("PerformanceContributions")
+                        .HasForeignKey("ActualProgressId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_performance_contribution_progress");
+
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
                         .WithMany("PerformanceContributions")
                         .HasForeignKey("EmployeeId")
@@ -2577,60 +2516,27 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_performance_contribution_period");
 
-                    b.HasOne("G54.DAL.Entities.EvaluationProfileItem", "EvaluationProfileItem")
-                        .WithMany("PerformanceContributions")
-                        .HasForeignKey("EvaluationProfileItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_performance_contribution_profile_item");
-
-                    b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
-                        .WithMany("PerformanceContributions")
-                        .HasForeignKey("KpiDefinitionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_performance_contribution_kpi");
-
-                    b.HasOne("G54.DAL.Entities.PerformanceContribution", "ParentContribution")
-                        .WithMany("InverseParentContribution")
-                        .HasForeignKey("ParentContributionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .HasConstraintName("fk_performance_contribution_parent");
-
                     b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "PerformanceEvaluation")
-                        .WithMany("PerformanceContributionPerformanceEvaluations")
+                        .WithMany("PerformanceContributions")
                         .HasForeignKey("PerformanceEvaluationId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
                         .HasConstraintName("fk_performance_contribution_evaluation");
 
-                    b.HasOne("G54.DAL.Entities.TargetAssignment", "TargetAssignment")
-                        .WithMany("PerformanceContributions")
-                        .HasForeignKey("TargetAssignmentId")
+                    b.HasOne("G54.DAL.Entities.RiskEvent", "RiskEvent")
+                        .WithOne("PerformanceContribution")
+                        .HasForeignKey("G54.DAL.Entities.PerformanceContribution", "RiskEventId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_performance_contribution_target");
+                        .HasConstraintName("fk_performance_contribution_risk_event");
 
-                    b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "PerformanceEvaluationNavigation")
-                        .WithMany("PerformanceContributionPerformanceEvaluationNavigations")
-                        .HasForeignKey("PerformanceEvaluationId", "EmployeeId", "EvaluationPeriodId")
-                        .HasPrincipalKey("Id", "EmployeeId", "EvaluationPeriodId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_performance_contribution_evaluation_identity");
+                    b.Navigation("ActualProgress");
 
                     b.Navigation("Employee");
 
                     b.Navigation("EvaluationPeriod");
 
-                    b.Navigation("EvaluationProfileItem");
-
-                    b.Navigation("KpiDefinition");
-
-                    b.Navigation("ParentContribution");
-
                     b.Navigation("PerformanceEvaluation");
 
-                    b.Navigation("PerformanceEvaluationNavigation");
-
-                    b.Navigation("TargetAssignment");
+                    b.Navigation("RiskEvent");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.PerformanceEvaluation", b =>
@@ -2656,11 +2562,11 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_performance_evaluation_profile");
 
-                    b.HasOne("G54.DAL.Entities.Employee", "ReviewerEmployee")
-                        .WithMany("PerformanceEvaluationReviewerEmployees")
-                        .HasForeignKey("ReviewerEmployeeId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_performance_evaluation_reviewer");
+                    b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "ParentEvaluation")
+                        .WithMany("InverseParentEvaluation")
+                        .HasForeignKey("ParentEvaluationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_performance_evaluation_parent");
 
                     b.Navigation("Employee");
 
@@ -2668,7 +2574,7 @@ namespace G54.DAL.Migrations
 
                     b.Navigation("EvaluationProfile");
 
-                    b.Navigation("ReviewerEmployee");
+                    b.Navigation("ParentEvaluation");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
@@ -2687,17 +2593,9 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_result_submission_work");
 
-                    b.HasOne("G54.DAL.Entities.WorkflowDefinition", "WorkflowDefinition")
-                        .WithMany("ResultSubmissions")
-                        .HasForeignKey("WorkflowDefinitionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_result_submission_workflow_definition");
-
                     b.Navigation("SubmitterEmployee");
 
                     b.Navigation("Work");
-
-                    b.Navigation("WorkflowDefinition");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RiskEvent", b =>
@@ -2709,7 +2607,16 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_risk_event_employee");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "RecordedByNavigation")
+                        .WithMany("RiskEventRecordedByNavigations")
+                        .HasForeignKey("RecordedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_risk_event_recorded_by");
+
                     b.Navigation("Employee");
+
+                    b.Navigation("RecordedByNavigation");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RolePermissionAssignment", b =>
@@ -2735,17 +2642,11 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
                 {
-                    b.HasOne("G54.DAL.Entities.Employee", "ApprovedByNavigation")
-                        .WithMany("TargetAssignmentApprovedByNavigations")
-                        .HasForeignKey("ApprovedBy")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_target_assignment_approved_by");
-
-                    b.HasOne("G54.DAL.Entities.Employee", "AssignedByNavigation")
-                        .WithMany("TargetAssignmentAssignedByNavigations")
-                        .HasForeignKey("AssignedBy")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_target_assignment_assigned_by");
+                    b.HasOne("G54.DAL.Entities.BusinessObjective", "BusinessObjective")
+                        .WithMany("TargetAssignments")
+                        .HasForeignKey("BusinessObjectiveId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_assignment_objective");
 
                     b.HasOne("G54.DAL.Entities.Department", "Department")
                         .WithMany("TargetAssignments")
@@ -2779,15 +2680,7 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_target_assignment_parent");
 
-                    b.HasOne("G54.DAL.Entities.TargetAssignment", "PreviousVersion")
-                        .WithMany("InversePreviousVersion")
-                        .HasForeignKey("PreviousVersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_target_assignment_previous_version");
-
-                    b.Navigation("ApprovedByNavigation");
-
-                    b.Navigation("AssignedByNavigation");
+                    b.Navigation("BusinessObjective");
 
                     b.Navigation("Department");
 
@@ -2798,12 +2691,16 @@ namespace G54.DAL.Migrations
                     b.Navigation("KpiDefinition");
 
                     b.Navigation("ParentAssignment");
-
-                    b.Navigation("PreviousVersion");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TaskHandover", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.Employee", "ApprovedByNavigation")
+                        .WithMany("TaskHandoverApprovedByNavigations")
+                        .HasForeignKey("ApprovedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_task_handover_approved_by");
+
                     b.HasOne("G54.DAL.Entities.Employee", "FromEmployee")
                         .WithMany("TaskHandoverFromEmployees")
                         .HasForeignKey("FromEmployeeId")
@@ -2824,6 +2721,8 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_task_handover_work");
+
+                    b.Navigation("ApprovedByNavigation");
 
                     b.Navigation("FromEmployee");
 
@@ -2876,20 +2775,12 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.VerifiedWorkResult", b =>
                 {
-                    b.HasOne("G54.DAL.Entities.RiskEvent", "InvalidatedByRiskEvent")
-                        .WithOne("VerifiedWorkResult")
-                        .HasForeignKey("G54.DAL.Entities.VerifiedWorkResult", "InvalidatedByRiskEventId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_verified_work_result_invalidator");
-
                     b.HasOne("G54.DAL.Entities.Verification", "Verification")
                         .WithOne("VerifiedWorkResult")
                         .HasForeignKey("G54.DAL.Entities.VerifiedWorkResult", "VerificationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_verified_work_result_verification");
-
-                    b.Navigation("InvalidatedByRiskEvent");
 
                     b.Navigation("Verification");
                 });
@@ -2909,6 +2800,19 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_work_campaign");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "CreatedByNavigation")
+                        .WithMany("WorkCreatedByNavigations")
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_created_by");
+
+                    b.HasOne("G54.DAL.Entities.Work", "ParentWork")
+                        .WithMany("InverseParentWork")
+                        .HasForeignKey("ParentWorkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_work_parent");
+
                     b.HasOne("G54.DAL.Entities.WorkType", "WorkType")
                         .WithMany("Works")
                         .HasForeignKey("WorkTypeId")
@@ -2919,17 +2823,28 @@ namespace G54.DAL.Migrations
 
                     b.Navigation("BusinessCampaign");
 
+                    b.Navigation("CreatedByNavigation");
+
+                    b.Navigation("ParentWork");
+
                     b.Navigation("WorkType");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.WorkResultItem", b =>
                 {
-                    b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
+                    b.HasOne("G54.DAL.Entities.ActualProgress", "ActualProgress")
                         .WithMany("WorkResultItems")
-                        .HasForeignKey("KpiDefinitionId")
+                        .HasForeignKey("ActualProgressId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_work_result_item_kpi");
+                        .HasConstraintName("fk_work_result_item_progress");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany("WorkResultItems")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_result_item_employee");
 
                     b.HasOne("G54.DAL.Entities.VerifiedWorkResult", "VerifiedWorkResult")
                         .WithMany("WorkResultItems")
@@ -2938,21 +2853,11 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_work_result_item_verified_result");
 
-                    b.Navigation("KpiDefinition");
+                    b.Navigation("ActualProgress");
+
+                    b.Navigation("Employee");
 
                     b.Navigation("VerifiedWorkResult");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.WorkType", b =>
-                {
-                    b.HasOne("G54.DAL.Entities.WorkflowDefinition", "WorkflowDefinition")
-                        .WithMany("WorkTypes")
-                        .HasForeignKey("WorkflowDefinitionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_work_type_workflow_definition");
-
-                    b.Navigation("WorkflowDefinition");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.WorkTypeKpi", b =>
@@ -2983,6 +2888,13 @@ namespace G54.DAL.Migrations
                     b.Navigation("UserRoles");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ActualProgress", b =>
+                {
+                    b.Navigation("PerformanceContributions");
+
+                    b.Navigation("WorkResultItems");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Appeal", b =>
                 {
                     b.Navigation("Evidences");
@@ -2991,6 +2903,8 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.BusinessCampaign", b =>
                 {
                     b.Navigation("CampaignWorkTypes");
+
+                    b.Navigation("InverseParentCampaign");
 
                     b.Navigation("Participants");
 
@@ -3001,7 +2915,11 @@ namespace G54.DAL.Migrations
                 {
                     b.Navigation("BusinessCampaigns");
 
+                    b.Navigation("InverseParentObjective");
+
                     b.Navigation("ObjectiveKpis");
+
+                    b.Navigation("TargetAssignments");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Department", b =>
@@ -3017,11 +2935,9 @@ namespace G54.DAL.Migrations
                 {
                     b.Navigation("Account");
 
-                    b.Navigation("ActualProgresses");
+                    b.Navigation("AppealResolvedByNavigations");
 
                     b.Navigation("Appeals");
-
-                    b.Navigation("Evidences");
 
                     b.Navigation("InverseManager");
 
@@ -3031,17 +2947,15 @@ namespace G54.DAL.Migrations
 
                     b.Navigation("PerformanceEvaluationEmployees");
 
-                    b.Navigation("PerformanceEvaluationReviewerEmployees");
-
                     b.Navigation("ResultSubmissions");
+
+                    b.Navigation("RiskEventRecordedByNavigations");
 
                     b.Navigation("RiskEvents");
 
-                    b.Navigation("TargetAssignmentApprovedByNavigations");
-
-                    b.Navigation("TargetAssignmentAssignedByNavigations");
-
                     b.Navigation("TargetAssignmentEmployees");
+
+                    b.Navigation("TaskHandoverApprovedByNavigations");
 
                     b.Navigation("TaskHandoverFromEmployees");
 
@@ -3049,13 +2963,15 @@ namespace G54.DAL.Migrations
 
                     b.Navigation("Verifications");
 
+                    b.Navigation("WorkCreatedByNavigations");
+
+                    b.Navigation("WorkResultItems");
+
                     b.Navigation("Works");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.EvaluationPeriod", b =>
                 {
-                    b.Navigation("ActualProgresses");
-
                     b.Navigation("InverseParentPeriod");
 
                     b.Navigation("PerformanceContributions");
@@ -3069,34 +2985,23 @@ namespace G54.DAL.Migrations
                 {
                     b.Navigation("EvaluationProfileItems");
 
-                    b.Navigation("JobPositions");
-
                     b.Navigation("PerformanceEvaluations");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.EvaluationProfileItem", b =>
-                {
-                    b.Navigation("PerformanceContributions");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
                 {
                     b.Navigation("Employees");
 
+                    b.Navigation("EvaluationProfiles");
+
                     b.Navigation("JobPositionWorkTypes");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.KpiDefinition", b =>
                 {
-                    b.Navigation("ActualProgresses");
-
                     b.Navigation("ObjectiveKpis");
 
-                    b.Navigation("PerformanceContributions");
-
                     b.Navigation("TargetAssignments");
-
-                    b.Navigation("WorkResultItems");
 
                     b.Navigation("WorkTypeKpis");
                 });
@@ -3105,21 +3010,18 @@ namespace G54.DAL.Migrations
                 {
                     b.Navigation("EvaluationProfileItems");
 
+                    b.Navigation("InverseParentKpiGroup");
+
                     b.Navigation("KpiDefinitions");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.PerformanceContribution", b =>
-                {
-                    b.Navigation("ActualProgresses");
-
-                    b.Navigation("InverseParentContribution");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.PerformanceEvaluation", b =>
                 {
-                    b.Navigation("PerformanceContributionPerformanceEvaluationNavigations");
+                    b.Navigation("Appeals");
 
-                    b.Navigation("PerformanceContributionPerformanceEvaluations");
+                    b.Navigation("InverseParentEvaluation");
+
+                    b.Navigation("PerformanceContributions");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.PermissionRecord", b =>
@@ -3140,7 +3042,7 @@ namespace G54.DAL.Migrations
                 {
                     b.Navigation("Evidences");
 
-                    b.Navigation("VerifiedWorkResult");
+                    b.Navigation("PerformanceContribution");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Role", b =>
@@ -3152,11 +3054,9 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
                 {
+                    b.Navigation("ActualProgresses");
+
                     b.Navigation("InverseParentAssignment");
-
-                    b.Navigation("InversePreviousVersion");
-
-                    b.Navigation("PerformanceContributions");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Verification", b =>
@@ -3171,14 +3071,11 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.Work", b =>
                 {
+                    b.Navigation("InverseParentWork");
+
                     b.Navigation("ResultSubmissions");
 
                     b.Navigation("TaskHandovers");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.WorkResultItem", b =>
-                {
-                    b.Navigation("ActualProgress");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.WorkType", b =>
@@ -3190,13 +3087,6 @@ namespace G54.DAL.Migrations
                     b.Navigation("WorkTypeKpis");
 
                     b.Navigation("Works");
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.WorkflowDefinition", b =>
-                {
-                    b.Navigation("ResultSubmissions");
-
-                    b.Navigation("WorkTypes");
                 });
 #pragma warning restore 612, 618
         }

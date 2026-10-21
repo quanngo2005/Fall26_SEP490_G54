@@ -7,11 +7,7 @@ public partial class ActualProgress
 {
     public Guid Id { get; set; }
 
-    public Guid KpiDefinitionId { get; set; }
-
-    public Guid EmployeeId { get; set; }
-
-    public Guid EvaluationPeriodId { get; set; }
+    public Guid TargetAssignmentId { get; set; }
 
     public DateOnly ProgressDate { get; set; }
 
@@ -19,21 +15,13 @@ public partial class ActualProgress
 
     public decimal? Denominator { get; set; }
 
-    public Guid? SourceItemId { get; set; }
-
-    public Guid? PerformanceContributionId { get; set; }
-
     public DateTimeOffset UpdatedAt { get; set; }
 
     public ActualProgressStatus Status { get; set; }
 
-    public virtual Employee Employee { get; set; } = null!;
+    public virtual ICollection<PerformanceContribution> PerformanceContributions { get; set; } = new List<PerformanceContribution>();
 
-    public virtual EvaluationPeriod EvaluationPeriod { get; set; } = null!;
+    public virtual TargetAssignment TargetAssignment { get; set; } = null!;
 
-    public virtual KpiDefinition KpiDefinition { get; set; } = null!;
-
-    public virtual PerformanceContribution? PerformanceContribution { get; set; }
-
-    public virtual WorkResultItem? SourceItem { get; set; }
+    public virtual ICollection<WorkResultItem> WorkResultItems { get; set; } = new List<WorkResultItem>();
 }

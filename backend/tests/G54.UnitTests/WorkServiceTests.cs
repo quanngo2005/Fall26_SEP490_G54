@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using G54.Api.Controllers;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -44,7 +45,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CARD",
                 Name = "Credit Card Issuance",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -70,7 +70,7 @@ public sealed class WorkServiceTests
                 EstimatedHours: 8.5m,
                 Description: "Mo the JCB");
 
-            var result = await service.CreateWorkAsync(request);
+            var result = await service.CreateWorkAsync(request, employee.Id);
 
             Assert.NotNull(result);
             Assert.StartsWith("WRK-", result.Code);
@@ -93,7 +93,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: Guid.NewGuid(),
                 AssigneeEmployeeId: Guid.NewGuid());
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -110,7 +110,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 20),
                 PlannedEndDate: new DateOnly(2026, 10, 10));
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -134,7 +134,6 @@ public sealed class WorkServiceTests
                 Code = "WT-INACTIVE",
                 Name = "Inactive Type",
                 Status = RecordStatus.Inactive,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
 
@@ -147,7 +146,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: inactiveWorkType.Id,
                 AssigneeEmployeeId: employee.Id);
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -163,7 +162,6 @@ public sealed class WorkServiceTests
                 Code = "WT-LOAN",
                 Name = "Personal Loan",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var inactiveEmployee = new Employee
@@ -184,7 +182,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: workType.Id,
                 AssigneeEmployeeId: inactiveEmployee.Id);
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -200,7 +198,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP",
                 Name = "Campaign Task Type",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -233,7 +230,7 @@ public sealed class WorkServiceTests
                 AssigneeEmployeeId: employee.Id,
                 BusinessCampaignId: campaign.Id);
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request));
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
             Assert.Contains("Participant", ex.Message);
         }
     }
@@ -250,7 +247,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP-2",
                 Name = "Campaign Task Type 2",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -293,7 +289,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 10),
                 PlannedEndDate: new DateOnly(2026, 10, 25)); // Exceeds 2026-10-20
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request));
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
             Assert.Equal(ErrorCodes.MSG18, ex.ErrorCode);
         }
     }
@@ -310,7 +306,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP-OK",
                 Name = "Campaign OK",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -353,7 +348,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 10),
                 PlannedEndDate: new DateOnly(2026, 10, 25));
 
-            var result = await service.CreateWorkAsync(request);
+            var result = await service.CreateWorkAsync(request, employee.Id);
 
             Assert.NotNull(result);
             Assert.Equal("Chien dich hop le", result.BusinessCampaignName);
@@ -373,7 +368,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CTRL",
                 Name = "Controller Test",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -393,7 +387,11 @@ public sealed class WorkServiceTests
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-ctrl-test" },
+                    HttpContext = new DefaultHttpContext
+                    {
+                        TraceIdentifier = "trace-ctrl-test",
+                        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", employee.Id.ToString())], "test")),
+                    },
                 },
             };
 

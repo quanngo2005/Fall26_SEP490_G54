@@ -6,7 +6,6 @@ namespace G54.BLL.Services;
 public interface IWorkTypeService
 {
     Task<List<KpiOptionDto>> GetActiveKpisAsync(CancellationToken cancellationToken = default);
-    Task<List<WorkflowOptionDto>> GetWorkflowsAsync(CancellationToken cancellationToken = default);
     Task<WorkTypeDetailDto> CreateWorkTypeAsync(CreateWorkTypeDto dto, CancellationToken cancellationToken = default);
     Task<PagedResult<WorkTypeDetailDto>> GetWorkTypesAsync(WorkTypeFilterDto filter, CancellationToken cancellationToken = default);
     Task<WorkTypeDetailDto?> GetWorkTypeByIdAsync(Guid id, CancellationToken cancellationToken = default);

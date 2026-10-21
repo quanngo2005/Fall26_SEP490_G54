@@ -14,8 +14,6 @@ describe('WorkTypeService', () => {
     code: 'HUY_DONG',
     name: 'Huy động tiền gửi',
     description: null,
-    workflowDefinitionId: 'wf1',
-    workflowName: 'Quy trình 2 cấp',
     status: 'ARCHIVED',
     createdAt: '2026-10-01T00:00:00+00:00',
     kpis: [],

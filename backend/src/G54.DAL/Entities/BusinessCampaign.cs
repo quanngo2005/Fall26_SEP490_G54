@@ -9,6 +9,8 @@ public partial class BusinessCampaign
 
     public Guid BusinessObjectiveId { get; set; }
 
+    public Guid? ParentCampaignId { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string Name { get; set; } = null!;
@@ -26,6 +28,10 @@ public partial class BusinessCampaign
     public virtual BusinessObjective BusinessObjective { get; set; } = null!;
 
     public virtual ICollection<CampaignWorkType> CampaignWorkTypes { get; set; } = new List<CampaignWorkType>();
+
+    public virtual ICollection<BusinessCampaign> InverseParentCampaign { get; set; } = new List<BusinessCampaign>();
+
+    public virtual BusinessCampaign? ParentCampaign { get; set; }
 
     public virtual ICollection<Participant> Participants { get; set; } = new List<Participant>();
 

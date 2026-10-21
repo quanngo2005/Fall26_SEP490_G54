@@ -408,11 +408,11 @@ public sealed class DepartmentServiceTests
                 Id = Guid.NewGuid(),
                 Code = "POS",
                 Title = "Sales",
-                EvaluationProfileId = profile.Id,
                 Status = RecordStatus.Active,
                 LastSyncAt = Clock,
                 UpdatedAt = Clock,
             };
+            profile.JobPositionId = position.Id;
             Db.EvaluationProfiles.Add(profile);
             Db.JobPositions.Add(position);
 
@@ -430,13 +430,12 @@ public sealed class DepartmentServiceTests
             Db.Accounts.Add(Account(AdminAccount, e1.Id));
 
             var salesType = WorkType("SALES", "Sales");
-            Db.WorkTypes.Add(salesType.Type);
-            Db.WorkflowDefinitions.Add(salesType.Workflow);
+            Db.WorkTypes.Add(salesType);
 
             var today = DateOnly.FromDateTime(Clock.UtcDateTime);
-            var w1 = Work("W1", e1.Id, WorkStatus.New, today.AddDays(10), salesType.Type.Id);
-            var w2 = Work("W2", e1.Id, WorkStatus.InProgress, today.AddDays(-2), salesType.Type.Id); // overdue
-            var w3 = Work("W3", e2.Id, WorkStatus.InProgress, today.AddDays(5), salesType.Type.Id);
+            var w1 = Work("W1", e1.Id, WorkStatus.New, today.AddDays(10), salesType.Id);
+            var w2 = Work("W2", e1.Id, WorkStatus.InProgress, today.AddDays(-2), salesType.Id); // overdue
+            var w3 = Work("W3", e2.Id, WorkStatus.InProgress, today.AddDays(5), salesType.Id);
             var w4 = Work("W4", e2.Id, WorkStatus.Rejected, null, null);
             var w5 = Work("W5", e2.Id, WorkStatus.Done, null, null, updated: Clock.AddDays(-3)); // completed this month
             var w6 = Work("W6", e2.Id, WorkStatus.Cancelled, null, null);
@@ -535,26 +534,16 @@ public sealed class DepartmentServiceTests
             UpdatedAt = Clock,
         };
 
-        private (WorkType Type, WorkflowDefinition Workflow) WorkType(string code, string name)
+        private WorkType WorkType(string code, string name)
         {
-            var workflow = new WorkflowDefinition
-            {
-                Id = Guid.NewGuid(),
-                Code = $"WF-{code}",
-                Name = "WF",
-                Version = 1,
-                UpdatedAt = Clock,
-                Status = WorkflowDefinitionStatus.Active,
-            };
-            return (new WorkType
+            return new WorkType
             {
                 Id = Guid.NewGuid(),
                 Code = code,
                 Name = name,
-                WorkflowDefinitionId = workflow.Id,
                 UpdatedAt = Clock,
                 Status = RecordStatus.Active,
-            }, workflow);
+            };
         }
 
         private Work Work(string code, Guid assignee, WorkStatus status, DateOnly? end, Guid? workTypeId, DateTimeOffset? updated = null) => new()
@@ -563,6 +552,7 @@ public sealed class DepartmentServiceTests
             Code = code,
             Title = code,
             AssigneeEmployeeId = assignee,
+            CreatedBy = assignee,
             Status = status,
             Priority = WorkPriority.Medium,
             PlannedEndDate = end,
@@ -622,13 +612,37 @@ public sealed class DepartmentServiceTests
                 UpdatedAt = Clock,
             };
 
+        private readonly Dictionary<(Guid Kpi, Guid Employee, Guid Period), TargetAssignment> _employeeTargets = [];
+
+        // Progress hangs off an employee-level target; one per KPI/employee/period, like real data.
+        private TargetAssignment EmployeeTarget(KpiDefinition kpi, Employee employee, EvaluationPeriod period)
+        {
+            var key = (kpi.Id, employee.Id, period.Id);
+            if (!_employeeTargets.TryGetValue(key, out var target))
+            {
+                target = new TargetAssignment
+                {
+                    Id = Guid.NewGuid(),
+                    KpiDefinitionId = kpi.Id,
+                    EmployeeId = employee.Id,
+                    EvaluationPeriodId = period.Id,
+                    Version = 1,
+                    TargetValue = 0,
+                    Status = TargetAssignmentStatus.Active,
+                    CreatedAt = Clock,
+                    UpdatedAt = Clock,
+                };
+                _employeeTargets[key] = target;
+            }
+
+            return target;
+        }
+
         private ActualProgress Progress(
             KpiDefinition kpi, Employee employee, EvaluationPeriod period, DateOnly date, decimal value, ActualProgressStatus status) => new()
             {
                 Id = Guid.NewGuid(),
-                KpiDefinitionId = kpi.Id,
-                EmployeeId = employee.Id,
-                EvaluationPeriodId = period.Id,
+                TargetAssignment = EmployeeTarget(kpi, employee, period),
                 ProgressDate = date,
                 Value = value,
                 Status = status,

@@ -57,11 +57,11 @@ public sealed class EmployeeServiceTests
             Id = Guid.NewGuid(),
             Code = "POS-DEV",
             Title = "Senior Backend Engineer",
-            EvaluationProfileId = evaluationProfile.Id,
             Status = RecordStatus.Active,
             LastSyncAt = now,
             UpdatedAt = now,
         };
+        evaluationProfile.JobPositionId = position.Id;
 
         await context.Departments.AddAsync(dept);
         await context.JobPositions.AddAsync(position);
@@ -762,6 +762,7 @@ public sealed class EmployeeServiceTests
                 Code = "W-001",
                 Title = "Important Task",
                 AssigneeEmployeeId = employee.Id,
+                CreatedBy = employee.Id,
                 Status = WorkStatus.InProgress,
                 Priority = WorkPriority.High,
                 UpdatedAt = now,

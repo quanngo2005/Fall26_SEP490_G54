@@ -18,8 +18,6 @@ const workType: WorkTypeDetail = {
   code: 'HUY_DONG',
   name: 'Huy động tiền gửi',
   description: null,
-  workflowDefinitionId: '5eed0000-0000-0000-000d-000000000001',
-  workflowName: 'Quy trình huy động',
   status: 'ACTIVE',
   createdAt: '2026-01-01T00:00:00+00:00',
   kpis: [

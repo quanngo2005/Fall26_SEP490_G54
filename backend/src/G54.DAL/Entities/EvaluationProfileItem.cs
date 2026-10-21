@@ -21,5 +21,4 @@ public partial class EvaluationProfileItem
 
     public virtual KpiGroup KpiGroup { get; set; } = null!;
 
-    public virtual ICollection<PerformanceContribution> PerformanceContributions { get; set; } = new List<PerformanceContribution>();
 }
