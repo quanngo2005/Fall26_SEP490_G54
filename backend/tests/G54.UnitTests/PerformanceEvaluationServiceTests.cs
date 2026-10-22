@@ -21,7 +21,7 @@ public sealed class PerformanceEvaluationServiceTests
     // ----- Calculation ----------------------------------------------------------------------
 
     [Fact]
-    public async Task Calculate_WhenFormulaReturnsNoScores_StoresSnapshotsAndLeavesScoresNull()
+    public async Task Calculate_StoresSnapshotsAndScoresFromTheRealFormula()
     {
         using var world = await World.CreateAsync();
         var target = world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
@@ -31,12 +31,12 @@ public sealed class PerformanceEvaluationServiceTests
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        Assert.Null(dto.TotalScore);
-        Assert.Equal("DRAFT", dto.Status);
-        Assert.Null(dto.CalculatedAt);
+        Assert.Equal(28m, dto.TotalScore);
+        Assert.Equal("CALCULATED", dto.Status);
+        Assert.Equal(Now, dto.CalculatedAt);
         var group = Assert.Single(dto.Groups);
         Assert.Equal(70m, group.WeightPercent);
-        Assert.Null(group.ComponentScore);
+        Assert.Equal(40m, group.ComponentScore);
         var kpi = Assert.Single(group.Kpis);
         Assert.Equal(world.KpiSum.Id, kpi.KpiDefinitionId);
         Assert.Equal(target.Id, kpi.TargetAssignmentId);
@@ -44,21 +44,25 @@ public sealed class PerformanceEvaluationServiceTests
         Assert.Equal(1, kpi.TargetVersion);
         Assert.Equal(40m, kpi.ActualValue);
         Assert.Null(kpi.ActualDenominator);
-        Assert.Null(kpi.AchievementPercentRaw);
-        Assert.Null(kpi.AchievementPercentCapped);
-        Assert.Null(kpi.ComponentScore);
+        Assert.Equal(40m, kpi.AchievementPercentRaw);
+        Assert.Equal(40m, kpi.AchievementPercentCapped);
+        Assert.Equal(40m, kpi.ComponentScore);
 
         var row = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
         Assert.Equal(kpi.ContributionId, row.Id);
         Assert.Equal(latest.Id, row.ActualProgressId);
         Assert.Equal(70m, row.WeightSnapshot);
+        Assert.Equal(40m, row.AchievementPercentRaw);
+        Assert.Equal(40m, row.AchievementPercentCapped);
+        Assert.Equal(40m, row.ComponentScore);
         Assert.Equal(world.Employee.Id, row.EmployeeId);
         Assert.Equal(world.Period.Id, row.EvaluationPeriodId);
         Assert.Null(row.RiskEventId);
 
         var stored = await world.Db.PerformanceEvaluations.AsNoTracking().SingleAsync();
-        Assert.Null(stored.TotalScore);
-        Assert.Equal(PerformanceEvaluationStatus.Draft, stored.Status);
+        Assert.Equal(28m, stored.TotalScore);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, stored.Status);
+        Assert.Equal(Now, stored.CalculatedAt);
     }
 
     [Fact]
@@ -184,6 +188,104 @@ public sealed class PerformanceEvaluationServiceTests
         var avg = Assert.Single(kpis, k => k.KpiDefinitionId == world.KpiAvg.Id);
         Assert.Equal(4.5m, avg.ActualValue);
         Assert.Null(avg.ActualDenominator);
+    }
+
+    // ----- Task weight ----------------------------------------------------------------------
+
+    [Fact]
+    public async Task Calculate_CountsEachVerifiedResultAtItsTaskWeight()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiSum, 30m, null, Day10);
+        world.AddWeightedResult(progress, 10m, 1.5m);
+        world.AddWeightedResult(progress, 20m, 1m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
+        Assert.Equal(35m, kpi.ActualValue);
+        Assert.Equal(35m, kpi.AchievementPercentRaw);
+        var row = await world.Db.PerformanceContributions.AsNoTracking().SingleAsync();
+        Assert.Equal(35m, row.ActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_WithADefaultTaskWeight_LeavesTheProgressUnchanged()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiSum, 30m, null, Day10);
+        world.AddWeightedResult(progress, 30m, 1m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        Assert.Equal(30m, Assert.Single(Assert.Single(dto.Groups).Kpis).ActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_AppliesTheTaskWeightAcrossDays()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        var first = world.AddProgress(world.KpiSum, 10m, null, Day10);
+        var second = world.AddProgress(world.KpiSum, 10m, null, Day11);
+        world.AddWeightedResult(first, 10m, 2m);
+        world.AddWeightedResult(second, 10m, 0.5m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        Assert.Equal(25m, Assert.Single(Assert.Single(dto.Groups).Kpis).ActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_IgnoresTheWeightOfAnInvalidatedResult()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiSum, 30m, null, Day10);
+        world.AddWeightedResult(progress, 10m, 3m, VerifiedResultStatus.Invalid);
+        world.AddWeightedResult(progress, 20m, 1m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        Assert.Equal(30m, Assert.Single(Assert.Single(dto.Groups).Kpis).ActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_DoesNotApplyTheWeightOfAnotherEmployeesResult()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        var own = world.AddProgress(world.KpiSum, 10m, null, Day10);
+        var others = world.AddProgress(world.KpiSum, 50m, null, Day11, owner: world.OtherEmployee);
+        world.AddWeightedResult(own, 10m, 2m);
+        world.AddWeightedResult(others, 50m, 4m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        Assert.Equal(20m, Assert.Single(Assert.Single(dto.Groups).Kpis).ActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_ScoresAWeightedResultAgainstTheTarget()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 40m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiSum, 20m, null, Day10);
+        world.AddWeightedResult(progress, 20m, 1.5m);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
+        Assert.Equal(75m, kpi.AchievementPercentRaw);
+        Assert.Equal(52.5m, dto.TotalScore);
     }
 
     [Fact]
@@ -732,6 +834,74 @@ public sealed class PerformanceEvaluationServiceTests
             };
             Db.ActualProgresses.Add(progress);
             return progress;
+        }
+
+        /// <summary>
+        /// A verified result item that fed the given progress row, as verification records it.
+        /// The progress row keeps the unweighted sum; the weight lives on the item.
+        /// </summary>
+        public WorkResultItem AddWeightedResult(
+            ActualProgress progress,
+            decimal value,
+            decimal taskWeight,
+            VerifiedResultStatus resultStatus = VerifiedResultStatus.Valid)
+        {
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = $"W-{Guid.NewGuid():N}"[..12],
+                Title = "Work",
+                AssigneeEmployeeId = Employee.Id,
+                CreatedBy = Employee.Id,
+                Status = WorkStatus.Verified,
+                Priority = WorkPriority.Medium,
+                UpdatedAt = Now,
+            };
+            var submission = new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                SubmitterEmployeeId = Employee.Id,
+                SubmissionNo = 1,
+                Status = SubmissionStatus.Approved,
+                SubmittedAt = Now,
+                UpdatedAt = Now,
+            };
+            var verification = new Verification
+            {
+                Id = Guid.NewGuid(),
+                ResultSubmissionId = submission.Id,
+                VerifierEmployeeId = Manager.Id,
+                RoundNo = 1,
+                Decision = VerificationDecision.Approved,
+                VerifiedAt = Now,
+                UpdatedAt = Now,
+            };
+            var result = new VerifiedWorkResult
+            {
+                Id = Guid.NewGuid(),
+                VerificationId = verification.Id,
+                VerifiedAt = Now,
+                Status = resultStatus,
+                UpdatedAt = Now,
+            };
+            var item = new WorkResultItem
+            {
+                Id = Guid.NewGuid(),
+                VerifiedWorkResultId = result.Id,
+                ActualProgressId = progress.Id,
+                EmployeeId = Employee.Id,
+                Value = value,
+                TaskWeight = taskWeight,
+                UpdatedAt = Now,
+            };
+
+            Db.Works.Add(work);
+            Db.ResultSubmissions.Add(submission);
+            Db.Verifications.Add(verification);
+            Db.VerifiedWorkResults.Add(result);
+            Db.WorkResultItems.Add(item);
+            return item;
         }
 
         public void Dispose() => Db.Dispose();

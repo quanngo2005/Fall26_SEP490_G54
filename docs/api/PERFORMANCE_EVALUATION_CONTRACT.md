@@ -43,19 +43,46 @@ Recalculation is allowed: calling the endpoint again refreshes the same contribu
    `SUM` = sum of values, `AVG` = average of values, `RATIO` = sum of values (`actualValue`) over
    sum of denominators (`actualDenominator`). The `AVG` actual is rounded to 4 decimals with banker's
    rounding. A KPI without data is not stored (`null` is N/A, never `0`).
+   Each verified result counts at its task weight: a progress row stores the unweighted sum of its results,
+   so the value used is the row value plus, for every `VALID` result item of the row,
+   `work_result_item.value × (task_weight − 1)`. Items of an invalidated result, and of progress rows that are
+   not `VALID`, are left out. `work_result_item.task_weight` is `numeric(8,4)`, greater than 0, default `1`;
+   a result verified without a weight therefore counts as it is. A row's value is never reduced below 0.
 5. Write one `performance_contribution` per KPI with a target and data (target, actual and group weight
    snapshots), linked to the KPI's latest progress row through `actual_progress_id`. Group scores are
    computed on every calculation and are not stored. Contributions linked to a risk event are left untouched.
 6. Score through `IPerformanceScoreFormula` (KPI → group → total) and round every score to 4 decimals with
    banker's rounding (`MidpointRounding.ToEven`).
 
-**The score formula is waiting for confirmation.** Until it is confirmed, the formula returns
-`null` for every score: contributions are persisted with their target/actual snapshots,
-`achievementPercentRaw`, `achievementPercentCapped` and `componentScore` are `null`, and the evaluation
-has `totalScore = null`, `calculatedAt = null` and `status = DRAFT`. With a defined total the
-evaluation becomes `CALCULATED` with `calculatedAt` set. The stored score always reflects the latest
+### Score formula
+
+For one KPI, with `target` and the weighted `actual` from step 4 (for a `RATIO` KPI the actual is
+`actualValue / actualDenominator`, multiplied by 100 when the unit is `%`):
+
+| `direction` | `achievementPercentRaw` |
+| --- | --- |
+| `HIGHER_BETTER` | `actual / target × 100` |
+| `LOWER_BETTER` | `target / actual × 100`; with an actual of 0 it is the KPI's `maxAchievementPercent`, or 100 when there is none |
+| `ON_TARGET` | `100 − |actual − target| / target × 100` |
+
+- The raw value is never below 0.
+- `achievementPercentCapped` is the raw value limited by the KPI's `maxAchievementPercent` when it is set,
+  otherwise it equals the raw value. It is never above the raw value.
+- The KPI's `componentScore` is `achievementPercentCapped`.
+- A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`).
+- A group's score is the mean of the scores of its KPIs that have one; a group without a scored KPI has none.
+- `totalScore` is the sum over scored groups of `group score × weightPercent / 100`. Groups without a score
+  add nothing. With no scored group the total is `null`.
+- Every score is rounded to 4 decimals with banker's rounding (`MidpointRounding.ToEven`).
+
+With a total the evaluation becomes `CALCULATED` with `calculatedAt` set; without one it keeps
+`totalScore = null`, `calculatedAt = null` and `status = DRAFT`. The stored score always reflects the latest
 calculation: when a recalculation cannot determine a total, a previous score is cleared and the status
 returns to `DRAFT`.
+
+Limits: the task weight is stored on the verified result item but verification does not accept one yet, so
+every result is counted at the default weight `1` until the verification contract carries it.
+Risk-event penalties are not part of this calculation.
 
 ### Success — 200
 
@@ -71,9 +98,9 @@ returns to `DRAFT`.
     "employeeId": "5eed0000-0000-0000-0007-000000000004",
     "evaluationPeriodId": "5eed0000-0000-0000-000f-000000000003",
     "evaluationProfileId": "5eed0000-0000-0000-0002-000000000001",
-    "totalScore": null,
-    "status": "DRAFT",
-    "calculatedAt": null,
+    "totalScore": 12.4445,
+    "status": "CALCULATED",
+    "calculatedAt": "2026-10-21T04:10:00+00:00",
     "updatedAt": "2026-10-21T04:10:00+00:00",
     "groups": [
       {
@@ -82,7 +109,7 @@ returns to `DRAFT`.
         "kpiGroupCode": "KD",
         "kpiGroupName": "Kinh doanh",
         "weightPercent": 70.0,
-        "componentScore": null,
+        "componentScore": 17.7778,
         "kpis": [
           {
             "contributionId": "3d1c52b8-2a7b-43f4-8a8f-0e7c2c6d9b02",
@@ -95,9 +122,9 @@ returns to `DRAFT`.
             "targetVersion": 1,
             "actualValue": 40.0,
             "actualDenominator": null,
-            "achievementPercentRaw": null,
-            "achievementPercentCapped": null,
-            "componentScore": null
+            "achievementPercentRaw": 17.7778,
+            "achievementPercentCapped": 17.7778,
+            "componentScore": 17.7778
           }
         ]
       }
