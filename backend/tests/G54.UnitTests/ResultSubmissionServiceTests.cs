@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using G54.Api.Controllers;
@@ -44,7 +45,7 @@ public sealed class ResultSubmissionServiceTests
             .Build();
 
         var storage = new StorageService(config, NullLogger<StorageService>.Instance);
-        var validator = new WorkSubmissionValidator(uow);
+        var validator = new WorkSubmissionValidator(uow, TimeProvider.System);
         var cache = new MemoryDistributedCache();
         var bus = new EventBus(cache, NullLogger<EventBus>.Instance);
 
@@ -53,7 +54,8 @@ public sealed class ResultSubmissionServiceTests
             storage,
             validator,
             bus,
-            NullLogger<ResultSubmissionService>.Instance);
+            NullLogger<ResultSubmissionService>.Instance,
+            TimeProvider.System);
 
         return (context, uow, service, storage, bus);
     }
@@ -205,6 +207,42 @@ public sealed class ResultSubmissionServiceTests
             Assert.True(reqKpi.IsRequired);
             Assert.Equal("KPI-CARD-01", reqKpi.Code);
             Assert.NotEmpty(result.AllowedFileTypes);
+        }
+    }
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Theory]
+    [InlineData("2026-10-21T16:59:59+00:00", 0)] // 23:59:59 on 21/10 in Vietnam: a KPI effective from 22/10 is not active yet
+    [InlineData("2026-10-21T17:00:00+00:00", 1)] // 00:00:00 on 22/10 in Vietnam: it is active from the start of the day
+    public async Task GetSubmissionContextAsync_KpiEffectiveFromTomorrow_UsesTheVietnamCalendarDay(string utcNow, int expectedKpis)
+    {
+        var (context, uow, _, storage, bus) = CreateTestEnvironment();
+        using (context)
+        {
+            var time = new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture));
+            var service = new ResultSubmissionService(
+                uow,
+                storage,
+                new WorkSubmissionValidator(uow, time),
+                bus,
+                NullLogger<ResultSubmissionService>.Instance,
+                time);
+            var (assignee, _, work, _, _) = await SeedWorkContextAsync(context);
+
+            foreach (var kpi in context.WorkTypeKpis)
+            {
+                kpi.EffectiveFrom = new DateOnly(2026, 10, 22);
+            }
+
+            await context.SaveChangesAsync();
+
+            var result = await service.GetSubmissionContextAsync(work.Id, assignee.Id);
+
+            Assert.Equal(expectedKpis == 0 ? 0 : 2, result.KpiCriteria.Count);
         }
     }
 
@@ -439,6 +477,30 @@ public sealed class ResultSubmissionServiceTests
             Assert.Equal(ErrorCodes.SubmissionInvalidState, ex.ErrorCode);
             Assert.Equal(409, ex.StatusCode);
             Assert.Contains("SUBMITTED", ex.Message);
+        }
+    }
+
+    [Theory]
+    [InlineData(WorkStatus.New)]
+    [InlineData(WorkStatus.Overdue)]
+    [InlineData(WorkStatus.Rejected)]
+    public async Task CreateSubmissionAsync_WorkAllowedByStateMachine_MovesWorkToSubmitted(WorkStatus startStatus)
+    {
+        var (context, _, service, _, _) = CreateTestEnvironment();
+        using (context)
+        {
+            var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context, startStatus);
+
+            var request = new CreateWorkSubmissionRequestDto
+            {
+                Comment = "Nop tu trang thai " + startStatus,
+                MetricItems = new List<SubmissionMetricInputDto> { new(kpi1.Id, 10m, null) },
+            };
+
+            await service.CreateSubmissionAsync(work.Id, assignee.Id, request);
+
+            var updatedWork = await context.Works.FindAsync(work.Id);
+            Assert.Equal(WorkStatus.Submitted, updatedWork!.Status);
         }
     }
 

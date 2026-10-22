@@ -17,7 +17,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chiá
 ### Enforced Business Rules (BRs):
 - **BR-02 (Maker-Checker Segregation):** Branch Manager reviews and approves campaign plans independently from Department Manager creators.
 - **BR-08 (KPI Contribution Idempotency):** Every generated task receives an immutable unique UUID and `TSK-` code, ensuring distinct single-event traceability.
-- **BR-11 (Server Time Authority):** Task deadlines and campaign periods are anchored to the authoritative Server UTC time.
+- **BR-11 (Server Time Authority):** Task deadlines and campaign periods are anchored to the authoritative server time. Date-only checks (campaign approval against `endDate`, the date in generated `TSK-` codes) use the Vietnam calendar day (UTC+7).
 - **BR-12 / BR-12a (Lead Pools & Grace Period):** Campaigns serve as lead distribution pools. Work results submitted within deadlines or grace periods trace back to campaign leads.
 - **BR-24 (100% Campaign Allocation Balance):** Campaign target allocations across participants must sum to 100%.
 - **BR-25 (7-Day Campaign Lead Exclusivity):** Generated batch tasks record 7-day exclusive access for the assigned employee before being eligible for handover or revocation.

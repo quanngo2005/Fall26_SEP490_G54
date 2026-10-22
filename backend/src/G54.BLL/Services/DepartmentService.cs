@@ -19,12 +19,7 @@ public sealed partial class DepartmentService(
     private const int BranchScopeLevel = 3;
     private const int AllScopeLevel = 4;
 
-    private static readonly Expression<Func<Work, bool>> IsOpenWork = w =>
-        w.Status == WorkStatus.New
-        || w.Status == WorkStatus.InProgress
-        || w.Status == WorkStatus.HandedOver
-        || w.Status == WorkStatus.Submitted
-        || w.Status == WorkStatus.Rejected;
+    private static readonly Expression<Func<Work, bool>> IsOpenWork = w => WorkStatusGroups.Open.Contains(w.Status);
 
     public async Task<PagedResult<DepartmentSummaryDto>> GetDepartmentsAsync(
         Guid accountId,
@@ -385,7 +380,7 @@ public sealed partial class DepartmentService(
             var start = new DateTimeOffset(period.StartDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var endExclusive = new DateTimeOffset(period.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             completed = await db.Works.AsNoTracking()
-                .Where(w => (w.Status == WorkStatus.Done || w.Status == WorkStatus.Verified)
+                .Where(w => WorkStatusGroups.Completed.Contains(w.Status)
                     && subtree.Contains(w.AssigneeEmployee.DepartmentId)
                     && w.UpdatedAt >= start
                     && w.UpdatedAt < endExclusive)
@@ -394,7 +389,7 @@ public sealed partial class DepartmentService(
 
         return new DepartmentOperationalDto(
             works.Count(w => w.Status == WorkStatus.New),
-            works.Count(w => w.Status is WorkStatus.InProgress or WorkStatus.HandedOver),
+            works.Count(w => w.Status is WorkStatus.InProgress or WorkStatus.HandedOver or WorkStatus.Overdue),
             works.Count(w => IsOverdue(w, today)),
             null,
             completed);
@@ -722,10 +717,11 @@ public sealed partial class DepartmentService(
     private static TEnum? ParseEnum<TEnum>(string? value, string field)
         where TEnum : struct, Enum => EnumApiFormat.ParseEnum<TEnum>(value, field);
 
-    private DateOnly Today() => DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+    private DateOnly Today() => time.GetBusinessToday();
 
     private static bool IsOverdue(OpenWorkRow work, DateOnly today) =>
-        work.PlannedEndDate.HasValue && work.PlannedEndDate.Value < today;
+        work.Status == WorkStatus.Overdue
+        || (work.PlannedEndDate.HasValue && work.PlannedEndDate.Value < today);
 
     private static bool IsAttention(OpenWorkRow work, DateOnly today) =>
         work.Status == WorkStatus.Rejected || IsOverdue(work, today);

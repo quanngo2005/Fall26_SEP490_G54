@@ -1,4 +1,5 @@
 using System.Text.Json;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Dtos.Submission;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork) : IWorkSubmissionValidator
+public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork, TimeProvider time) : IWorkSubmissionValidator
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -44,7 +45,7 @@ public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork) : IWorkSubmi
         // 2. Validate KPI criteria if work belongs to a WorkType
         if (work.WorkTypeId.HasValue)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = time.GetBusinessToday();
             var activeWorkTypeKpis = await unitOfWork.WorkTypeKpis.Query()
                 .Include(wtk => wtk.KpiDefinition)
                 .Where(wtk => wtk.WorkTypeId == work.WorkTypeId.Value

@@ -29,6 +29,17 @@ public sealed class ApiRouteContractTests
     }
 
     [Fact]
+    public void WorksController_ExposesPatchStatusSubresource()
+    {
+        var action = typeof(WorksController).GetMethod(nameof(WorksController.ChangeWorkStatus));
+        Assert.NotNull(action);
+
+        var patch = action.GetCustomAttribute<HttpPatchAttribute>();
+        Assert.NotNull(patch);
+        Assert.Equal("{id:guid}/status", patch.Template);
+    }
+
+    [Fact]
     public void ControllerActionsDoNotReintroduceApiOrVersionPrefixes()
     {
         var controllers = typeof(AuthController).Assembly.GetTypes()

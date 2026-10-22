@@ -17,7 +17,8 @@ public sealed partial class ResultSubmissionService(
     IStorageService storageService,
     IWorkSubmissionValidator validator,
     IEventBus eventBus,
-    ILogger<ResultSubmissionService> logger) : IResultSubmissionService
+    ILogger<ResultSubmissionService> logger,
+    TimeProvider time) : IResultSubmissionService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -56,7 +57,7 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Bạn không phải là người được phân công thực hiện công việc này.");
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = time.GetBusinessToday();
         var kpiCriteria = new List<SubmissionKpiCriteriaDto>();
 
         if (work.WorkTypeId.HasValue)
@@ -128,7 +129,7 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Chỉ người được giao việc mới có quyền nộp báo cáo kết quả.");
         }
 
-        if (work.Status is WorkStatus.Submitted or WorkStatus.Verified or WorkStatus.Done or WorkStatus.Cancelled)
+        if (!WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Submit, out var workStatusAfterSubmit))
         {
             throw new ConflictException(
                 $"Công việc đang ở trạng thái {work.Status.ToEnumString()}, không thể nộp kết quả.",
@@ -196,7 +197,7 @@ public sealed partial class ResultSubmissionService(
                 if (workToUpdate is not null)
                 {
                     var fromState = workToUpdate.Status;
-                    workToUpdate.Status = WorkStatus.Submitted;
+                    workToUpdate.Status = workStatusAfterSubmit;
                     workToUpdate.UpdatedAt = DateTimeOffset.UtcNow;
                     unitOfWork.Works.Update(workToUpdate);
 
@@ -205,7 +206,7 @@ public sealed partial class ResultSubmissionService(
                         workToUpdate.Code,
                         workToUpdate.Id,
                         fromState,
-                        WorkStatus.Submitted,
+                        workStatusAfterSubmit,
                         employee.Id,
                         null);
                 }
@@ -412,11 +413,18 @@ public sealed partial class ResultSubmissionService(
             throw new NotFoundException("Công việc", submission.WorkId);
         }
 
+        if (!WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Reopen, out var workStatusAfterWithdraw))
+        {
+            throw new ConflictException(
+                $"Công việc đang ở trạng thái {work.Status.ToEnumString()}, không thể thu hồi báo cáo.",
+                ErrorCodes.SubmissionInvalidState);
+        }
+
         submission.Status = statusAfterWithdraw;
         submission.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.ResultSubmissions.Update(submission);
 
-        work.Status = WorkStatus.InProgress;
+        work.Status = workStatusAfterWithdraw;
         work.UpdatedAt = DateTimeOffset.UtcNow;
         unitOfWork.Works.Update(work);
 
