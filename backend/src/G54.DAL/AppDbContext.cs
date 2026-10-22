@@ -1553,6 +1553,7 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                 table.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
+                table.HasCheckConstraint("ck_work_result_item_task_weight", "task_weight > 0");
             });
 
             entity.HasIndex(e => e.ActualProgressId, "ix_work_result_item_progress");
@@ -1571,6 +1572,10 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(18, 4)
                 .HasColumnName("denominator");
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.TaskWeight)
+                .HasPrecision(8, 4)
+                .HasDefaultValue(1m)
+                .HasColumnName("task_weight");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

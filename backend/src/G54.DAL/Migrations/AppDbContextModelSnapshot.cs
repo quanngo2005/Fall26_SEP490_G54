@@ -2045,6 +2045,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
 
+                    b.Property<decimal>("TaskWeight")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)")
+                        .HasDefaultValue(1m)
+                        .HasColumnName("task_weight");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2075,6 +2082,8 @@ namespace G54.DAL.Migrations
                     b.ToTable("work_result_item", null, t =>
                         {
                             t.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
+
+                            t.HasCheckConstraint("ck_work_result_item_task_weight", "task_weight > 0");
 
                             t.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                         });

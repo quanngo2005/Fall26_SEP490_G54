@@ -309,21 +309,44 @@ public sealed class PerformanceEvaluationService(
     // ----- Actual progress ------------------------------------------------------------------
 
     /// <summary>
-    /// Valid progress recorded against the evaluated employee's own targets within the period.
-    /// Progress rows are written when results are verified, so calculation only reads them.
+    /// Valid progress recorded against the evaluated employee's own targets within the period, with each
+    /// verified result counted at its task weight. Progress rows are written when results are verified,
+    /// so calculation only reads them.
     /// </summary>
     private async Task<List<ProgressRow>> LoadProgressRowsAsync(
         PerformanceEvaluation evaluation,
         CancellationToken cancellationToken)
     {
         var period = evaluation.EvaluationPeriod;
-        return await db.ActualProgresses.AsNoTracking()
+        var rows = await db.ActualProgresses.AsNoTracking()
             .Where(a => a.TargetAssignment.EmployeeId == evaluation.EmployeeId
                 && a.Status == ActualProgressStatus.Valid
                 && a.ProgressDate >= period.StartDate
                 && a.ProgressDate <= period.EndDate)
             .Select(a => new ProgressRow(a.Id, a.TargetAssignment.KpiDefinitionId, a.ProgressDate, a.Value, a.Denominator))
             .ToListAsync(cancellationToken);
+
+        // A progress row stores the unweighted sum of its verified results, so the weight is applied as the
+        // difference each weighted result adds on top of it. Results that were invalidated are left out.
+        var adjustments = await db.WorkResultItems.AsNoTracking()
+            .Where(i => i.TaskWeight != 1m
+                && i.VerifiedWorkResult.Status == VerifiedResultStatus.Valid
+                && i.ActualProgress.Status == ActualProgressStatus.Valid
+                && i.ActualProgress.TargetAssignment.EmployeeId == evaluation.EmployeeId
+                && i.ActualProgress.ProgressDate >= period.StartDate
+                && i.ActualProgress.ProgressDate <= period.EndDate)
+            .Select(i => new { i.ActualProgressId, Adjustment = i.Value * (i.TaskWeight - 1m) })
+            .ToListAsync(cancellationToken);
+
+        var adjustmentByProgress = adjustments
+            .GroupBy(a => a.ActualProgressId)
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.Adjustment));
+
+        return rows
+            .Select(r => adjustmentByProgress.TryGetValue(r.ProgressId, out var adjustment)
+                ? r with { Value = Math.Max(r.Value + adjustment, 0m) }
+                : r)
+            .ToList();
     }
 
     // ----- Targets & aggregation ------------------------------------------------------------
