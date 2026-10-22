@@ -33,6 +33,7 @@ Nguồn tham chiếu quy ước chung: `docs/api/API_CONVENTIONS.md`.
 |---|---|---|---|
 | `POST` | `/works` | `[Authorize]` (Mọi tài khoản đã xác thực) | Khởi tạo và phân công công việc mới |
 | `GET` | `/works/{id}` | `[Authorize]` (Mọi tài khoản đã xác thực) | Lấy thông tin chi tiết công việc theo Id |
+| `PATCH` | `/works/{id}/status` | `[Authorize]` + kiểm tra assignee / quản lý trực tiếp tại service | Chuyển trạng thái công việc theo máy trạng thái (mục 7) |
 
 ---
 
@@ -50,7 +51,7 @@ Khởi tạo một công việc mới trong hệ thống và giao cho nhân viê
 | `workTypeId` | `string (uuid)` | **Có** | Phải tồn tại và đang `Active` | Không | Id loại công việc. Nếu không tồn tại hoặc inactive sẽ trả về lỗi 400 (`VALIDATION_ERROR`). |
 | `assigneeEmployeeId` | `string (uuid)` | **Có** | Phải tồn tại và đang `Active` | Không | Id nhân viên được giao việc. Nếu có `businessCampaignId` thì nhân viên phải là Participant của campaign đó. Nếu không thỏa mãn trả 400 (`VALIDATION_ERROR`). |
 | `priority` | `string` | Không | `Low`, `Medium`, `High`, `Critical`, hoặc alias `P1`, `P2` | `"Medium"` | Mức độ ưu tiên (không phân biệt hoa/thường). `P1`/`Critical` -> Critical; `P2`/`High` -> High; `Low` -> Low; mọi giá trị khác được âm thầm đưa về `Medium`. |
-| `plannedStartDate` | `string (date)` | Không | Định dạng `YYYY-MM-DD` | Ngày hiện tại (UTC) | Ngày dự kiến bắt đầu công việc. |
+| `plannedStartDate` | `string (date)` | Không | Định dạng `YYYY-MM-DD` | Ngày hiện tại theo giờ Việt Nam (UTC+7) | Ngày dự kiến bắt đầu công việc. |
 | `plannedEndDate` | `string (date)` | Không | Định dạng `YYYY-MM-DD` | `null` | Hạn hoàn thành dự kiến. Không được nhỏ hơn `plannedStartDate`. Nếu có chiến dịch thì không được vượt quá `endDate` của chiến dịch. |
 | `estimatedHours` | `number (decimal)` | Không | Từ `0` đến `9999.99` | `null` | Số giờ ước tính hoàn thành công việc. Không được âm. |
 | `businessCampaignId` | `string (uuid)` | Không | Phải tồn tại và ở trạng thái `Running` hoặc `Planned` | `null` | Id chiến dịch kinh doanh liên kết. Nếu truyền Id không tồn tại sẽ trả về lỗi 404 (`NOT_FOUND`). |
@@ -234,16 +235,56 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
 }
 ```
 
+### 3.3. `PATCH /works/{id}/status` - Chuyển trạng thái công việc
+
+Chuyển trạng thái thủ công của công việc theo máy trạng thái (xem mục 7). Chỉ các trạng thái đích **`InProgress`**, **`Done`**, **`Cancelled`** được phép đặt thủ công. `Submitted`, `Verified`, `Rejected` do luồng nộp/thẩm định kết quả cập nhật; `Overdue` do tiến trình nền cập nhật; `HandedOver` do luồng bàn giao cập nhật.
+
+#### Quyền thực hiện (kiểm tra ở service)
+
+| Trạng thái đích | Người được phép |
+|---|---|
+| `InProgress` | Nhân viên được giao việc (`assigneeEmployeeId`) |
+| `Done`, `Cancelled` | Quản lý trực tiếp của nhân viên được giao việc (`manager` của assignee) |
+
+Người dùng khác nhận 403 (`FORBIDDEN`).
+
+#### Request Body (`WorkStatusDto`)
+
+| Tên trường | Kiểu dữ liệu | Bắt buộc | Ràng buộc | Ghi chú |
+|---|---|---|---|---|
+| `status` | `string` | **Có** | `InProgress`, `Done`, `Cancelled` (không phân biệt hoa/thường; chấp nhận cả `IN_PROGRESS`) | Trạng thái đích. |
+| `reason` | `string` | Không | Tối đa 500 ký tự | Bắt buộc khi `status` là `Cancelled`. |
+
+```json
+{
+  "status": "InProgress"
+}
+```
+
+#### Response Thành công (`200 OK`)
+
+`data` là `WorkDetailDto` (xem mục 4) với `status` và `updatedAt` mới. Định dạng `status` trong response giữ nguyên **PascalCase** như `GET /works/{id}`.
+
+#### Các mã lỗi
+
+| HTTP Status | errorCode | Trường hợp |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | `status` thiếu / không hợp lệ / là trạng thái chỉ hệ thống được đặt; `reason` thiếu khi hủy hoặc quá 500 ký tự |
+| 401 | `UNAUTHORIZED` | Thiếu hoặc sai token |
+| 403 | `FORBIDDEN` | Người gọi không phải assignee (đích `InProgress`) hoặc không phải quản lý trực tiếp của assignee (đích `Done`/`Cancelled`) |
+| 404 | `NOT_FOUND` | Không tìm thấy công việc |
+| 409 | `WORK_INVALID_STATE` | Trạng thái hiện tại không cho phép chuyển sang trạng thái đích (kể cả khi đích trùng trạng thái hiện tại) |
+
 ---
 
 ## 4. Mô hình Dữ liệu Chi tiết (`WorkDetailDto`)
 
-Đối tượng `data` trong response của `POST /works` và `GET /works/{id}` gồm 17 trường:
+Đối tượng `data` trong response của `POST /works` và `GET /works/{id}` gồm 17 trường (cũng là `data` của `PATCH /works/{id}/status`):
 
 | Tên trường | Kiểu dữ liệu | Nullable | Mô tả |
 |---|---|---|---|
 | `id` | `string (uuid)` | Không | Id định danh duy nhất của công việc. |
-| `code` | `string` | Không | Mã công việc do hệ thống sinh tự động (`WRK-yyyyMMdd-####`). |
+| `code` | `string` | Không | Mã công việc do hệ thống sinh tự động (`WRK-yyyyMMdd-####`, `yyyyMMdd` là ngày hiện tại theo giờ Việt Nam, UTC+7). |
 | `title` | `string` | Không | Tiêu đề công việc. |
 | `description` | `string` | Có | Nội dung mô tả chi tiết công việc. |
 | `workTypeId` | `string (uuid)` | Có | Id loại công việc liên kết. |
@@ -254,7 +295,7 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
 | `assigneeEmployeeName` | `string` | Có | Họ và tên nhân viên được phân công. |
 | `assigneeEmployeeCode` | `string` | Có | Mã nhân viên được phân công (ví dụ: `EMP001`). |
 | `priority` | `string` | Không | Mức độ ưu tiên, định dạng **PascalCase**: `Low`, `Medium`, `High`, `Critical`. |
-| `status` | `string` | Không | Trạng thái công việc, định dạng **PascalCase**: `New`, `InProgress`, `HandedOver`, `Submitted`, `Verified`, `Rejected`, `Done`, `Cancelled`. Khi khởi tạo luôn là `New`. |
+| `status` | `string` | Không | Trạng thái công việc, định dạng **PascalCase**: `New`, `InProgress`, `HandedOver`, `Submitted`, `Verified`, `Rejected`, `Overdue`, `Done`, `Cancelled`. Khi khởi tạo luôn là `New`. Xem máy trạng thái ở mục 7. |
 | `plannedStartDate` | `string (date)` | Có | Ngày bắt đầu dự kiến (`YYYY-MM-DD`). |
 | `plannedEndDate` | `string (date)` | Có | Hạn hoàn thành dự kiến (`YYYY-MM-DD`). |
 | `estimatedHours` | `number (decimal)` | Có | Số giờ ước tính hoàn thành công việc. |
@@ -274,6 +315,7 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
 | 403 | `FORBIDDEN` | JwtBearer `OnForbidden` (`Program.cs`) | Người dùng không có quyền truy cập endpoint | `"Bạn không có quyền thực hiện thao tác này."` *(Hiện tại controller chỉ có `[Authorize]`, chưa có policy/permission nên thực tế không xuất hiện trong luồng chuẩn).* |
 | 404 | `NOT_FOUND` | `NotFoundException` (`WorkService`) | **POST /works**: `businessCampaignId` truyền lên không tồn tại trong hệ thống | `"Chiến dịch với khóa '{id}' không tồn tại."` |
 | 404 | `NOT_FOUND` | `WorksController.GetById` | **GET /works/{id}**: Không tìm thấy công việc với Id yêu cầu | `"Không tìm thấy công việc yêu cầu."` |
+| 409 | `WORK_INVALID_STATE` | `ConflictException` (`WorkService`) | **PATCH /works/{id}/status** (và các luồng nộp/thẩm định/quá hạn): chuyển trạng thái không nằm trong bảng ở mục 7.2 | `Không thể chuyển công việc từ trạng thái {from} sang {to}.` |
 | 500 | `INTERNAL_ERROR` | `GlobalExceptionHandler` | Lỗi ngoại lệ hệ thống không được xử lý | `"An unexpected error occurred. Contact support with the request trace identifier."` |
 
 ---
@@ -287,3 +329,64 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
 5. **Ràng buộc `[Required]` với `Guid.Empty`**: Thuộc tính `[Required]` của DataAnnotations coi `Guid.Empty` (`00000000-0000-0000-0000-000000000000`) là giá trị hợp lệ. Tuy nhiên khi vào service, câu truy vấn tìm kiếm theo `Guid.Empty` sẽ không tìm thấy bản ghi và ném ra lỗi 400 (`VALIDATION_ERROR`).
 6. **Không tìm thấy WorkType hoặc Assignee trả 400, không phải 404**: Khác với chiến dịch (`businessCampaignId` không tồn tại trả 404), khi `workTypeId` hoặc `assigneeEmployeeId` không tồn tại (hoặc không ở trạng thái Active), service ném `ValidationException` dẫn tới mã HTTP trả về là **400** (`VALIDATION_ERROR`).
 7. **`MSG18` dùng chung cho 2 trường hợp**: Mã lỗi `MSG18` được dùng cho cả trường hợp chiến dịch không hoạt động lẫn trường hợp hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch.
+
+---
+
+## 7. Máy Trạng thái Công việc (Work State Machine)
+
+Nguồn chân lý duy nhất là `WorkStateMachine` (`G54.BLL/Common/Workflow`), cùng kiểu với `SubmissionStateMachine`: máy chỉ trả lời "hành động `WorkAction` này từ trạng thái hiện tại dẫn tới trạng thái nào" qua `TryGetNextStatus`; service gọi máy rồi tự quyết định lỗi. Mọi service (`WorkService`, `ResultSubmissionService`, `VerificationService`, tiến trình quá hạn) đều phải đi qua máy này. `PATCH /works/{id}/status` chuyển trạng thái không hợp lệ trả 409 `WORK_INVALID_STATE`; nộp/thu hồi báo cáo trả 409 `SUBMISSION_INVALID_STATE`; thẩm định trả 409 `VERIFICATION_INVALID_STATE`.
+
+### 7.1. Trạng thái
+
+| Giá trị | Ý nghĩa | Loại |
+|---|---|---|
+| `New` | Mới giao, chưa bắt đầu | Mở |
+| `InProgress` | Đang thực hiện | Mở |
+| `HandedOver` | Đang bàn giao cho người khác | Mở |
+| `Submitted` | Đã nộp kết quả, chờ thẩm định | Mở |
+| `Rejected` | Kết quả bị từ chối, cần làm lại | Mở |
+| `Overdue` | Quá hạn (`plannedEndDate` &lt; ngày hiện tại theo giờ Việt Nam, UTC+7) mà chưa nộp | Mở |
+| `Verified` | Kết quả đã được thẩm định đạt | Mở |
+| `Done` | Hoàn tất | Kết thúc |
+| `Cancelled` | Đã hủy | Kết thúc |
+
+### 7.2. Bảng chuyển trạng thái
+
+| Từ | Sang (được phép) | Tác nhân |
+|---|---|---|
+| `New` | `InProgress`, `Submitted`, `HandedOver`, `Overdue`, `Cancelled` | Assignee / nộp kết quả / hệ thống / quản lý |
+| `InProgress` | `Submitted`, `HandedOver`, `Overdue`, `Cancelled`; `Verified`, `Rejected`, `InProgress` khi thẩm định lại sau yêu cầu bổ sung | Nộp kết quả / hệ thống / quản lý / thẩm định |
+| `HandedOver` | `InProgress`, `Overdue`, `Cancelled` | Assignee mới / hệ thống / quản lý |
+| `Submitted` | `Verified`, `Rejected`, `InProgress` | Thẩm định; `InProgress` do thu hồi báo cáo hoặc yêu cầu bổ sung |
+| `Rejected` | `InProgress`, `Submitted`, `Cancelled` | Assignee làm lại / nộp lại / quản lý |
+| `Overdue` | `Submitted`, `Cancelled` | Nộp trễ / quản lý (không thể quay lại `InProgress`, xem 7.3) |
+| `Verified` | `Done` | Quản lý |
+| `Done`, `Cancelled` | *(không có)* | Trạng thái kết thúc |
+
+`New -> Submitted` và `Rejected -> Submitted` được giữ lại để tương thích hành vi nộp kết quả hiện có (nộp trực tiếp, không cần bấm "bắt đầu").
+
+
+Cùng bảng trên, nhìn theo hành động (`WorkAction`, đúng như `WorkStateMachine` định nghĩa):
+
+| Hành động | Từ | Sang | Ai thực hiện |
+|---|---|---|---|
+| `Start` | `New`, `HandedOver`, `Rejected` | `InProgress` | Assignee (`PATCH`) |
+| `Submit` | `New`, `InProgress`, `Rejected`, `Overdue` | `Submitted` | Assignee (nộp kết quả) |
+| `Reopen` | `Submitted`, `InProgress` | `InProgress` | Assignee thu hồi báo cáo, hoặc người thẩm định yêu cầu bổ sung |
+| `Verify` | `Submitted`, `InProgress` | `Verified` | Người thẩm định |
+| `Reject` | `Submitted`, `InProgress` | `Rejected` | Người thẩm định |
+| `Complete` | `Verified` | `Done` | Quản lý trực tiếp của assignee (`PATCH`) |
+| `Cancel` | `New`, `InProgress`, `HandedOver`, `Rejected`, `Overdue` | `Cancelled` | Quản lý trực tiếp của assignee (`PATCH`, bắt buộc `reason`) |
+| `Handover` | `New`, `InProgress` | `HandedOver` | Luồng bàn giao (chưa triển khai) |
+| `MarkOverdue` | `New`, `InProgress`, `HandedOver` | `Overdue` | Tiến trình nền |
+
+Sau khi người thẩm định yêu cầu bổ sung (`REVISION_REQUIRED`), công việc về `InProgress` còn báo cáo vẫn ở `UNDER_REVIEW`. `SubmissionStateMachine` cho phép thẩm định lại báo cáo đó, nên `Verify`, `Reject` và `Reopen` cũng được phép từ `InProgress`.
+
+### 7.3. Quá hạn (Overdue)
+
+- `Overdue` là giá trị lưu trong cột `work.status` (enum PostgreSQL `work_status`, giá trị `OVERDUE`).
+- Tiến trình nền `WorkOverdueBackgroundService` chạy định kỳ (`WorkOverdue:IntervalMinutes`, mặc định 15 phút; `WorkOverdue:Enabled`, mặc định `true`) và chuyển các công việc `New`, `InProgress`, `HandedOver` có `plannedEndDate` &lt; ngày hiện tại theo giờ Việt Nam (UTC+7, `TimeProvider.GetBusinessToday()`) sang `Overdue`. `plannedEndDate` là ngày lịch do người dùng nhập, nên việc có hạn 21/10 chỉ bị chuyển `Overdue` từ 00:00 ngày 22/10 giờ Việt Nam.
+- `Submitted`, `Verified`, `Rejected` không bị chuyển quá hạn (đang chờ thẩm định hoặc đã có kết quả).
+- Công việc `Overdue` **không thể** quay lại `InProgress` bằng `PATCH /works/{id}/status`: tiến trình nền sẽ chuyển lại về `Overdue` ở lần chạy kế tiếp (hạn vẫn nằm trong quá khứ), nên trạng thái chỉ nhảy qua lại. Yêu cầu này trả 409 `WORK_INVALID_STATE`. Công việc rời `Overdue` bằng cách nộp kết quả (`Submitted`) hoặc bị hủy (`Cancelled`).
+- Công việc `Overdue` vẫn được nộp kết quả (`Overdue -> Submitted`), hiện chưa có quy tắc chặn nộp trễ nào được thực thi (`MSG18` chỉ được dự phòng trong `SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`).
+- Thống kê phòng ban: công việc `Overdue` được tính vào số lượng quá hạn và là công việc đang mở.

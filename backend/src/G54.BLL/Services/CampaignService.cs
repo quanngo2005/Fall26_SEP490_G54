@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Campaign;
 using G54.DAL;
@@ -13,7 +14,8 @@ namespace G54.BLL.Services;
 
 public sealed class CampaignService(
     AppDbContext db,
-    ILogger<CampaignService> logger) : ICampaignService
+    ILogger<CampaignService> logger,
+    TimeProvider time) : ICampaignService
 {
     private static readonly Action<ILogger, string, Guid, Exception?> LogCampaignCreated =
         LoggerMessage.Define<string, Guid>(
@@ -59,7 +61,7 @@ public sealed class CampaignService(
 
         var totalTasksGenerated = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId != null, cancellationToken);
         var totalCompletedTasks = await db.Works.AsNoTracking().CountAsync(
-            w => w.BusinessCampaignId != null && (w.Status == WorkStatus.Done || w.Status == WorkStatus.Verified),
+            w => w.BusinessCampaignId != null && WorkStatusGroups.Completed.Contains(w.Status),
             cancellationToken);
 
         var metrics = new CampaignOverviewMetricsDto(
@@ -109,7 +111,7 @@ public sealed class CampaignService(
                 c.Participants.Count,
                 c.CampaignWorkTypes.Count,
                 c.Works.Count,
-                c.Works.Count(w => w.Status == WorkStatus.Done || w.Status == WorkStatus.Verified),
+                c.Works.Count(w => WorkStatusGroups.Completed.Contains(w.Status)),
                 c.UpdatedAt))
             .ToListAsync(cancellationToken);
 
@@ -154,12 +156,12 @@ public sealed class CampaignService(
                 p.Employee.JobPosition != null ? p.Employee.JobPosition.Title : null,
                 p.Employee.Department != null ? p.Employee.Department.Name : null,
                 p.BusinessCampaign.Works.Count(w => w.AssigneeEmployeeId == p.EmployeeId),
-                p.BusinessCampaign.Works.Count(w => w.AssigneeEmployeeId == p.EmployeeId && (w.Status == WorkStatus.Done || w.Status == WorkStatus.Verified))))
+                p.BusinessCampaign.Works.Count(w => w.AssigneeEmployeeId == p.EmployeeId && WorkStatusGroups.Completed.Contains(w.Status))))
             .ToListAsync(cancellationToken);
 
         var totalWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id, cancellationToken);
-        var completedWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id && (w.Status == WorkStatus.Done || w.Status == WorkStatus.Verified), cancellationToken);
-        var inExecutionWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id && (w.Status == WorkStatus.InProgress || w.Status == WorkStatus.Submitted || w.Status == WorkStatus.HandedOver), cancellationToken);
+        var completedWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id && WorkStatusGroups.Completed.Contains(w.Status), cancellationToken);
+        var inExecutionWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id && WorkStatusGroups.InExecution.Contains(w.Status), cancellationToken);
         var pendingWorks = await db.Works.AsNoTracking().CountAsync(w => w.BusinessCampaignId == id && w.Status == WorkStatus.New, cancellationToken);
 
         var progressPercent = totalWorks > 0
@@ -521,7 +523,7 @@ public sealed class CampaignService(
         string message;
         if (decision == "APPROVE")
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = time.GetBusinessToday();
             if (campaign.EndDate < today)
             {
                 throw new BusinessRuleException(
@@ -655,7 +657,7 @@ public sealed class CampaignService(
         if (rule == "LOAD_BALANCING")
         {
             var activeCounts = await db.Works
-                .Where(w => participantEmployeeIds.Contains(w.AssigneeEmployeeId) && (w.Status == WorkStatus.New || w.Status == WorkStatus.InProgress))
+                .Where(w => participantEmployeeIds.Contains(w.AssigneeEmployeeId) && WorkStatusGroups.ActiveLoad.Contains(w.Status))
                 .GroupBy(w => w.AssigneeEmployeeId)
                 .Select(g => new { EmployeeId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.EmployeeId, x => x.Count, cancellationToken);
@@ -669,7 +671,7 @@ public sealed class CampaignService(
         var leads = request.Leads ?? [];
         var totalLeads = request.TotalLeadsCount;
         var generatedWorks = new List<Work>(totalLeads);
-        var todayStr = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var todayStr = time.GetBusinessToday().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var exclusivityEnd = startDate.AddDays(7);
         var exclusivityNote = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 

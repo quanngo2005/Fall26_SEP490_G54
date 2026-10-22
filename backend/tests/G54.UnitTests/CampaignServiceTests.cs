@@ -1,3 +1,4 @@
+using System.Globalization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Campaign;
@@ -23,7 +24,7 @@ public sealed class CampaignServiceTests
     private static (AppDbContext Context, CampaignService Service) CreateTestEnvironment()
     {
         var context = CreateInMemoryDbContext();
-        var service = new CampaignService(context, NullLogger<CampaignService>.Instance);
+        var service = new CampaignService(context, NullLogger<CampaignService>.Instance, TimeProvider.System);
         return (context, service);
     }
 
@@ -759,6 +760,99 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
+    public async Task BatchGenerateWorkAsync_LoadBalancing_CountsOverdueWorkAsLoad()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, emp1, emp2) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-LOAD-OVD",
+                Name = "Campaign overdue load",
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 10, 31),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Participants.AddRangeAsync(
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp1.Id, UpdatedAt = DateTimeOffset.UtcNow },
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp2.Id, UpdatedAt = DateTimeOffset.UtcNow });
+
+            // emp1 is buried in overdue work; emp2 is idle. Overdue work must still count as load.
+            for (var i = 0; i < 3; i++)
+            {
+                await context.Works.AddAsync(new Work
+                {
+                    Id = Guid.NewGuid(),
+                    Code = $"TSK-OVD-{i}",
+                    Title = $"Overdue {i}",
+                    AssigneeEmployeeId = emp1.Id,
+                    Status = WorkStatus.Overdue,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            var req = new BatchWorkGeneratorRequestDto(
+                WorkTypeId: workType.Id,
+                LeadPoolSource: "Pool",
+                AllocationRule: "LOAD_BALANCING",
+                TotalLeadsCount: 3);
+
+            await service.BatchGenerateWorkAsync(campaign.Id, req, emp1.Id);
+
+            var generated = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();
+            Assert.Equal(3, generated.Count(w => w.AssigneeEmployeeId == emp2.Id));
+        }
+    }
+
+    [Fact]
+    public async Task GetCampaignByIdAsync_OverdueWorkCountsAsInExecution()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, emp1, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-OVD-DETAIL",
+                Name = "Campaign overdue detail",
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 10, 31),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Works.AddAsync(new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "TSK-OVD-D1",
+                Title = "Overdue",
+                BusinessCampaignId = campaign.Id,
+                AssigneeEmployeeId = emp1.Id,
+                Status = WorkStatus.Overdue,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var detail = await service.GetCampaignByIdAsync(campaign.Id);
+
+            Assert.Equal(1, detail.Metrics.InExecutionWorksCount);
+            Assert.Equal(0, detail.Metrics.PendingWorksCount);
+        }
+    }
+    [Fact]
     public async Task BatchGenerateWorkAsync_ThrowsMSG18_WhenDeadlineExceedsCampaignEndDate()
     {
         var (context, service) = CreateTestEnvironment();
@@ -1216,6 +1310,103 @@ public sealed class CampaignServiceTests
             Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
             Assert.Contains("quá hạn", ex.Message);
         }
+    }
+
+    [Theory]
+    [InlineData("2026-10-21T16:59:59+00:00", true)] // 23:59:59 on 21/10 in Vietnam: the campaign still ends today
+    [InlineData("2026-10-21T17:00:00+00:00", false)] // 00:00:00 on 22/10 in Vietnam: the campaign has ended
+    public async Task DecideCampaignAsync_ApproveOnTheEndDate_UsesTheVietnamCalendarDay(string utcNow, bool allowed)
+    {
+        var context = CreateInMemoryDbContext();
+        using (context)
+        {
+            var service = new CampaignService(
+                context,
+                NullLogger<CampaignService>.Instance,
+                new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)));
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-VN-END",
+                Name = "Campaign ending on 21/10",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 10, 21),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CampaignDecisionRequestDto("APPROVE");
+            if (allowed)
+            {
+                var result = await service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid());
+                Assert.Equal("RUNNING", result.Status);
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                    service.DecideCampaignAsync(campaign.Id, request, Guid.NewGuid()));
+                Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BatchGenerateWorkAsync_BeforeVietnamMidnight_NamesTasksWithTheVietnamDate()
+    {
+        // 02:00 on 22/10 in Vietnam is still 21/10 in UTC: the generated task codes must carry 20261022.
+        var context = CreateInMemoryDbContext();
+        using (context)
+        {
+            var service = new CampaignService(
+                context,
+                NullLogger<CampaignService>.Instance,
+                new FixedTime(DateTimeOffset.Parse("2026-10-21T19:00:00+00:00", CultureInfo.InvariantCulture)));
+            var (objective, workType, emp1, _) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-VN-CODE",
+                Name = "Campaign task code date",
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 10, 31),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Participants.AddAsync(new Participant
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                EmployeeId = emp1.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var request = new BatchWorkGeneratorRequestDto(
+                WorkTypeId: workType.Id,
+                LeadPoolSource: "Pool",
+                AllocationRule: "ROUND_ROBIN",
+                TotalLeadsCount: 1,
+                PlannedStartDate: new DateOnly(2026, 10, 22),
+                PlannedEndDate: new DateOnly(2026, 10, 30));
+
+            await service.BatchGenerateWorkAsync(campaign.Id, request, emp1.Id);
+
+            var code = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).Select(w => w.Code).SingleAsync();
+            Assert.Contains("-20261022-", code, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Fact]
