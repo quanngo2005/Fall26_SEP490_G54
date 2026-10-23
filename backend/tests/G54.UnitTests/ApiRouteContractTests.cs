@@ -19,6 +19,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(VerificationController), "verifications")]
     [InlineData(typeof(EvaluationController), "evaluations")]
     [InlineData(typeof(CampaignController), "campaigns")]
+    [InlineData(typeof(EvaluationProfilesController), "evaluation-profiles")]
     [InlineData(typeof(PerformanceDashboardController), "performance-dashboard")]
     [InlineData(typeof(ResultSubmissionsController), "")]
     [InlineData(typeof(HelloController), "hello")]
