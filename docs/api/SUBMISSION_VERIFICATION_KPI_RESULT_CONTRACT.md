@@ -73,6 +73,19 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 }
 ```
 
+#### Ghi nhận KPI khi `APPROVED` (không đổi route hay DTO)
+Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loại công việc, hệ thống tạo `WorkResultItem` cho KPI đầu tiên của loại công việc đó, ghi vào target ACTIVE của từng nhân sự:
+
+| Công việc có bàn giao `ACCEPTED`? | Người nhận điểm | Tỷ lệ |
+|---|---|---|
+| Không | Người nộp | 100% |
+| Có (lấy bản ghi mới nhất theo `acceptedAt`, nếu trống thì `handoverAt`) | Người giao (`fromEmployeeId`, người giới thiệu) | 30% |
+| | Người nhận (`toEmployeeId`, người xử lý) | 70% |
+
+- Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
+- Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
+- Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `MSG22` và không ghi nhận gì thêm.
+
 ### 2.2.1 Evidence (file bằng chứng)
 | Method | Route | Body | Thành công |
 |---|---|---|---|
@@ -128,7 +141,6 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Thiếu KPI bắt buộc, giá trị âm, mẫu số RATIO ≤ 0, file sai định dạng/nội dung không khớp đuôi/quá 25MB/quá 10 file/tên quá 255 ký tự | 400 | `VALIDATION_ERROR` (+ `errors[]`) |
 | *(dự phòng — BR-12)* Nộp trong 5 phút gia hạn | 201 | message `MSG17` |
 | *(dự phòng — BR-12)* Nộp quá hạn | 422 | `MSG18` |
-| *(dự phòng — BR-08)* Task đã đóng góp KPI | 409 | `MSG22` |
 
 ### 3.3 Verification
 | Tình huống | HTTP | errorCode |
@@ -138,6 +150,7 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Người thẩm định chính là người nộp (BR-02) | 422 | `MSG10` |
 | Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `MSG23` |
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
+| Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `MSG22` |
 
 ### 3.4 KPI Result
 | Tình huống | HTTP | errorCode |
