@@ -22,6 +22,12 @@ public sealed class VerificationService(
             new EventId(1, "VerificationAudit"),
             "Verification audit: Decision={Decision}, SubmissionId={SubmissionId}, VerifierId={VerifierId}");
 
+    private static readonly Action<ILogger, Guid, Guid, Exception?> LogContributionSkipped =
+        LoggerMessage.Define<Guid, Guid>(
+            LogLevel.Warning,
+            new EventId(2, "ContributionSkippedNoActiveTarget"),
+            "KPI contribution skipped: EmployeeId={EmployeeId} has no active target for KpiDefinitionId={KpiDefinitionId}");
+
     private const string DossierNotFoundMessage = "Không tìm thấy hồ sơ nộp kết quả công việc yêu cầu thẩm định.";
 
     public async Task<VerificationDossierDto> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default)
@@ -200,6 +206,15 @@ public sealed class VerificationService(
 
         if (dbDecision == VerificationDecision.Approved)
         {
+            // A work item (Task ID) may contribute KPI to the system only once.
+            var alreadyContributed = await db.WorkResultItems.AnyAsync(
+                i => i.VerifiedWorkResult.Verification.ResultSubmission.WorkId == submission.WorkId,
+                cancellationToken);
+            if (alreadyContributed)
+            {
+                throw new BusinessRuleException(ErrorCodes.MSG22, statusCode: StatusCodes.Status409Conflict);
+            }
+
             var verifiedResult = new VerifiedWorkResult
             {
                 Id = Guid.NewGuid(),
@@ -213,26 +228,25 @@ public sealed class VerificationService(
             var primaryKpiId = submission.Work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
             if (primaryKpiId.HasValue && dto.VerifiedValue.HasValue)
             {
-                var progress = await ResolveProgressAsync(
-                    primaryKpiId.Value,
-                    submission.SubmitterEmployeeId,
-                    time.GetBusinessToday(),
-                    dto.VerifiedValue.Value,
-                    now,
-                    cancellationToken);
+                var handover = await db.TaskHandovers
+                    .AsNoTracking()
+                    .Where(h => h.WorkId == submission.WorkId && h.Status == HandoverStatus.Accepted)
+                    .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
+                    .FirstOrDefaultAsync(cancellationToken);
 
-                // A verified result item must feed an employee target's progress; without an active target there is nothing to attribute it to.
-                if (progress is not null)
+                var contributions = handover is null
+                    ? [(submission.SubmitterEmployeeId, dto.VerifiedValue.Value)]
+                    : SplitHandoverContributions(handover, dto.VerifiedValue.Value);
+
+                foreach (var (employeeId, value) in contributions)
                 {
-                    db.WorkResultItems.Add(new WorkResultItem
-                    {
-                        Id = Guid.NewGuid(),
-                        VerifiedWorkResultId = verifiedResult.Id,
-                        ActualProgressId = progress.Id,
-                        EmployeeId = submission.SubmitterEmployeeId,
-                        Value = dto.VerifiedValue.Value,
-                        UpdatedAt = now,
-                    });
+                    await AddResultItemAsync(
+                        verifiedResult.Id,
+                        primaryKpiId.Value,
+                        employeeId,
+                        value,
+                        now,
+                        cancellationToken);
                 }
             }
         }
@@ -317,6 +331,50 @@ public sealed class VerificationService(
         {
             throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
+    }
+
+    private static (Guid EmployeeId, decimal Value)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
+    {
+        var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints);
+        return
+        [
+            (handover.FromEmployeeId, referrerPoints),
+            (handover.ToEmployeeId, processorPoints),
+        ];
+    }
+
+    private async Task AddResultItemAsync(
+        Guid verifiedWorkResultId,
+        Guid kpiDefinitionId,
+        Guid employeeId,
+        decimal value,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var progress = await ResolveProgressAsync(
+            kpiDefinitionId,
+            employeeId,
+            time.GetBusinessToday(),
+            value,
+            now,
+            cancellationToken);
+
+        // A verified result item must feed an employee target's progress; without an active target there is nothing to attribute it to.
+        if (progress is null)
+        {
+            LogContributionSkipped(logger, employeeId, kpiDefinitionId, null);
+            return;
+        }
+
+        db.WorkResultItems.Add(new WorkResultItem
+        {
+            Id = Guid.NewGuid(),
+            VerifiedWorkResultId = verifiedWorkResultId,
+            ActualProgressId = progress.Id,
+            EmployeeId = employeeId,
+            Value = value,
+            UpdatedAt = now,
+        });
     }
 
     private async Task<ActualProgress?> ResolveProgressAsync(

@@ -24,6 +24,9 @@ public static class ErrorCodes
     // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
     public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
 
+    // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
+    public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
+
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
 
@@ -63,6 +66,7 @@ public static class ErrorCodes
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
         [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
+        [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
         [MSG01] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
         [MSG02] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),
         [MSG03] = ("Cập nhật thành công.", "Update successfully."),
