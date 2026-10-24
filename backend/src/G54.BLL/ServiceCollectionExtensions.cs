@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);

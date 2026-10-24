@@ -22,6 +22,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(EvaluationProfilesController), "evaluation-profiles")]
     [InlineData(typeof(PerformanceDashboardController), "performance-dashboard")]
     [InlineData(typeof(ResultSubmissionsController), "")]
+    [InlineData(typeof(AppealsController), "")]
     [InlineData(typeof(HelloController), "hello")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)
     {
