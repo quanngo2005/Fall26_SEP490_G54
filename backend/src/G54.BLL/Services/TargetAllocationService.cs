@@ -1,0 +1,618 @@
+using System.Runtime.CompilerServices;
+using ClosedXML.Excel;
+using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
+using G54.BLL.Dtos.TargetAllocation;
+using G54.DAL.Entities;
+using G54.DAL.Uow;
+
+[assembly: InternalsVisibleTo("G54.UnitTests")]
+
+namespace G54.BLL.Services;
+
+public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocationService
+{
+    public async Task<TargetImportResultDto> ImportYearTargetsAsync(Guid branchId, int year, Stream excel, Guid userId, CancellationToken ct = default)
+    {
+        var branch = await uow.Departments.GetByIdAsync(branchId, ct);
+        if (branch?.LevelType != DepartmentLevelType.Branch)
+            throw new NotFoundException("Branch not found or invalid type.");
+
+        var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
+        if (yearPeriod == null)
+            throw new NotFoundException($"Year period {year} not found.");
+
+        if (yearPeriod.Status != PeriodStatus.Open)
+            throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
+
+        var errors = new List<TargetImportRowErrorDto>();
+        var importData = new Dictionary<Guid, (string Name, decimal Value)>();
+
+        var kpiByName = (await uow.KpiDefinitions.ListAsync(ct))
+            .GroupBy(k => k.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        using (var workbook = new XLWorkbook(excel))
+        {
+            var worksheet = workbook.Worksheets.FirstOrDefault();
+            if (worksheet == null)
+                throw new ValidationException("Excel file has no worksheets.");
+
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int row = 2; row <= (worksheet.LastRowUsed()?.RowNumber() ?? 1); row++)
+            {
+                var kpiNameCell = worksheet.Cell(row, 1);
+                var valueCell = worksheet.Cell(row, 2);
+
+                var kpiName = kpiNameCell.GetString()?.Trim();
+                if (string.IsNullOrEmpty(kpiName))
+                    continue;
+
+                if (!seenNames.Add(kpiName))
+                {
+                    errors.Add(new(row, kpiName, "Duplicate KPI name in file."));
+                    continue;
+                }
+
+                if (!kpiByName.TryGetValue(kpiName, out var kpi))
+                {
+                    errors.Add(new(row, kpiName, "KPI not found."));
+                    continue;
+                }
+
+                if (!decimal.TryParse(valueCell.GetString(), out var value) || value <= 0)
+                {
+                    errors.Add(new(row, kpiName, "Value must be a positive number."));
+                    continue;
+                }
+
+                importData[kpi.Id] = (kpiName, value);
+            }
+        }
+
+        if (errors.Count > 0)
+            throw new AppException("Import file contains invalid rows.", ErrorCodes.TargetImportInvalid, 400,
+                errors.Select(e => $"Row {e.RowNumber} ({e.KpiName}): {e.Message}").ToList());
+
+        await uow.ExecuteInTransactionAsync(async transaction =>
+        {
+            foreach (var (kpiId, (name, value)) in importData)
+            {
+                var existing = await uow.TargetAssignments.GetCurrentBranchYearAsync(branchId, kpiId, yearPeriod.Id, transaction);
+
+                if (existing != null)
+                {
+                    if (existing.Status == TargetAssignmentStatus.Draft)
+                    {
+                        existing.TargetValue = value;
+                    }
+                    else if (existing.Status == TargetAssignmentStatus.Active)
+                    {
+                        var descendants = await uow.TargetAssignments.GetActiveDescendantsAsync(existing.Id, transaction);
+                        foreach (var desc in descendants)
+                        {
+                            desc.Status = TargetAssignmentStatus.Superseded;
+                        }
+
+                        existing.Status = TargetAssignmentStatus.Superseded;
+
+                        var newRow = new TargetAssignment
+                        {
+                            Id = Guid.NewGuid(),
+                            DepartmentId = branchId,
+                            KpiDefinitionId = kpiId,
+                            EvaluationPeriodId = yearPeriod.Id,
+                            ParentAssignmentId = null,
+                            SplitDimension = null,
+                            TargetValue = value,
+                            Version = existing.Version + 1,
+                            Status = TargetAssignmentStatus.Active,
+                            AssignedAt = DateTimeOffset.UtcNow,
+                            ApprovedAt = DateTimeOffset.UtcNow,
+                            ChangeReason = "Re-import",
+                        };
+                        await uow.TargetAssignments.AddAsync(newRow, transaction);
+                    }
+                }
+                else
+                {
+                    var newRow = new TargetAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        DepartmentId = branchId,
+                        KpiDefinitionId = kpiId,
+                        EvaluationPeriodId = yearPeriod.Id,
+                        ParentAssignmentId = null,
+                        SplitDimension = null,
+                        TargetValue = value,
+                        Version = 1,
+                        Status = TargetAssignmentStatus.Draft,
+                        AssignedAt = DateTimeOffset.UtcNow,
+                    };
+                    await uow.TargetAssignments.AddAsync(newRow, transaction);
+                }
+            }
+        }, ct);
+
+        var tree = await GetTreeAsync(branchId, year, null, ct);
+        return new(branchId, year, tree);
+    }
+
+    public async Task<List<TargetNodeDto>> AllocateDepartmentsAsync(Guid branchYearId, AllocateDepartmentsDto dto, Guid userId, CancellationToken ct = default)
+    {
+        var l1 = await uow.TargetAssignments.GetWithContextAsync(branchYearId, ct);
+        if (l1 == null || l1.ParentAssignmentId != null)
+            throw new NotFoundException("Branch-year target not found.");
+
+        if (l1.EvaluationPeriod?.Status != PeriodStatus.Open)
+            throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
+
+        var deptIds = dto.Items.Select(i => i.DepartmentId).Distinct().ToList();
+        var depts = await uow.Departments.ListAsync(d => deptIds.Contains(d.Id), ct);
+
+        foreach (var deptId in deptIds)
+        {
+            var dept = depts.FirstOrDefault(d => d.Id == deptId);
+            if (dept == null || dept.ParentDepartmentId != l1.DepartmentId)
+                throw new BusinessRuleException(ErrorCodes.TargetDepartmentNotInBranch, null, 422);
+        }
+
+        var byKpi = dto.Items.GroupBy(i => i.KpiDefinitionId).ToList();
+        if (byKpi.Count > 1 || byKpi[0].Key != l1.KpiDefinitionId)
+            throw new ValidationException("Request may only contain the L1 row's own KPI.");
+
+        foreach (var item in dto.Items)
+        {
+            var clash = await uow.TargetAssignments.AnyAsync(
+                t => t.KpiDefinitionId == item.KpiDefinitionId && t.DepartmentId == item.DepartmentId
+                     && t.EvaluationPeriodId == l1.EvaluationPeriodId && t.ParentAssignmentId != l1.Id,
+                ct);
+            if (clash)
+                throw new ConflictException("A year target for this department and KPI already exists outside this allocation.", ErrorCodes.TargetInvalidState);
+        }
+
+        var totalTarget = dto.Items.Sum(i => i.TargetValue);
+        if (totalTarget < l1.TargetValue)
+            throw new BusinessRuleException(ErrorCodes.TargetDepartmentSumBelow, null, 422);
+
+        await uow.ExecuteInTransactionAsync(async transaction =>
+        {
+            foreach (var item in dto.Items)
+            {
+                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(l1.Id, transaction))
+                    .FirstOrDefault(c => c.DepartmentId == item.DepartmentId && c.KpiDefinitionId == item.KpiDefinitionId);
+
+                if (existing != null)
+                {
+                    if (existing.Status == TargetAssignmentStatus.Draft)
+                    {
+                        existing.TargetValue = item.TargetValue;
+                    }
+                    else if (existing.Status == TargetAssignmentStatus.Active)
+                    {
+                        if (string.IsNullOrWhiteSpace(dto.ChangeReason))
+                            throw new ValidationException("changeReason is required when changing an active target.");
+
+                        var descendants = await uow.TargetAssignments.GetActiveDescendantsAsync(existing.Id, transaction);
+                        foreach (var desc in descendants)
+                            desc.Status = TargetAssignmentStatus.Superseded;
+                        existing.Status = TargetAssignmentStatus.Superseded;
+
+                        var newRow = new TargetAssignment
+                        {
+                            Id = Guid.NewGuid(),
+                            DepartmentId = item.DepartmentId,
+                            KpiDefinitionId = item.KpiDefinitionId,
+                            EvaluationPeriodId = l1.EvaluationPeriodId,
+                            ParentAssignmentId = l1.Id,
+                            SplitDimension = TargetSplitDimension.Org,
+                            TargetValue = item.TargetValue,
+                            Version = existing.Version + 1,
+                            Status = TargetAssignmentStatus.Draft,
+                            AssignedAt = DateTimeOffset.UtcNow,
+                            ChangeReason = dto.ChangeReason,
+                        };
+                        await uow.TargetAssignments.AddAsync(newRow, transaction);
+                    }
+                }
+                else
+                {
+                    var newRow = new TargetAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        DepartmentId = item.DepartmentId,
+                        KpiDefinitionId = item.KpiDefinitionId,
+                        EvaluationPeriodId = l1.EvaluationPeriodId,
+                        ParentAssignmentId = l1.Id,
+                        SplitDimension = TargetSplitDimension.Org,
+                        TargetValue = item.TargetValue,
+                        Version = 1,
+                        Status = TargetAssignmentStatus.Draft,
+                        AssignedAt = DateTimeOffset.UtcNow,
+                    };
+                    await uow.TargetAssignments.AddAsync(newRow, transaction);
+                }
+            }
+        }, ct);
+
+        var tree = await GetTreeAsync(l1.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        return tree;
+    }
+
+    public async Task<List<TargetNodeDto>> AllocateQuartersAsync(Guid deptYearId, AllocateQuartersDto dto, Guid userId, CancellationToken ct = default)
+    {
+        var l2 = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
+        if (l2 == null || l2.ParentAssignmentId == null)
+            throw new NotFoundException("Department-year target not found.");
+
+        var l1 = await uow.TargetAssignments.GetWithContextAsync(l2.ParentAssignmentId.Value, ct);
+        if (l1?.ParentAssignmentId != null)
+            throw new ValidationException("L1 reference invalid.");
+
+        if (l2.EvaluationPeriod?.Status != PeriodStatus.Open)
+            throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
+
+        var quarterPeriods = await uow.EvaluationPeriods.GetInRangeAsync(
+            PeriodType.Quarter,
+            l1!.EvaluationPeriod!.StartDate,
+            l1.EvaluationPeriod.EndDate,
+            ct);
+
+        foreach (var item in dto.Items)
+        {
+            var clash = await uow.TargetAssignments.AnyAsync(
+                t => t.KpiDefinitionId == l2.KpiDefinitionId && t.DepartmentId == l2.DepartmentId
+                     && t.EvaluationPeriodId == item.QuarterPeriodId && t.ParentAssignmentId != l2.Id,
+                ct);
+            if (clash)
+                throw new ConflictException("A target for this department, KPI and quarter already exists outside this allocation.", ErrorCodes.TargetInvalidState);
+        }
+
+        var totalTarget = dto.Items.Sum(i => i.TargetValue);
+        if (totalTarget < l2.TargetValue)
+            throw new BusinessRuleException(ErrorCodes.TargetQuarterSumBelow, null, 422);
+
+        await uow.ExecuteInTransactionAsync(async transaction =>
+        {
+            foreach (var item in dto.Items)
+            {
+                var quarterPeriod = quarterPeriods.FirstOrDefault(q => q.Id == item.QuarterPeriodId);
+                if (quarterPeriod == null)
+                    throw new ValidationException("Quarter period not in valid range.");
+
+                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(l2.Id, transaction))
+                    .FirstOrDefault(c => c.EvaluationPeriodId == item.QuarterPeriodId);
+
+                if (existing != null)
+                {
+                    if (existing.Status == TargetAssignmentStatus.Draft)
+                    {
+                        existing.TargetValue = item.TargetValue;
+                    }
+                    else if (existing.Status == TargetAssignmentStatus.Active)
+                    {
+                        if (string.IsNullOrWhiteSpace(dto.ChangeReason))
+                            throw new ValidationException("changeReason is required when changing an active target.");
+
+                        var descendants = await uow.TargetAssignments.GetActiveDescendantsAsync(existing.Id, transaction);
+                        foreach (var desc in descendants)
+                            desc.Status = TargetAssignmentStatus.Superseded;
+                        existing.Status = TargetAssignmentStatus.Superseded;
+
+                        var newRow = new TargetAssignment
+                        {
+                            Id = Guid.NewGuid(),
+                            DepartmentId = l2.DepartmentId,
+                            KpiDefinitionId = l2.KpiDefinitionId,
+                            EvaluationPeriodId = item.QuarterPeriodId,
+                            ParentAssignmentId = l2.Id,
+                            SplitDimension = TargetSplitDimension.Period,
+                            TargetValue = item.TargetValue,
+                            Version = existing.Version + 1,
+                            Status = TargetAssignmentStatus.Draft,
+                            AssignedAt = DateTimeOffset.UtcNow,
+                            ChangeReason = dto.ChangeReason,
+                        };
+                        await uow.TargetAssignments.AddAsync(newRow, transaction);
+                    }
+                }
+                else
+                {
+                    var newRow = new TargetAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        DepartmentId = l2.DepartmentId,
+                        KpiDefinitionId = l2.KpiDefinitionId,
+                        EvaluationPeriodId = item.QuarterPeriodId,
+                        ParentAssignmentId = l2.Id,
+                        SplitDimension = TargetSplitDimension.Period,
+                        TargetValue = item.TargetValue,
+                        Version = 1,
+                        Status = TargetAssignmentStatus.Draft,
+                        AssignedAt = DateTimeOffset.UtcNow,
+                    };
+                    await uow.TargetAssignments.AddAsync(newRow, transaction);
+                }
+            }
+        }, ct);
+
+        var tree = await GetTreeAsync(l1.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        return tree;
+    }
+
+    public async Task<TargetNodeDto> ConfirmAsync(Guid deptYearId, Guid userId, CancellationToken ct = default)
+    {
+        var l2 = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
+        if (l2 == null)
+            throw new NotFoundException("Department-year target not found.");
+
+        var l1 = await uow.TargetAssignments.GetWithContextAsync(l2.ParentAssignmentId!.Value, ct);
+
+        var l3List = await uow.TargetAssignments.GetCurrentChildrenAsync(l2.Id, ct);
+        if (l3List.Count == 0)
+            throw new ConflictException("Department has no quarter allocation to confirm.", ErrorCodes.TargetInvalidState);
+
+        // Unique index (kpi, department, period, version): new rows must take the next free version.
+        var versions = (await uow.TargetAssignments.ListAsync(
+                t => t.KpiDefinitionId == l2.KpiDefinitionId && t.DepartmentId == l2.DepartmentId, ct))
+            .GroupBy(t => t.EvaluationPeriodId)
+            .ToDictionary(g => g.Key, g => g.Max(t => t.Version));
+
+        // DB rule: ACTIVE children of an ACTIVE SUM-KPI parent must sum exactly to the parent target.
+        var isSum = l2.KpiDefinition?.AggregationType == KpiAggregationType.Sum;
+        if (isSum && l3List.Sum(c => c.TargetValue) != l2.TargetValue)
+            throw new BusinessRuleException(ErrorCodes.TargetInvalidState, "Quarter targets must sum exactly to the department year target before confirming.", 422);
+
+        var l2Siblings = await uow.TargetAssignments.GetCurrentChildrenAsync(l1!.Id, ct);
+        var branchReady = l2Siblings.All(s => s.Id == l2.Id || s.Status == TargetAssignmentStatus.Active);
+        if (branchReady && isSum && l2Siblings.Sum(c => c.TargetValue) != l1.TargetValue)
+            throw new BusinessRuleException(ErrorCodes.TargetInvalidState, "Department year targets must sum exactly to the branch year target before confirming.", 422);
+
+        await uow.ExecuteInTransactionAsync(async transaction =>
+        {
+            if (branchReady)
+            {
+                l1.Status = TargetAssignmentStatus.Active;
+                l1.ApprovedAt = DateTimeOffset.UtcNow;
+            }
+
+            l2.Status = TargetAssignmentStatus.Active;
+            l2.ApprovedAt = DateTimeOffset.UtcNow;
+
+            foreach (var l3 in l3List)
+            {
+                var oldL4s = await uow.TargetAssignments.GetActiveDescendantsAsync(l3.Id, transaction);
+                foreach (var oldL4 in oldL4s)
+                    oldL4.Status = TargetAssignmentStatus.Superseded;
+
+                l3.Status = TargetAssignmentStatus.Active;
+                l3.ApprovedAt = DateTimeOffset.UtcNow;
+
+                var months = await uow.EvaluationPeriods.GetInRangeAsync(
+                    PeriodType.Month,
+                    l3.EvaluationPeriod!.StartDate,
+                    l3.EvaluationPeriod.EndDate,
+                    transaction);
+
+                var monthParts = months.Select(m => (m.StartDate, m.EndDate)).ToList();
+                var monthValues = SplitByWorkingDays(l3.TargetValue, monthParts);
+
+                for (int i = 0; i < months.Count; i++)
+                {
+                    var monthId = Guid.NewGuid();
+                    var l4 = new TargetAssignment
+                    {
+                        Id = monthId,
+                        DepartmentId = l2.DepartmentId,
+                        KpiDefinitionId = l2.KpiDefinitionId,
+                        EvaluationPeriodId = months[i].Id,
+                        ParentAssignmentId = l3.Id,
+                        SplitDimension = TargetSplitDimension.Period,
+                        TargetValue = monthValues[i],
+                        Version = NextVersion(versions, months[i].Id),
+                        Status = TargetAssignmentStatus.Active,
+                        AssignedAt = DateTimeOffset.UtcNow,
+                        ApprovedAt = DateTimeOffset.UtcNow,
+                    };
+                    await uow.TargetAssignments.AddAsync(l4, transaction);
+
+                    // DB rules: DAY sits directly under MONTH and ACTIVE children must sum exactly to their parent,
+                    // so only days are stored under a month. Week totals are derived from the day rows.
+                    await AddDaysAsync(l2, l4, months[i].StartDate, months[i].EndDate, versions, transaction);
+                }
+            }
+        }, ct);
+
+        var tree = await GetTreeAsync(l1!.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        return FindNode(tree, l2.Id) ?? throw new NotFoundException("Department-year target not found.");
+    }
+
+    public async Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, CancellationToken ct = default)
+    {
+        var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
+        if (yearPeriod == null)
+            return [];
+
+        var rows = await uow.TargetAssignments.GetTreeAsync(branchId, yearPeriod.Id, ct);
+
+        var compareTree = new Dictionary<(Guid, Guid?, int), (decimal Target, decimal Actual)>();
+        if (compareYear.HasValue)
+        {
+            var compareYearPeriod = await uow.EvaluationPeriods.GetYearAsync(compareYear.Value, ct);
+            if (compareYearPeriod != null)
+            {
+                var compareRows = await uow.TargetAssignments.GetTreeAsync(branchId, compareYearPeriod.Id, ct);
+                foreach (var row in compareRows.Where(r => r.Status != TargetAssignmentStatus.Superseded))
+                {
+                    var key = (row.KpiDefinitionId, row.DepartmentId, GetPeriodPosition(row.EvaluationPeriod?.Code ?? ""));
+                    var actual = row.ActualProgresses?.Sum(ap => ap.Value) ?? 0;
+                    compareTree[key] = (row.TargetValue, actual);
+                }
+            }
+        }
+
+        var rootIds = rows.Where(r => r.ParentAssignmentId == null && r.Status != TargetAssignmentStatus.Superseded)
+            .Select(r => r.Id)
+            .ToList();
+
+        var nodes = new List<TargetNodeDto>();
+        foreach (var rootId in rootIds)
+        {
+            var node = BuildNode(rootId, rows, compareTree);
+            if (node != null)
+                nodes.Add(node);
+        }
+
+        return nodes;
+    }
+
+    private static TargetNodeDto? BuildNode(Guid id, IReadOnlyList<TargetAssignment> allRows, Dictionary<(Guid, Guid?, int), (decimal Target, decimal Actual)> compareTree)
+    {
+        var row = allRows.FirstOrDefault(r => r.Id == id);
+        if (row == null || row.Status == TargetAssignmentStatus.Superseded)
+            return null;
+
+        var children = allRows
+            .Where(r => r.ParentAssignmentId == id && r.Status != TargetAssignmentStatus.Superseded)
+            .Select(c => BuildNode(c.Id, allRows, compareTree))
+            .Where(c => c != null)
+            .Cast<TargetNodeDto>()
+            .ToList();
+
+        var allocatedValue = children.Where(c => c.PeriodType != nameof(PeriodType.Week)).Sum(c => c.TargetValue);
+        var actualValue = row.ActualProgresses?.Sum(ap => ap.Value) ?? 0m;
+
+        var compareKey = (row.KpiDefinitionId, row.DepartmentId, GetPeriodPosition(row.EvaluationPeriod?.Code ?? ""));
+        decimal? compareTarget = null, compareActual = null;
+        if (compareTree.TryGetValue(compareKey, out var compareValues))
+        {
+            compareTarget = compareValues.Target;
+            compareActual = compareValues.Actual;
+        }
+
+        return new TargetNodeDto(
+            row.Id,
+            row.ParentAssignmentId,
+            row.KpiDefinitionId,
+            row.KpiDefinition?.Name ?? "",
+            row.DepartmentId ?? Guid.Empty,
+            row.Department?.Name ?? "",
+            row.EvaluationPeriodId,
+            row.EvaluationPeriod?.Code ?? "",
+            row.EvaluationPeriod?.PeriodType.ToString() ?? "",
+            row.TargetValue,
+            allocatedValue,
+            actualValue > 0 ? actualValue : null,
+            row.Version,
+            row.Status.ToString(),
+            compareTarget,
+            compareActual,
+            children);
+    }
+
+    private static TargetNodeDto? FindNode(IEnumerable<TargetNodeDto> nodes, Guid id)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Id == id)
+                return node;
+            var found = FindNode(node.Children, id);
+            if (found != null)
+                return found;
+        }
+
+        return null;
+    }
+
+    private static int NextVersion(Dictionary<Guid, int> versions, Guid periodId) =>
+        versions.TryGetValue(periodId, out var v) ? v + 1 : 1;
+
+    private static TargetAssignment NewPeriodRow(TargetAssignment l2, Guid periodId, Guid parentId, decimal value, int version) => new()
+    {
+        Id = Guid.NewGuid(),
+        DepartmentId = l2.DepartmentId,
+        KpiDefinitionId = l2.KpiDefinitionId,
+        BusinessObjectiveId = l2.BusinessObjectiveId,
+        EvaluationPeriodId = periodId,
+        ParentAssignmentId = parentId,
+        SplitDimension = TargetSplitDimension.Period,
+        TargetValue = value,
+        Version = version,
+        Status = TargetAssignmentStatus.Active,
+        AssignedAt = DateTimeOffset.UtcNow,
+        ApprovedAt = DateTimeOffset.UtcNow,
+    };
+
+    private async Task AddDaysAsync(TargetAssignment l2, TargetAssignment parent, DateOnly start, DateOnly end, Dictionary<Guid, int> versions, CancellationToken ct)
+    {
+        var days = await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Day, start, end, ct);
+        if (days.Count == 0)
+            return;
+
+        var values = SplitByWorkingDays(parent.TargetValue, days.Select(d => (d.StartDate, d.EndDate)).ToList());
+        for (int k = 0; k < days.Count; k++)
+            await uow.TargetAssignments.AddAsync(NewPeriodRow(l2, days[k].Id, parent.Id, values[k], NextVersion(versions, days[k].Id)), ct);
+    }
+
+    private static int GetPeriodPosition(string code)
+    {
+        if (int.TryParse(code, System.Globalization.CultureInfo.InvariantCulture, out var year))
+            return 0;
+        if (code.Contains("-Q"))
+            return int.Parse(code.Split("-Q")[1], System.Globalization.CultureInfo.InvariantCulture) * 100;
+        if (code.Contains('-'))
+            return int.Parse(code.Split("-")[1], System.Globalization.CultureInfo.InvariantCulture) * 10;
+        return 0;
+    }
+
+    internal static List<decimal> SplitByWorkingDays(decimal total, IReadOnlyList<(DateOnly Start, DateOnly End)> parts)
+    {
+        if (parts.Count == 0)
+            return [];
+
+        var workingDaysByPart = parts.Select(p => CountWorkingDays(p.Start, p.End)).ToList();
+        var totalWorkingDays = workingDaysByPart.Sum();
+
+        if (totalWorkingDays == 0)
+        {
+            var result = new List<decimal>();
+            var perPart = total / parts.Count;
+            for (int i = 0; i < parts.Count - 1; i++)
+                result.Add(Math.Round(perPart, 2));
+            result.Add(total - result.Sum());
+            return result;
+        }
+
+        // The rounding remainder goes to the last part that has working days, so no part can go negative.
+        var lastIdx = workingDaysByPart.FindLastIndex(w => w > 0);
+        var split = new List<decimal>();
+        var assigned = 0m;
+        for (int i = 0; i < parts.Count; i++)
+        {
+            if (i == lastIdx)
+            {
+                split.Add(total - assigned);
+                assigned = total;
+                continue;
+            }
+
+            var value = workingDaysByPart[i] == 0 ? 0m : Math.Round(total * workingDaysByPart[i] / totalWorkingDays, 2);
+            split.Add(value);
+            assigned += value;
+        }
+
+        return split;
+    }
+
+    private static int CountWorkingDays(DateOnly start, DateOnly end)
+    {
+        int count = 0;
+        for (var date = start; date <= end; date = date.AddDays(1))
+        {
+            if (date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday)
+                count++;
+        }
+        return count;
+    }
+}

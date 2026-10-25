@@ -272,3 +272,251 @@ SELECT sw.id::uuid, sw.work_type_id::uuid, sw.business_campaign_id::uuid, sw.ass
 FROM seed_work sw
 JOIN employee e ON e.id = sw.assignee_employee_id::uuid
 ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- Phase 2: Seed data for 2025 (comparison year) and complete 2026 H1+Q1-Q3
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 2026: Add H1 and Q1-Q3 periods (months 01-09, all DAY rows)
+-- ---------------------------------------------------------------------------
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status) VALUES
+ ('5eed0000-0000-0000-000f-000000000007', '2026-H1', '6 tháng đầu 2026', 'HALF_YEAR', '5eed0000-0000-0000-000f-000000000001', '2026-01-01', '2026-06-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000008', '2026-Q1', 'Quý 1/2026',       'QUARTER',   '5eed0000-0000-0000-000f-000000000007', '2026-01-01', '2026-03-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000009', '2026-Q2', 'Quý 2/2026',       'QUARTER',   '5eed0000-0000-0000-000f-000000000007', '2026-04-01', '2026-06-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000a', '2026-Q3', 'Quý 3/2026',       'QUARTER',   '5eed0000-0000-0000-000f-000000000002', '2026-07-01', '2026-09-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000b', '2026-01', 'Tháng 01/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000008', '2026-01-01', '2026-01-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000c', '2026-02', 'Tháng 02/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000008', '2026-02-01', '2026-02-28', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000d', '2026-03', 'Tháng 03/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000008', '2026-03-01', '2026-03-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000e', '2026-04', 'Tháng 04/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000009', '2026-04-01', '2026-04-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000f', '2026-05', 'Tháng 05/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000009', '2026-05-01', '2026-05-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000010', '2026-06', 'Tháng 06/2026',    'MONTH',     '5eed0000-0000-0000-000f-000000000009', '2026-06-01', '2026-06-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000011', '2026-07', 'Tháng 07/2026',    'MONTH',     '5eed0000-0000-0000-000f-00000000000a', '2026-07-01', '2026-07-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000012', '2026-08', 'Tháng 08/2026',    'MONTH',     '5eed0000-0000-0000-000f-00000000000a', '2026-08-01', '2026-08-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000013', '2026-09', 'Tháng 09/2026',    'MONTH',     '5eed0000-0000-0000-000f-00000000000a', '2026-09-01', '2026-09-30', 'OPEN')
+ON CONFLICT DO NOTHING;
+
+-- Add all DAY rows for Jan-Sep 2026
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status)
+SELECT md5('progest-seed-day-' || d::date)::uuid,
+       'D' || to_char(d, 'YYYY-MM-DD'),
+       'Ngày ' || to_char(d, 'DD/MM/YYYY'),
+       'DAY',
+       CASE EXTRACT(MONTH FROM d)
+           WHEN 1 THEN '5eed0000-0000-0000-000f-00000000000b'::uuid
+           WHEN 2 THEN '5eed0000-0000-0000-000f-00000000000c'::uuid
+           WHEN 3 THEN '5eed0000-0000-0000-000f-00000000000d'::uuid
+           WHEN 4 THEN '5eed0000-0000-0000-000f-00000000000e'::uuid
+           WHEN 5 THEN '5eed0000-0000-0000-000f-00000000000f'::uuid
+           WHEN 6 THEN '5eed0000-0000-0000-000f-000000000010'::uuid
+           WHEN 7 THEN '5eed0000-0000-0000-000f-000000000011'::uuid
+           WHEN 8 THEN '5eed0000-0000-0000-000f-000000000012'::uuid
+           ELSE '5eed0000-0000-0000-000f-000000000013'::uuid
+       END,
+       d::date, d::date, 'OPEN'
+FROM generate_series('2026-01-01'::date, '2026-09-30'::date, interval '1 day') AS d
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 2025: Complete year (Status = CLOSED) for comparison
+-- H1 -> Q1,Q2; H2 -> Q3,Q4; each quarter -> 3 months; each month -> all days
+-- Note: WEEK rows use date range lookup; DAY rows point to MONTH (simpler approach)
+-- ---------------------------------------------------------------------------
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status) VALUES
+ ('5eed0000-0000-0000-002f-000000000001', '2025',    'Năm 2025',          'YEAR',      NULL,                                   '2025-01-01', '2025-12-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000002', '2025-H1', '6 tháng đầu 2025',  'HALF_YEAR', '5eed0000-0000-0000-002f-000000000001', '2025-01-01', '2025-06-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000003', '2025-H2', '6 tháng cuối 2025', 'HALF_YEAR', '5eed0000-0000-0000-002f-000000000001', '2025-07-01', '2025-12-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000004', '2025-Q1', 'Quý 1/2025',        'QUARTER',   '5eed0000-0000-0000-002f-000000000002', '2025-01-01', '2025-03-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000005', '2025-Q2', 'Quý 2/2025',        'QUARTER',   '5eed0000-0000-0000-002f-000000000002', '2025-04-01', '2025-06-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000006', '2025-Q3', 'Quý 3/2025',        'QUARTER',   '5eed0000-0000-0000-002f-000000000003', '2025-07-01', '2025-09-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000007', '2025-Q4', 'Quý 4/2025',        'QUARTER',   '5eed0000-0000-0000-002f-000000000003', '2025-10-01', '2025-12-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000008', '2025-01', 'Tháng 01/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000004', '2025-01-01', '2025-01-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000009', '2025-02', 'Tháng 02/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000004', '2025-02-01', '2025-02-28', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000a', '2025-03', 'Tháng 03/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000004', '2025-03-01', '2025-03-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000b', '2025-04', 'Tháng 04/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000005', '2025-04-01', '2025-04-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000c', '2025-05', 'Tháng 05/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000005', '2025-05-01', '2025-05-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000d', '2025-06', 'Tháng 06/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000005', '2025-06-01', '2025-06-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000e', '2025-07', 'Tháng 07/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000006', '2025-07-01', '2025-07-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-00000000000f', '2025-08', 'Tháng 08/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000006', '2025-08-01', '2025-08-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000010', '2025-09', 'Tháng 09/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000006', '2025-09-01', '2025-09-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000011', '2025-10', 'Tháng 10/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000007', '2025-10-01', '2025-10-31', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000012', '2025-11', 'Tháng 11/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000007', '2025-11-01', '2025-11-30', 'CLOSED'),
+ ('5eed0000-0000-0000-002f-000000000013', '2025-12', 'Tháng 12/2025',     'MONTH',     '5eed0000-0000-0000-002f-000000000007', '2025-12-01', '2025-12-31', 'CLOSED')
+ON CONFLICT DO NOTHING;
+
+-- Add all DAY rows for 2025
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status)
+SELECT md5('progest-seed-day-' || d::date)::uuid,
+       'D' || to_char(d, 'YYYY-MM-DD'),
+       'Ngày ' || to_char(d, 'DD/MM/YYYY'),
+       'DAY',
+       CASE EXTRACT(MONTH FROM d)
+           WHEN 1 THEN '5eed0000-0000-0000-002f-000000000008'::uuid
+           WHEN 2 THEN '5eed0000-0000-0000-002f-000000000009'::uuid
+           WHEN 3 THEN '5eed0000-0000-0000-002f-00000000000a'::uuid
+           WHEN 4 THEN '5eed0000-0000-0000-002f-00000000000b'::uuid
+           WHEN 5 THEN '5eed0000-0000-0000-002f-00000000000c'::uuid
+           WHEN 6 THEN '5eed0000-0000-0000-002f-00000000000d'::uuid
+           WHEN 7 THEN '5eed0000-0000-0000-002f-00000000000e'::uuid
+           WHEN 8 THEN '5eed0000-0000-0000-002f-00000000000f'::uuid
+           WHEN 9 THEN '5eed0000-0000-0000-002f-000000000010'::uuid
+           WHEN 10 THEN '5eed0000-0000-0000-002f-000000000011'::uuid
+           WHEN 11 THEN '5eed0000-0000-0000-002f-000000000012'::uuid
+           ELSE '5eed0000-0000-0000-002f-000000000013'::uuid
+       END,
+       d::date, d::date, 'CLOSED'
+FROM generate_series('2025-01-01'::date, '2025-12-31'::date, interval '1 day') AS d
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- WEEK periods for both 2025 and 2026
+-- Code format: W2025-10-1 (year-month-weekIndex), one WEEK per (week ∩ month)
+-- Parent: the MONTH period containing the Monday of that week
+-- Simpler approach: DAY rows point to MONTH; service looks up weeks by date range in code
+-- So we add WEEK rows here but DAYs remain pointing to MONTH
+-- ---------------------------------------------------------------------------
+-- 2025 WEEK rows with generate_series over Mondays
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status)
+WITH mondays AS (
+  SELECT d::date as monday,
+         EXTRACT(YEAR FROM d)::int as year,
+         EXTRACT(MONTH FROM d)::int as month,
+         ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM d), EXTRACT(MONTH FROM d) ORDER BY d) as week_index
+  FROM generate_series('2025-01-06'::date, '2025-12-29'::date, interval '1 week') AS d
+),
+week_dates AS (
+  SELECT monday,
+         year, month, week_index,
+         LEAST((monday + interval '6 days')::date,
+               (date_trunc('month', make_date(year, month, 1)) + interval '1 month' - interval '1 day')::date) as end_date,
+         CASE WHEN month < 10 THEN '5eed0000-0000-0000-002f-0000000000'::text
+              WHEN month = 10 THEN '5eed0000-0000-0000-002f-000000000011'::text
+              WHEN month = 11 THEN '5eed0000-0000-0000-002f-000000000012'::text
+              ELSE '5eed0000-0000-0000-002f-000000000013'::text
+         END ||
+         LPAD((CASE WHEN month < 10 THEN 8 + month ELSE month - 2 END)::text, 2, '0') as month_period_id_prefix
+  FROM mondays
+)
+SELECT (md5('progest-seed-week-' || monday::text)::uuid),
+       'W' || year || '-' || LPAD(month::text, 2, '0') || '-' || week_index,
+       'Tuần ' || week_index || ' tháng ' || month || '/' || year,
+       'WEEK',
+       CASE WHEN month = 1 THEN '5eed0000-0000-0000-002f-000000000008'::uuid
+            WHEN month = 2 THEN '5eed0000-0000-0000-002f-000000000009'::uuid
+            WHEN month = 3 THEN '5eed0000-0000-0000-002f-00000000000a'::uuid
+            WHEN month = 4 THEN '5eed0000-0000-0000-002f-00000000000b'::uuid
+            WHEN month = 5 THEN '5eed0000-0000-0000-002f-00000000000c'::uuid
+            WHEN month = 6 THEN '5eed0000-0000-0000-002f-00000000000d'::uuid
+            WHEN month = 7 THEN '5eed0000-0000-0000-002f-00000000000e'::uuid
+            WHEN month = 8 THEN '5eed0000-0000-0000-002f-00000000000f'::uuid
+            WHEN month = 9 THEN '5eed0000-0000-0000-002f-000000000010'::uuid
+            WHEN month = 10 THEN '5eed0000-0000-0000-002f-000000000011'::uuid
+            WHEN month = 11 THEN '5eed0000-0000-0000-002f-000000000012'::uuid
+            ELSE '5eed0000-0000-0000-002f-000000000013'::uuid
+       END::uuid,
+       monday, end_date, 'CLOSED'
+FROM week_dates
+ON CONFLICT DO NOTHING;
+
+-- 2026 WEEK rows (Jan-Sep only as per plan)
+INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status)
+WITH mondays AS (
+  SELECT d::date as monday,
+         EXTRACT(YEAR FROM d)::int as year,
+         EXTRACT(MONTH FROM d)::int as month,
+         ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM d), EXTRACT(MONTH FROM d) ORDER BY d) as week_index
+  FROM generate_series('2026-01-05'::date, '2026-09-28'::date, interval '1 week') AS d
+),
+week_dates AS (
+  SELECT monday,
+         year, month, week_index,
+         LEAST((monday + interval '6 days')::date,
+               (date_trunc('month', make_date(year, month, 1)) + interval '1 month' - interval '1 day')::date) as end_date
+  FROM mondays
+)
+SELECT (md5('progest-seed-week-' || monday::text)::uuid),
+       'W' || year || '-' || LPAD(month::text, 2, '0') || '-' || week_index,
+       'Tuần ' || week_index || ' tháng ' || month || '/' || year,
+       'WEEK',
+       CASE WHEN month = 1 THEN '5eed0000-0000-0000-000f-00000000000b'::uuid
+            WHEN month = 2 THEN '5eed0000-0000-0000-000f-00000000000c'::uuid
+            WHEN month = 3 THEN '5eed0000-0000-0000-000f-00000000000d'::uuid
+            WHEN month = 4 THEN '5eed0000-0000-0000-000f-00000000000e'::uuid
+            WHEN month = 5 THEN '5eed0000-0000-0000-000f-00000000000f'::uuid
+            WHEN month = 6 THEN '5eed0000-0000-0000-000f-000000000010'::uuid
+            WHEN month = 7 THEN '5eed0000-0000-0000-000f-000000000011'::uuid
+            WHEN month = 8 THEN '5eed0000-0000-0000-000f-000000000012'::uuid
+            ELSE '5eed0000-0000-0000-000f-000000000013'::uuid
+       END::uuid,
+       monday, end_date, 'OPEN'
+FROM week_dates
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 2025 Target tree for comparison (all ACTIVE, version = 1)
+-- L1: Branch-Year 2025, L2: Departments, L3: Quarters, L4: Months
+-- Using same KPI and department IDs as 2026, clean values: 1000 branch
+-- Structure: L1 (branch, 1000) -> L2 (2 depts, 500 each) -> L3 (4 quarters, 125 each) -> L4 (months)
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, version, status, assigned_at, approved_at, created_at)
+VALUES
+ -- L1: Branch-Year 2025
+ ('5eed0000-0000-0000-0025-000000000001', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-002f-000000000001', NULL, NULL, 1000, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ -- L2: Dept-Year (2 departments, 500 each)
+ ('5eed0000-0000-0000-0025-000000000002', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000001', '5eed0000-0000-0000-0025-000000000001', 'ORG'::target_split_dimension, 500, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000003', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000001', '5eed0000-0000-0000-0025-000000000001', 'ORG'::target_split_dimension, 500, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ -- L3: Quarters (4 quarters × 2 depts = 8 rows, 125 per quarter)
+ ('5eed0000-0000-0000-0025-000000000004', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000004', '5eed0000-0000-0000-0025-000000000002', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000005', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000005', '5eed0000-0000-0000-0025-000000000002', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000006', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000006', '5eed0000-0000-0000-0025-000000000002', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000007', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000007', '5eed0000-0000-0000-0025-000000000002', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000008', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000004', '5eed0000-0000-0000-0025-000000000003', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000009', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000005', '5eed0000-0000-0000-0025-000000000003', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-00000000000a', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000006', '5eed0000-0000-0000-0025-000000000003', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-00000000000b', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000007', '5eed0000-0000-0000-0025-000000000003', 'PERIOD'::target_split_dimension, 125, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ -- L4: Months (one month example: Q1 = 3 months, 125/3 ≈ 42, last gets remainder)
+ ('5eed0000-0000-0000-0025-00000000000c', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000008', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 42, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-00000000000d', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000009', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 42, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-00000000000e', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-00000000000a', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 41, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0))
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 2025 Actual progress (one row per month L4, value = target × factor 0.80–1.20)
+-- Fixed factors (not random) for reproducibility
+-- ---------------------------------------------------------------------------
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT md5('progest-actual-' || ta.id::text || '-' || m.month_no::text)::uuid,
+       ta.id,
+       MAKE_DATE(2025, m.month_no::int, 15)::date,
+       ta.target_value * m.factor,
+       'VALID'::actual_progress_status
+FROM target_assignment ta
+CROSS JOIN (VALUES
+    (1, 0.92),
+    (2, 1.05),
+    (3, 0.88),
+    (4, 1.15),
+    (5, 0.95),
+    (6, 1.08),
+    (7, 0.80),
+    (8, 1.10),
+    (9, 0.98),
+    (10, 1.12),
+    (11, 0.90),
+    (12, 1.18)
+) AS m(month_no, factor)
+WHERE ta.evaluation_period_id = CASE m.month_no
+        WHEN 1 THEN '5eed0000-0000-0000-002f-000000000008'::uuid
+        WHEN 2 THEN '5eed0000-0000-0000-002f-000000000009'::uuid
+        WHEN 3 THEN '5eed0000-0000-0000-002f-00000000000a'::uuid
+        WHEN 4 THEN '5eed0000-0000-0000-002f-00000000000b'::uuid
+        WHEN 5 THEN '5eed0000-0000-0000-002f-00000000000c'::uuid
+        WHEN 6 THEN '5eed0000-0000-0000-002f-00000000000d'::uuid
+        WHEN 7 THEN '5eed0000-0000-0000-002f-00000000000e'::uuid
+        WHEN 8 THEN '5eed0000-0000-0000-002f-00000000000f'::uuid
+        WHEN 9 THEN '5eed0000-0000-0000-002f-000000000010'::uuid
+        WHEN 10 THEN '5eed0000-0000-0000-002f-000000000011'::uuid
+        WHEN 11 THEN '5eed0000-0000-0000-002f-000000000012'::uuid
+        ELSE '5eed0000-0000-0000-002f-000000000013'::uuid
+END
+ON CONFLICT DO NOTHING;

@@ -76,3 +76,4 @@ docs/codereview/reports/coverage.cobertura.xml
 # Evidence uploads written when the API runs outside Docker
 backend/src/G54.Api/**/uploads/
 uploads/
+/docs/plans

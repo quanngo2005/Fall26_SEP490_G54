@@ -30,6 +30,14 @@ public static class ErrorCodes
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
 
+    // Target allocation (docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetDepartmentSumBelow = "TARGET_DEPARTMENT_SUM_BELOW";
+    public const string TargetQuarterSumBelow = "TARGET_QUARTER_SUM_BELOW";
+    public const string TargetPeriodNotOpen = "TARGET_PERIOD_NOT_OPEN";
+    public const string TargetDepartmentNotInBranch = "TARGET_DEPARTMENT_NOT_IN_BRANCH";
+    public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
+    public const string TargetInvalidState = "TARGET_INVALID_STATE";
+
     // Application Message Codes (COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md)
     public const string MSG01 = "MSG01"; // Không tìm thấy kết quả phù hợp
     public const string MSG02 = "MSG02"; // Trường (*) là bắt buộc nhập
