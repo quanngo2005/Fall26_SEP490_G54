@@ -20,9 +20,9 @@ public sealed class AppealService(
 {
     private const int MaxReasonLength = 2000;
     private const int MaxFileCount = 10;
-    private const int DepartmentScopeLevel = 2;
-    private const int BranchScopeLevel = 3;
-    private const int AllScopeLevel = 4;
+    private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
+    private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
+    private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
 
     private static readonly TimeSpan AppealWindow = TimeSpan.FromHours(48);
 
