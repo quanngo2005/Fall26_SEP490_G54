@@ -11,10 +11,11 @@ using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
-public sealed class WorkService(
+public sealed partial class WorkService(
     IUnitOfWork unitOfWork,
     ILogger<WorkService> logger,
-    TimeProvider time) : IWorkService
+    TimeProvider time,
+    IPermissionService permissions) : IWorkService
 {
     private const int MaxStatusReasonLength = 500;
 

@@ -33,6 +33,21 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
             response);
     }
 
+    /// <summary>Filtered, paged work list (status / assignee / department ...) limited to the caller's <c>work:read</c> scope.</summary>
+    [HttpGet]
+    [HasPermission("work", "read", "Own")]
+    [ProducesResponseType<ApiResponse<PagedResult<WorkListItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<PagedResult<WorkListItemDto>>>> GetWorks(
+        [FromQuery] WorkFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.GetWorksAsync(User.GetRequiredUserId(), filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]

@@ -32,6 +32,7 @@ Nguồn tham chiếu quy ước chung: `docs/api/API_CONVENTIONS.md`.
 | Phương thức | Route | Xác thực / Quyền | Mô tả |
 |---|---|---|---|
 | `POST` | `/works` | `[Authorize]` (Mọi tài khoản đã xác thực) | Khởi tạo và phân công công việc mới |
+| `GET` | `/works` | `work:read` (scope `Own` trở lên) | Danh sách công việc: lọc theo trạng thái / người thực hiện / phòng ban, phân trang |
 | `GET` | `/works/{id}` | `[Authorize]` (Mọi tài khoản đã xác thực) | Lấy thông tin chi tiết công việc theo Id |
 | `PATCH` | `/works/{id}/status` | `[Authorize]` + kiểm tra assignee / quản lý trực tiếp tại service | Chuyển trạng thái công việc theo máy trạng thái (mục 7) |
 
@@ -180,6 +181,64 @@ Response Body:
     "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
   }
   ```
+
+---
+
+### 3.1a. `GET /works` - Danh sách công việc (lọc, phân trang)
+
+Yêu cầu quyền `work:read` (`[HasPermission("work", "read", "Own")]`). Phạm vi dữ liệu theo scope được cấp (người gọi phải là tài khoản đang hoạt động, không bị khóa):
+
+| Scope được cấp | Công việc nhìn thấy |
+|---|---|
+| `All` / `System` / full access | Mọi công việc |
+| `Branch` | Công việc của nhân viên thuộc cây phòng ban của chi nhánh (`BRANCH` gần nhất, hoặc gốc cao nhất nếu không có) chứa phòng ban của người gọi |
+| `Department` / `Dept` | Công việc của nhân viên thuộc phòng ban của người gọi và các phòng ban con |
+| `Own` | Chỉ công việc được giao cho chính người gọi |
+
+Các bộ lọc luôn được **giao** với phạm vi trên (ví dụ scope `Own` lọc theo người khác sẽ ra danh sách rỗng).
+Phòng ban nhân viên được tính theo phòng ban **hiện tại của người thực hiện** (`assigneeEmployee.departmentId`).
+
+#### Query
+
+| Tham số | Kiểu | Mô tả |
+|---|---|---|
+| `status` | `string` (lặp lại hoặc phân tách bằng dấu phẩy) | Một hoặc nhiều trạng thái: `New`, `InProgress`, `HandedOver`, `Submitted`, `Verified`, `Rejected`, `Overdue`, `Done`, `Cancelled` (PascalCase hoặc `UPPER_SNAKE`, không phân biệt hoa/thường). Ví dụ `?status=New&status=Overdue` hoặc `?status=New,Overdue`. Bỏ trống = mọi trạng thái. |
+| `assigneeEmployeeId` | `uuid` | Người thực hiện. |
+| `departmentId` | `uuid` | Phòng ban của người thực hiện. Không tồn tại -> 404; ngoài phạm vi quyền -> 403. |
+| `includeChildDepartments` | `bool` (mặc định `true`) | Có gồm các phòng ban con của `departmentId` hay không. |
+| `workTypeId` | `uuid` | Loại công việc. |
+| `priority` | `string` | `Low`, `Medium`, `High`, `Critical` (không phân biệt hoa/thường). |
+| `keyword` | `string` | Chứa trong mã hoặc tiêu đề (không phân biệt hoa/thường). |
+| `page` | `int` (mặc định 1) | Trang, tối thiểu 1. |
+| `pageSize` | `int` (mặc định 20) | Kích thước trang, giới hạn 1..100. |
+
+Giá trị `status`/`priority` không hợp lệ -> 400 `VALIDATION_ERROR`. Sắp xếp: `updatedAt` giảm dần, rồi `code`.
+
+#### Response `200 OK` (`PagedResult<WorkListItemDto>`)
+
+```json
+{
+  "success": true,
+  "status": 200,
+  "data": {
+    "items": [
+      {
+        "id": "…", "code": "WRK-20261022-1234", "title": "Mở tài khoản khách hàng A",
+        "workTypeId": "…", "workTypeName": "Mở tài khoản khách hàng", "businessCampaignId": null,
+        "assigneeEmployeeId": "…", "assigneeEmployeeCode": "NV004", "assigneeEmployeeName": "Lê Minh Châu",
+        "departmentId": "…", "departmentCode": "CN-HN-KD-N1", "departmentName": "Nhóm Kinh doanh 1",
+        "priority": "Medium", "status": "InProgress",
+        "plannedStartDate": "2026-10-20", "plannedEndDate": "2026-10-30",
+        "updatedAt": "2026-10-22T08:00:00+00:00"
+      }
+    ],
+    "totalCount": 1, "page": 1, "pageSize": 20
+  }
+}
+```
+
+`priority` và `status` là PascalCase, giống `WorkDetailDto`. Danh sách không trả `description`/`estimatedHours`; dùng `GET /works/{id}` để xem chi tiết.
+Lỗi: 400 `VALIDATION_ERROR`, 401, 403 (không có quyền `work:read`, tài khoản khóa, hoặc `departmentId` ngoài phạm vi), 404 (`departmentId` không tồn tại).
 
 ---
 

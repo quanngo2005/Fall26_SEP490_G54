@@ -1,3 +1,4 @@
+using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Work;
 
 namespace G54.BLL.Services;
@@ -7,6 +8,15 @@ public interface IWorkService
     Task<WorkDetailDto> CreateWorkAsync(
         CreateWorkRequestDto request,
         Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Filtered, paged work list limited to what the caller's <c>work:read</c> scope allows
+    /// (Own: their own works; Dept/Branch: works of employees in their department subtree / branch; All: everything).
+    /// </summary>
+    Task<PagedResult<WorkListItemDto>> GetWorksAsync(
+        Guid accountId,
+        WorkFilterDto filter,
         CancellationToken cancellationToken = default);
 
     Task<WorkDetailDto?> GetByIdAsync(
