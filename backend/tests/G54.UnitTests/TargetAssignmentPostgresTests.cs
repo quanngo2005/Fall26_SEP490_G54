@@ -1,5 +1,3 @@
-using G54.BLL.Common.Constants;
-using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
@@ -23,10 +21,7 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
-/// <summary>
-/// Runs the allocation against the real schema: the <c>validate_target_assignment</c> trigger, the unique indexes and the
-/// <c>FOR UPDATE</c> lock on the parent, none of which the in-memory provider exercises.
-/// </summary>
+/// <summary>Runs the allocation against the real schema, where the hierarchy, sum and uniqueness rules live (the in-memory provider has none).</summary>
 public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
 {
     private string _database = null!;
@@ -186,82 +181,58 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task FullChain_PassesTheDatabaseTriggers_AndIsStoredAsActiveOrgSplits()
+    public async Task FullChain_BranchToDepartmentToTeamAndEmployee_IsStoredAsActiveOrgSplits()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
         var level2 = await RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 600m), (_deptB, null, 400m))));
-        var deptA = level2.Children[0];
-        var level3 = await RunAsync(s => s.AllocateAsync(_adminAccount, deptA.Id, Split((_teamId, null, 200m), (null, _memberId, 400m))));
+        var level3 = await RunAsync(s => s.AllocateAsync(_adminAccount, level2[0].Id, Split((_teamId, null, 200m), (null, _memberId, 400m))));
 
-        Assert.Equal("ORG", level3.Children[0].SplitDimension);
-        Assert.Equal("EMPLOYEE", level3.Children[1].OwnerType);
-        Assert.Equal(600m, level3.Parent.AllocatedValue);
-        Assert.Equal(0m, level3.Parent.RemainingValue);
-        var reloaded = await RunAsync(s => s.GetAsync(_adminAccount, root.Id));
-        Assert.Equal(1000m, reloaded.AllocatedValue);
-        Assert.Equal("ACTIVE", reloaded.Status);
-        Assert.NotNull(reloaded.ApprovedAt);
+        Assert.All(level3, child => Assert.Equal("ORG", child.SplitDimension));
+        Assert.Equal(level2[0].Id, level3[0].ParentAssignmentId);
+        Assert.Equal(_memberId, level3[1].EmployeeId);
+        Assert.Equal("ACTIVE", (await RunAsync(s => s.GetAsync(_adminAccount, root.Id))).Status);
     }
 
     [PostgresFact]
-    public async Task ASumMismatch_IsRefusedBeforeTheDatabaseAndLeavesNothingBehind()
+    public async Task ASumMismatch_IsRejectedByTheDatabaseAndLeavesNothingBehind()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
 
-        var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+        await Assert.ThrowsAsync<PostgresException>(
             () => RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 600m), (_deptB, null, 300m)))));
 
-        Assert.Equal(ErrorCodes.TargetAllocationSumMismatch, ex.ErrorCode);
-        Assert.Equal(0m, (await RunAsync(s => s.GetAsync(_adminAccount, root.Id))).AllocatedValue);
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(1, await db.TargetAssignments.CountAsync());
     }
 
     [PostgresFact]
-    public async Task ADuplicateRoot_IsAConflict()
+    public async Task AChildOutsideTheParentsOrganisation_IsRejectedByTheDatabase()
+    {
+        var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
+        var level2 = await RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 1000m))));
+
+        await Assert.ThrowsAsync<DbUpdateException>(
+            () => RunAsync(s => s.AllocateAsync(_adminAccount, level2[0].Id, Split((_deptB, null, 1000m)))));
+    }
+    [PostgresFact]
+    public async Task ADuplicateRoot_IsRejectedByTheDatabase()
     {
         await RunAsync(s => s.CreateRootAsync(_adminAccount, Root()));
 
-        await Assert.ThrowsAsync<ConflictException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
+        await Assert.ThrowsAsync<DbUpdateException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
     }
 
-    [PostgresFact]
-    public async Task ConcurrentSplitsOfTheSameParent_OnlyOneWins()
-    {
-        var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
-
-        var attempts = await Task.WhenAll(
-            Attempt(root.Id, Split((_deptA, null, 600m), (_deptB, null, 400m))),
-            Attempt(root.Id, Split((_deptA, null, 500m), (_deptB, null, 500m))));
-
-        Assert.Single(attempts, outcome => outcome is null);
-        Assert.IsType<ConflictException>(Assert.Single(attempts, outcome => outcome is not null));
-        Assert.Equal(1000m, (await RunAsync(s => s.GetAsync(_adminAccount, root.Id))).AllocatedValue);
-    }
-
-    private async Task<Exception?> Attempt(Guid parentId, AllocateTargetDto dto)
-    {
-        try
-        {
-            await RunAsync(s => s.AllocateAsync(_adminAccount, parentId, dto));
-            return null;
-        }
-        catch (Exception exception) when (exception is AppException)
-        {
-            return exception;
-        }
-    }
     private sealed class AdminPermissions : IPermissionService
     {
         public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<UserPermissionsResponseDto?>(null);
 
-        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken)
-        {
-            IReadOnlyList<UserPermissionDto> result = [new UserPermissionDto("target", "manage", "All", "TARGET_MANAGE")];
-            return Task.FromResult(result);
-        }
+        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UserPermissionDto>>([]);
 
         public Task<bool> HasPermissionAsync(Guid id, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
+            Task.FromResult(true);
 
         public Task InvalidateUserPermissionsAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
 

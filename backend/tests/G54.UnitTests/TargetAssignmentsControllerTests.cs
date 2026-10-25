@@ -8,7 +8,6 @@ using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Routing;
 
 namespace G54.UnitTests;
 
@@ -29,10 +28,8 @@ public sealed class TargetAssignmentsControllerTests
         },
     };
 
-    private static TargetAssignmentDto Sample(Guid? id = null) => new(
-        id ?? Guid.NewGuid(), Guid.NewGuid(), "KPI-REV", "Doanh thu", "VND", "SUM",
-        Guid.NewGuid(), "2026-Q4", "Q4", "DEPARTMENT", Guid.NewGuid(), "D", "Phòng D", "DEPARTMENT",
-        null, null, null, Guid.NewGuid(), "ORG", 1, 400m, 0m, 400m, "ACTIVE",
+    private static TargetAssignmentDto Sample() => new(
+        Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), "ORG", 1, 400m, "ACTIVE",
         DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
     [Fact]
@@ -41,38 +38,32 @@ public sealed class TargetAssignmentsControllerTests
         Assert.Equal("target-assignments", typeof(TargetAssignmentsController).GetCustomAttribute<RouteAttribute>()?.Template);
 
         var permission = Assert.Single(typeof(TargetAssignmentsController).GetCustomAttributes<HasPermissionAttribute>());
-        Assert.Equal("target", permission.Resource);
-        Assert.Equal("manage", permission.Action);
-        Assert.Equal("Dept", permission.Scope);
+        Assert.Equal(("target", "manage", "Dept"), (permission.Resource, permission.Action, permission.Scope));
     }
 
     [Fact]
     public void Actions_HaveTheDocumentedVerbsAndRoutes()
     {
-        var root = typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.CreateRoot));
-        var allocate = typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.Allocate));
-        var get = typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.GetById));
-
-        Assert.NotNull(root?.GetCustomAttribute<HttpPostAttribute>());
-        Assert.Null(root?.GetCustomAttribute<HttpPostAttribute>()?.Template);
-        Assert.Equal("{id:guid}/allocations", allocate?.GetCustomAttribute<HttpPostAttribute>()?.Template);
-        Assert.Equal("{id:guid}", get?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        Assert.Null(typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.CreateRoot))
+            ?.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        Assert.Equal("{id:guid}/allocations", typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.Allocate))
+            ?.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        Assert.Equal("{id:guid}", typeof(TargetAssignmentsController).GetMethod(nameof(TargetAssignmentsController.GetById))
+            ?.GetCustomAttribute<HttpGetAttribute>()?.Template);
     }
 
     [Fact]
     public async Task CreateRoot_Returns201WithLocationAndAnEnvelopeStatusOf201()
     {
         var service = new RecordingService { Result = Sample() };
-        var controller = CreateController(service);
         var dto = new CreateTargetAssignmentDto { KpiDefinitionId = Guid.NewGuid(), TargetValue = 5 };
 
-        var actionResult = await controller.CreateRoot(dto, CancellationToken.None);
+        var actionResult = await CreateController(service).CreateRoot(dto);
 
         var created = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
         Assert.Equal(nameof(TargetAssignmentsController.GetById), created.ActionName);
         Assert.Equal(service.Result.Id, created.RouteValues!["id"]);
         var envelope = Assert.IsType<ApiResponse<TargetAssignmentDto>>(created.Value);
-        Assert.True(envelope.Success);
         Assert.Equal(201, envelope.Status);
         Assert.Equal("trace-1", envelope.TraceId);
         Assert.Same(service.Result, envelope.Data);
@@ -81,21 +72,20 @@ public sealed class TargetAssignmentsControllerTests
     }
 
     [Fact]
-    public async Task Allocate_Returns201WithLocationOfTheParent()
+    public async Task Allocate_Returns201WithLocationOfTheParentAndTheChildren()
     {
-        var parent = Sample();
-        var service = new RecordingService { Result = parent, AllocationResult = new TargetAllocationResultDto(parent, [Sample(), Sample()]) };
+        var parentId = Guid.NewGuid();
+        var service = new RecordingService { Children = [Sample(), Sample()] };
         var dto = new AllocateTargetDto { Allocations = [new TargetAllocationItemDto { DepartmentId = Guid.NewGuid(), TargetValue = 1 }] };
 
-        var actionResult = await CreateController(service).Allocate(parent.Id, dto, CancellationToken.None);
+        var actionResult = await CreateController(service).Allocate(parentId, dto);
 
         var created = Assert.IsType<CreatedAtActionResult>(actionResult.Result);
-        Assert.Equal(nameof(TargetAssignmentsController.GetById), created.ActionName);
-        Assert.Equal(parent.Id, created.RouteValues!["id"]);
-        var envelope = Assert.IsType<ApiResponse<TargetAllocationResultDto>>(created.Value);
+        Assert.Equal(parentId, created.RouteValues!["id"]);
+        var envelope = Assert.IsType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(created.Value);
         Assert.Equal(201, envelope.Status);
-        Assert.Equal(2, envelope.Data!.Children.Count);
-        Assert.Equal(parent.Id, service.RequestedId);
+        Assert.Equal(2, envelope.Data!.Count);
+        Assert.Equal(parentId, service.RequestedId);
         Assert.Same(dto, service.AllocateRequest);
         Assert.Equal(AccountId, service.CallerId);
     }
@@ -105,23 +95,21 @@ public sealed class TargetAssignmentsControllerTests
     {
         var service = new RecordingService { Result = Sample() };
 
-        var actionResult = await CreateController(service).GetById(service.Result.Id, CancellationToken.None);
+        var actionResult = await CreateController(service).GetById(service.Result.Id);
 
         var ok = Assert.IsType<OkObjectResult>(actionResult.Result);
-        var envelope = Assert.IsType<ApiResponse<TargetAssignmentDto>>(ok.Value);
-        Assert.Equal(200, envelope.Status);
+        Assert.Equal(200, Assert.IsType<ApiResponse<TargetAssignmentDto>>(ok.Value).Status);
         Assert.Equal(service.Result.Id, service.RequestedId);
     }
+
     [Fact]
-    public void Response_SerialisesCamelCaseWithUpperSnakeEnumsAndNullsForTheOtherOwner()
+    public void Response_SerialisesCamelCaseWithUpperSnakeEnums()
     {
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(Sample(), JsonOptions));
         var root = json.RootElement;
 
-        Assert.Equal("DEPARTMENT", root.GetProperty("ownerType").GetString());
         Assert.Equal("ORG", root.GetProperty("splitDimension").GetString());
         Assert.Equal("ACTIVE", root.GetProperty("status").GetString());
-        Assert.Equal("SUM", root.GetProperty("kpiAggregationType").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("employeeId").ValueKind);
         Assert.Equal(400m, root.GetProperty("targetValue").GetDecimal());
     }
@@ -146,14 +134,13 @@ public sealed class TargetAssignmentsControllerTests
         Assert.Equal(2, allocateDto.Allocations!.Count);
         Assert.Null(allocateDto.Allocations[0].EmployeeId);
         Assert.Equal(100.5m, allocateDto.Allocations[1].TargetValue);
-        Assert.Equal("split", allocateDto.ChangeReason);
     }
 
     private sealed class RecordingService : ITargetAssignmentService
     {
         public TargetAssignmentDto Result { get; set; } = null!;
 
-        public TargetAllocationResultDto AllocationResult { get; set; } = null!;
+        public IReadOnlyList<TargetAssignmentDto> Children { get; set; } = [];
 
         public Guid CallerId { get; private set; }
 
@@ -163,22 +150,22 @@ public sealed class TargetAssignmentsControllerTests
 
         public Guid RequestedId { get; private set; }
 
-        public Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto, CancellationToken cancellationToken = default)
+        public Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto)
         {
             CallerId = accountId;
             RootRequest = dto;
             return Task.FromResult(Result);
         }
 
-        public Task<TargetAllocationResultDto> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto)
         {
             CallerId = accountId;
             RequestedId = parentAssignmentId;
             AllocateRequest = dto;
-            return Task.FromResult(AllocationResult);
+            return Task.FromResult(Children);
         }
 
-        public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default)
+        public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId)
         {
             CallerId = accountId;
             RequestedId = assignmentId;

@@ -6,10 +6,10 @@ namespace G54.BLL.Dtos.TargetAssignment;
 public sealed class CreateTargetAssignmentDto
 {
     [Required(ErrorMessage = "KPI là bắt buộc.")]
-    public Guid KpiDefinitionId { get; set; }
+    public Guid? KpiDefinitionId { get; set; }
 
     [Required(ErrorMessage = "Kỳ đánh giá là bắt buộc.")]
-    public Guid EvaluationPeriodId { get; set; }
+    public Guid? EvaluationPeriodId { get; set; }
 
     /// <summary>The branch receiving the target.</summary>
     [Required(ErrorMessage = "Chi nhánh là bắt buộc.")]
@@ -22,10 +22,11 @@ public sealed class CreateTargetAssignmentDto
     public string? ChangeReason { get; set; }
 }
 
-/// <summary>Splits an ACTIVE department target across the level directly below it, in one transaction.</summary>
+/// <summary>Splits an ACTIVE department target across the level directly below it.</summary>
 public sealed class AllocateTargetDto
 {
     [Required(ErrorMessage = "Danh sách phân bổ là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Danh sách phân bổ phải có ít nhất một đối tượng.")]
     public List<TargetAllocationItemDto>? Allocations { get; set; }
 
     [StringLength(1000, ErrorMessage = "Ghi chú không vượt quá 1000 ký tự.")]
@@ -34,7 +35,7 @@ public sealed class AllocateTargetDto
 
 public sealed class TargetAllocationItemDto
 {
-    /// <summary>Exactly one of <see cref="DepartmentId"/> / <see cref="EmployeeId"/> must be set.</summary>
+    /// <summary>Exactly one of <see cref="DepartmentId"/> / <see cref="EmployeeId"/> is set.</summary>
     public Guid? DepartmentId { get; set; }
 
     public Guid? EmployeeId { get; set; }
@@ -43,34 +44,16 @@ public sealed class TargetAllocationItemDto
     public decimal? TargetValue { get; set; }
 }
 
-public sealed record TargetAllocationResultDto(
-    TargetAssignmentDto Parent,
-    IReadOnlyList<TargetAssignmentDto> Children);
-
 public sealed record TargetAssignmentDto(
     Guid Id,
     Guid KpiDefinitionId,
-    string KpiCode,
-    string KpiName,
-    string KpiUnit,
-    string KpiAggregationType,
     Guid EvaluationPeriodId,
-    string PeriodCode,
-    string PeriodName,
-    string OwnerType,
     Guid? DepartmentId,
-    string? DepartmentCode,
-    string? DepartmentName,
-    string? DepartmentLevelType,
     Guid? EmployeeId,
-    string? EmployeeCode,
-    string? EmployeeName,
     Guid? ParentAssignmentId,
     string? SplitDimension,
     int Version,
     decimal TargetValue,
-    decimal? AllocatedValue,
-    decimal? RemainingValue,
     string Status,
     DateTimeOffset? AssignedAt,
     DateTimeOffset? ApprovedAt,
