@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
+        services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
