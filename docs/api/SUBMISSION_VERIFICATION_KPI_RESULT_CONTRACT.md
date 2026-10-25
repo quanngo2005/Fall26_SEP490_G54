@@ -79,9 +79,10 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 | Công việc có bàn giao `ACCEPTED`? | Người nhận điểm | Tỷ lệ |
 |---|---|---|
 | Không | Người nộp | 100% |
-| Có (lấy bản ghi mới nhất theo `acceptedAt`, nếu trống thì `handoverAt`) | Người giao (`fromEmployeeId`, người giới thiệu) | 30% |
-| | Người nhận (`toEmployeeId`, người xử lý) | 70% |
+| Có (lấy bản ghi mới nhất theo `acceptedAt`, nếu trống thì `handoverAt`) | Người giao (`fromEmployeeId`, người giới thiệu) | `referrerSharePercent` của bản bàn giao (mặc định 30%) |
+| | Người nhận (`toEmployeeId`, người xử lý) | `100 - referrerSharePercent` (mặc định 70%) |
 
+- Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
 - Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
 - Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
 - Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `MSG22` và không ghi nhận gì thêm.
@@ -94,7 +95,7 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 
 Hai URL này đã nằm trong `EvidenceItemDto` (`previewUrl`, `downloadUrl`) của dossier. Cả hai yêu cầu `Authorization: Bearer`, nên FE phải tải bằng HttpClient rồi tạo blob; không dùng `<a href>` trực tiếp.
 
-Ai được xem: người đã nộp; người có quyền `verification:decide` với phạm vi (`Dept` / `Branch` / `All`) bao phủ phòng ban của người nộp; ADMIN. Evidence gắn với risk event hoặc appeal chỉ mở cho phạm vi `All`. Phản hồi luôn có `Cache-Control: private, no-store`.
+Ai được xem: người đã nộp (với evidence của appeal là người đã gửi khiếu nại); người có quyền `verification:decide` với phạm vi (`Dept` / `Branch` / `All`) bao phủ phòng ban của người nộp; ADMIN. Evidence gắn với risk event chỉ mở cho phạm vi `All`. Phản hồi luôn có `Cache-Control: private, no-store`.
 
 Quy tắc file khi nộp: tối đa 10 file, mỗi file ≤ 25 MB; đuôi thuộc `.pdf .xlsx .xls .docx .doc .png .jpg .jpeg`; nội dung phải khớp đuôi (kiểm tra chữ ký file: `%PDF`, PNG, JPEG, ZIP cho `.xlsx/.docx`, OLE cho `.xls/.doc`); tên file ≤ 255 ký tự. `mimeType` lưu theo đuôi đã xác thực, không theo `Content-Type` của client. Một file sai thì không file nào của lần nộp đó được lưu. Request `POST /works/{workId}/submissions` cho phép tối đa 251 MB (10 × 25 MB + phần form), giới hạn này chỉ áp cho route đó.
 

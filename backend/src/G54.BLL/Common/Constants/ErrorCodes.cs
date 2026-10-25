@@ -24,6 +24,11 @@ public static class ErrorCodes
     // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
     public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
 
+    // Appeal (docs/api/APPEAL_CONTRACT.md)
+    public const string AppealInvalidState = "APPEAL_INVALID_STATE";
+    public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
+    public const string AppealWindowExpired = "APPEAL_WINDOW_EXPIRED";
+
     // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
     public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
 
@@ -66,6 +71,9 @@ public static class ErrorCodes
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
         [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
+        [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
+        [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
+        [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
         [MSG01] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
         [MSG02] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),

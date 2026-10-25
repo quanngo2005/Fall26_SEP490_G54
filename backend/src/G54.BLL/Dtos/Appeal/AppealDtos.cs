@@ -1,0 +1,64 @@
+using Microsoft.AspNetCore.Http;
+
+namespace G54.BLL.Dtos.Appeal;
+
+/// <summary>Multipart form of <c>POST /submissions/{submissionId}/appeals</c>.</summary>
+public sealed class CreateAppealRequestDto
+{
+    public string? Reason { get; set; }
+
+    public List<IFormFile>? Files { get; set; }
+}
+
+public sealed record AppealFilterDto
+{
+    /// <summary>UPPER_SNAKE status filter (OPEN, UNDER_REVIEW, ACCEPTED, REJECTED, WITHDRAWN); unknown value is 400.</summary>
+    public string? Status { get; init; }
+
+    public int Page { get; init; } = 1;
+
+    public int PageSize { get; init; } = 20;
+}
+
+public sealed record AppealListItemDto(
+    Guid Id,
+    Guid ResultSubmissionId,
+    Guid WorkId,
+    string WorkCode,
+    string WorkTitle,
+    int SubmissionNo,
+    Guid EmployeeId,
+    string EmployeeCode,
+    string EmployeeName,
+    string Status,
+    DateTimeOffset FiledAt,
+    DateTimeOffset? DecidedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record AppealEvidenceDto(
+    Guid Id,
+    string FileName,
+    long? FileSize,
+    string? MimeType,
+    string PreviewUrl,
+    string DownloadUrl);
+
+public sealed record AppealDetailDto(
+    Guid Id,
+    Guid ResultSubmissionId,
+    Guid WorkId,
+    string WorkCode,
+    string WorkTitle,
+    int SubmissionNo,
+    Guid EmployeeId,
+    string EmployeeCode,
+    string EmployeeName,
+    string Status,
+    DateTimeOffset FiledAt,
+    DateTimeOffset? DecidedAt,
+    DateTimeOffset UpdatedAt,
+    string Reason,
+    string? Note,
+    Guid? ResolvedByEmployeeId,
+    string? ResolvedByEmployeeName,
+    IReadOnlyList<AppealEvidenceDto> Evidences);

@@ -1314,6 +1314,7 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
                 table.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
+                table.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
             });
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
@@ -1330,6 +1331,10 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("handover_at");
             entity.Property(e => e.Reason).HasColumnName("reason");
+            entity.Property(e => e.ReferrerSharePercent)
+                .HasPrecision(7, 4)
+                .HasDefaultValue(TaskHandover.DefaultReferrerSharePercent)
+                .HasColumnName("referrer_share_percent");
             entity.Property(e => e.ToEmployeeId).HasColumnName("to_employee_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
