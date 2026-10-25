@@ -31,17 +31,33 @@ public sealed class TargetAllocationServiceTests
         var q1 = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-Q1", Name = "Q1", PeriodType = PeriodType.Quarter, StartDate = new(2026, 1, 1), EndDate = new(2026, 3, 31), Status = status };
         var months = Enumerable.Range(1, 3).Select(m => new EvaluationPeriod
         {
-            Id = Guid.NewGuid(), Code = $"2026-{m:00}", Name = $"M{m}", PeriodType = PeriodType.Month,
-            StartDate = new(2026, m, 1), EndDate = new DateOnly(2026, m, 1).AddMonths(1).AddDays(-1), Status = status,
+            Id = Guid.NewGuid(),
+            Code = $"2026-{m:00}",
+            Name = $"M{m}",
+            PeriodType = PeriodType.Month,
+            StartDate = new(2026, m, 1),
+            EndDate = new DateOnly(2026, m, 1).AddMonths(1).AddDays(-1),
+            Status = status,
         }).ToList();
         var days = Enumerable.Range(0, 90).Select(i => new DateOnly(2026, 1, 1).AddDays(i)).Select(d => new EvaluationPeriod
         {
-            Id = Guid.NewGuid(), Code = "D" + d.DayNumber, Name = "day", PeriodType = PeriodType.Day, StartDate = d, EndDate = d, Status = status,
+            Id = Guid.NewGuid(),
+            Code = "D" + d.DayNumber,
+            Name = "day",
+            PeriodType = PeriodType.Day,
+            StartDate = d,
+            EndDate = d,
+            Status = status,
         }).ToList();
         var l1 = new TargetAssignment
         {
-            Id = Guid.NewGuid(), DepartmentId = branch.Id, KpiDefinitionId = kpi.Id, EvaluationPeriodId = year.Id,
-            TargetValue = 1000, Version = 1, Status = TargetAssignmentStatus.Draft,
+            Id = Guid.NewGuid(),
+            DepartmentId = branch.Id,
+            KpiDefinitionId = kpi.Id,
+            EvaluationPeriodId = year.Id,
+            TargetValue = 1000,
+            Version = 1,
+            Status = TargetAssignmentStatus.Draft,
         };
 
         db.Departments.AddRange(branch, dept);
