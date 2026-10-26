@@ -291,7 +291,7 @@ public sealed class WorkServiceTests
                 PlannedEndDate: new DateOnly(2026, 10, 25)); // Exceeds 2026-10-20
 
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
-            Assert.Equal(ErrorCodes.MSG18, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.WorkDeadlineExceedsCampaign, ex.ErrorCode);
         }
     }
 

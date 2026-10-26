@@ -77,14 +77,14 @@ public sealed partial class WorkService(
             if (campaign.Status != BusinessCampaignStatus.Running && campaign.Status != BusinessCampaignStatus.Planned)
             {
                 throw new BusinessRuleException(
-                    ErrorCodes.MSG18,
+                    ErrorCodes.CampaignNotActive,
                     "Chiến dịch được gắn không trong trạng thái hoạt động.");
             }
 
             if (request.PlannedEndDate.HasValue && request.PlannedEndDate.Value > campaign.EndDate)
             {
                 throw new BusinessRuleException(
-                    ErrorCodes.MSG18,
+                    ErrorCodes.WorkDeadlineExceedsCampaign,
                     $"Hạn hoàn thành công việc ({request.PlannedEndDate.Value}) vượt quá ngày kết thúc chiến dịch ({campaign.EndDate}).");
             }
 

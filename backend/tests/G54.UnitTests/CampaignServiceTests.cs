@@ -401,7 +401,7 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
-    public async Task UpdateCampaignAsync_ThrowsMSG18_WhenEndDateEarlierThanTasks()
+    public async Task UpdateCampaignAsync_ThrowsCampaignEndDateBeforeWorkDeadline_WhenEndDateEarlierThanTasks()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -446,7 +446,7 @@ public sealed class CampaignServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.UpdateCampaignAsync(campaign.Id, updateReq, Guid.NewGuid()));
 
-            Assert.Equal(ErrorCodes.MSG18, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.CampaignEndDateBeforeWorkDeadline, ex.ErrorCode);
         }
     }
 
@@ -553,7 +553,7 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
-    public async Task DecideCampaignAsync_ThrowsMSG10_WhenApproverIsParticipant_BR02()
+    public async Task DecideCampaignAsync_ThrowsMakerCannotBeChecker_WhenApproverIsParticipant_BR02()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -589,7 +589,7 @@ public sealed class CampaignServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.DecideCampaignAsync(campaign.Id, req, emp1.Id));
 
-            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
         }
     }
 
@@ -853,7 +853,7 @@ public sealed class CampaignServiceTests
         }
     }
     [Fact]
-    public async Task BatchGenerateWorkAsync_ThrowsMSG18_WhenDeadlineExceedsCampaignEndDate()
+    public async Task BatchGenerateWorkAsync_ThrowsWorkDeadlineExceedsCampaign_WhenDeadlineExceedsCampaignEndDate()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -864,7 +864,7 @@ public sealed class CampaignServiceTests
             {
                 Id = Guid.NewGuid(),
                 BusinessObjectiveId = objective.Id,
-                Code = "CMP-MSG18",
+                Code = "CMP-WORK-DEADLINE",
                 Name = "Chiến dịch Hạn chót",
                 StartDate = new DateOnly(2026, 10, 1),
                 EndDate = new DateOnly(2026, 10, 15),
@@ -895,7 +895,7 @@ public sealed class CampaignServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid()));
 
-            Assert.Equal(ErrorCodes.MSG18, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.WorkDeadlineExceedsCampaign, ex.ErrorCode);
         }
     }
 
@@ -1150,7 +1150,7 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
-    public async Task DecideCampaignAsync_ThrowsMSG10_WhenUserIsParticipant_BR02()
+    public async Task DecideCampaignAsync_ThrowsMakerCannotBeChecker_WhenUserIsParticipant_BR02()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -1186,13 +1186,13 @@ public sealed class CampaignServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.DecideCampaignAsync(campaign.Id, request, emp1.Id));
 
-            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
             Assert.Contains("không được tự phê duyệt", ex.Message);
         }
     }
 
     [Fact]
-    public async Task DecideCampaignAsync_ThrowsMSG10_WhenUserAccountLinkedEmployeeIsParticipant_BR02()
+    public async Task DecideCampaignAsync_ThrowsMakerCannotBeChecker_WhenUserAccountLinkedEmployeeIsParticipant_BR02()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -1239,7 +1239,7 @@ public sealed class CampaignServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.DecideCampaignAsync(campaign.Id, request, accountId));
 
-            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
             Assert.Contains("không được tự phê duyệt", ex.Message);
         }
     }

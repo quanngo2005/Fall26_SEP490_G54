@@ -188,7 +188,7 @@ describe('ReviewVerifyComponent', () => {
     http
       .expectOne(`${base}/decision`)
       .flush(
-        { success: false, status: 422, errorCode: 'MSG10', message: 'x' },
+        { success: false, status: 422, errorCode: 'MAKER_CANNOT_BE_CHECKER', message: 'x' },
         { status: 422, statusText: 'Unprocessable' },
       );
     fixture.detectChanges();

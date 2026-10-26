@@ -302,7 +302,7 @@ public sealed class EvaluationServiceTests
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitEvaluationAsync(request, manager.Id));
 
-        Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
     }
 
     [Fact]

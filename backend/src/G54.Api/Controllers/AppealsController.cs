@@ -39,7 +39,7 @@ public sealed class AppealsController(IAppealService appealService) : Controller
         var result = await appealService.CreateAppealAsync(submissionId, User.GetRequiredUserId(), request, cancellationToken);
         var response = ApiResponse.Ok(
             result,
-            ErrorCodes.GetDefaultMessage(ErrorCodes.MSG04),
+            SuccessMessages.GetMessage(SuccessMessages.Created),
             HttpContext.TraceIdentifier);
 
         return CreatedAtAction(nameof(GetAppealById), new { id = result.Id }, response);
