@@ -5,12 +5,12 @@ namespace G54.DAL.Repositories;
 public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
 {
     /// <summary>
-    /// L1 lookup (import upsert). Tracked. Ignores Superseded/Closed.
+    /// Branch-year target lookup (import upsert). Tracked. Ignores Superseded/Closed.
     /// </summary>
     Task<TargetAssignment?> GetCurrentBranchYearAsync(Guid branchId, Guid kpiId, Guid yearPeriodId, CancellationToken ct = default);
 
     /// <summary>
-    /// L1/L2/L3 by id, tracked, with Department + EvaluationPeriod + KpiDefinition.
+    /// Branch-year, dept-year or quarter target by id, tracked, with Department + EvaluationPeriod + KpiDefinition.
     /// </summary>
     Task<TargetAssignment?> GetWithContextAsync(Guid id, CancellationToken ct = default);
 

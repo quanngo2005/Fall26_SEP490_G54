@@ -141,11 +141,11 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
 
     public async Task<List<TargetNodeDto>> AllocateDepartmentsAsync(Guid branchYearId, AllocateDepartmentsDto dto, Guid userId, CancellationToken ct = default)
     {
-        var l1 = await uow.TargetAssignments.GetWithContextAsync(branchYearId, ct);
-        if (l1 == null || l1.ParentAssignmentId != null)
+        var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(branchYearId, ct);
+        if (branchYearTarget == null || branchYearTarget.ParentAssignmentId != null)
             throw new NotFoundException("Branch-year target not found.");
 
-        if (l1.EvaluationPeriod?.Status != PeriodStatus.Open)
+        if (branchYearTarget.EvaluationPeriod?.Status != PeriodStatus.Open)
             throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
 
         var deptIds = dto.Items.Select(i => i.DepartmentId).Distinct().ToList();
@@ -154,33 +154,33 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
         foreach (var deptId in deptIds)
         {
             var dept = depts.FirstOrDefault(d => d.Id == deptId);
-            if (dept == null || dept.ParentDepartmentId != l1.DepartmentId)
+            if (dept == null || dept.ParentDepartmentId != branchYearTarget.DepartmentId)
                 throw new BusinessRuleException(ErrorCodes.TargetDepartmentNotInBranch, null, 422);
         }
 
         var byKpi = dto.Items.GroupBy(i => i.KpiDefinitionId).ToList();
-        if (byKpi.Count > 1 || byKpi[0].Key != l1.KpiDefinitionId)
-            throw new ValidationException("Request may only contain the L1 row's own KPI.");
+        if (byKpi.Count > 1 || byKpi[0].Key != branchYearTarget.KpiDefinitionId)
+            throw new ValidationException("Request may only contain the branch year target's own KPI.");
 
         foreach (var item in dto.Items)
         {
             var clash = await uow.TargetAssignments.AnyAsync(
                 t => t.KpiDefinitionId == item.KpiDefinitionId && t.DepartmentId == item.DepartmentId
-                     && t.EvaluationPeriodId == l1.EvaluationPeriodId && t.ParentAssignmentId != l1.Id,
+                     && t.EvaluationPeriodId == branchYearTarget.EvaluationPeriodId && t.ParentAssignmentId != branchYearTarget.Id,
                 ct);
             if (clash)
                 throw new ConflictException("A year target for this department and KPI already exists outside this allocation.", ErrorCodes.TargetInvalidState);
         }
 
         var totalTarget = dto.Items.Sum(i => i.TargetValue);
-        if (totalTarget < l1.TargetValue)
+        if (totalTarget < branchYearTarget.TargetValue)
             throw new BusinessRuleException(ErrorCodes.TargetDepartmentSumBelow, null, 422);
 
         await uow.ExecuteInTransactionAsync(async transaction =>
         {
             foreach (var item in dto.Items)
             {
-                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(l1.Id, transaction))
+                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(branchYearTarget.Id, transaction))
                     .FirstOrDefault(c => c.DepartmentId == item.DepartmentId && c.KpiDefinitionId == item.KpiDefinitionId);
 
                 if (existing != null)
@@ -204,8 +204,8 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                             Id = Guid.NewGuid(),
                             DepartmentId = item.DepartmentId,
                             KpiDefinitionId = item.KpiDefinitionId,
-                            EvaluationPeriodId = l1.EvaluationPeriodId,
-                            ParentAssignmentId = l1.Id,
+                            EvaluationPeriodId = branchYearTarget.EvaluationPeriodId,
+                            ParentAssignmentId = branchYearTarget.Id,
                             SplitDimension = TargetSplitDimension.Org,
                             TargetValue = item.TargetValue,
                             Version = existing.Version + 1,
@@ -223,8 +223,8 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                         Id = Guid.NewGuid(),
                         DepartmentId = item.DepartmentId,
                         KpiDefinitionId = item.KpiDefinitionId,
-                        EvaluationPeriodId = l1.EvaluationPeriodId,
-                        ParentAssignmentId = l1.Id,
+                        EvaluationPeriodId = branchYearTarget.EvaluationPeriodId,
+                        ParentAssignmentId = branchYearTarget.Id,
                         SplitDimension = TargetSplitDimension.Org,
                         TargetValue = item.TargetValue,
                         Version = 1,
@@ -236,41 +236,41 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(l1.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
         return tree;
     }
 
     public async Task<List<TargetNodeDto>> AllocateQuartersAsync(Guid deptYearId, AllocateQuartersDto dto, Guid userId, CancellationToken ct = default)
     {
-        var l2 = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
-        if (l2 == null || l2.ParentAssignmentId == null)
+        var deptYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
+        if (deptYearTarget == null || deptYearTarget.ParentAssignmentId == null)
             throw new NotFoundException("Department-year target not found.");
 
-        var l1 = await uow.TargetAssignments.GetWithContextAsync(l2.ParentAssignmentId.Value, ct);
-        if (l1?.ParentAssignmentId != null)
-            throw new ValidationException("L1 reference invalid.");
+        var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId.Value, ct);
+        if (branchYearTarget?.ParentAssignmentId != null)
+            throw new ValidationException("Branch year target reference invalid.");
 
-        if (l2.EvaluationPeriod?.Status != PeriodStatus.Open)
+        if (deptYearTarget.EvaluationPeriod?.Status != PeriodStatus.Open)
             throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
 
         var quarterPeriods = await uow.EvaluationPeriods.GetInRangeAsync(
             PeriodType.Quarter,
-            l1!.EvaluationPeriod!.StartDate,
-            l1.EvaluationPeriod.EndDate,
+            branchYearTarget!.EvaluationPeriod!.StartDate,
+            branchYearTarget.EvaluationPeriod.EndDate,
             ct);
 
         foreach (var item in dto.Items)
         {
             var clash = await uow.TargetAssignments.AnyAsync(
-                t => t.KpiDefinitionId == l2.KpiDefinitionId && t.DepartmentId == l2.DepartmentId
-                     && t.EvaluationPeriodId == item.QuarterPeriodId && t.ParentAssignmentId != l2.Id,
+                t => t.KpiDefinitionId == deptYearTarget.KpiDefinitionId && t.DepartmentId == deptYearTarget.DepartmentId
+                     && t.EvaluationPeriodId == item.QuarterPeriodId && t.ParentAssignmentId != deptYearTarget.Id,
                 ct);
             if (clash)
                 throw new ConflictException("A target for this department, KPI and quarter already exists outside this allocation.", ErrorCodes.TargetInvalidState);
         }
 
         var totalTarget = dto.Items.Sum(i => i.TargetValue);
-        if (totalTarget < l2.TargetValue)
+        if (totalTarget < deptYearTarget.TargetValue)
             throw new BusinessRuleException(ErrorCodes.TargetQuarterSumBelow, null, 422);
 
         await uow.ExecuteInTransactionAsync(async transaction =>
@@ -281,7 +281,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                 if (quarterPeriod == null)
                     throw new ValidationException("Quarter period not in valid range.");
 
-                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(l2.Id, transaction))
+                var existing = (await uow.TargetAssignments.GetCurrentChildrenAsync(deptYearTarget.Id, transaction))
                     .FirstOrDefault(c => c.EvaluationPeriodId == item.QuarterPeriodId);
 
                 if (existing != null)
@@ -303,10 +303,10 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                         var newRow = new TargetAssignment
                         {
                             Id = Guid.NewGuid(),
-                            DepartmentId = l2.DepartmentId,
-                            KpiDefinitionId = l2.KpiDefinitionId,
+                            DepartmentId = deptYearTarget.DepartmentId,
+                            KpiDefinitionId = deptYearTarget.KpiDefinitionId,
                             EvaluationPeriodId = item.QuarterPeriodId,
-                            ParentAssignmentId = l2.Id,
+                            ParentAssignmentId = deptYearTarget.Id,
                             SplitDimension = TargetSplitDimension.Period,
                             TargetValue = item.TargetValue,
                             Version = existing.Version + 1,
@@ -322,10 +322,10 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                     var newRow = new TargetAssignment
                     {
                         Id = Guid.NewGuid(),
-                        DepartmentId = l2.DepartmentId,
-                        KpiDefinitionId = l2.KpiDefinitionId,
+                        DepartmentId = deptYearTarget.DepartmentId,
+                        KpiDefinitionId = deptYearTarget.KpiDefinitionId,
                         EvaluationPeriodId = item.QuarterPeriodId,
-                        ParentAssignmentId = l2.Id,
+                        ParentAssignmentId = deptYearTarget.Id,
                         SplitDimension = TargetSplitDimension.Period,
                         TargetValue = item.TargetValue,
                         Version = 1,
@@ -337,77 +337,77 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(l1.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
         return tree;
     }
 
     public async Task<TargetNodeDto> ConfirmAsync(Guid deptYearId, Guid userId, CancellationToken ct = default)
     {
-        var l2 = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
-        if (l2 == null)
+        var deptYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
+        if (deptYearTarget == null)
             throw new NotFoundException("Department-year target not found.");
 
-        var l1 = await uow.TargetAssignments.GetWithContextAsync(l2.ParentAssignmentId!.Value, ct);
+        var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId!.Value, ct);
 
-        var l3List = await uow.TargetAssignments.GetCurrentChildrenAsync(l2.Id, ct);
-        if (l3List.Count == 0)
+        var quarterTargets = await uow.TargetAssignments.GetCurrentChildrenAsync(deptYearTarget.Id, ct);
+        if (quarterTargets.Count == 0)
             throw new ConflictException("Department has no quarter allocation to confirm.", ErrorCodes.TargetInvalidState);
 
         // Unique index (kpi, department, period, version): new rows must take the next free version.
         var versions = (await uow.TargetAssignments.ListAsync(
-                t => t.KpiDefinitionId == l2.KpiDefinitionId && t.DepartmentId == l2.DepartmentId, ct))
+                t => t.KpiDefinitionId == deptYearTarget.KpiDefinitionId && t.DepartmentId == deptYearTarget.DepartmentId, ct))
             .GroupBy(t => t.EvaluationPeriodId)
             .ToDictionary(g => g.Key, g => g.Max(t => t.Version));
 
         // DB rule: ACTIVE children of an ACTIVE SUM-KPI parent must sum exactly to the parent target.
-        var isSum = l2.KpiDefinition?.AggregationType == KpiAggregationType.Sum;
-        if (isSum && l3List.Sum(c => c.TargetValue) != l2.TargetValue)
+        var isSum = deptYearTarget.KpiDefinition?.AggregationType == KpiAggregationType.Sum;
+        if (isSum && quarterTargets.Sum(c => c.TargetValue) != deptYearTarget.TargetValue)
             throw new BusinessRuleException(ErrorCodes.TargetInvalidState, "Quarter targets must sum exactly to the department year target before confirming.", 422);
 
-        var l2Siblings = await uow.TargetAssignments.GetCurrentChildrenAsync(l1!.Id, ct);
-        var branchReady = l2Siblings.All(s => s.Id == l2.Id || s.Status == TargetAssignmentStatus.Active);
-        if (branchReady && isSum && l2Siblings.Sum(c => c.TargetValue) != l1.TargetValue)
+        var deptYearTargets = await uow.TargetAssignments.GetCurrentChildrenAsync(branchYearTarget!.Id, ct);
+        var branchReady = deptYearTargets.All(s => s.Id == deptYearTarget.Id || s.Status == TargetAssignmentStatus.Active);
+        if (branchReady && isSum && deptYearTargets.Sum(c => c.TargetValue) != branchYearTarget.TargetValue)
             throw new BusinessRuleException(ErrorCodes.TargetInvalidState, "Department year targets must sum exactly to the branch year target before confirming.", 422);
 
         await uow.ExecuteInTransactionAsync(async transaction =>
         {
             if (branchReady)
             {
-                l1.Status = TargetAssignmentStatus.Active;
-                l1.ApprovedAt = DateTimeOffset.UtcNow;
+                branchYearTarget.Status = TargetAssignmentStatus.Active;
+                branchYearTarget.ApprovedAt = DateTimeOffset.UtcNow;
             }
 
-            l2.Status = TargetAssignmentStatus.Active;
-            l2.ApprovedAt = DateTimeOffset.UtcNow;
+            deptYearTarget.Status = TargetAssignmentStatus.Active;
+            deptYearTarget.ApprovedAt = DateTimeOffset.UtcNow;
 
-            foreach (var l3 in l3List)
+            foreach (var quarterTarget in quarterTargets)
             {
-                var oldL4s = await uow.TargetAssignments.GetActiveDescendantsAsync(l3.Id, transaction);
-                foreach (var oldL4 in oldL4s)
-                    oldL4.Status = TargetAssignmentStatus.Superseded;
+                var staleChildTargets = await uow.TargetAssignments.GetActiveDescendantsAsync(quarterTarget.Id, transaction);
+                foreach (var staleChild in staleChildTargets)
+                    staleChild.Status = TargetAssignmentStatus.Superseded;
 
-                l3.Status = TargetAssignmentStatus.Active;
-                l3.ApprovedAt = DateTimeOffset.UtcNow;
+                quarterTarget.Status = TargetAssignmentStatus.Active;
+                quarterTarget.ApprovedAt = DateTimeOffset.UtcNow;
 
                 var months = await uow.EvaluationPeriods.GetInRangeAsync(
                     PeriodType.Month,
-                    l3.EvaluationPeriod!.StartDate,
-                    l3.EvaluationPeriod.EndDate,
+                    quarterTarget.EvaluationPeriod!.StartDate,
+                    quarterTarget.EvaluationPeriod.EndDate,
                     transaction);
 
                 var monthParts = months.Select(m => (m.StartDate, m.EndDate)).ToList();
-                var monthValues = SplitByWorkingDays(l3.TargetValue, monthParts);
+                var monthValues = SplitByWorkingDays(quarterTarget.TargetValue, monthParts);
 
                 for (int i = 0; i < months.Count; i++)
                 {
                     var monthId = Guid.NewGuid();
-                    var l4 = new TargetAssignment
+                    var monthTarget = new TargetAssignment
                     {
                         Id = monthId,
-                        DepartmentId = l2.DepartmentId,
-                        KpiDefinitionId = l2.KpiDefinitionId,
+                        DepartmentId = deptYearTarget.DepartmentId,
+                        KpiDefinitionId = deptYearTarget.KpiDefinitionId,
                         EvaluationPeriodId = months[i].Id,
-                        ParentAssignmentId = l3.Id,
+                        ParentAssignmentId = quarterTarget.Id,
                         SplitDimension = TargetSplitDimension.Period,
                         TargetValue = monthValues[i],
                         Version = NextVersion(versions, months[i].Id),
@@ -415,17 +415,17 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
                         AssignedAt = DateTimeOffset.UtcNow,
                         ApprovedAt = DateTimeOffset.UtcNow,
                     };
-                    await uow.TargetAssignments.AddAsync(l4, transaction);
+                    await uow.TargetAssignments.AddAsync(monthTarget, transaction);
 
                     // DB rules: DAY sits directly under MONTH and ACTIVE children must sum exactly to their parent,
                     // so only days are stored under a month. Week totals are derived from the day rows.
-                    await AddDaysAsync(l2, l4, months[i].StartDate, months[i].EndDate, versions, transaction);
+                    await AddDaysAsync(deptYearTarget, monthTarget, months[i].StartDate, months[i].EndDate, versions, transaction);
                 }
             }
         }, ct);
 
-        var tree = await GetTreeAsync(l1!.DepartmentId!.Value, int.Parse(l1.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
-        return FindNode(tree, l2.Id) ?? throw new NotFoundException("Department-year target not found.");
+        var tree = await GetTreeAsync(branchYearTarget!.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        return FindNode(tree, deptYearTarget.Id) ?? throw new NotFoundException("Department-year target not found.");
     }
 
     public async Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, CancellationToken ct = default)
@@ -528,12 +528,12 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
     private static int NextVersion(Dictionary<Guid, int> versions, Guid periodId) =>
         versions.TryGetValue(periodId, out var v) ? v + 1 : 1;
 
-    private static TargetAssignment NewPeriodRow(TargetAssignment l2, Guid periodId, Guid parentId, decimal value, int version) => new()
+    private static TargetAssignment NewPeriodRow(TargetAssignment deptYearTarget, Guid periodId, Guid parentId, decimal value, int version) => new()
     {
         Id = Guid.NewGuid(),
-        DepartmentId = l2.DepartmentId,
-        KpiDefinitionId = l2.KpiDefinitionId,
-        BusinessObjectiveId = l2.BusinessObjectiveId,
+        DepartmentId = deptYearTarget.DepartmentId,
+        KpiDefinitionId = deptYearTarget.KpiDefinitionId,
+        BusinessObjectiveId = deptYearTarget.BusinessObjectiveId,
         EvaluationPeriodId = periodId,
         ParentAssignmentId = parentId,
         SplitDimension = TargetSplitDimension.Period,
@@ -544,7 +544,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
         ApprovedAt = DateTimeOffset.UtcNow,
     };
 
-    private async Task AddDaysAsync(TargetAssignment l2, TargetAssignment parent, DateOnly start, DateOnly end, Dictionary<Guid, int> versions, CancellationToken ct)
+    private async Task AddDaysAsync(TargetAssignment deptYearTarget, TargetAssignment parent, DateOnly start, DateOnly end, Dictionary<Guid, int> versions, CancellationToken ct)
     {
         var days = await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Day, start, end, ct);
         if (days.Count == 0)
@@ -552,7 +552,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
 
         var values = SplitByWorkingDays(parent.TargetValue, days.Select(d => (d.StartDate, d.EndDate)).ToList());
         for (int k = 0; k < days.Count; k++)
-            await uow.TargetAssignments.AddAsync(NewPeriodRow(l2, days[k].Id, parent.Id, values[k], NextVersion(versions, days[k].Id)), ct);
+            await uow.TargetAssignments.AddAsync(NewPeriodRow(deptYearTarget, days[k].Id, parent.Id, values[k], NextVersion(versions, days[k].Id)), ct);
     }
 
     private static int GetPeriodPosition(string code)
