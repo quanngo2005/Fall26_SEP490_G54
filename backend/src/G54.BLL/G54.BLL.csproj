@@ -2,7 +2,13 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="ClosedXML" Version="0.102.1" />
+    <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.20" />
     <ProjectReference Include="..\G54.DAL\G54.DAL.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="G54.UnitTests" />
   </ItemGroup>
 </Project>

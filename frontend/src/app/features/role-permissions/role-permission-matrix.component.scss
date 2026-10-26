@@ -1,0 +1,215 @@
+.matrix-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.matrix-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.matrix-title h1 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 20px;
+  font-weight: 600;
+}
+.role-select {
+  width: auto;
+  min-width: 160px;
+}
+.role-tag {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+}
+.dirty-count {
+  color: #475569;
+  font-size: 13px;
+}
+
+.matrix-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.search-input {
+  width: min(220px, 100%);
+}
+.module-select {
+  width: auto;
+  min-width: 140px;
+}
+.scope-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: #64748b;
+  font-size: 12px;
+}
+.chip {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #334155;
+  padding: 2px 8px;
+}
+
+/* Scope colours, shared by legend chips and cell selects. */
+.scope-Own {
+  border-color: #a5f3fc;
+  background-color: #ecfeff;
+  color: #0e7490;
+}
+.scope-Dept {
+  border-color: #bfdbfe;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+.scope-Branch {
+  border-color: #bbf7d0;
+  background-color: #f0fdf4;
+  color: #15803d;
+}
+.scope-All {
+  border-color: #ddd6fe;
+  background-color: #f5f3ff;
+  color: #6d28d9;
+}
+.is-locked {
+  border-color: #e2e8f0;
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+
+.matrix-wrap {
+  overflow-x: auto;
+  padding: 0;
+}
+.matrix {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.matrix thead th {
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 14px 12px;
+  text-align: center;
+  text-transform: uppercase;
+}
+.matrix th.col-resource {
+  width: 24%;
+  text-align: left;
+}
+.matrix tbody th[scope='row'] {
+  color: #1e293b;
+  font-weight: 400;
+  padding: 8px 12px;
+}
+.matrix td {
+  padding: 6px 12px;
+  text-align: center;
+}
+.matrix tbody tr:not(.group-row) {
+  border-bottom: 1px solid #f1f5f9;
+}
+.matrix tr.is-dirty {
+  background: #fefce8;
+}
+.group-row th,
+.group-row td {
+  background: #f1f5f9;
+  padding: 6px 12px;
+  text-align: left;
+}
+.group-row th {
+  color: #1e293b;
+  font-weight: 600;
+}
+.group-toggle {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+}
+.group-toggle:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+.collapsed-row td {
+  color: #475569;
+  text-align: left;
+}
+
+.na {
+  color: #cbd5e1;
+}
+.scope-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 112px;
+  min-height: 28px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 13px;
+  padding: 0 8px;
+  text-align: left;
+}
+select.scope-cell {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 6px center;
+  background-repeat: no-repeat;
+}
+select.scope-none {
+  background-color: #fff;
+  color: #334155;
+}
+select.scope-cell:focus-visible,
+.scope-cell.is-locked:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 1px;
+}
+select.scope-cell.is-dirty {
+  border: 2px solid #1d4ed8;
+}
+.scope-cell.is-locked {
+  cursor: not-allowed;
+}
+
+.matrix-legend {
+  margin: 12px 0 0;
+  color: #475569;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .scope-legend {
+    margin-left: 0;
+  }
+}

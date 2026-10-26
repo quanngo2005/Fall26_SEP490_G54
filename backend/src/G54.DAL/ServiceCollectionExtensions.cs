@@ -45,6 +45,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IWorkRepository, WorkRepository>();
+        services.AddScoped<ITargetAssignmentRepository, TargetAssignmentRepository>();
+        services.AddScoped<IEvaluationPeriodRepository, EvaluationPeriodRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }

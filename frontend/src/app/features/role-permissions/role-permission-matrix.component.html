@@ -1,0 +1,225 @@
+@let t = localization.permissionMatrix;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading() || saving()">
+      @if (loading() && matrix()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+
+      <div class="matrix-toolbar">
+        <div class="matrix-title">
+          <h1>{{t.title}}</h1>
+          <select
+            class="select role-select"
+            [ngModel]="roleId()"
+            (ngModelChange)="changeRole($event)"
+            [disabled]="saving() || !roles().length"
+            [attr.aria-label]="t.role"
+          >
+            @for (role of roles(); track role.id) {
+              <option [value]="role.id">{{role.code}} · {{role.name}}</option>
+            }
+          </select>
+          @if (selectedRole()?.isSystem) {
+            <span class="role-tag">{{t.systemRole}}</span>
+          }
+        </div>
+        <div class="toolbar-actions">
+          @if (dirtyCount()) {
+            <span class="dirty-count" role="status"
+              ><strong>{{dirtyCount()}}</strong> {{t.unsaved}}</span
+            >
+          }
+          <button
+            type="button"
+            class="button button-secondary"
+            (click)="cancel()"
+            [disabled]="!dirtyCount() || saving()"
+          >
+            {{t.cancel}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            (click)="save()"
+            [disabled]="!dirtyCount() || saving()"
+          >
+            {{saving() ? t.saving : t.save}}
+          </button>
+        </div>
+      </div>
+
+      @if (notice(); as n) {
+        <div
+          class="notice"
+          [class.is-error]="n.kind === 'error'"
+          [attr.role]="n.kind === 'error' ? 'alert' : 'status'"
+        >
+          <span>{{n.text}}</span>
+          <button
+            type="button"
+            (click)="dismissNotice()"
+            [attr.aria-label]="localization.common.close"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="matrix-filters">
+        <input
+          type="search"
+          class="input search-input"
+          [ngModel]="keyword()"
+          (ngModelChange)="keyword.set($event)"
+          [placeholder]="t.searchResource"
+          [attr.aria-label]="t.searchResource"
+        />
+        <select
+          class="select module-select"
+          [ngModel]="moduleFilter()"
+          (ngModelChange)="moduleFilter.set($event)"
+          [attr.aria-label]="t.moduleAll"
+        >
+          <option value="">{{t.moduleAll}}</option>
+          @for (module of modules(); track module.module) {
+            <option [value]="module.module">{{t.modulePrefix}}{{module.name}}</option>
+          }
+        </select>
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            [ngModel]="grantedOnly()"
+            (ngModelChange)="grantedOnly.set($event)"
+          />
+          {{t.grantedOnly}}
+        </label>
+        <div class="scope-legend" aria-hidden="true">
+          <span>{{t.scopeLegend}}</span>
+          <span class="chip">{{t.scopes.none}}</span>
+          <span class="chip scope-Own">{{t.scopes.Own}}</span>
+          <span class="chip scope-Dept">{{t.scopes.Dept}}</span>
+          <span class="chip scope-Branch">{{t.scopes.Branch}}</span>
+          <span class="chip is-locked">🔒 {{t.locked}}</span>
+        </div>
+      </div>
+
+      @if (loading() && !matrix()) {
+        <div class="state-card"><span class="spinner" aria-hidden="true"></span></div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="retry()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="matrix-wrap surface-card">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th scope="col" class="col-resource">{{t.resource}}</th>
+                @for (action of actions; track action) {
+                  <th scope="col">{{t.actions[action]}}</th>
+                }
+              </tr>
+            </thead>
+            @for (module of expandedModules(); track module.module) {
+              <tbody>
+                <tr class="group-row">
+                  <th [attr.colspan]="actions.length + 1" scope="rowgroup">
+                    <button
+                      type="button"
+                      class="group-toggle"
+                      (click)="toggleModule(module.module)"
+                      aria-expanded="true"
+                      [attr.aria-label]="t.collapse + ' ' + module.name"
+                    >
+                      {{module.name}}
+                    </button>
+                  </th>
+                </tr>
+                @for (row of module.resources; track row.resource) {
+                  <tr [class.is-dirty]="rowDirty(row.resource)">
+                    <th scope="row" class="col-resource">{{row.name}}</th>
+                    @for (action of actions; track action) {
+                      @let c = cell(row, action);
+                      <td>
+                        @if (!c || !c.applicable) {
+                          <span class="na" [title]="t.notApplicable">—</span>
+                        } @else if (c.locked) {
+                          <span
+                            class="scope-cell is-locked"
+                            [title]="c.lockReason ?? t.locked"
+                            [attr.aria-label]="
+                              row.name +
+                              ' ' +
+                              t.actions[action] +
+                              ': ' +
+                              scopeLabel(c.scope) +
+                              ' (' +
+                              (c.lockReason ?? t.locked) +
+                              ')'
+                            "
+                            tabindex="0"
+                          >
+                            <span>{{scopeLabel(c.scope)}}</span>
+                            <span aria-hidden="true">🔒</span>
+                          </span>
+                        } @else {
+                          @let scope = scopeOf(row.resource, c);
+                          <select
+                            [class]="'scope-cell scope-' + (scope ?? 'none')"
+                            [class.is-dirty]="isDirty(row.resource, action)"
+                            [ngModel]="scope ?? ''"
+                            (ngModelChange)="setScope(row.resource, c, $event)"
+                            [disabled]="saving()"
+                            [attr.aria-label]="row.name + ' ' + t.actions[action]"
+                          >
+                            <option value="">{{t.scopes.none}}</option>
+                            @for (option of optionsFor(c); track option) {
+                              <option [value]="option">{{t.scopes[option]}}</option>
+                            }
+                          </select>
+                        }
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            } @empty {
+              @if (!collapsedModules().length) {
+                <tbody>
+                  <tr>
+                    <td class="empty-cell" [attr.colspan]="actions.length + 1">{{t.empty}}</td>
+                  </tr>
+                </tbody>
+              }
+            }
+            @if (collapsedModules().length) {
+              <tbody>
+                <tr class="group-row collapsed-row">
+                  <th scope="rowgroup">{{collapsedTitle()}}</th>
+                  <td [attr.colspan]="actions.length">
+                    <button
+                      type="button"
+                      class="group-toggle"
+                      (click)="expandAll()"
+                      aria-expanded="false"
+                    >
+                      {{collapsedModules().length}} {{t.collapsedGroups}}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            }
+          </table>
+        </div>
+        <p class="matrix-legend">{{t.legend}}</p>
+      }
+    </main>
+  </div>
+</div>
