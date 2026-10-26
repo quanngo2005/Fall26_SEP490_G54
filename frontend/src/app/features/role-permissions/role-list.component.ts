@@ -217,7 +217,8 @@ export class RoleListComponent extends LocalizedComponent {
           if (this.selectedId() === roleId) target.set({ loading: false, failed: false, data });
         },
         error: () => {
-          if (this.selectedId() === roleId) target.set({ loading: false, failed: true, data: null });
+          if (this.selectedId() === roleId)
+            target.set({ loading: false, failed: true, data: null });
         },
       });
   }

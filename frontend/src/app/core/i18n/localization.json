@@ -1,9 +1,6 @@
 {
   "defaultLocale": "vi",
-  "supportedLocales": [
-    "vi",
-    "en"
-  ],
+  "supportedLocales": ["vi", "en"],
   "formats": {
     "vi": {
       "date": "DD/MM/YYYY",

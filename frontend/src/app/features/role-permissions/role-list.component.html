@@ -110,18 +110,40 @@
       </header>
 
       <nav class="tabs" role="tablist">
-        <button type="button" role="tab" [class.is-active]="tab() === 'info'"
-          [attr.aria-selected]="tab() === 'info'" (click)="selectTab('info')">{{t.tabInfo}}</button>
-        <button type="button" role="tab" [class.is-active]="tab() === 'permissions'"
-          [attr.aria-selected]="tab() === 'permissions'" (click)="selectTab('permissions')">
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'info'"
+          [attr.aria-selected]="tab() === 'info'"
+          (click)="selectTab('info')"
+        >
+          {{t.tabInfo}}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'permissions'"
+          [attr.aria-selected]="tab() === 'permissions'"
+          (click)="selectTab('permissions')"
+        >
           {{t.tabPermissions}}
         </button>
-        <button type="button" role="tab" [class.is-active]="tab() === 'accounts'"
-          [attr.aria-selected]="tab() === 'accounts'" (click)="selectTab('accounts')">
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'accounts'"
+          [attr.aria-selected]="tab() === 'accounts'"
+          (click)="selectTab('accounts')"
+        >
           {{t.tabAccounts}} ({{role.accountCount}})
         </button>
-        <button type="button" role="tab" [class.is-active]="tab() === 'history'"
-          [attr.aria-selected]="tab() === 'history'" (click)="selectTab('history')">
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'history'"
+          [attr.aria-selected]="tab() === 'history'"
+          (click)="selectTab('history')"
+        >
           {{t.tabHistory}}
         </button>
       </nav>
@@ -130,12 +152,18 @@
         @switch (tab()) {
           @case ('info') {
             <dl class="info-list">
-              <dt>{{t.code}}</dt><dd class="code">{{role.code}}</dd>
-              <dt>{{t.name}}</dt><dd>{{role.name}}</dd>
-              <dt>{{t.type}}</dt><dd>{{role.isSystem ? t.system : t.custom}}</dd>
-              <dt>{{t.status}}</dt><dd>{{role.status === 'Active' ? t.active : t.inactive}}</dd>
-              <dt>{{t.accounts}}</dt><dd>{{role.accountCount}}</dd>
-              <dt>{{t.description}}</dt><dd>{{role.description || t.noDescription}}</dd>
+              <dt>{{t.code}}</dt>
+              <dd class="code">{{role.code}}</dd>
+              <dt>{{t.name}}</dt>
+              <dd>{{role.name}}</dd>
+              <dt>{{t.type}}</dt>
+              <dd>{{role.isSystem ? t.system : t.custom}}</dd>
+              <dt>{{t.status}}</dt>
+              <dd>{{role.status === 'Active' ? t.active : t.inactive}}</dd>
+              <dt>{{t.accounts}}</dt>
+              <dd>{{role.accountCount}}</dd>
+              <dt>{{t.description}}</dt>
+              <dd>{{role.description || t.noDescription}}</dd>
             </dl>
           }
           @case ('permissions') {
@@ -144,14 +172,20 @@
             } @else if (matrix().failed) {
               <div class="tab-state" role="alert">
                 <p>{{t.tabError}}</p>
-                <button type="button" class="button button-secondary" (click)="retryTab()">{{t.retry}}</button>
+                <button type="button" class="button button-secondary" (click)="retryTab()">
+                  {{t.retry}}
+                </button>
               </div>
             } @else if (!granted().length) {
-              <div class="tab-state"><p>{{t.noPermissions}}</p></div>
+              <div class="tab-state">
+                <p>{{t.noPermissions}}</p>
+              </div>
             } @else {
               <div class="perm-card">
                 <div class="perm-row perm-head">
-                  <span>{{t.resource}}</span><span>{{t.action}}</span><span>{{t.scope}}</span>
+                  <span>{{t.resource}}</span
+                  ><span>{{t.action}}</span
+                  ><span>{{t.scope}}</span>
                 </div>
                 @for (module of granted(); track module.module) {
                   <div class="perm-group">{{module.name}}</div>
@@ -160,11 +194,15 @@
                       <span>
                         {{row.name}}
                         @if (row.locked) {
-                          <span class="lock" [title]="row.lockReason ?? ''" aria-label="locked">🔒</span>
+                          <span class="lock" [title]="row.lockReason ?? ''" aria-label="locked"
+                            >🔒</span
+                          >
                         }
                       </span>
                       <span>{{actionLabels(row.actions)}}</span>
-                      <span><span class="scope-chip scope-{{row.scope}}">{{scopeLabel(row.scope)}}</span></span>
+                      <span
+                        ><span class="scope-chip scope-{{row.scope}}">{{scopeLabel(row.scope)}}</span></span
+                      >
                     </div>
                   }
                 }
@@ -178,14 +216,20 @@
             } @else if (accounts().failed) {
               <div class="tab-state" role="alert">
                 <p>{{t.tabError}}</p>
-                <button type="button" class="button button-secondary" (click)="retryTab()">{{t.retry}}</button>
+                <button type="button" class="button button-secondary" (click)="retryTab()">
+                  {{t.retry}}
+                </button>
               </div>
             } @else if (!accounts().data?.length) {
-              <div class="tab-state"><p>{{t.noAccounts}}</p></div>
+              <div class="tab-state">
+                <p>{{t.noAccounts}}</p>
+              </div>
             } @else {
               <div class="perm-card">
                 <div class="perm-row perm-head">
-                  <span>{{t.employeeCode}}</span><span>{{t.fullName}}</span><span>{{t.department}}</span>
+                  <span>{{t.employeeCode}}</span
+                  ><span>{{t.fullName}}</span
+                  ><span>{{t.department}}</span>
                 </div>
                 @for (account of accounts().data; track account.id) {
                   <div class="perm-row">
@@ -198,7 +242,9 @@
             }
           }
           @case ('history') {
-            <div class="tab-state"><p>{{t.historyUnavailable}}</p></div>
+            <div class="tab-state">
+              <p>{{t.historyUnavailable}}</p>
+            </div>
           }
         }
       </section>

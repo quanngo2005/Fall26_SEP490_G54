@@ -3,12 +3,27 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { RoleSummary } from '../../core/role-permission.models';
 import { RoleListComponent } from './role-list.component';
 
 const roles: RoleSummary[] = [
-  { id: 'r1', code: 'TELLER', name: 'Giao dịch viên', isSystem: true, accountCount: 14, status: 'Active' },
-  { id: 'r2', code: 'AUDIT_VIEW', name: 'Xem báo cáo kiểm toán', isSystem: false, accountCount: 0, status: 'Active' },
+  {
+    id: 'r1',
+    code: 'TELLER',
+    name: 'Giao dịch viên',
+    isSystem: true,
+    accountCount: 14,
+    status: 'Active',
+  },
+  {
+    id: 'r2',
+    code: 'AUDIT_VIEW',
+    name: 'Xem báo cáo kiểm toán',
+    isSystem: false,
+    accountCount: 0,
+    status: 'Active',
+  },
 ];
 
 describe('RoleListComponent', () => {
@@ -26,6 +41,7 @@ describe('RoleListComponent', () => {
   afterEach(() => http.verify());
 
   function setup() {
+    TestBed.inject(I18nService).setLanguage('vi');
     const fixture = TestBed.createComponent(RoleListComponent);
     fixture.detectChanges();
     http.expectOne(rolesUrl).flush({ success: true, status: 200, data: roles });
@@ -37,7 +53,9 @@ describe('RoleListComponent', () => {
     const fixture = setup();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelectorAll('tbody tr').length).toBe(2);
-    (fixture.componentInstance as any).typeFilter.set('custom');
+    const select = el.querySelector('select.type-select') as HTMLSelectElement;
+    select.value = 'custom';
+    select.dispatchEvent(new Event('change'));
     fixture.detectChanges();
     expect(el.querySelectorAll('tbody tr').length).toBe(1);
     expect(el.textContent).toContain('AUDIT_VIEW');
