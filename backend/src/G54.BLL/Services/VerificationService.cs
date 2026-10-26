@@ -144,13 +144,13 @@ public sealed class VerificationService(
         // BR-02: Maker-Checker rule: Verifier cannot be the submitter (business rule violation → 422)
         if (submission.SubmitterEmployeeId == verifier.Id)
         {
-            throw new BusinessRuleException(ErrorCodes.MSG10, statusCode: StatusCodes.Status422UnprocessableEntity);
+            throw new BusinessRuleException(ErrorCodes.MakerCannotBeChecker, statusCode: StatusCodes.Status422UnprocessableEntity);
         }
 
         // BR-13: Approved submission is permanently locked
         if (submission.Status == SubmissionStatus.Approved)
         {
-            throw new BusinessRuleException(ErrorCodes.MSG23, statusCode: StatusCodes.Status409Conflict);
+            throw new BusinessRuleException(ErrorCodes.EvidenceLocked, statusCode: StatusCodes.Status409Conflict);
         }
 
         var normalizedDecision = dto.Decision.Trim().ToUpperInvariant();
@@ -221,7 +221,7 @@ public sealed class VerificationService(
                 cancellationToken);
             if (alreadyContributed)
             {
-                throw new BusinessRuleException(ErrorCodes.MSG22, statusCode: StatusCodes.Status409Conflict);
+                throw new BusinessRuleException(ErrorCodes.KpiAlreadyContributed, statusCode: StatusCodes.Status409Conflict);
             }
 
             var verifiedResult = new VerifiedWorkResult

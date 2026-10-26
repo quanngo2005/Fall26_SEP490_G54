@@ -326,7 +326,7 @@ public sealed partial class EvaluationService(
         if (reviewer.Id == request.EmployeeId)
         {
             throw new BusinessRuleException(
-                ErrorCodes.MSG10,
+                ErrorCodes.MakerCannotBeChecker,
                 "Theo quy tắc BR-02 (Maker != Checker), cấp quản lý không được tự thực hiện đánh giá hiệu suất cho chính mình.");
         }
 
