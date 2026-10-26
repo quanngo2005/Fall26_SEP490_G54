@@ -1,7 +1,16 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
+  {
+    path: 'sidebar-settings',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/sidebar-settings/sidebar-settings.component').then(
+        (m) => m.SidebarSettingsComponent,
+      ),
+  },
   {
     path: 'login',
     loadComponent: () =>
@@ -14,11 +23,28 @@ export const routes: Routes = [
       import('./features/home/home-page.component').then((module) => module.HomePageComponent),
   },
   {
-    path: 'employee-profile',
+    path: 'departments',
+    canActivate: [authGuard],
+    title: 'Department View',
+    loadComponent: () =>
+      import('./features/departments/department-view.component').then(
+        (module) => module.DepartmentViewComponent,
+      ),
+  },
+  {
+    path: 'employee-detail',
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
-      import('./features/employee-profile/employee-profile.component').then(
-        (module) => module.EmployeeProfileComponent,
+      import('./features/employee-detail/employee-detail.component').then(
+        (m) => m.EmployeeDetailComponent,
+      ),
+  },
+  {
+    path: 'employee-detail/:code',
+    title: 'Hồ sơ Cán bộ',
+    loadComponent: () =>
+      import('./features/employee-detail/employee-detail.component').then(
+        (m) => m.EmployeeDetailComponent,
       ),
   },
   {
@@ -43,6 +69,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
+      ),
+  },
+  {
+    path: 'kpi-definitions',
+    canActivate: [authGuard],
+    title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
+    loadComponent: () =>
+      import('./features/kpi-definitions/kpi-definitions.component').then(
+        (m) => m.KpiDefinitionsComponent,
       ),
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },

@@ -82,14 +82,7 @@ public enum WorkStatus
     [PgName("REJECTED")] Rejected,
     [PgName("DONE")] Done,
     [PgName("CANCELLED")] Cancelled,
-}
-
-public enum WorkflowDefinitionStatus
-{
-    [PgName("DRAFT")] Draft,
-    [PgName("ACTIVE")] Active,
-    [PgName("INACTIVE")] Inactive,
-    [PgName("ARCHIVED")] Archived,
+    [PgName("OVERDUE")] Overdue,
 }
 
 public enum HandoverStatus

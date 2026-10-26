@@ -2,9 +2,9 @@ name: Backend CI
 
 on:
   push:
-    paths: ["backend/**", "scripts/codereview-backend.*", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "scripts/codereview-backend.*", "scripts/codereview-common.psm1", "scripts/check-coverage.ps1", ".github/workflows/backend-ci.yml"]
   pull_request:
-    paths: ["backend/**", "scripts/codereview-backend.*", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "scripts/codereview-backend.*", "scripts/codereview-common.psm1", "scripts/check-coverage.ps1", ".github/workflows/backend-ci.yml"]
 
 jobs:
   validate:
@@ -14,11 +14,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Install dotnet-ef (BE-08 pending model changes)
+        run: dotnet tool install --global dotnet-ef --version 8.*
       - name: Review backend
         shell: pwsh
+        env:
+          # Makes the database tests fail instead of skip when Postgres/Redis (Testcontainers) cannot start.
+          CI: "true"
         run: ./scripts/codereview-backend.ps1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-review-report
-          path: docs/codereview/reports/BACKEND_REPORT.md
+          path: |
+            docs/codereview/reports/BACKEND_REPORT.md
+            docs/codereview/reports/coverage.cobertura.xml
+            docs/codereview/reports/logs/
+      - name: Show the report on the run page
+        if: always()
+        shell: bash
+        run: cat docs/codereview/reports/BACKEND_REPORT.md >> "$GITHUB_STEP_SUMMARY" || echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"

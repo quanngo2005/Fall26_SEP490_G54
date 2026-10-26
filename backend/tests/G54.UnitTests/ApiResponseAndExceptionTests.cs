@@ -3,8 +3,13 @@ using System.Text.Json;
 using G54.Api.Middleware;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace G54.UnitTests;
@@ -135,5 +140,69 @@ public sealed class ApiResponseAndExceptionTests
         context.Request.Headers[TraceIdMiddleware.TraceIdHeader] = "incoming-custom-trace";
 
         await middleware.InvokeAsync(context);
+    }
+
+    [Fact]
+    public void ApiErrorResponses_InvalidModelState_ReturnsValidationEnvelope()
+    {
+        var httpContext = new DefaultHttpContext { TraceIdentifier = "model-trace" };
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        actionContext.ModelState.AddModelError("$.decision", "Quyết định thẩm định chỉ có thể là APPROVED, REVISION_REQUIRED hoặc REJECTED.");
+        actionContext.ModelState.AddModelError("Feedback", "Ý kiến chỉ đạo không được vượt quá 2000 ký tự.");
+
+        var result = Assert.IsType<BadRequestObjectResult>(ApiErrorResponses.InvalidModelState(actionContext));
+        var response = Assert.IsType<ApiResponse>(result.Value);
+
+        Assert.False(response.Success);
+        Assert.Equal(400, response.Status);
+        Assert.Equal(ErrorCodes.ValidationError, response.ErrorCode);
+        Assert.Equal("model-trace", response.TraceId);
+        Assert.NotNull(response.Errors);
+        Assert.Contains("decision: Quyết định thẩm định chỉ có thể là APPROVED, REVISION_REQUIRED hoặc REJECTED.", response.Errors);
+        Assert.Contains("Feedback: Ý kiến chỉ đạo không được vượt quá 2000 ký tự.", response.Errors);
+    }
+
+    [Theory]
+    [InlineData(401, ErrorCodes.Unauthorized)]
+    [InlineData(403, ErrorCodes.Forbidden)]
+    public async Task ApiErrorResponses_WriteAsync_WritesEnvelopeForAuthFailures(int statusCode, string errorCode)
+    {
+        var context = new DefaultHttpContext { TraceIdentifier = "auth-trace" };
+        context.Response.Body = new MemoryStream();
+
+        await ApiErrorResponses.WriteAsync(context, statusCode, errorCode);
+
+        Assert.Equal(statusCode, context.Response.StatusCode);
+        Assert.Equal("auth-trace", context.Response.Headers[TraceIdMiddleware.TraceIdHeader]);
+
+        context.Response.Body.Position = 0;
+        using var jsonDoc = await JsonDocument.ParseAsync(context.Response.Body);
+        var root = jsonDoc.RootElement;
+        Assert.False(root.GetProperty("success").GetBoolean());
+        Assert.Equal(errorCode, root.GetProperty("errorCode").GetString());
+        Assert.Equal(statusCode, root.GetProperty("status").GetInt32());
+        Assert.Equal("auth-trace", root.GetProperty("traceId").GetString());
+    }
+
+    [Theory]
+    [InlineData(ErrorCodes.SubmissionInvalidState)]
+    [InlineData(ErrorCodes.VerificationInvalidState)]
+    [InlineData(ErrorCodes.WorkInvalidState)]
+    [InlineData(ErrorCodes.KpiResultNotFound)]
+    public void ErrorCodes_NewLifecycleCodes_HaveBilingualMessages(string code)
+    {
+        Assert.NotEqual("Đã xảy ra lỗi.", ErrorCodes.GetDefaultMessage(code));
+        Assert.NotEqual("An error occurred.", ErrorCodes.GetDefaultMessage(code, english: true));
+    }
+
+    [Fact]
+    public void EnumApiFormat_UsesPgNameAndApiDecisionVocabulary()
+    {
+        Assert.Equal("UNDER_REVIEW", SubmissionStatus.UnderReview.ToEnumString());
+        Assert.Equal("IN_PROGRESS", WorkStatus.InProgress.ToEnumString());
+        Assert.Equal("OVERDUE", WorkStatus.Overdue.ToEnumString());
+        Assert.Equal("HIGHER_BETTER", KpiDirection.HigherBetter.ToEnumString());
+        Assert.Equal("REVISION_REQUIRED", VerificationDecision.NeedMoreInfo.ToApiDecision());
+        Assert.Equal("APPROVED", VerificationDecision.Approved.ToApiDecision());
     }
 }

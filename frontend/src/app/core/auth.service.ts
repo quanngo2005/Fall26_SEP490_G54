@@ -13,6 +13,7 @@ import {
 } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthResponse, AuthenticatedUser, LoginRequest, StoredAuthSession } from './auth.models';
+import { ChangePasswordRequest } from './profile.models';
 
 const SESSION_KEY = 'g54.auth.session';
 
@@ -28,7 +29,7 @@ export class AuthService {
 
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.http
-      .post<AuthResponse>(`${environment.apiUrl}/v1/auth/login`, request)
+      .post<AuthResponse>(`${environment.apiUrl}/auth/login`, request)
       .pipe(tap((response) => this.saveSession(response, request.rememberMe)));
   }
 
@@ -42,7 +43,7 @@ export class AuthService {
     if (!this.refreshRequest) {
       const rememberMe = localStorage.getItem(SESSION_KEY) !== null;
       this.refreshRequest = this.http
-        .post<AuthResponse>(`${environment.apiUrl}/v1/auth/refresh`, {
+        .post<AuthResponse>(`${environment.apiUrl}/auth/refresh`, {
           refreshToken: session.refreshToken,
         })
         .pipe(
@@ -65,12 +66,35 @@ export class AuthService {
     return session$
       .pipe(
         switchMap((activeSession) =>
-          this.http.post<{ message: string }>(`${environment.apiUrl}/v1/auth/logout`, {
+          this.http.post<{ message: string }>(`${environment.apiUrl}/auth/logout`, {
             refreshToken: activeSession.refreshToken,
           }),
         ),
       )
       .pipe(tap(() => this.clearSession()));
+  }
+
+  /**
+   * Changes the password. The backend signs every other device out and returns a fresh token pair for this one,
+   * so the stored session is replaced with it (keeping the "remember me" choice).
+   */
+  changePassword(request: ChangePasswordRequest): Observable<AuthResponse> {
+    const session = this.readSession();
+    if (!session) {
+      return throwError(() => new Error('Cannot change the password without an active session.'));
+    }
+
+    const rememberMe = localStorage.getItem(SESSION_KEY) !== null;
+    const session$ = this.isFuture(session.expiresAt) ? of(session) : this.refresh();
+    return session$.pipe(
+      switchMap((activeSession) =>
+        this.http.post<AuthResponse>(`${environment.apiUrl}/me/password`, {
+          ...request,
+          refreshToken: activeSession.refreshToken,
+        }),
+      ),
+      tap((response) => this.saveSession(response, rememberMe)),
+    );
   }
 
   isAuthenticated(): boolean {

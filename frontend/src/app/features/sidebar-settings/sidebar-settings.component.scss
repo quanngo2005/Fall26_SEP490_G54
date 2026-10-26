@@ -1,0 +1,181 @@
+.workspace-layout {
+  display: flex;
+  min-height: 100dvh;
+  background: #f8fafc;
+}
+.workspace-main {
+  flex: 1;
+  min-width: 0;
+}
+main {
+  padding: 24px;
+  color: #1e293b;
+}
+h1,
+h2 {
+  font-family: Manrope, sans-serif;
+}
+h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+}
+h2 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+p {
+  line-height: 1.5;
+}
+.toolbar,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolbar {
+  margin: 24px 0 16px;
+}
+.toolbar label {
+  color: #64748b;
+  font:
+    600 11px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.toolbar .actions {
+  margin-left: auto;
+}
+button,
+select {
+  font: inherit;
+  min-height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: white;
+  color: #1e293b;
+  padding: 8px 12px;
+}
+.role-select {
+  appearance: none;
+  min-width: 200px;
+  cursor: pointer;
+  padding-right: 36px;
+  font-size: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.role-select:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+.role-select:focus,
+.role-select:focus-visible {
+  border-color: #002b49;
+  box-shadow: 0 0 0 3px rgb(0 43 73 / 10%);
+  outline: none;
+}
+.role-select:disabled {
+  cursor: default;
+  background-color: #f8fafc;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: #f1f5f9;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 3px;
+}
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(300px, 1.2fr) minmax(220px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+.panel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 0;
+}
+.catalog-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 6px;
+}
+.catalog-item:hover {
+  background: #f8fafc;
+}
+.catalog-item input {
+  accent-color: #002b49;
+}
+.catalog-item span {
+  flex: 1;
+}
+small,
+.note {
+  color: #64748b;
+}
+.order-list {
+  padding: 0;
+  list-style: none;
+}
+.order-list li {
+  padding: 14px;
+  margin: 12px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: border-color 150ms;
+}
+.order-list li:hover {
+  border-color: #cbd5e1;
+}
+.order-item-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+  font-size: 22px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  color: #94a3b8;
+  background: transparent;
+}
+.order-number {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}

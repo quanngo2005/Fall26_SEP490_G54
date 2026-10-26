@@ -2,9 +2,9 @@ name: Frontend CI
 
 on:
   push:
-    paths: ["frontend/**", "scripts/codereview-frontend.*", ".github/workflows/frontend-ci.yml"]
+    paths: ["frontend/**", "scripts/codereview-frontend.*", "scripts/codereview-common.psm1", ".github/workflows/frontend-ci.yml"]
   pull_request:
-    paths: ["frontend/**", "scripts/codereview-frontend.*", ".github/workflows/frontend-ci.yml"]
+    paths: ["frontend/**", "scripts/codereview-frontend.*", "scripts/codereview-common.psm1", ".github/workflows/frontend-ci.yml"]
 
 jobs:
   validate:
@@ -25,4 +25,10 @@ jobs:
         if: always()
         with:
           name: frontend-review-report
-          path: docs/codereview/reports/FRONTEND_REPORT.md
+          path: |
+            docs/codereview/reports/FRONTEND_REPORT.md
+            docs/codereview/reports/logs/
+      - name: Show the report on the run page
+        if: always()
+        shell: bash
+        run: cat docs/codereview/reports/FRONTEND_REPORT.md >> "$GITHUB_STEP_SUMMARY" || echo "No report was produced." >> "$GITHUB_STEP_SUMMARY"

@@ -9,8 +9,6 @@ public partial class VerifiedWorkResult
 
     public Guid VerificationId { get; set; }
 
-    public Guid? InvalidatedByRiskEventId { get; set; }
-
     public DateTimeOffset VerifiedAt { get; set; }
 
     public DateTimeOffset? InvalidatedAt { get; set; }
@@ -18,8 +16,6 @@ public partial class VerifiedWorkResult
     public DateTimeOffset UpdatedAt { get; set; }
 
     public VerifiedResultStatus Status { get; set; }
-
-    public virtual RiskEvent? InvalidatedByRiskEvent { get; set; }
 
     public virtual Verification Verification { get; set; } = null!;
 

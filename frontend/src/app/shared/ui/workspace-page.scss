@@ -1,0 +1,250 @@
+﻿/*
+ * Workspace page primitives shared by the detail/management screens.
+ * Visual language follows frontend/docs/DESIGN.md and the departments screen (reference).
+ */
+:host {
+  display: block;
+}
+.workspace-layout {
+  display: flex;
+  min-height: 100dvh;
+  background: #f7f9fb;
+}
+.workspace-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.workspace-content {
+  width: 100%;
+  max-width: 1600px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 24px 32px 40px;
+}
+.surface-card,
+.panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 5%),
+    0 1px 2px -1px rgb(15 23 42 / 3%);
+}
+.panel {
+  padding: 17px 18px;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  margin-bottom: 4px;
+  color: #0f172a;
+  font:
+    700 24px Manrope,
+    sans-serif;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin-bottom: 3px;
+  color: #0f172a;
+  font:
+    600 16px Manrope,
+    sans-serif;
+}
+.page-toolbar,
+.panel-heading,
+.title-line {
+  display: flex;
+  align-items: center;
+}
+.page-toolbar {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+.breadcrumb {
+  margin: 0 0 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+.eyebrow {
+  margin: 0;
+  color: #002b49;
+  font:
+    700 12px Inter,
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.title-line {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.panel-heading {
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.panel-heading p,
+.hero-copy p {
+  margin-bottom: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.panel-footnote {
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+}
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Status badges (DESIGN.md: Status Badges) */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  box-sizing: border-box;
+  border: 1px solid #a7f3d0;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #047857;
+  font:
+    500 11px 'JetBrains Mono',
+    monospace;
+  padding: 0 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.status-badge.is-muted {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #334155;
+}
+.status-badge.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+.status-badge.is-danger {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+.status-badge.is-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* Hero card */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-left: 4px solid #002b49;
+}
+.hero-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  background: #002b49;
+  color: #fff;
+  font:
+    700 16px Manrope,
+    sans-serif;
+}
+.hero-mark app-layout-icon {
+  width: 25px;
+  height: 25px;
+}
+.hero-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Key / value lists */
+.detail-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+.detail-list dt {
+  margin-bottom: 3px;
+  color: #64748b;
+  font:
+    600 11px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.detail-list dd {
+  margin: 0;
+  color: #1e293b;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+a:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+
+/* Metrics */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.metric-card {
+  border-top: 3px solid #002b49;
+  padding: 14px 16px;
+}
+.metric-card.metric-blue {
+  border-top-color: #2563eb;
+}
+.metric-card.metric-green {
+  border-top-color: #059669;
+}
+.metric-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.metric-card strong {
+  display: block;
+  margin: 8px 0 4px;
+  color: #0f172a;
+  font:
+    700 25px 'JetBrains Mono',
+    monospace;
+}
+.metric-card span {
+  color: #94a3b8;
+  font-size: 11px;
+}

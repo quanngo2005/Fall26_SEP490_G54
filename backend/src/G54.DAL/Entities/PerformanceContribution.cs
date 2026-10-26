@@ -7,19 +7,15 @@ public partial class PerformanceContribution
 {
     public Guid Id { get; set; }
 
-    public Guid PerformanceEvaluationId { get; set; }
-
-    public Guid? ParentContributionId { get; set; }
+    public Guid? PerformanceEvaluationId { get; set; }
 
     public Guid EmployeeId { get; set; }
 
     public Guid EvaluationPeriodId { get; set; }
 
-    public Guid? KpiDefinitionId { get; set; }
+    public Guid? ActualProgressId { get; set; }
 
-    public Guid? EvaluationProfileItemId { get; set; }
-
-    public Guid? TargetAssignmentId { get; set; }
+    public Guid? RiskEventId { get; set; }
 
     public decimal? TargetValueSnapshot { get; set; }
 
@@ -39,23 +35,13 @@ public partial class PerformanceContribution
 
     public DateTimeOffset UpdatedAt { get; set; }
 
-    public virtual ICollection<ActualProgress> ActualProgresses { get; set; } = new List<ActualProgress>();
+    public virtual ActualProgress? ActualProgress { get; set; }
 
     public virtual Employee Employee { get; set; } = null!;
 
     public virtual EvaluationPeriod EvaluationPeriod { get; set; } = null!;
 
-    public virtual EvaluationProfileItem? EvaluationProfileItem { get; set; }
+    public virtual PerformanceEvaluation? PerformanceEvaluation { get; set; }
 
-    public virtual ICollection<PerformanceContribution> InverseParentContribution { get; set; } = new List<PerformanceContribution>();
-
-    public virtual KpiDefinition? KpiDefinition { get; set; }
-
-    public virtual PerformanceContribution? ParentContribution { get; set; }
-
-    public virtual PerformanceEvaluation PerformanceEvaluation { get; set; } = null!;
-
-    public virtual PerformanceEvaluation PerformanceEvaluationNavigation { get; set; } = null!;
-
-    public virtual TargetAssignment? TargetAssignment { get; set; }
+    public virtual RiskEvent? RiskEvent { get; set; }
 }

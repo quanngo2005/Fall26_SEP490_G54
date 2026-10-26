@@ -29,13 +29,11 @@ public partial class Employee
 
     public virtual Account? Account { get; set; }
 
-    public virtual ICollection<ActualProgress> ActualProgresses { get; set; } = new List<ActualProgress>();
+    public virtual ICollection<Appeal> AppealResolvedByNavigations { get; set; } = new List<Appeal>();
 
     public virtual ICollection<Appeal> Appeals { get; set; } = new List<Appeal>();
 
     public virtual Department Department { get; set; } = null!;
-
-    public virtual ICollection<Evidence> Evidences { get; set; } = new List<Evidence>();
 
     public virtual ICollection<Employee> InverseManager { get; set; } = new List<Employee>();
 
@@ -49,17 +47,15 @@ public partial class Employee
 
     public virtual ICollection<PerformanceEvaluation> PerformanceEvaluationEmployees { get; set; } = new List<PerformanceEvaluation>();
 
-    public virtual ICollection<PerformanceEvaluation> PerformanceEvaluationReviewerEmployees { get; set; } = new List<PerformanceEvaluation>();
-
     public virtual ICollection<ResultSubmission> ResultSubmissions { get; set; } = new List<ResultSubmission>();
+
+    public virtual ICollection<RiskEvent> RiskEventRecordedByNavigations { get; set; } = new List<RiskEvent>();
 
     public virtual ICollection<RiskEvent> RiskEvents { get; set; } = new List<RiskEvent>();
 
-    public virtual ICollection<TargetAssignment> TargetAssignmentApprovedByNavigations { get; set; } = new List<TargetAssignment>();
-
-    public virtual ICollection<TargetAssignment> TargetAssignmentAssignedByNavigations { get; set; } = new List<TargetAssignment>();
-
     public virtual ICollection<TargetAssignment> TargetAssignmentEmployees { get; set; } = new List<TargetAssignment>();
+
+    public virtual ICollection<TaskHandover> TaskHandoverApprovedByNavigations { get; set; } = new List<TaskHandover>();
 
     public virtual ICollection<TaskHandover> TaskHandoverFromEmployees { get; set; } = new List<TaskHandover>();
 
@@ -67,5 +63,9 @@ public partial class Employee
 
     public virtual ICollection<Verification> Verifications { get; set; } = new List<Verification>();
 
+    public virtual ICollection<Work> WorkCreatedByNavigations { get; set; } = new List<Work>();
+
     public virtual ICollection<Work> Works { get; set; } = new List<Work>();
+
+    public virtual ICollection<WorkResultItem> WorkResultItems { get; set; } = new List<WorkResultItem>();
 }

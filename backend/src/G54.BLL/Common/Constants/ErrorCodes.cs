@@ -10,6 +10,31 @@ public static class ErrorCodes
     public const string Conflict = "CONFLICT";
     public const string InternalError = "INTERNAL_ERROR";
 
+    // My Profile (docs/api/MY_PROFILE_CONTRACT.md)
+    public const string InvalidCurrentPassword = "INVALID_CURRENT_PASSWORD";
+
+    // Submission / Verification / KPI Result lifecycle (docs/api/SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md)
+    public const string SubmissionInvalidState = "SUBMISSION_INVALID_STATE";
+    public const string VerificationInvalidState = "VERIFICATION_INVALID_STATE";
+    public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
+
+    // Work lifecycle (docs/api/WORK_CONTRACT.md)
+    public const string WorkInvalidState = "WORK_INVALID_STATE";
+
+    // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
+    public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
+
+    // Appeal (docs/api/APPEAL_CONTRACT.md)
+    public const string AppealInvalidState = "APPEAL_INVALID_STATE";
+    public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
+    public const string AppealWindowExpired = "APPEAL_WINDOW_EXPIRED";
+
+    // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
+    public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
+
+    // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
+    public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
+
     // Application Message Codes (COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md)
     public const string MSG01 = "MSG01"; // Không tìm thấy kết quả phù hợp
     public const string MSG02 = "MSG02"; // Trường (*) là bắt buộc nhập
@@ -40,6 +65,16 @@ public static class ErrorCodes
         [Forbidden] = ("Bạn không có quyền thực hiện thao tác này.", "Access forbidden."),
         [Conflict] = ("Dữ liệu bị xung đột hoặc đã tồn tại.", "Resource conflict or already exists."),
         [InternalError] = ("Đã xảy ra lỗi hệ thống không mong muốn.", "An unexpected system error occurred."),
+        [InvalidCurrentPassword] = ("Mật khẩu hiện tại không đúng.", "The current password is incorrect."),
+        [SubmissionInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với báo cáo kết quả.", "The current state does not allow this submission action."),
+        [VerificationInvalidState] = ("Hồ sơ không ở trạng thái chờ thẩm định.", "The submission is not awaiting verification."),
+        [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
+        [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
+        [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
+        [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
+        [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
+        [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
+        [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
         [MSG01] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
         [MSG02] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),
         [MSG03] = ("Cập nhật thành công.", "Update successfully."),
@@ -60,6 +95,7 @@ public static class ErrorCodes
         [MSG23] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
         [MSG28] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [MSG29] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
+        [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

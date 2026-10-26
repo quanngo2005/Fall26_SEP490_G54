@@ -7,6 +7,8 @@ public partial class BusinessObjective
 {
     public Guid Id { get; set; }
 
+    public Guid? ParentObjectiveId { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string Name { get; set; } = null!;
@@ -24,4 +26,10 @@ public partial class BusinessObjective
     public virtual ICollection<BusinessCampaign> BusinessCampaigns { get; set; } = new List<BusinessCampaign>();
 
     public virtual ICollection<ObjectiveKpi> ObjectiveKpis { get; set; } = new List<ObjectiveKpi>();
+
+    public virtual ICollection<BusinessObjective> InverseParentObjective { get; set; } = new List<BusinessObjective>();
+
+    public virtual BusinessObjective? ParentObjective { get; set; }
+
+    public virtual ICollection<TargetAssignment> TargetAssignments { get; set; } = new List<TargetAssignment>();
 }

@@ -32,6 +32,10 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
     public IRepository<Evidence> Evidences => Repository<Evidence>();
 
     public IRepository<Verification> Verifications => Repository<Verification>();
+    public IRepository<WorkTypeKpi> WorkTypeKpis => Repository<WorkTypeKpi>();
+    public IRepository<KpiDefinition> KpiDefinitions => Repository<KpiDefinition>();
+    public IRepository<Department> Departments => Repository<Department>();
+    public IRepository<JobPosition> JobPositions => Repository<JobPosition>();
 
     public IRepository<TEntity> Repository<TEntity>() where TEntity : class
     {

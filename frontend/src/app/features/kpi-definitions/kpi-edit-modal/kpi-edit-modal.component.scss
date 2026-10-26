@@ -1,0 +1,156 @@
+.kem-dialog {
+  max-width: 760px;
+  width: 100%;
+}
+
+.kem-subtitle {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.kem-section {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kem-section-title {
+  margin: 0;
+  color: #002b49;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kem-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.field-label {
+  color: #64748b;
+  font:
+    600 11px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kem-segment {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.segment-button {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &.is-active {
+    background: #fff;
+    color: #002b49;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+.kem-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b;
+  font-size: 13px;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    accent-color: #002b49;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.kem-mult-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.kem-stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+
+  .stepper-btn {
+    border: none;
+    border-radius: 0;
+    padding: 6px 10px;
+    font-weight: bold;
+    min-width: 32px;
+  }
+
+  .stepper-input {
+    border: none;
+    text-align: center;
+    border-radius: 0;
+    padding: 6px 4px;
+  }
+}
+
+.btn-remove {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.kem-role-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.kem-percent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  input {
+    width: 80px;
+    text-align: right;
+  }
+}
+
+.kem-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kem-audit {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.kem-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

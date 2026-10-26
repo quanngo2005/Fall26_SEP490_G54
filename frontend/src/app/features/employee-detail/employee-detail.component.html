@@ -1,0 +1,213 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && (employee() || candidates().length)) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.employee.breadcrumb}}</p>
+          <p class="eyebrow">{{localization.employee.eyebrow}}</p>
+        </div>
+        @if (employeeKey() && !isOwnAddress()) {
+          <a class="button button-secondary" routerLink="/employee-detail">
+            {{localization.employee.backToList}}
+          </a>
+        }
+      </div>
+      @if (loading() && !employee() && !candidates().length) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.employee.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{notFound() ? localization.employee.notFound : localization.employee.loadError}}</p>
+          @if (!notFound()) {
+            <button type="button" class="button button-secondary" (click)="refresh()">
+              {{localization.employee.retry}}
+            </button>
+          }
+        </div>
+      } @else if (employee(); as emp) {
+        <section class="hero surface-card">
+          <div class="hero-mark" aria-hidden="true">{{initials(emp.fullName)}}</div>
+          <div class="hero-copy">
+            <div class="title-line">
+              <h1>{{emp.fullName}}</h1>
+              <span class="status-badge" [class.is-muted]="!isActive(emp.status)">{{statusLabel(emp.status)}}</span>
+            </div>
+            <p>{{emp.employeeCode}} · {{emp.jobPositionTitle}}</p>
+          </div>
+          @if (isSelf()) {
+            <div class="hero-actions">
+              <button
+                type="button"
+                class="button button-secondary"
+                aria-haspopup="dialog"
+                (click)="openDialog('phone')"
+              >
+                {{localization.profile.changePhone}}
+              </button>
+              <button
+                type="button"
+                class="button button-primary"
+                aria-haspopup="dialog"
+                (click)="openDialog('password')"
+              >
+                {{localization.profile.changePassword}}
+              </button>
+            </div>
+          }
+        </section>
+        @if (notice(); as message) {
+          <p class="page-notice" role="status">{{message}}</p>
+        }
+        <section class="metrics-grid" [attr.aria-label]="localization.employee.metricsLabel">
+          <article class="metric-card surface-card metric-navy">
+            <div class="metric-label">{{localization.employee.directReports}}</div>
+            <strong>{{display(emp.directReportsCount)}}</strong>
+            <span>{{localization.employee.directReportsHint}}</span>
+          </article>
+          <article class="metric-card surface-card metric-blue">
+            <div class="metric-label">{{localization.employee.openWorks}}</div>
+            <strong>{{display(roster()?.openWorkCount)}}</strong>
+            <span>{{localization.employee.rosterNote}}</span>
+          </article>
+          <article class="metric-card surface-card metric-green">
+            <div class="metric-label">{{localization.employee.performanceScore}}</div>
+            <strong>{{display(roster()?.performanceScore)}}</strong>
+            <span>{{localization.employee.rosterNote}}</span>
+          </article>
+        </section>
+        <section class="panel surface-card" aria-labelledby="profile-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="profile-title">{{localization.employee.profileTitle}}</h2>
+              <p>{{localization.employee.profileHint}}</p>
+            </div>
+          </div>
+          <dl class="detail-list">
+            <div>
+              <dt>{{localization.employee.department}}</dt>
+              <dd>
+                <a
+                  [routerLink]="['/departments']"
+                  [queryParams]="{ department: emp.departmentCode }"
+                  >{{emp.departmentCode}} · {{emp.departmentName}}</a
+                >
+              </dd>
+            </div>
+            <div>
+              <dt>{{localization.employee.position}}</dt>
+              <dd>{{emp.jobPositionCode}} · {{emp.jobPositionTitle}}</dd>
+            </div>
+            <div>
+              <dt>{{localization.employee.manager}}</dt>
+              <dd>
+                @if (emp.managerId) {
+                  <a [routerLink]="['/employee-detail', emp.managerCode]"
+                    >{{text(emp.managerCode)}} · {{text(emp.managerName)}}</a
+                  >
+                } @else {
+                  {{localization.employee.notAvailable}}
+                }
+              </dd>
+            </div>
+            <div>
+              <dt>{{localization.employee.email}}</dt>
+              <dd>{{emp.email}}</dd>
+            </div>
+            <div>
+              <dt>{{localization.employee.phone}}</dt>
+              <dd>{{text(emp.phone)}}</dd>
+            </div>
+            <div>
+              <dt>{{localization.employee.lastSync}}</dt>
+              <dd class="mono">{{i18n.formatDate(emp.lastSyncAt, 'DD/MM/YYYY HH:mm')}}</dd>
+            </div>
+          </dl>
+        </section>
+        @if (isSelf()) {
+          @if (dialog() === 'phone') {
+            <app-change-phone-dialog
+              [current]="emp.phone"
+              (saved)="phoneChanged()"
+              (closed)="closeDialog()"
+            />
+          }
+          @if (dialog() === 'password') {
+            <app-change-password-dialog
+              [email]="emp.email"
+              (changed)="passwordChanged()"
+              (closed)="closeDialog()"
+            />
+          }
+        }
+      } @else {
+        <section class="panel surface-card" aria-labelledby="picker-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="picker-title">{{localization.employee.pickerTitle}}</h2>
+              <p>{{localization.employee.pickerHint}}</p>
+            </div>
+          </div>
+          <form class="filters" (ngSubmit)="search()">
+            <input
+              type="search"
+              class="input"
+              name="keyword"
+              [(ngModel)]="keyword"
+              [placeholder]="localization.employee.searchPlaceholder"
+              [attr.aria-label]="localization.employee.searchPlaceholder"
+            />
+            <button type="submit" class="button button-primary">
+              {{localization.employee.search}}
+            </button>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{localization.employee.nameCol}}</th>
+                  <th>{{localization.employee.positionCol}}</th>
+                  <th>{{localization.employee.departmentCol}}</th>
+                  <th>{{localization.employee.statusCol}}</th>
+                  <th>{{localization.employee.actionCol}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of candidates(); track item.id) {
+                  <tr>
+                    <td>
+                      <strong>{{item.fullName}}</strong>
+                      <div class="subtext mono">{{item.employeeCode}}</div>
+                    </td>
+                    <td>{{item.jobPositionTitle}}</td>
+                    <td>{{item.departmentName}}</td>
+                    <td>
+                      <span class="status-badge" [class.is-muted]="!isActive(item.status)">{{statusLabel(item.status)}}</span>
+                    </td>
+                    <td>
+                      <a class="link" [routerLink]="['/employee-detail', item.employeeCode]">{{localization.employee.view}}</a>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="empty-cell">{{localization.employee.noEmployees}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="panel-footnote">
+            {{localization.employee.resultCount}}: {{candidates().length}} /
+            {{candidateTotal()}}
+          </p>
+        </section>
+      }
+    </main>
+  </div>
+</div>

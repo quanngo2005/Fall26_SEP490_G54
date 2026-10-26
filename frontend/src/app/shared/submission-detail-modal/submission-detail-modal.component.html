@@ -1,0 +1,174 @@
+@if (open()) {
+  <div class="submission-overlay" (click)="closeOnBackdrop($event)" role="presentation">
+    <section
+      class="submission-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="submission-title"
+      aria-describedby="submission-id"
+      tabindex="-1"
+    >
+      <header class="dialog-header">
+        <div class="heading-copy">
+          <h2 id="submission-title">
+            {{localization.submission.title}}
+            <span>• {{localization.submission.versionDetails}}</span>
+          </h2>
+          <p id="submission-id">
+            {{localization.submission.id}} {{submission().submissionId}} <i>•</i>
+            {{localization.submission.task}} [{{submission().taskId}}]
+            {{submission().taskName}}
+          </p>
+        </div>
+        <button
+          type="button"
+          class="icon-close"
+          [attr.aria-label]="localization.common.close"
+          (click)="closed.emit()"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="dialog-content">
+        <section class="submission-summary" [attr.aria-label]="localization.submission.summary">
+          <div class="summary-copy">
+            <strong
+              >{{localization.submission.submitter}} {{submission().employee}} •
+              {{submission().role}}</strong
+            >
+            <p>
+              {{localization.submission.submittedAt}} <b>{{submission().submittedAt}}</b>
+              <i>•</i>
+              {{localization.submission.attempt}}
+              <b>{{localization.submission.attemptNumber}} {{submission().attempt}}</b> <i>•</i>
+              {{localization.submission.mode}}
+              <em>{{submission().reviewerMode}}</em>
+            </p>
+            <p class="decision-line">
+              {{submission().status}} <i>•</i> {{localization.submission.conclusion}}
+              {{submission().conclusion}}
+            </p>
+          </div>
+          <span class="status-badge" [class]="'status-badge ' + submission().statusKind">
+            <i></i
+            >{{submission().statusKind === 'revision'
+                ? localization.submission.revision
+                : submission().status}}
+          </span>
+        </section>
+
+        <section class="detail-section">
+          <h3>{{localization.submission.outputs}}</h3>
+          <div class="table-scroll">
+            <table class="outputs-table">
+              <thead>
+                <tr>
+                  <th>{{localization.submission.kpi}}</th>
+                  <th>{{localization.submission.quantity}}</th>
+                  <th>{{localization.submission.scale}}</th>
+                  <th>{{localization.submission.unit}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>{{submission().kpiCode}}: {{submission().kpiName}}</strong>
+                  </td>
+                  <td class="quantity">{{submission().quantity}}</td>
+                  <td>{{submission().scale}}</td>
+                  <td>{{submission().unit}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <h3>{{localization.submission.explanation}}</h3>
+          <p class="explanation">{{submission().explanation}}</p>
+        </section>
+
+        <section class="detail-section">
+          <h3>{{localization.submission.attachments}}</h3>
+          <div class="table-scroll">
+            <table class="attachments-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>{{localization.submission.fileName}}</th>
+                  <th>{{localization.submission.fileDescription}}</th>
+                  <th>{{localization.submission.fileSize}}</th>
+                  <th>{{localization.common.actions}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (file of submission().attachments; track file.name; let index = $index) {
+                  <tr>
+                    <td class="row-number">{{index + 1}}</td>
+                    <td class="file-name">
+                      <span class="file-type" [class.pdf]="file.type === 'PDF'">{{file.type}}</span>
+                      <strong>{{file.name}}</strong>
+                    </td>
+                    <td>{{file.description}}</td>
+                    <td class="file-size">{{file.size}}</td>
+                    <td class="file-actions">
+                      <button
+                        type="button"
+                        (click)="attachmentRequested.emit({ attachment: file, action: 'view' })"
+                      >
+                        {{localization.submission.view}}
+                      </button>
+                      <button
+                        type="button"
+                        (click)="attachmentRequested.emit({ attachment: file, action: 'download' })"
+                      >
+                        {{localization.submission.download}}
+                      </button>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td class="empty-files" colspan="5">{{localization.submission.noFiles}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="detail-section audit-section">
+          <h3>{{localization.submission.audit}}</h3>
+          @for (entry of submission().auditEntries; track entry.timestamp) {
+            <article class="audit-entry">
+              <div class="audit-heading">
+                <strong><span aria-hidden="true">◉</span> {{entry.title}}</strong>
+                <span>{{entry.reviewer}} <i>•</i> {{entry.timestamp}}</span>
+              </div>
+              <p>“{{entry.message}}”</p>
+            </article>
+          } @empty {
+            <p class="empty-audit">{{localization.submission.noAudit}}</p>
+          }
+        </section>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" (click)="closed.emit()">
+          {{localization.common.close}}
+        </button>
+        <div class="footer-actions">
+          <button type="button" class="button outline" (click)="requestArchiveDownload()">
+            <span aria-hidden="true">⇩</span> {{localization.submission.downloadArchive}}
+          </button>
+          @if (submission().statusKind === 'revision') {
+            <button type="button" class="button primary" (click)="requestResubmission()">
+              <span aria-hidden="true">↗</span> {{localization.submission.resubmit}}
+              {{submission().attempt + 1}}
+            </button>
+          }
+        </div>
+      </footer>
+    </section>
+  </div>
+}

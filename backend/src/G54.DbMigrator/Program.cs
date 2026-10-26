@@ -47,7 +47,17 @@ var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 Console.WriteLine("Applying database migrations...");
 await dbContext.Database.MigrateAsync();
 var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-await seeder.SeedAsync();
+if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
+{
+    var demoPassword = Environment.GetEnvironmentVariable("SeedData__DemoPassword");
+    var demoPasswordHash = string.IsNullOrEmpty(demoPassword)
+        ? null
+        : scope.ServiceProvider.GetRequiredService<IPasswordEncoder>().Encode(demoPassword);
+    await seeder.SeedAsync(demoPasswordHash);
+    Console.WriteLine(demoPasswordHash is null
+        ? "Development seed data applied (no demo accounts: SeedData__DemoPassword not set)."
+        : "Development seed data and demo accounts applied.");
+}
 if (bootstrapAdminEnabled)
 {
     var passwordEncoder = scope.ServiceProvider.GetRequiredService<IPasswordEncoder>();

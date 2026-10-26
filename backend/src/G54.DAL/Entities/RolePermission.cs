@@ -11,6 +11,8 @@ public partial class RolePermissionAssignment
 
     public Guid PermissionId { get; set; }
 
+    public string Scope { get; set; } = "Own";
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public virtual PermissionRecord Permission { get; set; } = null!;

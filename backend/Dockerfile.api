@@ -10,6 +10,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
+# Evidence uploads live on the evidence_data volume so they survive container recreation.
+RUN mkdir -p /app/data/evidence
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "G54.Api.dll"]

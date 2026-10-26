@@ -1,0 +1,151 @@
+<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+  <div
+    class="modal-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="kpi-create-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="kpi-create-title">{{localization.kpi.createTitle}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        (click)="close()"
+        [attr.aria-label]="localization.common.close"
+      >
+        ×
+      </button>
+    </div>
+    <form (ngSubmit)="submit()">
+      <div class="modal-body">
+        @if (errorKey()) {
+          <div class="notice is-error" role="alert">
+            <span>{{errorText()}}</span>
+          </div>
+        }
+        <div class="form-grid">
+          <div class="field">
+            <label for="create-code">{{localization.kpi.code}} *</label>
+            <input
+              id="create-code"
+              class="input mono"
+              name="code"
+              maxlength="50"
+              [(ngModel)]="code"
+              [placeholder]="localization.kpi.codeExample"
+            />
+          </div>
+          <div class="field">
+            <label for="create-name">{{localization.kpi.name}} *</label>
+            <input
+              id="create-name"
+              class="input"
+              name="name"
+              maxlength="255"
+              [(ngModel)]="name"
+              [placeholder]="localization.kpi.nameExample"
+            />
+          </div>
+          <div class="field">
+            <label for="create-group">{{localization.kpi.group}} *</label>
+            <select id="create-group" class="select" name="group" [(ngModel)]="kpiGroupId">
+              @for (group of groups(); track group.id) {
+                <option [value]="group.id">{{group.name}}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="create-unit">{{localization.kpi.unit}} *</label>
+            <input
+              id="create-unit"
+              class="input"
+              name="unit"
+              maxlength="50"
+              list="create-unit-options"
+              [(ngModel)]="unit"
+              [placeholder]="localization.kpi.unitPlaceholder"
+            />
+            <datalist id="create-unit-options">
+              @for (option of units(); track option) {
+                <option [value]="option"></option>
+              }
+            </datalist>
+          </div>
+          <div class="field">
+            <label for="create-direction">{{localization.kpi.direction}}</label>
+            <select id="create-direction" class="select" name="direction" [(ngModel)]="direction">
+              @for (value of directions; track value) {
+                <option [value]="value">{{directionLabel(value)}}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="create-aggregation">{{localization.kpi.aggregation}}</label>
+            <select
+              id="create-aggregation"
+              class="select"
+              name="aggregation"
+              [(ngModel)]="aggregationType"
+            >
+              @for (value of aggregations; track value) {
+                <option [value]="value">{{aggregationLabel(value)}}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="create-formula">{{localization.kpi.formula}}</label>
+            <input
+              id="create-formula"
+              class="input mono"
+              name="formula"
+              maxlength="1000"
+              [(ngModel)]="formula"
+              [placeholder]="localization.kpi.formulaExample"
+            />
+          </div>
+          <div class="field">
+            <label for="create-max">{{localization.kpi.maxAchievement}}</label>
+            <input
+              id="create-max"
+              class="input mono"
+              name="max"
+              type="number"
+              min="0.0001"
+              max="9999.9999"
+              step="any"
+              [(ngModel)]="maxAchievementPercent"
+              [placeholder]="localization.kpi.maxAchievementPlaceholder"
+            />
+          </div>
+          <div class="field full">
+            <label for="create-description">{{localization.kpi.description}}</label>
+            <textarea
+              id="create-description"
+              class="textarea"
+              name="description"
+              maxlength="2000"
+              [(ngModel)]="description"
+              [placeholder]="localization.kpi.detailPlaceholder"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="button button-secondary"
+          (click)="close()"
+          [disabled]="saving()"
+        >
+          {{localization.common.cancel}}
+        </button>
+        <button type="submit" class="button button-primary" [disabled]="saving()">
+          {{saving() ? localization.kpi.creating : localization.kpi.create}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

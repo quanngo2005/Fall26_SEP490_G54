@@ -27,17 +27,11 @@ public partial class KpiDefinition
     public KpiDirection Direction { get; set; }
     public KpiStatus Status { get; set; }
 
-    public virtual ICollection<ActualProgress> ActualProgresses { get; set; } = new List<ActualProgress>();
-
     public virtual KpiGroup KpiGroup { get; set; } = null!;
 
     public virtual ICollection<ObjectiveKpi> ObjectiveKpis { get; set; } = new List<ObjectiveKpi>();
 
-    public virtual ICollection<PerformanceContribution> PerformanceContributions { get; set; } = new List<PerformanceContribution>();
-
     public virtual ICollection<TargetAssignment> TargetAssignments { get; set; } = new List<TargetAssignment>();
-
-    public virtual ICollection<WorkResultItem> WorkResultItems { get; set; } = new List<WorkResultItem>();
 
     public virtual ICollection<WorkTypeKpi> WorkTypeKpis { get; set; } = new List<WorkTypeKpi>();
 }

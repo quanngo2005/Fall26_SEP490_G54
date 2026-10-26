@@ -1,0 +1,388 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && kpis().length) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.kpi.breadcrumb}}</p>
+          <h1>{{localization.kpi.definitions}}</h1>
+          <p class="page-subtitle">{{localization.kpi.catalogDescription}}</p>
+        </div>
+        <button type="button" class="button button-primary" (click)="openCreate()">
+          {{localization.kpi.createNew}}
+        </button>
+      </div>
+      @if (notice(); as n) {
+        <div
+          class="notice"
+          [class.is-error]="n.kind === 'error'"
+          [attr.role]="n.kind === 'error' ? 'alert' : 'status'"
+        >
+          <span>{{noticeText()}}</span>
+          <button
+            type="button"
+            (click)="dismissNotice()"
+            [attr.aria-label]="localization.common.close"
+          >
+            ×
+          </button>
+        </div>
+      }
+      <div class="kpi-grid">
+        <section class="panel surface-card catalog" aria-labelledby="catalog-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="catalog-title">{{localization.kpi.catalog}}</h2>
+              <p>{{totalCount()}} KPI</p>
+            </div>
+          </div>
+          <form class="filters" (ngSubmit)="refresh(true)">
+            <input
+              type="search"
+              class="input"
+              name="keyword"
+              [(ngModel)]="keyword"
+              [placeholder]="localization.kpi.searchKpi"
+              [attr.aria-label]="localization.kpi.searchKpi"
+            />
+            <select
+              class="select"
+              name="group"
+              [(ngModel)]="groupId"
+              (ngModelChange)="refresh(true)"
+              [attr.aria-label]="localization.kpi.filterGroup"
+            >
+              <option value="">{{localization.kpi.allGroups}}</option>
+              @for (group of groups(); track group.id) {
+                <option [value]="group.id">{{group.name}}</option>
+              }
+            </select>
+            <button type="submit" class="button button-secondary">
+              {{localization.kpi.search}}
+            </button>
+          </form>
+          @if (loading() && !kpis().length) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+              <p>{{localization.kpi.loading}}</p>
+            </div>
+          } @else if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.kpi.loadFailed}}</p>
+              <button type="button" class="button button-secondary" (click)="refresh()">
+                {{localization.kpi.retry}}
+              </button>
+            </div>
+          } @else if (kpis().length === 0) {
+            <div class="state-card">
+              <strong>{{localization.kpi.empty}}</strong>
+              <p>{{localization.kpi.emptyHint}}</p>
+              <button type="button" class="button button-secondary" (click)="resetFilters()">
+                {{localization.kpi.resetFilters}}
+              </button>
+            </div>
+          } @else {
+            <ul class="kpi-list">
+              @for (item of kpis(); track item.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="kpi-item"
+                    [class.is-selected]="selected()?.id === item.id"
+                    [attr.aria-pressed]="selected()?.id === item.id"
+                    (click)="select(item)"
+                  >
+                    <span class="mono kpi-code">{{item.code}}</span>
+                    <strong>{{item.name}}</strong>
+                    <span class="kpi-meta">
+                      {{directionLabel(item.direction)}} · {{item.kpiGroupName}}
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+            <div class="toolbar-actions">
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="page <= 1"
+                (click)="turnPage(-1)"
+              >
+                {{localization.kpi.previous}}
+              </button>
+              <span class="page-indicator"
+                >{{localization.kpi.page}} {{page}} / {{totalPages()}}</span
+              >
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="page >= totalPages()"
+                (click)="turnPage(1)"
+              >
+                {{localization.kpi.next}}
+              </button>
+            </div>
+          }
+        </section>
+
+        <section class="config" [attr.aria-label]="localization.kpi.configurationSection">
+          @if (selected(); as kpi) {
+            <div class="panel surface-card">
+              <div class="panel-heading">
+                <div>
+                  <div class="title-line">
+                    <h2>
+                      {{localization.kpi.configuration}} <span class="mono">{{kpi.code}}</span>
+                    </h2>
+                    <span class="status-badge" [class.is-muted]="kpi.status !== 'ACTIVE'">{{statusLabel(kpi.status)}}</span>
+                  </div>
+                  <p>{{localization.kpi.configurationHint}}</p>
+                </div>
+                <button type="button" class="button button-secondary" (click)="openEdit()">
+                  {{localization.kpi.edit}}
+                </button>
+              </div>
+              <form class="form-grid" (ngSubmit)="save()">
+                <div class="field">
+                  <label for="kpi-code">{{localization.kpi.code}}</label>
+                  <input id="kpi-code" class="input mono" [value]="kpi.code" disabled />
+                  <p class="hint">{{localization.kpi.codeLocked}}</p>
+                </div>
+                <div class="field">
+                  <label for="kpi-name">{{localization.kpi.name}} *</label>
+                  <input
+                    id="kpi-name"
+                    class="input"
+                    name="name"
+                    maxlength="255"
+                    [(ngModel)]="form.name"
+                    [placeholder]="localization.kpi.namePlaceholder"
+                  />
+                </div>
+                <div class="field">
+                  <label for="kpi-group">{{localization.kpi.group}}</label>
+                  <select id="kpi-group" class="select" name="group" [(ngModel)]="form.kpiGroupId">
+                    @for (group of groups(); track group.id) {
+                      <option [value]="group.id">{{group.name}}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="kpi-unit">{{localization.kpi.unit}} *</label>
+                  <input
+                    id="kpi-unit"
+                    class="input"
+                    name="unit"
+                    maxlength="50"
+                    list="kpi-unit-options"
+                    [(ngModel)]="form.unit"
+                    [placeholder]="localization.kpi.unitPlaceholder"
+                  />
+                  <datalist id="kpi-unit-options">
+                    @for (unit of unitSuggestions(); track unit) {
+                      <option [value]="unit"></option>
+                    }
+                  </datalist>
+                </div>
+                <div class="field">
+                  <label for="kpi-direction">{{localization.kpi.direction}}</label>
+                  <select
+                    id="kpi-direction"
+                    class="select"
+                    name="direction"
+                    [(ngModel)]="form.direction"
+                  >
+                    @for (value of directions; track value) {
+                      <option [value]="value">{{directionLabel(value)}}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="kpi-aggregation">{{localization.kpi.aggregation}}</label>
+                  <select
+                    id="kpi-aggregation"
+                    class="select"
+                    name="aggregation"
+                    [(ngModel)]="form.aggregationType"
+                  >
+                    @for (value of aggregations; track value) {
+                      <option [value]="value">{{aggregationLabel(value)}}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="kpi-formula">{{localization.kpi.formula}}</label>
+                  <input
+                    id="kpi-formula"
+                    class="input mono"
+                    name="formula"
+                    maxlength="1000"
+                    [(ngModel)]="form.formula"
+                    [placeholder]="localization.kpi.formulaPlaceholder"
+                  />
+                </div>
+                <div class="field">
+                  <label for="kpi-max">{{localization.kpi.maxAchievement}}</label>
+                  <input
+                    id="kpi-max"
+                    class="input mono"
+                    name="max"
+                    type="number"
+                    min="0.0001"
+                    max="9999.9999"
+                    step="any"
+                    [(ngModel)]="form.maxAchievementPercent"
+                    [placeholder]="localization.kpi.maxAchievementPlaceholder"
+                  />
+                </div>
+                <div class="field full">
+                  <label for="kpi-description">{{localization.kpi.description}}</label>
+                  <textarea
+                    id="kpi-description"
+                    class="textarea"
+                    name="description"
+                    maxlength="2000"
+                    [(ngModel)]="form.description"
+                    [placeholder]="localization.kpi.descriptionPlaceholder"
+                  ></textarea>
+                </div>
+                <div class="full form-actions">
+                  <span class="mono updated">
+                    {{localization.kpi.updatedAt}}:
+                    {{i18n.formatDate(kpi.updatedAt, 'DD/MM/YYYY HH:mm')}}
+                  </span>
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    [disabled]="saving() || !isDirty()"
+                    (click)="cancelChanges()"
+                  >
+                    {{localization.kpi.cancelChanges}}
+                  </button>
+                  <button
+                    type="submit"
+                    class="button button-primary"
+                    [disabled]="saving() || !isDirty()"
+                  >
+                    {{saving() ? localization.kpi.saving : localization.kpi.saveConfiguration}}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel surface-card draft-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>{{localization.kpi.draftTitle}}</h2>
+                  <p>{{localization.kpi.draftHint}}</p>
+                </div>
+                <span class="status-badge is-warning">{{localization.kpi.notSaved}}</span>
+              </div>
+
+              <h3 class="draft-subtitle">{{localization.kpi.roleWeights}}</h3>
+              @for (row of roleRows(); track row.key) {
+                <div class="draft-row">
+                  <input
+                    class="input"
+                    [value]="row.label"
+                    (input)="editRow('roles', row.key, { label: rowLabel($event) })"
+                    [placeholder]="localization.kpi.roleName"
+                    [attr.aria-label]="localization.kpi.roleName"
+                  />
+                  <input
+                    class="input mono"
+                    type="number"
+                    min="0"
+                    max="100"
+                    [value]="row.value"
+                    (input)="editRow('roles', row.key, { value: rowValue($event) })"
+                    [attr.aria-label]="localization.kpi.percentWeight"
+                  />
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    (click)="removeRow('roles', row.key)"
+                    [attr.aria-label]="localization.kpi.removeRow"
+                  >
+                    ×
+                  </button>
+                </div>
+              }
+              <button type="button" class="button button-secondary" (click)="addRow('roles')">
+                {{localization.kpi.addRole}}
+              </button>
+              @if (roleRows().length) {
+                <p class="panel-footnote" role="status">
+                  {{roleTotal() === 100
+                      ? localization.kpi.weightValid
+                      : i18n.translate('kpi.weightError', { weight: roleTotal() })}}
+                </p>
+              }
+
+              <h3 class="draft-subtitle">{{localization.kpi.depositMultipliers}}</h3>
+              @for (row of multiplierRows(); track row.key) {
+                <div class="draft-row">
+                  <input
+                    class="input"
+                    [value]="row.label"
+                    (input)="editRow('multipliers', row.key, { label: rowLabel($event) })"
+                    [placeholder]="localization.kpi.productName"
+                    [attr.aria-label]="localization.kpi.productName"
+                  />
+                  <input
+                    class="input mono"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [value]="row.value"
+                    (input)="editRow('multipliers', row.key, { value: rowValue($event) })"
+                    [attr.aria-label]="localization.kpi.multiplierValue"
+                  />
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    (click)="removeRow('multipliers', row.key)"
+                    [attr.aria-label]="localization.kpi.removeRow"
+                  >
+                    ×
+                  </button>
+                </div>
+              }
+              <button type="button" class="button button-secondary" (click)="addRow('multipliers')">
+                {{localization.kpi.addMultiplier}}
+              </button>
+            </div>
+          } @else if (!loading()) {
+            <div class="state-card">
+              <strong>{{localization.kpi.noSelection}}</strong>
+              <p>{{localization.kpi.noSelectionHint}}</p>
+            </div>
+          }
+        </section>
+      </div>
+    </main>
+  </div>
+
+  @if (createOpen()) {
+    <app-kpi-create-modal
+      [groups]="groups()"
+      [units]="unitSuggestions()"
+      (closed)="closeCreate()"
+      (created)="onCreated($event)"
+    />
+  }
+
+  @if (editOpen() && selected(); as kpi) {
+    <app-kpi-edit-modal
+      [kpi]="kpi"
+      [groups]="groups()"
+      [units]="unitSuggestions()"
+      (closed)="closeEdit()"
+      (saved)="onEdited($event)"
+    />
+  }
+</div>

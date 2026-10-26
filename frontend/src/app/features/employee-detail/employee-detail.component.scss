@@ -1,0 +1,53 @@
+.hero-mark {
+  border-radius: 50%;
+}
+.filters {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.filters .input {
+  flex: 1;
+  min-width: 160px;
+}
+.subtext {
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+a.button {
+  text-decoration: none;
+}
+@media (max-width: 620px) {
+  .filters {
+    flex-direction: column;
+  }
+}
+.hero-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.page-notice {
+  margin: 16px 0 0;
+  padding: 9px 10px;
+  border: 1px solid #a7f3d0;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .hero {
+    flex-wrap: wrap;
+  }
+  .hero-actions {
+    width: 100%;
+  }
+  .hero-actions .button {
+    flex: 1;
+  }
+}

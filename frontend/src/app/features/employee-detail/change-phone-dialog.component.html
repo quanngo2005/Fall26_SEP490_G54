@@ -1,0 +1,71 @@
+<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+  <div
+    class="modal-dialog profile-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="phone-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown.escape)="close()"
+  >
+    <div class="modal-header">
+      <h2 id="phone-title">{{localization.profile.changePhone}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        [disabled]="saving()"
+        [attr.aria-label]="localization.common.close"
+        (click)="close()"
+      >
+        ×
+      </button>
+    </div>
+    <form (ngSubmit)="save()" novalidate>
+      <div class="modal-body profile-form">
+        <div class="field">
+          <label for="profile-phone">{{localization.profile.phone}}</label>
+          <input
+            id="profile-phone"
+            name="phone"
+            type="tel"
+            inputmode="numeric"
+            class="input"
+            autocomplete="tel"
+            maxlength="10"
+            [(ngModel)]="phone"
+            [attr.aria-invalid]="!valid"
+            aria-describedby="profile-phone-hint"
+          />
+          <p
+            id="profile-phone-hint"
+            class="field-hint"
+            [class.is-error]="!valid"
+            [attr.role]="valid ? null : 'alert'"
+          >
+            {{valid ? localization.profile.phoneHint : localization.profile.phoneInvalid}}
+          </p>
+        </div>
+        @if (errorText(); as message) {
+          <p class="form-message" role="alert">{{message}}</p>
+        }
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="close()"
+        >
+          {{localization.common.cancel}}
+        </button>
+        <button
+          type="submit"
+          class="button button-primary"
+          [disabled]="!valid || !changed || saving()"
+        >
+          {{saving() ? localization.profile.saving : localization.profile.savePhone}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

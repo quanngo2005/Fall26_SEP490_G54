@@ -20,6 +20,7 @@ $connectionString["Username"] = if ($settings.ContainsKey("POSTGRES_USER")) { $s
 $connectionString["Password"] = if ($settings.ContainsKey("POSTGRES_PASSWORD")) { $settings["POSTGRES_PASSWORD"] } else { "postgres" }
 
 $env:ConnectionStrings__Postgres = $connectionString.ConnectionString
+$env:Jwt__Key = if ($settings.ContainsKey("JWT_KEY")) { $settings["JWT_KEY"] } else { "" }
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 
 $env:ASPNETCORE_URLS = "http://localhost:5000"

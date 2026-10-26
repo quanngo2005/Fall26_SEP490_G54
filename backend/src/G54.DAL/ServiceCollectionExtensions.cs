@@ -22,7 +22,6 @@ public static class ServiceCollectionExtensions
         dataSourceBuilder.MapEnum<KpiDirection>("kpi_direction");
         dataSourceBuilder.MapEnum<WorkPriority>("work_priority");
         dataSourceBuilder.MapEnum<WorkStatus>("work_status");
-        dataSourceBuilder.MapEnum<WorkflowDefinitionStatus>("workflow_definition_status");
         dataSourceBuilder.MapEnum<HandoverStatus>("handover_status");
         dataSourceBuilder.MapEnum<SubmissionStatus>("submission_status");
         dataSourceBuilder.MapEnum<VerificationDecision>("verification_decision");
@@ -40,8 +39,9 @@ public static class ServiceCollectionExtensions
         var dataSource = dataSourceBuilder.Build();
 
         services.AddSingleton(dataSource);
-        services.AddDbContext<AppDbContext>((provider, options) =>
-            options.UseNpgsql(provider.GetRequiredService<NpgsqlDataSource>()));
+        // Bind this context to its own enum mappings. Authentication registers a
+        // separate NpgsqlDataSource with different CLR enum types in the same DI container.
+        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSource));
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IWorkRepository, WorkRepository>();

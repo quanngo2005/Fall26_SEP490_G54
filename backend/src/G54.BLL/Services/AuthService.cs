@@ -1,7 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
+using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.Auth;
 using G54.DAL.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -133,7 +137,7 @@ public sealed class AuthService(
             return null;
         }
 
-        if (account.Employee.Status != EmployeeStatus.Active)
+        if (account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             var revoked = await sessionStore.RevokeAsync(
                 currentToken.AccountId,
@@ -212,6 +216,100 @@ public sealed class AuthService(
         return true;
     }
 
+    public async Task<AuthResponseDto> ChangePasswordAsync(
+        Guid accountId,
+        ChangePasswordRequestDto request,
+        string? ipAddress,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var account = await dbContext.Accounts
+            .AsSplitQuery()
+            .Include(candidate => candidate.Employee)
+            .Include(candidate => candidate.UserRoles)
+                .ThenInclude(userRole => userRole.Role)
+                    .ThenInclude(role => role.RolePermissions)
+                        .ThenInclude(rolePermission => rolePermission.Permission)
+            .SingleOrDefaultAsync(candidate => candidate.Id == accountId, cancellationToken)
+            ?? throw new UnauthorizedException();
+        if (account.Employee.Status != EmployeeStatus.Active)
+        {
+            throw new ForbiddenException();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (account.IsLocked)
+        {
+            if (account.LockedUntil is { } lockedUntil && lockedUntil > now)
+            {
+                throw new ForbiddenException();
+            }
+
+            account.IsLocked = false;
+            account.LockedUntil = null;
+            account.FailedLoginAttempts = 0;
+        }
+
+        // Only the lifetime and the "remember me" flag are taken from this token; it never extends the session.
+        var currentSession = tokenProvider.ValidateToken(request.RefreshToken, "refresh");
+        if (currentSession is null || currentSession.AccountId != account.Id)
+        {
+            throw new UnauthorizedException();
+        }
+
+        if (!passwordEncoder.Verify(request.CurrentPassword, account.PasswordHash))
+        {
+            account.FailedLoginAttempts++;
+            var locked = account.FailedLoginAttempts >= _maxFailedAttempts;
+            if (locked)
+            {
+                account.IsLocked = true;
+                account.LockedUntil = now.Add(_lockoutDuration);
+            }
+
+            account.UpdatedAt = now;
+            RecordAudit(account.Id, "PASSWORD_CHANGE_FAILED", ipAddress);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            throw locked
+                ? new ForbiddenException()
+                : new AppException(
+                    ErrorCodes.GetDefaultMessage(ErrorCodes.InvalidCurrentPassword),
+                    ErrorCodes.InvalidCurrentPassword,
+                    StatusCodes.Status400BadRequest);
+        }
+
+        var policyErrors = PasswordPolicy.Validate(request.NewPassword, request.CurrentPassword, account.Employee.Email);
+        if (policyErrors.Count > 0)
+        {
+            throw new ValidationException(policyErrors);
+        }
+
+        account.PasswordHash = passwordEncoder.Encode(request.NewPassword);
+        account.FailedLoginAttempts = 0;
+        account.LockedUntil = null;
+        account.UpdatedAt = now;
+        RecordAudit(account.Id, "PASSWORD_CHANGED", ipAddress);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Revoke first, then store the new session; the other order would delete the session that is meant to survive.
+        await sessionStore.RevokeAllAsync(account.Id, cancellationToken);
+        var remainingLifetime = currentSession.ExpiresAt - now;
+        var issued = IssueTokens(account, currentSession.RememberMe, remainingLifetime);
+        var sessionStored = await sessionStore.StoreAsync(
+            account.Id,
+            Guid.Parse(issued.RefreshToken.Id),
+            HashToken(issued.RefreshToken.Value),
+            issued.RefreshToken.ExpiresAt,
+            cancellationToken);
+        if (!sessionStored)
+        {
+            throw new InvalidOperationException("Could not create an authentication session.");
+        }
+
+        return issued.Response;
+    }
+
     public static string CreateAccessBlacklistKey(Guid tokenId) => $"auth:revoked:{tokenId}";
 
     private void RecordAudit(
@@ -224,6 +322,7 @@ public sealed class AuthService(
             Id = Guid.NewGuid(),
             ActorId = actorId,
             Action = action,
+            OccurredAt = DateTimeOffset.UtcNow,
             IpAddress = ipAddress,
         });
     }

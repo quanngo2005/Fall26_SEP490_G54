@@ -1,10 +1,40 @@
 @host = http://localhost:5000
+@token = your_jwt_token_here
 
-GET {{host}}/api/hello
+GET {{host}}/hello
 Accept: application/json
 
 ###
 
 GET {{host}}/health
+
+###
+
+# Tạo và phân công công việc mới
+POST {{host}}/works
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Liên hệ khách hàng tiềm năng đợt 1",
+  "workTypeId": "b7a1c2d3-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "assigneeEmployeeId": "c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f",
+  "priority": "High",
+  "plannedStartDate": "2026-10-20",
+  "plannedEndDate": "2026-10-31",
+  "estimatedHours": 16.5,
+  "businessCampaignId": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+  "description": "Gọi điện tư vấn gói dịch vụ cho danh sách khách hàng được giao.",
+  "checklistItems": [
+    "Lấy danh sách khách hàng",
+    "Gọi điện tư vấn"
+  ]
+}
+
+###
+
+# Lấy chi tiết công việc theo Id
+GET {{host}}/works/3f2b8c1e-5a4d-4e7f-9b21-8d6c0a1e7f10
+Authorization: Bearer {{token}}
 
 ###

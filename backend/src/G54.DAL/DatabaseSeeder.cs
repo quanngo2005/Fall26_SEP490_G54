@@ -7,13 +7,69 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 {
     private readonly AppDbContext _dbContext = dbContext;
 
-    public async Task SeedAsync(CancellationToken cancellationToken = default)
+    private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
+
+    // Seeded employee -> role. Accounts use the employee email as username.
+    private const string DemoUserRolesSql = """
+        INSERT INTO user_role (account_id, role_id)
+        SELECT a.id, r.id
+        FROM (VALUES
+            ('NV001', 'MANAGER'), ('NV001', 'VERIFIER'),
+            ('NV002', 'MANAGER'), ('NV002', 'VERIFIER'),
+            ('NV003', 'MANAGER'), ('NV003', 'VERIFIER'),
+            ('NV004', 'EMPLOYEE'), ('NV005', 'EMPLOYEE'), ('NV006', 'EMPLOYEE'),
+            ('NV007', 'EMPLOYEE'), ('NV008', 'EMPLOYEE'), ('NV009', 'EMPLOYEE'),
+            ('NV010', 'EMPLOYEE')
+        ) AS m(employee_code, role_code)
+        JOIN employee e ON e.employee_code = m.employee_code
+        JOIN account a ON a.employee_id = e.id
+        JOIN role r ON r.code = m.role_code
+        ON CONFLICT DO NOTHING;
+        """;
+
+    /// <summary>
+    /// Seeds idempotent development data. When <paramref name="demoPasswordHash"/> is
+    /// provided, login accounts are created for the seeded employees with that hash.
+    /// </summary>
+    public async Task SeedAsync(string? demoPasswordHash = null, CancellationToken cancellationToken = default)
     {
-        // Seeder can be expanded with initial Progest seed data
-        if (await _dbContext.Database.CanConnectAsync(cancellationToken))
+        var sql = await ReadEmbeddedScriptAsync(DevSeedResource, cancellationToken);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await _dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+
+        if (!string.IsNullOrEmpty(demoPasswordHash))
         {
-            // Database connection verified
+            var employees = await _dbContext.Employees
+                .Where(item => item.EmployeeCode.StartsWith("NV")
+                    && !_dbContext.Accounts.Any(account => account.EmployeeId == item.Id))
+                .ToListAsync(cancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var employee in employees)
+            {
+                _dbContext.Accounts.Add(new Account
+                {
+                    EmployeeId = employee.Id,
+                    Username = employee.Email.ToLowerInvariant(),
+                    PasswordHash = demoPasswordHash,
+                    LastSyncAt = now,
+                    UpdatedAt = now,
+                });
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await _dbContext.Database.ExecuteSqlRawAsync(DemoUserRolesSql, cancellationToken);
         }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task<string> ReadEmbeddedScriptAsync(string resourceName, CancellationToken cancellationToken)
+    {
+        await using var stream = typeof(DatabaseSeeder).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded seed script '{resourceName}' was not found.");
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(cancellationToken);
     }
 
     public async Task SeedDevelopmentAdminAsync(
@@ -48,23 +104,6 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
                 _dbContext.Departments.Add(department);
             }
 
-            var evaluationProfile = await _dbContext.EvaluationProfiles
-                .SingleOrDefaultAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
-            if (evaluationProfile is null)
-            {
-                evaluationProfile = new EvaluationProfile
-                {
-                    Code = "DEV_ADMIN",
-                    Name = "Development Administrator",
-                    Description = "Local development bootstrap profile.",
-                    Version = 1,
-                    EffectiveFrom = DateOnly.FromDateTime(now.UtcDateTime),
-                    UpdatedAt = now,
-                    Status = EvaluationProfileStatus.Draft,
-                };
-                _dbContext.EvaluationProfiles.Add(evaluationProfile);
-            }
-
             var jobPosition = await _dbContext.JobPositions
                 .SingleOrDefaultAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
             if (jobPosition is null)
@@ -74,12 +113,28 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
                     Code = "DEV_ADMIN",
                     Title = "Development Administrator",
                     Description = "Local development bootstrap position.",
-                    EvaluationProfile = evaluationProfile,
                     LastSyncAt = now,
                     UpdatedAt = now,
                     Status = RecordStatus.Active,
                 };
                 _dbContext.JobPositions.Add(jobPosition);
+            }
+
+            var hasEvaluationProfile = await _dbContext.EvaluationProfiles
+                .AnyAsync(item => item.Code == "DEV_ADMIN", cancellationToken);
+            if (!hasEvaluationProfile)
+            {
+                _dbContext.EvaluationProfiles.Add(new EvaluationProfile
+                {
+                    Code = "DEV_ADMIN",
+                    Name = "Development Administrator",
+                    Description = "Local development bootstrap profile.",
+                    Version = 1,
+                    EffectiveFrom = DateOnly.FromDateTime(now.UtcDateTime),
+                    JobPosition = jobPosition,
+                    UpdatedAt = now,
+                    Status = EvaluationProfileStatus.Draft,
+                });
             }
 
             employee = new Employee
@@ -181,6 +236,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             {
                 RoleId = adminRole.Id,
                 PermissionId = permissionId,
+                Scope = "All",
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
         }

@@ -9,6 +9,8 @@ public partial class RiskEvent
 
     public Guid EmployeeId { get; set; }
 
+    public Guid RecordedBy { get; set; }
+
     public string Code { get; set; } = null!;
 
     public string EventType { get; set; } = null!;
@@ -22,11 +24,14 @@ public partial class RiskEvent
     public DateTimeOffset UpdatedAt { get; set; }
 
     public RiskEventSeverity Severity { get; set; }
+
     public RiskEventStatus Status { get; set; }
 
     public virtual Employee Employee { get; set; } = null!;
 
     public virtual ICollection<Evidence> Evidences { get; set; } = new List<Evidence>();
 
-    public virtual VerifiedWorkResult? VerifiedWorkResult { get; set; }
+    public virtual PerformanceContribution? PerformanceContribution { get; set; }
+
+    public virtual Employee RecordedByNavigation { get; set; } = null!;
 }

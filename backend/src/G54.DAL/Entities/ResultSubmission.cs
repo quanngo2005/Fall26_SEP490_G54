@@ -11,8 +11,6 @@ public partial class ResultSubmission
 
     public Guid SubmitterEmployeeId { get; set; }
 
-    public Guid? WorkflowDefinitionId { get; set; }
-
     public int SubmissionNo { get; set; }
 
     public string? Comment { get; set; }
@@ -32,6 +30,4 @@ public partial class ResultSubmission
     public virtual ICollection<Verification> Verifications { get; set; } = new List<Verification>();
 
     public virtual Work Work { get; set; } = null!;
-
-    public virtual WorkflowDefinition? WorkflowDefinition { get; set; }
 }

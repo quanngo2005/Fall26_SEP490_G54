@@ -1,6 +1,8 @@
 param(
     [switch]$Docker,
-    [switch]$Stop
+    [switch]$Stop,
+    [ValidateRange(1, 3600)]
+    [int]$FrontendTimeoutSeconds = 600
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +30,7 @@ function Import-DevelopmentEnvironment {
     $env:BootstrapAdmin__Enabled = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_ENABLED")) { $settings["BOOTSTRAP_ADMIN_ENABLED"] } else { "false" }
     $env:BootstrapAdmin__Email = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_EMAIL")) { $settings["BOOTSTRAP_ADMIN_EMAIL"] } else { "" }
     $env:BootstrapAdmin__Password = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_PASSWORD")) { $settings["BOOTSTRAP_ADMIN_PASSWORD"] } else { "" }
+    $env:Jwt__Key = if ($settings.ContainsKey("JWT_KEY")) { $settings["JWT_KEY"] } else { "" }
 
     $connectionString = [System.Data.Common.DbConnectionStringBuilder]::new()
     $connectionString["Host"] = "localhost"
@@ -42,7 +45,7 @@ function Test-Endpoint {
     param([string]$Uri)
 
     try {
-        $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 2
+        $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 10
         return $response.StatusCode -ge 200 -and $response.StatusCode -lt 400
     } catch {
         return $false
@@ -137,7 +140,16 @@ if (-not $frontendAlreadyRunning -and (Get-Command Get-NetTCPConnection -ErrorAc
     if ($frontendListener) {
         $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($frontendListener.OwningProcess)" -ErrorAction SilentlyContinue
         $processDescription = if ($process) { "$($process.Name) (PID $($process.ProcessId))" } else { "PID $($frontendListener.OwningProcess)" }
-        throw "Cannot start the frontend because port 4200 is in use by $processDescription, but $frontendUrl is not responding. Free port 4200 and run .\run.ps1 again."
+        $frontendPath = Join-Path $root "frontend"
+        if ($process -and $process.Name -eq "node.exe" `
+            -and $process.CommandLine -match [regex]::Escape($frontendPath) `
+            -and $process.CommandLine -match 'ng\.js"?\s+serve\b') {
+            Write-Host "The project's Angular dev server is already running ($processDescription). Waiting for its build to respond..."
+            Wait-ForEndpoint -Uri $frontendUrl -ServiceName "Frontend" -TimeoutSeconds $FrontendTimeoutSeconds
+            $frontendAlreadyRunning = $true
+        } else {
+            throw "Cannot start the frontend because port 4200 is in use by $processDescription, but $frontendUrl is not responding. Free port 4200 and run .\run.ps1 again."
+        }
     }
 }
 
@@ -163,7 +175,8 @@ if (-not $frontendAlreadyRunning) {
 
 Write-Host "Waiting for the API and frontend to become ready..."
 Wait-ForEndpoint -Uri $apiUrl -ServiceName "API" -TimeoutSeconds 240
-Wait-ForEndpoint -Uri $frontendUrl -ServiceName "Frontend" -TimeoutSeconds 240
+Write-Host "Frontend dependency installation and the first Angular build may take several minutes (timeout: $FrontendTimeoutSeconds seconds)."
+Wait-ForEndpoint -Uri $frontendUrl -ServiceName "Frontend" -TimeoutSeconds $FrontendTimeoutSeconds
 
 Write-Host "G54 development is ready:"
 Write-Host "  Frontend: $frontendUrl"

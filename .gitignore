@@ -66,3 +66,14 @@ nunit-*.xml
 .agents/
 GEMINI.md
 .gemini/
+/.claude
+CLAUDE.md
+AGENTS.md
+AGENTS.md
+/diagrams
+docs/codereview/reports/coverage.cobertura.xml
+docs/codereview/reports/logs/
+
+# Evidence uploads written when the API runs outside Docker
+backend/src/G54.Api/**/uploads/
+uploads/

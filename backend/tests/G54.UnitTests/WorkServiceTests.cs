@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Claims;
 using G54.Api.Controllers;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -28,7 +30,7 @@ public sealed class WorkServiceTests
     {
         var context = CreateInMemoryDbContext();
         var uow = new UnitOfWork(context);
-        var service = new WorkService(uow, NullLogger<WorkService>.Instance);
+        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
         return (context, uow, service);
     }
 
@@ -44,7 +46,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CARD",
                 Name = "Credit Card Issuance",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -70,7 +71,7 @@ public sealed class WorkServiceTests
                 EstimatedHours: 8.5m,
                 Description: "Mo the JCB");
 
-            var result = await service.CreateWorkAsync(request);
+            var result = await service.CreateWorkAsync(request, employee.Id);
 
             Assert.NotNull(result);
             Assert.StartsWith("WRK-", result.Code);
@@ -93,7 +94,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: Guid.NewGuid(),
                 AssigneeEmployeeId: Guid.NewGuid());
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -110,7 +111,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 20),
                 PlannedEndDate: new DateOnly(2026, 10, 10));
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -134,7 +135,6 @@ public sealed class WorkServiceTests
                 Code = "WT-INACTIVE",
                 Name = "Inactive Type",
                 Status = RecordStatus.Inactive,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
 
@@ -147,7 +147,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: inactiveWorkType.Id,
                 AssigneeEmployeeId: employee.Id);
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -163,7 +163,6 @@ public sealed class WorkServiceTests
                 Code = "WT-LOAN",
                 Name = "Personal Loan",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var inactiveEmployee = new Employee
@@ -184,7 +183,7 @@ public sealed class WorkServiceTests
                 WorkTypeId: workType.Id,
                 AssigneeEmployeeId: inactiveEmployee.Id);
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request));
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
         }
     }
 
@@ -200,7 +199,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP",
                 Name = "Campaign Task Type",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -233,7 +231,7 @@ public sealed class WorkServiceTests
                 AssigneeEmployeeId: employee.Id,
                 BusinessCampaignId: campaign.Id);
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request));
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
             Assert.Contains("Participant", ex.Message);
         }
     }
@@ -250,7 +248,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP-2",
                 Name = "Campaign Task Type 2",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -293,7 +290,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 10),
                 PlannedEndDate: new DateOnly(2026, 10, 25)); // Exceeds 2026-10-20
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request));
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
             Assert.Equal(ErrorCodes.MSG18, ex.ErrorCode);
         }
     }
@@ -310,7 +307,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CMP-OK",
                 Name = "Campaign OK",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -353,7 +349,7 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 10),
                 PlannedEndDate: new DateOnly(2026, 10, 25));
 
-            var result = await service.CreateWorkAsync(request);
+            var result = await service.CreateWorkAsync(request, employee.Id);
 
             Assert.NotNull(result);
             Assert.Equal("Chien dich hop le", result.BusinessCampaignName);
@@ -373,7 +369,6 @@ public sealed class WorkServiceTests
                 Code = "WT-CTRL",
                 Name = "Controller Test",
                 Status = RecordStatus.Active,
-                WorkflowDefinitionId = Guid.NewGuid(),
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             var employee = new Employee
@@ -393,7 +388,11 @@ public sealed class WorkServiceTests
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-ctrl-test" },
+                    HttpContext = new DefaultHttpContext
+                    {
+                        TraceIdentifier = "trace-ctrl-test",
+                        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", employee.Id.ToString())], "test")),
+                    },
                 },
             };
 
@@ -416,14 +415,25 @@ public sealed class WorkServiceTests
     [Fact]
     public async Task WorksController_GetById_ReturnsNotFoundWhenMissing()
     {
-        var (context, _, service) = CreateTestEnvironment();
+        var context = CreateInMemoryDbContext();
         using (context)
         {
+            var employee = NewEmployee("EMP-NF");
+            var account = new Account { Id = Guid.NewGuid(), EmployeeId = employee.Id, Username = "emp-nf", PasswordHash = "hash", LastSyncAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+            context.Employees.Add(employee);
+            context.Accounts.Add(account);
+            await context.SaveChangesAsync();
+
+            var service = new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService("All"));
             var controller = new WorksController(service)
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-not-found" },
+                    HttpContext = new DefaultHttpContext
+                    {
+                        TraceIdentifier = "trace-not-found",
+                        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", account.Id.ToString())], "test")),
+                    },
                 },
             };
 
@@ -435,5 +445,475 @@ public sealed class WorkServiceTests
             Assert.False(envelope.Success);
             Assert.Equal(ErrorCodes.NotFound, envelope.ErrorCode);
         }
+    }
+
+    // ---- ChangeStatusAsync / MarkOverdueAsync ----
+
+    private static readonly DateOnly OverdueToday = new(2026, 10, 21);
+
+    private static (AppDbContext Context, WorkService Service) CreateStatusTestEnvironment()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var context = new AppDbContext(options);
+        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All"))));
+    }
+
+    private static async Task<(Employee Manager, Employee Assignee, Employee Stranger, Work Work)> SeedAsync(
+        AppDbContext context,
+        WorkStatus status,
+        DateOnly? plannedEnd = null)
+    {
+        var manager = NewEmployee("MGR001");
+        var assignee = NewEmployee("EMP001");
+        assignee.ManagerId = manager.Id;
+        var stranger = NewEmployee("EMP999");
+
+        var work = NewWork("WRK-1", assignee.Id, status, plannedEnd);
+
+        context.Employees.AddRange(manager, assignee, stranger);
+        context.Works.Add(work);
+        await context.SaveChangesAsync();
+        return (manager, assignee, stranger, work);
+    }
+
+    private static Employee NewEmployee(string code) => new()
+    {
+        Id = Guid.NewGuid(),
+        EmployeeCode = code,
+        FullName = $"Employee {code}",
+        Email = $"{code.ToLowerInvariant()}@bank.com",
+        Status = EmployeeStatus.Active,
+    };
+
+    private static Work NewWork(string code, Guid assigneeId, WorkStatus status, DateOnly? plannedEnd = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        Code = code,
+        Title = $"Work {code}",
+        AssigneeEmployeeId = assigneeId,
+        Priority = WorkPriority.Medium,
+        Status = status,
+        PlannedEndDate = plannedEnd,
+        UpdatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+    };
+
+
+    [Theory]
+    [InlineData("InProgress")]
+    [InlineData("IN_PROGRESS")]
+    [InlineData("in_progress")]
+    public async Task ChangeStatusAsync_AssigneeStartsNewWork_MovesToInProgress(string statusInput)
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+
+            var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = statusInput });
+
+            Assert.Equal("InProgress", result.Status);
+            Assert.Equal(WorkStatus.InProgress, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_AssigneeStartsOverdueWork_ThrowsConflictAndKeepsOverdue()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.Overdue);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
+            Assert.Equal(WorkStatus.Overdue, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task MarkOverdueAsync_WorkThatCannotLeaveOverdueByStarting_DoesNotFlipBetweenStatuses()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.InProgress, new DateOnly(2026, 10, 1));
+
+            Assert.Equal(1, await service.MarkOverdueAsync(OverdueToday));
+            await Assert.ThrowsAsync<ConflictException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(0, await service.MarkOverdueAsync(OverdueToday));
+            Assert.Equal(WorkStatus.Overdue, (await context.Works.AsNoTracking().FirstAsync(w => w.Id == work.Id)).Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ManagerMarksVerifiedWorkDone_Succeeds()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.Verified);
+
+            var result = await service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "Done" });
+
+            Assert.Equal("Done", result.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ManagerCancelsWithReason_Succeeds()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.InProgress);
+
+            var result = await service.ChangeStatusAsync(
+                work.Id, manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = "Khach hang huy yeu cau" });
+
+            Assert.Equal("Cancelled", result.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_CancelWithoutReason_ThrowsValidation()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.InProgress);
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = "  " }));
+
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            Assert.Equal(WorkStatus.InProgress, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Theory]
+    [InlineData("Submitted")]
+    [InlineData("Verified")]
+    [InlineData("Rejected")]
+    [InlineData("Overdue")]
+    [InlineData("HandedOver")]
+    [InlineData("New")]
+    public async Task ChangeStatusAsync_SystemOnlyOrNonManualTarget_ThrowsValidation(string target)
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.InProgress);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = target }));
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("NOT_A_STATUS")]
+    public async Task ChangeStatusAsync_BlankOrUnknownStatus_ThrowsValidation(string target)
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = target }));
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ReasonTooLong_ThrowsValidation()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.InProgress);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(
+                    work.Id, manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = new string('x', 501) }));
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_InvalidTransition_ThrowsConflictAndKeepsStatus()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            // New -> Done is not allowed even for the manager.
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.New);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "Done" }));
+
+            Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
+            Assert.Equal(WorkStatus.New, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_SameStatusAsCurrent_ThrowsConflict()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.InProgress);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_TerminalWork_CannotBeReopened()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.Cancelled);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_StrangerStartingWork_ThrowsForbidden()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, _, stranger, work) = await SeedAsync(context, WorkStatus.New);
+
+            var ex = await Assert.ThrowsAsync<ForbiddenException>(() =>
+                service.ChangeStatusAsync(work.Id, stranger.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(403, ex.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ManagerStartingWork_ThrowsForbidden()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (manager, _, _, work) = await SeedAsync(context, WorkStatus.New);
+
+            await Assert.ThrowsAsync<ForbiddenException>(() =>
+                service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "InProgress" }));
+        }
+    }
+
+    [Theory]
+    [InlineData("Done")]
+    [InlineData("Cancelled")]
+    public async Task ChangeStatusAsync_AssigneeOrStrangerClosingWork_ThrowsForbidden(string target)
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, stranger, work) = await SeedAsync(context, WorkStatus.Verified);
+            var request = new WorkStatusDto { Status = target, Reason = "ly do" };
+
+            await Assert.ThrowsAsync<ForbiddenException>(() => service.ChangeStatusAsync(work.Id, assignee.Id, request));
+            await Assert.ThrowsAsync<ForbiddenException>(() => service.ChangeStatusAsync(work.Id, stranger.Id, request));
+            Assert.Equal(WorkStatus.Verified, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_UnknownWork_ThrowsNotFound()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, _) = await SeedAsync(context, WorkStatus.New);
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                service.ChangeStatusAsync(Guid.NewGuid(), assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_UnknownOrInactiveActor_ThrowsUnauthorized()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+
+            await Assert.ThrowsAsync<UnauthorizedException>(() =>
+                service.ChangeStatusAsync(work.Id, Guid.NewGuid(), new WorkStatusDto { Status = "InProgress" }));
+
+            assignee.Status = EmployeeStatus.Inactive;
+            await context.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<UnauthorizedException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+        }
+    }
+
+
+    [Fact]
+    public async Task MarkOverdueAsync_MovesOnlyEligiblePastDueWork()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var employee = NewEmployee("EMP100");
+            context.Employees.Add(employee);
+
+            var past = OverdueToday.AddDays(-2);
+            var wNew = NewWork("W-NEW", employee.Id, WorkStatus.New, past);
+            var wProgress = NewWork("W-PROG", employee.Id, WorkStatus.InProgress, past);
+            var wHandedOver = NewWork("W-HAND", employee.Id, WorkStatus.HandedOver, past);
+            var wSubmitted = NewWork("W-SUB", employee.Id, WorkStatus.Submitted, past);
+            var wVerified = NewWork("W-VER", employee.Id, WorkStatus.Verified, past);
+            var wRejected = NewWork("W-REJ", employee.Id, WorkStatus.Rejected, past);
+            var wDone = NewWork("W-DONE", employee.Id, WorkStatus.Done, past);
+            var wCancelled = NewWork("W-CAN", employee.Id, WorkStatus.Cancelled, past);
+            var wAlreadyOverdue = NewWork("W-OVD", employee.Id, WorkStatus.Overdue, past);
+            var wDueToday = NewWork("W-TODAY", employee.Id, WorkStatus.InProgress, OverdueToday);
+            var wFuture = NewWork("W-FUT", employee.Id, WorkStatus.InProgress, OverdueToday.AddDays(5));
+            var wNoDate = NewWork("W-NODATE", employee.Id, WorkStatus.InProgress, null);
+
+            context.Works.AddRange(
+                wNew, wProgress, wHandedOver, wSubmitted, wVerified, wRejected, wDone, wCancelled,
+                wAlreadyOverdue, wDueToday, wFuture, wNoDate);
+            await context.SaveChangesAsync();
+
+            var updated = await service.MarkOverdueAsync(OverdueToday);
+
+            Assert.Equal(3, updated);
+
+            async Task<WorkStatus> StatusOf(Work w) => (await context.Works.AsNoTracking().FirstAsync(x => x.Id == w.Id)).Status;
+
+            Assert.Equal(WorkStatus.Overdue, await StatusOf(wNew));
+            Assert.Equal(WorkStatus.Overdue, await StatusOf(wProgress));
+            Assert.Equal(WorkStatus.Overdue, await StatusOf(wHandedOver));
+            Assert.Equal(WorkStatus.Submitted, await StatusOf(wSubmitted));
+            Assert.Equal(WorkStatus.Verified, await StatusOf(wVerified));
+            Assert.Equal(WorkStatus.Rejected, await StatusOf(wRejected));
+            Assert.Equal(WorkStatus.Done, await StatusOf(wDone));
+            Assert.Equal(WorkStatus.Cancelled, await StatusOf(wCancelled));
+            Assert.Equal(WorkStatus.Overdue, await StatusOf(wAlreadyOverdue));
+            Assert.Equal(WorkStatus.InProgress, await StatusOf(wDueToday));
+            Assert.Equal(WorkStatus.InProgress, await StatusOf(wFuture));
+            Assert.Equal(WorkStatus.InProgress, await StatusOf(wNoDate));
+        }
+    }
+
+    [Fact]
+    public async Task MarkOverdueAsync_IsIdempotentAndReturnsZeroWhenNothingToDo()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, work) = await SeedAsync(context, WorkStatus.InProgress, OverdueToday.AddDays(-1));
+
+            Assert.Equal(1, await service.MarkOverdueAsync(OverdueToday));
+            Assert.Equal(0, await service.MarkOverdueAsync(OverdueToday));
+            Assert.Equal(WorkStatus.Overdue, (await context.Works.AsNoTracking().FirstAsync(w => w.Id == work.Id)).Status);
+        }
+    }
+
+    // ---- Business date (UTC+7) ----
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Fact]
+    public async Task CreateWorkAsync_BeforeVietnamMidnight_UsesVietnamDateForDefaultStartAndCode()
+    {
+        // 02:00 on 22/10 in Vietnam is still 21/10 in UTC: the business date must be the 22nd.
+        var (context, service, workType, employee) = await CreateAtAsync("2026-10-21T19:00:00+00:00");
+        using (context)
+        {
+            var result = await service.CreateWorkAsync(new CreateWorkRequestDto(
+                Title: "Cong viec dau ngay moi",
+                WorkTypeId: workType.Id,
+                AssigneeEmployeeId: employee.Id), employee.Id);
+
+            Assert.Equal(new DateOnly(2026, 10, 22), result.PlannedStartDate);
+            Assert.StartsWith("WRK-20261022-", result.Code, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkAsync_BeforeVietnamMidnightEndsAt2359_StillUsesTheSameVietnamDate()
+    {
+        var (context, service, workType, employee) = await CreateAtAsync("2026-10-21T16:59:59+00:00");
+        using (context)
+        {
+            var result = await service.CreateWorkAsync(new CreateWorkRequestDto(
+                Title: "Cong viec cuoi ngay",
+                WorkTypeId: workType.Id,
+                AssigneeEmployeeId: employee.Id), employee.Id);
+
+            Assert.Equal(new DateOnly(2026, 10, 21), result.PlannedStartDate);
+            Assert.StartsWith("WRK-20261021-", result.Code, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_StampsUpdatedAtFromTheTimeProvider()
+    {
+        var (context, service, _, employee) = await CreateAtAsync("2026-10-21T19:00:00+00:00");
+        using (context)
+        {
+            var work = NewWork("W-CLOCK", employee.Id, WorkStatus.New);
+            context.Works.Add(work);
+            await context.SaveChangesAsync();
+
+            var result = await service.ChangeStatusAsync(work.Id, employee.Id, new WorkStatusDto { Status = "InProgress" });
+
+            Assert.Equal(DateTimeOffset.Parse("2026-10-21T19:00:00+00:00", CultureInfo.InvariantCulture), result.UpdatedAt);
+        }
+    }
+
+    private static async Task<(AppDbContext Context, WorkService Service, WorkType WorkType, Employee Employee)> CreateAtAsync(string utcNow)
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var context = new AppDbContext(options);
+        var service = new WorkService(
+            new UnitOfWork(context),
+            NullLogger<WorkService>.Instance,
+            new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)),
+            new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
+
+        var workType = new WorkType
+        {
+            Id = Guid.NewGuid(),
+            Code = "WT-CLOCK",
+            Name = "Clock",
+            Status = RecordStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        var employee = NewEmployee("EMP-CLOCK");
+        context.WorkTypes.Add(workType);
+        context.Employees.Add(employee);
+        await context.SaveChangesAsync();
+        return (context, service, workType, employee);
     }
 }

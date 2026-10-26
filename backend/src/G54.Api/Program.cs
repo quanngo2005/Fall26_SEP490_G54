@@ -1,10 +1,13 @@
 using System.Threading.RateLimiting;
+using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.Api.Health;
+using G54.Api.Logging;
 using G54.Api.Middleware;
 using G54.Api.Services;
 using G54.Api.Swagger;
 using G54.BLL;
+using G54.BLL.Common.Constants;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Authentication;
@@ -19,7 +22,9 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
-builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Configuration(context.Configuration));
+builder.Host.UseSerilog((context, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.FromLogContext());
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || System.Text.Encoding.UTF8.GetByteCount(jwtKey) < 32)
@@ -39,7 +44,8 @@ var databaseConnection = builder.Configuration.GetConnectionString("Postgres")
 var redisConnection = builder.Configuration.GetConnectionString("Redis")
     ?? throw new InvalidOperationException("ConnectionStrings:Redis is required.");
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = ApiErrorResponses.InvalidModelState);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
@@ -78,6 +84,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 context.Fail("Access token has been revoked.");
             }
         },
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+            await ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status401Unauthorized, ErrorCodes.Unauthorized);
+        },
+        OnForbidden = context =>
+            ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden),
     };
 });
 var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 5);
@@ -123,6 +136,8 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -136,12 +151,33 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
     });
     options.OperationFilter<AuthorizeCheckOperationFilter>();
+    options.CustomSchemaIds(type =>
+    {
+        return BuildSchemaId(type);
+
+        static string BuildSchemaId(Type t)
+        {
+            if (!t.IsGenericType)
+            {
+                return t.FullName?.Replace("+", ".", StringComparison.Ordinal) ?? t.Name;
+            }
+
+            var typeDefName = t.Name[..t.Name.IndexOf('`', StringComparison.Ordinal)];
+            var args = string.Join("And", t.GetGenericArguments().Select(BuildSchemaId));
+            return $"{typeDefName}Of{args}";
+        }
+    });
 });
 
 var app = builder.Build();
 app.UseMiddleware<TraceIdMiddleware>();
 app.UseExceptionHandler();
-app.UseSerilogRequestLogging();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = SerilogLoggingHelper.DefaultMessageTemplate;
+    options.GetLevel = SerilogLoggingHelper.GetRequestLogLevel;
+    options.EnrichDiagnosticContext = SerilogLoggingHelper.EnrichDiagnosticContext;
+});
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
@@ -160,6 +196,7 @@ else
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<UserLogContextMiddleware>();
 app.UseAuthorization();
 app.MapHealthChecks("/health", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
