@@ -1,11 +1,11 @@
-using G54.BLL.Common.Ranking;
+﻿using G54.BLL.Common.Downgrade;
 using G54.DAL;
 using G54.DAL.Entities;
 
 namespace G54.UnitTests;
 
-/// <summary>Seeds the ranking configuration that the migration seeds in a real database (InMemory runs no migration).</summary>
-internal static class RankingTestData
+/// <summary>Seeds the downgrade configuration that the migration seeds in a real database (InMemory runs no migration).</summary>
+internal static class DowngradeTestData
 {
     public static readonly (string Code, int Order, decimal MinScore)[] StandardTiers =
     [
@@ -19,8 +19,8 @@ internal static class RankingTestData
     public static void Seed(
         AppDbContext context,
         (string Code, int Order, decimal MinScore)[]? tiers = null,
-        RiskEventSeverity downrankSeverity = RiskEventSeverity.Critical,
-        string downrankCapTier = "B")
+        RiskEventSeverity downgradeSeverity = RiskEventSeverity.Critical,
+        string downgradeCapTier = "B")
     {
         foreach (var (code, order, minScore) in tiers ?? StandardTiers)
         {
@@ -34,25 +34,25 @@ internal static class RankingTestData
             });
         }
 
-        context.RankingDownrankSettings.Add(new RankingDownrankSetting
+        context.Downgrades.Add(new Downgrade
         {
             Id = Guid.NewGuid(),
-            TriggerSeverity = downrankSeverity,
-            CapTierCode = downrankCapTier,
+            TriggerSeverity = downgradeSeverity,
+            CapTierCode = downgradeCapTier,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
         context.SaveChanges();
     }
 
-    public static RankingConfiguration Configuration(
+    public static DowngradeConfiguration Configuration(
         (string Code, int Order, decimal MinScore)[]? tiers = null,
-        RiskEventSeverity downrankSeverity = RiskEventSeverity.Critical,
-        string downrankCapTier = "B") =>
+        RiskEventSeverity downgradeSeverity = RiskEventSeverity.Critical,
+        string downgradeCapTier = "B") =>
         new(
             (tiers ?? StandardTiers)
                 .OrderBy(t => t.Order)
                 .Select(t => new RankingTierThreshold { TierCode = t.Code, RankOrder = t.Order, MinScore = t.MinScore })
                 .ToList(),
-            downrankSeverity,
-            downrankCapTier);
+            downgradeSeverity,
+            downgradeCapTier);
 }

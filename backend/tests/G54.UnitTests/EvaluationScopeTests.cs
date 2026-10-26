@@ -1,4 +1,4 @@
-using G54.BLL.Common.Constants;
+﻿using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Dtos.Permission;
@@ -22,7 +22,7 @@ public sealed class EvaluationScopeTests
 
     private static EvaluationService CreateService(AppDbContext context, params UserPermissionDto[] grants)
     {
-        RankingTestData.Seed(context);
+        DowngradeTestData.Seed(context);
         return new(context, NullLogger<EvaluationService>.Instance, new FakePermissionService(null, grants));
     }
 

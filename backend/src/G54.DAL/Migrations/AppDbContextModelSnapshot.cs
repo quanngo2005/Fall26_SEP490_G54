@@ -490,6 +490,36 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.Downgrade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("CapTierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cap_tier_code");
+
+                    b.Property<int>("TriggerSeverity")
+                        .HasColumnType("risk_event_severity")
+                        .HasColumnName("trigger_severity");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("downgrade_pkey");
+
+                    b.ToTable("downgrade", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Employee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1329,36 +1359,6 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("permission", (string)null);
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.RankingDownrankSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<string>("CapTierCode")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("cap_tier_code");
-
-                    b.Property<int>("TriggerSeverity")
-                        .HasColumnType("risk_event_severity")
-                        .HasColumnName("trigger_severity");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.HasKey("Id")
-                        .HasName("ranking_downrank_setting_pkey");
-
-                    b.ToTable("ranking_downrank_setting", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>

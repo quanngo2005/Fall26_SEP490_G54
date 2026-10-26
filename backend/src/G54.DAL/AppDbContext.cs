@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -62,7 +62,7 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
 
-    public virtual DbSet<RankingDownrankSetting> RankingDownrankSettings { get; set; }
+    public virtual DbSet<Downgrade> Downgrades { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -1178,11 +1178,11 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("updated_at");
         });
 
-        modelBuilder.Entity<RankingDownrankSetting>(entity =>
+        modelBuilder.Entity<Downgrade>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("ranking_downrank_setting_pkey");
+            entity.HasKey(e => e.Id).HasName("downgrade_pkey");
 
-            entity.ToTable("ranking_downrank_setting");
+            entity.ToTable("downgrade");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")

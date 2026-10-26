@@ -1,4 +1,4 @@
-using G54.BLL.Common.Constants;
+﻿using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Dtos.Permission;
@@ -21,12 +21,12 @@ public sealed class EvaluationServiceTests
         return new AppDbContext(options);
     }
 
-    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(bool seedRankingConfiguration = true)
+    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(bool seedDowngradeConfiguration = true)
     {
         var context = CreateInMemoryDbContext();
-        if (seedRankingConfiguration)
+        if (seedDowngradeConfiguration)
         {
-            RankingTestData.Seed(context);
+            DowngradeTestData.Seed(context);
         }
 
         // Evaluation scopes at All: the scope checks are a no-op for the workflow tests in this file.
@@ -399,7 +399,7 @@ public sealed class EvaluationServiceTests
         Assert.Equal("B", result.ProposedTier);
     }
 
-    // ----- Ranking downrank: every place that decides a tier must apply it the same way ------------
+    // ----- Downgrade: every place that decides a tier must apply it the same way ------------
 
     private static async Task<PerformanceEvaluation> AddScoredEvaluationAsync(
         AppDbContext context, Employee employee, EvaluationPeriod period, EvaluationProfile profile, decimal score,
@@ -442,7 +442,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
+    public async Task Downgrade_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -460,7 +460,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
+    public async Task Downgrade_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -473,7 +473,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
+    public async Task Downgrade_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -490,7 +490,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
+    public async Task Downgrade_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -506,7 +506,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
+    public async Task Downgrade_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -519,11 +519,11 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Downrank_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
+    public async Task Downgrade_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
     {
-        // Different from the defaults: the downrank caps at A3 and triggers from High upwards.
+        // Different from the defaults: the downgrade caps at A3 and triggers from High upwards.
         var context = CreateInMemoryDbContext();
-        RankingTestData.Seed(context, downrankSeverity: RiskEventSeverity.High, downrankCapTier: "A3");
+        DowngradeTestData.Seed(context, downgradeSeverity: RiskEventSeverity.High, downgradeCapTier: "A3");
         var permissions = new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
@@ -539,9 +539,9 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Ranking_WithoutConfiguration_FailsClearlyInsteadOfUsingBuiltInNumbers()
+    public async Task Downgrade_WithoutConfiguration_FailsClearlyInsteadOfUsingBuiltInNumbers()
     {
-        var (context, service) = CreateTestEnvironment(seedRankingConfiguration: false);
+        var (context, service) = CreateTestEnvironment(seedDowngradeConfiguration: false);
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
         await AddScoredEvaluationAsync(context, staff, period, profile, 98m);

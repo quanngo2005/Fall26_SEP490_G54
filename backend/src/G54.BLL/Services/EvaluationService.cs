@@ -1,8 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
-using G54.BLL.Common.Ranking;
+using G54.BLL.Common.Downgrade;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -256,8 +256,8 @@ public sealed partial class EvaluationService(
         }
 
         var totalCalculated = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = RankingRules.DetermineTier(
-            totalCalculated, riskEvents, await LoadRankingConfigurationAsync(cancellationToken));
+        var proposedTier = DowngradeRules.DetermineTier(
+            totalCalculated, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 
         var employeeDto = new EvaluationEmployeeDto(
             employee.Id,
@@ -449,8 +449,8 @@ public sealed partial class EvaluationService(
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
         var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = RankingRules.DetermineTier(
-            finalScore, riskEvents, await LoadRankingConfigurationAsync(cancellationToken));
+        var proposedTier = DowngradeRules.DetermineTier(
+            finalScore, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 
         var existingEvaluation = await db.PerformanceEvaluations
             .FirstOrDefaultAsync(pe => pe.EmployeeId == request.EmployeeId && pe.EvaluationPeriodId == request.PeriodId, cancellationToken);
@@ -561,7 +561,7 @@ public sealed partial class EvaluationService(
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken);
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(employeeIds, period, cancellationToken);
-        var rankingConfiguration = await LoadRankingConfigurationAsync(cancellationToken);
+        var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
         return employees.Select(emp =>
         {
@@ -569,7 +569,7 @@ public sealed partial class EvaluationService(
             var status = pe != null ? pe.Status.ToString().ToUpperInvariant() : "NOT_STARTED";
             risksByEmployee.TryGetValue(emp.Id, out var empRisks);
             var tier = pe?.TotalScore != null
-                ? RankingRules.DetermineTier(pe.TotalScore.Value, empRisks, rankingConfiguration)
+                ? DowngradeRules.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                 : null;
 
             return new DepartmentEmployeeEvaluationSummaryDto(
@@ -671,7 +671,7 @@ public sealed partial class EvaluationService(
         var risksGroup = riskEvents.GroupBy(re => re.EmployeeId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var rankingConfiguration = await LoadRankingConfigurationAsync(cancellationToken);
+        var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
         var unrankedRows = new List<CalibrationEmployeeRowDto>();
 
         foreach (var emp in employees)
@@ -686,7 +686,7 @@ public sealed partial class EvaluationService(
             var (businessScore, serviceQualityScore, operationsScore, qualitativeScore, totalScore) =
                 ComputeEmployeeScores(emp, profilesByPosition.GetValueOrDefault(emp.JobPositionId), empTargets, empActuals, empRisks, pe);
 
-            var proposedTier = RankingRules.DetermineTier(totalScore, empRisks, rankingConfiguration);
+            var proposedTier = DowngradeRules.DetermineTier(totalScore, empRisks, downgradeConfiguration);
             var calibratedTier = calibData?.CalibratedTier ?? proposedTier;
             var isAdjusted = !string.Equals(calibratedTier, proposedTier, StringComparison.OrdinalIgnoreCase);
             var coachingFlag = calibData?.CoachingFlag ?? (!string.IsNullOrWhiteSpace(coachingPlan) || proposedTier is "C" or "D");
@@ -987,7 +987,7 @@ public sealed partial class EvaluationService(
             .ToDictionary(g => g.Key, g => g.First());
 
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(allEmpIds, period, cancellationToken);
-        var rankingConfiguration = await LoadRankingConfigurationAsync(cancellationToken);
+        var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
         var deptSummaries = new List<DepartmentApprovalSummaryDto>();
 
@@ -1038,7 +1038,7 @@ public sealed partial class EvaluationService(
                 risksByEmployee.TryGetValue(pe.EmployeeId, out var empRisks);
                 var tier = calib?.CalibratedTier
                     ?? (pe.TotalScore.HasValue
-                        ? RankingRules.DetermineTier(pe.TotalScore.Value, empRisks, rankingConfiguration)
+                        ? DowngradeRules.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                         : "B");
                 if (tier is "A1" or "A2" or "A3") tierA++;
                 else if (tier == "B") tierB++;
@@ -1504,24 +1504,24 @@ public sealed partial class EvaluationService(
         _ => 0m,
     };
 
-    /// <summary>Reads the tier thresholds (best first) and the downrank setting. Missing configuration is an error, never a guess.</summary>
-    private async Task<RankingConfiguration> LoadRankingConfigurationAsync(CancellationToken cancellationToken)
+    /// <summary>Reads the tier thresholds (best first) and the downgrade setting. Missing configuration is an error, never a guess.</summary>
+    private async Task<DowngradeConfiguration> LoadDowngradeConfigurationAsync(CancellationToken cancellationToken)
     {
         var tiers = await db.RankingTierThresholds
             .AsNoTracking()
             .OrderBy(t => t.RankOrder)
             .ToListAsync(cancellationToken);
-        var downrank = await db.RankingDownrankSettings
+        var downgrade = await db.Downgrades
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (tiers.Count == 0 || downrank is null)
+        if (tiers.Count == 0 || downgrade is null)
         {
             throw new InvalidOperationException(
-                "Chưa cấu hình xếp loại (ranking_tier_threshold, ranking_downrank_setting). Hãy chạy DbMigrator.");
+                "Chưa cấu hình xếp loại (ranking_tier_threshold, downgrade). Hãy chạy DbMigrator.");
         }
 
-        return new RankingConfiguration(tiers, downrank.TriggerSeverity, downrank.CapTierCode);
+        return new DowngradeConfiguration(tiers, downgrade.TriggerSeverity, downgrade.CapTierCode);
     }
 
     /// <summary>Risk events of the given employees that happened inside the period and were not dismissed, grouped by employee.</summary>
