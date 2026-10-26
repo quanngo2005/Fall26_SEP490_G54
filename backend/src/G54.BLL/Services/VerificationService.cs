@@ -335,7 +335,7 @@ public sealed class VerificationService(
 
     private static (Guid EmployeeId, decimal Value)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
     {
-        var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints);
+        var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints, handover.ReferrerSharePercent);
         return
         [
             (handover.FromEmployeeId, referrerPoints),

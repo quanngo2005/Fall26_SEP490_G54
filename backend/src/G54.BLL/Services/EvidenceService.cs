@@ -20,6 +20,8 @@ public sealed class EvidenceService(
         var evidence = await db.Evidences.AsNoTracking()
             .Include(e => e.ResultSubmission!)
                 .ThenInclude(s => s.SubmitterEmployee)
+            .Include(e => e.Appeal!)
+                .ThenInclude(a => a.Employee)
             .FirstOrDefaultAsync(e => e.Id == evidenceId, cancellationToken)
             ?? throw new NotFoundException("Tệp bằng chứng", evidenceId);
 
@@ -49,8 +51,9 @@ public sealed class EvidenceService(
 
     private async Task<bool> CanViewAsync(Employee caller, Evidence evidence, CancellationToken cancellationToken)
     {
-        // Evidence attached to a risk event or an appeal has no owner or scope rule yet, so only a global verifier sees it.
-        var submitter = evidence.ResultSubmission?.SubmitterEmployee;
+        // Evidence of a submission or an appeal belongs to the employee who filed it. Evidence attached to a risk event
+        // has no owner or scope rule yet, so only a global verifier sees it.
+        var submitter = evidence.ResultSubmission?.SubmitterEmployee ?? evidence.Appeal?.Employee;
         if (submitter is not null && submitter.Id == caller.Id)
         {
             return true;

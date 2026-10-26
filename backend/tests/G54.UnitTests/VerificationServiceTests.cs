@@ -655,13 +655,15 @@ public sealed class VerificationServiceTests
         Employee to,
         HandoverStatus status,
         DateTimeOffset handoverAt,
-        DateTimeOffset? acceptedAt = null) => new()
+        DateTimeOffset? acceptedAt = null,
+        decimal referrerSharePercent = TaskHandover.DefaultReferrerSharePercent) => new()
         {
             Id = Guid.NewGuid(),
             WorkId = work.Id,
             FromEmployeeId = from.Id,
             ToEmployeeId = to.Id,
             Reason = "Chuyển hồ sơ vay cho cán bộ tín dụng",
+            ReferrerSharePercent = referrerSharePercent,
             HandoverAt = handoverAt,
             AcceptedAt = acceptedAt,
             Status = status,
@@ -700,6 +702,35 @@ public sealed class VerificationServiceTests
             Assert.Equal(2, progress.Count);
             Assert.Equal(50m, progress.Sum(p => p.Value));
             Assert.Equal(world.KpiId, (await context.TargetAssignments.FindAsync(progress[0].TargetAssignmentId))!.KpiDefinitionId);
+        }
+    }
+
+    [Fact]
+    public async Task SubmitDecisionAsync_WithCustomReferrerShareOnHandover_SplitsByThatShare()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, maker, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
+            var processor = NewEmployee(context, maker, "EMP-CO1");
+            await context.SaveChangesAsync();
+            await SeedKpiWorldAsync(context, work, maker, processor);
+            context.TaskHandovers.Add(NewHandover(
+                work,
+                maker,
+                processor,
+                HandoverStatus.Accepted,
+                DateTimeOffset.UtcNow.AddHours(-3),
+                DateTimeOffset.UtcNow.AddHours(-2),
+                referrerSharePercent: 40m));
+            await context.SaveChangesAsync();
+
+            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m));
+
+            var items = await context.WorkResultItems.ToListAsync();
+            Assert.Equal(2, items.Count);
+            Assert.Equal(20m, items.Single(i => i.EmployeeId == maker.Id).Value);
+            Assert.Equal(30m, items.Single(i => i.EmployeeId == processor.Id).Value);
         }
     }
 

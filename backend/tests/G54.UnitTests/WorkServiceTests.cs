@@ -30,7 +30,7 @@ public sealed class WorkServiceTests
     {
         var context = CreateInMemoryDbContext();
         var uow = new UnitOfWork(context);
-        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System);
+        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null));
         return (context, uow, service);
     }
 
@@ -446,7 +446,7 @@ public sealed class WorkServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var context = new AppDbContext(options);
-        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System));
+        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null)));
     }
 
     private static async Task<(Employee Manager, Employee Assignee, Employee Stranger, Work Work)> SeedAsync(
@@ -888,7 +888,8 @@ public sealed class WorkServiceTests
         var service = new WorkService(
             new UnitOfWork(context),
             NullLogger<WorkService>.Instance,
-            new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)));
+            new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)),
+            new FakePermissionService(null));
 
         var workType = new WorkType
         {

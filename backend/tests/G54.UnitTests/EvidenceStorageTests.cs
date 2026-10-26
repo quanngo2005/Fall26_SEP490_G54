@@ -540,6 +540,78 @@ public sealed class EvidenceServiceTests : IDisposable
         await file.Content.DisposeAsync();
     }
 
+    /// <summary>An appeal filed by <paramref name="filer"/> with one stored PDF attached to it.</summary>
+    private async Task<Guid> SeedAppealEvidenceAsync(Employee filer)
+    {
+        var stored = (await Storage.UploadEvidenceFilesAsync(
+            [new FormFile(new MemoryStream(PdfBytes), 0, PdfBytes.Length, "Files", "khieu nai.pdf")])).Single();
+        var appeal = new Appeal
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = filer.Id,
+            ResultSubmissionId = (await _db.ResultSubmissions.SingleAsync()).Id,
+            Reason = "Reason",
+            Status = AppealStatus.Open,
+            FiledAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        var evidence = new Evidence
+        {
+            Id = Guid.NewGuid(),
+            AppealId = appeal.Id,
+            FileName = "khieu nai.pdf",
+            FilePath = stored.FilePath,
+            MimeType = "application/pdf",
+            UploadedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        _db.Appeals.Add(appeal);
+        _db.Evidences.Add(evidence);
+        await _db.SaveChangesAsync();
+        return evidence.Id;
+    }
+
+    [Fact]
+    public async Task EvidenceOfAnAppeal_IsOpenToTheEmployeeWhoFiledIt()
+    {
+        var (submitter, _) = await SeedAsync();
+        var evidenceId = await SeedAppealEvidenceAsync(submitter);
+
+        var file = await ServiceFor().OpenAsync(submitter.Id, evidenceId);
+
+        Assert.Equal(PdfBytes, await ReadAll(file));
+        Assert.Equal("khieu nai.pdf", file.FileName);
+    }
+
+    [Fact]
+    public async Task EvidenceOfAnAppeal_FollowsTheVerificationScopeOfTheFilersDepartment()
+    {
+        var (submitter, _) = await SeedAsync();
+        var evidenceId = await SeedAppealEvidenceAsync(submitter);
+        var salesManager = await AddEmployeeAsync("SALESMGR", _salesId);
+        var tellerManager = await AddEmployeeAsync("TELLERMGR", _tellerId);
+        var colleague = await AddEmployeeAsync("COLLEAGUE", _salesTeamId);
+
+        var inside = await ServiceFor(("verification", "decide", "Department")).OpenAsync(salesManager.Id, evidenceId);
+        await inside.Content.DisposeAsync();
+        var branchWide = await ServiceFor(("verification", "decide", "Branch")).OpenAsync(tellerManager.Id, evidenceId);
+        await branchWide.Content.DisposeAsync();
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            ServiceFor(("verification", "decide", "Department")).OpenAsync(tellerManager.Id, evidenceId));
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceFor().OpenAsync(colleague.Id, evidenceId));
+    }
+
+    [Fact]
+    public async Task EvidenceOfAnAppeal_IsNotOpenToTheSubmitterOfAnotherPerson()
+    {
+        var (submitter, _) = await SeedAsync();
+        var evidenceId = await SeedAppealEvidenceAsync(submitter);
+        var other = await AddEmployeeAsync("OTHER", _tellerId);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceFor().OpenAsync(other.Id, evidenceId));
+    }
+
     [Fact]
     public async Task OfficeFiles_AreNotPreviewable_AndKeepTheContentTypeOfTheirExtension()
     {

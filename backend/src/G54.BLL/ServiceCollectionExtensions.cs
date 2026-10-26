@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);
@@ -31,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
+        services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();

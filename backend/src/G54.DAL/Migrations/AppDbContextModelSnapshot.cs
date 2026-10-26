@@ -1755,6 +1755,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("reason");
 
+                    b.Property<decimal>("ReferrerSharePercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasDefaultValue(30m)
+                        .HasColumnName("referrer_share_percent");
+
                     b.Property<int>("Status")
                         .HasColumnType("handover_status")
                         .HasColumnName("status");
@@ -1789,6 +1796,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
 
                             t.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
+
+                            t.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
                         });
                 });
 
