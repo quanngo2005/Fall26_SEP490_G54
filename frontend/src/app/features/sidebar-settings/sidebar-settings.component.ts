@@ -32,7 +32,7 @@ import {
     CdkDragHandle,
   ],
   templateUrl: './sidebar-settings.component.html',
-  styleUrl: './sidebar-settings.component.scss',
+  styleUrls: ['./sidebar-settings.component.scss', './sidebar-settings.component.part2.scss'],
 })
 export class SidebarSettingsComponent extends LocalizedComponent {
   readonly navigation = inject(NavigationService);
@@ -148,7 +148,7 @@ export class SidebarSettingsComponent extends LocalizedComponent {
   }
 
   setRoute(id: MenuKey, event: Event): void {
-    const input = event.target as HTMLInputElement;
+    const input = event.target as HTMLSelectElement;
     const route = input.value.trim();
     if (id === 'organization' || (id === 'systemConfiguration' && this.selectedRole() === 'admin'))
       return;
@@ -161,12 +161,6 @@ export class SidebarSettingsComponent extends LocalizedComponent {
     }
     input.value = route;
     this.draftRoutes.update((routes) => ({ ...routes, [id]: route }));
-    this.saved.set(false);
-  }
-
-  clearRoute(id: MenuKey): void {
-    if (this.saving() || (id === 'systemConfiguration' && this.selectedRole() === 'admin')) return;
-    this.draftRoutes.update((routes) => ({ ...routes, [id]: '' }));
     this.saved.set(false);
   }
 

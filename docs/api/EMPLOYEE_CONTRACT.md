@@ -4,7 +4,7 @@ Status: backend implemented (read endpoints used by the frontend). Typed client:
 `frontend/src/app/core/employee.service.ts`. Routes use the backend origin, no API prefix; all
 responses use `ApiResponse<T>` (see `API_CONVENTIONS.md`). Write endpoints
 (`POST/PUT/PATCH/DELETE /employees...`) and the option lookups (`/employees/departments`,
-`/employees/job-positions`, `/employees/managers`) exist on the backend but are **not used** by the
+`/employees/job-positions`) exist on the backend but are **not used** by the
 employee detail page and are not part of this contract revision.
 
 ## Authorization

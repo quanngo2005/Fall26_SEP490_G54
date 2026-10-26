@@ -72,6 +72,7 @@ AGENTS.md
 AGENTS.md
 /diagrams
 docs/codereview/reports/coverage.cobertura.xml
+docs/codereview/reports/logs/
 
 # Evidence uploads written when the API runs outside Docker
 backend/src/G54.Api/**/uploads/

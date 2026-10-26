@@ -24,6 +24,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse<EvaluationFormDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
     public async Task<ActionResult<ApiResponse<EvaluationFormDto>>> GetEvaluationForm(
         [FromQuery] Guid employeeId,
         [FromQuery] Guid periodId,
@@ -41,6 +42,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "submit", "Dept")]
     public async Task<ActionResult<ApiResponse<EvaluationResultDto>>> SubmitEvaluation(
         [FromBody] SubmitEvaluationRequestDto request,
         CancellationToken cancellationToken)
@@ -54,6 +56,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     /// </summary>
     [HttpGet("periods")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<EvaluationPeriodOptionDto>>>(StatusCodes.Status200OK)]
+    [HasPermission("evaluation", "read", "Own")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<EvaluationPeriodOptionDto>>>> GetPeriods(
         CancellationToken cancellationToken)
     {
@@ -66,6 +69,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     /// </summary>
     [HttpGet("department-employees")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<DepartmentEmployeeEvaluationSummaryDto>>>(StatusCodes.Status200OK)]
+    [HasPermission("evaluation", "read", "Dept")]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DepartmentEmployeeEvaluationSummaryDto>>>> GetDepartmentEmployees(
         [FromQuery] Guid periodId,
         [FromQuery] Guid? departmentId,
@@ -87,6 +91,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse<CalibrationOverviewDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
     public async Task<ActionResult<ApiResponse<CalibrationOverviewDto>>> GetCalibration(
         [FromQuery] Guid periodId,
         [FromQuery] Guid? departmentId,
@@ -111,6 +116,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
     public async Task<ActionResult<ApiResponse<CalibrationSubmitResultDto>>> SubmitCalibration(
         [FromBody] SubmitCalibrationRequestDto request,
         CancellationToken cancellationToken)
@@ -126,6 +132,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse<BranchApprovalOverviewDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
     public async Task<ActionResult<ApiResponse<BranchApprovalOverviewDto>>> GetApprovals(
         [FromQuery] Guid periodId,
         CancellationToken cancellationToken)
@@ -141,6 +148,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse<CalibrationDecisionResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "finalize", "Branch")]
     public async Task<ActionResult<ApiResponse<CalibrationDecisionResultDto>>> RequestRecalibration(
         [FromRoute] Guid departmentId,
         [FromBody] RejectCalibrationRequestDto request,
@@ -163,6 +171,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
     public async Task<ActionResult<ApiResponse<FinalizeResultDto>>> FinalizePeriod(
         [FromBody] FinalizeEvaluationPeriodRequestDto request,
         CancellationToken cancellationToken)

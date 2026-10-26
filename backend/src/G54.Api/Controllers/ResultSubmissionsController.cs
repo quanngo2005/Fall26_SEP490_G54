@@ -58,6 +58,7 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
 
     [HttpGet("works/{workId:guid}/submissions")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<SubmissionDetailDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SubmissionDetailDto>>>> GetSubmissionsByWorkId(
         Guid workId,
@@ -69,6 +70,7 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
 
     [HttpGet("submissions/{submissionId:guid}")]
     [ProducesResponseType<ApiResponse<SubmissionDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<SubmissionDetailDto>>> GetSubmissionById(
         Guid submissionId,
@@ -78,12 +80,26 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Deprecated alias of GET /submissions/{submissionId}.</summary>
+    /// <summary>Deprecated alias of GET /submissions/{submissionId}; 404 when the submission belongs to another work.</summary>
     [HttpGet("works/{workId:guid}/submissions/{submissionId:guid}")]
     [ApiExplorerSettings(IgnoreApi = true)]
-    public Task<ActionResult<ApiResponse<SubmissionDetailDto>>> GetSubmissionByIdLegacy(
+    public async Task<ActionResult<ApiResponse<SubmissionDetailDto>>> GetSubmissionByIdLegacy(
+        Guid workId,
         Guid submissionId,
-        CancellationToken cancellationToken) => GetSubmissionById(submissionId, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var result = await submissionService.GetSubmissionByIdAsync(submissionId, User.GetRequiredUserId(), cancellationToken);
+        if (result.WorkId != workId)
+        {
+            return NotFound(ApiResponse.Fail(
+                ErrorCodes.NotFound,
+                "Không tìm thấy đợt nộp kết quả.",
+                traceId: HttpContext.TraceIdentifier,
+                status: StatusCodes.Status404NotFound));
+        }
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
 
     [HttpPost("submissions/{submissionId:guid}/withdraw")]
     [ProducesResponseType<ApiResponse<SubmissionResultDto>>(StatusCodes.Status200OK)]

@@ -12,7 +12,8 @@ namespace G54.BLL.Services;
 
 public sealed partial class EvaluationService(
     AppDbContext db,
-    ILogger<EvaluationService> logger) : IEvaluationService
+    ILogger<EvaluationService> logger,
+    IPermissionService permissions) : IEvaluationService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -76,6 +77,12 @@ public sealed partial class EvaluationService(
             .Include(e => e.JobPosition)
             .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", employeeId);
+
+        // An employee reads only their own form; anyone else needs evaluation:read covering the employee's department.
+        if (employee.Id != reviewer.Id)
+        {
+            await EnsureDepartmentInScopeAsync(currentUserId, "read", reviewer, employee.DepartmentId, cancellationToken);
+        }
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
@@ -329,6 +336,8 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", request.EmployeeId);
 
+        await EnsureDepartmentInScopeAsync(currentUserId, "submit", reviewer, employee.DepartmentId, cancellationToken);
+
         var period = await db.EvaluationPeriods
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == request.PeriodId, cancellationToken)
@@ -526,6 +535,7 @@ public sealed partial class EvaluationService(
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         var targetDeptId = departmentId ?? reviewer.DepartmentId;
+        await EnsureDepartmentInScopeAsync(currentUserId, "read", reviewer, targetDeptId, cancellationToken);
 
         var employees = await db.Employees
             .AsNoTracking()
@@ -575,6 +585,7 @@ public sealed partial class EvaluationService(
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         var targetDeptId = departmentId ?? reviewer.DepartmentId;
+        await EnsureDepartmentInScopeAsync(currentUserId, "read", reviewer, targetDeptId, cancellationToken);
 
         var department = await db.Departments
             .AsNoTracking()
@@ -782,6 +793,7 @@ public sealed partial class EvaluationService(
         CancellationToken cancellationToken = default)
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, "calibrate", reviewer, request.DepartmentId, cancellationToken);
 
         var period = await db.EvaluationPeriods
             .FirstOrDefaultAsync(p => p.Id == request.PeriodId, cancellationToken)
@@ -1420,6 +1432,32 @@ public sealed partial class EvaluationService(
                     .ThenByDescending(ep => ep.Status == EvaluationProfileStatus.Active)
                     .ThenByDescending(ep => ep.EffectiveFrom)
                     .First());
+    }
+
+    /// <summary>
+    /// Throws unless the caller's evaluation:<paramref name="action"/> scope covers <paramref name="departmentId"/>.
+    /// All bypasses the check; Dept/Branch cover the caller's department subtree (or branch subtree); Own and no grant cover nothing.
+    /// </summary>
+    private async Task EnsureDepartmentInScopeAsync(
+        Guid actorAccountId,
+        string action,
+        Employee reviewer,
+        Guid departmentId,
+        CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "evaluation", action);
+        if (level >= AccessScope.AllLevel)
+        {
+            return;
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var covered = AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
+        if (covered is null || !covered.Contains(departmentId))
+        {
+            throw new ForbiddenException("Bạn không có quyền thao tác đánh giá trên phòng ban/nhân sự này.");
+        }
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)

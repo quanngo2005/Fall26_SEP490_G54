@@ -2,6 +2,12 @@
 
 Run `./scripts/codereview-backend.ps1` on Windows or `./scripts/codereview-backend.sh` on Unix. The command creates `docs/codereview/reports/BACKEND_REPORT.md` and exits non-zero when an automated check fails.
 
+The report lists, at the top, every blocking failure, warning and skipped check with the `file:line` of each problem, so
+the report alone says what to fix. Each check ends as **PASS**, **FAIL** (Gate/Critical/High: blocks merge), **WARN**
+(Medium/Low: advisory) or **SKIP** (could not run here, e.g. a tool is missing: it is never counted as passed). The full
+output of each check is in `docs/codereview/reports/logs/<ID>.log`. The report covers the `[auto]` checks only. In CI
+the report is also shown on the run's Summary page.
+
 ## Severity Levels
 
 | Severity | Meaning | Merge policy | Fix deadline |
@@ -20,14 +26,15 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] BE-02 `[auto]` Release build succeeds with warnings treated as errors.
 - [ ] BE-03 `[auto]` All xUnit tests pass.
 - [ ] BE-04 `[auto]` `dotnet format --verify-no-changes` passes.
-- [ ] BE-05 `[auto]` No committed build output or secrets are introduced.
+- [ ] BE-05 `[auto]` No committed build output, binaries or secret files (`bin/`, `obj/`, `*.dll`, `*.pfx`, `*.key`, `.env`) are tracked by git.
+- [ ] BE-18 `[auto]` Line coverage meets the thresholds in `scripts/check-coverage.ps1` (migrations excluded).
 
 ## Architecture
 
 - [ ] BE-06 `[auto]` Controllers only handle HTTP concerns; controllers never reference `AppDbContext` or `G54.DAL`.
-- [ ] BE-07 `[manual]` BLL does not depend on API; DAL does not depend on BLL or API.
-- [ ] BE-08 `[manual]` Database schema changes include an EF Core migration and safe rollback.
-- [ ] BE-09 `[manual]` DbMigrator remains idempotent and owns migration/seed execution.
+- [ ] BE-07 `[auto]` BLL does not depend on API; DAL does not depend on BLL or API (checked on `ProjectReference`).
+- [ ] BE-08 `[auto]` The EF model has no change without a migration (`dotnet ef migrations has-pending-model-changes`).
+- [ ] BE-09 `[manual]` DbMigrator remains idempotent and owns migration/seed execution; new migrations have a safe rollback (`Down`).
 - [ ] BE-10 `[manual]` DTOs do not expose persistence entities directly.
 
 ## Correctness And Performance
@@ -37,6 +44,10 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] BE-13 `[manual]` User input is validated before persistence.
 - [ ] BE-14 `[manual]` Error responses use ProblemDetails and do not reveal stack traces.
 - [ ] BE-15 `[manual]` New behavior includes focused unit or integration tests.
+- [ ] BE-19 `[auto]` No test was skipped in the run (a skipped test hides a missing database, Redis or a disabled test).
+- [ ] BE-20 `[auto]` No sync-over-async (`.Result`, `.Wait()`), `async void`, empty `catch` or `Console.Write` in API/BLL/DAL code.
+- [ ] BE-21 `[auto]` (Low) Files under 50% line coverage with at least 30 lines are listed for attention.
+- [ ] BE-22 `[auto]` (Low) No `TODO`/`FIXME`/`HACK` left in source.
 
 ## Operations
 
@@ -76,6 +87,8 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] SEC-BE-M05 `[manual]` Database user used by API has least privilege in production (no superuser).
 - [ ] SEC-BE-M06 `[manual]` Refresh tokens (if used) are rotated, stored hashed, and revocable.
 - [ ] SEC-BE-M07 `[manual]` Seed data does not create default admin accounts with known passwords in production.
+- [ ] SEC-BE-M08 `[auto]` Endpoints that are anonymous or have no `[HasPermission]` are listed, so the reviewer can confirm SEC-BE-C03/C04 for each.
+- [ ] SEC-BE-M09 `[auto]` Log statements that mention passwords, tokens or secrets are listed (supports SEC-BE-H04).
 
 ### Low
 

@@ -18,13 +18,14 @@ namespace G54.Api.Controllers;
 public sealed class VerificationController(IVerificationService service) : ControllerBase
 {
     [HttpGet("{submissionId:guid}/dossier")]
+    [HasPermission("verification", "decide", "Dept")]
     [ProducesResponseType<ApiResponse<VerificationDossierDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<VerificationDossierDto>>> GetDossier(
         Guid submissionId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetDossierAsync(submissionId, cancellationToken);
+        var result = await service.GetDossierAsync(submissionId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -32,11 +33,13 @@ public sealed class VerificationController(IVerificationService service) : Contr
     [HttpGet("/verification/dossiers/{submissionId:guid}")]
     [HttpGet("pending/{submissionId:guid}")]
     [ApiExplorerSettings(IgnoreApi = true)]
+    [HasPermission("verification", "decide", "Dept")]
     public Task<ActionResult<ApiResponse<VerificationDossierDto>>> GetDossierLegacy(
         Guid submissionId,
         CancellationToken cancellationToken) => GetDossier(submissionId, cancellationToken);
 
     [HttpPost("{submissionId:guid}/decision")]
+    [HasPermission("verification", "decide", "Dept")]
     [ProducesResponseType<ApiResponse<VerificationDecisionResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -54,25 +57,28 @@ public sealed class VerificationController(IVerificationService service) : Contr
     /// <summary>Deprecated alias of POST /verifications/{submissionId}/decision.</summary>
     [HttpPost("/verification/dossiers/{submissionId:guid}/decision")]
     [ApiExplorerSettings(IgnoreApi = true)]
+    [HasPermission("verification", "decide", "Dept")]
     public Task<ActionResult<ApiResponse<VerificationDecisionResultDto>>> SubmitDecisionLegacy(
         Guid submissionId,
         [FromBody] SubmitVerificationDecisionDto dto,
         CancellationToken cancellationToken) => SubmitDecision(submissionId, dto, cancellationToken);
 
     [HttpGet("{submissionId:guid}/history")]
+    [HasPermission("verification", "decide", "Dept")]
     [ProducesResponseType<ApiResponse<List<VerificationHistoryDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<List<VerificationHistoryDto>>>> GetHistory(
         Guid submissionId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetHistoryAsync(submissionId, cancellationToken);
+        var result = await service.GetHistoryAsync(submissionId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
     /// <summary>Deprecated alias of GET /verifications/{submissionId}/history.</summary>
     [HttpGet("/verification/submissions/{submissionId:guid}/history")]
     [ApiExplorerSettings(IgnoreApi = true)]
+    [HasPermission("verification", "decide", "Dept")]
     public Task<ActionResult<ApiResponse<List<VerificationHistoryDto>>>> GetHistoryLegacy(
         Guid submissionId,
         CancellationToken cancellationToken) => GetHistory(submissionId, cancellationToken);

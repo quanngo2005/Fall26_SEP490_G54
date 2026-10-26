@@ -13,7 +13,10 @@ using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
-public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> logger) : IEmployeeService
+public sealed class EmployeeService(
+    AppDbContext db,
+    ILogger<EmployeeService> logger,
+    IPermissionService permissions) : IEmployeeService
 {
     private static readonly Action<ILogger, string, Guid, Exception?> LogEmployeeAudit =
         LoggerMessage.Define<string, Guid>(LogLevel.Information, new EventId(1, "EmployeeAudit"), "Employee audit: Action={Action}, EntityId={EntityId}");
@@ -41,13 +44,15 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         e.UpdatedAt);
 
     public async Task<PagedResult<EmployeeDetailDto>> GetEmployeesAsync(
+        Guid callerAccountId,
         EmployeeFilterDto filter,
         CancellationToken cancellationToken = default)
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
         var status = EnumApiFormat.ParseEnum<EmployeeStatus>(filter.Status, "status");
-        var query = db.Employees.AsNoTracking().AsQueryable();
+        var visible = await ResolveVisibilityAsync(callerAccountId, cancellationToken);
+        var query = db.Employees.AsNoTracking().Where(visible);
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
@@ -90,18 +95,24 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
         return new PagedResult<EmployeeDetailDto>(items, totalCount, page, pageSize);
     }
 
+    /// <summary>Null when the employee does not exist or lies outside the caller's employee:read scope.</summary>
     public async Task<EmployeeDetailDto?> GetEmployeeByIdAsync(
+        Guid callerAccountId,
         Guid id,
         CancellationToken cancellationToken = default)
     {
+        var visible = await ResolveVisibilityAsync(callerAccountId, cancellationToken);
         return await db.Employees
             .AsNoTracking()
             .Where(e => e.Id == id)
+            .Where(visible)
             .Select(DetailProjection)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>Null when the code is unknown or the employee lies outside the caller's employee:read scope.</summary>
     public async Task<EmployeeDetailDto?> GetEmployeeByCodeAsync(
+        Guid callerAccountId,
         string code,
         CancellationToken cancellationToken = default)
     {
@@ -111,9 +122,11 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             return null;
         }
 
+        var visible = await ResolveVisibilityAsync(callerAccountId, cancellationToken);
         return await db.Employees
             .AsNoTracking()
             .Where(e => e.EmployeeCode == trimmed)
+            .Where(visible)
             .Select(DetailProjection)
             .SingleOrDefaultAsync(cancellationToken);
     }
@@ -156,30 +169,6 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
             .Where(j => j.Status == RecordStatus.Active)
             .OrderBy(j => j.Code)
             .Select(j => new JobPositionOptionDto(j.Id, j.Code, j.Title))
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<List<ManagerOptionDto>> GetManagerOptionsAsync(
-        Guid? excludeEmployeeId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var query = db.Employees
-            .AsNoTracking()
-            .Where(e => e.Status == EmployeeStatus.Active);
-
-        if (excludeEmployeeId.HasValue && excludeEmployeeId.Value != Guid.Empty)
-        {
-            query = query.Where(e => e.Id != excludeEmployeeId.Value);
-        }
-
-        return await query
-            .OrderBy(e => e.EmployeeCode)
-            .Select(e => new ManagerOptionDto(
-                e.Id,
-                e.EmployeeCode,
-                e.FullName,
-                e.Department.Name,
-                e.JobPosition.Title))
             .ToListAsync(cancellationToken);
     }
 
@@ -437,8 +426,49 @@ public sealed class EmployeeService(AppDbContext db, ILogger<EmployeeService> lo
 
     private async Task<EmployeeDetailDto> GetRequiredEmployeeAsync(Guid id, CancellationToken cancellationToken)
     {
-        return await GetEmployeeByIdAsync(id, cancellationToken)
+        return await db.Employees
+            .AsNoTracking()
+            .Where(e => e.Id == id)
+            .Select(DetailProjection)
+            .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
+    }
+
+    /// <summary>
+    /// The employees the caller may read: everyone (All), the caller's department subtree (Dept, Branch widens to the
+    /// nearest branch), or only the caller (Own). Callers without employee:read are rejected.
+    /// </summary>
+    private async Task<Expression<Func<Employee, bool>>> ResolveVisibilityAsync(Guid callerAccountId, CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(callerAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "employee", "read");
+        if (level < AccessScope.OwnLevel)
+        {
+            throw new ForbiddenException();
+        }
+
+        if (level >= AccessScope.AllLevel)
+        {
+            return _ => true;
+        }
+
+        var caller = await db.Accounts
+            .AsNoTracking()
+            .Where(a => a.Id == callerAccountId && !a.IsLocked && a.Employee.Status == EmployeeStatus.Active)
+            .Select(a => new { a.EmployeeId, a.Employee.DepartmentId })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ForbiddenException();
+
+        if (level < AccessScope.DeptLevel)
+        {
+            var selfId = caller.EmployeeId;
+            return e => e.Id == selfId;
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments, cancellationToken);
+        var departments = AccessScope.DepartmentsInScope(level, caller.DepartmentId, hierarchy) ?? new HashSet<Guid>();
+        var selfEmployeeId = caller.EmployeeId;
+        return e => e.Id == selfEmployeeId || departments.Contains(e.DepartmentId);
     }
 
     private static void ValidatePhone(string? phone)

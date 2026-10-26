@@ -18,6 +18,7 @@ type MappingState = 'current' | 'upcoming' | 'expired';
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/workspace-page.part2.scss',
     './work-type-detail.component.scss',
   ],
 })

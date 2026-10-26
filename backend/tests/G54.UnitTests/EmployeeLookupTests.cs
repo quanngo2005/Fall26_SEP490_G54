@@ -26,7 +26,7 @@ public sealed class EmployeeLookupTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private EmployeeService Service => new(_db, NullLogger<EmployeeService>.Instance);
+    private EmployeeService Service => new(_db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll));
 
     private async Task SeedReferenceDataAsync()
     {
@@ -79,7 +79,7 @@ public sealed class EmployeeLookupTests : IDisposable
         var (manager, _) = await AddEmployeeAsync("NV001");
         var (employee, _) = await AddEmployeeAsync("NV003", managerId: manager.Id);
 
-        var result = await Service.GetEmployeeByCodeAsync("NV003");
+        var result = await Service.GetEmployeeByCodeAsync(Guid.Empty, "NV003");
 
         Assert.NotNull(result);
         Assert.Equal(employee.Id, result.Id);
@@ -94,7 +94,7 @@ public sealed class EmployeeLookupTests : IDisposable
     {
         await AddEmployeeAsync("NV003");
 
-        Assert.NotNull(await Service.GetEmployeeByCodeAsync("  NV003 "));
+        Assert.NotNull(await Service.GetEmployeeByCodeAsync(Guid.Empty, "  NV003 "));
     }
 
     [Theory]
@@ -106,7 +106,7 @@ public sealed class EmployeeLookupTests : IDisposable
     {
         await AddEmployeeAsync("NV003");
 
-        Assert.Null(await Service.GetEmployeeByCodeAsync(code));
+        Assert.Null(await Service.GetEmployeeByCodeAsync(Guid.Empty, code));
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class EmployeeLookupTests : IDisposable
     {
         await AddEmployeeAsync("NV003");
 
-        Assert.Null(await Service.GetEmployeeByCodeAsync("NV00"));
+        Assert.Null(await Service.GetEmployeeByCodeAsync(Guid.Empty, "NV00"));
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public sealed class EmployeeLookupTests : IDisposable
     {
         var (employee, _) = await AddEmployeeAsync("NV003");
 
-        var byCode = await Service.GetEmployeeByCodeAsync("NV003");
-        var byId = await Service.GetEmployeeByIdAsync(employee.Id);
+        var byCode = await Service.GetEmployeeByCodeAsync(Guid.Empty, "NV003");
+        var byId = await Service.GetEmployeeByIdAsync(Guid.Empty, employee.Id);
 
         Assert.Equal(byId, byCode);
     }

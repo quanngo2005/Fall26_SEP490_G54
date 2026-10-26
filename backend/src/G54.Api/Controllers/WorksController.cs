@@ -13,9 +13,12 @@ namespace G54.Api.Controllers;
 [Authorize]
 public sealed class WorksController(IWorkService workService) : ControllerBase
 {
+    /// <summary>Creates and assigns work; the assignee must be inside the caller's <c>work:create</c> scope.</summary>
     [HttpPost]
+    [HasPermission("work", "create", "Department")]
     [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<WorkDetailDto>>> Create(
         [FromBody] CreateWorkRequestDto request,
@@ -48,14 +51,17 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    /// <summary>Returns 404 for works outside the caller's <c>work:read</c> scope (assignee, direct manager, department).</summary>
     [HttpGet("{id:guid}")]
+    [HasPermission("work", "read", "Own")]
     [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<WorkDetailDto>>> GetById(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await workService.GetByIdAsync(id, cancellationToken);
+        var result = await workService.GetByIdAsync(id, User.GetRequiredUserId(), cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse.Fail(

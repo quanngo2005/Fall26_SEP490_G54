@@ -22,7 +22,7 @@ public sealed class EmployeeServiceTests
     private static (AppDbContext Context, EmployeeService Service) CreateTestEnvironment()
     {
         var context = CreateInMemoryDbContext();
-        var service = new EmployeeService(context, NullLogger<EmployeeService>.Instance);
+        var service = new EmployeeService(context, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll));
         return (context, service);
     }
 
@@ -125,19 +125,19 @@ public sealed class EmployeeServiceTests
 
             // Filter by keyword
             var filterByKeyword = new EmployeeFilterDto { Keyword = "Tran Van", Page = 1, PageSize = 10 };
-            var resultKeyword = await service.GetEmployeesAsync(filterByKeyword);
+            var resultKeyword = await service.GetEmployeesAsync(Guid.Empty, filterByKeyword);
             Assert.Single(resultKeyword.Items);
             Assert.Equal("DEV-001", resultKeyword.Items[0].EmployeeCode);
             Assert.Equal("MGR-001", resultKeyword.Items[0].ManagerCode);
 
             // Filter by status Active
             var filterByStatus = new EmployeeFilterDto { Status = "ACTIVE" };
-            var resultStatus = await service.GetEmployeesAsync(filterByStatus);
+            var resultStatus = await service.GetEmployeesAsync(Guid.Empty, filterByStatus);
             Assert.Equal(2, resultStatus.TotalCount);
 
             // Filter by ManagerId
             var filterByManager = new EmployeeFilterDto { ManagerId = manager.Id };
-            var resultManager = await service.GetEmployeesAsync(filterByManager);
+            var resultManager = await service.GetEmployeesAsync(Guid.Empty, filterByManager);
             Assert.Single(resultManager.Items);
             Assert.Equal("DEV-001", resultManager.Items[0].EmployeeCode);
         }
@@ -182,12 +182,12 @@ public sealed class EmployeeServiceTests
             await context.Employees.AddRangeAsync(manager, subordinate);
             await context.SaveChangesAsync();
 
-            var managerDetail = await service.GetEmployeeByIdAsync(manager.Id);
+            var managerDetail = await service.GetEmployeeByIdAsync(Guid.Empty, manager.Id);
             Assert.NotNull(managerDetail);
             Assert.Equal("Director Pham", managerDetail.FullName);
             Assert.Equal(1, managerDetail.DirectReportsCount);
 
-            var subDetail = await service.GetEmployeeByIdAsync(subordinate.Id);
+            var subDetail = await service.GetEmployeeByIdAsync(Guid.Empty, subordinate.Id);
             Assert.NotNull(subDetail);
             Assert.Equal("MGR-002", subDetail.ManagerCode);
             Assert.Equal("Director Pham", subDetail.ManagerName);
@@ -201,7 +201,7 @@ public sealed class EmployeeServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var result = await service.GetEmployeeByIdAsync(Guid.NewGuid());
+            var result = await service.GetEmployeeByIdAsync(Guid.Empty, Guid.NewGuid());
             Assert.Null(result);
         }
     }
@@ -271,50 +271,6 @@ public sealed class EmployeeServiceTests
             var options = await service.GetJobPositionOptionsAsync();
             Assert.Contains(options, o => o.Code == "P-ACT");
             Assert.DoesNotContain(options, o => o.Code == "P-INACT");
-        }
-    }
-
-    [Fact]
-    public async Task GetManagerOptionsAsync_ExcludesSpecifiedEmployee()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
-            var now = DateTimeOffset.UtcNow;
-
-            var emp1 = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "EMP-010",
-                FullName = "Emp Ten",
-                Email = "emp10@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-
-            var emp2 = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "EMP-020",
-                FullName = "Emp Twenty",
-                Email = "emp20@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-
-            await context.Employees.AddRangeAsync(emp1, emp2);
-            await context.SaveChangesAsync();
-
-            var options = await service.GetManagerOptionsAsync(excludeEmployeeId: emp1.Id);
-            Assert.DoesNotContain(options, o => o.Id == emp1.Id);
-            Assert.Contains(options, o => o.Id == emp2.Id);
         }
     }
 

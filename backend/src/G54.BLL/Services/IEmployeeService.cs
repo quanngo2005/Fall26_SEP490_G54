@@ -5,11 +5,15 @@ namespace G54.BLL.Services;
 
 public interface IEmployeeService
 {
-    Task<PagedResult<EmployeeDetailDto>> GetEmployeesAsync(EmployeeFilterDto filter, CancellationToken cancellationToken = default);
-    Task<EmployeeDetailDto?> GetEmployeeByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <summary>Employees visible to <paramref name="callerAccountId"/> under their employee:read scope.</summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The caller holds no employee:read scope.</exception>
+    Task<PagedResult<EmployeeDetailDto>> GetEmployeesAsync(Guid callerAccountId, EmployeeFilterDto filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Null when the employee is unknown or outside the caller's employee:read scope.</summary>
+    Task<EmployeeDetailDto?> GetEmployeeByIdAsync(Guid callerAccountId, Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>Looks an employee up by their (unique) employee code, which is what URLs use instead of the GUID.</summary>
-    Task<EmployeeDetailDto?> GetEmployeeByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<EmployeeDetailDto?> GetEmployeeByCodeAsync(Guid callerAccountId, string code, CancellationToken cancellationToken = default);
 
     /// <summary>The employee behind <paramref name="accountId"/>.</summary>
     /// <exception cref="G54.BLL.Common.Exceptions.NotFoundException">No such account.</exception>
@@ -17,7 +21,6 @@ public interface IEmployeeService
     Task<EmployeeDetailDto> GetCurrentEmployeeAsync(Guid accountId, CancellationToken cancellationToken = default);
     Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(CancellationToken cancellationToken = default);
     Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(CancellationToken cancellationToken = default);
-    Task<List<ManagerOptionDto>> GetManagerOptionsAsync(Guid? excludeEmployeeId = null, CancellationToken cancellationToken = default);
     Task<EmployeeDetailDto> CreateEmployeeAsync(CreateEmployeeDto dto, CancellationToken cancellationToken = default);
     Task<EmployeeDetailDto> UpdateEmployeeAsync(Guid id, UpdateEmployeeDto dto, CancellationToken cancellationToken = default);
     Task ChangeStatusAsync(Guid id, EmployeeStatusDto dto, CancellationToken cancellationToken = default);

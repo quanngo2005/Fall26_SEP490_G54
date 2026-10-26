@@ -48,6 +48,7 @@ type Dialog = 'phone' | 'password';
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/workspace-page.part2.scss',
     './employee-detail.component.scss',
   ],
 })
