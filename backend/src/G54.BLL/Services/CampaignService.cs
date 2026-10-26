@@ -353,8 +353,7 @@ public sealed class CampaignService(
 
         if (maxWorkEndDate.HasValue && request.EndDate < maxWorkEndDate.Value)
         {
-            throw new BusinessRuleException(
-                ErrorCodes.MSG18,
+            throw new ValidationException(
                 $"Ngày kết thúc chiến dịch ({request.EndDate}) không được nhỏ hơn hạn của các công việc đã sinh ({maxWorkEndDate.Value}).");
         }
 
@@ -501,7 +500,7 @@ public sealed class CampaignService(
         if (campaign.Participants.Any(p => p.EmployeeId == currentUserId || (currentEmployee != null && p.EmployeeId == currentEmployee.Id)))
         {
             throw new BusinessRuleException(
-                ErrorCodes.MSG10,
+                ErrorCodes.MakerCannotBeChecker,
                 "Nhân sự tham gia thực hiện chiến dịch không được tự phê duyệt kế hoạch chiến dịch.");
         }
 
@@ -615,8 +614,7 @@ public sealed class CampaignService(
 
         if (endDate > campaign.EndDate)
         {
-            throw new BusinessRuleException(
-                ErrorCodes.MSG18,
+            throw new ValidationException(
                 $"Hạn hoàn thành công việc ({endDate}) không được vượt quá ngày kết thúc chiến dịch ({campaign.EndDate}).");
         }
 

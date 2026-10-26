@@ -154,6 +154,7 @@ public enum PeriodType
     [PgName("HALF_YEAR")] HalfYear,
     [PgName("QUARTER")] Quarter,
     [PgName("MONTH")] Month,
+    [PgName("WEEK")] Week,
     [PgName("DAY")] Day,
 }
 

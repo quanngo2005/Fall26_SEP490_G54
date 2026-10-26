@@ -50,7 +50,7 @@ public sealed class ResultSubmissionsController(IResultSubmissionService submiss
         var result = await submissionService.CreateSubmissionAsync(workId, User.GetRequiredUserId(), request, cancellationToken);
         var response = ApiResponse.Ok(
             result,
-            ErrorCodes.GetDefaultMessage(ErrorCodes.MSG06),
+            SuccessMessages.GetMessage(SuccessMessages.WorkResultSubmitted),
             HttpContext.TraceIdentifier);
 
         return CreatedAtAction(nameof(GetSubmissionById), new { submissionId = result.SubmissionId }, response);
