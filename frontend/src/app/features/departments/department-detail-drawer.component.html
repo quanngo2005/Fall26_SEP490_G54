@@ -1,0 +1,143 @@
+<aside
+  class="detail-drawer"
+  [attr.aria-label]="localization.department.drawerLabel"
+  [attr.aria-busy]="loading()"
+>
+  <header class="drawer-header">
+    <div class="title-row">
+      <h2 class="drawer-title">{{department().code}} · {{department().name}}</h2>
+      <span class="status-badge" [class.is-muted]="department().status !== 'ACTIVE'">{{statusLabel()}}</span>
+      <button
+        type="button"
+        class="close-btn"
+        (click)="closeDrawer.emit()"
+        [attr.aria-label]="localization.common.close"
+      >
+        <span aria-hidden="true">✕</span>
+      </button>
+    </div>
+    <p class="drawer-subtitle">
+      {{count(department().employeeCount)}} {{localization.department.drawerPersonnel}}
+    </p>
+  </header>
+
+  <div class="drawer-body">
+    @if (failed()) {
+      <div class="state-card state-error" role="alert">
+        <p>{{localization.department.loadError}}</p>
+        <button type="button" class="button button-secondary" (click)="load()">
+          {{localization.department.retry}}
+        </button>
+      </div>
+    } @else if (loading()) {
+      <div class="state-card" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>{{localization.department.loading}}</p>
+      </div>
+    } @else {
+      <!-- Section 1: TRƯỞNG PHÒNG -->
+      <section class="section-block">
+        <h3 class="section-heading">{{localization.department.drawerManagerTitle}}</h3>
+        @if (manager(); as lead) {
+          <div class="manager-card">
+            <div class="manager-avatar" aria-hidden="true">{{managerInitials()}}</div>
+            <div class="manager-info">
+              <span class="manager-name">{{lead.fullName}}</span>
+              <span class="manager-meta">{{leadMeta(lead)}}</span>
+            </div>
+          </div>
+        } @else {
+          <p class="muted">{{localization.department.notAvailable}}</p>
+        }
+      </section>
+
+      <!-- Section 2: CƠ CẤU -->
+      <section class="section-block">
+        <h3 class="section-heading">{{localization.department.drawerStructureTitle}}</h3>
+        <div class="structure-grid">
+          <div class="structure-item">
+            <span class="structure-label">{{localization.department.drawerTeller}}</span>
+            <strong class="structure-value">{{count(department().tellerCount)}}</strong>
+          </div>
+          <div class="structure-item">
+            <span class="structure-label">{{localization.department.drawerSales}}</span>
+            <strong class="structure-value">{{count(department().salesCount)}}</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: NHÂN VIÊN -->
+      <section class="section-block">
+        <h3 class="section-heading">{{localization.department.drawerEmployeesTitle}}</h3>
+        <div class="mini-table-wrap">
+          <table class="mini-table">
+            <thead>
+              <tr>
+                <th class="col-emp-code" scope="col">
+                  {{localization.department.drawerColEmpCode}}
+                </th>
+                <th class="col-emp-name" scope="col">
+                  {{localization.department.drawerColFullName}}
+                </th>
+                <th class="col-emp-pos" scope="col">
+                  {{localization.department.drawerColPosition}}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (member of shownMembers(); track member.id) {
+                <tr>
+                  <td class="col-emp-code font-bold">{{member.employeeCode}}</td>
+                  <td class="col-emp-name">
+                    <a class="emp-link" [routerLink]="['/employee-detail', member.employeeCode]">
+                      {{member.fullName}}
+                    </a>
+                  </td>
+                  <td class="col-emp-pos">{{member.jobPositionTitle}}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="3" class="empty-cell">{{localization.department.noMembers}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (hasMoreMembers()) {
+          <div class="view-all-wrap">
+            <button
+              type="button"
+              class="link-btn"
+              [attr.aria-expanded]="expanded()"
+              (click)="toggleMembers()"
+            >
+              {{expanded() ? localization.department.collapseEmployees : viewAllText()}}
+            </button>
+          </div>
+        }
+      </section>
+
+      <!-- Section 4: MỤC TIÊU KỲ -->
+      <section class="section-block">
+        <h3 class="section-heading">{{targetTitle()}}</h3>
+        <div class="target-card">
+          <span class="target-text">
+            {{targetAssignedText()}}
+          </span>
+          <a
+            class="target-link"
+            [routerLink]="['/department-performance']"
+            [queryParams]="{ department: department().code }"
+          >
+            {{localization.department.viewAllocation}}
+          </a>
+        </div>
+      </section>
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="footer-hint">{{localization.department.keyboardHint}}</span>
+    <span class="footer-note">{{localization.department.noEditPermission}}</span>
+  </footer>
+</aside>

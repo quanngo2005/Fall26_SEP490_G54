@@ -65,10 +65,28 @@ public sealed partial class DepartmentService(
         }
 
         var ordered = query.OrderBy(n => n.Code, StringComparer.Ordinal).ToList();
-        var items = ordered
+        var pagedNodes = ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(n => new DepartmentSummaryDto(
+            .ToList();
+
+        var pagedSubtreeIds = pagedNodes.SelectMany(n => org.Subtree(n.Id)).Distinct().ToList();
+        var activeEmployees = await db.Employees.AsNoTracking()
+            .Where(e => pagedSubtreeIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .Select(e => new ManagerCandidate(
+                e.Id, e.EmployeeCode, e.FullName, e.ManagerId, e.JobPosition.Title, e.DepartmentId, e.JobPosition.Code))
+            .ToListAsync(cancellationToken);
+
+        var items = new List<DepartmentSummaryDto>();
+        foreach (var n in pagedNodes)
+        {
+            var subtree = org.Subtree(n.Id);
+            var subtreeSet = subtree.ToHashSet();
+            var subtreeEmployees = activeEmployees.Where(e => subtreeSet.Contains(e.DepartmentId)).ToList();
+            var tellers = subtreeEmployees.Count(e => e.JobPositionCode == JobPositionCodes.Teller);
+            var sales = subtreeEmployees.Count(e => e.JobPositionCode == JobPositionCodes.Sales);
+
+            items.Add(new DepartmentSummaryDto(
                 n.Id,
                 n.Code,
                 n.Name,
@@ -76,9 +94,13 @@ public sealed partial class DepartmentService(
                 n.Status.ToEnumString(),
                 n.ParentId,
                 n.ParentId.HasValue && org.Nodes.TryGetValue(n.ParentId.Value, out var parent) ? parent.Name : null,
-                org.Subtree(n.Id).Sum(id => counts.GetValueOrDefault(id)),
-                org.ChildrenOf(n.Id).Count))
-            .ToList();
+                subtree.Sum(id => counts.GetValueOrDefault(id)),
+                org.ChildrenOf(n.Id).Count,
+                FindInternalManager(subtreeEmployees)?.FullName,
+                tellers,
+                sales,
+                n.LastSyncAt));
+        }
 
         return new PagedResult<DepartmentSummaryDto>(items, ordered.Count, page, pageSize);
     }
@@ -256,27 +278,11 @@ public sealed partial class DepartmentService(
     {
         var active = await db.Employees.AsNoTracking()
             .Where(e => subtree.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
-            .Select(e => new ManagerCandidate(e.Id, e.EmployeeCode, e.FullName, e.ManagerId, e.JobPosition.Title))
+            .Select(e => new ManagerCandidate(
+                e.Id, e.EmployeeCode, e.FullName, e.ManagerId, e.JobPosition.Title, e.DepartmentId, e.JobPosition.Code))
             .ToListAsync(cancellationToken);
 
-        var insideIds = active.Select(e => e.Id).ToHashSet();
-        var candidates = active
-            .Where(e => e.ManagerId is null || !insideIds.Contains(e.ManagerId.Value))
-            .ToList();
-
-        var reportCounts = active
-            .Where(e => e.ManagerId.HasValue)
-            .GroupBy(e => e.ManagerId!.Value)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        var internalManager = candidates
-            .Select(c => (Candidate: c, Reports: reportCounts.GetValueOrDefault(c.Id)))
-            .Where(x => x.Reports > 0)
-            .OrderByDescending(x => x.Reports)
-            .ThenBy(x => x.Candidate.EmployeeCode, StringComparer.Ordinal)
-            .Select(x => x.Candidate)
-            .FirstOrDefault();
-
+        var internalManager = FindInternalManager(active);
         if (internalManager is not null)
         {
             return new DepartmentManagerDto(
@@ -286,9 +292,10 @@ public sealed partial class DepartmentService(
                 internalManager.JobPositionTitle);
         }
 
-        var outsideManagerIds = candidates
-            .Where(c => c.ManagerId.HasValue)
-            .GroupBy(c => c.ManagerId!.Value)
+        var insideIds = active.Select(e => e.Id).ToHashSet();
+        var outsideManagerIds = active
+            .Where(e => e.ManagerId.HasValue && !insideIds.Contains(e.ManagerId.Value))
+            .GroupBy(e => e.ManagerId!.Value)
             .ToDictionary(g => g.Key, g => g.Count());
 
         if (outsideManagerIds.Count == 0)
@@ -299,7 +306,8 @@ public sealed partial class DepartmentService(
         var keys = outsideManagerIds.Keys.ToList();
         var managers = await db.Employees.AsNoTracking()
             .Where(e => keys.Contains(e.Id) && e.Status != EmployeeStatus.Terminated)
-            .Select(e => new ManagerCandidate(e.Id, e.EmployeeCode, e.FullName, e.ManagerId, e.JobPosition.Title))
+            .Select(e => new ManagerCandidate(
+                e.Id, e.EmployeeCode, e.FullName, e.ManagerId, e.JobPosition.Title, e.DepartmentId, e.JobPosition.Code))
             .ToListAsync(cancellationToken);
 
         var chosen = managers
@@ -310,6 +318,28 @@ public sealed partial class DepartmentService(
         return chosen is null
             ? null
             : new DepartmentManagerDto(chosen.Id, chosen.EmployeeCode, chosen.FullName, chosen.JobPositionTitle);
+    }
+
+    /// <summary>
+    /// Manager rule step 1 (docs/api/DEPARTMENT_CONTRACT.md): among the active employees of a subtree, the one
+    /// whose own manager is outside it and who has the most direct reports inside (tie: lowest employee code).
+    /// </summary>
+    private static ManagerCandidate? FindInternalManager(IReadOnlyCollection<ManagerCandidate> active)
+    {
+        var insideIds = active.Select(e => e.Id).ToHashSet();
+        var reportCounts = active
+            .Where(e => e.ManagerId.HasValue)
+            .GroupBy(e => e.ManagerId!.Value)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return active
+            .Where(e => e.ManagerId is null || !insideIds.Contains(e.ManagerId.Value))
+            .Select(c => (Candidate: c, Reports: reportCounts.GetValueOrDefault(c.Id)))
+            .Where(x => x.Reports > 0)
+            .OrderByDescending(x => x.Reports)
+            .ThenBy(x => x.Candidate.EmployeeCode, StringComparer.Ordinal)
+            .Select(x => x.Candidate)
+            .FirstOrDefault();
     }
 
     // ----- Overview -------------------------------------------------------------------------
@@ -720,7 +750,9 @@ public sealed partial class DepartmentService(
         string EmployeeCode,
         string FullName,
         Guid? ManagerId,
-        string JobPositionTitle);
+        string JobPositionTitle,
+        Guid DepartmentId,
+        string JobPositionCode);
 
     private sealed record MemberRow(
         Guid Id,
