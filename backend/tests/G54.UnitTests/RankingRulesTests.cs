@@ -1,4 +1,4 @@
-using G54.BLL.Services;
+using G54.BLL.Common.Ranking;
 using G54.DAL.Entities;
 using Xunit;
 
@@ -99,7 +99,7 @@ public sealed class RankingRulesTests
     public void ThresholdsComeFromTheConfiguration()
     {
         (string, int, decimal)[] tiers = [("GOLD", 1, 50m), ("SILVER", 2, 20m), ("BRONZE", 3, 0m)];
-        var configuration = RankingTestData.Configuration(tiers, vetoCapTier: "SILVER");
+        var configuration = RankingTestData.Configuration(tiers, downrankCapTier: "SILVER");
 
         Assert.Equal("GOLD", RankingRules.DetermineTier(50m, null, configuration));
         Assert.Equal("SILVER", RankingRules.DetermineTier(49.99m, null, configuration));
@@ -109,7 +109,7 @@ public sealed class RankingRulesTests
     [Fact]
     public void TheCapTierComesFromTheConfiguration()
     {
-        var configuration = RankingTestData.Configuration(vetoCapTier: "A3");
+        var configuration = RankingTestData.Configuration(downrankCapTier: "A3");
 
         var tier = RankingRules.DetermineTier(98m, [Risk(RiskEventSeverity.Critical)], configuration);
 
@@ -119,7 +119,7 @@ public sealed class RankingRulesTests
     [Fact]
     public void TheTriggerSeverityComesFromTheConfiguration()
     {
-        var configuration = RankingTestData.Configuration(vetoSeverity: RiskEventSeverity.High);
+        var configuration = RankingTestData.Configuration(downrankSeverity: RiskEventSeverity.High);
 
         Assert.Equal("B", RankingRules.DetermineTier(98m, [Risk(RiskEventSeverity.High)], configuration));
         Assert.Equal("B", RankingRules.DetermineTier(98m, [Risk(RiskEventSeverity.Critical)], configuration));
@@ -130,7 +130,7 @@ public sealed class RankingRulesTests
     public void ThresholdsOfAnotherSize_StillResolveByRankOrder()
     {
         (string, int, decimal)[] tiers = [("A", 1, 80m), ("B", 2, 40m), ("C", 3, 0m)];
-        var configuration = RankingTestData.Configuration(tiers, vetoCapTier: "B");
+        var configuration = RankingTestData.Configuration(tiers, downrankCapTier: "B");
 
         Assert.Equal("A", RankingRules.DetermineTier(90m, null, configuration));
         Assert.Equal("B", RankingRules.DetermineTier(90m, [Risk(RiskEventSeverity.Critical)], configuration));
@@ -146,9 +146,9 @@ public sealed class RankingRulesTests
     }
 
     [Fact]
-    public void ACapTierMissingFromTheTiers_IsReportedOnlyWhenTheVetoApplies()
+    public void ACapTierMissingFromTheTiers_IsReportedOnlyWhenTheDownrankApplies()
     {
-        var configuration = RankingTestData.Configuration(vetoCapTier: "NOPE");
+        var configuration = RankingTestData.Configuration(downrankCapTier: "NOPE");
 
         Assert.Equal("A1", RankingRules.DetermineTier(98m, null, configuration));
         Assert.Throws<InvalidOperationException>(() =>

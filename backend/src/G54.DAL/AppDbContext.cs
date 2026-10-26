@@ -62,7 +62,7 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
 
-    public virtual DbSet<RankingVetoSetting> RankingVetoSettings { get; set; }
+    public virtual DbSet<RankingDownrankSetting> RankingDownrankSettings { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -1178,11 +1178,11 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("updated_at");
         });
 
-        modelBuilder.Entity<RankingVetoSetting>(entity =>
+        modelBuilder.Entity<RankingDownrankSetting>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("ranking_veto_setting_pkey");
+            entity.HasKey(e => e.Id).HasName("ranking_downrank_setting_pkey");
 
-            entity.ToTable("ranking_veto_setting");
+            entity.ToTable("ranking_downrank_setting");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")

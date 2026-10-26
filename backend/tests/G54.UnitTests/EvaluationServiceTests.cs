@@ -399,7 +399,7 @@ public sealed class EvaluationServiceTests
         Assert.Equal("B", result.ProposedTier);
     }
 
-    // ----- Ranking veto: every place that decides a tier must apply it the same way ------------
+    // ----- Ranking downrank: every place that decides a tier must apply it the same way ------------
 
     private static async Task<PerformanceEvaluation> AddScoredEvaluationAsync(
         AppDbContext context, Employee employee, EvaluationPeriod period, EvaluationProfile profile, decimal score,
@@ -442,7 +442,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
+    public async Task Downrank_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -460,7 +460,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
+    public async Task Downrank_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -473,7 +473,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
+    public async Task Downrank_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -490,7 +490,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
+    public async Task Downrank_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -506,7 +506,7 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
+    public async Task Downrank_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -519,11 +519,11 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
-    public async Task Veto_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
+    public async Task Downrank_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
     {
-        // Different from the defaults: the veto caps at A3 and triggers from High upwards.
+        // Different from the defaults: the downrank caps at A3 and triggers from High upwards.
         var context = CreateInMemoryDbContext();
-        RankingTestData.Seed(context, vetoSeverity: RiskEventSeverity.High, vetoCapTier: "A3");
+        RankingTestData.Seed(context, downrankSeverity: RiskEventSeverity.High, downrankCapTier: "A3");
         var permissions = new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));

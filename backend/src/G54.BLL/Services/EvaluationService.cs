@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Ranking;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -1503,24 +1504,24 @@ public sealed partial class EvaluationService(
         _ => 0m,
     };
 
-    /// <summary>Reads the tier thresholds (best first) and the veto setting. Missing configuration is an error, never a guess.</summary>
+    /// <summary>Reads the tier thresholds (best first) and the downrank setting. Missing configuration is an error, never a guess.</summary>
     private async Task<RankingConfiguration> LoadRankingConfigurationAsync(CancellationToken cancellationToken)
     {
         var tiers = await db.RankingTierThresholds
             .AsNoTracking()
             .OrderBy(t => t.RankOrder)
             .ToListAsync(cancellationToken);
-        var veto = await db.RankingVetoSettings
+        var downrank = await db.RankingDownrankSettings
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (tiers.Count == 0 || veto is null)
+        if (tiers.Count == 0 || downrank is null)
         {
             throw new InvalidOperationException(
-                "Chưa cấu hình xếp loại (ranking_tier_threshold, ranking_veto_setting). Hãy chạy DbMigrator.");
+                "Chưa cấu hình xếp loại (ranking_tier_threshold, ranking_downrank_setting). Hãy chạy DbMigrator.");
         }
 
-        return new RankingConfiguration(tiers, veto.TriggerSeverity, veto.CapTierCode);
+        return new RankingConfiguration(tiers, downrank.TriggerSeverity, downrank.CapTierCode);
     }
 
     /// <summary>Risk events of the given employees that happened inside the period and were not dismissed, grouped by employee.</summary>

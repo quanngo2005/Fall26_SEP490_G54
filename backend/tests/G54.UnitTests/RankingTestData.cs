@@ -1,4 +1,4 @@
-using G54.BLL.Services;
+using G54.BLL.Common.Ranking;
 using G54.DAL;
 using G54.DAL.Entities;
 
@@ -19,8 +19,8 @@ internal static class RankingTestData
     public static void Seed(
         AppDbContext context,
         (string Code, int Order, decimal MinScore)[]? tiers = null,
-        RiskEventSeverity vetoSeverity = RiskEventSeverity.Critical,
-        string vetoCapTier = "B")
+        RiskEventSeverity downrankSeverity = RiskEventSeverity.Critical,
+        string downrankCapTier = "B")
     {
         foreach (var (code, order, minScore) in tiers ?? StandardTiers)
         {
@@ -34,11 +34,11 @@ internal static class RankingTestData
             });
         }
 
-        context.RankingVetoSettings.Add(new RankingVetoSetting
+        context.RankingDownrankSettings.Add(new RankingDownrankSetting
         {
             Id = Guid.NewGuid(),
-            TriggerSeverity = vetoSeverity,
-            CapTierCode = vetoCapTier,
+            TriggerSeverity = downrankSeverity,
+            CapTierCode = downrankCapTier,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
         context.SaveChanges();
@@ -46,13 +46,13 @@ internal static class RankingTestData
 
     public static RankingConfiguration Configuration(
         (string Code, int Order, decimal MinScore)[]? tiers = null,
-        RiskEventSeverity vetoSeverity = RiskEventSeverity.Critical,
-        string vetoCapTier = "B") =>
+        RiskEventSeverity downrankSeverity = RiskEventSeverity.Critical,
+        string downrankCapTier = "B") =>
         new(
             (tiers ?? StandardTiers)
                 .OrderBy(t => t.Order)
                 .Select(t => new RankingTierThreshold { TierCode = t.Code, RankOrder = t.Order, MinScore = t.MinScore })
                 .ToList(),
-            vetoSeverity,
-            vetoCapTier);
+            downrankSeverity,
+            downrankCapTier);
 }
