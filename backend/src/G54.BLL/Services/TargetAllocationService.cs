@@ -6,8 +6,6 @@ using G54.BLL.Dtos.TargetAllocation;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
 
-[assembly: InternalsVisibleTo("G54.UnitTests")]
-
 namespace G54.BLL.Services;
 
 public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocationService
