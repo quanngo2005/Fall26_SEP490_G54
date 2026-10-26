@@ -62,7 +62,11 @@ Query: `keyword` (code/name, case-insensitive contains), `status` (`ACTIVE|INACT
         "parentDepartmentId": "5eed0000-0000-0000-0001-000000000001",
         "parentDepartmentName": "Chi nhánh Hà Nội",
         "employeeCount": 5,
-        "childDepartmentCount": 2
+        "childDepartmentCount": 2,
+        "managerName": "Trần Thị Bình",
+        "tellerCount": 2,
+        "salesCount": 3,
+        "lastSyncAt": "2026-10-01T00:00:00+00:00"
       }
     ],
     "totalCount": 1, "page": 1, "pageSize": 20
@@ -73,6 +77,17 @@ Query: `keyword` (code/name, case-insensitive contains), `status` (`ACTIVE|INACT
 `employeeCount` is the subtree count. `childDepartmentCount` counts direct children.
 `parentDepartmentId` / `parentDepartmentName` are `null` for roots.
 `ARCHIVED` (soft-deleted) departments are omitted unless `status=ARCHIVED` is requested.
+
+Per-row summary fields (computed over the department subtree, `ACTIVE` employees only):
+
+- `managerName` - full name of the derived manager, using step 1 of the `DepartmentDetail.manager` rule: the active
+  employee whose own manager is outside the subtree and who has the most direct reports inside (tie: lowest
+  `employeeCode`). `null` when there is no such employee; the list does not fall back to a manager outside the
+  subtree (the detail endpoint does).
+- `tellerCount` / `salesCount` - active employees whose `jobPosition.code` is `TELLER` / `SALES`. Matching is by code
+  only, never by title text. `0` when nobody matches, never `null`. On-leave and terminated employees are not
+  counted, so `tellerCount + salesCount` can be lower than `employeeCount` (which keeps the non-`TERMINATED` rule).
+- `lastSyncAt` - ISO 8601 time the department was last synchronised from the source system. Never `null`.
 
 ### `GET /departments/tree`
 

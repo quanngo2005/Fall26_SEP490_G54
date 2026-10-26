@@ -176,7 +176,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'targetsAndCampaigns', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'branchWork', icon: 'branchWork' },
   { id: 'branchPerformance', icon: 'branchPerformance' },
-  { id: 'departmentPerformance', icon: 'departmentPerformance' },
+  { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
   { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
@@ -223,6 +223,7 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/departments',
+    '/department-performance',
     '/employee-detail',
     '/work-type-detail',
     '/review-verify',

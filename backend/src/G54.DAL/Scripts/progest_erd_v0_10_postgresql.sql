@@ -45,7 +45,7 @@ CREATE TYPE actual_progress_status AS ENUM ('VALID', 'INVALID');
 CREATE TYPE risk_event_severity AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 CREATE TYPE risk_event_status AS ENUM ('OPEN', 'CONFIRMED', 'DISMISSED', 'RESOLVED');
 CREATE TYPE appeal_status AS ENUM ('OPEN', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'WITHDRAWN');
-CREATE TYPE period_type AS ENUM ('YEAR', 'HALF_YEAR', 'QUARTER', 'MONTH', 'DAY');
+CREATE TYPE period_type AS ENUM ('YEAR', 'HALF_YEAR', 'QUARTER', 'MONTH', 'WEEK', 'DAY');
 CREATE TYPE period_status AS ENUM ('OPEN', 'IN_REVIEW', 'LOCKED', 'CLOSED');
 CREATE TYPE evaluation_profile_status AS ENUM ('DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED');
 CREATE TYPE performance_evaluation_status AS ENUM ('DRAFT', 'CALCULATED', 'IN_REVIEW', 'APPROVED', 'DISPUTED', 'FINAL');

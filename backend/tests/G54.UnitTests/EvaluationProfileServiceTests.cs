@@ -484,6 +484,83 @@ public sealed class EvaluationProfileServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(100.0001)]
+    [InlineData(99.5)]
+    public async Task Activate_TotalWeightJustOutsideOneHundredAcrossSeveralGroups_IsRejected(double lastWeight)
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var c = AddGroup(db, "C");
+            var created = await service.CreateProfileAsync(
+                CreateDto(position, [Item(a, 33.3333m, 1), Item(b, 33.3333m, 2), Item(c, (decimal)lastWeight - 66.6666m, 3)]));
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(created.Id, Status("ACTIVE")));
+
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            Assert.Equal("DRAFT", (await service.GetProfileByIdAsync(created.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Activate_FractionalWeightsAddingUpToExactlyOneHundred_AreAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var c = AddGroup(db, "C");
+            var created = await service.CreateProfileAsync(
+                CreateDto(position, [Item(a, 33.3333m, 1), Item(b, 33.3333m, 2), Item(c, 33.3334m, 3)]));
+
+            await service.ChangeStatusAsync(created.Id, Status("ACTIVE"));
+
+            var active = (await service.GetProfileByIdAsync(created.Id))!;
+            Assert.Equal("ACTIVE", active.Status);
+            Assert.Equal(100m, active.TotalWeightPercent);
+        }
+    }
+
+    [Fact]
+    public async Task Activate_ErrorMessageReportsTheActualTotal()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var created = await service.CreateProfileAsync(CreateDto(position, [Item(AddGroup(db, "A"), 45m)]));
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.ChangeStatusAsync(created.Id, Status("ACTIVE")));
+
+            Assert.Contains("45", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task Update_DraftMayKeepAnIncompleteTotal()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var created = await service.CreateProfileAsync(CreateDto(position, [Item(a, 10m)]));
+
+            var updated = await service.UpdateProfileAsync(created.Id, UpdateDto(created, [Item(a, 25m)]));
+
+            Assert.Equal("DRAFT", updated.Status);
+            Assert.Equal(25m, updated.TotalWeightPercent);
+        }
+    }
+
     [Fact]
     public async Task Activate_WithoutItems_IsAValidationError()
     {

@@ -15,7 +15,7 @@ Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md` và mụ
 
 | Method | Route | Body / Query | Thành công |
 |---|---|---|---|
-| POST | `/submissions/{submissionId}/appeals` | multipart: `reason`, `files[]` | 201 `AppealDetailDto` + header `Location: /appeals/{id}`, message `MSG04` |
+| POST | `/submissions/{submissionId}/appeals` | multipart: `reason`, `files[]` | 201 `AppealDetailDto` + header `Location: /appeals/{id}`, message `CREATED` (`SuccessMessages`) |
 | POST | `/appeals/{id}/withdraw` | — | 200 `AppealDetailDto` |
 | GET | `/appeals` | query `status`, `page`, `pageSize` | 200 `PagedResult<AppealListItemDto>` |
 | GET | `/appeals/{id}` | — | 200 `AppealDetailDto` |

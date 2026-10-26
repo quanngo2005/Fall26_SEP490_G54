@@ -21,9 +21,14 @@ public sealed class EvaluationServiceTests
         return new AppDbContext(options);
     }
 
-    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment()
+    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(bool seedDowngradeConfiguration = true)
     {
         var context = CreateInMemoryDbContext();
+        if (seedDowngradeConfiguration)
+        {
+            DowngradeTestData.Seed(context);
+        }
+
         // Evaluation scopes at All: the scope checks are a no-op for the workflow tests in this file.
         var permissions = new FakePermissionService(
             null,
@@ -302,7 +307,7 @@ public sealed class EvaluationServiceTests
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitEvaluationAsync(request, manager.Id));
 
-        Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
     }
 
     [Fact]
@@ -392,6 +397,159 @@ public sealed class EvaluationServiceTests
         Assert.NotNull(result);
         // Due to critical risk, tier is capped at B
         Assert.Equal("B", result.ProposedTier);
+    }
+
+    // ----- Downgrade: every place that decides a tier must apply it the same way ------------
+
+    private static async Task<PerformanceEvaluation> AddScoredEvaluationAsync(
+        AppDbContext context, Employee employee, EvaluationPeriod period, EvaluationProfile profile, decimal score,
+        PerformanceEvaluationStatus status = PerformanceEvaluationStatus.Calculated)
+    {
+        var evaluation = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = profile.Id,
+            TotalScore = score,
+            Status = status,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(evaluation);
+        await context.SaveChangesAsync();
+        return evaluation;
+    }
+
+    private static async Task AddRiskEventAsync(
+        AppDbContext context, Employee employee, Employee recorder, RiskEventSeverity severity,
+        RiskEventStatus status = RiskEventStatus.Confirmed, DateTimeOffset? occurredAt = null)
+    {
+        await context.RiskEvents.AddAsync(new RiskEvent
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            RecordedBy = recorder.Id,
+            Code = $"RSK-{Guid.NewGuid():N}"[..12],
+            EventType = "PROCEDURE_VIOLATION",
+            Description = "Procedure violation",
+            Severity = severity,
+            Status = status,
+            OccurredAt = occurredAt ?? new DateTimeOffset(2026, 10, 10, 8, 0, 0, TimeSpan.Zero),
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Downgrade_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+        var calibration = await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id);
+
+        var rosterTier = roster.Single(r => r.EmployeeId == staff.Id).ProposedTier;
+        var calibrationTier = calibration.RankedRoster.Single(r => r.EmployeeId == staff.Id).ProposedTier;
+        Assert.Equal("B", rosterTier);
+        Assert.Equal(rosterTier, calibrationTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A1", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical, RiskEventStatus.Dismissed);
+        await AddRiskEventAsync(
+            context, staff, manager, RiskEventSeverity.Critical,
+            occurredAt: new DateTimeOffset(2026, 9, 30, 23, 0, 0, TimeSpan.Zero));
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A1", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m, PerformanceEvaluationStatus.InReview);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        var summary = overview.Departments.Single(d => d.DepartmentId == dept.Id);
+        Assert.Equal(0, summary.TierACount);
+        Assert.True(summary.TierBCount >= 1);
+    }
+
+    [Fact]
+    public async Task Downgrade_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m, PerformanceEvaluationStatus.InReview);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        Assert.Equal(1, overview.Departments.Single(d => d.DepartmentId == dept.Id).TierACount);
+    }
+
+    [Fact]
+    public async Task Downgrade_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
+    {
+        // Different from the defaults: the downgrade caps at A3 and triggers from High upwards.
+        var context = CreateInMemoryDbContext();
+        DowngradeTestData.Seed(context, downgradeSeverity: RiskEventSeverity.High, downgradeCapTier: "A3");
+        var permissions = new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
+        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.High);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A3", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_WithoutConfiguration_FailsClearlyInsteadOfUsingBuiltInNumbers()
+    {
+        var (context, service) = CreateTestEnvironment(seedDowngradeConfiguration: false);
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id));
+
+        Assert.Contains("ranking_tier_threshold", ex.Message);
     }
 
     [Fact]

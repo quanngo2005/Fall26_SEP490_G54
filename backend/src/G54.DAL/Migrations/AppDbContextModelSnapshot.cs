@@ -33,7 +33,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_status", new[] { "DRAFT", "CALCULATED", "IN_REVIEW", "APPROVED", "DISPUTED", "FINAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_status", new[] { "OPEN", "IN_REVIEW", "LOCKED", "CLOSED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_type", new[] { "YEAR", "HALF_YEAR", "QUARTER", "MONTH", "DAY" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_type", new[] { "YEAR", "HALF_YEAR", "QUARTER", "MONTH", "WEEK", "DAY" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "record_status", new[] { "ACTIVE", "INACTIVE", "ARCHIVED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "risk_event_severity", new[] { "LOW", "MEDIUM", "HIGH", "CRITICAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "risk_event_status", new[] { "OPEN", "CONFIRMED", "DISMISSED", "RESOLVED" });
@@ -488,6 +488,36 @@ namespace G54.DAL.Migrations
                         {
                             t.HasCheckConstraint("ck_department_no_self_parent", "parent_department_id IS NULL OR parent_department_id <> id");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.Downgrade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("CapTierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cap_tier_code");
+
+                    b.Property<int>("TriggerSeverity")
+                        .HasColumnType("risk_event_severity")
+                        .HasColumnName("trigger_severity");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("downgrade_pkey");
+
+                    b.ToTable("downgrade", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Employee", b =>
@@ -1329,6 +1359,52 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("permission", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<decimal>("MinScore")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasColumnName("min_score");
+
+                    b.Property<int>("RankOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank_order");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_tier_threshold_pkey");
+
+                    b.HasIndex(new[] { "TierCode" }, "uq_ranking_tier_threshold_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "RankOrder" }, "uq_ranking_tier_threshold_order")
+                        .IsUnique();
+
+                    b.ToTable("ranking_tier_threshold", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_min_score", "min_score >= 0 AND min_score <= 100");
+
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_rank_order", "rank_order >= 1");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>

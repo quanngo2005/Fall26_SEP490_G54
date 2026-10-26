@@ -12,6 +12,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'role-permissions',
+    canActivate: [authGuard, adminGuard],
+    title: 'Thiết lập quyền',
+    loadComponent: () =>
+      import('./features/role-permissions/role-permission-matrix.component').then(
+        (m) => m.RolePermissionMatrixComponent,
+      ),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),
@@ -25,7 +34,16 @@ export const routes: Routes = [
   {
     path: 'departments',
     canActivate: [authGuard],
-    title: 'Department View',
+    title: 'Phòng ban',
+    loadComponent: () =>
+      import('./features/departments/department-list.component').then(
+        (module) => module.DepartmentListComponent,
+      ),
+  },
+  {
+    path: 'department-performance',
+    canActivate: [authGuard],
+    title: 'Hiệu suất phòng ban',
     loadComponent: () =>
       import('./features/departments/department-view.component').then(
         (module) => module.DepartmentViewComponent,

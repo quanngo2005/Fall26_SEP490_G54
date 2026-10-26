@@ -272,9 +272,9 @@ export class ReviewVerifyComponent extends LocalizedComponent {
         : null;
 
     switch (code) {
-      case 'MSG10':
+      case 'MAKER_CANNOT_BE_CHECKER':
         return 'review.makerCheckerError';
-      case 'MSG23':
+      case 'EVIDENCE_LOCKED':
         return 'review.lockedError';
       case 'VERIFICATION_INVALID_STATE':
         return 'review.invalidStateError';

@@ -319,7 +319,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WhenMakerIsChecker_ThrowsBusinessRuleException_MSG10()
+    public async Task SubmitDecisionAsync_WhenMakerIsChecker_ThrowsBusinessRuleException_MakerCannotBeChecker()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -347,7 +347,7 @@ public sealed class VerificationServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.SubmitDecisionAsync(submission.Id, makerAccount.Id, payload));
 
-            Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
             Assert.Equal(422, ex.StatusCode);
         }
     }
@@ -378,7 +378,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WhenAlreadyApproved_ThrowsBusinessRuleException_MSG23()
+    public async Task SubmitDecisionAsync_WhenAlreadyApproved_ThrowsBusinessRuleException_EvidenceLocked()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -396,7 +396,7 @@ public sealed class VerificationServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, payload));
 
-            Assert.Equal(ErrorCodes.MSG23, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.EvidenceLocked, ex.ErrorCode);
             Assert.Equal(409, ex.StatusCode);
         }
     }
@@ -871,7 +871,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WhenTaskAlreadyContributedKpi_ThrowsConflictMSG22AndWritesNothing()
+    public async Task SubmitDecisionAsync_WhenTaskAlreadyContributedKpi_ThrowsConflictKpiAlreadyContributedAndWritesNothing()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -937,7 +937,7 @@ public sealed class VerificationServiceTests
             var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
                 service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m)));
 
-            Assert.Equal(ErrorCodes.MSG22, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.KpiAlreadyContributed, ex.ErrorCode);
             Assert.Equal(409, ex.StatusCode);
             Assert.Single(await context.WorkResultItems.ToListAsync());
             Assert.Empty(await context.VerifiedWorkResults.Where(v => v.VerificationId != earlierVerification.Id).ToListAsync());

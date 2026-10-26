@@ -37,6 +37,14 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
     public IRepository<Department> Departments => Repository<Department>();
     public IRepository<JobPosition> JobPositions => Repository<JobPosition>();
 
+    public ITargetAssignmentRepository TargetAssignments => (ITargetAssignmentRepository)_repositories.GetOrAdd(
+        typeof(TargetAssignment), _ => new TargetAssignmentRepository(dbContext));
+
+    public IEvaluationPeriodRepository EvaluationPeriods => (IEvaluationPeriodRepository)_repositories.GetOrAdd(
+        typeof(EvaluationPeriod), _ => new EvaluationPeriodRepository(dbContext));
+
+    public IRepository<ActualProgress> ActualProgresses => Repository<ActualProgress>();
+
     public IRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
         return (IRepository<TEntity>)_repositories.GetOrAdd(

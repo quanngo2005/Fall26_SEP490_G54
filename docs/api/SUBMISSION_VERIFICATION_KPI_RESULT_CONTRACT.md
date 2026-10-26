@@ -26,8 +26,8 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 {
   "success": false,
   "status": 409,
-  "title": "MSG23",
-  "errorCode": "MSG23",
+  "title": "EVIDENCE_LOCKED",
+  "errorCode": "EVIDENCE_LOCKED",
   "message": "Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.",
   "errors": null,
   "traceId": "0HN7..."
@@ -50,7 +50,7 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 | Method | Route | Body | Thành công |
 |---|---|---|---|
 | GET | `/works/{workId}/submission-context` | — | 200 `SubmissionContextDto` |
-| POST | `/works/{workId}/submissions` | multipart: `comment`, `metricItems[]` hoặc `metricItemsJson`, `files[]` | 201 `SubmissionResultDto`, message `MSG06` |
+| POST | `/works/{workId}/submissions` | multipart: `comment`, `metricItems[]` hoặc `metricItemsJson`, `files[]` | 201 `SubmissionResultDto`, message `WORK_RESULT_SUBMITTED` (`SuccessMessages`) |
 | GET | `/works/{workId}/submissions` | — | 200 `SubmissionDetailDto[]` |
 | GET | `/submissions/{submissionId}` | — | 200 `SubmissionDetailDto` |
 | POST | `/submissions/{submissionId}/withdraw` | — | 200 `SubmissionResultDto` |
@@ -85,7 +85,7 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 - Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
 - Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
 - Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
-- Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `MSG22` và không ghi nhận gì thêm.
+- Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `KPI_ALREADY_CONTRIBUTED` và không ghi nhận gì thêm.
 
 ### 2.2.1 Evidence (file bằng chứng)
 | Method | Route | Body | Thành công |
@@ -140,18 +140,18 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Work đang `SUBMITTED / VERIFIED / DONE / CANCELLED` khi nộp | 409 | `SUBMISSION_INVALID_STATE` |
 | Withdraw khi submission khác `SUBMITTED` | 409 | `SUBMISSION_INVALID_STATE` |
 | Thiếu KPI bắt buộc, giá trị âm, mẫu số RATIO ≤ 0, file sai định dạng/nội dung không khớp đuôi/quá 25MB/quá 10 file/tên quá 255 ký tự | 400 | `VALIDATION_ERROR` (+ `errors[]`) |
-| *(dự phòng — BR-12)* Nộp trong 5 phút gia hạn | 201 | message `MSG17` |
-| *(dự phòng — BR-12)* Nộp quá hạn | 422 | `MSG18` |
+| *(dự phòng — BR-12)* Nộp trong 5 phút gia hạn | 201 | message `LATE_SUBMISSION_ACCEPTED` (`SuccessMessages`) |
+| *(dự phòng — BR-12)* Nộp quá hạn | 422 | `CAMPAIGN_DEADLINE_EXPIRED` |
 
 ### 3.3 Verification
 | Tình huống | HTTP | errorCode |
 |---|---|---|
 | Submission không tồn tại (dossier, decision, history) | 404 | `NOT_FOUND` |
 | `decision` ngoài `APPROVED / REVISION_REQUIRED / REJECTED`; feedback < 10 ký tự; thiếu/sai `resubmitDeadline`; `verifiedValue` âm | 400 | `VALIDATION_ERROR` |
-| Người thẩm định chính là người nộp (BR-02) | 422 | `MSG10` |
-| Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `MSG23` |
+| Người thẩm định chính là người nộp (BR-02) | 422 | `MAKER_CANNOT_BE_CHECKER` |
+| Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `EVIDENCE_LOCKED` |
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
-| Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `MSG22` |
+| Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `KPI_ALREADY_CONTRIBUTED` |
 
 ### 3.4 KPI Result
 | Tình huống | HTTP | errorCode |
