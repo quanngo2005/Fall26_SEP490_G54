@@ -140,7 +140,10 @@ export class RolePermissionMatrixComponent extends LocalizedComponent {
     else location.reload();
   }
 
-  protected cell(row: { cells: PermissionCell[] }, action: PermissionAction): PermissionCell | null {
+  protected cell(
+    row: { cells: PermissionCell[] },
+    action: PermissionAction,
+  ): PermissionCell | null {
     return row.cells.find((cell) => cell.action === action) ?? null;
   }
 

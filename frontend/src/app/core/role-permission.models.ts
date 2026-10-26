@@ -1,5 +1,12 @@
 /** Role permission matrix (SCR-ADM-03-M2). See docs/api/ROLE_PERMISSION_MATRIX_CONTRACT.md. */
-export const PERMISSION_ACTIONS = ['view', 'create', 'update', 'approve', 'import', 'export'] as const;
+export const PERMISSION_ACTIONS = [
+  'view',
+  'create',
+  'update',
+  'approve',
+  'import',
+  'export',
+] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
 /** Mirrors G54.BLL.Common.Constants.PermissionScopes; `null` means not granted. */

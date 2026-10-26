@@ -46,9 +46,11 @@ describe('RolePermissionMatrixComponent', () => {
   function setup() {
     const fixture = TestBed.createComponent(RolePermissionMatrixComponent);
     fixture.detectChanges();
-    http
-      .expectOne(rolesUrl)
-      .flush({ success: true, status: 200, data: [{ id: 'r1', code: 'DM', name: 'Trưởng phòng', isSystem: true }] });
+    http.expectOne(rolesUrl).flush({
+      success: true,
+      status: 200,
+      data: [{ id: 'r1', code: 'DM', name: 'Trưởng phòng', isSystem: true }],
+    });
     http.expectOne(matrixUrl).flush({ success: true, status: 200, data: matrix });
     fixture.detectChanges();
     return fixture;

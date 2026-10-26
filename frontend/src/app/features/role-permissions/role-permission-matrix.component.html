@@ -29,7 +29,9 @@
         </div>
         <div class="toolbar-actions">
           @if (dirtyCount()) {
-            <span class="dirty-count" role="status"><strong>{{dirtyCount()}}</strong> {{t.unsaved}}</span>
+            <span class="dirty-count" role="status"
+              ><strong>{{dirtyCount()}}</strong> {{t.unsaved}}</span
+            >
           }
           <button
             type="button"
@@ -57,7 +59,11 @@
           [attr.role]="n.kind === 'error' ? 'alert' : 'status'"
         >
           <span>{{n.text}}</span>
-          <button type="button" (click)="dismissNotice()" [attr.aria-label]="localization.common.close">
+          <button
+            type="button"
+            (click)="dismissNotice()"
+            [attr.aria-label]="localization.common.close"
+          >
             ×
           </button>
         </div>
@@ -106,7 +112,9 @@
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
           <p>{{t.loadError}}</p>
-          <button type="button" class="button button-secondary" (click)="retry()">{{t.retry}}</button>
+          <button type="button" class="button button-secondary" (click)="retry()">
+            {{t.retry}}
+          </button>
         </div>
       } @else {
         <div class="matrix-wrap surface-card">
@@ -146,7 +154,16 @@
                           <span
                             class="scope-cell is-locked"
                             [title]="c.lockReason ?? t.locked"
-                            [attr.aria-label]="row.name + ' ' + t.actions[action] + ': ' + scopeLabel(c.scope) + ' (' + (c.lockReason ?? t.locked) + ')'"
+                            [attr.aria-label]="
+                              row.name +
+                              ' ' +
+                              t.actions[action] +
+                              ': ' +
+                              scopeLabel(c.scope) +
+                              ' (' +
+                              (c.lockReason ?? t.locked) +
+                              ')'
+                            "
                             tabindex="0"
                           >
                             <span>{{scopeLabel(c.scope)}}</span>
@@ -187,7 +204,12 @@
                 <tr class="group-row collapsed-row">
                   <th scope="rowgroup">{{collapsedTitle()}}</th>
                   <td [attr.colspan]="actions.length">
-                    <button type="button" class="group-toggle" (click)="expandAll()" aria-expanded="false">
+                    <button
+                      type="button"
+                      class="group-toggle"
+                      (click)="expandAll()"
+                      aria-expanded="false"
+                    >
                       {{collapsedModules().length}} {{t.collapsedGroups}}
                     </button>
                   </td>
