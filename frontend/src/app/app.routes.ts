@@ -34,7 +34,16 @@ export const routes: Routes = [
   {
     path: 'departments',
     canActivate: [authGuard],
-    title: 'Department View',
+    title: 'Phòng ban',
+    loadComponent: () =>
+      import('./features/departments/department-list.component').then(
+        (module) => module.DepartmentListComponent,
+      ),
+  },
+  {
+    path: 'department-performance',
+    canActivate: [authGuard],
+    title: 'Hiệu suất phòng ban',
     loadComponent: () =>
       import('./features/departments/department-view.component').then(
         (module) => module.DepartmentViewComponent,
