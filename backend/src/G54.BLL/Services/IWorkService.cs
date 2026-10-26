@@ -19,8 +19,14 @@ public interface IWorkService
         WorkFilterDto filter,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Null when the work is unknown or outside the caller's <c>work:read</c> scope (assignee, assignee's direct manager,
+    /// or the department scope over the assignee's department).
+    /// </summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The caller holds no work:read scope.</exception>
     Task<WorkDetailDto?> GetByIdAsync(
         Guid id,
+        Guid accountId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

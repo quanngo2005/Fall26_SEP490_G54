@@ -186,7 +186,7 @@ public sealed partial class DepartmentService
     /// must stay above the levels of the existing children.
     /// </summary>
     private static void EnsurePlacement(
-        OrgSnapshot org,
+        DepartmentHierarchy org,
         Guid? departmentId,
         DepartmentLevelType level,
         Guid? parentId,
@@ -279,8 +279,8 @@ public sealed partial class DepartmentService
     // ----- Tree -----------------------------------------------------------------------------
 
     private static DepartmentTreeNodeDto BuildTreeNode(
-        DeptNode node,
-        OrgSnapshot org,
+        DepartmentNode node,
+        DepartmentHierarchy org,
         Dictionary<Guid, int> counts,
         HashSet<Guid> placed)
     {

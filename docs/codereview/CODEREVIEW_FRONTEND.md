@@ -2,6 +2,12 @@
 
 Run `./scripts/codereview-frontend.ps1` on Windows or `./scripts/codereview-frontend.sh` on Unix. The command creates `docs/codereview/reports/FRONTEND_REPORT.md` and exits non-zero when an automated check fails.
 
+The report lists, at the top, every blocking failure, warning and skipped check with the `file:line` of each problem, so
+the report alone says what to fix. Each check ends as **PASS**, **FAIL** (Gate/Critical/High: blocks merge), **WARN**
+(Medium/Low: advisory) or **SKIP** (could not run here, e.g. a tool is missing: it is never counted as passed). The full
+output of each check is in `docs/codereview/reports/logs/<ID>.log`. The report covers the `[auto]` checks only. In CI
+the report is also shown on the run's Summary page.
+
 ## Severity Levels
 
 | Severity | Meaning | Merge policy | Fix deadline |
@@ -16,10 +22,10 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 
 ## Automated Gates
 
-- [ ] FE-01 `[auto]` Dependencies install from `package-lock.json` with `npm ci`.
+- [ ] FE-01 `[auto]` Installed dependencies match `package-lock.json` (`npm ls`; CI installs them with `npm ci`).
 - [ ] FE-02 `[auto]` ESLint passes without errors.
 - [ ] FE-03 `[auto]` Prettier check passes.
-- [ ] FE-04 `[auto]` Unit tests pass in headless mode.
+- [ ] FE-04 `[auto]` Unit tests pass in headless mode; coverage is reported in the Metrics section.
 - [ ] FE-05 `[auto]` Production build succeeds within configured budgets.
 
 ## TypeScript And Angular
@@ -36,7 +42,7 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] FE-12 `[manual]` New production variables have placeholders and are added to `replace_env.sh`.
 - [ ] FE-13 `[manual]` Loading, empty, error, and success states are handled.
 - [ ] FE-14 `[manual]` Layout works on phone and desktop widths.
-- [ ] FE-15 `[auto]` No debug `console.log` committed in `src/`.
+- [ ] FE-15 `[auto]` No debug `console.log`, `console.debug` or `debugger` committed in `src/`.
 
 ## Testing And Delivery
 
@@ -45,6 +51,13 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] FE-18 `[manual]` Docker nginx fallback continues to support Angular routes.
 - [ ] FE-19 `[manual]` New runtime dependencies have a documented reason.
 - [ ] FE-20 `[manual]` Review verifies the app against a running API, not mocks only.
+- [ ] FE-22 `[auto]` Every locale in `localization.json` has the same keys and no empty text.
+- [ ] FE-23 `[auto]` No focused tests (`fdescribe`, `fit`), which silently skip every other test.
+- [ ] FE-24 `[auto]` (Medium) No skipped tests (`xdescribe`, `xit`, `pending`).
+- [ ] FE-25 `[auto]` (Low) ESLint warnings are listed.
+- [ ] FE-26 `[auto]` (Low) Production build warnings (budgets, CommonJS, unused files) are listed.
+- [ ] FE-27 `[auto]` (Low) Components and services without a `.spec.ts` are listed.
+- [ ] FE-28 `[auto]` (Low) No `TODO`/`FIXME`/`HACK` left in source.
 - [ ] FE-21 `[manual]` UI follows `frontend/docs/DESIGN.md`; verify desktop, tablet, and mobile layouts, keyboard/focus states, and document intentional deviations.
 
 ## Security
@@ -72,7 +85,7 @@ Legend: `[auto]` checked by script, `[manual]` checked by reviewer.
 - [ ] SEC-FE-M02 `[manual]` Production build has source maps disabled or not publicly served.
 - [ ] SEC-FE-M03 `[manual]` Error messages shown to users do not expose stack traces, SQL, or internal ids.
 - [ ] SEC-FE-M04 `[manual]` Logout clears tokens, cached user data, and in-memory state.
-- [ ] SEC-FE-M05 `[manual]` External links opened with `target="_blank"` include `rel="noopener noreferrer"`.
+- [ ] SEC-FE-M05 `[auto]` External links opened with `target="_blank"` include `rel="noopener noreferrer"`.
 - [ ] SEC-FE-M06 `[manual]` Forms validate on the client for UX but never rely on client validation for security.
 
 ### Low
