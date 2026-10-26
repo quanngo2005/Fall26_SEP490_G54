@@ -28,6 +28,7 @@ const DECIDABLE = ['SUBMITTED', 'UNDER_REVIEW'];
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/workspace-page.part2.scss',
     '../../shared/ui/modal.scss',
     './review-verify.component.scss',
   ],

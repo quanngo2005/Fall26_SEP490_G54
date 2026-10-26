@@ -19,7 +19,12 @@ import {
   selector: 'app-department-view',
   imports: [FormsModule, RouterLink, HeaderComponent, SidebarComponent, LayoutIconComponent],
   templateUrl: './department-view.component.html',
-  styleUrls: ['../../shared/ui/ui-controls.scss', './department-view.component.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    './department-view.component.scss',
+    './department-view.component.part2.scss',
+    './department-view.component.part3.scss',
+  ],
 })
 export class DepartmentViewComponent extends LocalizedComponent {
   private readonly api = inject(DepartmentService);

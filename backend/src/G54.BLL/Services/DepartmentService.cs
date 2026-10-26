@@ -15,9 +15,9 @@ public sealed partial class DepartmentService(
     IPermissionService permissions,
     TimeProvider time) : IDepartmentService
 {
-    private const int DepartmentScopeLevel = 2;
-    private const int BranchScopeLevel = 3;
-    private const int AllScopeLevel = 4;
+    private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
+    private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
+    private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
 
     private static readonly Expression<Func<Work, bool>> IsOpenWork = w => WorkStatusGroups.Open.Contains(w.Status);
 
@@ -35,7 +35,7 @@ public sealed partial class DepartmentService(
         var visible = await ResolveVisibleAsync(accountId, org, cancellationToken);
         var counts = await CountEmployeesByDepartmentAsync(cancellationToken);
 
-        IEnumerable<DeptNode> query = org.Nodes.Values;
+        IEnumerable<DepartmentNode> query = org.Nodes.Values;
         if (visible is not null)
         {
             query = query.Where(n => visible.Contains(n.Id));
@@ -224,7 +224,7 @@ public sealed partial class DepartmentService(
     // ----- Detail ---------------------------------------------------------------------------
 
     private async Task<DepartmentDetailDto> BuildDetailAsync(
-        OrgSnapshot org,
+        DepartmentHierarchy org,
         Guid departmentId,
         CancellationToken cancellationToken)
     {
@@ -625,23 +625,8 @@ public sealed partial class DepartmentService(
 
     // ----- Organization & access ------------------------------------------------------------
 
-    private async Task<OrgSnapshot> LoadOrgAsync(CancellationToken cancellationToken)
-    {
-        var nodes = await db.Departments.AsNoTracking()
-            .Select(d => new DeptNode(
-                d.Id,
-                d.Code,
-                d.Name,
-                d.Description,
-                d.ParentDepartmentId,
-                d.LevelType,
-                d.Status,
-                d.LastSyncAt,
-                d.UpdatedAt))
-            .ToListAsync(cancellationToken);
-
-        return new OrgSnapshot(nodes);
-    }
+    private Task<DepartmentHierarchy> LoadOrgAsync(CancellationToken cancellationToken) =>
+        DepartmentHierarchy.LoadAsync(db.Departments, cancellationToken);
 
     private async Task<Dictionary<Guid, int>> CountEmployeesByDepartmentAsync(CancellationToken cancellationToken)
     {
@@ -655,7 +640,7 @@ public sealed partial class DepartmentService(
     private async Task EnsureAccessibleAsync(
         Guid accountId,
         Guid departmentId,
-        OrgSnapshot org,
+        DepartmentHierarchy org,
         CancellationToken cancellationToken)
     {
         if (!org.Nodes.ContainsKey(departmentId))
@@ -673,7 +658,7 @@ public sealed partial class DepartmentService(
     /// <summary>Returns null when every department is visible.</summary>
     private async Task<HashSet<Guid>?> ResolveVisibleAsync(
         Guid accountId,
-        OrgSnapshot org,
+        DepartmentHierarchy org,
         CancellationToken cancellationToken)
     {
         var account = await db.Accounts.AsNoTracking()
@@ -730,17 +715,6 @@ public sealed partial class DepartmentService(
 
     // ----- Private shapes -------------------------------------------------------------------
 
-    private sealed record DeptNode(
-        Guid Id,
-        string Code,
-        string Name,
-        string? Description,
-        Guid? ParentId,
-        DepartmentLevelType Level,
-        RecordStatus Status,
-        DateTimeOffset LastSyncAt,
-        DateTimeOffset UpdatedAt);
-
     private sealed record ManagerCandidate(
         Guid Id,
         string EmployeeCode,
@@ -777,84 +751,4 @@ public sealed partial class DepartmentService(
         decimal? MaxAchievementPercent);
 
     private sealed record ProgressRow(Guid KpiDefinitionId, decimal Value, decimal? Denominator);
-
-    private sealed class OrgSnapshot
-    {
-        private static readonly List<Guid> NoChildren = [];
-        private readonly Dictionary<Guid, List<Guid>> _children;
-
-        public OrgSnapshot(IReadOnlyCollection<DeptNode> nodes)
-        {
-            Nodes = nodes.ToDictionary(n => n.Id);
-            _children = nodes
-                .Where(n => n.ParentId.HasValue && Nodes.ContainsKey(n.ParentId.Value))
-                .GroupBy(n => n.ParentId!.Value)
-                .ToDictionary(g => g.Key, g => g.Select(n => n.Id).ToList());
-        }
-
-        public Dictionary<Guid, DeptNode> Nodes { get; }
-
-        public List<Guid> ChildrenOf(Guid id) => _children.GetValueOrDefault(id) ?? NoChildren;
-
-        /// <summary>The department and all of its descendants (cycle-safe).</summary>
-        public List<Guid> Subtree(Guid id)
-        {
-            var result = new List<Guid>();
-            var seen = new HashSet<Guid>();
-            var queue = new Queue<Guid>();
-            queue.Enqueue(id);
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-                if (!seen.Add(current))
-                {
-                    continue;
-                }
-
-                result.Add(current);
-                foreach (var child in ChildrenOf(current))
-                {
-                    queue.Enqueue(child);
-                }
-            }
-
-            return result;
-        }
-
-        /// <summary>Ancestors ordered root first, excluding the department itself.</summary>
-        public List<DepartmentRefDto> Ancestors(Guid id)
-        {
-            var chain = new List<DepartmentRefDto>();
-            var seen = new HashSet<Guid> { id };
-            var current = Nodes[id].ParentId;
-            while (current.HasValue && Nodes.TryGetValue(current.Value, out var node) && seen.Add(node.Id))
-            {
-                chain.Add(new DepartmentRefDto(node.Id, node.Code, node.Name));
-                current = node.ParentId;
-            }
-
-            chain.Reverse();
-            return chain;
-        }
-
-        /// <summary>Nearest BRANCH ancestor-or-self; the root-most ancestor when none exists.</summary>
-        public Guid BranchRoot(Guid id)
-        {
-            var current = id;
-            var seen = new HashSet<Guid>();
-            while (seen.Add(current))
-            {
-                var node = Nodes[current];
-                if (node.Level == DepartmentLevelType.Branch || !node.ParentId.HasValue
-                    || !Nodes.ContainsKey(node.ParentId.Value))
-                {
-                    return current;
-                }
-
-                current = node.ParentId.Value;
-            }
-
-            return current;
-        }
-    }
 }

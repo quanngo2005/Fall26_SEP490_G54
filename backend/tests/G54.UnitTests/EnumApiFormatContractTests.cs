@@ -159,7 +159,7 @@ public sealed class EnumApiFormatContractTests
         profile.JobPositionId = position.Id;
         db.AddRange(profile, dept, position);
         await db.SaveChangesAsync();
-        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance), dept, position);
+        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll)), dept, position);
     }
 
     private static CreateEmployeeDto NewEmployee(Department dept, JobPosition position, string code, string? status) => new()
@@ -204,12 +204,12 @@ public sealed class EnumApiFormatContractTests
             await service.CreateEmployeeAsync(NewEmployee(dept, position, "E-3", "ACTIVE"));
             await service.CreateEmployeeAsync(NewEmployee(dept, position, "E-4", "ON_LEAVE"));
 
-            var onLeave = await service.GetEmployeesAsync(new EmployeeFilterDto { Status = "on_leave" });
+            var onLeave = await service.GetEmployeesAsync(Guid.Empty, new EmployeeFilterDto { Status = "on_leave" });
             var item = Assert.Single(onLeave.Items);
             Assert.Equal("ON_LEAVE", item.Status);
 
             await Assert.ThrowsAsync<ValidationException>(
-                () => service.GetEmployeesAsync(new EmployeeFilterDto { Status = "1" }));
+                () => service.GetEmployeesAsync(Guid.Empty, new EmployeeFilterDto { Status = "1" }));
         }
     }
 
@@ -227,7 +227,7 @@ public sealed class EnumApiFormatContractTests
                 () => service.ChangeStatusAsync(created.Id, new EmployeeStatusDto { Status = "RETIRED" }));
 
             await service.ChangeStatusAsync(created.Id, new EmployeeStatusDto { Status = "inactive" });
-            var reloaded = await service.GetEmployeeByIdAsync(created.Id);
+            var reloaded = await service.GetEmployeeByIdAsync(Guid.Empty, created.Id);
             Assert.Equal("INACTIVE", reloaded!.Status);
         }
     }

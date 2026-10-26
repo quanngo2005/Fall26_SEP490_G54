@@ -98,48 +98,43 @@
                     </button>
                     <span class="order-number" aria-hidden="true">{{index + 1}}</span>
                     <span [id]="'item-label-' + id">{{localization.menu[id]}}</span>
+                    @if (!required(id)) {
+                      <button
+                        type="button"
+                        class="remove-item"
+                        [disabled]="saving()"
+                        (click)="toggle(id)"
+                        [attr.aria-label]="
+                          localization.sidebarSettings.removeItem + ': ' + localization.menu[id]
+                        "
+                        [title]="localization.sidebarSettings.removeItem"
+                      >
+                        <app-layout-icon name="trash" />
+                      </button>
+                    }
                   </div>
                   @if (id !== 'organization') {
-                    <div class="route-field">
-                      <app-layout-icon name="search" />
-                      <input
-                        [id]="'route-' + id"
-                        class="route-select"
-                        type="text"
-                        autocomplete="off"
-                        [attr.list]="'route-options-' + id"
-                        [attr.aria-label]="localization.sidebarSettings.searchRoute"
-                        [attr.aria-describedby]="'item-label-' + id"
-                        [placeholder]="localization.sidebarSettings.searchRoute"
-                        [value]="routeFor(id)"
-                        (change)="setRoute(id, $event)"
-                        [disabled]="
-                          saving() || (id === 'systemConfiguration' && selectedRole() === 'admin')
-                        "
-                      />
-                      @if (
-                        routeFor(id) &&
-                        !(id === 'systemConfiguration' && selectedRole() === 'admin')
-                      ) {
-                        <button
-                          type="button"
-                          class="clear-route"
-                          [disabled]="saving()"
-                          (click)="clearRoute(id)"
-                          [attr.aria-label]="localization.sidebarSettings.clearRoute"
-                          [title]="localization.sidebarSettings.clearRoute"
-                        >
-                          ×
-                        </button>
-                      }
-                    </div>
-                    <datalist [id]="'route-options-' + id">
+                    <select
+                      [id]="'route-' + id"
+                      class="role-select route-select"
+                      [attr.aria-label]="localization.sidebarSettings.route"
+                      [attr.aria-describedby]="'item-label-' + id"
+                      (change)="setRoute(id, $event)"
+                      [disabled]="
+                        saving() || (id === 'systemConfiguration' && selectedRole() === 'admin')
+                      "
+                    >
+                      <option value="" [selected]="!routeFor(id)">
+                        {{localization.sidebarSettings.noRoute}}
+                      </option>
                       @for (route of navigation.routeOptions; track route) {
                         @if (route !== '/sidebar-settings' || selectedRole() === 'admin') {
-                          <option [value]="route">{{route}}</option>
+                          <option [value]="route" [selected]="routeFor(id) === route">
+                            {{route}}
+                          </option>
                         }
                       }
-                    </datalist>
+                    </select>
                   }
                 </li>
               }

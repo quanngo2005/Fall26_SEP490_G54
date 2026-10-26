@@ -14,7 +14,8 @@ namespace G54.BLL.Services;
 public sealed class VerificationService(
     AppDbContext db,
     ILogger<VerificationService> logger,
-    TimeProvider time) : IVerificationService
+    TimeProvider time,
+    IPermissionService permissions) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -30,7 +31,10 @@ public sealed class VerificationService(
 
     private const string DossierNotFoundMessage = "Không tìm thấy hồ sơ nộp kết quả công việc yêu cầu thẩm định.";
 
-    public async Task<VerificationDossierDto> GetDossierAsync(Guid submissionId, CancellationToken cancellationToken = default)
+    public async Task<VerificationDossierDto> GetDossierAsync(
+        Guid submissionId,
+        Guid actorAccountId,
+        CancellationToken cancellationToken = default)
     {
         var submission = await db.ResultSubmissions
             .AsNoTracking()
@@ -45,6 +49,8 @@ public sealed class VerificationService(
             .Include(s => s.Evidences)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken)
             ?? throw new NotFoundException(DossierNotFoundMessage);
+
+        await EnsureCanReviewSubmitterAsync(actorAccountId, submission.SubmitterEmployee?.DepartmentId, cancellationToken);
 
         var submitter = new SubmitterInfoDto(
             submission.SubmitterEmployeeId,
@@ -125,12 +131,15 @@ public sealed class VerificationService(
                 .ThenInclude(w => w.WorkType)
                     .ThenInclude(wt => wt!.WorkTypeKpis)
             .Include(s => s.Verifications)
+            .Include(s => s.SubmitterEmployee)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
 
         if (submission is null)
         {
             throw new NotFoundException(DossierNotFoundMessage);
         }
+
+        await EnsureCanReviewSubmitterAsync(actorAccountId, submission.SubmitterEmployee?.DepartmentId, cancellationToken);
 
         // BR-02: Maker-Checker rule: Verifier cannot be the submitter (business rule violation → 422)
         if (submission.SubmitterEmployeeId == verifier.Id)
@@ -266,12 +275,19 @@ public sealed class VerificationService(
             message);
     }
 
-    public async Task<List<VerificationHistoryDto>> GetHistoryAsync(Guid submissionId, CancellationToken cancellationToken = default)
+    public async Task<List<VerificationHistoryDto>> GetHistoryAsync(
+        Guid submissionId,
+        Guid actorAccountId,
+        CancellationToken cancellationToken = default)
     {
-        if (!await db.ResultSubmissions.AnyAsync(s => s.Id == submissionId, cancellationToken))
-        {
-            throw new NotFoundException(DossierNotFoundMessage);
-        }
+        var submitterDepartmentId = await db.ResultSubmissions
+            .AsNoTracking()
+            .Where(s => s.Id == submissionId)
+            .Select(s => (Guid?)s.SubmitterEmployee!.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(DossierNotFoundMessage);
+
+        await EnsureCanReviewSubmitterAsync(actorAccountId, submitterDepartmentId, cancellationToken);
 
         var verifications = await db.Verifications
             .AsNoTracking()
@@ -291,6 +307,39 @@ public sealed class VerificationService(
                 v.VerifierEmployee.FullName,
                 v.VerifiedAt))
             .ToList();
+    }
+
+    /// <summary>
+    /// Enforces the verification:decide scope of the caller against the submitter's department. All bypasses the
+    /// department check; Dept/Branch limit the review to the caller's department subtree (or the branch subtree).
+    /// Own or no grant cannot review anyone's submission.
+    /// </summary>
+    private async Task EnsureCanReviewSubmitterAsync(Guid actorAccountId, Guid? submitterDepartmentId, CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "verification", "decide");
+        if (level >= AccessScope.AllLevel)
+        {
+            return;
+        }
+
+        var verifier = await db.Accounts
+            .AsNoTracking()
+            .Include(a => a.Employee)
+            .Where(a => a.Id == actorAccountId)
+            .Select(a => a.Employee)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (verifier is null)
+        {
+            throw new UnauthorizedException("Không xác định được thông tin nhân sự thẩm định từ tài khoản hiện tại.");
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var covered = AccessScope.DepartmentsInScope(level, verifier.DepartmentId, hierarchy);
+        if (submitterDepartmentId is not { } submitterDept || covered is null || !covered.Contains(submitterDept))
+        {
+            throw new ForbiddenException("Bạn không có quyền thẩm định kết quả của nhân sự ngoài phạm vi phòng ban được phân quyền.");
+        }
     }
 
     private static void ValidateDecisionPayload(SubmitVerificationDecisionDto dto)

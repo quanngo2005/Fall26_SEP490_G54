@@ -30,7 +30,7 @@ public sealed class WorkServiceTests
     {
         var context = CreateInMemoryDbContext();
         var uow = new UnitOfWork(context);
-        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null));
+        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
         return (context, uow, service);
     }
 
@@ -415,14 +415,25 @@ public sealed class WorkServiceTests
     [Fact]
     public async Task WorksController_GetById_ReturnsNotFoundWhenMissing()
     {
-        var (context, _, service) = CreateTestEnvironment();
+        var context = CreateInMemoryDbContext();
         using (context)
         {
+            var employee = NewEmployee("EMP-NF");
+            var account = new Account { Id = Guid.NewGuid(), EmployeeId = employee.Id, Username = "emp-nf", PasswordHash = "hash", LastSyncAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+            context.Employees.Add(employee);
+            context.Accounts.Add(account);
+            await context.SaveChangesAsync();
+
+            var service = new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService("All"));
             var controller = new WorksController(service)
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-not-found" },
+                    HttpContext = new DefaultHttpContext
+                    {
+                        TraceIdentifier = "trace-not-found",
+                        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", account.Id.ToString())], "test")),
+                    },
                 },
             };
 
@@ -446,7 +457,7 @@ public sealed class WorkServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var context = new AppDbContext(options);
-        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null)));
+        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All"))));
     }
 
     private static async Task<(Employee Manager, Employee Assignee, Employee Stranger, Work Work)> SeedAsync(
@@ -889,7 +900,7 @@ public sealed class WorkServiceTests
             new UnitOfWork(context),
             NullLogger<WorkService>.Instance,
             new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)),
-            new FakePermissionService(null));
+            new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
 
         var workType = new WorkType
         {

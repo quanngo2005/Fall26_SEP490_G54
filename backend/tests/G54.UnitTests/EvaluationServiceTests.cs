@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Evaluation;
+using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -23,7 +24,13 @@ public sealed class EvaluationServiceTests
     private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment()
     {
         var context = CreateInMemoryDbContext();
-        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance);
+        // Evaluation scopes at All: the scope checks are a no-op for the workflow tests in this file.
+        var permissions = new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
+            new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"));
+        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
         return (context, service);
     }
 

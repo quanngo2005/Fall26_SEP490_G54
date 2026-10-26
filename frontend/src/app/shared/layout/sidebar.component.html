@@ -35,11 +35,7 @@
 
   <!-- Navigation -->
   <nav>
-    @if (navigation.loading()) {
-      <p class="expanded-copy empty-menu" role="status">
-        {{localization.sidebarSettings.loading}}
-      </p>
-    } @else if (navigation.loadFailed()) {
+    @if (navigation.loadFailed()) {
       <p class="expanded-copy empty-menu" role="alert">
         {{localization.sidebarSettings.loadFailed}}
       </p>

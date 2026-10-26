@@ -49,6 +49,7 @@ const NOTICE_MS = 5000;
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/workspace-page.part2.scss',
     '../../shared/ui/modal.scss',
     './kpi-definitions.component.scss',
   ],
