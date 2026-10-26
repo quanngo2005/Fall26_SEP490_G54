@@ -1315,17 +1315,22 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
                 table.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
                 table.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
+                table.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
             });
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
 
             entity.HasIndex(e => e.ApprovedBy, "ix_task_handover_approved_by");
 
+            entity.HasIndex(e => e.EscalatedToEmployeeId, "ix_task_handover_escalated_to");
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
             entity.Property(e => e.ApprovedBy).HasColumnName("approved_by");
+            entity.Property(e => e.EscalatedAt).HasColumnName("escalated_at");
+            entity.Property(e => e.EscalatedToEmployeeId).HasColumnName("escalated_to_employee_id");
             entity.Property(e => e.FromEmployeeId).HasColumnName("from_employee_id");
             entity.Property(e => e.HandoverAt)
                 .HasDefaultValueSql("now()")
@@ -1345,6 +1350,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ApprovedBy)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_task_handover_approved_by");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.EscalatedToEmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_task_handover_escalated_to");
 
             entity.HasOne(d => d.FromEmployee).WithMany(p => p.TaskHandoverFromEmployees)
                 .HasForeignKey(d => d.FromEmployeeId)

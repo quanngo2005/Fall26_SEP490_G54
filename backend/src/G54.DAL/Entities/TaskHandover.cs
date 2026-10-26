@@ -30,6 +30,12 @@ public partial class TaskHandover : IBaseEntity
 
     public DateTimeOffset? AcceptedAt { get; set; }
 
+    /// <summary>When the SLA job escalated this handover to a manager (BR-21); null while it has not been escalated.</summary>
+    public DateTimeOffset? EscalatedAt { get; set; }
+
+    /// <summary>The manager whose priority queue the handover was escalated to; set together with <see cref="EscalatedAt"/>.</summary>
+    public Guid? EscalatedToEmployeeId { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public HandoverStatus Status { get; set; }
