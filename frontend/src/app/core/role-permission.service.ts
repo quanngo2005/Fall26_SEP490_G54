@@ -4,9 +4,11 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
+  RoleAccount,
   RoleOption,
   RolePermissionMatrix,
   RolePermissionMatrixSavePayload,
+  RoleSummary,
 } from './role-permission.models';
 
 @Injectable({ providedIn: 'root' })
@@ -17,6 +19,19 @@ export class RolePermissionService {
   roles(): Observable<RoleOption[]> {
     return this.http
       .get<ApiResponse<RoleOption[]>>(this.url)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Same endpoint as `roles()`, typed with the list-screen fields. */
+  list(): Observable<RoleSummary[]> {
+    return this.http
+      .get<ApiResponse<RoleSummary[]>>(this.url)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  accounts(roleId: string): Observable<RoleAccount[]> {
+    return this.http
+      .get<ApiResponse<RoleAccount[]>>(`${this.url}/${encodeURIComponent(roleId)}/accounts`)
       .pipe(map((response) => this.unwrap(response)));
   }
 

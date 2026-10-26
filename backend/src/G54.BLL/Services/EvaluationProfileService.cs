@@ -104,7 +104,9 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
+#pragma warning disable CA1860 // EF translates Any() to EXISTS
                 p.PerformanceEvaluations.Any(),
+#pragma warning restore CA1860
                 p.EvaluationProfileItems.Sum(i => i.WeightPercent),
                 p.UpdatedAt,
                 p.EvaluationProfileItems
