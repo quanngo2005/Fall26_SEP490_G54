@@ -30,6 +30,7 @@ function Import-DevelopmentEnvironment {
     $env:BootstrapAdmin__Enabled = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_ENABLED")) { $settings["BOOTSTRAP_ADMIN_ENABLED"] } else { "false" }
     $env:BootstrapAdmin__Email = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_EMAIL")) { $settings["BOOTSTRAP_ADMIN_EMAIL"] } else { "" }
     $env:BootstrapAdmin__Password = if ($settings.ContainsKey("BOOTSTRAP_ADMIN_PASSWORD")) { $settings["BOOTSTRAP_ADMIN_PASSWORD"] } else { "" }
+    $env:SeedData__DemoPassword = if ($settings.ContainsKey("SEED_DEMO_PASSWORD")) { $settings["SEED_DEMO_PASSWORD"] } else { "" }
     $env:Jwt__Key = if ($settings.ContainsKey("JWT_KEY")) { $settings["JWT_KEY"] } else { "" }
 
     $connectionString = [System.Data.Common.DbConnectionStringBuilder]::new()
