@@ -1,6 +1,6 @@
-﻿using G54.DAL.Entities;
+using G54.DAL.Entities;
 
-namespace G54.BLL.Common.Downgrade;
+namespace G54.BLL.Services;
 
 /// <summary>The downgrade settings read from the database: tiers best first, and the downgrade.</summary>
 public sealed record DowngradeConfiguration(

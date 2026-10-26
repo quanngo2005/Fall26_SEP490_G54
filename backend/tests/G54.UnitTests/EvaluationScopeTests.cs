@@ -1,4 +1,4 @@
-﻿using G54.BLL.Common.Constants;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Dtos.Permission;

@@ -1,4 +1,4 @@
-﻿namespace G54.DAL.Entities;
+namespace G54.DAL.Entities;
 
 /// <summary>
 /// The downgrade: a risk event of at least <see cref="TriggerSeverity"/> stops the employee from being placed
