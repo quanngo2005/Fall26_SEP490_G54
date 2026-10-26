@@ -12,6 +12,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'role-permissions',
+    canActivate: [authGuard, adminGuard],
+    title: 'Thiết lập quyền',
+    loadComponent: () =>
+      import('./features/role-permissions/role-permission-matrix.component').then(
+        (m) => m.RolePermissionMatrixComponent,
+      ),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),

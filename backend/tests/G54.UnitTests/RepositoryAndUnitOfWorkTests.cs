@@ -163,4 +163,137 @@ public sealed class RepositoryAndUnitOfWorkTests
         var found = await uow.Works.GetByIdAsync(work.Id);
         Assert.NotNull(found);
     }
+
+    [Fact]
+    public async Task TargetAssignmentRepository_GetActiveDescendantsAsync_ReturnsAllLevels()
+    {
+        using var context = CreateInMemoryDbContext();
+        var repo = new TargetAssignmentRepository(context);
+        var branchId = Guid.NewGuid();
+        var deptId = Guid.NewGuid();
+        var kpiId = Guid.NewGuid();
+        var yearPeriodId = Guid.NewGuid();
+        var quarterPeriodId = Guid.NewGuid();
+        var monthPeriodId = Guid.NewGuid();
+
+        var l1 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = branchId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = yearPeriodId,
+            Status = TargetAssignmentStatus.Active,
+            TargetValue = 1000,
+            Version = 1,
+        };
+
+        var l2 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = deptId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = yearPeriodId,
+            ParentAssignmentId = l1.Id,
+            Status = TargetAssignmentStatus.Active,
+            TargetValue = 500,
+            Version = 1,
+        };
+
+        var l3 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = deptId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = quarterPeriodId,
+            ParentAssignmentId = l2.Id,
+            Status = TargetAssignmentStatus.Active,
+            TargetValue = 125,
+            Version = 1,
+        };
+
+        var l3Superseded = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = deptId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = quarterPeriodId,
+            ParentAssignmentId = l2.Id,
+            Status = TargetAssignmentStatus.Superseded,
+            TargetValue = 100,
+            Version = 1,
+        };
+
+        var l4 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = deptId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = monthPeriodId,
+            ParentAssignmentId = l3.Id,
+            Status = TargetAssignmentStatus.Active,
+            TargetValue = 42,
+            Version = 1,
+        };
+
+        await context.TargetAssignments.AddRangeAsync(l1, l2, l3, l3Superseded, l4);
+        await context.SaveChangesAsync();
+
+        var descendants = await repo.GetActiveDescendantsAsync(l1.Id);
+
+        Assert.Equal(3, descendants.Count);
+        Assert.DoesNotContain(descendants, d => d.Status == TargetAssignmentStatus.Superseded);
+    }
+
+    [Fact]
+    public async Task TargetAssignmentRepository_GetCurrentBranchYearAsync_IgnoresSuperseded()
+    {
+        using var context = CreateInMemoryDbContext();
+        var repo = new TargetAssignmentRepository(context);
+        var branchId = Guid.NewGuid();
+        var kpiId = Guid.NewGuid();
+        var yearPeriodId = Guid.NewGuid();
+
+        var superseded = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = branchId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = yearPeriodId,
+            Status = TargetAssignmentStatus.Superseded,
+            TargetValue = 1000,
+            Version = 1,
+        };
+
+        var current = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = branchId,
+            KpiDefinitionId = kpiId,
+            EvaluationPeriodId = yearPeriodId,
+            Status = TargetAssignmentStatus.Active,
+            TargetValue = 1100,
+            Version = 2,
+        };
+
+        await context.TargetAssignments.AddRangeAsync(superseded, current);
+        await context.SaveChangesAsync();
+
+        var result = await repo.GetCurrentBranchYearAsync(branchId, kpiId, yearPeriodId);
+
+        Assert.NotNull(result);
+        Assert.Equal(TargetAssignmentStatus.Active, result.Status);
+        Assert.Equal(1100, result.TargetValue);
+    }
+
+    [Fact]
+    public void UnitOfWork_TargetAssignmentsProperty_ReturnsSameInstance()
+    {
+        using var context = CreateInMemoryDbContext();
+        var uow = new UnitOfWork(context);
+
+        var ta1 = uow.TargetAssignments;
+        var ta2 = uow.TargetAssignments;
+
+        Assert.Same(ta1, ta2);
+    }
 }

@@ -62,6 +62,14 @@ public static class ErrorCodes
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
 
+    // Target allocation (docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetDepartmentSumBelow = "TARGET_DEPARTMENT_SUM_BELOW";
+    public const string TargetQuarterSumBelow = "TARGET_QUARTER_SUM_BELOW";
+    public const string TargetPeriodNotOpen = "TARGET_PERIOD_NOT_OPEN";
+    public const string TargetDepartmentNotInBranch = "TARGET_DEPARTMENT_NOT_IN_BRANCH";
+    public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
+    public const string TargetInvalidState = "TARGET_INVALID_STATE";
+
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
         [ValidationError] = ("Dữ liệu đầu vào không hợp lệ.", "Input validation failed."),
@@ -96,6 +104,12 @@ public static class ErrorCodes
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
+        [TargetDepartmentSumBelow] = ("Tổng chỉ tiêu năm của các phòng ban phải lớn hơn hoặc bằng chỉ tiêu năm của chi nhánh.", "Department year targets must add up to at least the branch year target."),
+        [TargetQuarterSumBelow] = ("Tổng chỉ tiêu các quý phải lớn hơn hoặc bằng chỉ tiêu năm của phòng ban.", "Quarter targets must add up to at least the department year target."),
+        [TargetPeriodNotOpen] = ("Kỳ đánh giá không ở trạng thái mở nên không thể giao chỉ tiêu.", "The evaluation period is not open for target allocation."),
+        [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
+        [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
+        [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
     };
 
