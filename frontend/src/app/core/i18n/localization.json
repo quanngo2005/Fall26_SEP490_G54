@@ -1,6 +1,9 @@
 {
   "defaultLocale": "vi",
-  "supportedLocales": ["vi", "en"],
+  "supportedLocales": [
+    "vi",
+    "en"
+  ],
   "formats": {
     "vi": {
       "date": "DD/MM/YYYY",
@@ -875,6 +878,50 @@
         "Tiền gửi không kỳ hạn": "Tiền gửi không kỳ hạn",
         "Vay thế chấp BĐS": "Vay thế chấp BĐS",
         "Vay tín chấp": "Vay tín chấp"
+      },
+      "permissionMatrix": {
+        "title": "Thiết lập quyền",
+        "breadcrumb": "Trang chủ / Quản trị hệ thống / Role & quyền / Thiết lập quyền",
+        "role": "Vai trò",
+        "systemRole": "Hệ thống",
+        "unsaved": "thay đổi chưa lưu",
+        "cancel": "Hủy",
+        "save": "Lưu (Ctrl+S)",
+        "saving": "Đang lưu…",
+        "searchResource": "Tìm resource",
+        "moduleAll": "Module: Tất cả",
+        "modulePrefix": "Module: ",
+        "grantedOnly": "Chỉ hiện ô đã cấp quyền",
+        "scopeLegend": "Phạm vi:",
+        "resource": "Resource",
+        "collapsedGroups": "nhóm đang thu gọn",
+        "expand": "Mở rộng",
+        "collapse": "Thu gọn",
+        "locked": "Cố định",
+        "notApplicable": "Không áp dụng",
+        "legend": "Ô viền xanh đậm: đã đổi, chưa lưu. Ô \"—\" xám: hành động không áp dụng cho resource. Ô khóa: cố định theo nghiệp vụ, rê chuột để xem lý do.",
+        "loadError": "Không tải được ma trận quyền.",
+        "retry": "Thử lại",
+        "empty": "Không có resource phù hợp.",
+        "saved": "Đã lưu ma trận quyền.",
+        "saveError": "Lưu thất bại. Vui lòng thử lại.",
+        "conflict": "Ma trận đã bị người khác thay đổi. Vui lòng tải lại.",
+        "confirmDiscard": "Bỏ các thay đổi chưa lưu?",
+        "actions": {
+          "view": "Xem",
+          "create": "Tạo",
+          "update": "Sửa",
+          "approve": "Duyệt",
+          "import": "Import",
+          "export": "Export"
+        },
+        "scopes": {
+          "none": "—",
+          "Own": "Cá nhân",
+          "Dept": "Phòng",
+          "Branch": "Chi nhánh",
+          "All": "Toàn hệ thống"
+        }
       }
     },
     "en": {
@@ -1732,6 +1779,50 @@
         "Tiền gửi không kỳ hạn": "Demand deposits",
         "Vay thế chấp BĐS": "Mortgage loans",
         "Vay tín chấp": "Unsecured loans"
+      },
+      "permissionMatrix": {
+        "title": "Permission setup",
+        "breadcrumb": "Home / System admin / Roles & permissions / Permission setup",
+        "role": "Role",
+        "systemRole": "System",
+        "unsaved": "unsaved changes",
+        "cancel": "Cancel",
+        "save": "Save (Ctrl+S)",
+        "saving": "Saving…",
+        "searchResource": "Search resource",
+        "moduleAll": "Module: All",
+        "modulePrefix": "Module: ",
+        "grantedOnly": "Only show granted cells",
+        "scopeLegend": "Scope:",
+        "resource": "Resource",
+        "collapsedGroups": "groups collapsed",
+        "expand": "Expand",
+        "collapse": "Collapse",
+        "locked": "Locked",
+        "notApplicable": "Not applicable",
+        "legend": "Dark blue border: changed, not saved. Grey \"—\": action does not apply to the resource. Lock: fixed by business rule, hover to see why.",
+        "loadError": "Could not load the permission matrix.",
+        "retry": "Retry",
+        "empty": "No matching resources.",
+        "saved": "Permission matrix saved.",
+        "saveError": "Save failed. Please try again.",
+        "conflict": "The matrix was changed by someone else. Please reload.",
+        "confirmDiscard": "Discard unsaved changes?",
+        "actions": {
+          "view": "View",
+          "create": "Create",
+          "update": "Edit",
+          "approve": "Approve",
+          "import": "Import",
+          "export": "Export"
+        },
+        "scopes": {
+          "none": "—",
+          "Own": "Personal",
+          "Dept": "Department",
+          "Branch": "Branch",
+          "All": "System-wide"
+        }
       }
     }
   }
