@@ -60,6 +60,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RiskEvent> RiskEvents { get; set; }
 
+    public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
+
+    public virtual DbSet<Downgrade> Downgrades { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<RolePermissionAssignment> RolePermissions { get; set; }
@@ -1143,6 +1147,55 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("risk_event_status")
                 .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<RankingTierThreshold>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_tier_threshold_pkey");
+
+            entity.ToTable("ranking_tier_threshold", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_tier_threshold_min_score", "min_score >= 0 AND min_score <= 100");
+                table.HasCheckConstraint("ck_ranking_tier_threshold_rank_order", "rank_order >= 1");
+            });
+
+            entity.HasIndex(e => e.TierCode, "uq_ranking_tier_threshold_code").IsUnique();
+
+            entity.HasIndex(e => e.RankOrder, "uq_ranking_tier_threshold_order").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TierCode)
+                .HasMaxLength(10)
+                .HasColumnName("tier_code");
+            entity.Property(e => e.RankOrder).HasColumnName("rank_order");
+            entity.Property(e => e.MinScore)
+                .HasPrecision(7, 4)
+                .HasColumnName("min_score");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<Downgrade>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("downgrade_pkey");
+
+            entity.ToTable("downgrade");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TriggerSeverity)
+                .HasColumnType("risk_event_severity")
+                .HasColumnName("trigger_severity");
+            entity.Property(e => e.CapTierCode)
+                .HasMaxLength(10)
+                .HasColumnName("cap_tier_code");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<Role>(entity =>
