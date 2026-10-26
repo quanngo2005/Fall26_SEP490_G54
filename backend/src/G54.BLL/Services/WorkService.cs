@@ -105,6 +105,25 @@ public sealed partial class WorkService(
             cancellationToken)
             ?? throw new ForbiddenException("Không xác định được nhân sự khởi tạo công việc.");
 
+        // The assignee must sit inside the creator's work:create scope (Dept = own department subtree, Branch = nearest
+        // branch subtree, All = anyone).
+        var granted = await permissions.GetEffectivePermissionsAsync(currentUserId, cancellationToken);
+        var createLevel = AccessScope.LevelFor(granted, "work", "create");
+        if (createLevel < AccessScope.DeptLevel)
+        {
+            throw new ForbiddenException("Bạn không có quyền khởi tạo công việc.");
+        }
+
+        if (createLevel < AccessScope.AllLevel)
+        {
+            var hierarchy = await DepartmentHierarchy.LoadAsync(unitOfWork.Departments.Query(), cancellationToken);
+            var inScope = AccessScope.DepartmentsInScope(createLevel, creator.DepartmentId, hierarchy);
+            if (inScope is not null && !inScope.Contains(assignee.DepartmentId))
+            {
+                throw new ForbiddenException("Chỉ được phân công công việc cho nhân viên trong phạm vi phòng ban của bạn.");
+            }
+        }
+
         var code = await GenerateUniqueWorkCodeAsync(cancellationToken);
         var priority = ParsePriority(request.Priority);
 
@@ -134,7 +153,36 @@ public sealed partial class WorkService(
         return MapToDetail(work, workType.Name, campaign?.Name, assignee.FullName, assignee.EmployeeCode);
     }
 
-    public async Task<WorkDetailDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Null when the work does not exist or lies outside the caller's work:read scope. Visible to: All (everything),
+    /// the assignee, the assignee's direct manager, and Dept/Branch scopes over the assignee's department.
+    /// </summary>
+    public async Task<WorkDetailDto?> GetByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken = default)
+    {
+        var caller = await ResolveCallerAsync(accountId, cancellationToken);
+        var work = await unitOfWork.Works.GetWithDetailsAsync(id, cancellationToken);
+        if (work is null)
+        {
+            return null;
+        }
+
+        var assignee = work.AssigneeEmployee;
+        var isAssigneeOrManager = work.AssigneeEmployeeId == caller.EmployeeId || assignee?.ManagerId == caller.EmployeeId;
+        var hierarchy = await DepartmentHierarchy.LoadAsync(unitOfWork.Departments.Query(), cancellationToken);
+        var visibleDepartments = AccessScope.DepartmentsInScope(caller.Level, caller.DepartmentId, hierarchy);
+        var inScope = caller.Level >= AccessScope.AllLevel
+            || isAssigneeOrManager
+            || (assignee is not null && visibleDepartments is not null && visibleDepartments.Contains(assignee.DepartmentId));
+
+        if (!inScope)
+        {
+            return null;
+        }
+
+        return MapToDetail(work, work.WorkType?.Name, work.BusinessCampaign?.Name, assignee?.FullName, assignee?.EmployeeCode);
+    }
+
+    private async Task<WorkDetailDto?> LoadDetailAsync(Guid id, CancellationToken cancellationToken)
     {
         var work = await unitOfWork.Works.GetWithDetailsAsync(id, cancellationToken);
         if (work is null)
@@ -175,7 +223,7 @@ public sealed partial class WorkService(
 
         LogWorkStatusChanged(logger, work.Code, work.Id, fromStatus, nextStatus, actor.Id, null);
 
-        return (await GetByIdAsync(work.Id, cancellationToken))!;
+        return (await LoadDetailAsync(work.Id, cancellationToken))!;
     }
 
     public async Task<int> MarkOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)

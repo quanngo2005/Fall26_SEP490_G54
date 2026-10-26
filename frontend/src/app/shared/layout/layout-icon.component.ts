@@ -57,6 +57,8 @@ const PATHS: Readonly<Record<string, string>> = {
   settings:
     'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2',
   menu: 'M3 6h18 M3 12h18 M3 18h18',
+  trash:
+    'M3 6h18 M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6 M10 11v6 M14 11v6',
   chevron: 'M14 6l-6 6 6 6',
   chevronDown: 'M6 9l6 6 6-6',
   logout: 'M9 3H3v18h6 M14 7l5 5-5 5 M8 12h11',

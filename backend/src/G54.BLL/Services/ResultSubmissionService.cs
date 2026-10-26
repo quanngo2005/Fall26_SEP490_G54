@@ -18,7 +18,8 @@ public sealed partial class ResultSubmissionService(
     IWorkSubmissionValidator validator,
     IEventBus eventBus,
     ILogger<ResultSubmissionService> logger,
-    TimeProvider time) : IResultSubmissionService
+    TimeProvider time,
+    IPermissionService permissions) : IResultSubmissionService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -247,19 +248,27 @@ public sealed partial class ResultSubmissionService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(userId, cancellationToken);
+        var viewer = await ResolveEmployeeAsync(userId, cancellationToken);
         var work = await unitOfWork.Works.GetByIdAsync(workId, cancellationToken);
         if (work is null)
         {
             throw new NotFoundException("Công việc", workId);
         }
 
-        var submissions = await unitOfWork.ResultSubmissions.Query()
+        var readableDepartments = await ResolveReadableDepartmentsAsync(viewer, userId, cancellationToken);
+        if (work.AssigneeEmployeeId != viewer.Id && readableDepartments is { Count: 0 })
+        {
+            throw new ForbiddenException("Bạn không có quyền xem kết quả nộp của công việc này.");
+        }
+
+        var submissions = (await unitOfWork.ResultSubmissions.Query()
             .Include(s => s.SubmitterEmployee)
             .Include(s => s.Evidences)
             .Where(s => s.WorkId == workId)
             .OrderByDescending(s => s.SubmissionNo)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .Where(s => CanViewSubmission(viewer, work.AssigneeEmployeeId, s, readableDepartments))
+            .ToList();
 
         var kpiIds = new HashSet<Guid>();
         var parsedList = new List<(ResultSubmission Sub, string? CleanComment, List<SubmissionMetricInputDto> Metrics)>();
@@ -326,7 +335,7 @@ public sealed partial class ResultSubmissionService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(userId, cancellationToken);
+        var viewer = await ResolveEmployeeAsync(userId, cancellationToken);
 
         var submission = await unitOfWork.ResultSubmissions.Query()
             .Include(s => s.Work)
@@ -334,6 +343,12 @@ public sealed partial class ResultSubmissionService(
             .Include(s => s.Evidences)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken)
             ?? throw new NotFoundException("Đợt nộp kết quả", submissionId);
+
+        var readableDepartments = await ResolveReadableDepartmentsAsync(viewer, userId, cancellationToken);
+        if (!CanViewSubmission(viewer, submission.Work?.AssigneeEmployeeId ?? Guid.Empty, submission, readableDepartments))
+        {
+            throw new ForbiddenException("Bạn không có quyền xem đợt nộp kết quả này.");
+        }
 
         var (cleanComment, metrics) = ParseStoredComment(submission.Comment);
 
@@ -444,6 +459,49 @@ public sealed partial class ResultSubmissionService(
             EvidenceCount: submission.Evidences.Count,
             MetricCount: metrics.Count,
             Comment: "Thu hồi báo cáo thành công.");
+    }
+
+    /// <summary>
+    /// Departments whose submissions the viewer may read through <c>submission:read</c>. Null = unrestricted (All);
+    /// empty = no department scope (Own or none), so only the viewer's own submissions and assigned works are visible.
+    /// </summary>
+    private async Task<HashSet<Guid>?> ResolveReadableDepartmentsAsync(Employee viewer, Guid accountId, CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(accountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "submission", "read");
+        if (level >= AccessScope.AllLevel)
+        {
+            return null;
+        }
+
+        if (level < AccessScope.DeptLevel)
+        {
+            return [];
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(unitOfWork.Departments.Query(), cancellationToken);
+        return AccessScope.DepartmentsInScope(level, viewer.DepartmentId, hierarchy) ?? [];
+    }
+
+    /// <summary>Viewer is the submitter or the work's assignee, or the submitter sits in a department the viewer's scope covers.</summary>
+    private static bool CanViewSubmission(
+        Employee viewer,
+        Guid workAssigneeId,
+        ResultSubmission submission,
+        HashSet<Guid>? readableDepartments)
+    {
+        if (viewer.Id == submission.SubmitterEmployeeId || viewer.Id == workAssigneeId)
+        {
+            return true;
+        }
+
+        if (readableDepartments is null)
+        {
+            return true;
+        }
+
+        return submission.SubmitterEmployee is not null
+            && readableDepartments.Contains(submission.SubmitterEmployee.DepartmentId);
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)

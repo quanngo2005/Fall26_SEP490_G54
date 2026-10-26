@@ -23,6 +23,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     /// </summary>
     [HttpGet]
     [ProducesResponseType<ApiResponse<CampaignListOverviewDto>>(StatusCodes.Status200OK)]
+    [HasPermission("campaign", "read", "Dept")]
     public async Task<ActionResult<ApiResponse<CampaignListOverviewDto>>> GetCampaigns(
         [FromQuery] string? search,
         [FromQuery] string? status,
@@ -41,6 +42,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<CampaignDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("campaign", "read", "Dept")]
     public async Task<ActionResult<ApiResponse<CampaignDetailDto>>> GetById(
         Guid id,
         CancellationToken cancellationToken = default)
@@ -56,6 +58,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [ProducesResponseType<ApiResponse<CampaignDetailDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
     public async Task<ActionResult<ApiResponse<CampaignDetailDto>>> Create(
         [FromBody] CreateCampaignRequestDto request,
         CancellationToken cancellationToken = default)
@@ -76,6 +79,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
     public async Task<ActionResult<ApiResponse<CampaignDetailDto>>> Update(
         Guid id,
         [FromBody] UpdateCampaignRequestDto request,
@@ -92,6 +96,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
     public async Task<IActionResult> Delete(
         Guid id,
         CancellationToken cancellationToken = default)
@@ -108,6 +113,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "All")]
     public async Task<ActionResult<ApiResponse<CampaignDecisionResultDto>>> Decide(
         Guid id,
         [FromBody] CampaignDecisionRequestDto request,
@@ -125,6 +131,7 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
     public async Task<ActionResult<ApiResponse<BatchWorkGenerateResultDto>>> BatchGenerateWork(
         Guid id,
         [FromBody] BatchWorkGeneratorRequestDto request,

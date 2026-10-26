@@ -55,7 +55,8 @@ public sealed class ResultSubmissionServiceTests
             validator,
             bus,
             NullLogger<ResultSubmissionService>.Instance,
-            TimeProvider.System);
+            TimeProvider.System,
+            new FakePermissionService(null));
 
         return (context, uow, service, storage, bus);
     }
@@ -230,7 +231,8 @@ public sealed class ResultSubmissionServiceTests
                 new WorkSubmissionValidator(uow, time),
                 bus,
                 NullLogger<ResultSubmissionService>.Instance,
-                time);
+                time,
+                new FakePermissionService(null));
             var (assignee, _, work, _, _) = await SeedWorkContextAsync(context);
 
             foreach (var kpi in context.WorkTypeKpis)

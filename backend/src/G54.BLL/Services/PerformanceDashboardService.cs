@@ -15,10 +15,10 @@ public sealed partial class PerformanceDashboardService(
 {
     private const string PermissionResource = "evaluation";
     private const string PermissionAction = "read";
-    private const int OwnScopeLevel = 1;
-    private const int DepartmentScopeLevel = 2;
-    private const int BranchScopeLevel = 3;
-    private const int AllScopeLevel = 4;
+    private static readonly int OwnScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Own);
+    private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
+    private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
+    private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
 
     public async Task<PersonalPerformanceDashboardDto> GetMyDashboardAsync(
         Guid accountId,

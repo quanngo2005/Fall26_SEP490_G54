@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.Verification;
 using G54.BLL.Services;
 using G54.DAL;
@@ -23,7 +24,9 @@ public sealed class VerificationServiceTests
     private static (AppDbContext Context, VerificationService Service) CreateTestEnvironment()
     {
         var context = CreateInMemoryDbContext();
-        var service = new VerificationService(context, NullLogger<VerificationService>.Instance, TimeProvider.System);
+        // verification:decide at All: the scope checks are a no-op for these maker-checker and state-machine tests.
+        var permissions = new FakePermissionService(null, new UserPermissionDto("verification", "decide", "All", "VERIFICATION_DECIDE"));
+        var service = new VerificationService(context, NullLogger<VerificationService>.Instance, TimeProvider.System, permissions);
         return (context, service);
     }
 
@@ -138,7 +141,7 @@ public sealed class VerificationServiceTests
             context.Evidences.Add(evidence);
             await context.SaveChangesAsync();
 
-            var result = await service.GetDossierAsync(submission.Id);
+            var result = await service.GetDossierAsync(submission.Id, Guid.NewGuid());
 
             Assert.NotNull(result);
             Assert.Equal(submission.Id, result.SubmissionId);
@@ -156,7 +159,7 @@ public sealed class VerificationServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            var ex = await Assert.ThrowsAsync<NotFoundException>(() => service.GetDossierAsync(Guid.NewGuid()));
+            var ex = await Assert.ThrowsAsync<NotFoundException>(() => service.GetDossierAsync(Guid.NewGuid(), Guid.NewGuid()));
             Assert.Equal(ErrorCodes.NotFound, ex.ErrorCode);
             Assert.Equal(404, ex.StatusCode);
         }
@@ -172,7 +175,7 @@ public sealed class VerificationServiceTests
             submission.Status = SubmissionStatus.UnderReview;
             await context.SaveChangesAsync();
 
-            var result = await service.GetDossierAsync(submission.Id);
+            var result = await service.GetDossierAsync(submission.Id, Guid.NewGuid());
 
             Assert.Equal("UNDER_REVIEW", result.Status);
         }
@@ -184,7 +187,7 @@ public sealed class VerificationServiceTests
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
-            await Assert.ThrowsAsync<NotFoundException>(() => service.GetHistoryAsync(Guid.NewGuid()));
+            await Assert.ThrowsAsync<NotFoundException>(() => service.GetHistoryAsync(Guid.NewGuid(), Guid.NewGuid()));
         }
     }
 
@@ -202,7 +205,7 @@ public sealed class VerificationServiceTests
                 ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(1),
             });
 
-            var history = await service.GetHistoryAsync(submission.Id);
+            var history = await service.GetHistoryAsync(submission.Id, checkerAccount.Id);
 
             var round = Assert.Single(history);
             Assert.Equal("REVISION_REQUIRED", round.Decision);
@@ -507,7 +510,7 @@ public sealed class VerificationServiceTests
             context.Verifications.AddRange(v1, v2);
             await context.SaveChangesAsync();
 
-            var history = await service.GetHistoryAsync(submission.Id);
+            var history = await service.GetHistoryAsync(submission.Id, Guid.NewGuid());
 
             Assert.Equal(2, history.Count);
             Assert.Equal(1, history[0].RoundNo);

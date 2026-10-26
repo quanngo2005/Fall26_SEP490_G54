@@ -19,9 +19,9 @@ public sealed class PerformanceEvaluationService(
 {
     private const string PermissionResource = "evaluation";
     private const string PermissionAction = "calculate";
-    private const int DepartmentScopeLevel = 2;
-    private const int BranchScopeLevel = 3;
-    private const int AllScopeLevel = 4;
+    private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
+    private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
+    private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
     private const int ScoreDecimals = 4;
 
     private static readonly Action<ILogger, Guid, Guid, int, Exception?> LogCalculated =

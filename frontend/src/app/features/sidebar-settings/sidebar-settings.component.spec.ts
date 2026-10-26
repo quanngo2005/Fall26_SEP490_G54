@@ -103,7 +103,7 @@ describe('SidebarSettingsComponent', () => {
     handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     fixture.detectChanges();
     expect(component.draft()).toEqual(['overview', 'myProfile']);
-    const route: HTMLInputElement = fixture.nativeElement.querySelector('#route-myProfile');
+    const route: HTMLSelectElement = fixture.nativeElement.querySelector('#route-myProfile');
     route.value = '/kpi-definitions';
     route.dispatchEvent(new Event('change'));
     expect(component.preview()[1].route).toBe('/kpi-definitions');
@@ -122,24 +122,34 @@ describe('SidebarSettingsComponent', () => {
     TestBed.inject(I18nService).setLanguage('en');
     fixture.detectChanges();
     expect(handle.getAttribute('aria-label')).toBe('Drag to reorder menu item');
-    expect(route.getAttribute('placeholder')).toBe('Type to find a route…');
-    expect(fixture.nativeElement.textContent).not.toContain('Application URL');
-    route.value = '/not-a-page';
-    route.dispatchEvent(new Event('change'));
-    expect(route.value).toBe('/kpi-definitions');
-    expect(component.routeFor('myProfile')).toBe('/kpi-definitions');
-    const offered = Array.from<HTMLOptionElement>(
-      fixture.nativeElement.querySelector('datalist').querySelectorAll('option'),
-    ).map((option) => option.value);
-    expect(offered).toEqual(
-      TestBed.inject(NavigationService).routeOptions.filter(
+    expect(route.getAttribute('aria-label')).toBe('Application URL');
+    const offered = Array.from<HTMLOptionElement>(route.querySelectorAll('option')).map(
+      (option) => option.value,
+    );
+    expect(offered).toEqual([
+      '',
+      ...TestBed.inject(NavigationService).routeOptions.filter(
         (route) => route !== '/sidebar-settings',
       ),
-    );
-    component.clearRoute('myProfile');
-    fixture.detectChanges();
-    expect(route.value).toBe('');
+    ]);
+    route.value = '';
+    route.dispatchEvent(new Event('change'));
     expect(component.routeFor('myProfile')).toBe('');
+    fixture.destroy();
+  });
+
+  it('removes an item with its delete button and keeps required items undeletable', () => {
+    const fixture = TestBed.createComponent(SidebarSettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const buttons = () =>
+      fixture.debugElement.queryAll(By.css('.order-list .remove-item')).map((b) => b.nativeElement);
+    expect(component.draft()).toEqual(['overview', 'myProfile']);
+    expect(buttons().length).toBe(1);
+    buttons()[0].click();
+    fixture.detectChanges();
+    expect(component.draft()).toEqual(['overview']);
+    expect(buttons().length).toBe(0);
     fixture.destroy();
   });
 });

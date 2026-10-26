@@ -12,10 +12,3 @@ public sealed record JobPositionOptionDto(
     Guid Id,
     string Code,
     string Title);
-
-public sealed record ManagerOptionDto(
-    Guid Id,
-    string EmployeeCode,
-    string FullName,
-    string? DepartmentName,
-    string? JobPositionTitle);

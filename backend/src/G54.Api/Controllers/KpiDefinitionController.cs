@@ -1,3 +1,4 @@
+using G54.Api.Authorization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.KpiDefinition;
@@ -49,6 +50,7 @@ public sealed class KpiDefinitionController(IKpiDefinitionService service) : Con
     }
 
     [HttpPost]
+    [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse<KpiDefinitionDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
@@ -62,6 +64,7 @@ public sealed class KpiDefinitionController(IKpiDefinitionService service) : Con
     }
 
     [HttpPut("{id:guid}")]
+    [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse<KpiDefinitionDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
@@ -75,6 +78,7 @@ public sealed class KpiDefinitionController(IKpiDefinitionService service) : Con
     }
 
     [HttpPatch("{id:guid}/status")]
+    [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse>> ChangeKpiStatus(

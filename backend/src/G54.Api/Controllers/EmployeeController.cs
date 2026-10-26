@@ -13,13 +13,16 @@ namespace G54.Api.Controllers;
 [Authorize]
 public sealed class EmployeeController(IEmployeeService service) : ControllerBase
 {
+    /// <summary>Employees limited to the caller's <c>employee:read</c> scope (Own = self, Dept = department subtree, All = everyone).</summary>
     [HttpGet]
+    [HasPermission("employee", "read", "Own")]
     [ProducesResponseType<ApiResponse<PagedResult<EmployeeDetailDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ApiResponse<PagedResult<EmployeeDetailDto>>>> GetEmployees(
         [FromQuery] EmployeeFilterDto filter,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEmployeesAsync(filter, cancellationToken);
+        var result = await service.GetEmployeesAsync(User.GetRequiredUserId(), filter, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -37,13 +40,15 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
 
     /// <summary>Employee codes are unique and already shown in the UI, so URLs use them instead of the GUID.</summary>
     [HttpGet("by-code/{code}")]
+    [HasPermission("employee", "read", "Own")]
     [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<EmployeeDetailDto>>> GetEmployeeByCode(
         string code,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEmployeeByCodeAsync(code, cancellationToken);
+        var result = await service.GetEmployeeByCodeAsync(User.GetRequiredUserId(), code, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse.Fail(
@@ -57,13 +62,15 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
     }
 
     [HttpGet("{id:guid}")]
+    [HasPermission("employee", "read", "Own")]
     [ProducesResponseType<ApiResponse<EmployeeDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<EmployeeDetailDto>>> GetEmployeeById(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEmployeeByIdAsync(id, cancellationToken);
+        var result = await service.GetEmployeeByIdAsync(User.GetRequiredUserId(), id, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse.Fail(
@@ -91,16 +98,6 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
         CancellationToken cancellationToken)
     {
         var result = await service.GetJobPositionOptionsAsync(cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
-    [HttpGet("managers")]
-    [ProducesResponseType<ApiResponse<List<ManagerOptionDto>>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<List<ManagerOptionDto>>>> GetManagerOptions(
-        [FromQuery] Guid? excludeId,
-        CancellationToken cancellationToken)
-    {
-        var result = await service.GetManagerOptionsAsync(excludeId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

@@ -11,9 +11,9 @@ public sealed class EvidenceService(
     IPermissionService permissions,
     IStorageService storage) : IEvidenceService
 {
-    private const int DepartmentScopeLevel = 2;
-    private const int BranchScopeLevel = 3;
-    private const int AllScopeLevel = 4;
+    private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
+    private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
+    private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
 
     public async Task<EvidenceFileDto> OpenAsync(Guid userId, Guid evidenceId, CancellationToken cancellationToken = default)
     {

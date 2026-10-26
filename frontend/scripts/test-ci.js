@@ -11,7 +11,8 @@ if (!process.env.CHROME_BIN && process.platform === 'win32') {
 const cli = require.resolve('@angular/cli/bin/ng');
 const result = spawnSync(
   process.execPath,
-  [cli, 'test', '--watch=false', '--browsers=ChromeHeadless'],
+  // Extra arguments (e.g. --code-coverage from the review script) are passed through to ng test.
+  [cli, 'test', '--watch=false', '--browsers=ChromeHeadless', ...process.argv.slice(2)],
   {
     stdio: 'inherit',
     env: process.env,
