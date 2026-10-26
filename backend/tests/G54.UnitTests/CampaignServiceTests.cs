@@ -401,7 +401,7 @@ public sealed class CampaignServiceTests
     }
 
     [Fact]
-    public async Task UpdateCampaignAsync_ThrowsCampaignEndDateBeforeWorkDeadline_WhenEndDateEarlierThanTasks()
+    public async Task UpdateCampaignAsync_ThrowsValidationError_WhenEndDateEarlierThanTasks()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -443,10 +443,10 @@ public sealed class CampaignServiceTests
                 StartDate: new DateOnly(2026, 9, 1),
                 EndDate: new DateOnly(2026, 11, 20));
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
                 service.UpdateCampaignAsync(campaign.Id, updateReq, Guid.NewGuid()));
 
-            Assert.Equal(ErrorCodes.CampaignEndDateBeforeWorkDeadline, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
         }
     }
 
@@ -853,7 +853,7 @@ public sealed class CampaignServiceTests
         }
     }
     [Fact]
-    public async Task BatchGenerateWorkAsync_ThrowsWorkDeadlineExceedsCampaign_WhenDeadlineExceedsCampaignEndDate()
+    public async Task BatchGenerateWorkAsync_ThrowsValidationError_WhenDeadlineExceedsCampaignEndDate()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -892,10 +892,10 @@ public sealed class CampaignServiceTests
                 TotalLeadsCount: 1,
                 PlannedEndDate: new DateOnly(2026, 10, 20));
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
                 service.BatchGenerateWorkAsync(campaign.Id, req, Guid.NewGuid()));
 
-            Assert.Equal(ErrorCodes.WorkDeadlineExceedsCampaign, ex.ErrorCode);
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
         }
     }
 

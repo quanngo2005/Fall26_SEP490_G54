@@ -281,7 +281,6 @@ Generates and idempotently distributes lead tasks to active campaign participant
 | `NOT_FOUND` | 404 | Campaign, BusinessObjective, WorkType, or Employee not found. |
 | `CONFLICT` | 409 | Duplicate campaign code (`uq_business_campaign_code`) or campaign status already completed/cancelled. |
 | `TARGET_ALLOCATION_NOT_100_PERCENT` | 400 | Total allocated target percentage does not sum to 100% (BR-24). |
-| `WORK_DEADLINE_EXCEEDS_CAMPAIGN` | 400 | Work deadline exceeds campaign end date (BR-12). |
-| `CAMPAIGN_END_DATE_BEFORE_WORK_DEADLINE` | 400 | Campaign end date is earlier than the deadline of already generated works (BR-12). |
+| `VALIDATION_ERROR` | 400 | Also: work deadline exceeds campaign end date, or campaign end date is earlier than the deadline of already generated works (BR-12). |
 | `KPI_ALREADY_CONTRIBUTED` | 409 | Work item already exists or duplicates an existing task ID (BR-08). |
 | `MAKER_CANNOT_BE_CHECKER` | 400 | Attempt to approve own campaign plan (BR-02 Maker != Checker). |

@@ -353,8 +353,7 @@ public sealed class CampaignService(
 
         if (maxWorkEndDate.HasValue && request.EndDate < maxWorkEndDate.Value)
         {
-            throw new BusinessRuleException(
-                ErrorCodes.CampaignEndDateBeforeWorkDeadline,
+            throw new ValidationException(
                 $"Ngày kết thúc chiến dịch ({request.EndDate}) không được nhỏ hơn hạn của các công việc đã sinh ({maxWorkEndDate.Value}).");
         }
 
@@ -615,8 +614,7 @@ public sealed class CampaignService(
 
         if (endDate > campaign.EndDate)
         {
-            throw new BusinessRuleException(
-                ErrorCodes.WorkDeadlineExceedsCampaign,
+            throw new ValidationException(
                 $"Hạn hoàn thành công việc ({endDate}) không được vượt quá ngày kết thúc chiến dịch ({campaign.EndDate}).");
         }
 

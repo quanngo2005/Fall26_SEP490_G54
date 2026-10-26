@@ -34,12 +34,9 @@ public static class ErrorCodes
 
     // Work lifecycle (docs/api/WORK_CONTRACT.md)
     public const string WorkInvalidState = "WORK_INVALID_STATE";
-    public const string WorkDeadlineExceedsCampaign = "WORK_DEADLINE_EXCEEDS_CAMPAIGN";   // formerly MSG18 (BR-12)
-    public const string CampaignNotActive = "CAMPAIGN_NOT_ACTIVE";                        // formerly MSG18 (BR-12)
 
     // Campaign (docs/api/CAMPAIGN_CONTRACT.md)
     public const string CampaignDeadlineExpired = "CAMPAIGN_DEADLINE_EXPIRED";            // MSG18, BR-12 (late submission)
-    public const string CampaignEndDateBeforeWorkDeadline = "CAMPAIGN_END_DATE_BEFORE_WORK_DEADLINE"; // formerly MSG18 (BR-12)
     public const string TargetAllocationNot100Percent = "TARGET_ALLOCATION_NOT_100_PERCENT";          // MSG14, BR-24
 
     // Assignment & configuration rules
@@ -90,10 +87,7 @@ public static class ErrorCodes
         [EvidenceLocked] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
         [MediaTimestampRequired] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
-        [WorkDeadlineExceedsCampaign] = ("Hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch.", "The work deadline exceeds the campaign end date."),
-        [CampaignNotActive] = ("Chiến dịch được gắn không trong trạng thái hoạt động.", "The linked campaign is not in an active status."),
         [CampaignDeadlineExpired] = ("Từ chối nộp: Thời hạn chiến dịch đã kết thúc.", "Submission Rejected: Campaign deadline expired."),
-        [CampaignEndDateBeforeWorkDeadline] = ("Ngày kết thúc chiến dịch không được nhỏ hơn hạn của các công việc đã sinh.", "The campaign end date cannot be earlier than the deadline of generated works."),
         [TargetAllocationNot100Percent] = ("Lỗi kiểm tra: Tổng tỷ lệ chỉ tiêu phân bổ bắt buộc phải bằng chính xác 100%.", "Validation Error: Total allocated target percentage must sum to exactly 100%."),
         [VipCertificationRequired] = ("Lỗi kiểm tra: Nhân sự được phân công chưa có chứng chỉ VIP_Trained phục vụ Khách hàng Ưu tiên.", "Validation Error: Assigned employee lacks VIP_Trained certification required for Priority Customers."),
         [DelegationLoop] = ("Lỗi cấu hình: Lộ trình ủy quyền không hợp lệ. Nghiêm cấm tạo vòng lặp ủy quyền.", "Validation Error: Invalid delegation path. Circular delegation loops are not permitted."),

@@ -237,7 +237,7 @@ public sealed class WorkServiceTests
     }
 
     [Fact]
-    public async Task CreateWorkAsync_WithCampaign_DueDateExceedsCampaign_ThrowsBusinessRuleException()
+    public async Task CreateWorkAsync_WithCampaign_DueDateExceedsCampaign_ThrowsValidationException()
     {
         var (context, _, service) = CreateTestEnvironment();
         using (context)
@@ -290,8 +290,59 @@ public sealed class WorkServiceTests
                 PlannedStartDate: new DateOnly(2026, 10, 10),
                 PlannedEndDate: new DateOnly(2026, 10, 25)); // Exceeds 2026-10-20
 
-            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
-            Assert.Equal(ErrorCodes.WorkDeadlineExceedsCampaign, ex.ErrorCode);
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+            Assert.Contains("vượt quá ngày kết thúc chiến dịch", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkAsync_WithInactiveCampaign_ThrowsConflict()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var workType = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "WT-CMP-3",
+                Name = "Campaign Task Type 3",
+                Status = RecordStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var employee = new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "EMP006",
+                FullName = "Hoang F",
+                Email = "f.hoang@bank.com",
+                Status = EmployeeStatus.Active,
+            };
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                Code = "CMP-CLOSED",
+                Name = "Chien dich da dong",
+                Status = BusinessCampaignStatus.Completed,
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 9, 30),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            await context.WorkTypes.AddAsync(workType);
+            await context.Employees.AddAsync(employee);
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CreateWorkRequestDto(
+                Title: "Cong viec cho chien dich da dong",
+                WorkTypeId: workType.Id,
+                AssigneeEmployeeId: employee.Id,
+                BusinessCampaignId: campaign.Id);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() => service.CreateWorkAsync(request, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
         }
     }
 

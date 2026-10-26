@@ -136,13 +136,13 @@ Response Body:
     "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
   }
   ```
-- **400 Bad Request (`CAMPAIGN_NOT_ACTIVE`)**:
+- **409 Conflict (`CONFLICT`)**:
   ```json
   {
     "success": false,
-    "status": 400,
-    "title": "CAMPAIGN_NOT_ACTIVE",
-    "errorCode": "CAMPAIGN_NOT_ACTIVE",
+    "status": 409,
+    "title": "CONFLICT",
+    "errorCode": "CONFLICT",
     "message": "Chiến dịch được gắn không trong trạng thái hoạt động.",
     "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
   }
@@ -369,8 +369,8 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 | 400 | `VALIDATION_ERROR` | `InvalidModelState` (ASP.NET Core Model Binding / DataAnnotations) | `Title` thiếu hoặc độ dài ngoài 5-255; `EstimatedHours` ngoài 0-9999.99; `Description` vượt 2000; lỗi parse kiểu dữ liệu JSON | `field: message` (Ví dụ: `"Title: The field Title must be a string with a minimum length of 5 and a maximum length of 255."`) |
 | 400 | `VALIDATION_ERROR` | `ValidationException` (`WorkService`) | `Title` rỗng sau khi trim hoặc ngoài 5-255; `PlannedEndDate` &lt; `PlannedStartDate`; `EstimatedHours` &lt; 0; `WorkTypeId` không tồn tại hoặc không Active; `AssigneeEmployeeId` không tồn tại hoặc không Active | Message chi tiết tương ứng từ service (ví dụ: `"Loại công việc không tồn tại hoặc đã bị vô hiệu hóa."`, `"Nhân viên được phân công không tồn tại hoặc không ở trạng thái hoạt động."`) |
 | 400 | `VALIDATION_ERROR` | `BusinessRuleException` (`WorkService`) | Gắn chiến dịch nhưng nhân viên được giao việc chưa là Participant trong chiến dịch | `"Nhân viên được giao việc chưa được đăng ký tham gia (Participant) trong chiến dịch này."` |
-| 400 | `CAMPAIGN_NOT_ACTIVE` | `BusinessRuleException` (`WorkService`) | Chiến dịch không ở trạng thái `Running` hoặc `Planned` | `"Chiến dịch được gắn không trong trạng thái hoạt động."` |
-| 400 | `WORK_DEADLINE_EXCEEDS_CAMPAIGN` | `BusinessRuleException` (`WorkService`) | `PlannedEndDate` vượt quá `EndDate` của chiến dịch | `"Hạn hoàn thành công việc (...) vượt quá ngày kết thúc chiến dịch (...)."` |
+| 409 | `CONFLICT` | `ConflictException` (`WorkService`) | Chiến dịch không ở trạng thái `Running` hoặc `Planned` | `"Chiến dịch được gắn không trong trạng thái hoạt động."` |
+| 400 | `VALIDATION_ERROR` | `ValidationException` (`WorkService`) | `PlannedEndDate` vượt quá `EndDate` của chiến dịch | `"Hạn hoàn thành công việc (...) vượt quá ngày kết thúc chiến dịch (...)."` |
 | 401 | `UNAUTHORIZED` | JwtBearer `OnChallenge` (`Program.cs`) | Thiếu header `Authorization`, token sai định dạng, token hết hạn hoặc token đã bị thu hồi | `"Phiên làm việc không hợp lệ hoặc đã hết hạn."` |
 | 403 | `FORBIDDEN` | JwtBearer `OnForbidden` (`Program.cs`) | Người dùng không có quyền truy cập endpoint | `"Bạn không có quyền thực hiện thao tác này."` *(Hiện tại controller chỉ có `[Authorize]`, chưa có policy/permission nên thực tế không xuất hiện trong luồng chuẩn).* |
 | 404 | `NOT_FOUND` | `NotFoundException` (`WorkService`) | **POST /works**: `businessCampaignId` truyền lên không tồn tại trong hệ thống | `"Chiến dịch với khóa '{id}' không tồn tại."` |
@@ -388,7 +388,7 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 4. **`checklistItems` chưa được lưu trữ**: Trường `checklistItems` có mặt trong request DTO nhưng service hiện tại chưa xử lý lưu vào cơ sở dữ liệu (bị bỏ qua).
 5. **Ràng buộc `[Required]` với `Guid.Empty`**: Thuộc tính `[Required]` của DataAnnotations coi `Guid.Empty` (`00000000-0000-0000-0000-000000000000`) là giá trị hợp lệ. Tuy nhiên khi vào service, câu truy vấn tìm kiếm theo `Guid.Empty` sẽ không tìm thấy bản ghi và ném ra lỗi 400 (`VALIDATION_ERROR`).
 6. **Không tìm thấy WorkType hoặc Assignee trả 400, không phải 404**: Khác với chiến dịch (`businessCampaignId` không tồn tại trả 404), khi `workTypeId` hoặc `assigneeEmployeeId` không tồn tại (hoặc không ở trạng thái Active), service ném `ValidationException` dẫn tới mã HTTP trả về là **400** (`VALIDATION_ERROR`).
-7. **Hai mã lỗi riêng cho chiến dịch**: `CAMPAIGN_NOT_ACTIVE` dành cho chiến dịch không hoạt động, `WORK_DEADLINE_EXCEEDS_CAMPAIGN` dành cho hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch (trước đây cả hai dùng chung `MSG18`).
+7. **Lỗi gắn chiến dịch dùng mã chung**: chiến dịch không ở trạng thái `Running`/`Planned` trả 409 `CONFLICT`; hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch trả 400 `VALIDATION_ERROR`. Client phân biệt qua `message`, không qua `errorCode` (trước đây cả hai dùng chung `MSG18`).
 
 ---
 
