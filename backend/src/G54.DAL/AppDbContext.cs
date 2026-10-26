@@ -1372,6 +1372,10 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
 
+            entity.HasIndex(e => e.WorkId, "ux_task_handover_pending_work")
+                .IsUnique()
+                .HasFilter("(status = 'PENDING'::handover_status)");
+
             entity.HasIndex(e => e.ApprovedBy, "ix_task_handover_approved_by");
 
             entity.Property(e => e.Id)
@@ -1387,6 +1391,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ReferrerSharePercent)
                 .HasPrecision(7, 4)
                 .HasDefaultValue(TaskHandover.DefaultReferrerSharePercent)
+                // 0 is a valid share (recipient gets 100%): without a sentinel EF treats the CLR default 0 as "unset"
+                // and lets the column default (30) apply instead.
+                .HasSentinel(-1m)
                 .HasColumnName("referrer_share_percent");
             entity.Property(e => e.ToEmployeeId).HasColumnName("to_employee_id");
             entity.Property(e => e.UpdatedAt)
