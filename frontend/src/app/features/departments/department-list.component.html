@@ -1,0 +1,144 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && departments().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="master-detail-container" [class.has-detail]="selectedDepartment() !== null">
+        <section class="master-panel">
+          <div class="page-heading">
+            <p class="breadcrumb">{{localization.department.listBreadcrumb}}</p>
+            <div class="title-line">
+              <h1>{{localization.department.listTitle}}</h1>
+              <span class="read-only-badge">{{localization.department.readOnlyBadge}}</span>
+            </div>
+          </div>
+
+          <div class="sync-banner" role="status">
+            <span>{{syncText()}}</span>
+          </div>
+
+          <div class="filter-toolbar">
+            <div class="search-box">
+              <app-layout-icon class="search-icon" name="search" />
+              <input
+                type="search"
+                class="input search-input"
+                [(ngModel)]="keyword"
+                (ngModelChange)="refresh()"
+                [placeholder]="localization.department.searchPlaceholder"
+                [attr.aria-label]="localization.department.searchPlaceholder"
+              />
+            </div>
+            <div class="status-box">
+              <select
+                class="select status-select"
+                [(ngModel)]="status"
+                (ngModelChange)="refresh()"
+                [attr.aria-label]="localization.department.statusAll"
+              >
+                <option value="">{{localization.department.statusAll}}</option>
+                @for (option of statuses; track option) {
+                  <option [value]="option">
+                    {{option === 'ACTIVE'
+                        ? localization.department.statusActive
+                        : localization.department.statusInactive}}
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+
+          @if (loading() && departments().length === 0 && !failed()) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+              <p>{{localization.department.loading}}</p>
+            </div>
+          } @else if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.department.loadError}}</p>
+              <button type="button" class="button button-secondary" (click)="refresh(false)">
+                {{localization.department.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="table-card">
+              <div class="table-wrap">
+                <table class="department-table">
+                  <thead>
+                    <tr>
+                      <th class="col-code" scope="col">{{localization.department.colCode}}</th>
+                      <th class="col-name" scope="col">{{localization.department.colName}}</th>
+                      <th class="col-manager" scope="col">
+                        {{localization.department.colManager}}
+                      </th>
+                      <th class="col-num" scope="col">{{localization.department.colGdv}}</th>
+                      <th class="col-num" scope="col">{{localization.department.colCvbh}}</th>
+                      <th class="col-num" scope="col">{{localization.department.colTotal}}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (dept of departments(); track dept.id) {
+                      <tr
+                        class="department-row"
+                        [class.is-selected]="selectedDepartmentId() === dept.id"
+                        [attr.aria-selected]="selectedDepartmentId() === dept.id"
+                        (click)="selectDepartment(dept)"
+                        tabindex="0"
+                        (keydown.enter)="selectDepartment(dept)"
+                        (keydown.space)="selectDepartment(dept); $event.preventDefault()"
+                      >
+                        <td class="col-code">
+                          <span class="code-badge">{{dept.code}}</span>
+                        </td>
+                        <td class="col-name font-medium">{{dept.name}}</td>
+                        <td class="col-manager">
+                          {{dept.managerName ?? localization.department.notAvailable}}
+                        </td>
+                        <td class="col-num">{{number(dept.tellerCount)}}</td>
+                        <td class="col-num">{{number(dept.salesCount)}}</td>
+                        <td class="col-num font-bold">{{number(dept.employeeCount)}}</td>
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td colspan="6" class="empty-cell">
+                          {{keyword || status
+                              ? localization.department.noMatches
+                              : localization.department.noDepartments}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <footer class="table-footer">
+                <span class="pagination-info">{{paginationText()}}</span>
+                <div class="pagination-controls">
+                  @for (p of pages(); track p) {
+                    <button
+                      type="button"
+                      class="page-number-btn"
+                      [class.is-active]="p === page"
+                      (click)="goToPage(p)"
+                    >
+                      {{p}}
+                    </button>
+                  }
+                </div>
+              </footer>
+            </div>
+          }
+        </section>
+
+        @if (selectedDepartment(); as selected) {
+          <div class="detail-slot">
+            <app-department-detail-drawer [department]="selected" (closeDrawer)="closeDrawer()" />
+          </div>
+        }
+      </div>
+    </main>
+  </div>
+</div>
