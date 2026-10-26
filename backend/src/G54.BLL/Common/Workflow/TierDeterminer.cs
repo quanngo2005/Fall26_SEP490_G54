@@ -1,6 +1,6 @@
 using G54.DAL.Entities;
 
-namespace G54.BLL.Services;
+namespace G54.BLL.Common.Workflow;
 
 /// <summary>The downgrade settings read from the database: tiers best first, and the downgrade.</summary>
 public sealed record DowngradeConfiguration(
@@ -12,7 +12,7 @@ public sealed record DowngradeConfiguration(
 /// Decides a tier. Holds no figure of its own: thresholds, the downgrade severity and the downgrade cap tier all
 /// come from <see cref="DowngradeConfiguration"/>.
 /// </summary>
-public static class DowngradeRules
+public static class TierDeterminer
 {
     /// <summary>
     /// The tier a total score reaches, never above the downgrade cap tier when the employee has a risk event of at least the

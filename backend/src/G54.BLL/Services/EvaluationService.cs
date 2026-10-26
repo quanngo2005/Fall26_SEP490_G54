@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -255,7 +256,7 @@ public sealed partial class EvaluationService(
         }
 
         var totalCalculated = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = DowngradeRules.DetermineTier(
+        var proposedTier = TierDeterminer.DetermineTier(
             totalCalculated, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 
         var employeeDto = new EvaluationEmployeeDto(
@@ -448,7 +449,7 @@ public sealed partial class EvaluationService(
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
         var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = DowngradeRules.DetermineTier(
+        var proposedTier = TierDeterminer.DetermineTier(
             finalScore, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 
         var existingEvaluation = await db.PerformanceEvaluations
@@ -568,7 +569,7 @@ public sealed partial class EvaluationService(
             var status = pe != null ? pe.Status.ToString().ToUpperInvariant() : "NOT_STARTED";
             risksByEmployee.TryGetValue(emp.Id, out var empRisks);
             var tier = pe?.TotalScore != null
-                ? DowngradeRules.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
+                ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                 : null;
 
             return new DepartmentEmployeeEvaluationSummaryDto(
@@ -685,7 +686,7 @@ public sealed partial class EvaluationService(
             var (businessScore, serviceQualityScore, operationsScore, qualitativeScore, totalScore) =
                 ComputeEmployeeScores(emp, profilesByPosition.GetValueOrDefault(emp.JobPositionId), empTargets, empActuals, empRisks, pe);
 
-            var proposedTier = DowngradeRules.DetermineTier(totalScore, empRisks, downgradeConfiguration);
+            var proposedTier = TierDeterminer.DetermineTier(totalScore, empRisks, downgradeConfiguration);
             var calibratedTier = calibData?.CalibratedTier ?? proposedTier;
             var isAdjusted = !string.Equals(calibratedTier, proposedTier, StringComparison.OrdinalIgnoreCase);
             var coachingFlag = calibData?.CoachingFlag ?? (!string.IsNullOrWhiteSpace(coachingPlan) || proposedTier is "C" or "D");
@@ -1037,7 +1038,7 @@ public sealed partial class EvaluationService(
                 risksByEmployee.TryGetValue(pe.EmployeeId, out var empRisks);
                 var tier = calib?.CalibratedTier
                     ?? (pe.TotalScore.HasValue
-                        ? DowngradeRules.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
+                        ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                         : "B");
                 if (tier is "A1" or "A2" or "A3") tierA++;
                 else if (tier == "B") tierB++;
