@@ -41,7 +41,7 @@ public sealed class HandoverEscalationBackgroundServiceTests
     [Fact]
     public async Task Execute_SweepsImmediatelyWithTheConfiguredSla()
     {
-        var escalation = new RecordingEscalation { Result = 3 };
+        var escalation = new RecordingEscalation();
         using var service = Create(escalation, ("HandoverEscalation:SlaHours", "6"), ("HandoverEscalation:IntervalMinutes", "15"));
 
         await RunFirstSweepAsync(service, escalation);
@@ -87,8 +87,6 @@ public sealed class HandoverEscalationBackgroundServiceTests
     {
         public List<TimeSpan> Slas { get; } = [];
 
-        public int Result { get; set; }
-
         public Exception? Failure { get; set; }
 
         public TaskCompletionSource FirstSweep { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -97,7 +95,7 @@ public sealed class HandoverEscalationBackgroundServiceTests
         {
             Slas.Add(sla);
             FirstSweep.TrySetResult();
-            return Failure is null ? Task.FromResult(Result) : throw Failure;
+            return Failure is null ? Task.FromResult(0) : throw Failure;
         }
     }
 }

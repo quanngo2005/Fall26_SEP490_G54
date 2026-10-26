@@ -50,7 +50,7 @@ public sealed class HandoverEscalationBackgroundService(
         }
     }
 
-    internal async Task SweepAsync(TimeSpan sla, CancellationToken cancellationToken)
+    private async Task SweepAsync(TimeSpan sla, CancellationToken cancellationToken)
     {
         try
         {

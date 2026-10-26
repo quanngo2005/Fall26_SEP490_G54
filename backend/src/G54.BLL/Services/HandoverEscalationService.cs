@@ -26,11 +26,7 @@ public sealed class HandoverEscalationService(AppDbContext db, TimeProvider time
             handover.UpdatedAt = now;
         }
 
-        if (overdue.Count > 0)
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-
+        await db.SaveChangesAsync(cancellationToken);
         return overdue.Count;
     }
 }
