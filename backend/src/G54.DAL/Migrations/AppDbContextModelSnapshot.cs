@@ -1331,6 +1331,82 @@ namespace G54.DAL.Migrations
                     b.ToTable("permission", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<decimal>("MinScore")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasColumnName("min_score");
+
+                    b.Property<int>("RankOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank_order");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_tier_threshold_pkey");
+
+                    b.HasIndex(new[] { "TierCode" }, "uq_ranking_tier_threshold_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "RankOrder" }, "uq_ranking_tier_threshold_order")
+                        .IsUnique();
+
+                    b.ToTable("ranking_tier_threshold", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_min_score", "min_score >= 0 AND min_score <= 100");
+
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_rank_order", "rank_order >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.RankingVetoSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("CapTierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cap_tier_code");
+
+                    b.Property<int>("TriggerSeverity")
+                        .HasColumnType("risk_event_severity")
+                        .HasColumnName("trigger_severity");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_veto_setting_pkey");
+
+                    b.ToTable("ranking_veto_setting", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
                 {
                     b.Property<Guid>("Id")

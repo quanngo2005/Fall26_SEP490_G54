@@ -20,8 +20,11 @@ public sealed class EvaluationScopeTests
     private static AppDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
-    private static EvaluationService CreateService(AppDbContext context, params UserPermissionDto[] grants) =>
-        new(context, NullLogger<EvaluationService>.Instance, new FakePermissionService(null, grants));
+    private static EvaluationService CreateService(AppDbContext context, params UserPermissionDto[] grants)
+    {
+        RankingTestData.Seed(context);
+        return new(context, NullLogger<EvaluationService>.Instance, new FakePermissionService(null, grants));
+    }
 
     private static UserPermissionDto Grant(string action, string scope) => new("evaluation", action, scope, "EVALUATION_" + action.ToUpperInvariant());
 
