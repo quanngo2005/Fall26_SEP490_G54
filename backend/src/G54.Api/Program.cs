@@ -49,6 +49,7 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
+builder.Services.Configure<G54.BLL.Common.SystemParametersOptions>(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName));
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));

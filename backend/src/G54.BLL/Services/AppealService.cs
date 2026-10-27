@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -8,6 +9,7 @@ using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -16,15 +18,14 @@ public sealed class AppealService(
     IPermissionService permissions,
     IStorageService storage,
     ILogger<AppealService> logger,
-    TimeProvider time) : IAppealService
+    TimeProvider time,
+    IOptions<SystemParametersOptions> parameters) : IAppealService
 {
     private const int MaxReasonLength = 2000;
     private const int MaxFileCount = 10;
     private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
     private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
-
-    private static readonly TimeSpan AppealWindow = TimeSpan.FromHours(48);
 
     private static readonly Action<ILogger, Guid, Guid, Guid, Exception?> LogAppealFiled =
         LoggerMessage.Define<Guid, Guid, Guid>(
@@ -86,7 +87,9 @@ public sealed class AppealService(
             .Where(v => v.Decision == VerificationDecision.Rejected)
             .Max(v => v.VerifiedAt)
             ?? submission.UpdatedAt;
-        if (now - rejectedAt > AppealWindow)
+        var appealWindowHours = parameters.Value.AppealRejectedHours;
+        var appealWindow = TimeSpan.FromHours(appealWindowHours);
+        if (now - rejectedAt > appealWindow)
         {
             throw new BusinessRuleException(
                 ErrorCodes.AppealWindowExpired,
