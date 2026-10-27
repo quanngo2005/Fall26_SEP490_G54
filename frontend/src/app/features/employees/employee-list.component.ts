@@ -15,7 +15,7 @@ import { PagedResult } from '../../core/paged-result.model';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { EmployeeDetailDrawerComponent } from './employee-detail-drawer.component';
-import { EmployeeListItem } from './employee-management.models';
+import { EmployeeListItem } from '../../core/employee-management.models';
 
 @Component({
   selector: 'app-employee-list',

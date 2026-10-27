@@ -6,7 +6,7 @@ import { of, throwError } from 'rxjs';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { EmployeeService } from '../../core/employee.service';
 import { EmployeeDetail } from '../../core/employee.models';
-import { EmployeeListItem } from './employee-management.models';
+import { EmployeeListItem } from '../../core/employee-management.models';
 import { EmployeeListComponent } from './employee-list.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';

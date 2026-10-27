@@ -1,6 +1,6 @@
 import { Component, input, output } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { EmployeeListItem } from './employee-management.models';
+import { EmployeeListItem } from '../../core/employee-management.models';
 
 @Component({
   selector: 'app-employee-detail-drawer',

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { EmployeeDetailDrawerComponent } from './employee-detail-drawer.component';
-import { EmployeeListItem } from './employee-management.models';
+import { EmployeeListItem } from '../../core/employee-management.models';
 
 const MOCK_EMPLOYEE: EmployeeListItem = {
   id: 'emp-0012',

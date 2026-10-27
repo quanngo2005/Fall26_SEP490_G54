@@ -75,7 +75,6 @@ export const routes: Routes = [
   },
   {
     path: 'employee-detail',
-    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -84,7 +83,6 @@ export const routes: Routes = [
   },
   {
     path: 'employee-detail/:code',
-    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -93,7 +91,6 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail',
-    canActivate: [authGuard],
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(
@@ -102,7 +99,6 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail/:id',
-    canActivate: [authGuard],
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(
@@ -111,7 +107,6 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify',
-    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
@@ -120,7 +115,6 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify/:submissionId',
-    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
