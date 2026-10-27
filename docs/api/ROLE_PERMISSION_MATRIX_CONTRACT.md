@@ -59,3 +59,22 @@ Only changed cells are sent. `scope: null` revokes. Returns the updated `RolePer
 | 403 | `FORBIDDEN` | Caller not SYSTEM_ADMIN, or a locked cell was changed |
 | 404 | `ROLE_NOT_FOUND` | Unknown `roleId` |
 | 409 | `VERSION_CONFLICT` | `version` is stale; the FE asks the user to reload |
+
+## Role list (SCR-ADM-03)
+
+Status: **proposed** — consumed by `features/role-permissions/role-list.component.ts`.
+
+`GET /roles` returns `RoleSummary[]`, a superset of `RoleOption` (the matrix selector ignores the extra fields):
+
+```jsonc
+{ "id": "uuid", "code": "TELLER", "name": "Giao dịch viên", "isSystem": true,
+  "description": null, "accountCount": 14, "status": "Active" } // status: Active | Inactive
+```
+
+`GET /roles/{roleId}/accounts` returns the accounts holding the role:
+
+```jsonc
+[{ "id": "uuid", "employeeCode": "NV001", "fullName": "Nguyễn Văn A", "departmentName": "Phòng GD 1" }]
+```
+
+The drawer's Permissions tab reuses `GET /roles/{roleId}/permission-matrix` and shows granted cells only. The History tab waits for a role audit endpoint.

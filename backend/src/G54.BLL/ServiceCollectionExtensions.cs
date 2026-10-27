@@ -40,6 +40,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
+        services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
+        services.AddHostedService<HandoverEscalationBackgroundService>();
         return services;
     }
 }

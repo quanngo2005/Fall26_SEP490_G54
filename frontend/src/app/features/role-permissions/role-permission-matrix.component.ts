@@ -2,6 +2,7 @@ import { Component, computed, DestroyRef, HostListener, inject, signal } from '@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ActivatedRoute } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   PERMISSION_ACTIONS,
@@ -39,6 +40,7 @@ const NOTICE_MS = 5000;
 export class RolePermissionMatrixComponent extends LocalizedComponent {
   private readonly api = inject(RolePermissionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly actions = PERMISSION_ACTIONS;
@@ -99,7 +101,9 @@ export class RolePermissionMatrixComponent extends LocalizedComponent {
       .subscribe({
         next: (roles) => {
           this.roles.set(roles);
-          if (roles.length) this.loadMatrix(roles[0].id);
+          const requested = this.route.snapshot.queryParamMap.get('roleId');
+          const initial = roles.find((role) => role.id === requested) ?? roles[0];
+          if (initial) this.loadMatrix(initial.id);
           else this.loading.set(false);
         },
         error: () => {

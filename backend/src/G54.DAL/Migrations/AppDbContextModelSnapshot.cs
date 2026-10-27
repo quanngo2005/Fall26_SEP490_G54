@@ -1816,6 +1816,14 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approved_by");
 
+                    b.Property<DateTimeOffset?>("EscalatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("escalated_at");
+
+                    b.Property<Guid?>("EscalatedToEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("escalated_to_employee_id");
+
                     b.Property<Guid>("FromEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("from_employee_id");
@@ -1865,6 +1873,8 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "ApprovedBy" }, "ix_task_handover_approved_by");
 
+                    b.HasIndex(new[] { "EscalatedToEmployeeId" }, "ix_task_handover_escalated_to");
+
                     b.HasIndex(new[] { "WorkId" }, "ix_task_handover_work");
 
                     b.HasIndex(new[] { "WorkId" }, "ux_task_handover_pending_work")
@@ -1876,6 +1886,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
 
                             t.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
+
+                            t.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
 
                             t.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
                         });
@@ -2798,6 +2810,12 @@ namespace G54.DAL.Migrations
                         .HasForeignKey("ApprovedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_task_handover_approved_by");
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EscalatedToEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_task_handover_escalated_to");
 
                     b.HasOne("G54.DAL.Entities.Employee", "FromEmployee")
                         .WithMany("TaskHandoverFromEmployees")
