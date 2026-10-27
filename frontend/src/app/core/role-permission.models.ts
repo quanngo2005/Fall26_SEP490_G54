@@ -60,3 +60,19 @@ export interface RolePermissionMatrixSavePayload {
   version: number;
   changes: PermissionChange[];
 }
+
+/** Role list row (SCR-ADM-03). `GET /roles` returns these; extra fields are optional for the selector. */
+export type RoleStatus = 'Active' | 'Inactive';
+
+export interface RoleSummary extends RoleOption {
+  description?: string | null;
+  accountCount: number;
+  status: RoleStatus;
+}
+
+export interface RoleAccount {
+  id: string;
+  employeeCode: string;
+  fullName: string;
+  departmentName?: string | null;
+}

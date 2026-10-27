@@ -37,6 +37,21 @@ Load the matching skill before working:
 - Critical and High security findings block completion; fix them before finishing.
 - Run the applicable code-review script before declaring work complete.
 - Do not edit generated reports manually or weaken review scripts to make them pass.
+
+## After Every Code Change
+
+Run these automatically, without waiting to be asked, before reporting the task as done. They are the same scripts CI runs (`.github/workflows/*-ci.yml`), so a local pass means CI will pass.
+
+1. **Run CI locally** for each side you touched:
+   - `frontend/**` changed → `./scripts/codereview-frontend.ps1`
+   - `backend/**` changed → `./scripts/codereview-backend.ps1`
+   - Both changed → run both.
+2. **Fix and rerun** until the generated report (`docs/codereview/reports/FRONTEND_REPORT.md` / `BACKEND_REPORT.md`) ends with `## ALL CHECKS PASSED`. Fix the code; never weaken a check.
+3. **Code review**: load the `code-review` skill (plus `security-review`), walk the `[manual]` items for the changed files, and report findings with `file:line`, severity, risk, and fix. Critical/High findings block completion.
+4. **If a PR exists**, check its CI after pushing (`gh run list --branch <branch>`; `gh run view <id> --log-failed` on failure) and fix any failing job the same way.
+5. Report what passed, what was fixed, and anything not verified (e.g. no running API, UI not checked at all widths).
+
+If a script cannot run in your environment (missing PowerShell, execution policy, sandbox), say so, run its gates directly (frontend: `npx eslint .`, `npx prettier --list-different .`, `npm test -- --watch=false --code-coverage`, `npx ng build`; backend: `dotnet build`, `dotnet test`), and state that the report was not generated.
 - For every frontend UI change, load `frontend-feature`, follow its Localization section, and use typed `{{localization.section.key}}` template bindings with no padding inside braces. Localize labels, placeholders, accessibility text, validation messages, toasts, and confirmation dialogs in both Vietnamese and English.
 - Keep translation dictionaries under `translations.vi` and `translations.en`; `formats` contains formatting configuration only. Verify identical key sets and live language switching; do not hide malformed dictionaries with casts or merges from `formats`.
 
