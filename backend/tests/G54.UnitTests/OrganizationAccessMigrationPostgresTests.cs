@@ -67,7 +67,7 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
     : IClassFixture<OrganizationAccessDatabaseFixture>, IAsyncLifetime
 {
     private const string Migration = "20261027120000_SeedOrganizationReadAccess";
-    private const string PreviousMigration = "20261027090000_SeedHandoverCreateAccess";
+    private const string PreviousMigration = "20261027110000_SeedHandoverManageAccess";
 
     private ServiceProvider _provider = null!;
     private string _connectionString = null!;
