@@ -1,0 +1,177 @@
+<section
+  class="detail-panel detail-drawer"
+  [attr.aria-label]="localization.jobPositions.drawerTitle"
+  [attr.aria-busy]="loading()"
+>
+  <header class="panel-header">
+    <div class="title-row">
+      <div class="title-badge-wrap">
+        <span class="code-badge">{{detail()?.code}}</span>
+        <h2 class="panel-title drawer-title">{{detail()?.title}}</h2>
+        <span class="status-badge" [class.is-muted]="detail()?.status !== 'ACTIVE'">
+          {{detail()?.status === 'ACTIVE'
+              ? localization.jobPositions.statusActive
+              : localization.jobPositions.statusInactive}}
+        </span>
+      </div>
+      <button
+        type="button"
+        class="close-btn"
+        (click)="closeDrawer.emit()"
+        [attr.aria-label]="localization.common.close"
+      >
+        <span aria-hidden="true">✕</span>
+        <span class="close-btn-text">{{localization.common.close}}</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="panel-body">
+    @if (failed()) {
+      <div class="state-card state-error" role="alert">
+        <p>{{localization.jobPositions.error}}</p>
+        <button type="button" class="button button-secondary" (click)="loadDetail(positionId())">
+          {{localization.jobPositions.retry}}
+        </button>
+      </div>
+    } @else if (loading()) {
+      <div class="state-card" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>{{localization.jobPositions.loading}}</p>
+      </div>
+    } @else if (detail(); as data) {
+      <div class="panel-grid">
+        <!-- Box 1: Thông tin chung (Row 1, Col 1) -->
+        <div class="section-card card-general">
+          <h3 class="section-heading">{{localization.jobPositions.sectionGeneral}}</h3>
+          <p class="position-desc">
+            {{data.description || localization.department.notAvailable}}
+          </p>
+          <div class="general-stats-grid">
+            <div class="stat-card">
+              <span class="stat-label">{{localization.jobPositions.colEmployeeCount}}</span>
+              <strong class="stat-value">{{number(data.employeeCount)}}</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">{{localization.jobPositions.colWorkTypes}}</span>
+              <strong class="stat-value text-blue">{{data.workTypes.length}}</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Box 2: Danh sách Loại việc (Row 1, Col 2) -->
+        <div class="section-card card-worktypes">
+          <h3 class="section-heading">{{localization.jobPositions.sectionWorkTypes}}</h3>
+          @if (data.workTypes && data.workTypes.length > 0) {
+            <div class="table-wrap work-types-table-wrap">
+              <table class="mini-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.jobPositions.colWorkTypeCode}}</th>
+                    <th scope="col">{{localization.jobPositions.colWorkTypeName}}</th>
+                    <th class="col-num" scope="col">
+                      {{localization.jobPositions.colWorkTypeKpiCount}}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (wt of data.workTypes; track wt.id) {
+                    <tr>
+                      <td>
+                        <span class="code-pill">{{wt.code}}</span>
+                      </td>
+                      <td class="cell-title">{{wt.name}}</td>
+                      <td class="col-num font-bold text-blue">{{wt.kpiCount}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="muted-text">{{localization.jobPositions.emptyList}}</p>
+          }
+        </div>
+
+        <!-- Box 3: Bộ tiêu chí đánh giá đang áp dụng (Row 2, Col 1) -->
+        <div class="section-card card-criteria">
+          <h3 class="section-heading">{{localization.jobPositions.sectionCriteria}}</h3>
+          @if (data.evaluationProfile; as profile) {
+            <div class="criteria-card">
+              <div class="criteria-header">
+                <span class="criteria-name">{{profile.name}}</span>
+                <span class="criteria-date">
+                  {{localization.jobPositions.effectiveDate}}:
+                  {{formatEffectiveDate(profile.effectiveFrom)}}
+                </span>
+              </div>
+              @if (profile.items && profile.items.length > 0) {
+                <div class="table-wrap">
+                  <table class="mini-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">{{localization.jobPositions.colGroupCode}}</th>
+                        <th scope="col">{{localization.jobPositions.colGroupName}}</th>
+                        <th class="col-num" scope="col">
+                          {{localization.jobPositions.colWeight}}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (item of profile.items; track item.id) {
+                        <tr>
+                          <td>
+                            <span class="code-pill">{{item.groupCode}}</span>
+                          </td>
+                          <td class="cell-title">{{item.groupName}}</td>
+                          <td class="col-num font-bold">{{item.weightPercent}}%</td>
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="2" class="total-label">
+                          {{localization.jobPositions.totalWeight}}
+                        </td>
+                        <td class="col-num font-bold text-dark total-val">
+                          {{profile.totalWeightPercent}}%
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              }
+            </div>
+          } @else {
+            <p class="muted-text">{{localization.jobPositions.emptyList}}</p>
+          }
+        </div>
+
+        <!-- Box 4: Danh sách KPI Item (Row 2, Col 2) -->
+        <div class="section-card card-kpis">
+          <h3 class="section-heading">{{localization.jobPositions.sectionKpis}}</h3>
+          @if (data.workTypes && data.workTypes.length > 0) {
+            <div class="kpi-items-scroll">
+              @for (wt of data.workTypes; track wt.id) {
+                @for (k of wt.kpis; track k.id) {
+                  <div class="kpi-item-row">
+                    <div class="kpi-main">
+                      <span class="kpi-name">{{k.name}}</span>
+                      <span class="kpi-meta">{{k.code}} · {{k.unit}}</span>
+                    </div>
+                    <span class="kpi-req-badge" [class.is-req]="k.isRequired">
+                      {{k.isRequired
+                          ? localization.jobPositions.required
+                          : localization.jobPositions.optional}}
+                    </span>
+                  </div>
+                }
+              }
+            </div>
+          } @else {
+            <p class="muted-text">{{localization.jobPositions.emptyList}}</p>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</section>

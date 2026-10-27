@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISystemParameterReader, SystemParameterReader>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IJobPositionService, JobPositionService>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();

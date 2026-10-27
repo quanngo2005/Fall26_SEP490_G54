@@ -1,0 +1,127 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && positions().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="job-positions-container">
+        <section class="master-panel">
+          <div class="page-heading">
+            <p class="breadcrumb">
+              {{localization.jobPositions.breadcrumbHome}} /
+              {{localization.jobPositions.breadcrumbOrg}} /
+              {{localization.jobPositions.breadcrumbCurrent}}
+            </p>
+            <div class="title-line">
+              <h1>{{localization.jobPositions.title}}</h1>
+              <span class="read-only-badge">{{localization.jobPositions.readOnlyBadge}}</span>
+            </div>
+          </div>
+
+          <div class="sync-banner" role="status">
+            <span>{{syncText()}}</span>
+          </div>
+
+          @if (loading() && positions().length === 0 && !failed()) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+              <p>{{localization.jobPositions.loading}}</p>
+            </div>
+          } @else if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.jobPositions.error}}</p>
+              <button type="button" class="button button-secondary" (click)="refresh()">
+                {{localization.department.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="table-card">
+              <div class="table-wrap">
+                <table class="job-position-table">
+                  <thead>
+                    <tr>
+                      <th class="col-code" scope="col">{{localization.jobPositions.colCode}}</th>
+                      <th class="col-title" scope="col">
+                        {{localization.jobPositions.colTitle}}
+                      </th>
+                      <th class="col-desc" scope="col">
+                        {{localization.jobPositions.colDescription}}
+                      </th>
+                      <th class="col-num" scope="col">
+                        {{localization.jobPositions.colEmployeeCount}}
+                      </th>
+                      <th class="col-profile" scope="col">
+                        {{localization.jobPositions.colEvaluationProfile}}
+                      </th>
+                      <th class="col-num" scope="col">
+                        {{localization.jobPositions.colWorkTypes}}
+                      </th>
+                      <th class="col-kpis" scope="col">
+                        {{localization.jobPositions.colKpiItems}}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (pos of positions(); track pos.id) {
+                      <tr
+                        class="position-row"
+                        [class.is-selected]="selectedPositionId() === pos.id"
+                        [attr.aria-selected]="selectedPositionId() === pos.id"
+                        (click)="selectPosition(pos)"
+                        tabindex="0"
+                        (keydown.enter)="selectPosition(pos)"
+                        (keydown.space)="selectPosition(pos); $event.preventDefault()"
+                      >
+                        <td class="col-code font-bold">{{pos.code}}</td>
+                        <td class="col-title">{{pos.title}}</td>
+                        <td class="col-desc">
+                          {{pos.description ?? localization.department.notAvailable}}
+                        </td>
+                        <td class="col-num">{{number(pos.employeeCount)}}</td>
+                        <td class="col-profile">
+                          <span class="link-text">{{pos.evaluationProfileName ?? localization.department.notAvailable}}</span>
+                        </td>
+                        <td class="col-num">
+                          <span class="work-type-num">{{number(pos.workTypeCount)}}</span>
+                        </td>
+                        <td class="col-kpis">
+                          @for (k of pos.kpiItems; track k) {
+                            <span class="kpi-pill">{{k}}</span>
+                          }
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td colspan="7" class="empty-cell">
+                          {{localization.jobPositions.emptyList}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Detail panel replacing Callout Card when a row is selected -->
+            @if (selectedPosition(); as selected) {
+              <div class="detail-slot">
+                <app-job-position-detail-drawer
+                  [positionId]="selected.id"
+                  (closeDrawer)="closeDrawer()"
+                />
+              </div>
+            } @else {
+              <!-- Callout Card below table matching mockup when no row is selected -->
+              <div class="callout-card">
+                <h4 class="callout-title">{{localization.jobPositions.calloutTitle}}</h4>
+                <p class="callout-desc">{{localization.jobPositions.calloutDescription}}</p>
+              </div>
+            }
+          }
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
