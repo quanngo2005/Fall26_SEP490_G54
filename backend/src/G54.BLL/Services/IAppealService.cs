@@ -6,6 +6,13 @@ namespace G54.BLL.Services;
 /// <summary>Appeals against rejected result submissions. Contract: docs/api/APPEAL_CONTRACT.md.</summary>
 public interface IAppealService
 {
+    /// <summary>Resolves an appeal; ACCEPT approves the submission, ADJUST requests revision, REJECT keeps it rejected.</summary>
+    Task<AppealDecisionResultDto> DecideAppealAsync(
+        Guid appealId,
+        Guid userId,
+        DecideAppealRequestDto request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Files an appeal for a rejected submission. Only the submitter may appeal, within 48 hours of the rejection
     /// (server time), and only while the submission has no appeal in progress.

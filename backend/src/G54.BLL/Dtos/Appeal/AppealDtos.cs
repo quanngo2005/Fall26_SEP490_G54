@@ -2,6 +2,22 @@ using Microsoft.AspNetCore.Http;
 
 namespace G54.BLL.Dtos.Appeal;
 
+public sealed record DecideAppealRequestDto
+{
+    public string? Decision { get; init; }
+
+    public string? Note { get; init; }
+
+    public decimal? VerifiedValue { get; init; }
+}
+
+public sealed record AppealDecisionResultDto(
+    AppealDetailDto Appeal,
+    string Decision,
+    string SubmissionStatus,
+    string WorkStatus,
+    Guid? VerificationId);
+
 /// <summary>Multipart form of <c>POST /submissions/{submissionId}/appeals</c>.</summary>
 public sealed class CreateAppealRequestDto
 {
