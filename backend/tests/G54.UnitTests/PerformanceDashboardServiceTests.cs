@@ -422,6 +422,23 @@ public sealed class PerformanceDashboardServiceTests
     }
 
     [Fact]
+    public async Task Department_HidesDisputedPendingScoresFromAverageAndCounts_ButKeepsTheMemberStatus()
+    {
+        using var world = await World.CreateAsync();
+        world.AddEvaluation(world.Employee, world.October, 80m, PerformanceEvaluationStatus.Calculated);
+        world.AddEvaluation(world.DeptAManager, world.October, 40m, PerformanceEvaluationStatus.Disputed);
+        await world.SaveAsync();
+
+        var dto = await world.Service(PermissionScopes.Dept).GetDepartmentDashboardAsync(world.ManagerAccount.Id, world.DeptA.Id, null);
+
+        Assert.Equal(1, dto.EvaluatedEmployeeCount);
+        Assert.Equal(80m, dto.AverageScore);
+        var disputed = dto.Members.Single(m => m.EmployeeId == world.DeptAManager.Id);
+        Assert.Equal("DISPUTED", disputed.EvaluationStatus);
+        Assert.Null(disputed.TotalScore);
+    }
+
+    [Fact]
     public async Task Department_ExcludesTerminatedEmployeesFromCountsAndAverages()
     {
         using var world = await World.CreateAsync();

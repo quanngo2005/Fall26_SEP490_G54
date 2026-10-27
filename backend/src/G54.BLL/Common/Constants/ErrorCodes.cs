@@ -63,6 +63,7 @@ public static class ErrorCodes
 
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
+    public const string EvaluationDisputePending = "EVALUATION_DISPUTE_PENDING";           // BR-31
 
     // Target allocation (docs/api/TARGET_ALLOCATION_CONTRACT.md)
     public const string TargetDepartmentSumBelow = "TARGET_DEPARTMENT_SUM_BELOW";
@@ -112,6 +113,7 @@ public static class ErrorCodes
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
     };
 
