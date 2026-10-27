@@ -4,21 +4,17 @@ import { provideRouter, Router } from '@angular/router';
 import { routes } from '../app.routes';
 import { AuthenticatedUser } from './auth.models';
 import { AuthService } from './auth.service';
-import {
-  canViewOrganization,
-  normalizeRole,
-  ORGANIZATION_VIEWER_ROLES,
-  organizationGuard,
-} from './organization.guard';
+import { canViewOrganization, normalizePermission, organizationGuard } from './organization.guard';
 
 describe('organizationGuard', () => {
   const user = signal<AuthenticatedUser | null>(null);
   let router: Router;
 
-  const as = (roles: string[]) =>
-    user.set({ id: 'u1', email: 'u@test.local', fullName: 'User', roles, permissions: [] });
+  const as = (permissions: string[], roles: string[] = []) =>
+    user.set({ id: 'u1', email: 'u@test.local', fullName: 'User', roles, permissions });
   const run = () =>
     TestBed.runInInjectionContext(() => organizationGuard({} as never, {} as never));
+  const home = () => router.parseUrl('/home').toString();
 
   beforeEach(() => {
     user.set(null);
@@ -31,58 +27,58 @@ describe('organizationGuard', () => {
     router = TestBed.inject(Router);
   });
 
-  for (const role of [
-    'SYSTEM_ADMIN',
-    'ADMIN',
-    'BRANCH_MANAGER',
-    'DEPT_MANAGER',
-    'DEPARTMENT_MANAGER',
-    'MANAGER',
-    'branch-manager',
-    ' Dept Manager ',
-    'system admin',
+  for (const permissions of [
+    ['ORGANIZATION_READ'],
+    ['organization:read'],
+    ['organization.read'],
+    ['organization-read'],
+    [' Organization_Read '],
+    ['FULL_ACCESS'],
+    ['WORK_READ', 'KPI_READ', 'ORGANIZATION_READ'],
   ]) {
-    it(`lets "${role}" through`, () => {
-      as([role]);
+    it(`lets ${JSON.stringify(permissions)} through`, () => {
+      as(permissions);
       expect(run()).toBeTrue();
     });
   }
 
-  for (const role of [
-    'EMPLOYEE',
-    'HR',
-    'HR_MANAGER',
-    'QA',
-    'VERIFIER',
-    'COMPLIANCE',
-    'AUDITOR',
-    'MANAGER_ASSISTANT',
-    '',
+  for (const permissions of [
+    [],
+    ['WORK_READ', 'KPI_READ', 'EVALUATION_READ', 'EMPLOYEE_READ'],
+    ['ORGANIZATION_MANAGE'],
+    ['ORGANIZATION'],
+    ['READ'],
+    [''],
   ]) {
-    it(`redirects "${role}" to /home`, () => {
-      as([role]);
-      expect(String(run())).toBe(router.parseUrl('/home').toString());
+    it(`redirects ${JSON.stringify(permissions)} to /home`, () => {
+      as(permissions);
+      expect(String(run())).toBe(home());
     });
   }
 
-  it('lets a user with several roles through when any one is allowed', () => {
-    as(['EMPLOYEE', 'VERIFIER', 'BRANCH_MANAGER']);
+  it('decides on the permission, not on the role name', () => {
+    as(['WORK_READ'], ['SYSTEM_ADMIN', 'BRANCH_MANAGER', 'DEPT_MANAGER']);
+    expect(String(run())).toBe(home());
+
+    as(['ORGANIZATION_READ'], ['EMPLOYEE']);
     expect(run()).toBeTrue();
   });
 
-  it('redirects a signed-in user with no roles, and a missing user, to /home', () => {
-    as([]);
-    expect(String(run())).toBe(router.parseUrl('/home').toString());
-    user.set(null);
-    expect(String(run())).toBe(router.parseUrl('/home').toString());
+  it('no longer opens for the old evaluation read permission', () => {
+    as(['EVALUATION_READ']);
+    expect(String(run())).toBe(home());
+  });
+
+  it('redirects a missing user to /home', () => {
+    expect(String(run())).toBe(home());
   });
 
   it('exposes pure helpers that tolerate missing input', () => {
     expect(canViewOrganization(undefined)).toBeFalse();
     expect(canViewOrganization(null)).toBeFalse();
     expect(canViewOrganization([])).toBeFalse();
-    expect(normalizeRole(undefined)).toBe('');
-    expect(normalizeRole('  dept-manager ')).toBe('DEPT_MANAGER');
+    expect(normalizePermission(undefined)).toBe('');
+    expect(normalizePermission(' organization:read ')).toBe('ORGANIZATION_READ');
   });
 
   it('is applied after authGuard on every organization route', () => {
@@ -100,11 +96,5 @@ describe('organizationGuard', () => {
       expect(guards.length).toBe(2);
       expect(guards[1]).toBe(organizationGuard);
     }
-  });
-
-  it('does not grant the screens to any role the sidebar maps to employee, hr or qa', () => {
-    const blocked = ['EMPLOYEE', 'HR', 'HR_MANAGER', 'QA', 'COMPLIANCE', 'VERIFIER'];
-
-    expect(blocked.filter((role) => ORGANIZATION_VIEWER_ROLES.has(role))).toEqual([]);
   });
 });

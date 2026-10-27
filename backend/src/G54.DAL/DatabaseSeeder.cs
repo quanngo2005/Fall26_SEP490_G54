@@ -14,13 +14,13 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         INSERT INTO user_role (account_id, role_id)
         SELECT a.id, r.id
         FROM (VALUES
-            ('NV001', 'MANAGER'), ('NV001', 'VERIFIER'),
-            ('NV002', 'MANAGER'), ('NV002', 'VERIFIER'),
-            ('NV003', 'MANAGER'), ('NV003', 'VERIFIER'),
+            ('NV001', 'MANAGER'), ('NV001', 'VERIFIER'), ('NV001', 'BRANCH_MANAGER'),
+            ('NV002', 'MANAGER'), ('NV002', 'VERIFIER'), ('NV002', 'DEPT_MANAGER'),
+            ('NV003', 'MANAGER'), ('NV003', 'VERIFIER'), ('NV003', 'DEPT_MANAGER'),
             ('NV004', 'EMPLOYEE'), ('NV005', 'EMPLOYEE'), ('NV006', 'EMPLOYEE'),
             ('NV007', 'EMPLOYEE'), ('NV008', 'EMPLOYEE'), ('NV009', 'EMPLOYEE'),
             ('NV010', 'EMPLOYEE'),
-            ('NV011', 'MANAGER'), ('NV012', 'EMPLOYEE')
+            ('NV011', 'MANAGER'), ('NV011', 'DEPT_MANAGER'), ('NV012', 'EMPLOYEE')
         ) AS m(employee_code, role_code)
         JOIN employee e ON e.employee_code = m.employee_code
         JOIN account a ON a.employee_id = e.id

@@ -57,6 +57,21 @@ public sealed class DepartmentServiceTests
     }
 
     [Fact]
+    public async Task OnlyTheOrganizationReadPermissionGrantsDepartmentData()
+    {
+        var world = await World.CreateAsync();
+        var service = new DepartmentService(
+            world.Db,
+            new FakePermissions(world.AdminAccount, "All", resource: "evaluation", action: "read"),
+            new FixedTime(Now));
+
+        // evaluation:read used to open the department data; the dedicated organization:read permission replaced it.
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetDepartmentsAsync(world.AdminAccount, new DepartmentFilterDto()));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetDepartmentAsync(world.AdminAccount, world.Department.Id));
+    }
+    [Fact]
     public async Task OwnScopeOrMissingPermissionIsForbidden()
     {
         var world = await World.CreateAsync();
@@ -747,7 +762,8 @@ public sealed class DepartmentServiceTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class FakePermissions(Guid accountId, string? scope) : IPermissionService
+    private sealed class FakePermissions(
+        Guid accountId, string? scope, string resource = "organization", string action = "read") : IPermissionService
     {
         public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<UserPermissionsResponseDto?>(null);
@@ -755,7 +771,7 @@ public sealed class DepartmentServiceTests
         public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken)
         {
             IReadOnlyList<UserPermissionDto> result = id == accountId && scope is not null
-                ? [new UserPermissionDto("evaluation", "read", scope, "EVALUATION_READ")]
+                ? [new UserPermissionDto(resource, action, scope, $"{resource}:{action}")]
                 : [];
             return Task.FromResult(result);
         }

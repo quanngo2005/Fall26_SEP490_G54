@@ -1,11 +1,11 @@
 using System.Reflection;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.JobPosition;
 using G54.BLL.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -49,33 +49,30 @@ public sealed class JobPositionsControllerTests
         };
 
     [Fact]
-    public void ControllerIsRestrictedToTheOrganizationRolePolicyAndExposesTheDocumentedRoutes()
+    public void ControllerRequiresOrganizationReadAndExposesTheDocumentedRoutes()
     {
         var type = typeof(JobPositionsController);
 
-        var authorize = type.GetCustomAttributes<AuthorizeAttribute>()
-            .FirstOrDefault(a => a is not HasPermissionAttribute);
-        Assert.NotNull(authorize);
-        Assert.Equal(OrganizationAccess.Policy, authorize.Policy);
-
-        var permission = type.GetCustomAttribute<HasPermissionAttribute>();
-        Assert.NotNull(permission);
-        Assert.Equal("evaluation", permission.Resource);
-        Assert.Equal("read", permission.Action);
-        Assert.Equal("Own", permission.Scope);
-
+        var permission = Assert.Single(type.GetCustomAttributes<HasPermissionAttribute>());
+        Assert.Equal(("organization", "read", "Dept"), (permission.Resource, permission.Action, permission.Scope));
+        Assert.Equal(
+            (OrganizationAccessCodes.Resource, OrganizationAccessCodes.Read),
+            (permission.Resource, permission.Action));
         Assert.Equal("job-positions", type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Null(type.GetMethod(nameof(JobPositionsController.GetJobPositions))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
         Assert.Equal("{id:guid}", type.GetMethod(nameof(JobPositionsController.GetJobPosition))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
     }
 
     [Fact]
-    public void DepartmentsControllerKeepsItsDataPermissionAndAddsTheSameRolePolicy()
+    public void DepartmentsControllerReadsRequireTheSameOrganizationReadPermission()
     {
         var type = typeof(DepartmentsController);
 
-        Assert.Contains(type.GetCustomAttributes<AuthorizeAttribute>(), a => a.Policy == OrganizationAccess.Policy);
-        Assert.Contains(type.GetCustomAttributes<HasPermissionAttribute>(), a => a.Resource == "evaluation" && a.Action == "read");
+        var permission = type.GetCustomAttributes<HasPermissionAttribute>().First();
+        Assert.Equal(("organization", "read", "Dept"), (permission.Resource, permission.Action, permission.Scope));
+        Assert.DoesNotContain(
+            type.GetCustomAttributes<HasPermissionAttribute>(),
+            a => a.Resource == "evaluation");
     }
 
     [Fact]

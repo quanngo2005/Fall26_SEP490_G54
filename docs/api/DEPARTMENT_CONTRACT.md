@@ -6,17 +6,13 @@ Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`
 
 ## Authorization
 
-**Role gate (all endpoints).** The caller's JWT `role` claim must contain `SYSTEM_ADMIN`/`ADMIN`,
-`BRANCH_MANAGER`, or `DEPT_MANAGER`/`DEPARTMENT_MANAGER`/`MANAGER` (policy `OrganizationViewer`; codes are trimmed,
-upper-cased, and spaces/hyphens become underscores). Every other role - including HR, QA, verifier and employee -
-receives 403 `FORBIDDEN` even if it holds the permission below; a missing or invalid token receives 401. The same gate
-applies to `/job-positions` (`JOB_POSITION_CONTRACT.md`).
-
-Every endpoint also requires permission `evaluation:read` with scope `Dept` or higher
-(`[HasPermission("evaluation", "read", "Dept")]`). Seeded roles: `ADMIN` (All) and `MANAGER`
-(Department) pass both checks; `EMPLOYEE` (Own) and `VERIFIER` (no grant) receive 403.
-
-The BLL validates an active, unlocked database account and additionally restricts data to the caller's granted scope:
+Every endpoint requires the permission `organization:read` with scope `Dept` or higher
+(`[HasPermission("organization", "read", "Dept")]`; code `ORGANIZATION_READ`). The migration `SeedOrganizationReadAccess`
+grants it to `SYSTEM_ADMIN` and `ADMIN` (`All`), `BRANCH_MANAGER` (`Branch`) and `DEPT_MANAGER` / `MANAGER` (`Dept`) only.
+Every other role - employee, verifier, HR, QA - has no grant and receives 403 `FORBIDDEN`; holding `evaluation:read` (which
+this screen used to borrow) no longer opens it. A missing or invalid token receives 401. The same permission guards
+`/job-positions` (`JOB_POSITION_CONTRACT.md`).
+The BLL validates an active, unlocked database account and additionally restricts data to the scope granted for `organization:read`:
 
 | Granted scope | Visible departments |
 | --- | --- |
@@ -316,7 +312,7 @@ There is no hard delete and no restore endpoint; `PATCH .../status` with `ACTIVE
 | --- | --- | --- |
 | 400 | `VALIDATION_ERROR` | invalid enum filter, `DAY` period, malformed GUID/number |
 | 401 | none (framework) | missing/invalid token; may have no JSON body |
-| 403 | none (framework) or `FORBIDDEN` | lacks `evaluation:read` (framework), or department outside granted scope (`FORBIDDEN`) |
+| 403 | none (framework) or `FORBIDDEN` | lacks `organization:read` (framework), or department outside granted scope (`FORBIDDEN`) |
 | 404 | `NOT_FOUND` | unknown department, parent or period |
 | 409 | `CONFLICT` | duplicate code; stopping/deleting a department that still has live children or employees |
 | 500 | `INTERNAL_ERROR` | unexpected |
