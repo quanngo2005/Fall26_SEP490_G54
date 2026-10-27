@@ -13,12 +13,14 @@ namespace G54.Api.Controllers;
 [Authorize]
 public sealed class SystemParametersController(ISystemParameterService service) : ControllerBase
 {
+    [HasPermission("system-parameter", "read", "All")]
     [HttpGet]
     [ProducesResponseType<ApiResponse<IReadOnlyList<SystemParameterDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<SystemParameterDto>>>> GetAll(CancellationToken ct)
         => Ok(ApiResponse.Ok(await service.GetAllAsync(User.GetRequiredUserId(), ct), traceId: HttpContext.TraceIdentifier));
 
+    [HasPermission("system-parameter", "manage", "All")]
     [HttpPut]
     [ProducesResponseType<ApiResponse<IReadOnlyList<SystemParameterDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]

@@ -7,18 +7,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-public sealed class SystemParameterService(IUnitOfWork uow, IAdminAccessService admin, TimeProvider time) : ISystemParameterService
+public sealed class SystemParameterService(IUnitOfWork uow, TimeProvider time) : ISystemParameterService
 {
     public async Task<IReadOnlyList<SystemParameterDto>> GetAllAsync(Guid accountId, CancellationToken ct)
     {
-        await admin.EnsureAdminAsync(accountId, ct);
         return await LoadDtosAsync(ct);
     }
 
     public async Task<IReadOnlyList<SystemParameterDto>> SaveAsync(Guid accountId, SaveSystemParametersDto request, CancellationToken ct)
     {
-        await admin.EnsureAdminAsync(accountId, ct);
-
         // Validate request
         var changes = request.Changes;
         if (changes is null || changes.Count == 0 || changes.Count > 8)

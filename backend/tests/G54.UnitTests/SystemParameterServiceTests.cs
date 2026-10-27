@@ -59,56 +59,12 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAll_ByNonAdmin_ThrowsForbidden()
-    {
-        await SeedParametersAsync();
-        var (_, nonAdmin) = await SetupAccountsAsync();
-        var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
-
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.GetAllAsync(nonAdmin.Id, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task GetAll_ByLockedAccount_ThrowsForbidden()
-    {
-        await SeedParametersAsync();
-        var (admin, _) = await SetupAccountsAsync();
-        var tracked = await _db.Accounts.SingleAsync(a => a.Id == admin.Id);
-        tracked.IsLocked = true;
-        await _db.SaveChangesAsync();
-
-        var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
-
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.GetAllAsync(admin.Id, CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task GetAll_ByInactiveEmployeeAccount_ThrowsForbidden()
-    {
-        await SeedParametersAsync();
-        var (admin, _) = await SetupAccountsAsync();
-        var employee = await _db.Employees.SingleAsync(e => e.Id == _db.Accounts.First(a => a.Id == admin.Id).EmployeeId);
-        employee.Status = EmployeeStatus.Inactive;
-        await _db.SaveChangesAsync();
-
-        var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
-
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.GetAllAsync(admin.Id, CancellationToken.None));
-    }
-
-    [Fact]
     public async Task GetAll_ByAdmin_Returns8Parameters()
     {
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var result = await service.GetAllAsync(admin.Id, CancellationToken.None);
 
@@ -126,7 +82,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto
         {
@@ -161,7 +117,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto
         {
@@ -181,7 +137,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto
         {
@@ -201,7 +157,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var origParam = await _db.SystemParameters.SingleAsync(p => p.Key == SystemParameterKeys.AppealWindowDays);
         var origVersion = origParam.Version;
@@ -231,7 +187,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto { Changes = new List<SystemParameterChangeDto>() };
 
@@ -245,7 +201,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto
         {
@@ -265,7 +221,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         await SeedParametersAsync();
         var (admin, _) = await SetupAccountsAsync();
         var uow = new UnitOfWork(_db);
-        var service = new SystemParameterService(uow, new AdminAccessService(uow), TimeProvider.System);
+        var service = new SystemParameterService(uow, TimeProvider.System);
 
         var request = new SaveSystemParametersDto
         {
