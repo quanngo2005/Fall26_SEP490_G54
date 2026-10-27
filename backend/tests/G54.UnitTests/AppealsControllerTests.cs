@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
+using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
@@ -15,6 +16,31 @@ namespace G54.UnitTests;
 public sealed class AppealsControllerTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    [Fact]
+    public async Task DecideAppeal_RequiresPermissionAndReturnsTheDecisionEnvelope()
+    {
+        var method = typeof(AppealsController).GetMethod(nameof(AppealsController.DecideAppeal))!;
+        Assert.Equal("appeals/{id:guid}/decision", method.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        var permission = method.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.Equal("verification", permission?.Resource);
+        Assert.Equal("decide", permission?.Action);
+        Assert.Equal("Dept", permission?.Scope);
+        var userId = Guid.NewGuid();
+        var appealId = Guid.NewGuid();
+        var service = new RecordingService();
+        var request = new DecideAppealRequestDto { Decision = "ADJUST", Note = "Bổ sung chứng từ" };
+        var result = await ControllerFor(service, userId).DecideAppeal(appealId, request, CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(userId, service.UserId);
+        Assert.Equal(appealId, service.AppealId);
+        Assert.Same(request, service.DecisionRequest);
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value, JsonOptions));
+        Assert.True(document.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(200, document.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("ADJUST", document.RootElement.GetProperty("data").GetProperty("decision").GetString());
+        Assert.Equal("UNDER_REVIEW", document.RootElement.GetProperty("data").GetProperty("submissionStatus").GetString());
+    }
 
     [Fact]
     public void Controller_RequiresAuthenticationAndExposesTheDocumentedRoutes()
@@ -142,6 +168,7 @@ public sealed class AppealsControllerTests
         await Assert.ThrowsAsync<UnauthorizedException>(() => controller.WithdrawAppeal(Guid.NewGuid(), CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() => controller.GetAppeals(new AppealFilterDto(), CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() => controller.GetAppealById(Guid.NewGuid(), CancellationToken.None));
+        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.DecideAppeal(Guid.NewGuid(), new DecideAppealRequestDto(), CancellationToken.None));
 
         Assert.Equal(0, service.Calls);
     }
@@ -166,6 +193,17 @@ public sealed class AppealsControllerTests
         public Guid AppealId { get; private set; }
         public CreateAppealRequestDto? Request { get; private set; }
         public AppealFilterDto? Filter { get; private set; }
+        public DecideAppealRequestDto? DecisionRequest { get; private set; }
+
+        public Task<AppealDecisionResultDto> DecideAppealAsync(
+            Guid appealId, Guid userId, DecideAppealRequestDto request, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            AppealId = appealId;
+            UserId = userId;
+            DecisionRequest = request;
+            return Task.FromResult(new AppealDecisionResultDto(Detail, request.Decision!, "UNDER_REVIEW", "IN_PROGRESS", Guid.NewGuid()));
+        }
 
         public AppealDetailDto Detail { get; } = new(
             Guid.NewGuid(),

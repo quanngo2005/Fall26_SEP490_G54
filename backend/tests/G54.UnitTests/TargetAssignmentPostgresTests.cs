@@ -5,6 +5,7 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
 namespace G54.UnitTests;
@@ -54,6 +55,11 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
         _connectionString = new NpgsqlConnectionStringBuilder(admin) { Database = _database, Pooling = false }.ConnectionString;
         var services = new ServiceCollection();
         services.AddDataAccess(_connectionString);
+        // Each test owns a unique data source; do not retain its EF provider in the process-wide cache.
+        services.RemoveAll<DbContextOptions<AppDbContext>>();
+        services.AddScoped(provider => new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(provider.GetRequiredService<NpgsqlDataSource>())
+            .EnableServiceProviderCaching(false).Options);
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IPermissionService, AdminPermissions>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();

@@ -21,6 +21,23 @@ public sealed class AppealsController(IAppealService appealService) : Controller
     /// <summary>10 files of up to 25 MB plus room for the other form fields; raised only for the appeal upload.</summary>
     private const long MaxAppealRequestBytes = (10 * StorageService.DefaultMaxFileSizeBytes) + (1024 * 1024);
 
+    [HttpPost("appeals/{id:guid}/decision")]
+    [HasPermission("verification", "decide", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<AppealDecisionResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<AppealDecisionResultDto>>> DecideAppeal(
+        Guid id,
+        [FromBody] DecideAppealRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await appealService.DecideAppealAsync(id, User.GetRequiredUserId(), request, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("submissions/{submissionId:guid}/appeals")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxAppealRequestBytes)]
