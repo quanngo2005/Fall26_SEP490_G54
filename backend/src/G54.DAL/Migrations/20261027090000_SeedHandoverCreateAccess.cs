@@ -37,6 +37,9 @@ public partial class SeedHandoverCreateAccess : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("DELETE FROM permission WHERE code IN ('HANDOVER_CREATE', 'HANDOVER_SET_SHARE');");
+        migrationBuilder.Sql("""
+            DELETE FROM role_permission WHERE permission_id IN (SELECT id FROM permission WHERE code IN ('HANDOVER_CREATE', 'HANDOVER_SET_SHARE'));
+            DELETE FROM permission WHERE code IN ('HANDOVER_CREATE', 'HANDOVER_SET_SHARE');
+            """);
     }
 }

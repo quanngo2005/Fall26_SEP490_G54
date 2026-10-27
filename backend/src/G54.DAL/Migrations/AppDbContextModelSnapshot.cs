@@ -1874,6 +1874,12 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("work_id");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id")
                         .HasName("task_handover_pkey");
 
