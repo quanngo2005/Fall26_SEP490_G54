@@ -53,8 +53,17 @@ public sealed class JobPositionsControllerTests
     {
         var type = typeof(JobPositionsController);
 
-        var authorize = type.GetCustomAttribute<AuthorizeAttribute>();
-        Assert.Equal(OrganizationAccess.Policy, authorize?.Policy);
+        var authorize = type.GetCustomAttributes<AuthorizeAttribute>()
+            .FirstOrDefault(a => a is not HasPermissionAttribute);
+        Assert.NotNull(authorize);
+        Assert.Equal(OrganizationAccess.Policy, authorize.Policy);
+
+        var permission = type.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.NotNull(permission);
+        Assert.Equal("evaluation", permission.Resource);
+        Assert.Equal("read", permission.Action);
+        Assert.Equal("Own", permission.Scope);
+
         Assert.Equal("job-positions", type.GetCustomAttribute<RouteAttribute>()?.Template);
         Assert.Null(type.GetMethod(nameof(JobPositionsController.GetJobPositions))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
         Assert.Equal("{id:guid}", type.GetMethod(nameof(JobPositionsController.GetJobPosition))?.GetCustomAttribute<HttpGetAttribute>()?.Template);

@@ -15,6 +15,7 @@ namespace G54.Api.Controllers;
 [ApiController]
 [Route("job-positions")]
 [Authorize(Policy = OrganizationAccess.Policy)]
+[HasPermission("evaluation", "read", "Own")]
 public sealed class JobPositionsController(IJobPositionService service) : ControllerBase
 {
     [HttpGet]

@@ -182,7 +182,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnAllowedRoleStillNeedsTheDepartmentDataPermission()
+    public async Task AnAllowedRoleStillNeedsTheOrganizationDataPermission()
     {
         _permissions.GrantAll = false;
 
@@ -190,7 +190,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         var jobPositions = await GetAsync("/job-positions", "BRANCH_MANAGER");
 
         Assert.Equal(HttpStatusCode.Forbidden, departments.StatusCode); // existing HasPermission is kept
-        Assert.Equal(HttpStatusCode.OK, jobPositions.StatusCode); // job positions are gated by role only
+        Assert.Equal(HttpStatusCode.Forbidden, jobPositions.StatusCode); // HasPermission("evaluation", "read", "Own")
     }
 
     [Fact]
@@ -210,6 +210,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     [Fact]
     public async Task AnUnknownJobPositionIsANotFoundEnvelopeForAnAllowedRole()
     {
+        _permissions.GrantAll = true;
         var response = await GetAsync($"/job-positions/{Guid.NewGuid()}", "SYSTEM_ADMIN");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -221,6 +222,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     [Fact]
     public async Task ABadStatusFilterIsAValidationErrorForAnAllowedRole()
     {
+        _permissions.GrantAll = true;
         var response = await GetAsync("/job-positions?status=BOGUS", "DEPT_MANAGER");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);

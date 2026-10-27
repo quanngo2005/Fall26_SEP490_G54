@@ -10,7 +10,7 @@ as N/A.
 
 ## Authorization
 
-Both endpoints use the policy `OrganizationViewer` (`[Authorize(Policy = OrganizationAccess.Policy)]`): the caller's JWT
+Both endpoints use the policy `OrganizationViewer` (`[Authorize(Policy = OrganizationAccess.Policy)]`) along with declarative RBAC permission `[HasPermission("evaluation", "read", "Own")]`: the caller's JWT
 `role` claim must contain at least one of
 
 | Role code | Meaning |
