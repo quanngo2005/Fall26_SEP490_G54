@@ -60,6 +60,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RiskEvent> RiskEvents { get; set; }
 
+    public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
+
+    public virtual DbSet<Downgrade> Downgrades { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<RolePermissionAssignment> RolePermissions { get; set; }
@@ -1145,6 +1149,55 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("status");
         });
 
+        modelBuilder.Entity<RankingTierThreshold>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_tier_threshold_pkey");
+
+            entity.ToTable("ranking_tier_threshold", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_tier_threshold_min_score", "min_score >= 0 AND min_score <= 100");
+                table.HasCheckConstraint("ck_ranking_tier_threshold_rank_order", "rank_order >= 1");
+            });
+
+            entity.HasIndex(e => e.TierCode, "uq_ranking_tier_threshold_code").IsUnique();
+
+            entity.HasIndex(e => e.RankOrder, "uq_ranking_tier_threshold_order").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TierCode)
+                .HasMaxLength(10)
+                .HasColumnName("tier_code");
+            entity.Property(e => e.RankOrder).HasColumnName("rank_order");
+            entity.Property(e => e.MinScore)
+                .HasPrecision(7, 4)
+                .HasColumnName("min_score");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<Downgrade>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("downgrade_pkey");
+
+            entity.ToTable("downgrade");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TriggerSeverity)
+                .HasColumnType("risk_event_severity")
+                .HasColumnName("trigger_severity");
+            entity.Property(e => e.CapTierCode)
+                .HasMaxLength(10)
+                .HasColumnName("cap_tier_code");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("role_pkey");
@@ -1315,17 +1368,26 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
                 table.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
                 table.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
+                table.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
             });
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
 
+            entity.HasIndex(e => e.WorkId, "ux_task_handover_pending_work")
+                .IsUnique()
+                .HasFilter("(status = 'PENDING'::handover_status)");
+
             entity.HasIndex(e => e.ApprovedBy, "ix_task_handover_approved_by");
+
+            entity.HasIndex(e => e.EscalatedToEmployeeId, "ix_task_handover_escalated_to");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
             entity.Property(e => e.ApprovedBy).HasColumnName("approved_by");
+            entity.Property(e => e.EscalatedAt).HasColumnName("escalated_at");
+            entity.Property(e => e.EscalatedToEmployeeId).HasColumnName("escalated_to_employee_id");
             entity.Property(e => e.FromEmployeeId).HasColumnName("from_employee_id");
             entity.Property(e => e.HandoverAt)
                 .HasDefaultValueSql("now()")
@@ -1334,6 +1396,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ReferrerSharePercent)
                 .HasPrecision(7, 4)
                 .HasDefaultValue(TaskHandover.DefaultReferrerSharePercent)
+                // 0 is a valid share (recipient gets 100%): without a sentinel EF treats the CLR default 0 as "unset"
+                // and lets the column default (30) apply instead.
+                .HasSentinel(-1m)
                 .HasColumnName("referrer_share_percent");
             entity.Property(e => e.ToEmployeeId).HasColumnName("to_employee_id");
             entity.Property(e => e.UpdatedAt)
@@ -1345,6 +1410,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ApprovedBy)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_task_handover_approved_by");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.EscalatedToEmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_task_handover_escalated_to");
 
             entity.HasOne(d => d.FromEmployee).WithMany(p => p.TaskHandoverFromEmployees)
                 .HasForeignKey(d => d.FromEmployeeId)

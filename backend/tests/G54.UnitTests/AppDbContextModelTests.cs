@@ -24,7 +24,7 @@ public sealed class AppDbContextModelTests
         var enumProperties = entityTypes.SelectMany(entity => entity.GetProperties())
             .Where(property => (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType).IsEnum)
             .ToArray();
-        Assert.Equal(28, enumProperties.Length);
+        Assert.Equal(29, enumProperties.Length);
         Assert.All(enumProperties, property => Assert.False(string.IsNullOrWhiteSpace(property.GetColumnType())));
 
         var account = context.Model.FindEntityType(typeof(Account));

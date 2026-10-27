@@ -490,6 +490,36 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.Downgrade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("CapTierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("cap_tier_code");
+
+                    b.Property<int>("TriggerSeverity")
+                        .HasColumnType("risk_event_severity")
+                        .HasColumnName("trigger_severity");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("downgrade_pkey");
+
+                    b.ToTable("downgrade", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Employee", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1331,6 +1361,52 @@ namespace G54.DAL.Migrations
                     b.ToTable("permission", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<decimal>("MinScore")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasColumnName("min_score");
+
+                    b.Property<int>("RankOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank_order");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_tier_threshold_pkey");
+
+                    b.HasIndex(new[] { "TierCode" }, "uq_ranking_tier_threshold_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "RankOrder" }, "uq_ranking_tier_threshold_order")
+                        .IsUnique();
+
+                    b.ToTable("ranking_tier_threshold", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_min_score", "min_score >= 0 AND min_score <= 100");
+
+                            t.HasCheckConstraint("ck_ranking_tier_threshold_rank_order", "rank_order >= 1");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1847,6 +1923,14 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approved_by");
 
+                    b.Property<DateTimeOffset?>("EscalatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("escalated_at");
+
+                    b.Property<Guid?>("EscalatedToEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("escalated_to_employee_id");
+
                     b.Property<Guid>("FromEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("from_employee_id");
@@ -1896,13 +1980,21 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "ApprovedBy" }, "ix_task_handover_approved_by");
 
+                    b.HasIndex(new[] { "EscalatedToEmployeeId" }, "ix_task_handover_escalated_to");
+
                     b.HasIndex(new[] { "WorkId" }, "ix_task_handover_work");
+
+                    b.HasIndex(new[] { "WorkId" }, "ux_task_handover_pending_work")
+                        .IsUnique()
+                        .HasFilter("(status = 'PENDING'::handover_status)");
 
                     b.ToTable("task_handover", null, t =>
                         {
                             t.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");
 
                             t.HasCheckConstraint("ck_task_handover_distinct", "from_employee_id <> to_employee_id");
+
+                            t.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
 
                             t.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
                         });
@@ -2825,6 +2917,12 @@ namespace G54.DAL.Migrations
                         .HasForeignKey("ApprovedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_task_handover_approved_by");
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EscalatedToEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_task_handover_escalated_to");
 
                     b.HasOne("G54.DAL.Entities.Employee", "FromEmployee")
                         .WithMany("TaskHandoverFromEmployees")

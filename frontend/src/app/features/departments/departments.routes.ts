@@ -3,8 +3,8 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '',
-    title: 'Department View',
+    title: 'Phòng ban',
     loadComponent: () =>
-      import('./department-view.component').then((m) => m.DepartmentViewComponent),
+      import('./department-list.component').then((m) => m.DepartmentListComponent),
   },
 ];

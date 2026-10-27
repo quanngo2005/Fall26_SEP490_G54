@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
+        services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.AddScoped<ISystemParameterService, SystemParameterService>();
@@ -40,6 +41,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
+        services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
+        services.AddHostedService<HandoverEscalationBackgroundService>();
         return services;
     }
 }

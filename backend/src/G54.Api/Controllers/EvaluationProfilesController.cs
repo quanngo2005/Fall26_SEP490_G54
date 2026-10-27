@@ -100,4 +100,71 @@ public sealed class EvaluationProfilesController(IEvaluationProfileService servi
         await service.DeleteProfileAsync(id, cancellationToken);
         return Ok(ApiResponse.Ok("Lưu trữ hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("{id:guid}/items")]
+    [HasPermission("kpi", "read", "All")]
+    [ProducesResponseType<ApiResponse<List<EvaluationProfileItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<List<EvaluationProfileItemDto>>>> GetItems(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetItemsAsync(id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse.Fail(
+                ErrorCodes.NotFound,
+                "Không tìm thấy hồ sơ đánh giá yêu cầu.",
+                traceId: HttpContext.TraceIdentifier,
+                status: StatusCodes.Status404NotFound));
+        }
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:guid}/items")]
+    [HasPermission("kpi", "manage", "All")]
+    [ProducesResponseType<ApiResponse<EvaluationProfileItemDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<EvaluationProfileItemDto>>> AddItem(
+        Guid id,
+        [FromBody] EvaluationProfileItemInputDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AddItemAsync(id, dto, cancellationToken);
+        var response = ApiResponse.Ok(result, "Thêm nhóm KPI vào hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier);
+        return CreatedAtAction(nameof(GetItems), new { id }, response);
+    }
+
+    [HttpPut("{id:guid}/items/{kpiGroupId:guid}")]
+    [HasPermission("kpi", "manage", "All")]
+    [ProducesResponseType<ApiResponse<EvaluationProfileItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<EvaluationProfileItemDto>>> UpdateItem(
+        Guid id,
+        Guid kpiGroupId,
+        [FromBody] UpdateEvaluationProfileItemDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.UpdateItemAsync(id, kpiGroupId, dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật nhóm KPI của hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:guid}/items/{kpiGroupId:guid}")]
+    [HasPermission("kpi", "manage", "All")]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse>> RemoveItem(
+        Guid id,
+        Guid kpiGroupId,
+        CancellationToken cancellationToken)
+    {
+        await service.RemoveItemAsync(id, kpiGroupId, cancellationToken);
+        return Ok(ApiResponse.Ok("Xóa nhóm KPI khỏi hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
+    }
 }
