@@ -195,6 +195,34 @@ Body `{ "status": "ACTIVE" }`. See the Status section. `data` is empty; 200 `Api
 Soft delete: sets the status to `ARCHIVED` and keeps the rows. Deleting an `ARCHIVED` profile is a no-op and
 returns 200. 404 `NOT_FOUND` for an unknown id.
 
+### Item endpoints
+
+Manage one item (KPI group + weight) at a time. The item is identified by `kpiGroupId` in the route (a KPI group
+appears once per profile). Permissions are the same as the profile endpoints: `GET` needs `kpi:read`, the others
+`kpi:manage`, scope `All`.
+
+| Verb and route | Body | Success |
+| --- | --- | --- |
+| `GET /evaluation-profiles/{id}/items` | none | 200, `data`: `EvaluationProfileItem[]` ordered by `displayOrder`, then `kpiGroupCode`; 404 `NOT_FOUND` for an unknown profile |
+| `POST /evaluation-profiles/{id}/items` | `{ "kpiGroupId", "weightPercent", "displayOrder" }` (same rules as `items[]` of create) | 201 with a `Location` header pointing at `GET /evaluation-profiles/{id}/items`; `data`: `EvaluationProfileItem` |
+| `PUT /evaluation-profiles/{id}/items/{kpiGroupId}` | `{ "weightPercent", "displayOrder" }` | 200, `data`: `EvaluationProfileItem` |
+| `DELETE /evaluation-profiles/{id}/items/{kpiGroupId}` | none | 200, `data` is empty |
+
+Rules for `POST`, `PUT` and `DELETE`:
+
+- Only a `DRAFT` or `INACTIVE` profile can be changed item by item. An `ACTIVE` profile is 409 `CONFLICT`: it must
+  keep the total weight at exactly `100`, so change its whole item list with `PUT /evaluation-profiles/{id}`.
+  An `ARCHIVED` profile is 409 `CONFLICT`.
+- A profile that is **in use** is 409 `EVALUATION_PROFILE_IN_USE`; create a new version instead.
+- The total weight is not enforced by these endpoints (it can be below or above `100` while editing). It is
+  enforced when the profile is activated, see the Status section.
+- `POST` with a KPI group already in the profile is 409 `CONFLICT`. An unknown KPI group is 404 `NOT_FOUND`. `PUT`
+  or `DELETE` for a KPI group that is not in the profile is 404 `NOT_FOUND`.
+- Invalid `weightPercent` or `displayOrder` is 400 `VALIDATION_ERROR` (same rules as create).
+- Every successful change updates the profile's `updatedAt`.
+- Risk: two concurrent requests can leave the total weight temporarily different from `100` on a `DRAFT` or
+  `INACTIVE` profile; this is safe because activation checks the total again.
+
 ## Errors
 
 | HTTP | `errorCode` | When |
@@ -203,7 +231,7 @@ returns 200. 404 `NOT_FOUND` for an unknown id.
 | 401 / 403 | `UNAUTHORIZED` / `FORBIDDEN` | not signed in / missing permission |
 | 404 | `NOT_FOUND` | unknown profile, job position or KPI group |
 | 409 | `CONFLICT` | duplicate `(code, version)` or `(jobPosition, effectiveFrom)`, overlapping active period, illegal transition, archived profile, job position mismatch for a new version, concurrent write |
-| 409 | `EVALUATION_PROFILE_IN_USE` | structural change to a profile already used by a performance evaluation |
+| 409 | `EVALUATION_PROFILE_IN_USE` | structural change (including any item endpoint write) to a profile already used by a performance evaluation |
 
 ## Not available
 
