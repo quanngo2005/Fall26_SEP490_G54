@@ -1,4 +1,5 @@
 using System.Data;
+using System.Linq.Expressions;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -27,6 +28,10 @@ public sealed class AppealService(
     private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
     private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
+
+    /// <summary>An appeal still awaiting a decision (OPEN or UNDER_REVIEW); WITHDRAWN and decided ones are not.</summary>
+    private static readonly Expression<Func<Appeal, bool>> InProgress =
+        a => a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview;
 
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogAppealDecided =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -255,6 +260,9 @@ public sealed class AppealService(
         };
         db.Appeals.Add(appeal);
 
+        // BR-31: the score of the period this result belongs to is frozen as Disputed_Pending until the appeal ends.
+        await MarkDisputedPendingAsync(caller.Employee.Id, submission.SubmittedAt, now, cancellationToken);
+
         foreach (var file in uploadedFiles)
         {
             db.Evidences.Add(new Evidence
@@ -318,8 +326,12 @@ public sealed class AppealService(
                 ErrorCodes.AppealInvalidState);
         }
 
+        var now = time.GetUtcNow();
         appeal.Status = AppealStatus.Withdrawn;
-        appeal.UpdatedAt = time.GetUtcNow();
+        appeal.UpdatedAt = now;
+
+        // BR-31: give the score back its previous status unless another appeal of the period is still in progress.
+        await ReleaseDisputedPendingAsync(appeal.Id, appeal.EmployeeId, appeal.ResultSubmission!.SubmittedAt, now, cancellationToken);
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -431,14 +443,98 @@ public sealed class AppealService(
         return MapDetail(appeal);
     }
 
+    /// <summary>
+    /// BR-31: marks every disputable evaluation of the employee whose period covers the submission date as
+    /// <c>DISPUTED</c> (Disputed_Pending). Drafts carry no score and FINAL / locked-period scores cannot change.
+    /// Only changes tracked entities; the caller saves them together with the appeal.
+    /// </summary>
+    private async Task MarkDisputedPendingAsync(
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var evaluations = await LoadEvaluationsOfPeriodAsync(employeeId, submittedAt, cancellationToken);
+        foreach (var evaluation in evaluations)
+        {
+            if (evaluation.Status is not (PerformanceEvaluationStatus.Calculated
+                    or PerformanceEvaluationStatus.InReview
+                    or PerformanceEvaluationStatus.Approved)
+                || evaluation.EvaluationPeriod.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+            {
+                continue;
+            }
+
+            evaluation.PreDisputeStatus = evaluation.Status;
+            evaluation.Status = PerformanceEvaluationStatus.Disputed;
+            evaluation.DisputedAt = now;
+            evaluation.UpdatedAt = now;
+        }
+    }
+
+    /// <summary>
+    /// BR-31: restores the pre-dispute status of the employee's disputed evaluations that have no other appeal in
+    /// progress. <paramref name="appealId"/> is the appeal being closed and is ignored when looking for others.
+    /// </summary>
+    private async Task ReleaseDisputedPendingAsync(
+        Guid appealId,
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var evaluations = await LoadEvaluationsOfPeriodAsync(employeeId, submittedAt, cancellationToken);
+        foreach (var evaluation in evaluations.Where(e => e.IsDisputedPending()))
+        {
+            var period = evaluation.EvaluationPeriod;
+            var from = StartOfBusinessDay(period.StartDate);
+            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
+
+            var anotherInProgress = await db.Appeals
+                .Where(InProgress)
+                .AnyAsync(
+                    a => a.Id != appealId
+                        && a.EmployeeId == employeeId
+                        && a.ResultSubmissionId != null
+                        && a.ResultSubmission!.SubmittedAt >= from
+                        && a.ResultSubmission.SubmittedAt < to,
+                    cancellationToken);
+            if (anotherInProgress)
+            {
+                continue;
+            }
+
+            evaluation.Status = evaluation.PreDisputeStatus ?? PerformanceEvaluationStatus.Calculated;
+            evaluation.PreDisputeStatus = null;
+            evaluation.DisputedAt = null;
+            evaluation.UpdatedAt = now;
+        }
+    }
+
+    /// <summary>The employee's evaluations whose period contains the submission date (UTC+7 calendar day).</summary>
+    private Task<List<PerformanceEvaluation>> LoadEvaluationsOfPeriodAsync(
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        CancellationToken cancellationToken)
+    {
+        var date = DateOnly.FromDateTime(submittedAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
+        return db.PerformanceEvaluations
+            .Include(e => e.EvaluationPeriod)
+            .Where(e => e.EmployeeId == employeeId
+                && e.EvaluationPeriod.StartDate <= date
+                && e.EvaluationPeriod.EndDate >= date)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
+        new(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset);
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 
     private Task<bool> HasAppealInProgressAsync(Guid submissionId, CancellationToken cancellationToken)
-        => db.Appeals.AnyAsync(
-            a => a.ResultSubmissionId == submissionId
-                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview),
-            cancellationToken);
+        => db.Appeals
+            .Where(InProgress)
+            .AnyAsync(a => a.ResultSubmissionId == submissionId, cancellationToken);
 
     private Task<Appeal?> LoadAppealAsync(Guid appealId, CancellationToken cancellationToken)
         => db.Appeals.AsNoTracking()

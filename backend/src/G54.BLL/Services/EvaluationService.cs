@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
@@ -455,6 +456,13 @@ public sealed partial class EvaluationService(
         var existingEvaluation = await db.PerformanceEvaluations
             .FirstOrDefaultAsync(pe => pe.EmployeeId == request.EmployeeId && pe.EvaluationPeriodId == request.PeriodId, cancellationToken);
 
+        // BR-31: a score under dispute is frozen; re-submitting the form must not silently clear Disputed_Pending.
+        if (existingEvaluation?.IsDisputedPending() == true)
+        {
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
+                "Điểm đánh giá đang tranh chấp (Disputed_Pending) nên không thể cập nhật cho đến khi khiếu nại được xử lý hoặc rút lại.");
+        }
+
         var (_, _, _, existingCalib, existingRecalib, existingAppr) = ParseStoredComment(existingEvaluation?.Comment);
         var storedComment = BuildStoredComment(request.Comment, request.CoachingPlan, request.QualitativeScores, existingCalib, existingRecalib, existingAppr);
         var now = DateTimeOffset.UtcNow;
@@ -673,10 +681,18 @@ public sealed partial class EvaluationService(
 
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
         var unrankedRows = new List<CalibrationEmployeeRowDto>();
+        var disputedEmployeeIds = evaluations.DisputedEmployeeIds();
 
         foreach (var emp in employees)
         {
+            // BR-31: a score under dispute (Disputed_Pending) is hidden from the ranking, quota and bell curve.
+            if (disputedEmployeeIds.Contains(emp.Id))
+            {
+                continue;
+            }
+
             evalDict.TryGetValue(emp.Id, out var pe);
+
             targetsGroup.TryGetValue(emp.Id, out var empTargets);
             actualsGroup.TryGetValue(emp.Id, out var empActuals);
             risksGroup.TryGetValue(emp.Id, out var empRisks);
@@ -797,7 +813,8 @@ public sealed partial class EvaluationService(
             bellCurve,
             rankedRoster,
             canSubmit,
-            overallStatus);
+            overallStatus,
+            disputedEmployeeIds.Count);
     }
 
     public async Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
@@ -832,10 +849,20 @@ public sealed partial class EvaluationService(
 
         var employeeMap = employees.ToDictionary(e => e.Id, e => e);
         var profilesByPosition = await LoadProfilesByPositionAsync(employees.Select(e => e.JobPositionId), period, cancellationToken);
-        var totalEmployees = employees.Count;
+        var periodEmployeeIds = employees.Select(e => e.Id).ToList();
+        var existingEvaluations = await db.PerformanceEvaluations
+            .Where(pe => pe.EvaluationPeriodId == request.PeriodId && periodEmployeeIds.Contains(pe.EmployeeId))
+            .ToListAsync(cancellationToken);
+
+        // BR-31: a score under dispute (Disputed_Pending) is outside the ranking, so it neither counts toward the
+        // quota base nor accepts calibration until the dispute ends.
+        var disputedEmployeeIds = existingEvaluations.DisputedEmployeeIds();
+
+        var totalEmployees = employees.Count(e => !disputedEmployeeIds.Contains(e.Id));
         var maxTierAQuota = totalEmployees > 0 ? Math.Max(1, (int)Math.Ceiling(totalEmployees * 0.20m)) : 0;
 
         var adjustmentMap = (request.Adjustments ?? new())
+            .Where(a => !disputedEmployeeIds.Contains(a.EmployeeId))
             .GroupBy(a => a.EmployeeId)
             .ToDictionary(g => g.Key, g => g.Last());
 
@@ -852,11 +879,6 @@ public sealed partial class EvaluationService(
                     $"Tỷ lệ xếp loại Tier A ({tierACount}/{totalEmployees} = {percent}%) vượt quá hạn ngạch cho phép tối đa ({maxTierAQuota} suất, tương đương 20%). Vui lòng điều chỉnh lại trước khi trình duyệt.");
             }
         }
-
-        var periodEmployeeIds = employees.Select(e => e.Id).ToList();
-        var existingEvaluations = await db.PerformanceEvaluations
-            .Where(pe => pe.EvaluationPeriodId == request.PeriodId && periodEmployeeIds.Contains(pe.EmployeeId))
-            .ToListAsync(cancellationToken);
 
         var evalDict = existingEvaluations.ToDictionary(pe => pe.EmployeeId, pe => pe);
         var now = DateTimeOffset.UtcNow;
@@ -985,6 +1007,7 @@ public sealed partial class EvaluationService(
 
         var evalEmpMap = evaluations.GroupBy(pe => pe.EmployeeId)
             .ToDictionary(g => g.Key, g => g.First());
+        var disputedEmployeeIds = evaluations.DisputedEmployeeIds();
 
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(allEmpIds, period, cancellationToken);
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
@@ -996,8 +1019,11 @@ public sealed partial class EvaluationService(
             empDeptMap.TryGetValue(dept.Id, out var deptEmps);
             deptEmps ??= new();
 
-            var totalDeptEmps = deptEmps.Count;
-            var deptEvaluations = deptEmps
+            // BR-31: scores under dispute (Disputed_Pending) are hidden from ranking, averages and tier counts.
+            var activeDeptEmps = deptEmps.Where(e => !disputedEmployeeIds.Contains(e.Id)).ToList();
+
+            var totalDeptEmps = activeDeptEmps.Count;
+            var deptEvaluations = activeDeptEmps
                 .Where(e => evalEmpMap.ContainsKey(e.Id))
                 .Select(e => evalEmpMap[e.Id])
                 .ToList();
@@ -1090,8 +1116,9 @@ public sealed partial class EvaluationService(
                 latestSubmit));
         }
 
-        var totalBranchEmployees = employees.Count;
-        var totalBranchEvaluated = evaluations.Count(pe => pe.Status != PerformanceEvaluationStatus.Draft);
+        var disputedPendingCount = disputedEmployeeIds.Count;
+        var totalBranchEmployees = employees.Count - disputedPendingCount;
+        var totalBranchEvaluated = deptSummaries.Sum(d => d.EvaluatedEmployees);
         var totalTierACount = deptSummaries.Sum(d => d.TierACount);
         var branchTierAPercent = totalBranchEmployees > 0 ? Math.Round(totalTierACount * 100m / totalBranchEmployees, 1) : 0m;
         var maxBranchA = totalBranchEmployees > 0 ? Math.Max(1, (int)Math.Ceiling(totalBranchEmployees * 0.20m)) : 0;
@@ -1107,6 +1134,7 @@ public sealed partial class EvaluationService(
             period.Status.ToString().ToUpperInvariant());
 
         var canFinalize = period.Status is PeriodStatus.Open or PeriodStatus.InReview
+            && disputedPendingCount == 0
             && deptSummaries.Count > 0
             && deptSummaries.All(d => d.Status is "IN_REVIEW" or "APPROVED" or "FINAL");
 
@@ -1119,7 +1147,8 @@ public sealed partial class EvaluationService(
             20.0m,
             isBranchCompliant,
             canFinalize,
-            deptSummaries);
+            deptSummaries,
+            disputedPendingCount);
     }
 
     public async Task<CalibrationDecisionResultDto> RejectDepartmentCalibrationAsync(
@@ -1166,7 +1195,7 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var reasonTrimmed = request.Reason.Trim();
 
-        foreach (var pe in evaluations)
+        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending()))
         {
             pe.Status = PerformanceEvaluationStatus.Calculated;
             var (comment, coachPlan, qualScores, calib, _, appr) = ParseStoredComment(pe.Comment);
@@ -1206,6 +1235,14 @@ public sealed partial class EvaluationService(
         var evaluations = await db.PerformanceEvaluations
             .Where(pe => pe.EvaluationPeriodId == request.PeriodId)
             .ToListAsync(cancellationToken);
+
+        // BR-31: a score under dispute cannot be locked as FINAL before the appeal is resolved or withdrawn.
+        var disputedPending = evaluations.DisputedEmployeeIds().Count;
+        if (disputedPending > 0)
+        {
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
+                $"Còn {disputedPending} điểm đánh giá đang tranh chấp (Disputed_Pending). Hãy xử lý hoặc chờ nhân viên rút khiếu nại trước khi khóa kỳ đánh giá.");
+        }
 
         var now = DateTimeOffset.UtcNow;
         period.Status = PeriodStatus.Locked;
