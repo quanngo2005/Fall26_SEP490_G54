@@ -14,7 +14,7 @@ export const routes: Routes = [
   {
     path: 'roles',
     canActivate: [authGuard, adminGuard],
-    title: 'Role & quyền',
+    title: 'Vai trò & quyền',
     loadComponent: () =>
       import('./features/role-permissions/role-list.component').then((m) => m.RoleListComponent),
   },
