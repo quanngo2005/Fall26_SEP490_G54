@@ -77,7 +77,7 @@ public sealed partial class PerformanceDashboardService
         var ids = employees.Select(e => e.Id).ToList();
         var rows = await db.PerformanceEvaluations.AsNoTracking()
             .Where(e => e.EvaluationPeriodId == periodId && ids.Contains(e.EmployeeId))
-            .Where(EvaluationDisputeRules.HasRankableScore)
+            .Where(PerformanceEvaluationExtensions.HasRankableScore)
             .Select(e => new ScoredEvaluation(e.Id, e.EmployeeId, e.Status, e.TotalScore!.Value))
             .ToListAsync(cancellationToken);
 

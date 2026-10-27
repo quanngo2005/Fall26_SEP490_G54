@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
@@ -458,7 +459,7 @@ public sealed partial class EvaluationService(
         // BR-31: a score under dispute is frozen; re-submitting the form must not silently clear Disputed_Pending.
         if (existingEvaluation?.IsDisputedPending() == true)
         {
-            throw EvaluationDisputeRules.PendingConflict(
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
                 "Điểm đánh giá đang tranh chấp (Disputed_Pending) nên không thể cập nhật cho đến khi khiếu nại được xử lý hoặc rút lại.");
         }
 
@@ -680,7 +681,7 @@ public sealed partial class EvaluationService(
 
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
         var unrankedRows = new List<CalibrationEmployeeRowDto>();
-        var disputedEmployeeIds = EvaluationDisputeRules.DisputedEmployeeIds(evaluations);
+        var disputedEmployeeIds = evaluations.DisputedEmployeeIds();
 
         foreach (var emp in employees)
         {
@@ -855,7 +856,7 @@ public sealed partial class EvaluationService(
 
         // BR-31: a score under dispute (Disputed_Pending) is outside the ranking, so it neither counts toward the
         // quota base nor accepts calibration until the dispute ends.
-        var disputedEmployeeIds = EvaluationDisputeRules.DisputedEmployeeIds(existingEvaluations);
+        var disputedEmployeeIds = existingEvaluations.DisputedEmployeeIds();
 
         var totalEmployees = employees.Count(e => !disputedEmployeeIds.Contains(e.Id));
         var maxTierAQuota = totalEmployees > 0 ? Math.Max(1, (int)Math.Ceiling(totalEmployees * 0.20m)) : 0;
@@ -1006,7 +1007,7 @@ public sealed partial class EvaluationService(
 
         var evalEmpMap = evaluations.GroupBy(pe => pe.EmployeeId)
             .ToDictionary(g => g.Key, g => g.First());
-        var disputedEmployeeIds = EvaluationDisputeRules.DisputedEmployeeIds(evaluations);
+        var disputedEmployeeIds = evaluations.DisputedEmployeeIds();
 
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(allEmpIds, period, cancellationToken);
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
@@ -1236,10 +1237,10 @@ public sealed partial class EvaluationService(
             .ToListAsync(cancellationToken);
 
         // BR-31: a score under dispute cannot be locked as FINAL before the appeal is resolved or withdrawn.
-        var disputedPending = EvaluationDisputeRules.DisputedEmployeeIds(evaluations).Count;
+        var disputedPending = evaluations.DisputedEmployeeIds().Count;
         if (disputedPending > 0)
         {
-            throw EvaluationDisputeRules.PendingConflict(
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
                 $"Còn {disputedPending} điểm đánh giá đang tranh chấp (Disputed_Pending). Hãy xử lý hoặc chờ nhân viên rút khiếu nại trước khi khóa kỳ đánh giá.");
         }
 
