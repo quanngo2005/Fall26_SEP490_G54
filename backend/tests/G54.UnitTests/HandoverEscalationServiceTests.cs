@@ -16,7 +16,6 @@ public sealed class HandoverEscalationServiceTests : IDisposable
     private Employee _manager = null!;
     private Employee _from = null!;
     private Employee _to = null!;
-    private Work _work = null!;
 
     public void Dispose() => _db.Dispose();
 
@@ -29,18 +28,6 @@ public sealed class HandoverEscalationServiceTests : IDisposable
         _from = Employee("FROM", departmentId, _manager.Id);
         _to = Employee("TO", departmentId, receiverHasManager ? _manager.Id : null);
         _db.Employees.AddRange(_manager, _from, _to);
-        _work = new Work
-        {
-            Id = Guid.NewGuid(),
-            Code = "W-1",
-            Title = "Work",
-            AssigneeEmployeeId = _from.Id,
-            CreatedBy = _from.Id,
-            Priority = WorkPriority.Medium,
-            Status = WorkStatus.New,
-            UpdatedAt = Now,
-        };
-        _db.Works.Add(_work);
         await _db.SaveChangesAsync();
     }
 
@@ -60,10 +47,22 @@ public sealed class HandoverEscalationServiceTests : IDisposable
 
     private async Task<TaskHandover> AddHandoverAsync(TimeSpan age, HandoverStatus status = HandoverStatus.Pending)
     {
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = $"W-{Guid.NewGuid():N}"[..12],
+            Title = "Work",
+            AssigneeEmployeeId = _from.Id,
+            CreatedBy = _from.Id,
+            Priority = WorkPriority.Medium,
+            Status = WorkStatus.New,
+            UpdatedAt = Now,
+        };
+        _db.Works.Add(work);
         var handover = new TaskHandover
         {
             Id = Guid.NewGuid(),
-            WorkId = _work.Id,
+            WorkId = work.Id,
             FromEmployeeId = _from.Id,
             ToEmployeeId = _to.Id,
             Reason = "r",

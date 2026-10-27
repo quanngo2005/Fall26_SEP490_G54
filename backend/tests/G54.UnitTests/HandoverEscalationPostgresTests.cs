@@ -15,7 +15,6 @@ public sealed class HandoverEscalationPostgresTests : IAsyncLifetime
     private Guid _managerId;
     private Guid _fromId;
     private Guid _toId;
-    private Guid _workId;
 
     public async Task InitializeAsync()
     {
@@ -86,21 +85,7 @@ public sealed class HandoverEscalationPostgresTests : IAsyncLifetime
         db.Employees.AddRange(from, to);
         await db.SaveChangesAsync();
 
-        var work = new Work
-        {
-            Id = Guid.NewGuid(),
-            Code = "PG-W",
-            Title = "W",
-            AssigneeEmployeeId = from.Id,
-            CreatedBy = from.Id,
-            Priority = WorkPriority.Medium,
-            Status = WorkStatus.New,
-            UpdatedAt = now,
-        };
-        db.Works.Add(work);
-        await db.SaveChangesAsync();
-
-        (_managerId, _fromId, _toId, _workId) = (manager.Id, from.Id, to.Id, work.Id);
+        (_managerId, _fromId, _toId) = (manager.Id, from.Id, to.Id);
     }
 
     private static Employee Employee(string code, Guid departmentId, Guid jobId, Guid? managerId, DateTimeOffset now) => new()
@@ -128,10 +113,22 @@ public sealed class HandoverEscalationPostgresTests : IAsyncLifetime
     private Task<Guid> AddHandoverAsync(TimeSpan age, HandoverStatus status = HandoverStatus.Pending) => RunAsync(async (db, _) =>
     {
         var at = DateTimeOffset.UtcNow - age;
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = $"PG-{Guid.NewGuid():N}"[..20],
+            Title = "W",
+            AssigneeEmployeeId = _fromId,
+            CreatedBy = _fromId,
+            Priority = WorkPriority.Medium,
+            Status = WorkStatus.New,
+            UpdatedAt = at,
+        };
+        db.Works.Add(work);
         var handover = new TaskHandover
         {
             Id = Guid.NewGuid(),
-            WorkId = _workId,
+            WorkId = work.Id,
             FromEmployeeId = _fromId,
             ToEmployeeId = _toId,
             Reason = "r",
