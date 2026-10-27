@@ -9,81 +9,20 @@
         <div>
           <h1>{{t.title}}</h1>
           <p class="description">
-            {{tab() === 'navigation' ? t.description : localization.systemParameters.description}}
+            {{t.description}}
           </p>
         </div>
         <div class="title-actions">
-          <span
-            class="audit-link"
-            aria-disabled="true"
-            [attr.title]="localization.layout.comingSoon"
-          >
-            {{t.auditLog}}
-            <app-layout-icon name="externalLink" />
-          </span>
-          <button
-            type="button"
-            class="btn"
-            [disabled]="!pageDirty() || pageBusy()"
-            (click)="discardPage()"
-          >
+          <button type="button" class="btn" [disabled]="!dirty() || saving()" (click)="cancel()">
             {{t.discard}}
           </button>
-          <button
-            type="button"
-            class="btn primary"
-            [disabled]="!pageCanSave()"
-            (click)="requestSave()"
-          >
-            {{t.saveShortcut}}
+          <button type="button" class="btn primary" [disabled]="!canSave()" (click)="requestSave()">
+            {{t.save}}
           </button>
         </div>
       </div>
 
-      <div class="tabs" role="tablist" [attr.aria-label]="t.tabsLabel">
-        <button
-          type="button"
-          role="tab"
-          (keydown)="onTabKey($event)"
-          id="settings-tab-parameters"
-          aria-controls="settings-panel-parameters"
-          [class.is-active]="tab() === 'parameters'"
-          [attr.aria-selected]="tab() === 'parameters'"
-          [attr.tabindex]="tab() === 'parameters' ? 0 : -1"
-          (click)="selectTab('parameters')"
-        >
-          {{t.tabParameters}}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          (keydown)="onTabKey($event)"
-          id="settings-tab-navigation"
-          aria-controls="settings-panel-navigation"
-          [class.is-active]="tab() === 'navigation'"
-          [attr.aria-selected]="tab() === 'navigation'"
-          [attr.tabindex]="tab() === 'navigation' ? 0 : -1"
-          (click)="selectTab('navigation')"
-        >
-          {{t.tabNavigation}}
-        </button>
-      </div>
-
-      <div
-        role="tabpanel"
-        id="settings-panel-parameters"
-        aria-labelledby="settings-tab-parameters"
-        [hidden]="tab() !== 'parameters'"
-      >
-        <app-system-parameters-panel />
-      </div>
-
-      <div
-        role="tabpanel"
-        id="settings-panel-navigation"
-        aria-labelledby="settings-tab-navigation"
-        [hidden]="tab() !== 'navigation'"
-      >
+      <div>
         @if (loading()) {
           <p role="status">{{t.loading}}</p>
         } @else if (error() === 'loadFailed') {

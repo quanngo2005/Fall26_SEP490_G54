@@ -22,10 +22,6 @@
 
   <!-- Right: Actions -->
   <div class="header-actions">
-    @if (mockApi) {
-      <span class="mock-badge" role="status" [title]="localization.layout.mockDataHint">{{localization.layout.mockData}}</span>
-    }
-
     <!-- Language switch -->
     <div class="language-switch" role="group" [attr.aria-label]="localization.common.language">
       <button

@@ -11,7 +11,6 @@ import {
   SidebarConfiguration,
   SidebarConfigurationService,
 } from '../../core/sidebar-configuration.service';
-import { SystemParameterService } from '../../core/system-parameter.service';
 import { NavigationService } from '../../shared/layout/navigation.service';
 import { SidebarSettingsComponent } from './sidebar-settings.component';
 
@@ -42,7 +41,6 @@ describe('SidebarSettingsComponent', () => {
             }),
           },
         },
-        { provide: SystemParameterService, useValue: { list: () => of([]), save: () => of([]) } },
         {
           provide: SidebarConfigurationService,
           useValue: { all: () => of(configs), current: () => of([configs[1]]), save },
@@ -89,7 +87,7 @@ describe('SidebarSettingsComponent', () => {
     TestBed.inject(I18nService).setLanguage('en');
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Someone else changed this configuration');
-    expect(fixture.nativeElement.textContent).toContain('System parameters');
+    expect(fixture.nativeElement.textContent).toContain('Role sidebar management');
     fixture.destroy();
   });
   it('reorders through drop and keyboard, saves route overrides and resets them on cancel', () => {
@@ -161,7 +159,6 @@ describe('SidebarSettingsComponent', () => {
     const fixture = TestBed.createComponent(SidebarSettingsComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
-    component.selectTab('navigation');
     component.toggle('notifications');
     component.move('myProfile', -1);
     expect(component.changes().map((change) => change.kind)).toEqual(['added', 'moved', 'moved']);
@@ -180,17 +177,6 @@ describe('SidebarSettingsComponent', () => {
     fixture.detectChanges();
     expect(save).toHaveBeenCalledTimes(1);
     expect(component.confirming()).toBeFalse();
-    fixture.destroy();
-  });
-
-  it('routes Ctrl+S to the active tab', () => {
-    const fixture = TestBed.createComponent(SidebarSettingsComponent);
-    fixture.detectChanges();
-    const component = fixture.componentInstance;
-    component.selectTab('navigation');
-    component.toggle('notifications');
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
-    expect(component.confirming()).toBeTrue();
     fixture.destroy();
   });
 });

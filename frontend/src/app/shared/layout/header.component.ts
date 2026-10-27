@@ -2,7 +2,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { isMockApiEnabled } from '../../core/mock-api/mock-api.interceptor';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { LayoutIconComponent } from './layout-icon.component';
 import { NavigationService } from './navigation.service';
@@ -18,7 +17,6 @@ export class HeaderComponent extends LocalizedComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly user = this.auth.currentUser;
-  readonly mockApi = isMockApiEnabled();
   readonly loggingOut = signal(false);
   readonly logoutFailed = signal(false);
   get initials(): string {

@@ -8,7 +8,7 @@ import {
   output,
 } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
+import { LayoutIconComponent } from '../layout/layout-icon.component';
 
 /** Confirm-save dialog shared by both SCR-ADM-04 tabs; the diff table is projected. */
 @Component({

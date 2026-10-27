@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -8,6 +9,7 @@ using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -17,7 +19,7 @@ public sealed class AppealService(
     IStorageService storage,
     ILogger<AppealService> logger,
     TimeProvider time,
-    ISystemParameterReader parameterReader) : IAppealService
+    IOptions<SystemParametersOptions> parameters) : IAppealService
 {
     private const int MaxReasonLength = 2000;
     private const int MaxFileCount = 10;
@@ -85,8 +87,7 @@ public sealed class AppealService(
             .Where(v => v.Decision == VerificationDecision.Rejected)
             .Max(v => v.VerifiedAt)
             ?? submission.UpdatedAt;
-        // appealRejectedHours is locked at 48 in the system parameters
-        var appealWindowHours = await parameterReader.GetLongAsync(SystemParameterKeys.AppealRejectedHours, cancellationToken);
+        var appealWindowHours = parameters.Value.AppealRejectedHours;
         var appealWindow = TimeSpan.FromHours(appealWindowHours);
         if (now - rejectedAt > appealWindow)
         {

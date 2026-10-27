@@ -6,7 +6,7 @@ import {
   CdkDropList,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
-import { Component, HostListener, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
@@ -21,10 +21,7 @@ import {
   ROLE_MENUS,
   WorkspaceRole,
 } from '../../shared/layout/navigation.service';
-import { ConfirmSaveDialogComponent } from './confirm-save-dialog.component';
-import { SystemParametersPanelComponent } from './system-parameters-panel.component';
-
-type SettingsTab = 'parameters' | 'navigation';
+import { ConfirmSaveDialogComponent } from '../../shared/ui/confirm-save-dialog.component';
 
 export interface NavigationChange {
   kind: 'added' | 'removed' | 'moved' | 'route';
@@ -45,7 +42,6 @@ export interface NavigationChange {
     CdkDrag,
     CdkDragHandle,
     ConfirmSaveDialogComponent,
-    SystemParametersPanelComponent,
   ],
   templateUrl: './sidebar-settings.component.html',
   styleUrls: [
@@ -58,8 +54,6 @@ export interface NavigationChange {
 export class SidebarSettingsComponent extends LocalizedComponent {
   readonly navigation = inject(NavigationService);
   private readonly api = inject(SidebarConfigurationService);
-  private readonly parameters = viewChild(SystemParametersPanelComponent);
-  readonly tab = signal<SettingsTab>('parameters');
   readonly selectedRole = signal<WorkspaceRole>('employee');
   readonly configurations = signal<SidebarConfiguration[]>([]);
   readonly draft = signal<MenuKey[]>([]);
@@ -119,17 +113,7 @@ export class SidebarSettingsComponent extends LocalizedComponent {
         })),
     ];
   });
-  readonly pageDirty = computed(() =>
-    this.tab() === 'navigation' ? this.dirty() : (this.parameters()?.dirty() ?? false),
-  );
-  readonly pageBusy = computed(() =>
-    this.tab() === 'navigation' ? this.saving() : (this.parameters()?.saving() ?? false),
-  );
-  readonly pageCanSave = computed(() =>
-    this.tab() === 'navigation'
-      ? this.dirty() && !this.saving()
-      : (this.parameters()?.canSave() ?? false),
-  );
+  readonly canSave = computed(() => this.dirty() && !this.saving());
 
   constructor() {
     super();
@@ -167,19 +151,6 @@ export class SidebarSettingsComponent extends LocalizedComponent {
         this.loading.set(false);
       },
     });
-  }
-
-  selectTab(tab: SettingsTab): void {
-    this.tab.set(tab);
-  }
-
-  /** Cycles tabs with the arrow keys, as a WAI-ARIA tablist. */
-  onTabKey(event: KeyboardEvent): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const next: SettingsTab = this.tab() === 'parameters' ? 'navigation' : 'parameters';
-    this.tab.set(next);
-    document.getElementById(`settings-tab-${next}`)?.focus();
   }
 
   selectRole(event: Event): void {
@@ -287,27 +258,9 @@ export class SidebarSettingsComponent extends LocalizedComponent {
     this.confirming.set(false);
   }
 
-  /** Title-bar "Hủy thay đổi" for whichever tab is active. */
-  discardPage(): void {
-    if (this.tab() === 'navigation') this.cancel();
-    else this.parameters()?.discard();
-  }
-
-  /** Title-bar "Lưu" and Ctrl+S: opens the confirm dialog of the active tab. */
+  /** Title-bar "Lưu": opens the confirm dialog. */
   requestSave(): void {
-    if (this.tab() === 'parameters') {
-      this.parameters()?.requestSave();
-    } else if (this.dirty() && !this.saving()) {
-      this.confirming.set(true);
-    }
-  }
-
-  @HostListener('document:keydown', ['$event'])
-  protected onShortcut(event: KeyboardEvent): void {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      this.requestSave();
-    }
+    if (this.canSave()) this.confirming.set(true);
   }
 
   closeConfirm(): void {

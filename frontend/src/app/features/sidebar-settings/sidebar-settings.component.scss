@@ -49,22 +49,6 @@ h1 {
   align-items: center;
   gap: 8px;
 }
-.audit-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 4px;
-  color: #2563eb;
-  cursor: not-allowed;
-  font:
-    500 13px/20px Inter,
-    sans-serif;
-  opacity: 0.6;
-}
-.audit-link app-layout-icon {
-  width: 12px;
-  height: 12px;
-}
 .btn {
   min-height: 36px;
   border: 1px solid #8494a9;

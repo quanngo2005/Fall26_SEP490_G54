@@ -30,7 +30,7 @@
           {{t.confirmBack}}
         </button>
         <button type="button" class="primary" [disabled]="busy()" (click)="confirmed.emit()">
-          {{busy() ? localization.systemParameters.saving : t.confirmSave}}
+          {{busy() ? t.saving : t.confirmSave}}
         </button>
       </div>
     </footer>

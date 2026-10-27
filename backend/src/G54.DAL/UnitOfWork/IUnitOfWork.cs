@@ -23,7 +23,6 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     ITargetAssignmentRepository TargetAssignments { get; }
     IEvaluationPeriodRepository EvaluationPeriods { get; }
     IRepository<ActualProgress> ActualProgresses { get; }
-    ISystemParameterRepository SystemParameters { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;
 

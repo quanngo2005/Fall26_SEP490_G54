@@ -1,22 +1,24 @@
 using G54.Api.Authorization;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace G54.Api.Controllers;
 
 [ApiController]
 [Route("target-assignments")]
 [HasPermission("target", "manage", "Department")]
-public sealed class TargetAssignmentController(ITargetAllocationService service, ISystemParameterReader parameterReader) : ControllerBase
+public sealed class TargetAssignmentController(ITargetAllocationService service, IOptions<SystemParametersOptions> parameters) : ControllerBase
 {
 
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB (max of importMaxFileMb parameter)
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB hard cap; SystemParameters:ImportMaxFileMb is the configurable limit
     [ProducesResponseType<ApiResponse<TargetImportResultDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<TargetImportResultDto>>> Import(
@@ -25,7 +27,7 @@ public sealed class TargetAssignmentController(ITargetAllocationService service,
         IFormFile? file,
         CancellationToken cancellationToken)
     {
-        var maxMb = await parameterReader.GetLongAsync(SystemParameterKeys.ImportMaxFileMb, cancellationToken);
+        var maxMb = parameters.Value.ImportMaxFileMb;
         var maxBytes = maxMb * 1024 * 1024;
 
         if (file is null || file.Length == 0 || file.Length > maxBytes ||

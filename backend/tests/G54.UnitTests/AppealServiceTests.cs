@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -44,12 +46,11 @@ public sealed class AppealServiceTests : IDisposable
             .Build(),
         NullLogger<StorageService>.Instance);
 
+    private int _appealRejectedHours = 48;
+
     private AppealService ServiceAt(DateTimeOffset now, params (string Resource, string Action, string Scope)[] grants)
     {
-        SeedSystemParametersAsync().GetAwaiter().GetResult();
-        var uow = new UnitOfWork(_db);
-        var parameterReader = new SystemParameterReader(uow);
-        return new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now), parameterReader);
+        return new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now), Options.Create(new SystemParametersOptions { AppealRejectedHours = _appealRejectedHours }));
     }
 
     private async Task SeedDepartmentsAsync()
@@ -63,26 +64,6 @@ public sealed class AppealServiceTests : IDisposable
         await _db.SaveChangesAsync();
     }
 
-    private async Task SeedSystemParametersAsync()
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (await _db.SystemParameters.AnyAsync())
-        {
-            return;
-        }
-
-        _db.SystemParameters.AddRange(
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.ManualApprovalHours, NumericValue = 48, MinValue = 1, MaxValue = 168, IsLocked = false, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.ImportMaxFileMb, NumericValue = 5, MinValue = 1, MaxValue = 10, IsLocked = false, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.ImportFormats, TextValue = ".xlsx", IsLocked = true, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.KpiLockTime, TextValue = "23:59:59", IsLocked = true, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.AppealWindowDays, NumericValue = 5, MinValue = 1, MaxValue = 30, IsLocked = false, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.PreCloseCheckDays, NumericValue = 3, MinValue = 1, MaxValue = 30, IsLocked = false, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.AppealRejectedHours, NumericValue = 48, IsLocked = true, Version = 0, CreatedAt = now, IsDeleted = false },
-            new SystemParameter { Id = Guid.NewGuid(), Key = SystemParameterKeys.HandoverThresholdVnd, NumericValue = 50000000, MinValue = 1, IsLocked = false, Version = 0, CreatedAt = now, IsDeleted = false });
-
-        await _db.SaveChangesAsync();
-    }
 
     private async Task<Employee> AddEmployeeAsync(string code, Guid departmentId, EmployeeStatus status = EmployeeStatus.Active)
     {
@@ -301,14 +282,12 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Create_UsesTheAppealWindowFromSystemParameters()
+    public async Task Create_UsesTheConfiguredAppealWindow()
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var submission = await AddSubmissionAsync(submitter);
+        _appealRejectedHours = 24;
         var service = ServiceAt(RejectedAt.AddHours(30));
-        var window = await _db.SystemParameters.SingleAsync(p => p.Key == SystemParameterKeys.AppealRejectedHours);
-        window.NumericValue = 24;
-        await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.CreateAppealAsync(submission.Id, submitter.Id, Request()));

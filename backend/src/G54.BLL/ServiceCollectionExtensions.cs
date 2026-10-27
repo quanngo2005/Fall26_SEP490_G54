@@ -28,8 +28,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
-        services.AddScoped<ISystemParameterService, SystemParameterService>();
-        services.AddScoped<ISystemParameterReader, SystemParameterReader>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IJobPositionService, JobPositionService>();

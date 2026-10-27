@@ -47,7 +47,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkRepository, WorkRepository>();
         services.AddScoped<ITargetAssignmentRepository, TargetAssignmentRepository>();
         services.AddScoped<IEvaluationPeriodRepository, EvaluationPeriodRepository>();
-        services.AddScoped<ISystemParameterRepository, SystemParameterRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }
