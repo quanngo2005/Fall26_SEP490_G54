@@ -1371,6 +1371,9 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
             });
 
+            // Optimistic concurrency: stops two decisions (accept/reject) on the same pending handover both succeeding.
+            entity.Property<uint>("xmin").IsRowVersion();
+
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
 
             entity.HasIndex(e => e.WorkId, "ux_task_handover_pending_work")
