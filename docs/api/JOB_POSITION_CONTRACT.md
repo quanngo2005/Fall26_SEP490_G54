@@ -10,21 +10,24 @@ as N/A.
 
 ## Authorization
 
-Both endpoints use the policy `OrganizationViewer` (`[Authorize(Policy = OrganizationAccess.Policy)]`) along with declarative RBAC permission `[HasPermission("evaluation", "read", "Own")]`: the caller's JWT
-`role` claim must contain at least one of
+Both endpoints require the permission `organization:read` with scope `Dept` or higher
+(`[HasPermission("organization", "read", "Dept")]`; permission code `ORGANIZATION_READ`). It is read from
+`role_permission`, so access is configuration, not code. The migration `SeedOrganizationReadAccess` creates the permission,
+the roles `SYSTEM_ADMIN`, `BRANCH_MANAGER` and `DEPT_MANAGER`, and grants it to exactly:
 
-| Role code | Meaning |
-| --- | --- |
-| `SYSTEM_ADMIN`, `ADMIN` | system administrator |
-| `BRANCH_MANAGER` | branch manager |
-| `DEPT_MANAGER`, `DEPARTMENT_MANAGER`, `MANAGER` | department manager (`MANAGER` is the seeded role code) |
+| Role | Scope | Meaning |
+| --- | --- | --- |
+| `SYSTEM_ADMIN`, `ADMIN` | `All` | system administrator |
+| `BRANCH_MANAGER` | `Branch` | branch manager |
+| `DEPT_MANAGER`, `MANAGER` | `Dept` | department manager (`MANAGER` is the seeded manager role) |
 
-Codes are compared after trimming, upper-casing and turning spaces/hyphens into underscores (`branch-manager` matches).
-Every other role (employee, HR, QA, verifier, ...) receives `403 FORBIDDEN`, even if it holds a data permission. A missing,
-expired or invalid token receives `401 UNAUTHORIZED`. The same policy guards `/departments` (SCR-ORG-01); the frontend
-route guard `organizationGuard` applies it to `/departments`, `/job-positions` and `/department-performance` and sends
-other users to `/home`. Job positions are global reference data, so there is no per-department data scope.
-
+Every other role (employee, verifier, HR, QA, ...) has no `organization:read` row and receives `403 FORBIDDEN`; holding
+`evaluation:read` no longer helps. The wildcard `FULL_ACCESS` permission (development admin) also passes. A missing, expired
+or invalid token receives `401 UNAUTHORIZED`. An administrator can grant the permission to another role by adding a
+`role_permission` row (or through the permission matrix, SCR-ADM-03); no code change is needed. The same permission guards
+`/departments` (SCR-ORG-01, see `DEPARTMENT_CONTRACT.md`); the frontend route guard `organizationGuard` checks it (and
+`FULL_ACCESS`) for `/departments`, `/job-positions` and `/department-performance` and sends other users to `/home`.
+Job positions are global reference data, so there is no per-department data scope.
 ## Endpoints
 
 ### `GET /job-positions`
