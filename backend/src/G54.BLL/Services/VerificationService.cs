@@ -1,3 +1,4 @@
+using System.Data;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -22,12 +23,6 @@ public sealed class VerificationService(
             LogLevel.Information,
             new EventId(1, "VerificationAudit"),
             "Verification audit: Decision={Decision}, SubmissionId={SubmissionId}, VerifierId={VerifierId}");
-
-    private static readonly Action<ILogger, Guid, Guid, Exception?> LogContributionSkipped =
-        LoggerMessage.Define<Guid, Guid>(
-            LogLevel.Warning,
-            new EventId(2, "ContributionSkippedNoActiveTarget"),
-            "KPI contribution skipped: EmployeeId={EmployeeId} has no active target for KpiDefinitionId={KpiDefinitionId}");
 
     private const string DossierNotFoundMessage = "Không tìm thấy hồ sơ nộp kết quả công việc yêu cầu thẩm định.";
 
@@ -119,13 +114,16 @@ public sealed class VerificationService(
             .Include(a => a.Employee)
             .FirstOrDefaultAsync(a => a.Id == actorAccountId, cancellationToken);
 
-        if (account?.Employee is null)
+        if (account?.Employee is null || account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             throw new UnauthorizedException("Không xác định được thông tin nhân sự thẩm định từ tài khoản hiện tại.");
         }
 
         var verifier = account.Employee;
 
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
         var submission = await db.ResultSubmissions
             .Include(s => s.Work)
                 .ThenInclude(w => w.WorkType)
@@ -206,61 +204,34 @@ public sealed class VerificationService(
         };
 
         db.Verifications.Add(verification);
-
-        submission.Status = newSubmissionStatus;
-        submission.UpdatedAt = now;
-
-        submission.Work.Status = newWorkStatus;
-        submission.Work.UpdatedAt = now;
-
-        if (dbDecision == VerificationDecision.Approved)
+        try
         {
-            // A work item (Task ID) may contribute KPI to the system only once.
-            var alreadyContributed = await db.WorkResultItems.AnyAsync(
-                i => i.VerifiedWorkResult.Verification.ResultSubmission.WorkId == submission.WorkId,
-                cancellationToken);
-            if (alreadyContributed)
+            if (dbDecision == VerificationDecision.Approved)
             {
-                throw new BusinessRuleException(ErrorCodes.KpiAlreadyContributed, statusCode: StatusCodes.Status409Conflict);
+                await VerifiedResultRecorder.RecordAsync(
+                    db, logger, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
             }
 
-            var verifiedResult = new VerifiedWorkResult
+            // Insert the verification before APPROVED closes the submission in the database trigger.
+            if (transaction is not null)
             {
-                Id = Guid.NewGuid(),
-                VerificationId = verification.Id,
-                VerifiedAt = now,
-                UpdatedAt = now,
-                Status = VerifiedResultStatus.Valid,
-            };
-            db.VerifiedWorkResults.Add(verifiedResult);
+                await db.SaveChangesAsync(cancellationToken);
+            }
 
-            var primaryKpiId = submission.Work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
-            if (primaryKpiId.HasValue && dto.VerifiedValue.HasValue)
+            submission.Status = newSubmissionStatus;
+            submission.UpdatedAt = now;
+            submission.Work.Status = newWorkStatus;
+            submission.Work.UpdatedAt = now;
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
             {
-                var handover = await db.TaskHandovers
-                    .AsNoTracking()
-                    .Where(h => h.WorkId == submission.WorkId && h.Status == HandoverStatus.Accepted)
-                    .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                var contributions = handover is null
-                    ? [(submission.SubmitterEmployeeId, dto.VerifiedValue.Value)]
-                    : SplitHandoverContributions(handover, dto.VerifiedValue.Value);
-
-                foreach (var (employeeId, value) in contributions)
-                {
-                    await AddResultItemAsync(
-                        verifiedResult.Id,
-                        primaryKpiId.Value,
-                        employeeId,
-                        value,
-                        now,
-                        cancellationToken);
-                }
+                await transaction.CommitAsync(cancellationToken);
             }
         }
-
-        await db.SaveChangesAsync(cancellationToken);
+        catch (Exception ex) when (PostgresConflict.IsSerializationFailure(ex))
+        {
+            throw new ConflictException("Hồ sơ đã được xử lý đồng thời. Vui lòng tải lại hồ sơ.", ErrorCodes.VerificationInvalidState);
+        }
 
         LogVerificationAudit(logger, normalizedDecision, submission.Id, verifier.Id, null);
 
@@ -380,94 +351,5 @@ public sealed class VerificationService(
         {
             throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
-    }
-
-    private static (Guid EmployeeId, decimal Value)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
-    {
-        var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints, handover.ReferrerSharePercent);
-        return
-        [
-            (handover.FromEmployeeId, referrerPoints),
-            (handover.ToEmployeeId, processorPoints),
-        ];
-    }
-
-    private async Task AddResultItemAsync(
-        Guid verifiedWorkResultId,
-        Guid kpiDefinitionId,
-        Guid employeeId,
-        decimal value,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var progress = await ResolveProgressAsync(
-            kpiDefinitionId,
-            employeeId,
-            time.GetBusinessToday(),
-            value,
-            now,
-            cancellationToken);
-
-        // A verified result item must feed an employee target's progress; without an active target there is nothing to attribute it to.
-        if (progress is null)
-        {
-            LogContributionSkipped(logger, employeeId, kpiDefinitionId, null);
-            return;
-        }
-
-        db.WorkResultItems.Add(new WorkResultItem
-        {
-            Id = Guid.NewGuid(),
-            VerifiedWorkResultId = verifiedWorkResultId,
-            ActualProgressId = progress.Id,
-            EmployeeId = employeeId,
-            Value = value,
-            UpdatedAt = now,
-        });
-    }
-
-    private async Task<ActualProgress?> ResolveProgressAsync(
-        Guid kpiDefinitionId,
-        Guid employeeId,
-        DateOnly progressDate,
-        decimal value,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var target = await db.TargetAssignments
-            .Where(t => t.KpiDefinitionId == kpiDefinitionId
-                && t.EmployeeId == employeeId
-                && t.Status == TargetAssignmentStatus.Active
-                && t.EvaluationPeriod.StartDate <= progressDate
-                && t.EvaluationPeriod.EndDate >= progressDate)
-            .OrderBy(t => t.EvaluationPeriod.EndDate)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (target is null)
-        {
-            return null;
-        }
-
-        var progress = db.ActualProgresses.Local
-                .FirstOrDefault(p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate)
-            ?? await db.ActualProgresses.FirstOrDefaultAsync(
-                p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate,
-                cancellationToken);
-        if (progress is null)
-        {
-            progress = new ActualProgress
-            {
-                Id = Guid.NewGuid(),
-                TargetAssignmentId = target.Id,
-                ProgressDate = progressDate,
-                Value = 0,
-                Status = ActualProgressStatus.Valid,
-                UpdatedAt = now,
-            };
-            db.ActualProgresses.Add(progress);
-        }
-
-        progress.Value += value;
-        progress.UpdatedAt = now;
-        return progress;
     }
 }
