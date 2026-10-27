@@ -225,13 +225,14 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
     }
 
     [Fact]
-    public void TheMigrationIdIsTheLatestOneAndFollowsTheHandoverMigration()
+    public void TheMigrationFollowsTheHandoverMigration()
     {
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal(Migration, migrations[^1]);
-        Assert.Equal(PreviousMigration, migrations[^2]);
+        var index = migrations.IndexOf(Migration);
+        Assert.True(index > 0, "the organization access migration must be part of the chain");
+        Assert.Equal(PreviousMigration, migrations[index - 1]);
     }
 
     /// <summary>

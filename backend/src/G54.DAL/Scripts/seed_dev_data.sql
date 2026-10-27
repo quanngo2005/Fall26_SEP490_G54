@@ -80,7 +80,9 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
  ('5eed0000-0000-0000-0007-000000000009', 'NV009', 'Bùi Văn Nam',    'nam.bui@progest.local',   '0901000009', '5eed0000-0000-0000-0001-000000000006', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000003'),
  ('5eed0000-0000-0000-0007-00000000000a', 'NV010', 'Đặng Ngọc Oanh', 'oanh.dang@progest.local', '0901000010', '5eed0000-0000-0000-0001-000000000007', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000003'),
  ('5eed0000-0000-0000-0007-00000000000b', 'NV011', 'Demo Manager',    'manager@bpms.com',        '0901000011', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
- ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000002')
+ ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000002'),
+ ('5eed0000-0000-0000-0007-00000000000d', 'NV013', 'Demo System Admin', 'sysadmin@bpms.com',     '0901000013', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-0006-000000000001', NULL),
+ ('5eed0000-0000-0000-0007-00000000000e', 'NV014', 'Demo Verifier',     'verifier@bpms.com',     '0901000014', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001')
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -140,6 +142,33 @@ FROM (VALUES
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
+ON CONFLICT DO NOTHING;
+
+-- Each organization role is usable on its own (one role per account). The same copy the migration
+-- GrantWorkAccessToOrganizationRoles performs, repeated here because a fresh database has no MANAGER/ADMIN grants
+-- when migrations run. DEPT_MANAGER = MANAGER; BRANCH_MANAGER = MANAGER with department scopes widened to Branch;
+-- SYSTEM_ADMIN = ADMIN without the development-only FULL_ACCESS wildcard.
+INSERT INTO role_permission (role_id, permission_id, scope)
+SELECT target.id, rp.permission_id, rp.scope
+FROM role_permission rp
+JOIN role source ON source.id = rp.role_id AND source.code = 'MANAGER'
+JOIN role target ON target.code = 'DEPT_MANAGER'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permission (role_id, permission_id, scope)
+SELECT target.id, rp.permission_id,
+       CASE WHEN lower(rp.scope) IN ('dept', 'department') THEN 'Branch' ELSE rp.scope END
+FROM role_permission rp
+JOIN role source ON source.id = rp.role_id AND source.code = 'MANAGER'
+JOIN role target ON target.code = 'BRANCH_MANAGER'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permission (role_id, permission_id, scope)
+SELECT target.id, rp.permission_id, rp.scope
+FROM role_permission rp
+JOIN permission p ON p.id = rp.permission_id AND p.code <> 'FULL_ACCESS'
+JOIN role source ON source.id = rp.role_id AND source.code = 'ADMIN'
+JOIN role target ON target.code = 'SYSTEM_ADMIN'
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
