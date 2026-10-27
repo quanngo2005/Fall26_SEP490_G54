@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
+import { organizationGuard } from './core/organization.guard';
 
 export const routes: Routes = [
   {
@@ -33,7 +34,7 @@ export const routes: Routes = [
   },
   {
     path: 'departments',
-    canActivate: [authGuard],
+    canActivate: [authGuard, organizationGuard],
     title: 'Phòng ban',
     loadComponent: () =>
       import('./features/departments/department-list.component').then(
@@ -41,8 +42,17 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'job-positions',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Vị trí công việc',
+    loadComponent: () =>
+      import('./features/job-positions/job-position-list.component').then(
+        (m) => m.JobPositionListComponent,
+      ),
+  },
+  {
     path: 'department-performance',
-    canActivate: [authGuard],
+    canActivate: [authGuard, organizationGuard],
     title: 'Hiệu suất phòng ban',
     loadComponent: () =>
       import('./features/departments/department-view.component').then(
