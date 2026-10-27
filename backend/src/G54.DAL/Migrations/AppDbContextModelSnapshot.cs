@@ -1877,6 +1877,10 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "WorkId" }, "ix_task_handover_work");
 
+                    b.HasIndex(new[] { "WorkId" }, "ux_task_handover_pending_work")
+                        .IsUnique()
+                        .HasFilter("(status = 'PENDING'::handover_status)");
+
                     b.ToTable("task_handover", null, t =>
                         {
                             t.HasCheckConstraint("ck_task_handover_accepted_at", "accepted_at IS NULL OR accepted_at >= handover_at");

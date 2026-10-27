@@ -79,10 +79,10 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 | Công việc có bàn giao `ACCEPTED`? | Người nhận điểm | Tỷ lệ |
 |---|---|---|
 | Không | Người nộp | 100% |
-| Có (lấy bản ghi mới nhất theo `acceptedAt`, nếu trống thì `handoverAt`) | Người giao (`fromEmployeeId`, người giới thiệu) | `referrerSharePercent` của bản bàn giao (mặc định 30%) |
+| Có (lấy bản ghi mới nhất theo `acceptedAt`, nếu trống thì `handoverAt`) | Người giao (`fromEmployeeId`, người giới thiệu) | `referrerSharePercent` của bản bàn giao (mặc định cột DB là 30%; bản bàn giao tạo qua API có giá trị 0 nếu Manager/Admin không đặt, xem `HANDOVER_CONTRACT.md`) |
 | | Người nhận (`toEmployeeId`, người xử lý) | `100 - referrerSharePercent` (mặc định 70%) |
 
-- Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
+- Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định cột 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
 - Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
 - Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
 - Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `KPI_ALREADY_CONTRIBUTED` và không ghi nhận gì thêm.

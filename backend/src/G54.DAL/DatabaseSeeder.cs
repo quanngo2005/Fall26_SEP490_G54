@@ -19,7 +19,8 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             ('NV003', 'MANAGER'), ('NV003', 'VERIFIER'),
             ('NV004', 'EMPLOYEE'), ('NV005', 'EMPLOYEE'), ('NV006', 'EMPLOYEE'),
             ('NV007', 'EMPLOYEE'), ('NV008', 'EMPLOYEE'), ('NV009', 'EMPLOYEE'),
-            ('NV010', 'EMPLOYEE')
+            ('NV010', 'EMPLOYEE'),
+            ('NV011', 'MANAGER'), ('NV012', 'EMPLOYEE')
         ) AS m(employee_code, role_code)
         JOIN employee e ON e.employee_code = m.employee_code
         JOIN account a ON a.employee_id = e.id
