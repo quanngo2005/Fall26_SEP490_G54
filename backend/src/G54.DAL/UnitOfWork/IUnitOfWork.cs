@@ -24,7 +24,6 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IEvaluationPeriodRepository EvaluationPeriods { get; }
     IRepository<ActualProgress> ActualProgresses { get; }
     ISystemParameterRepository SystemParameters { get; }
-    IAdminAccessRepository AdminAccess { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;
 

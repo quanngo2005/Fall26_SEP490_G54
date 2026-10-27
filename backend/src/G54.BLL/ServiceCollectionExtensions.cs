@@ -27,7 +27,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
-        services.AddScoped<IAdminAccessService, AdminAccessService>();
         services.AddScoped<ISystemParameterService, SystemParameterService>();
         services.AddScoped<ISystemParameterReader, SystemParameterReader>();
         services.TryAddSingleton(TimeProvider.System);
