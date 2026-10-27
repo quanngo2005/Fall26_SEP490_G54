@@ -56,6 +56,7 @@ public static class ErrorCodes
     // Handover (docs/api/HANDOVER_CONTRACT.md)
     public const string HandoverAmountExceedsThreshold = "HANDOVER_AMOUNT_EXCEEDS_THRESHOLD";
     public const string HandoverAlreadyPending = "HANDOVER_ALREADY_PENDING";
+    public const string HandoverNotPending = "HANDOVER_NOT_PENDING";
 
     // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
     public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
@@ -103,6 +104,7 @@ public static class ErrorCodes
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
         [HandoverAmountExceedsThreshold] = ("Giá trị giao dịch vượt ngưỡng cho phép bàn giao (BR-01).", "The amount exceeds the allowed handover threshold (BR-01)."),
         [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
+        [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
         [TargetDepartmentSumBelow] = ("Tổng chỉ tiêu năm của các phòng ban phải lớn hơn hoặc bằng chỉ tiêu năm của chi nhánh.", "Department year targets must add up to at least the branch year target."),
         [TargetQuarterSumBelow] = ("Tổng chỉ tiêu các quý phải lớn hơn hoặc bằng chỉ tiêu năm của phòng ban.", "Quarter targets must add up to at least the department year target."),

@@ -50,6 +50,10 @@ public sealed class EvaluationProfilesControllerTests
     [InlineData(nameof(EvaluationProfilesController.UpdateProfile), typeof(HttpPutAttribute), "{id:guid}")]
     [InlineData(nameof(EvaluationProfilesController.ChangeProfileStatus), typeof(HttpPatchAttribute), "{id:guid}/status")]
     [InlineData(nameof(EvaluationProfilesController.DeleteProfile), typeof(HttpDeleteAttribute), "{id:guid}")]
+    [InlineData(nameof(EvaluationProfilesController.GetItems), typeof(HttpGetAttribute), "{id:guid}/items")]
+    [InlineData(nameof(EvaluationProfilesController.AddItem), typeof(HttpPostAttribute), "{id:guid}/items")]
+    [InlineData(nameof(EvaluationProfilesController.UpdateItem), typeof(HttpPutAttribute), "{id:guid}/items/{kpiGroupId:guid}")]
+    [InlineData(nameof(EvaluationProfilesController.RemoveItem), typeof(HttpDeleteAttribute), "{id:guid}/items/{kpiGroupId:guid}")]
     public void EveryAction_UsesTheDocumentedVerbAndRoute(string action, Type verb, string? template)
     {
         var method = typeof(EvaluationProfilesController).GetMethod(action);
@@ -66,6 +70,10 @@ public sealed class EvaluationProfilesControllerTests
     [InlineData(nameof(EvaluationProfilesController.UpdateProfile), "manage")]
     [InlineData(nameof(EvaluationProfilesController.ChangeProfileStatus), "manage")]
     [InlineData(nameof(EvaluationProfilesController.DeleteProfile), "manage")]
+    [InlineData(nameof(EvaluationProfilesController.GetItems), "read")]
+    [InlineData(nameof(EvaluationProfilesController.AddItem), "manage")]
+    [InlineData(nameof(EvaluationProfilesController.UpdateItem), "manage")]
+    [InlineData(nameof(EvaluationProfilesController.RemoveItem), "manage")]
     public void EveryAction_RequiresTheKpiPermissionAtTheAllScope(string action, string expectedAction)
     {
         var permission = Assert.Single(
@@ -204,6 +212,89 @@ public sealed class EvaluationProfilesControllerTests
         Assert.Equal(id, service.DeletedId);
     }
 
+    [Fact]
+    public async Task GetItems_Found_ReturnsTheItemsInTheCanonicalEnvelope()
+    {
+        var service = new RecordingService { Profile = SampleProfile() };
+        var controller = CreateController(service);
+
+        var result = await controller.GetItems(Guid.NewGuid(), CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value, JsonOptions));
+        var data = document.RootElement.GetProperty("data");
+        Assert.Equal(1, data.GetArrayLength());
+        Assert.Equal("SERVICE_QUALITY", data[0].GetProperty("kpiGroupCode").GetString());
+        Assert.Equal("trace-1", document.RootElement.GetProperty("traceId").GetString());
+    }
+
+    [Fact]
+    public async Task GetItems_UnknownProfile_Returns404WithTheNotFoundCode()
+    {
+        var controller = CreateController(new RecordingService());
+
+        var result = await controller.GetItems(Guid.NewGuid(), CancellationToken.None);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(notFound.Value, JsonOptions));
+        Assert.Equal("NOT_FOUND", document.RootElement.GetProperty("errorCode").GetString());
+    }
+
+    [Fact]
+    public async Task AddItem_Returns201WithALocationPointingAtTheItemsRoute()
+    {
+        var id = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = CreateController(service);
+        var dto = new EvaluationProfileItemInputDto { KpiGroupId = Guid.NewGuid(), WeightPercent = 25, DisplayOrder = 1 };
+
+        var result = await controller.AddItem(id, dto, CancellationToken.None);
+
+        var response = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(id, service.ItemProfileId);
+        Assert.Same(dto, service.AddItemDto);
+        Assert.Equal(StatusCodes.Status201Created, response.StatusCode);
+        Assert.Equal(nameof(EvaluationProfilesController.GetItems), response.ActionName);
+        Assert.Equal(id, response.RouteValues!["id"]);
+        var envelope = Assert.IsType<ApiResponse<EvaluationProfileItemDto>>(response.Value);
+        Assert.True(envelope.Success);
+        Assert.Equal("trace-1", envelope.TraceId);
+    }
+
+    [Fact]
+    public async Task UpdateItem_PassesTheRouteIdsAndBodyAndReturns200()
+    {
+        var id = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = CreateController(service);
+        var dto = new UpdateEvaluationProfileItemDto { WeightPercent = 40, DisplayOrder = 2 };
+
+        var result = await controller.UpdateItem(id, groupId, dto, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, service.ItemProfileId);
+        Assert.Equal(groupId, service.ItemGroupId);
+        Assert.Same(dto, service.UpdateItemDto);
+        Assert.IsType<ApiResponse<EvaluationProfileItemDto>>(ok.Value);
+    }
+
+    [Fact]
+    public async Task RemoveItem_PassesTheRouteIdsAndReturnsAnEmptyEnvelope()
+    {
+        var id = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = CreateController(service);
+
+        var result = await controller.RemoveItem(id, groupId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, service.ItemProfileId);
+        Assert.Equal(groupId, service.ItemGroupId);
+        Assert.True(Assert.IsType<ApiResponse>(ok.Value).Success);
+    }
+
     // ----- Test double ----------------------------------------------------------------------
 
     private sealed class RecordingService : IEvaluationProfileService
@@ -216,6 +307,10 @@ public sealed class EvaluationProfilesControllerTests
         public Guid? StatusId { get; private set; }
         public EvaluationProfileStatusDto? StatusDto { get; private set; }
         public Guid? DeletedId { get; private set; }
+        public Guid? ItemProfileId { get; private set; }
+        public Guid? ItemGroupId { get; private set; }
+        public EvaluationProfileItemInputDto? AddItemDto { get; private set; }
+        public UpdateEvaluationProfileItemDto? UpdateItemDto { get; private set; }
 
         public Task<PagedResult<EvaluationProfileListItemDto>> GetProfilesAsync(
             EvaluationProfileFilterDto filter,
@@ -273,6 +368,40 @@ public sealed class EvaluationProfilesControllerTests
         public Task DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default)
         {
             DeletedId = id;
+            return Task.CompletedTask;
+        }
+
+        public Task<List<EvaluationProfileItemDto>?> GetItemsAsync(
+            Guid profileId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Profile is null ? null : Profile.Items.ToList());
+
+        public Task<EvaluationProfileItemDto> AddItemAsync(
+            Guid profileId,
+            EvaluationProfileItemInputDto dto,
+            CancellationToken cancellationToken = default)
+        {
+            ItemProfileId = profileId;
+            AddItemDto = dto;
+            return Task.FromResult(new EvaluationProfileItemDto(dto.KpiGroupId, "CODE", "Name", dto.WeightPercent, dto.DisplayOrder));
+        }
+
+        public Task<EvaluationProfileItemDto> UpdateItemAsync(
+            Guid profileId,
+            Guid kpiGroupId,
+            UpdateEvaluationProfileItemDto dto,
+            CancellationToken cancellationToken = default)
+        {
+            ItemProfileId = profileId;
+            ItemGroupId = kpiGroupId;
+            UpdateItemDto = dto;
+            return Task.FromResult(new EvaluationProfileItemDto(kpiGroupId, "CODE", "Name", dto.WeightPercent, dto.DisplayOrder));
+        }
+
+        public Task RemoveItemAsync(Guid profileId, Guid kpiGroupId, CancellationToken cancellationToken = default)
+        {
+            ItemProfileId = profileId;
+            ItemGroupId = kpiGroupId;
             return Task.CompletedTask;
         }
     }
