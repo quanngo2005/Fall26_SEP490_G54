@@ -11,6 +11,7 @@ import {
   SidebarConfiguration,
   SidebarConfigurationService,
 } from '../../core/sidebar-configuration.service';
+import { SystemParameterService } from '../../core/system-parameter.service';
 import { NavigationService } from '../../shared/layout/navigation.service';
 import { SidebarSettingsComponent } from './sidebar-settings.component';
 
@@ -41,6 +42,7 @@ describe('SidebarSettingsComponent', () => {
             }),
           },
         },
+        { provide: SystemParameterService, useValue: { list: () => of([]), save: () => of([]) } },
         {
           provide: SidebarConfigurationService,
           useValue: { all: () => of(configs), current: () => of([configs[1]]), save },
@@ -87,7 +89,7 @@ describe('SidebarSettingsComponent', () => {
     TestBed.inject(I18nService).setLanguage('en');
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Someone else changed this configuration');
-    expect(fixture.nativeElement.textContent).toContain('Role sidebar management');
+    expect(fixture.nativeElement.textContent).toContain('System parameters');
     fixture.destroy();
   });
   it('reorders through drop and keyboard, saves route overrides and resets them on cancel', () => {
@@ -143,13 +145,52 @@ describe('SidebarSettingsComponent', () => {
     fixture.detectChanges();
     const component = fixture.componentInstance;
     const buttons = () =>
-      fixture.debugElement.queryAll(By.css('.order-list .remove-item')).map((b) => b.nativeElement);
+      fixture.debugElement
+        .queryAll(By.css('.order-list .remove-item:not(:disabled)'))
+        .map((b) => b.nativeElement);
     expect(component.draft()).toEqual(['overview', 'myProfile']);
     expect(buttons().length).toBe(1);
     buttons()[0].click();
     fixture.detectChanges();
     expect(component.draft()).toEqual(['overview']);
     expect(buttons().length).toBe(0);
+    fixture.destroy();
+  });
+
+  it('lists unsaved changes and saves only after the confirm dialog', () => {
+    const fixture = TestBed.createComponent(SidebarSettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectTab('navigation');
+    component.toggle('notifications');
+    component.move('myProfile', -1);
+    expect(component.changes().map((change) => change.kind)).toEqual(['added', 'moved', 'moved']);
+    component.requestSave();
+    fixture.detectChanges();
+    expect(save).not.toHaveBeenCalled();
+    const dialog: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
+    expect(dialog.textContent).toContain('Xác nhận lưu thanh điều hướng');
+    expect(dialog.querySelectorAll('.diff-table tbody tr').length).toBe(3);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="dialog"]')).toBeNull();
+    component.requestSave();
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[role="dialog"] .primary').click();
+    fixture.detectChanges();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(component.confirming()).toBeFalse();
+    fixture.destroy();
+  });
+
+  it('routes Ctrl+S to the active tab', () => {
+    const fixture = TestBed.createComponent(SidebarSettingsComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectTab('navigation');
+    component.toggle('notifications');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
+    expect(component.confirming()).toBeTrue();
     fixture.destroy();
   });
 });

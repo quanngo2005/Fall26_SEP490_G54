@@ -45,6 +45,12 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
 
     public IRepository<ActualProgress> ActualProgresses => Repository<ActualProgress>();
 
+    public ISystemParameterRepository SystemParameters => (ISystemParameterRepository)_repositories.GetOrAdd(
+        typeof(SystemParameter), _ => new SystemParameterRepository(dbContext));
+
+    public IAdminAccessRepository AdminAccess => (IAdminAccessRepository)_repositories.GetOrAdd(
+        typeof(AdminAccessRepository), _ => new AdminAccessRepository(dbContext));
+
     public IRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
         return (IRepository<TEntity>)_repositories.GetOrAdd(

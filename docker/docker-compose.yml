@@ -90,6 +90,7 @@ services:
       FRONTEND_HOST: ${FRONTEND_HOST:-localhost}
       API_HOST: ${API_HOST:-api.localhost}
       APP_VERSION: ${APP_VERSION:-dev}
+      USE_MOCK_API: ${USE_MOCK_API:-false}
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:

@@ -1,0 +1,59 @@
+.diff-table {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-collapse: separate;
+  border-radius: 8px;
+  border-spacing: 0;
+  font:
+    400 13px/20px Inter,
+    sans-serif;
+  overflow: hidden;
+}
+.diff-table th {
+  background: #eef2f6;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  height: 36px;
+  letter-spacing: 0.04em;
+  padding: 0 12px;
+  text-align: left;
+  text-transform: uppercase;
+}
+.diff-table td {
+  color: #0f172a;
+  height: 44px;
+  padding: 4px 12px;
+}
+.diff-table tbody tr + tr td {
+  border-top: 1px solid #f1f5f9;
+}
+.diff-table .num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.diff-table .new {
+  font-weight: 600;
+}
+.diff-badge {
+  display: inline-block;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #2563eb;
+  font:
+    600 12px/18px Inter,
+    sans-serif;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.diff-badge.is-moved {
+  border-color: #a5f3fc;
+  background: #ecfeff;
+  color: #0e7490;
+}
+.diff-badge.is-removed {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}

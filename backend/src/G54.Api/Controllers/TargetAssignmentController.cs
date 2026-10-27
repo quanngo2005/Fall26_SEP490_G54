@@ -3,6 +3,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Services;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 
 namespace G54.Api.Controllers;
@@ -10,12 +11,12 @@ namespace G54.Api.Controllers;
 [ApiController]
 [Route("target-assignments")]
 [HasPermission("target", "manage", "Department")]
-public sealed class TargetAssignmentController(ITargetAllocationService service) : ControllerBase
+public sealed class TargetAssignmentController(ITargetAllocationService service, ISystemParameterReader parameterReader) : ControllerBase
 {
-    private const long MaxUploadBytes = 5 * 1024 * 1024;
 
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB (max of importMaxFileMb parameter)
     [ProducesResponseType<ApiResponse<TargetImportResultDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<TargetImportResultDto>>> Import(
@@ -24,12 +25,15 @@ public sealed class TargetAssignmentController(ITargetAllocationService service)
         IFormFile? file,
         CancellationToken cancellationToken)
     {
-        if (file is null || file.Length == 0 || file.Length > MaxUploadBytes ||
+        var maxMb = await parameterReader.GetLongAsync(SystemParameterKeys.ImportMaxFileMb, cancellationToken);
+        var maxBytes = maxMb * 1024 * 1024;
+
+        if (file is null || file.Length == 0 || file.Length > maxBytes ||
             !file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(ApiResponse.Fail(
                 ErrorCodes.ValidationError,
-                "File must be a non-empty .xlsx of at most 5 MB.",
+                $"File must be a non-empty .xlsx of at most {maxMb} MB.",
                 traceId: HttpContext.TraceIdentifier,
                 status: StatusCodes.Status400BadRequest));
         }

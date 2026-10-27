@@ -2,6 +2,8 @@
 
 Status: **proposed** — consumed by `frontend/src/app/core/role-permission.service.ts`; backend not implemented yet.
 
+Until the backend ships, the frontend serves these routes from `frontend/src/app/core/mock-api/roles.mock.ts` when `useMockApi` is `true` (on in development, `USE_MOCK_API` in Docker, off by default). Remove the routes from `MOCK_ROUTES` once the API is implemented.
+
 All endpoints require `[HasPermission("role", "update", "System")]` (SYSTEM_ADMIN) and use the standard `ApiResponse<T>` envelope (see `API_CONVENTIONS.md`).
 
 | Method | Endpoint | Description |

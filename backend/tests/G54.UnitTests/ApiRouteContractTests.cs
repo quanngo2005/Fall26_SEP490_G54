@@ -24,6 +24,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(TargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(ResultSubmissionsController), "")]
     [InlineData(typeof(AppealsController), "")]
+    [InlineData(typeof(SystemParametersController), "system-parameters")]
     [InlineData(typeof(HelloController), "hello")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)
     {

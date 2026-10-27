@@ -1,170 +1,361 @@
+@let t = localization.sidebarSettings;
 <div class="workspace-layout">
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
     <main>
-      <h1>{{localization.sidebarSettings.title}}</h1>
-      <p>{{localization.sidebarSettings.description}}</p>
-      @if (loading()) {
-        <p role="status">{{localization.sidebarSettings.loading}}</p>
-      } @else if (error() === 'loadFailed') {
-        <p role="alert">{{localization.sidebarSettings.loadFailed}}</p>
-        <button type="button" (click)="load()">{{localization.sidebarSettings.retry}}</button>
-      } @else {
-        <div class="toolbar">
-          <label for="sidebar-role">{{localization.sidebarSettings.role}}</label>
-          <select
-            id="sidebar-role"
-            class="role-select"
-            [value]="selectedRole()"
-            (change)="selectRole($event)"
-            [disabled]="saving()"
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+      <div class="title-bar">
+        <div>
+          <h1>{{t.title}}</h1>
+          <p class="description">
+            {{tab() === 'navigation' ? t.description : localization.systemParameters.description}}
+          </p>
+        </div>
+        <div class="title-actions">
+          <span
+            class="audit-link"
+            aria-disabled="true"
+            [attr.title]="localization.layout.comingSoon"
           >
-            @for (role of navigation.workspaceRoles; track role) {
-              <option [value]="role">{{localization.workspaceRoles[role]}}</option>
-            }
-          </select>
-          <button type="button" (click)="restoreDefaults()" [disabled]="saving()">
-            {{localization.sidebarSettings.defaults}}
+            {{t.auditLog}}
+            <app-layout-icon name="externalLink" />
+          </span>
+          <button
+            type="button"
+            class="btn"
+            [disabled]="!pageDirty() || pageBusy()"
+            (click)="discardPage()"
+          >
+            {{t.discard}}
           </button>
-          <div class="actions">
-            <button type="button" (click)="cancel()" [disabled]="saving() || !dirty()">
-              {{localization.common.cancel}}
-            </button>
-            <button
-              type="button"
-              class="primary"
-              (click)="save()"
-              [disabled]="saving() || !dirty()"
-            >
-              {{saving() ? localization.sidebarSettings.saving : localization.common.save}}
+          <button
+            type="button"
+            class="btn primary"
+            [disabled]="!pageCanSave()"
+            (click)="requestSave()"
+          >
+            {{t.saveShortcut}}
+          </button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" [attr.aria-label]="t.tabsLabel">
+        <button
+          type="button"
+          role="tab"
+          (keydown)="onTabKey($event)"
+          id="settings-tab-parameters"
+          aria-controls="settings-panel-parameters"
+          [class.is-active]="tab() === 'parameters'"
+          [attr.aria-selected]="tab() === 'parameters'"
+          [attr.tabindex]="tab() === 'parameters' ? 0 : -1"
+          (click)="selectTab('parameters')"
+        >
+          {{t.tabParameters}}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          (keydown)="onTabKey($event)"
+          id="settings-tab-navigation"
+          aria-controls="settings-panel-navigation"
+          [class.is-active]="tab() === 'navigation'"
+          [attr.aria-selected]="tab() === 'navigation'"
+          [attr.tabindex]="tab() === 'navigation' ? 0 : -1"
+          (click)="selectTab('navigation')"
+        >
+          {{t.tabNavigation}}
+        </button>
+      </div>
+
+      <div
+        role="tabpanel"
+        id="settings-panel-parameters"
+        aria-labelledby="settings-tab-parameters"
+        [hidden]="tab() !== 'parameters'"
+      >
+        <app-system-parameters-panel />
+      </div>
+
+      <div
+        role="tabpanel"
+        id="settings-panel-navigation"
+        aria-labelledby="settings-tab-navigation"
+        [hidden]="tab() !== 'navigation'"
+      >
+        @if (loading()) {
+          <p role="status">{{t.loading}}</p>
+        } @else if (error() === 'loadFailed') {
+          <div class="state-error" role="alert">
+            <p>{{t.loadFailed}}</p>
+            <button type="button" class="btn" (click)="load()">{{t.retry}}</button>
+          </div>
+        } @else {
+          <div class="role-bar">
+            <div class="role-pick">
+              <label for="sidebar-role">{{t.role}}</label>
+              <select
+                id="sidebar-role"
+                class="role-select"
+                [value]="selectedRole()"
+                (change)="selectRole($event)"
+                [disabled]="saving()"
+              >
+                @for (role of navigation.workspaceRoles; track role) {
+                  <option [value]="role">{{localization.workspaceRoles[role]}}</option>
+                }
+              </select>
+            </div>
+            <button type="button" class="btn" (click)="restoreDefaults()" [disabled]="saving()">
+              {{t.defaults}}
             </button>
           </div>
-        </div>
-        <p class="note">{{localization.sidebarSettings.permissionsNote}}</p>
-        @if (error(); as errorKey) {
-          <p class="error" role="alert">{{localization.sidebarSettings[errorKey]}}</p>
-          @if (errorKey === 'conflict') {
-            <button type="button" (click)="load()">
-              {{localization.sidebarSettings.reload}}
-            </button>
+
+          @if (changes().length) {
+            <div class="banner" role="status">
+              <strong>{{unsavedTitle()}}</strong>
+              <span>{{t.unsavedNote}}</span>
+            </div>
+          } @else if (saved()) {
+            <div class="banner banner-success" role="status">
+              <strong>{{t.saved}}</strong>
+            </div>
           }
-        }
-        @if (saved()) {
-          <p class="success" role="status">{{localization.sidebarSettings.saved}}</p>
-        }
-        <div class="editor-grid">
-          <section class="panel">
-            <h2>{{localization.sidebarSettings.availableItems}}</h2>
-            @for (item of available(); track item.id) {
-              <label class="catalog-item">
-                <input
-                  type="checkbox"
-                  [checked]="draft().includes(item.id)"
-                  [disabled]="saving() || required(item.id)"
-                  (change)="toggle(item.id)"
-                />
-                <span>{{localization.menu[item.id]}}</span>
-                @if (required(item.id)) {
-                  <small>{{localization.sidebarSettings.required}}</small>
+          @if (error(); as errorKey) {
+            <div class="banner banner-error" role="alert">
+              <strong>{{t[errorKey]}}</strong>
+              @if (errorKey === 'conflict') {
+                <button type="button" class="btn" (click)="load()">{{t.reload}}</button>
+              }
+            </div>
+          }
+
+          <div class="editor-grid">
+            <section class="card" aria-labelledby="nav-available">
+              <header>
+                <h2 id="nav-available">{{t.availableItems}}</h2>
+                <span class="meta">
+                  {{i18n.translate('sidebarSettings.availableCount', {
+                      selected: draft().length,
+                      total: available().length,
+                    })}}
+                </span>
+              </header>
+              <input
+                type="search"
+                class="search"
+                [value]="search()"
+                [placeholder]="t.searchItems"
+                [attr.aria-label]="t.searchItems"
+                (input)="search.set($any($event.target).value)"
+              />
+              <div class="catalog">
+                @for (item of visibleItems(); track item.id) {
+                  <label class="catalog-item" [class.is-child]="isChild(item.id)">
+                    <input
+                      type="checkbox"
+                      [checked]="draft().includes(item.id)"
+                      [disabled]="saving() || required(item.id)"
+                      (change)="toggle(item.id)"
+                    />
+                    <span>{{localization.menu[item.id]}}</span>
+                    @if (required(item.id)) {
+                      <small class="tag">{{t.required}}</small>
+                    }
+                  </label>
                 }
-              </label>
-            }
-          </section>
-          <section class="panel">
-            <h2>{{localization.sidebarSettings.order}}</h2>
-            <p class="note" id="drag-instructions">{{localization.sidebarSettings.dragHint}}</p>
-            <ol
-              class="order-list"
-              cdkDropList
-              [cdkDropListData]="draft()"
-              [cdkDropListDisabled]="saving()"
-              (cdkDropListDropped)="drop($event)"
-            >
-              @for (id of draft(); track id; let index = $index) {
-                <li cdkDrag [cdkDragDisabled]="saving()">
-                  <div class="order-item-heading">
-                    <button
-                      cdkDragHandle
-                      class="drag-handle"
-                      type="button"
-                      (keydown.arrowup)="move(id, -1); $event.preventDefault()"
-                      (keydown.arrowdown)="move(id, 1); $event.preventDefault()"
-                      [disabled]="saving()"
-                      [attr.aria-label]="localization.sidebarSettings.dragItem"
-                      [attr.aria-describedby]="'drag-instructions item-label-' + id"
-                    >
-                      <span aria-hidden="true">⠿</span>
-                    </button>
-                    <span class="order-number" aria-hidden="true">{{index + 1}}</span>
-                    <span [id]="'item-label-' + id">{{localization.menu[id]}}</span>
-                    @if (!required(id)) {
+              </div>
+              <a class="link" routerLink="/roles">{{t.editPermissions}}</a>
+            </section>
+
+            <section class="card" aria-labelledby="nav-order">
+              <header>
+                <h2 id="nav-order">{{t.order}}</h2>
+                <span class="meta">{{t.orderHint}}</span>
+              </header>
+              <p class="visually-hidden" id="drag-instructions">{{t.dragHint}}</p>
+              <ol
+                class="order-list"
+                cdkDropList
+                [cdkDropListData]="draft()"
+                [cdkDropListDisabled]="saving()"
+                (cdkDropListDropped)="drop($event)"
+              >
+                @for (
+                  id of draft();
+                  track id;
+                  let index = $index;
+                  let first = $first;
+                  let last = $last
+                ) {
+                  <li cdkDrag [cdkDragDisabled]="saving()" [class.is-changed]="badge(id)">
+                    <div class="order-main">
+                      <button
+                        cdkDragHandle
+                        class="drag-handle"
+                        type="button"
+                        (keydown.arrowup)="move(id, -1); $event.preventDefault()"
+                        (keydown.arrowdown)="move(id, 1); $event.preventDefault()"
+                        [disabled]="saving()"
+                        [attr.aria-label]="t.dragItem"
+                        [attr.aria-describedby]="'drag-instructions item-label-' + id"
+                      >
+                        <span aria-hidden="true">⠿</span>
+                      </button>
+                      <span class="order-number" aria-hidden="true">{{index + 1}}</span>
+                      <span class="order-label" [id]="'item-label-' + id">
+                        {{localization.menu[id]}}
+                      </span>
+                      @if (badge(id); as text) {
+                        <span class="badge" [class.is-new]="text === t.badgeNew">{{text}}</span>
+                      }
+                    </div>
+                    <div class="order-controls">
+                      @if (id !== 'organization') {
+                        <select
+                          [id]="'route-' + id"
+                          class="role-select route-select"
+                          [class.is-empty]="!routeFor(id)"
+                          [attr.aria-label]="t.route"
+                          [attr.aria-describedby]="'item-label-' + id"
+                          (change)="setRoute(id, $event)"
+                          [disabled]="
+                            saving() || (id === 'systemConfiguration' && selectedRole() === 'admin')
+                          "
+                        >
+                          <option value="" [selected]="!routeFor(id)">{{t.noRoute}}</option>
+                          @for (route of navigation.routeOptions; track route) {
+                            @if (route !== '/sidebar-settings' || selectedRole() === 'admin') {
+                              <option [value]="route" [selected]="routeFor(id) === route">
+                                {{route}}
+                              </option>
+                            }
+                          }
+                        </select>
+                      }
                       <button
                         type="button"
-                        class="remove-item"
-                        [disabled]="saving()"
+                        class="icon-btn"
+                        [disabled]="saving() || first"
+                        [attr.aria-label]="t.moveUp + ': ' + localization.menu[id]"
+                        [title]="t.moveUp"
+                        (click)="move(id, -1)"
+                      >
+                        <app-layout-icon name="arrowUp" />
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn"
+                        [disabled]="saving() || last"
+                        [attr.aria-label]="t.moveDown + ': ' + localization.menu[id]"
+                        [title]="t.moveDown"
+                        (click)="move(id, 1)"
+                      >
+                        <app-layout-icon name="arrowDown" />
+                      </button>
+                      <button
+                        type="button"
+                        class="icon-btn remove-item"
+                        [disabled]="saving() || required(id)"
                         (click)="toggle(id)"
-                        [attr.aria-label]="
-                          localization.sidebarSettings.removeItem + ': ' + localization.menu[id]
-                        "
-                        [title]="localization.sidebarSettings.removeItem"
+                        [attr.aria-label]="t.removeItem + ': ' + localization.menu[id]"
+                        [title]="t.removeItem"
                       >
                         <app-layout-icon name="trash" />
                       </button>
+                    </div>
+                  </li>
+                }
+              </ol>
+            </section>
+
+            <section class="card preview" aria-labelledby="nav-preview">
+              <header>
+                <h2 id="nav-preview">{{t.previewShort}}</h2>
+                <span class="tag">{{localization.workspaceRoles[selectedRole()]}}</span>
+              </header>
+              <div class="mock-sidebar">
+                <div class="mock-brand">
+                  <span class="mock-logo" aria-hidden="true">BP</span>
+                  <span>
+                    <strong>BPMS</strong>
+                    <small>{{localization.workspaceRoles[selectedRole()]}}</small>
+                  </span>
+                </div>
+                @for (item of preview(); track item.id; let first = $first) {
+                  <div
+                    class="mock-item"
+                    [class.is-active]="first"
+                    [class.is-soon]="!item.route && !item.children?.length"
+                  >
+                    <app-layout-icon [name]="item.icon" />
+                    <span>{{localization.menu[item.id]}}</span>
+                    @if (!item.route && !item.children?.length) {
+                      <small class="soon">{{localization.layout.comingSoon}}</small>
                     }
                   </div>
-                  @if (id !== 'organization') {
-                    <select
-                      [id]="'route-' + id"
-                      class="role-select route-select"
-                      [attr.aria-label]="localization.sidebarSettings.route"
-                      [attr.aria-describedby]="'item-label-' + id"
-                      (change)="setRoute(id, $event)"
-                      [disabled]="
-                        saving() || (id === 'systemConfiguration' && selectedRole() === 'admin')
-                      "
-                    >
-                      <option value="" [selected]="!routeFor(id)">
-                        {{localization.sidebarSettings.noRoute}}
-                      </option>
-                      @for (route of navigation.routeOptions; track route) {
-                        @if (route !== '/sidebar-settings' || selectedRole() === 'admin') {
-                          <option [value]="route" [selected]="routeFor(id) === route">
-                            {{route}}
-                          </option>
-                        }
+                  @for (child of item.children ?? []; track child.id) {
+                    <div class="mock-item is-child" [class.is-soon]="!child.route">
+                      <span>{{localization.menu[child.id]}}</span>
+                      @if (!child.route) {
+                        <small class="soon">{{localization.layout.comingSoon}}</small>
                       }
-                    </select>
+                    </div>
                   }
-                </li>
-              }
-            </ol>
-          </section>
-          <section class="panel preview">
-            <h2>{{localization.sidebarSettings.preview}}</h2>
-            <p>{{localization.workspaceRoles[selectedRole()]}}</p>
-            @for (item of preview(); track item.id) {
-              <div class="preview-item">
-                <app-layout-icon [name]="item.icon" /><span>{{localization.menu[item.id]}}</span>
+                }
               </div>
-              @if (item.route) {
-                <code>{{item.route}}</code>
-              }
-              @if (!item.route && !item.children?.length) {
-                <small>{{localization.layout.comingSoon}}</small>
-              }
-              @for (child of item.children ?? []; track child.id) {
-                <div class="preview-child">
-                  {{localization.menu[child.id]}}
-                  @if (child.route) {
-                    <code>{{child.route}}</code>
-                  }
-                </div>
-              }
-            }
-          </section>
-        </div>
-      }
+              <p class="help">{{t.previewHelp}}</p>
+            </section>
+          </div>
+        }
+      </div>
     </main>
   </div>
 </div>
+
+@if (confirming()) {
+  <app-confirm-save-dialog
+    [heading]="t.confirmTitle"
+    [meta]="
+      i18n.translate('sidebarSettings.confirmMeta', {
+        role: localization.workspaceRoles[selectedRole()],
+        count: changes().length,
+      })
+    "
+    [warnTitle]="
+      i18n.translate('sidebarSettings.confirmWarnTitle', {
+        role: localization.workspaceRoles[selectedRole()],
+      })
+    "
+    [warnBody]="t.confirmWarnBody"
+    [busy]="saving()"
+    (confirmed)="save()"
+    (dismissed)="closeConfirm()"
+  >
+    <table class="diff-table">
+      <thead>
+        <tr>
+          <th scope="col">{{t.colChange}}</th>
+          <th scope="col">{{t.colDetail}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (change of changes(); track change.kind + change.id) {
+          <tr>
+            <td>
+              <span
+                class="diff-badge"
+                [class.is-moved]="change.kind === 'moved' || change.kind === 'route'"
+                [class.is-removed]="change.kind === 'removed'"
+              >
+                {{changeLabel(change)}}
+              </span>
+            </td>
+            <td>{{changeDetail(change)}}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </app-confirm-save-dialog>
+}

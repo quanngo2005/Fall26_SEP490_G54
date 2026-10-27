@@ -22,8 +22,8 @@
   "translations": {
     "vi": {
       "sidebarSettings": {
-        "title": "Quản lý thanh điều hướng theo vai trò",
-        "description": "Xem và chỉnh các mục hiển thị trên thanh điều hướng của từng vai trò.",
+        "title": "Tham số hệ thống",
+        "description": "Chọn mục và thứ tự trên thanh điều hướng cho từng vai trò. Mọi thay đổi được ghi audit log.",
         "role": "Vai trò",
         "availableItems": "Các mục có thể hiển thị",
         "order": "Thứ tự hiển thị",
@@ -46,7 +46,40 @@
         "saving": "Đang lưu…",
         "saved": "Đã lưu cấu hình cho vai trò này.",
         "permissionsNote": "Cấu hình áp dụng chung cho mọi tài khoản thuộc vai trò. Mục menu vẫn được lọc theo quyền thực tế; mục chưa triển khai không thể mở. Menu con nằm dưới mục cha.",
-        "discardConfirm": "Bạn có muốn bỏ các thay đổi chưa lưu để chuyển vai trò không?"
+        "discardConfirm": "Bạn có muốn bỏ các thay đổi chưa lưu để chuyển vai trò không?",
+        "breadcrumb": "Trang chủ / Quản trị hệ thống / Tham số hệ thống",
+        "tabsLabel": "Nhóm cấu hình",
+        "tabParameters": "Tham số vận hành",
+        "tabNavigation": "Thanh điều hướng theo vai trò",
+        "auditLog": "Xem audit log",
+        "discard": "Hủy thay đổi",
+        "saveShortcut": "Lưu (Ctrl+S)",
+        "searchItems": "Tìm mục…",
+        "availableCount": "{selected}/{total}",
+        "orderHint": "Kéo thả hoặc Alt + mũi tên",
+        "editPermissions": "Sửa quyền ở Ma trận quyền",
+        "unsavedTitle": "{count} thay đổi chưa lưu cho vai trò {role}",
+        "unsavedNote": "Menu vẫn lọc theo quyền ở Ma trận quyền: mục không có quyền không hiển thị dù được chọn. Mục chưa gắn màn đích hiện \"Sắp có\".",
+        "badgeNew": "Mới",
+        "previewShort": "Xem trước",
+        "previewHelp": "Cập nhật ngay khi chọn hoặc đổi thứ tự. Người dùng thấy menu mới từ lần tải trang kế tiếp.",
+        "confirmTitle": "Xác nhận lưu thanh điều hướng",
+        "confirmMeta": "Vai trò {role} · {count} thay đổi",
+        "colChange": "Thay đổi",
+        "colDetail": "Chi tiết",
+        "changeAdded": "Thêm mục",
+        "changeRemoved": "Xóa mục",
+        "changeMoved": "Đổi vị trí",
+        "changeRoute": "Đổi URL",
+        "changeRouteDetail": "{item}: {from} → {to}",
+        "changeMovedDetail": "{item}: {from} → {to}",
+        "changeAddedDetail": "{item}",
+        "changeAddedNoRoute": "{item} · chưa gắn màn đích",
+        "confirmWarnTitle": "Áp dụng cho mọi tài khoản vai trò {role}",
+        "confirmWarnBody": "Người dùng thấy menu mới từ lần tải trang kế tiếp. Thay đổi được ghi audit log.",
+        "confirmBack": "Quay lại",
+        "confirmSave": "Xác nhận lưu",
+        "escHint": "Esc để quay lại"
       },
       "layout": {
         "openMenu": "Mở menu",
@@ -59,10 +92,23 @@
         "portal": "Cổng quản trị ngân hàng",
         "vietnamese": "Tiếng Việt",
         "english": "Tiếng Anh",
-        "bankingOperations": "ĐIỀU HÀNH NGÂN HÀNG",
+        "bankingOperations": "Nghiệp vụ ngân hàng",
         "secureWorkspace": "Không gian làm việc bảo mật",
         "searchBpms": "Tìm kiếm trong BPMS",
-        "viewProfile": "Xem hồ sơ"
+        "viewProfile": "Xem hồ sơ",
+        "role": "Vai trò",
+        "scope": "Phạm vi",
+        "collapseMenu": "Thu gọn menu",
+        "mockData": "Dữ liệu mẫu",
+        "mockDataHint": "Một số màn hình đang dùng dữ liệu mẫu vì API backend chưa sẵn sàng."
+      },
+      "roleScopes": {
+        "employee": "Cá nhân",
+        "departmentManager": "Phòng ban",
+        "branchManager": "Chi nhánh",
+        "hr": "Toàn tổ chức",
+        "qa": "Toàn tổ chức",
+        "admin": "Hệ thống"
       },
       "workspaceRoles": {
         "employee": "Cán bộ",
@@ -962,12 +1008,81 @@
         "stopHint": "Ngưng: chỉ role tùy chỉnh không còn tài khoản",
         "setup": "Thiết lập quyền",
         "tabError": "Không tải được dữ liệu."
+      },
+      "systemParameters": {
+        "description": "Tham số vận hành toàn chi nhánh. Mọi thay đổi có hiệu lực ngay và được ghi audit log.",
+        "unsavedTitle": "{count} thay đổi chưa lưu",
+        "unsavedNote": "Các trường đã sửa được đánh dấu chấm xanh.",
+        "loading": "Đang tải tham số hệ thống…",
+        "loadFailed": "Không thể tải tham số hệ thống.",
+        "saveFailed": "Không thể lưu tham số. Vui lòng thử lại.",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu tham số hệ thống.",
+        "retry": "Thử lại",
+        "changed": "Đã sửa",
+        "locked": "Cố định theo quy định",
+        "invalidRange": "Nhập số nguyên từ {min} đến {max}.",
+        "invalidPositive": "Nhập số nguyên lớn hơn 0.",
+        "groups": {
+          "manualApproval": "Duyệt tay việc ngoài Loại việc",
+          "importData": "Import dữ liệu",
+          "evaluationAppeal": "Đánh giá & Khiếu nại",
+          "handover": "Chuyển khách (Handover)"
+        },
+        "units": {
+          "hours": "giờ",
+          "megabytes": "MB",
+          "days": "ngày",
+          "vnd": "VND"
+        },
+        "params": {
+          "manualApprovalHours": {
+            "label": "Thời hạn duyệt tay",
+            "help": "Từ 1 đến 168 giờ"
+          },
+          "importMaxFileMb": {
+            "label": "Dung lượng file tối đa",
+            "help": "Từ 1 đến 10 MB"
+          },
+          "importFormats": {
+            "label": "Định dạng chấp nhận",
+            "help": "Cố định theo quy định chung"
+          },
+          "kpiLockTime": {
+            "label": "Giờ khóa KPI tháng",
+            "help": "BR-29 · cố định"
+          },
+          "appealWindowDays": {
+            "label": "Thời hạn khiếu nại",
+            "help": "Sau khi công bố kết quả · 1–30 ngày"
+          },
+          "preCloseCheckDays": {
+            "label": "Hạn kiểm tra trước khi đóng kỳ",
+            "help": "Số ngày trước ngày đóng kỳ"
+          },
+          "appealRejectedHours": {
+            "label": "Hạn khiếu nại kết quả bị từ chối",
+            "help": "BR-31 · cố định"
+          },
+          "handoverThresholdVnd": {
+            "label": "Ngưỡng số tiền handover",
+            "help": "Giao dịch từ ngưỡng này trở lên, Giao dịch viên chuyển cho Chuyên viên bán hàng"
+          }
+        },
+        "handoverDefault": "Mặc định 50.000.000 VND · số nguyên lớn hơn 0",
+        "confirmTitle": "Xác nhận lưu tham số",
+        "confirmMeta": "SCR-ADM-04 · {count} thay đổi",
+        "colParameter": "Tham số",
+        "colOld": "Giá trị cũ",
+        "colNew": "Giá trị mới",
+        "confirmWarnTitle": "Có hiệu lực ngay sau khi lưu",
+        "confirmWarnBody": "Thay đổi áp dụng cho mọi giao dịch và kỳ đang mở, được ghi audit log cùng tài khoản của bạn."
       }
     },
     "en": {
       "sidebarSettings": {
-        "title": "Role sidebar management",
-        "description": "View and edit the navigation items displayed for each role.",
+        "title": "System parameters",
+        "description": "Choose the items and order of the navigation bar for each role. Every change is audit logged.",
         "role": "Role",
         "availableItems": "Available navigation items",
         "order": "Display order",
@@ -990,7 +1105,40 @@
         "saving": "Saving…",
         "saved": "Configuration saved for this role.",
         "permissionsNote": "Configuration applies to all accounts with this role. Menus remain filtered by actual permissions; unimplemented items cannot be opened. Child menus appear under their parent.",
-        "discardConfirm": "Discard unsaved changes and switch roles?"
+        "discardConfirm": "Discard unsaved changes and switch roles?",
+        "breadcrumb": "Home / System administration / System parameters",
+        "tabsLabel": "Configuration groups",
+        "tabParameters": "Operating parameters",
+        "tabNavigation": "Navigation by role",
+        "auditLog": "View audit log",
+        "discard": "Discard changes",
+        "saveShortcut": "Save (Ctrl+S)",
+        "searchItems": "Search items…",
+        "availableCount": "{selected}/{total}",
+        "orderHint": "Drag and drop or Alt + arrow keys",
+        "editPermissions": "Edit permissions in the permission matrix",
+        "unsavedTitle": "{count} unsaved changes for the {role} role",
+        "unsavedNote": "The menu is still filtered by the permission matrix: items without permission stay hidden even when selected. Items without a target screen show \"Coming soon\".",
+        "badgeNew": "New",
+        "previewShort": "Preview",
+        "previewHelp": "Updates as soon as you select or reorder. Users see the new menu on their next page load.",
+        "confirmTitle": "Confirm saving the navigation bar",
+        "confirmMeta": "{role} role · {count} changes",
+        "colChange": "Change",
+        "colDetail": "Details",
+        "changeAdded": "Item added",
+        "changeRemoved": "Item removed",
+        "changeMoved": "Position changed",
+        "changeRoute": "URL changed",
+        "changeRouteDetail": "{item}: {from} → {to}",
+        "changeMovedDetail": "{item}: {from} → {to}",
+        "changeAddedDetail": "{item}",
+        "changeAddedNoRoute": "{item} · no target screen",
+        "confirmWarnTitle": "Applies to every account with the {role} role",
+        "confirmWarnBody": "Users see the new menu on their next page load. The change is audit logged.",
+        "confirmBack": "Go back",
+        "confirmSave": "Confirm save",
+        "escHint": "Esc to go back"
       },
       "layout": {
         "openMenu": "Open menu",
@@ -1003,10 +1151,23 @@
         "portal": "Banking administration portal",
         "vietnamese": "Vietnamese",
         "english": "English",
-        "bankingOperations": "BANKING OPERATIONS",
+        "bankingOperations": "Banking operations",
         "secureWorkspace": "Secure workspace",
         "searchBpms": "Search BPMS",
-        "viewProfile": "View profile"
+        "viewProfile": "View profile",
+        "role": "Role",
+        "scope": "Scope",
+        "collapseMenu": "Collapse menu",
+        "mockData": "Mock data",
+        "mockDataHint": "Some screens show mock data because their backend API is not available yet."
+      },
+      "roleScopes": {
+        "employee": "Personal",
+        "departmentManager": "Department",
+        "branchManager": "Branch",
+        "hr": "Organization-wide",
+        "qa": "Organization-wide",
+        "admin": "System"
       },
       "workspaceRoles": {
         "employee": "Employee",
@@ -1906,6 +2067,75 @@
         "stopHint": "Deactivate: only custom roles with no accounts",
         "setup": "Set up permissions",
         "tabError": "Could not load data."
+      },
+      "systemParameters": {
+        "description": "Branch-wide operating parameters. Every change takes effect immediately and is audit logged.",
+        "unsavedTitle": "{count} unsaved changes",
+        "unsavedNote": "Edited fields are marked with a blue dot.",
+        "loading": "Loading system parameters…",
+        "loadFailed": "Unable to load system parameters.",
+        "saveFailed": "Unable to save parameters. Please try again.",
+        "saving": "Saving…",
+        "saved": "System parameters saved.",
+        "retry": "Retry",
+        "changed": "Edited",
+        "locked": "Fixed by regulation",
+        "invalidRange": "Enter a whole number from {min} to {max}.",
+        "invalidPositive": "Enter a whole number greater than 0.",
+        "groups": {
+          "manualApproval": "Manual approval outside Work types",
+          "importData": "Data import",
+          "evaluationAppeal": "Evaluation & Appeals",
+          "handover": "Customer handover"
+        },
+        "units": {
+          "hours": "hours",
+          "megabytes": "MB",
+          "days": "days",
+          "vnd": "VND"
+        },
+        "params": {
+          "manualApprovalHours": {
+            "label": "Manual approval deadline",
+            "help": "From 1 to 168 hours"
+          },
+          "importMaxFileMb": {
+            "label": "Maximum file size",
+            "help": "From 1 to 10 MB"
+          },
+          "importFormats": {
+            "label": "Accepted formats",
+            "help": "Fixed by general regulation"
+          },
+          "kpiLockTime": {
+            "label": "Monthly KPI lock time",
+            "help": "BR-29 · fixed"
+          },
+          "appealWindowDays": {
+            "label": "Appeal deadline",
+            "help": "After results are published · 1–30 days"
+          },
+          "preCloseCheckDays": {
+            "label": "Pre-close check deadline",
+            "help": "Days before the period closing date"
+          },
+          "appealRejectedHours": {
+            "label": "Appeal deadline for rejected results",
+            "help": "BR-31 · fixed"
+          },
+          "handoverThresholdVnd": {
+            "label": "Handover amount threshold",
+            "help": "Transactions at or above this amount are handed from the Teller to the Sales specialist"
+          }
+        },
+        "handoverDefault": "Default 50,000,000 VND · whole number greater than 0",
+        "confirmTitle": "Confirm saving parameters",
+        "confirmMeta": "SCR-ADM-04 · {count} changes",
+        "colParameter": "Parameter",
+        "colOld": "Old value",
+        "colNew": "New value",
+        "confirmWarnTitle": "Takes effect immediately after saving",
+        "confirmWarnBody": "Changes apply to all transactions and open periods, and are audit logged with your account."
       }
     }
   }

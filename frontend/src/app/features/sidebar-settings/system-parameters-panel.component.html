@@ -1,0 +1,117 @@
+@let t = localization.systemParameters;
+@if (loading()) {
+  <p class="state" role="status">{{t.loading}}</p>
+} @else if (error() === 'loadFailed') {
+  <div class="state state-error" role="alert">
+    <p>{{t.loadFailed}}</p>
+    <button type="button" (click)="load()">{{t.retry}}</button>
+  </div>
+} @else {
+  @if (dirty()) {
+    <div class="banner" role="status">
+      <strong>{{i18n.translate('systemParameters.unsavedTitle', { count: changeCount() })}}</strong>
+      <span>{{t.unsavedNote}}</span>
+    </div>
+  } @else if (saved()) {
+    <div class="banner banner-success" role="status">
+      <strong>{{t.saved}}</strong>
+    </div>
+  }
+  @if (error() === 'saveFailed') {
+    <div class="banner banner-error" role="alert">
+      <strong>{{t.saveFailed}}</strong>
+    </div>
+  }
+  <div class="columns">
+    @for (column of columns; track $index) {
+      <div class="column">
+        @for (group of column; track group.id) {
+          <section class="card" [attr.aria-labelledby]="'group-' + group.id">
+            <header>
+              <h2 [id]="'group-' + group.id">{{t.groups[group.id]}}</h2>
+              <span class="meta">{{groupMeta(group)}}</span>
+            </header>
+            @for (key of group.keys; track key) {
+              @if (row(key); as item) {
+                <div class="prow" [class.is-stacked]="key === 'handoverThresholdVnd'">
+                  <div class="label">
+                    <span class="name">
+                      @if (item.changed) {
+                        <span class="dot" role="img" [attr.aria-label]="t.changed"></span>
+                      }
+                      <label [for]="'param-' + key">{{t.params[key].label}}</label>
+                    </span>
+                    <span class="help" [id]="'help-' + key">{{t.params[key].help}}</span>
+                  </div>
+                  <div class="control">
+                    <input
+                      [id]="'param-' + key"
+                      class="field"
+                      [class.is-locked]="item.parameter.locked"
+                      [class.is-changed]="item.changed && !item.error"
+                      [class.is-invalid]="item.error"
+                      [attr.inputmode]="item.parameter.locked ? null : 'numeric'"
+                      autocomplete="off"
+                      [readOnly]="item.parameter.locked"
+                      [attr.aria-describedby]="'help-' + key + (item.error ? ' error-' + key : '')"
+                      [attr.aria-invalid]="item.error ? 'true' : null"
+                      [value]="display(item)"
+                      (input)="edit(key, $event)"
+                    />
+                    <span class="unit">
+                      @if (item.parameter.locked) {
+                        <app-layout-icon name="lock" [attr.title]="t.locked" />
+                        @if (item.unit) {
+                          {{t.units[item.unit]}}
+                        }
+                        <span class="visually-hidden">{{t.locked}}</span>
+                      } @else if (item.unit) {
+                        {{t.units[item.unit]}}
+                      }
+                    </span>
+                  </div>
+                  @if (item.error) {
+                    <p class="error" role="alert" [id]="'error-' + key">{{errorText(item)}}</p>
+                  }
+                </div>
+              }
+            }
+            @if (group.id === 'handover') {
+              <p class="footnote">{{t.handoverDefault}}</p>
+            }
+          </section>
+        }
+      </div>
+    }
+  </div>
+}
+@if (confirming()) {
+  <app-confirm-save-dialog
+    [heading]="t.confirmTitle"
+    [meta]="i18n.translate('systemParameters.confirmMeta', { count: diffs().length })"
+    [warnTitle]="t.confirmWarnTitle"
+    [warnBody]="t.confirmWarnBody"
+    [busy]="saving()"
+    (confirmed)="confirmSave()"
+    (dismissed)="closeConfirm()"
+  >
+    <table class="diff-table">
+      <thead>
+        <tr>
+          <th scope="col">{{t.colParameter}}</th>
+          <th scope="col" class="num">{{t.colOld}}</th>
+          <th scope="col" class="num">{{t.colNew}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (diff of diffs(); track diff.key) {
+          <tr>
+            <td>{{t.params[diff.key].label}}</td>
+            <td class="num">{{valueText(diff.oldValue, diff.key)}}</td>
+            <td class="num new">{{valueText(diff.newValue, diff.key)}}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </app-confirm-save-dialog>
+}

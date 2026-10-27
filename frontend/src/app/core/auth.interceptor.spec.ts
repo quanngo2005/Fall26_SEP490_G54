@@ -71,6 +71,16 @@ describe('authInterceptor', () => {
     expect(localStorage.getItem('g54.auth.session')).not.toBeNull();
   });
 
+  it('attaches the token to admin configuration endpoints', () => {
+    localStorage.setItem('g54.auth.session', JSON.stringify(refreshedSession));
+    for (const path of ['/system-parameters', '/sidebar-configurations', '/roles']) {
+      client.get(`${environment.apiUrl}${path}`).subscribe();
+      const request = http.expectOne(`${environment.apiUrl}${path}`);
+      expect(request.request.headers.get('Authorization')).toBe('Bearer rotated-access-token');
+      request.flush({});
+    }
+  });
+
   it('does not attach the application token to third-party requests', () => {
     client.get('https://third-party.example.test/data').subscribe();
 
