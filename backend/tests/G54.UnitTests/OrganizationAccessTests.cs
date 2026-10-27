@@ -8,6 +8,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Department;
 using G54.BLL.Dtos.JobPosition;
+using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -22,17 +23,20 @@ using Microsoft.Extensions.Hosting;
 namespace G54.UnitTests;
 
 /// <summary>
-/// End-to-end HTTP checks of the role gate on the organization screens (SCR-ORG-01 departments and SCR-ORG-02 job
-/// positions). The host uses the real JWT validation, the real policy/permission handlers and the real controllers;
-/// only the services behind them are stubbed, so no database or Redis is needed.
+/// End-to-end HTTP checks of who may open the organization screens (SCR-ORG-01 departments, SCR-ORG-02 job positions).
+/// Access is decided by the <c>organization:read</c> permission, which the <c>SeedOrganizationReadAccess</c> migration
+/// grants to the system admin (All), branch manager (Branch) and department manager (Dept) only. The host uses the real
+/// JWT validation, the real <c>[HasPermission]</c> policy provider and handler, and the real controllers; the services
+/// behind them are stubbed and the role to permission lookup is a table that mirrors the migration, so no database or
+/// Redis is needed. <see cref="OrganizationAccessMigrationPostgresTests"/> proves the table matches the real database.
 /// </summary>
 public sealed class OrganizationAccessTests : IAsyncLifetime
 {
     private const string Issuer = "g54-tests";
     private const string Audience = "g54-tests";
     private const string Key = "test-signing-key-test-signing-key-0123456789";
-    private static readonly Guid PositionId = Guid.NewGuid();
-    private static readonly string[] ExpectedWorkspaces = ["admin", "branchManager", "departmentManager"];
+    private static readonly Guid PositionId = Guid.Parse("5eed0000-0000-0000-0006-000000000001");
+    private static readonly string[] ExpectedPermissionGrantedRoles = ["SYSTEM_ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "MANAGER"];
     private static readonly string[] CoveredRoutes =
     [
         "/departments",
@@ -42,10 +46,18 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         "/job-positions/5eed0000-0000-0000-0006-000000000001",
     ];
 
+    /// <summary>What <c>role_permission</c> holds for <c>organization:read</c> after the migration (role, scope).</summary>
+    private static readonly Dictionary<string, string> OrganizationRead = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SYSTEM_ADMIN"] = "All",
+        ["BRANCH_MANAGER"] = "Branch",
+        ["DEPT_MANAGER"] = "Dept",
+        ["MANAGER"] = "Dept",
+    };
+
     private IHost _host = null!;
     private HttpClient _client = null!;
     private JwtTokenProvider _tokens = null!;
-    private FakePermissions _permissions = null!;
 
     public async Task InitializeAsync()
     {
@@ -58,7 +70,6 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
             })
             .Build();
         _tokens = new JwtTokenProvider(configuration);
-        _permissions = new FakePermissions();
 
         _host = await new HostBuilder()
             .ConfigureWebHost(web => web
@@ -68,7 +79,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
                     services.AddControllers().AddApplicationPart(typeof(DepartmentsController).Assembly);
                     services.AddSingleton<IConfiguration>(configuration);
                     services.AddSingleton(_tokens);
-                    services.AddSingleton<IPermissionService>(_permissions);
+                    services.AddSingleton<IPermissionService, RolePermissionTable>();
                     services.AddSingleton<IDepartmentService, StubDepartmentService>();
                     services.AddSingleton<IJobPositionService, StubJobPositionService>();
                     services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -90,10 +101,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
                         };
                     });
                     services.AddAuthorization(options =>
-                    {
-                        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
-                        options.AddOrganizationPolicy();
-                    });
+                        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
                     services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
                     services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
                 })
@@ -119,34 +127,28 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     public static TheoryData<string> AllowedRoles => new()
     {
         "SYSTEM_ADMIN",
-        "ADMIN",
         "BRANCH_MANAGER",
         "DEPT_MANAGER",
-        "DEPARTMENT_MANAGER",
         "MANAGER",
-        "branch-manager",
-        " Dept Manager ",
+        "ADMIN",
     };
 
     public static TheoryData<string> BlockedRoles => new()
     {
         "EMPLOYEE",
+        "VERIFIER",
         "HR",
         "HR_MANAGER",
         "QA",
-        "VERIFIER",
         "COMPLIANCE",
         "AUDITOR",
-        "MANAGER_ASSISTANT",
         "",
     };
 
     [Theory]
     [MemberData(nameof(AllowedRoles))]
-    public async Task EveryOrganizationEndpointIsOpenToTheThreeAllowedRoles(string role)
+    public async Task EveryOrganizationEndpointIsOpenToTheRolesGrantedOrganizationRead(string role)
     {
-        _permissions.GrantAll = true;
-
         foreach (var route in CoveredRoutes)
         {
             var response = await GetAsync(route, role);
@@ -157,10 +159,8 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
 
     [Theory]
     [MemberData(nameof(BlockedRoles))]
-    public async Task EveryOtherRoleIsForbiddenEvenWhenItHoldsTheDataPermission(string role)
+    public async Task EveryRoleWithoutOrganizationReadIsForbidden(string role)
     {
-        _permissions.GrantAll = true; // proves the role gate, not the permission, is what blocks the request
-
         foreach (var route in CoveredRoutes)
         {
             var response = await GetAsync(route, role);
@@ -168,29 +168,44 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
             Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{role} on {route} -> {(int)response.StatusCode}");
             using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             Assert.False(body.RootElement.GetProperty("success").GetBoolean());
+            Assert.Equal(403, body.RootElement.GetProperty("status").GetInt32());
         }
     }
 
     [Fact]
-    public async Task AUserWithSeveralRolesPassesWhenAnyOfThemIsAllowed()
+    public async Task HoldingTheOldEvaluationReadPermissionIsNoLongerEnough()
     {
-        _permissions.GrantAll = true;
+        // The departments screen used to borrow evaluation:read; a role that only has that must now be rejected.
+        RolePermissionTable.ExtraGrants["EVALUATOR"] = [new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ")];
 
+        foreach (var route in CoveredRoutes)
+        {
+            var response = await GetAsync(route, "EVALUATOR");
+
+            Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"EVALUATOR on {route} -> {(int)response.StatusCode}");
+        }
+
+        RolePermissionTable.ExtraGrants.Remove("EVALUATOR");
+    }
+
+    [Fact]
+    public async Task AUserWithSeveralRolesPassesWhenAnyOfThemHoldsThePermission()
+    {
         var response = await GetAsync("/job-positions", "EMPLOYEE", "VERIFIER", "BRANCH_MANAGER");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task AnAllowedRoleStillNeedsTheOrganizationDataPermission()
+    public async Task ARoleThatIsGrantedLaterGetsAccessWithoutAnyCodeChange()
     {
-        _permissions.GrantAll = false;
+        Assert.Equal(HttpStatusCode.Forbidden, (await GetAsync("/job-positions", "HR")).StatusCode);
 
-        var departments = await GetAsync("/departments", "BRANCH_MANAGER");
-        var jobPositions = await GetAsync("/job-positions", "BRANCH_MANAGER");
+        RolePermissionTable.ExtraGrants["HR"] = [new UserPermissionDto("organization", "read", "Dept", "ORGANIZATION_READ")];
+        var granted = await GetAsync("/job-positions", "HR");
+        RolePermissionTable.ExtraGrants.Remove("HR");
 
-        Assert.Equal(HttpStatusCode.Forbidden, departments.StatusCode); // existing HasPermission is kept
-        Assert.Equal(HttpStatusCode.Forbidden, jobPositions.StatusCode); // HasPermission("evaluation", "read", "Own")
+        Assert.Equal(HttpStatusCode.OK, granted.StatusCode);
     }
 
     [Fact]
@@ -208,9 +223,8 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnUnknownJobPositionIsANotFoundEnvelopeForAnAllowedRole()
+    public async Task AnUnknownJobPositionIsANotFoundEnvelopeForAGrantedRole()
     {
-        _permissions.GrantAll = true;
         var response = await GetAsync($"/job-positions/{Guid.NewGuid()}", "SYSTEM_ADMIN");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -220,53 +234,79 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ABadStatusFilterIsAValidationErrorForAnAllowedRole()
+    public async Task ABadStatusFilterIsAValidationErrorForAGrantedRole()
     {
-        _permissions.GrantAll = true;
         var response = await GetAsync("/job-positions?status=BOGUS", "DEPT_MANAGER");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public void TheRoleSetMatchesTheSidebarRoleMapping()
+    public void TheMigrationGrantsExactlyTheRolesThisTestAssumes()
     {
-        // Every allowed code must map to a workspace role the sidebar understands, and nothing else may be allowed.
-        var allowedWorkspaces = RoleCodes.OrganizationViewers
-            .Select(SidebarCatalog.MapRole)
-            .Distinct()
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(ExpectedWorkspaces, allowedWorkspaces.OfType<string>().ToArray());
-        Assert.All(["EMPLOYEE", "HR", "QA", "VERIFIER"], role => Assert.DoesNotContain(role, RoleCodes.OrganizationViewers));
+        Assert.Equal(ExpectedPermissionGrantedRoles.Order(StringComparer.Ordinal), OrganizationRead.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("Organization", nameof(OrganizationAccessCodes).Replace("AccessCodes", string.Empty));
+        Assert.Equal(("organization", "read", "ORGANIZATION_READ"), (OrganizationAccessCodes.Resource, OrganizationAccessCodes.Read, OrganizationAccessCodes.Code));
     }
 
     private Task<HttpResponseMessage> GetAsync(string route, params string[] roles)
     {
-        var token = _tokens.CreateAccessToken(
-            Guid.NewGuid(), "user@test.local", "User", roles, [], TimeSpan.FromMinutes(5));
+        var accountId = Guid.NewGuid();
+        RolePermissionTable.Accounts[accountId] = roles; // the table resolves permissions from the account's roles
+        var token = _tokens.CreateAccessToken(accountId, "user@test.local", "User", roles, [], TimeSpan.FromMinutes(5));
         var request = new HttpRequestMessage(HttpMethod.Get, route);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
         return _client.SendAsync(request);
     }
 
-    private sealed class FakePermissions : IPermissionService
+    /// <summary>
+    /// Stands in for <c>role_permission</c> + <c>user_role</c>: each request uses its own account id, and this table maps the
+    /// account to its roles and the roles to the grants the migration creates (plus per-test extras).
+    /// </summary>
+    private sealed class RolePermissionTable : IPermissionService
     {
-        public bool GrantAll { get; set; }
+        public static Dictionary<string, UserPermissionDto[]> ExtraGrants { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public Task<G54.BLL.Dtos.Permission.UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<G54.BLL.Dtos.Permission.UserPermissionsResponseDto?>(null);
+        public static Dictionary<Guid, string[]> Accounts { get; } = [];
 
-        public Task<IReadOnlyList<G54.BLL.Dtos.Permission.UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<G54.BLL.Dtos.Permission.UserPermissionDto>>([]);
+        public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<UserPermissionsResponseDto?>(null);
+
+        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UserPermissionDto>>([]);
 
         public Task<bool> HasPermissionAsync(Guid id, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
-            Task.FromResult(GrantAll);
+            Task.FromResult(RolesOf(id).SelectMany(Grants).Any(grant =>
+                grant.Resource.Equals(resource, StringComparison.OrdinalIgnoreCase)
+                && grant.Action.Equals(action, StringComparison.OrdinalIgnoreCase)
+                && PermissionScopes.IsSatisfied(grant.Scope, requiredScope)));
 
         public Task InvalidateUserPermissionsAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task InvalidateRolePermissionsAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        private static string[] RolesOf(Guid id) => Accounts.TryGetValue(id, out var roles) ? roles : [];
+
+        private static IEnumerable<UserPermissionDto> Grants(string role)
+        {
+            if (OrganizationRead.TryGetValue(role, out var scope))
+            {
+                yield return new UserPermissionDto("organization", "read", scope, "ORGANIZATION_READ");
+            }
+
+            if (role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return new UserPermissionDto("*", "*", PermissionScopes.All, "FULL_ACCESS");
+            }
+
+            if (ExtraGrants.TryGetValue(role, out var extra))
+            {
+                foreach (var grant in extra)
+                {
+                    yield return grant;
+                }
+            }
+        }
     }
 
     private sealed class StubDepartmentService : IDepartmentService
@@ -306,7 +346,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     {
         public Task<PagedResult<JobPositionSummaryDto>> GetJobPositionsAsync(JobPositionFilterDto filter, CancellationToken cancellationToken = default)
         {
-            if (!string.IsNullOrWhiteSpace(filter.Status) && filter.Status == "BOGUS")
+            if (filter.Status == "BOGUS")
             {
                 throw new G54.BLL.Common.Exceptions.ValidationException("status");
             }
@@ -315,7 +355,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         }
 
         public Task<JobPositionDetailDto?> GetJobPositionByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<JobPositionDetailDto?>(id == Guid.Parse("5eed0000-0000-0000-0006-000000000001")
+            Task.FromResult<JobPositionDetailDto?>(id == PositionId
                 ? new JobPositionDetailDto(PositionId, "TELLER", "Teller", null, 0, DateTimeOffset.UnixEpoch, "ACTIVE", null, [])
                 : null);
     }

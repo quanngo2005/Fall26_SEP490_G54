@@ -9,25 +9,36 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
 
-    // Seeded employee -> role. Accounts use the employee email as username.
+    // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
+    // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, the rest employees.
     private const string DemoUserRolesSql = """
-        INSERT INTO user_role (account_id, role_id)
-        SELECT a.id, r.id
-        FROM (VALUES
-            ('NV001', 'MANAGER'), ('NV001', 'VERIFIER'),
-            ('NV002', 'MANAGER'), ('NV002', 'VERIFIER'),
-            ('NV003', 'MANAGER'), ('NV003', 'VERIFIER'),
+        WITH demo(employee_code, role_code) AS (VALUES
+            ('NV001', 'BRANCH_MANAGER'),
+            ('NV002', 'DEPT_MANAGER'), ('NV003', 'DEPT_MANAGER'), ('NV011', 'DEPT_MANAGER'),
             ('NV004', 'EMPLOYEE'), ('NV005', 'EMPLOYEE'), ('NV006', 'EMPLOYEE'),
             ('NV007', 'EMPLOYEE'), ('NV008', 'EMPLOYEE'), ('NV009', 'EMPLOYEE'),
-            ('NV010', 'EMPLOYEE'),
-            ('NV011', 'MANAGER'), ('NV012', 'EMPLOYEE')
-        ) AS m(employee_code, role_code)
+            ('NV010', 'EMPLOYEE'), ('NV012', 'EMPLOYEE'),
+            ('NV013', 'SYSTEM_ADMIN'),
+            ('NV014', 'VERIFIER')
+        ),
+        removed AS (
+            DELETE FROM user_role ur
+            USING account a, employee e, demo d, role r
+            WHERE ur.account_id = a.id
+              AND a.employee_id = e.id
+              AND e.employee_code = d.employee_code
+              AND ur.role_id = r.id
+              AND r.code <> d.role_code
+            RETURNING ur.id
+        )
+        INSERT INTO user_role (account_id, role_id)
+        SELECT a.id, r.id
+        FROM demo m
         JOIN employee e ON e.employee_code = m.employee_code
         JOIN account a ON a.employee_id = e.id
         JOIN role r ON r.code = m.role_code
         ON CONFLICT DO NOTHING;
         """;
-
     /// <summary>
     /// Seeds idempotent development data. When <paramref name="demoPasswordHash"/> is
     /// provided, login accounts are created for the seeded employees with that hash.

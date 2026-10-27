@@ -465,7 +465,7 @@ public sealed class DepartmentManagementTests : IDisposable
 
         public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken)
         {
-            IReadOnlyList<UserPermissionDto> result = [new UserPermissionDto("evaluation", "read", scope, "EVALUATION_READ")];
+            IReadOnlyList<UserPermissionDto> result = [new UserPermissionDto("organization", "read", scope, "ORGANIZATION_READ")];
             return Task.FromResult(result);
         }
 

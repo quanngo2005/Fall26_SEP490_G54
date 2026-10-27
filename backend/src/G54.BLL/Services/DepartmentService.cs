@@ -703,8 +703,8 @@ public sealed partial class DepartmentService(
         var granted = await permissions.GetEffectivePermissionsAsync(accountId, cancellationToken);
         var level = granted
             .Where(p => (p.Resource == "*" && p.Action == "*")
-                || (string.Equals(p.Resource, "evaluation", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(p.Action, "read", StringComparison.OrdinalIgnoreCase)))
+                || (string.Equals(p.Resource, OrganizationAccessCodes.Resource, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(p.Action, OrganizationAccessCodes.Read, StringComparison.OrdinalIgnoreCase)))
             .Select(p => PermissionScopes.GetScopeLevel(p.Scope))
             .DefaultIfEmpty(0)
             .Max();
