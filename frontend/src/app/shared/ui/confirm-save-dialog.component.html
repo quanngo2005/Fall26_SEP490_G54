@@ -1,0 +1,38 @@
+@let t = localization.sidebarSettings;
+<div class="overlay">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-save-title">
+    <header class="dialog-head">
+      <div>
+        <h2 id="confirm-save-title">{{heading()}}</h2>
+        <p>{{meta()}}</p>
+      </div>
+      <button
+        type="button"
+        class="close"
+        [disabled]="busy()"
+        [attr.aria-label]="localization.common.close"
+        (click)="dismiss()"
+      >
+        <app-layout-icon name="close" />
+      </button>
+    </header>
+    <div class="dialog-body">
+      <ng-content />
+      <div class="warn" role="note">
+        <strong>{{warnTitle()}}</strong>
+        <span>{{warnBody()}}</span>
+      </div>
+    </div>
+    <footer class="dialog-foot">
+      <span class="hint">{{t.escHint}}</span>
+      <div class="buttons">
+        <button type="button" class="secondary" [disabled]="busy()" (click)="dismiss()">
+          {{t.confirmBack}}
+        </button>
+        <button type="button" class="primary" [disabled]="busy()" (click)="confirmed.emit()">
+          {{busy() ? t.saving : t.confirmSave}}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

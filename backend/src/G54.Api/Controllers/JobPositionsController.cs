@@ -1,21 +1,20 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.JobPosition;
 using G54.BLL.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace G54.Api.Controllers;
 
 /// <summary>
-/// Job positions view and details (SCR-ORG-02). Restricted to system admin, branch manager and department manager.
+/// Job positions view and details (SCR-ORG-02). Requires the organization:read permission (system admin, branch manager, department manager).
 /// Contract: docs/api/JOB_POSITION_CONTRACT.md.
 /// </summary>
 [ApiController]
 [Route("job-positions")]
-[Authorize(Policy = OrganizationAccess.Policy)]
-[HasPermission("evaluation", "read", "Own")]
+[HasPermission(OrganizationAccessCodes.Resource, OrganizationAccessCodes.Read, "Dept")]
 public sealed class JobPositionsController(IJobPositionService service) : ControllerBase
 {
     [HttpGet]

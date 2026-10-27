@@ -7,6 +7,7 @@ import {
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   SidebarConfiguration,
@@ -20,19 +21,35 @@ import {
   ROLE_MENUS,
   WorkspaceRole,
 } from '../../shared/layout/navigation.service';
+import { ConfirmSaveDialogComponent } from '../../shared/ui/confirm-save-dialog.component';
 
+export interface NavigationChange {
+  kind: 'added' | 'removed' | 'moved' | 'route';
+  id: MenuKey;
+  from?: string;
+  to?: string;
+}
+
+/** SCR-ADM-04: system parameters plus per-role navigation, with confirm-save dialogs. */
 @Component({
   selector: 'app-sidebar-settings',
   imports: [
     HeaderComponent,
     SidebarComponent,
     LayoutIconComponent,
+    RouterLink,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
+    ConfirmSaveDialogComponent,
   ],
   templateUrl: './sidebar-settings.component.html',
-  styleUrls: ['./sidebar-settings.component.scss', './sidebar-settings.component.part2.scss'],
+  styleUrls: [
+    './sidebar-settings.component.scss',
+    './sidebar-settings.component.part2.scss',
+    './sidebar-settings.component.part3.scss',
+    './diff-table.scss',
+  ],
 })
 export class SidebarSettingsComponent extends LocalizedComponent {
   readonly navigation = inject(NavigationService);
@@ -41,8 +58,10 @@ export class SidebarSettingsComponent extends LocalizedComponent {
   readonly configurations = signal<SidebarConfiguration[]>([]);
   readonly draft = signal<MenuKey[]>([]);
   readonly draftRoutes = signal<Partial<Record<MenuKey, string>>>({});
+  readonly search = signal('');
   readonly loading = signal(false);
   readonly saving = signal(false);
+  readonly confirming = signal(false);
   readonly error = signal<'loadFailed' | 'saveFailed' | 'conflict' | null>(null);
   readonly saved = signal(false);
   readonly dirty = computed(
@@ -54,14 +73,67 @@ export class SidebarSettingsComponent extends LocalizedComponent {
   readonly available = computed(() =>
     this.navigation.catalog.flatMap((item) => [item, ...(item.children ?? [])]),
   );
+  readonly visibleItems = computed(() => {
+    const keyword = this.search().trim().toLocaleLowerCase();
+    return keyword
+      ? this.available().filter((item) =>
+          this.localization.menu[item.id].toLocaleLowerCase().includes(keyword),
+        )
+      : this.available();
+  });
+  /** What the admin changed since the last load/save, in display order. */
+  readonly changes = computed<NavigationChange[]>(() => {
+    const before = this.current()?.itemIds ?? [];
+    const after = this.draft();
+    const kept = (ids: MenuKey[], other: MenuKey[]) => ids.filter((id) => other.includes(id));
+    const keptBefore = kept(before, after);
+    const keptAfter = kept(after, before);
+    return [
+      ...after
+        .filter((id) => !before.includes(id))
+        .map((id): NavigationChange => ({ kind: 'added', id })),
+      ...before
+        .filter((id) => !after.includes(id))
+        .map((id): NavigationChange => ({ kind: 'removed', id })),
+      ...keptAfter
+        .filter((id, index) => keptBefore.indexOf(id) !== index)
+        .map((id): NavigationChange => ({
+          kind: 'moved',
+          id,
+          from: String(keptBefore.indexOf(id) + 1),
+          to: String(keptAfter.indexOf(id) + 1),
+        })),
+      ...keptAfter
+        .filter((id) => this.routeFor(id) !== this.savedRoute(id))
+        .map((id): NavigationChange => ({
+          kind: 'route',
+          id,
+          from: this.savedRoute(id),
+          to: this.routeFor(id),
+        })),
+    ];
+  });
+  readonly canSave = computed(() => this.dirty() && !this.saving());
 
   constructor() {
     super();
     this.load();
   }
 
+  isChild(id: MenuKey): boolean {
+    return this.navigation.catalog.some((item) => item.children?.some((child) => child.id === id));
+  }
+
   private current() {
     return this.configurations().find((config) => config.role === this.selectedRole());
+  }
+
+  private catalogRoute(id: MenuKey): string {
+    return this.available().find((item) => item.id === id)?.route ?? '';
+  }
+
+  private savedRoute(id: MenuKey): string {
+    return this.current()?.routes?.[id] ?? this.catalogRoute(id);
   }
 
   load(): void {
@@ -144,7 +216,7 @@ export class SidebarSettingsComponent extends LocalizedComponent {
   }
 
   routeFor(id: MenuKey): string {
-    return this.draftRoutes()[id] ?? this.available().find((item) => item.id === id)?.route ?? '';
+    return this.draftRoutes()[id] ?? this.catalogRoute(id);
   }
 
   setRoute(id: MenuKey, event: Event): void {
@@ -183,6 +255,69 @@ export class SidebarSettingsComponent extends LocalizedComponent {
     this.draftRoutes.set({ ...(this.current()?.routes ?? {}) });
     this.error.set(null);
     this.saved.set(false);
+    this.confirming.set(false);
+  }
+
+  /** Title-bar "Lưu": opens the confirm dialog. */
+  requestSave(): void {
+    if (this.canSave()) this.confirming.set(true);
+  }
+
+  closeConfirm(): void {
+    if (!this.saving()) this.confirming.set(false);
+  }
+
+  unsavedTitle(): string {
+    return this.i18n.translate('sidebarSettings.unsavedTitle', {
+      count: this.changes().length,
+      role: this.localization.workspaceRoles[this.selectedRole()],
+    });
+  }
+
+  /** "Mới" or "5 → 4" badge shown next to an item in the order list. */
+  badge(id: MenuKey): string | null {
+    const change = this.changes().find((candidate) => candidate.id === id);
+    if (change?.kind === 'added') return this.localization.sidebarSettings.badgeNew;
+    return change?.kind === 'moved' ? `${change.from} → ${change.to}` : null;
+  }
+
+  changeLabel(change: NavigationChange): string {
+    const t = this.localization.sidebarSettings;
+    return {
+      added: t.changeAdded,
+      removed: t.changeRemoved,
+      moved: t.changeMoved,
+      route: t.changeRoute,
+    }[change.kind];
+  }
+
+  changeDetail(change: NavigationChange): string {
+    const t = this.localization.sidebarSettings;
+    const item = this.localization.menu[change.id];
+    const route = (value?: string) => value || t.noRoute;
+    switch (change.kind) {
+      case 'added':
+        return this.i18n.translate(
+          this.routeFor(change.id)
+            ? 'sidebarSettings.changeAddedDetail'
+            : 'sidebarSettings.changeAddedNoRoute',
+          { item },
+        );
+      case 'removed':
+        return item;
+      case 'moved':
+        return this.i18n.translate('sidebarSettings.changeMovedDetail', {
+          item,
+          from: change.from ?? '',
+          to: change.to ?? '',
+        });
+      default:
+        return this.i18n.translate('sidebarSettings.changeRouteDetail', {
+          item,
+          from: route(change.from),
+          to: route(change.to),
+        });
+    }
   }
 
   save(): void {
@@ -200,11 +335,13 @@ export class SidebarSettingsComponent extends LocalizedComponent {
         this.draftRoutes.set({ ...(config.routes ?? {}) });
         this.saved.set(true);
         this.saving.set(false);
+        this.confirming.set(false);
         this.navigation.reload();
       },
       error: (error: HttpErrorResponse) => {
         this.error.set(error.status === 409 ? 'conflict' : 'saveFailed');
         this.saving.set(false);
+        this.confirming.set(false);
       },
     });
   }

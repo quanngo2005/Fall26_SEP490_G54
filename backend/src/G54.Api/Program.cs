@@ -49,6 +49,7 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
+builder.Services.Configure<G54.BLL.Common.SystemParametersOptions>(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName));
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
@@ -135,7 +136,6 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
-    options.AddOrganizationPolicy();
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionAuthorizationPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

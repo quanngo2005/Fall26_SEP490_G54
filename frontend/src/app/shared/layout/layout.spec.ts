@@ -113,9 +113,9 @@ describe('Shared workspace layout', () => {
     header.detectChanges();
     sidebar.detectChanges();
     expect(sidebar.nativeElement.textContent).toContain('Cấu hình hệ thống');
-    expect(header.nativeElement.querySelector('.view-profile-link').textContent).toContain(
-      'Xem hồ sơ',
-    );
+    expect(
+      header.nativeElement.querySelector('.view-profile-link').getAttribute('aria-label'),
+    ).toBe('Xem hồ sơ');
     expect(header.nativeElement.querySelector('.avatar').getAttribute('aria-label')).toBe(
       'Xem hồ sơ',
     );
@@ -126,9 +126,9 @@ describe('Shared workspace layout', () => {
     header.detectChanges();
     sidebar.detectChanges();
     expect(sidebar.nativeElement.textContent).toContain('System Configuration');
-    expect(header.nativeElement.querySelector('.view-profile-link').textContent).toContain(
-      'View profile',
-    );
+    expect(
+      header.nativeElement.querySelector('.view-profile-link').getAttribute('aria-label'),
+    ).toBe('View profile');
     expect(header.nativeElement.querySelector('.avatar').getAttribute('aria-label')).toBe(
       'View profile',
     );

@@ -1,6 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import { UpperCasePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -9,7 +8,7 @@ import { NavigationService } from './navigation.service';
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, LayoutIconComponent, UpperCasePipe],
+  imports: [RouterLink, LayoutIconComponent],
   templateUrl: './header.component.html',
   styleUrl: './header.component.scss',
 })

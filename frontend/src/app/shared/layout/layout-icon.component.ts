@@ -60,6 +60,10 @@ const PATHS: Readonly<Record<string, string>> = {
   trash:
     'M3 6h18 M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6 M10 11v6 M14 11v6',
   chevron: 'M14 6l-6 6 6 6',
+  lock: 'M5 11h14v10H5z M8 11V7a4 4 0 0 1 8 0v4',
+  close: 'M6 6l12 12 M18 6L6 18',
+  arrowUp: 'M12 19V5 M5 12l7-7 7 7',
+  arrowDown: 'M12 5v14 M19 12l-7 7-7-7',
   chevronDown: 'M6 9l6 6 6-6',
   logout: 'M9 3H3v18h6 M14 7l5 5-5 5 M8 12h11',
   search: 'M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0',

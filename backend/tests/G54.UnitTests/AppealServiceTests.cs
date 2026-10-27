@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
@@ -6,10 +7,12 @@ using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using G54.DAL.Uow;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -43,8 +46,12 @@ public sealed class AppealServiceTests : IDisposable
             .Build(),
         NullLogger<StorageService>.Instance);
 
-    private AppealService ServiceAt(DateTimeOffset now, params (string Resource, string Action, string Scope)[] grants) =>
-        new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now));
+    private int _appealRejectedHours = 48;
+
+    private AppealService ServiceAt(DateTimeOffset now, params (string Resource, string Action, string Scope)[] grants)
+    {
+        return new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now), Options.Create(new SystemParametersOptions { AppealRejectedHours = _appealRejectedHours }));
+    }
 
     private async Task SeedDepartmentsAsync()
     {
@@ -56,6 +63,7 @@ public sealed class AppealServiceTests : IDisposable
             new Department { Id = _salesTeamId, Code = "ST", Name = "Sales team", ParentDepartmentId = _salesId, LevelType = DepartmentLevelType.Team, Status = RecordStatus.Active, UpdatedAt = now });
         await _db.SaveChangesAsync();
     }
+
 
     private async Task<Employee> AddEmployeeAsync(string code, Guid departmentId, EmployeeStatus status = EmployeeStatus.Active)
     {
@@ -271,6 +279,20 @@ public sealed class AppealServiceTests : IDisposable
         var result = await ServiceAt(RejectedAt.AddHours(60)).CreateAppealAsync(submission.Id, submitter.Id, Request());
 
         Assert.Equal("OPEN", result.Status);
+    }
+
+    [Fact]
+    public async Task Create_UsesTheConfiguredAppealWindow()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        _appealRejectedHours = 24;
+        var service = ServiceAt(RejectedAt.AddHours(30));
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.CreateAppealAsync(submission.Id, submitter.Id, Request()));
+
+        Assert.Equal(ErrorCodes.AppealWindowExpired, ex.ErrorCode);
     }
 
     [Fact]
