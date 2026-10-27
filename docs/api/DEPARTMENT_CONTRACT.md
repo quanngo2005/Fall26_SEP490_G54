@@ -6,9 +6,15 @@ Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`
 
 ## Authorization
 
-Every endpoint requires permission `evaluation:read` with scope `Dept` or higher
+**Role gate (all endpoints).** The caller's JWT `role` claim must contain `SYSTEM_ADMIN`/`ADMIN`,
+`BRANCH_MANAGER`, or `DEPT_MANAGER`/`DEPARTMENT_MANAGER`/`MANAGER` (policy `OrganizationViewer`; codes are trimmed,
+upper-cased, and spaces/hyphens become underscores). Every other role - including HR, QA, verifier and employee -
+receives 403 `FORBIDDEN` even if it holds the permission below; a missing or invalid token receives 401. The same gate
+applies to `/job-positions` (`JOB_POSITION_CONTRACT.md`).
+
+Every endpoint also requires permission `evaluation:read` with scope `Dept` or higher
 (`[HasPermission("evaluation", "read", "Dept")]`). Seeded roles: `ADMIN` (All) and `MANAGER`
-(Department) pass; `EMPLOYEE` (Own) and `VERIFIER` (no grant) receive 403.
+(Department) pass both checks; `EMPLOYEE` (Own) and `VERIFIER` (no grant) receive 403.
 
 The BLL validates an active, unlocked database account and additionally restricts data to the caller's granted scope:
 
