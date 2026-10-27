@@ -21,4 +21,5 @@ public sealed record EmployeeDetailDto(
     string Status,
     int DirectReportsCount,
     DateTimeOffset LastSyncAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? Username = null);

@@ -13,7 +13,9 @@
 
   <!-- Left: Page context -->
   <p class="page-title">
-    @if (navigation.currentPageKey(); as pageKey) {
+    @if (pageTitle(); as title) {
+      {{title}}
+    } @else if (navigation.currentPageKey(); as pageKey) {
       {{localization.menu[pageKey]}}
     } @else {
       {{localization.layout.workspace}}

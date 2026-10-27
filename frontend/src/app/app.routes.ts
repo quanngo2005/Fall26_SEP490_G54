@@ -1,7 +1,10 @@
 import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { I18nService } from './core/i18n/i18n.service';
 import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
+import { employeeReadGuard } from './core/employee-read.guard';
 
 export const routes: Routes = [
   {
@@ -65,6 +68,13 @@ export const routes: Routes = [
       import('./features/departments/department-view.component').then(
         (module) => module.DepartmentViewComponent,
       ),
+  },
+  {
+    path: 'employees',
+    canActivate: [authGuard, employeeReadGuard],
+    title: () => inject(I18nService).localization.employeeList.title,
+    loadComponent: () =>
+      import('./features/employees/employee-list.component').then((m) => m.EmployeeListComponent),
   },
   {
     path: 'employee-detail',

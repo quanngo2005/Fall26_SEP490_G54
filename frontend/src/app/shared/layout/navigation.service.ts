@@ -3,6 +3,8 @@ import { NavigationEnd, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
+import { EMPLOYEE_READ_PERMISSION } from '../../core/employee-read.guard';
+import { FULL_ACCESS_PERMISSION } from '../../core/organization.guard';
 import {
   SidebarConfiguration,
   SidebarConfigurationService,
@@ -153,7 +155,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
-  { id: 'employees', icon: 'people', route: '/employee-detail' },
+  { id: 'employees', icon: 'people', route: '/employees', permission: EMPLOYEE_READ_PERMISSION },
   {
     id: 'organization',
     icon: 'organization',
@@ -290,7 +292,15 @@ export class NavigationService {
     return ids.flatMap<NavigationItem>((id) => {
       const item = ITEMS.find((candidate) => candidate.id === id);
       if (!item) return [];
-      if (!item.children) return [{ ...item, route: routes[id] ?? item.route }];
+      if (!item.children) {
+        const route = routes[id] ?? item.route;
+        // Older saved employee menus pointed at the profile screen.
+        const employeeRoute =
+          id === 'employees' && (route === '/employee-detail' || route === '/employee-profile')
+            ? item.route
+            : route;
+        return [{ ...item, route: employeeRoute }];
+      }
       return [
         {
           ...item,
@@ -324,7 +334,9 @@ export class NavigationService {
     return this.buildItems(ids, routes).filter(
       (item) =>
         (item.id !== 'systemConfiguration' || this.isAdmin()) &&
-        (!item.permission || permissions.has(item.permission)),
+        (!item.permission ||
+          permissions.has(item.permission) ||
+          (item.id === 'employees' && permissions.has(FULL_ACCESS_PERMISSION))),
     );
   });
   readonly currentPageKey = computed((): MenuKey | null => {

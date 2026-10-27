@@ -1,0 +1,121 @@
+<aside
+  class="employee-detail-drawer"
+  role="region"
+  [attr.aria-label]="employee().fullName"
+  (keydown)="onKeydown($event)"
+>
+  <header class="drawer-header">
+    <div class="header-top-line">
+      <h2 class="employee-title">{{employee().code}} · {{employee().fullName}}</h2>
+      <div class="header-actions">
+        <span
+          class="badge"
+          [class.badge-active]="employee().status === 'ACTIVE'"
+          [class.badge-missing]="employee().status === 'MISSING_IN_FILE'"
+          [class.badge-terminated]="employee().status === 'TERMINATED'"
+        >
+          @switch (employee().status) {
+            @case ('ACTIVE') {
+              {{localization.employeeList.statusActive}}
+            }
+            @case ('MISSING_IN_FILE') {
+              {{localization.employeeList.statusMissing}}
+            }
+            @case ('TERMINATED') {
+              {{localization.employeeList.statusTerminated}}
+            }
+            @default {
+              {{localization.employeeList.statusOnLeave}}
+            }
+          }
+        </span>
+        <button
+          type="button"
+          class="close-button"
+          [attr.aria-label]="localization.employeeList.close"
+          (click)="closeDrawer.emit()"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+      </div>
+    </div>
+    <p class="employee-subtitle">{{employee().positionTitle}}</p>
+  </header>
+
+  <div class="drawer-body">
+    <!-- Section: THÔNG TIN -->
+    <section class="drawer-section">
+      <h3 class="section-title">{{localization.employeeList.sectionInfo}}</h3>
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelDepartment}}</span>
+          <span class="info-value"
+            >{{employee().departmentCode}} · {{employee().departmentName}}</span
+          >
+        </div>
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelPosition}}</span>
+          <span class="info-value">{{employee().positionTitle}}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelManager}}</span>
+          <span class="info-value">{{employee().managerName}}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelJoinDate}}</span>
+          <span class="info-value">{{employee().joinDate}}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelEmail}}</span>
+          <span class="info-value">{{employee().email}}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">{{localization.employeeList.labelPhone}}</span>
+          <span class="info-value">{{employee().phone}}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: ĐÁNH GIÁ -->
+    <section class="drawer-section">
+      <h3 class="section-title">{{localization.employeeList.sectionEvaluation}}</h3>
+      <div class="card-box evaluation-box">
+        <span class="eval-text">
+          @if (employee().latestLockedEvaluation; as evaluation) {
+            {{getEvaluationLockedText(evaluation.period, evaluation.tier)}}
+          } @else {
+            {{localization.employee.notAvailable}}
+          }
+        </span>
+        <button type="button" class="eval-link">
+          {{localization.employeeList.evaluationHistoryLink}}
+        </button>
+      </div>
+    </section>
+
+    <!-- Section: LẦN IMPORT GẦN NHẤT -->
+    <section class="drawer-section">
+      <h3 class="section-title">{{localization.employeeList.sectionLatestImport}}</h3>
+      <div class="card-box">
+        <span class="import-text">
+          @if (employee().latestImportBatch; as batch) {
+            {{getLatestImportText(batch.batchNumber, batch.timestamp, batch.changeStatus)}}
+          } @else {
+            {{localization.employee.notAvailable}}
+          }
+        </span>
+      </div>
+    </section>
+
+    <!-- Callout Box: Chỉ xem -->
+    <div class="callout-box" role="note">
+      <h4 class="callout-title">{{localization.employeeList.calloutTitle}}</h4>
+      <p class="callout-desc">{{localization.employeeList.calloutDesc}}</p>
+    </div>
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="shortcut-hint">{{localization.employeeList.footerShortcuts}}</span>
+    <span class="no-edit-hint">{{localization.employeeList.footerNoEdit}}</span>
+  </footer>
+</aside>
