@@ -295,6 +295,147 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         LogProfileAudit(logger, "ARCHIVE_EVALUATION_PROFILE", id, null);
     }
 
+    public async Task<List<EvaluationProfileItemDto>?> GetItemsAsync(
+        Guid profileId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await db.EvaluationProfiles.AnyAsync(p => p.Id == profileId, cancellationToken))
+        {
+            return null;
+        }
+
+        return await db.EvaluationProfileItems
+            .AsNoTracking()
+            .Where(i => i.EvaluationProfileId == profileId)
+            .OrderBy(i => i.DisplayOrder)
+            .ThenBy(i => i.KpiGroup.Code)
+            .Select(i => new EvaluationProfileItemDto(
+                i.KpiGroupId,
+                i.KpiGroup.Code,
+                i.KpiGroup.Name,
+                i.WeightPercent,
+                i.DisplayOrder))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<EvaluationProfileItemDto> AddItemAsync(
+        Guid profileId,
+        EvaluationProfileItemInputDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateItem(dto);
+
+        var profile = await GetEditableProfileAsync(profileId, cancellationToken);
+        await EnsureKpiGroupsExistAsync([dto], cancellationToken);
+
+        var alreadyAdded = await db.EvaluationProfileItems.AnyAsync(
+            i => i.EvaluationProfileId == profileId && i.KpiGroupId == dto.KpiGroupId,
+            cancellationToken);
+        if (alreadyAdded)
+        {
+            throw new ConflictException("Nhóm KPI này đã có trong hồ sơ đánh giá.");
+        }
+
+        db.EvaluationProfileItems.Add(NewItem(profileId, dto));
+        profile.UpdatedAt = DateTimeOffset.UtcNow;
+        await SaveChangesAsync(cancellationToken);
+
+        LogProfileAudit(logger, "ADD_EVALUATION_PROFILE_ITEM", profileId, null);
+        return await GetRequiredItemAsync(profileId, dto.KpiGroupId, cancellationToken);
+    }
+
+    public async Task<EvaluationProfileItemDto> UpdateItemAsync(
+        Guid profileId,
+        Guid kpiGroupId,
+        UpdateEvaluationProfileItemDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateItemValues(dto.WeightPercent, dto.DisplayOrder);
+
+        var profile = await GetEditableProfileAsync(profileId, cancellationToken);
+        var item = await FindItemAsync(profileId, kpiGroupId, cancellationToken);
+
+        item.WeightPercent = dto.WeightPercent;
+        item.DisplayOrder = dto.DisplayOrder;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        profile.UpdatedAt = item.UpdatedAt;
+        await SaveChangesAsync(cancellationToken);
+
+        LogProfileAudit(logger, "UPDATE_EVALUATION_PROFILE_ITEM", profileId, null);
+        return await GetRequiredItemAsync(profileId, kpiGroupId, cancellationToken);
+    }
+
+    public async Task RemoveItemAsync(Guid profileId, Guid kpiGroupId, CancellationToken cancellationToken = default)
+    {
+        var profile = await GetEditableProfileAsync(profileId, cancellationToken);
+        var item = await FindItemAsync(profileId, kpiGroupId, cancellationToken);
+
+        db.EvaluationProfileItems.Remove(item);
+        profile.UpdatedAt = DateTimeOffset.UtcNow;
+        await SaveChangesAsync(cancellationToken);
+
+        LogProfileAudit(logger, "REMOVE_EVALUATION_PROFILE_ITEM", profileId, null);
+    }
+
+    /// <summary>
+    /// Item-by-item changes are allowed only while the total weight is not enforced (DRAFT, INACTIVE). An ACTIVE
+    /// profile must keep its total at the required value, so it is changed as a whole through the profile update.
+    /// </summary>
+    private async Task<EvaluationProfile> GetEditableProfileAsync(Guid profileId, CancellationToken cancellationToken)
+    {
+        var profile = await db.EvaluationProfiles.SingleOrDefaultAsync(p => p.Id == profileId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy hồ sơ đánh giá yêu cầu.");
+
+        if (profile.Status == EvaluationProfileStatus.Archived)
+        {
+            throw new ConflictException("Hồ sơ đánh giá đã lưu trữ (Archived) nên không thể chỉnh sửa.");
+        }
+
+        if (await db.PerformanceEvaluations.AnyAsync(e => e.EvaluationProfileId == profileId, cancellationToken))
+        {
+            throw new ConflictException(
+                ErrorCodes.GetDefaultMessage(ErrorCodes.EvaluationProfileInUse),
+                ErrorCodes.EvaluationProfileInUse);
+        }
+
+        if (profile.Status == EvaluationProfileStatus.Active)
+        {
+            throw new ConflictException(
+                "Hồ sơ đánh giá đang hoạt động (Active) phải giữ tổng trọng số hợp lệ nên chỉ được đổi toàn bộ danh sách nhóm KPI qua cập nhật hồ sơ.");
+        }
+
+        return profile;
+    }
+
+    private async Task<EvaluationProfileItem> FindItemAsync(
+        Guid profileId,
+        Guid kpiGroupId,
+        CancellationToken cancellationToken)
+    {
+        return await db.EvaluationProfileItems.SingleOrDefaultAsync(
+                i => i.EvaluationProfileId == profileId && i.KpiGroupId == kpiGroupId,
+                cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy nhóm KPI trong hồ sơ đánh giá.");
+    }
+
+    private async Task<EvaluationProfileItemDto> GetRequiredItemAsync(
+        Guid profileId,
+        Guid kpiGroupId,
+        CancellationToken cancellationToken)
+    {
+        return await db.EvaluationProfileItems
+            .AsNoTracking()
+            .Where(i => i.EvaluationProfileId == profileId && i.KpiGroupId == kpiGroupId)
+            .Select(i => new EvaluationProfileItemDto(
+                i.KpiGroupId,
+                i.KpiGroup.Code,
+                i.KpiGroup.Name,
+                i.WeightPercent,
+                i.DisplayOrder))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy nhóm KPI trong hồ sơ đánh giá.");
+    }
+
     /// <summary>
     /// The unique index allows one ACTIVE profile per code, and EF may order the updates of a single save freely,
     /// so the previous ACTIVE version is retired and saved before the new one is activated, inside one transaction.
@@ -576,25 +717,36 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
 
         foreach (var item in items)
         {
-            if (item.KpiGroupId == Guid.Empty)
-            {
-                throw new ValidationException("KpiGroupId không được để trống.");
-            }
+            ValidateItem(item);
+        }
+    }
 
-            if (item.WeightPercent <= 0 || item.WeightPercent > RequiredTotalWeightPercent)
-            {
-                throw new ValidationException("Trọng số của mỗi nhóm KPI phải lớn hơn 0 và không vượt quá 100.");
-            }
+    private static void ValidateItem(EvaluationProfileItemInputDto item)
+    {
+        if (item.KpiGroupId == Guid.Empty)
+        {
+            throw new ValidationException("KpiGroupId không được để trống.");
+        }
 
-            if (decimal.Round(item.WeightPercent, WeightScale) != item.WeightPercent)
-            {
-                throw new ValidationException($"Trọng số tối đa {WeightScale} chữ số thập phân.");
-            }
+        ValidateItemValues(item.WeightPercent, item.DisplayOrder);
+    }
 
-            if (item.DisplayOrder < 1)
-            {
-                throw new ValidationException("Thứ tự hiển thị phải từ 1 trở lên.");
-            }
+    private static void ValidateItemValues(decimal weightPercent, int displayOrder)
+    {
+        if (weightPercent <= 0 || weightPercent > RequiredTotalWeightPercent)
+        {
+            throw new ValidationException(
+                $"Trọng số của mỗi nhóm KPI phải lớn hơn 0 và không vượt quá {RequiredTotalWeightPercent:0}.");
+        }
+
+        if (decimal.Round(weightPercent, WeightScale) != weightPercent)
+        {
+            throw new ValidationException($"Trọng số tối đa {WeightScale} chữ số thập phân.");
+        }
+
+        if (displayOrder < 1)
+        {
+            throw new ValidationException("Thứ tự hiển thị phải từ 1 trở lên.");
         }
     }
 }

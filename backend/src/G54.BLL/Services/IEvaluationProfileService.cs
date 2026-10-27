@@ -23,4 +23,20 @@ public interface IEvaluationProfileService
     Task ChangeStatusAsync(Guid id, EvaluationProfileStatusDto dto, CancellationToken cancellationToken = default);
 
     Task DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns null when the profile does not exist.</summary>
+    Task<List<EvaluationProfileItemDto>?> GetItemsAsync(Guid profileId, CancellationToken cancellationToken = default);
+
+    Task<EvaluationProfileItemDto> AddItemAsync(
+        Guid profileId,
+        EvaluationProfileItemInputDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationProfileItemDto> UpdateItemAsync(
+        Guid profileId,
+        Guid kpiGroupId,
+        UpdateEvaluationProfileItemDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveItemAsync(Guid profileId, Guid kpiGroupId, CancellationToken cancellationToken = default);
 }
