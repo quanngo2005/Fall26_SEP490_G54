@@ -1,4 +1,5 @@
-export type EmployeeWorkStatus = 'ACTIVE' | 'INACTIVE' | 'MISSING_IN_FILE' | 'TERMINATED' | 'ON_LEAVE';
+export type EmployeeWorkStatus =
+  'ACTIVE' | 'INACTIVE' | 'MISSING_IN_FILE' | 'TERMINATED' | 'ON_LEAVE';
 
 export interface EmployeeListItem {
   id: string;

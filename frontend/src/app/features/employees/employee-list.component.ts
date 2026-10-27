@@ -20,7 +20,14 @@ import { EmployeeListItem } from './employee-management.models';
 @Component({
   selector: 'app-employee-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, HeaderComponent, LayoutIconComponent, EmployeeDetailDrawerComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    SidebarComponent,
+    HeaderComponent,
+    LayoutIconComponent,
+    EmployeeDetailDrawerComponent,
+  ],
   templateUrl: './employee-list.component.html',
   styleUrls: ['./employee-list.component.scss', './employee-list.layout.scss'],
 })
@@ -93,10 +100,14 @@ export class EmployeeListComponent extends LocalizedComponent {
     const text = this.localization.employeeList;
     if (this.loading()) return text.loading;
     switch (this.failure()) {
-      case 'offline': return text.offline;
-      case 'forbidden': return text.forbidden;
-      case 'error': return text.loadError;
-      default: return text.emptyList;
+      case 'offline':
+        return text.offline;
+      case 'forbidden':
+        return text.forbidden;
+      case 'error':
+        return text.loadError;
+      default:
+        return text.emptyList;
     }
   });
   protected readonly listNoteText = computed(() => {
@@ -119,17 +130,19 @@ export class EmployeeListComponent extends LocalizedComponent {
     this.optionsRequest = forkJoin({
       departments: this.api.departments(),
       positions: this.api.jobPositions(),
-    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (options) => {
-        this.departments.set(options.departments);
-        this.positions.set(options.positions);
-        this.optionsLoading.set(false);
-      },
-      error: () => {
-        this.optionsFailed.set(true);
-        this.optionsLoading.set(false);
-      },
-    });
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (options) => {
+          this.departments.set(options.departments);
+          this.positions.set(options.positions);
+          this.optionsLoading.set(false);
+        },
+        error: () => {
+          this.optionsFailed.set(true);
+          this.optionsLoading.set(false);
+        },
+      });
   }
 
   protected load(page = this.requestedPage): void {
@@ -138,28 +151,31 @@ export class EmployeeListComponent extends LocalizedComponent {
     this.selectedEmployeeId.set(null);
     this.loading.set(true);
     this.failure.set(null);
-    this.listRequest = this.api.list({
-      keyword: this.keyword().trim(),
-      departmentId: this.selectedDepartment(),
-      jobPositionId: this.selectedPosition(),
-      page,
-      pageSize: this.result()?.pageSize,
-    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (result) => {
-        this.result.set(result);
-        if (result.items.length === 0 && result.totalCount > 0 && result.page > 1) {
-          this.load(Math.ceil(result.totalCount / result.pageSize));
-          return;
-        }
-        this.requestedPage = result.page;
-        this.loading.set(false);
-      },
-      error: (error: unknown) => {
-        const status = error instanceof HttpErrorResponse ? error.status : null;
-        this.failure.set(status === 0 ? 'offline' : status === 403 ? 'forbidden' : 'error');
-        this.loading.set(false);
-      },
-    });
+    this.listRequest = this.api
+      .list({
+        keyword: this.keyword().trim(),
+        departmentId: this.selectedDepartment(),
+        jobPositionId: this.selectedPosition(),
+        page,
+        pageSize: this.result()?.pageSize,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.result.set(result);
+          if (result.items.length === 0 && result.totalCount > 0 && result.page > 1) {
+            this.load(Math.ceil(result.totalCount / result.pageSize));
+            return;
+          }
+          this.requestedPage = result.page;
+          this.loading.set(false);
+        },
+        error: (error: unknown) => {
+          const status = error instanceof HttpErrorResponse ? error.status : null;
+          this.failure.set(status === 0 ? 'offline' : status === 403 ? 'forbidden' : 'error');
+          this.loading.set(false);
+        },
+      });
   }
 
   protected applyFilters(): void {
@@ -194,9 +210,8 @@ export class EmployeeListComponent extends LocalizedComponent {
     const list = this.filteredEmployees();
     if (!list.length || !this.selectedEmployee()) return;
     const index = list.findIndex((employee) => employee.id === this.selectedEmployeeId());
-    const next = direction === 'next'
-      ? (index + 1) % list.length
-      : (index - 1 + list.length) % list.length;
+    const next =
+      direction === 'next' ? (index + 1) % list.length : (index - 1 + list.length) % list.length;
     this.selectedEmployeeId.set(list[next].id);
   }
 
@@ -212,10 +227,21 @@ export class EmployeeListComponent extends LocalizedComponent {
       this.closeDrawer();
       return;
     }
-    if (!this.selectedEmployee() || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (
+      !this.selectedEmployee() ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    )
+      return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('input, select, textarea, [contenteditable="true"]')) return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('input, select, textarea, [contenteditable="true"]')
+      )
+        return;
       event.preventDefault();
       this.navigateEmployee(event.key === 'ArrowDown' ? 'next' : 'previous');
     }
