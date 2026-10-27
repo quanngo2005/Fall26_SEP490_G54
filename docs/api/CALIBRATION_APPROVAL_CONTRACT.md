@@ -43,6 +43,9 @@ Get department calibration overview for a specific evaluation period and optiona
   4. `EmployeeCode` ASC
 - **BR-37**: Department Tier A quota cap (max 20%, minimum 1 for small teams).
 - Bell Curve Gaussian distribution $\mu$ (mean) and $\sigma$ (standard deviation) calculated dynamically from scores.
+- **BR-31**: an evaluation whose status is `DISPUTED` (Disputed_Pending, see `APPEAL_CONTRACT.md` 2.5) is hidden from this
+  screen: it is not in `rankedRoster`, gets no `rank`, and does not count in `quota` or `bellCurve`. The response adds
+  `disputedPendingCount` (int, default 0) so the client can show how many scores are held back.
 
 #### 200 OK Response Example
 ```json
@@ -163,6 +166,8 @@ Save draft or submit department calibration proposal to Executive.
   - Throws `BusinessRuleException` with 400 Bad Request and errorCode `"TIER_A_QUOTA_EXCEEDED"` if quota exceeded (BR-37).
   - Reason is required when `calibratedTier != proposedTier`.
   - Evaluations status transitioned to `IN_REVIEW`.
+- **BR-31**: adjustments for an employee whose evaluation is `DISPUTED` are ignored (not counted in `totalAdjusted`,
+  `tierACount` or the quota base) and the evaluation keeps `DISPUTED`.
 - If `isDraft == true`:
   - Saves adjustments without transitioning status to `IN_REVIEW`.
 
@@ -193,6 +198,11 @@ Executive overview of evaluation submissions across departments with Tier A comp
 
 #### Query Parameters
 - `periodId` (`Guid`, required): Evaluation period id.
+
+#### BR-31
+`DISPUTED` evaluations are excluded from every figure of the response (`totalEmployees`, `totalEvaluated`, per-department
+counts, `averageScore`, tier counts) and `canFinalize` is `false` while any exists. `disputedPendingCount` (int, default 0)
+returns how many there are.
 
 #### 200 OK Response
 ```json
@@ -259,7 +269,7 @@ Reject department proposal and request re-calibration (UC106 Alt).
 ```
 
 #### Behavior
-- Reverts department evaluations from `IN_REVIEW` back to `CALCULATED`.
+- Reverts department evaluations from `IN_REVIEW` back to `CALCULATED`. `DISPUTED` evaluations (BR-31) are left unchanged.
 - Records rejection feedback in evaluations.
 
 #### 200 OK Response
@@ -293,6 +303,8 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 ```
 
 #### Behavior
+- **BR-31**: rejected with 409 `EVALUATION_DISPUTE_PENDING` (nothing is changed) while any evaluation of the period is
+  `DISPUTED`.
 - Sets `evaluation_period.status = LOCKED`.
 - Sets all evaluations in period: `status = FINAL`, `approved_at = NOW()`.
 - Immutable lock prevents subsequent modifications.

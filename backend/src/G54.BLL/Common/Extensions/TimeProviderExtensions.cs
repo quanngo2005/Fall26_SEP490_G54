@@ -13,6 +13,14 @@ public static class TimeProviderExtensions
     public static DateOnly GetBusinessToday(this TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(time);
-        return DateOnly.FromDateTime(time.GetUtcNow().ToOffset(BusinessUtcOffset).DateTime);
+        return time.GetUtcNow().ToBusinessDate();
     }
+
+    /// <summary>The calendar date of this instant at UTC+7.</summary>
+    public static DateOnly ToBusinessDate(this DateTimeOffset instant) =>
+        DateOnly.FromDateTime(instant.ToOffset(BusinessUtcOffset).DateTime);
+
+    /// <summary>The instant a UTC+7 calendar day starts; the inverse of <see cref="ToBusinessDate"/>.</summary>
+    public static DateTimeOffset ToBusinessDayStart(this DateOnly date) =>
+        new(date.ToDateTime(TimeOnly.MinValue), BusinessUtcOffset);
 }

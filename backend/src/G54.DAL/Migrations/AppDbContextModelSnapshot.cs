@@ -1258,6 +1258,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("comment");
 
+                    b.Property<DateTimeOffset?>("DisputedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disputed_at");
+
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
@@ -1273,6 +1277,10 @@ namespace G54.DAL.Migrations
                     b.Property<Guid?>("ParentEvaluationId")
                         .HasColumnType("uuid")
                         .HasColumnName("parent_evaluation_id");
+
+                    b.Property<int?>("PreDisputeStatus")
+                        .HasColumnType("performance_evaluation_status")
+                        .HasColumnName("pre_dispute_status");
 
                     b.Property<int>("Status")
                         .HasColumnType("performance_evaluation_status")
@@ -1304,6 +1312,8 @@ namespace G54.DAL.Migrations
                     b.ToTable("performance_evaluation", null, t =>
                         {
                             t.HasCheckConstraint("ck_performance_evaluation_no_self_parent", "parent_evaluation_id IS NULL OR parent_evaluation_id <> id");
+
+                            t.HasCheckConstraint("ck_performance_evaluation_pre_dispute", "pre_dispute_status IS NULL OR status = 'DISPUTED'::performance_evaluation_status");
                         });
                 });
 

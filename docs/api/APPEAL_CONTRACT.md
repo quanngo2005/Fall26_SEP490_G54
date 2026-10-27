@@ -7,7 +7,8 @@
 
 - Nhân viên khiếu nại một **đợt nộp kết quả (`ResultSubmission`) đã bị từ chối** (`REJECTED`).
 - Khiếu nại đánh giá KPI (`performanceEvaluationId`) **chưa nằm trong phạm vi**: các endpoint dưới đây chỉ làm việc với appeal gắn với đợt nộp kết quả; appeal không gắn với đợt nộp không được trả ra và không được rút.
-- Chưa có endpoint xử lý (nhận / từ chối) khiếu nại, và chưa chuyển điểm sang `Disputed_Pending`.
+- Chưa có endpoint xử lý (nhận / từ chối) khiếu nại.
+- Điểm đánh giá của kỳ liên quan chuyển sang `Disputed_Pending` khi nộp khiếu nại và được khôi phục khi rút (mục 2.5, BR-31).
 
 Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md` và mục 1 của `SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`.
 
@@ -56,6 +57,23 @@ Phạm vi nhìn thấy (theo quyền `verification:decide` của người gọi,
 ### 2.4 Chi tiết — `GET /appeals/{id}`
 
 Cùng phạm vi như danh sách. Ngoài phạm vi: 403. Không tồn tại: 404.
+
+### 2.5 Điểm `Disputed_Pending` (BR-31)
+
+Khi nộp / rút khiếu nại, điểm đánh giá (`performance_evaluation`) của **chính người nộp** trong kỳ chứa ngày nộp đợt kết quả (`submittedAt`, tính theo giờ UTC+7, mọi kỳ không phải `DAY` có ngày đó nằm trong `[startDate, endDate]`) thay đổi như sau. `Disputed_Pending` được lưu bằng trạng thái `DISPUTED` của `performance_evaluation_status`; trạng thái trước đó nằm ở cột `pre_dispute_status`, thời điểm ở `disputed_at`.
+
+| Sự kiện | Điểm đánh giá |
+|---|---|
+| Nộp khiếu nại (201) | `CALCULATED` / `IN_REVIEW` / `APPROVED` → `DISPUTED`; `pre_dispute_status` = trạng thái cũ; `total_score` giữ nguyên |
+| Nộp khiếu nại | `DRAFT`, `FINAL`, `DISPUTED` hoặc kỳ `LOCKED` / `CLOSED`: không đổi |
+| Rút khiếu nại (200) | `DISPUTED` → `pre_dispute_status` (mặc định `CALCULATED`), xóa `pre_dispute_status` / `disputed_at` |
+| Rút khiếu nại khi còn khiếu nại `OPEN` / `UNDER_REVIEW` khác của người đó trong cùng kỳ | Giữ `DISPUTED` |
+
+Thay đổi nằm trong cùng lần lưu với khiếu nại. Điểm `DISPUTED` bị ẩn khỏi bảng xếp hạng, hạn ngạch Tier A, đường cong chuông, điểm trung bình và số người đã được đánh giá (xem `CALIBRATION_APPROVAL_CONTRACT.md` và `PERFORMANCE_DASHBOARD_CONTRACT.md`), đồng thời chặn khóa kỳ (`EVALUATION_DISPUTE_PENDING`).
+
+Lưu form đánh giá (`POST /evaluations/submit`) cho điểm `DISPUTED` trả 409 `EVALUATION_DISPUTE_PENDING` để không vô tình xóa trạng thái tranh chấp.
+
+Chưa có endpoint nhận / từ chối khiếu nại nên chưa có bước đưa điểm ra khỏi `DISPUTED` khi khiếu nại được xử lý.
 
 ## 3. DTO
 

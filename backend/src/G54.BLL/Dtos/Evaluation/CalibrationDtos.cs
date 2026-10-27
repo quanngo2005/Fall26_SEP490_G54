@@ -71,7 +71,8 @@ public sealed record CalibrationOverviewDto(
     GaussianDistributionDto BellCurve,
     List<CalibrationEmployeeRowDto> RankedRoster,
     bool CanSubmit,
-    string? OverallStatus);
+    string? OverallStatus,
+    int DisputedPendingCount = 0);
 
 public sealed record CalibrationAdjustmentItemDto(
     Guid EmployeeId,
@@ -127,7 +128,8 @@ public sealed record BranchApprovalOverviewDto(
     decimal BranchCapPercent,
     bool IsBranchCapCompliant,
     bool CanFinalize,
-    List<DepartmentApprovalSummaryDto> Departments);
+    List<DepartmentApprovalSummaryDto> Departments,
+    int DisputedPendingCount = 0);
 
 public sealed record RejectCalibrationRequestDto(
     Guid PeriodId,

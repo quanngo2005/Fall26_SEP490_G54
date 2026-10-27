@@ -971,6 +971,7 @@ public partial class AppDbContext : DbContext
             entity.ToTable("performance_evaluation", table =>
             {
                 table.HasCheckConstraint("ck_performance_evaluation_no_self_parent", "parent_evaluation_id IS NULL OR parent_evaluation_id <> id");
+                table.HasCheckConstraint("ck_performance_evaluation_pre_dispute", "pre_dispute_status IS NULL OR status = 'DISPUTED'::performance_evaluation_status");
             });
 
             entity.HasIndex(e => e.EvaluationPeriodId, "ix_performance_evaluation_period");
@@ -1021,6 +1022,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("performance_evaluation_status")
                 .HasColumnName("status");
+            entity.Property(e => e.PreDisputeStatus)
+                .HasColumnType("performance_evaluation_status")
+                .HasColumnName("pre_dispute_status");
+            entity.Property(e => e.DisputedAt).HasColumnName("disputed_at");
         });
 
         modelBuilder.Entity<PermissionRecord>(entity =>

@@ -116,6 +116,10 @@ public sealed class AppealService(
         };
         db.Appeals.Add(appeal);
 
+        // BR-31: the score of the period this result belongs to is frozen as Disputed_Pending until the appeal ends.
+        await EvaluationDisputeRules.MarkDisputedPendingAsync(
+            db, caller.Employee.Id, submission.SubmittedAt, now, cancellationToken);
+
         foreach (var file in uploadedFiles)
         {
             db.Evidences.Add(new Evidence
@@ -176,8 +180,13 @@ public sealed class AppealService(
                 ErrorCodes.AppealInvalidState);
         }
 
+        var now = time.GetUtcNow();
         appeal.Status = AppealStatus.Withdrawn;
-        appeal.UpdatedAt = time.GetUtcNow();
+        appeal.UpdatedAt = now;
+
+        // BR-31: give the score back its previous status unless another appeal of the period is still in progress.
+        await EvaluationDisputeRules.ReleaseDisputedPendingAsync(
+            db, appeal.Id, appeal.EmployeeId, appeal.ResultSubmission!.SubmittedAt, now, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         LogAppealWithdrawn(logger, appeal.Id, appeal.ResultSubmissionId!.Value, caller.Employee.Id, null);

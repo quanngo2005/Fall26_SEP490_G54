@@ -66,7 +66,9 @@ public sealed partial class PerformanceDashboardService
             .Select(e => new UnitEmployee(e.Id, e.EmployeeCode, e.FullName, e.DepartmentId, e.JobPosition.Title))
             .ToListAsync(cancellationToken);
 
-    /// <summary>The scored evaluations of the period by employee id.</summary>
+    /// <summary>
+    /// The scored evaluations of the period by employee id; a disputed score (BR-31) is not rankable and is left out.
+    /// </summary>
     private async Task<Dictionary<Guid, ScoredEvaluation>> LoadScoredEvaluationsAsync(
         Guid periodId,
         List<UnitEmployee> employees,
@@ -74,10 +76,8 @@ public sealed partial class PerformanceDashboardService
     {
         var ids = employees.Select(e => e.Id).ToList();
         var rows = await db.PerformanceEvaluations.AsNoTracking()
-            .Where(e => e.EvaluationPeriodId == periodId
-                && ids.Contains(e.EmployeeId)
-                && e.Status != PerformanceEvaluationStatus.Draft
-                && e.TotalScore != null)
+            .Where(e => e.EvaluationPeriodId == periodId && ids.Contains(e.EmployeeId))
+            .Where(EvaluationDisputeRules.HasRankableScore)
             .Select(e => new ScoredEvaluation(e.Id, e.EmployeeId, e.Status, e.TotalScore!.Value))
             .ToListAsync(cancellationToken);
 

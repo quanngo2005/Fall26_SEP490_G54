@@ -23,6 +23,18 @@ public sealed class TimeProviderExtensionsTests
     }
 
     [Fact]
+    public void ToBusinessDate_AndToBusinessDayStart_AreInverseAtTheDayBoundary()
+    {
+        var lastSecond = DateTimeOffset.Parse("2026-10-21T16:59:59+00:00", CultureInfo.InvariantCulture);
+        var firstSecond = DateTimeOffset.Parse("2026-10-21T17:00:00+00:00", CultureInfo.InvariantCulture);
+
+        Assert.Equal(new DateOnly(2026, 10, 21), lastSecond.ToBusinessDate());
+        Assert.Equal(new DateOnly(2026, 10, 22), firstSecond.ToBusinessDate());
+        Assert.Equal(firstSecond, new DateOnly(2026, 10, 22).ToBusinessDayStart());
+        Assert.Equal(new DateOnly(2026, 10, 22), new DateOnly(2026, 10, 22).ToBusinessDayStart().ToBusinessDate());
+    }
+
+    [Fact]
     public void GetBusinessToday_RejectsNullTimeProvider()
     {
         Assert.Throws<ArgumentNullException>(() => TimeProviderExtensions.GetBusinessToday(null!));

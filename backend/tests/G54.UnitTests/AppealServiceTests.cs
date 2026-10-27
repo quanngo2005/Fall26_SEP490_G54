@@ -868,6 +868,120 @@ public sealed class AppealServiceTests : IDisposable
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAppealByIdAsync(evaluationAppeal.Id, submitter.Id));
     }
 
+    // ----- BR-31: Disputed_Pending -----------------------------------------------------------
+
+    private async Task<PerformanceEvaluation> AddEvaluationAsync(
+        Employee employee,
+        PerformanceEvaluationStatus status,
+        DateOnly? start = null,
+        DateOnly? end = null,
+        PeriodStatus periodStatus = PeriodStatus.Open)
+    {
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"P-{Guid.NewGuid():N}"[..10],
+            Name = "Period",
+            PeriodType = PeriodType.Month,
+            StartDate = start ?? new DateOnly(2026, 10, 1),
+            EndDate = end ?? new DateOnly(2026, 10, 31),
+            Status = periodStatus,
+            UpdatedAt = RejectedAt,
+        };
+        var evaluation = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = Guid.NewGuid(),
+            TotalScore = 88m,
+            Status = status,
+            UpdatedAt = RejectedAt,
+        };
+        _db.EvaluationPeriods.Add(period);
+        _db.PerformanceEvaluations.Add(evaluation);
+        await _db.SaveChangesAsync();
+        return evaluation;
+    }
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.Calculated)]
+    [InlineData(PerformanceEvaluationStatus.InReview)]
+    [InlineData(PerformanceEvaluationStatus.Approved)]
+    public async Task Create_MarksTheScoreOfThePeriodDisputedPending_AndKeepsTheStatusItHad(PerformanceEvaluationStatus before)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, before);
+        var now = RejectedAt.AddHours(5);
+
+        await ServiceAt(now).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored.Status);
+        Assert.Equal(before, stored.PreDisputeStatus);
+        Assert.Equal(now, stored.DisputedAt);
+        Assert.Equal(88m, stored.TotalScore);
+    }
+
+    [Fact]
+    public async Task Create_LeavesDraftFinalLockedOtherPeriodAndOtherEmployeeScoresAlone()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var colleague = await AddEmployeeAsync("COLLEAGUE", _salesTeamId);
+        var submission = await AddSubmissionAsync(submitter);
+        var draft = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Draft);
+        var final = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Final);
+        var locked = await AddEvaluationAsync(
+            submitter, PerformanceEvaluationStatus.Approved, periodStatus: PeriodStatus.Locked);
+        var otherPeriod = await AddEvaluationAsync(
+            submitter, PerformanceEvaluationStatus.Calculated, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
+        var others = await AddEvaluationAsync(colleague, PerformanceEvaluationStatus.Calculated);
+
+        await ServiceAt(RejectedAt.AddHours(5)).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        foreach (var untouched in new[] { draft, final, locked, otherPeriod, others })
+        {
+            var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == untouched.Id);
+            Assert.Equal(untouched.Status, stored.Status);
+            Assert.Null(stored.PreDisputeStatus);
+        }
+    }
+
+    [Fact]
+    public async Task Withdraw_RestoresThePreDisputeStatusOfTheScore()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var created = await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        await ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(created.Id, submitter.Id);
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Null(stored.PreDisputeStatus);
+        Assert.Null(stored.DisputedAt);
+    }
+
+    [Fact]
+    public async Task Withdraw_KeepsTheScoreDisputed_WhileAnotherAppealOfThePeriodIsInProgress()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var first = await AddSubmissionAsync(submitter);
+        var second = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Calculated);
+        var service = ServiceAt(RejectedAt.AddHours(2));
+        var firstAppeal = await service.CreateAppealAsync(first.Id, submitter.Id, Request());
+        await service.CreateAppealAsync(second.Id, submitter.Id, Request());
+
+        await service.WithdrawAppealAsync(firstAppeal.Id, submitter.Id);
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, stored.PreDisputeStatus);
+    }
+
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
