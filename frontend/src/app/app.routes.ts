@@ -1,10 +1,7 @@
 import { Routes } from '@angular/router';
-import { inject } from '@angular/core';
-import { I18nService } from './core/i18n/i18n.service';
 import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
-import { employeeReadGuard } from './core/employee-read.guard';
 
 export const routes: Routes = [
   {
@@ -71,13 +68,14 @@ export const routes: Routes = [
   },
   {
     path: 'employees',
-    canActivate: [authGuard, employeeReadGuard],
-    title: () => inject(I18nService).localization.employeeList.title,
+    canActivate: [authGuard],
+    title: 'Nhân viên',
     loadComponent: () =>
       import('./features/employees/employee-list.component').then((m) => m.EmployeeListComponent),
   },
   {
     path: 'employee-detail',
+    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -86,6 +84,7 @@ export const routes: Routes = [
   },
   {
     path: 'employee-detail/:code',
+    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -94,6 +93,16 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail',
+    canActivate: [authGuard],
+    title: 'Work Type Detail',
+    loadComponent: () =>
+      import('./features/work-type-detail/work-type-detail.component').then(
+        (m) => m.WorkTypeDetailComponent,
+      ),
+  },
+  {
+    path: 'work-type-detail/:id',
+    canActivate: [authGuard],
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(
@@ -102,6 +111,7 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify',
+    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
@@ -110,6 +120,7 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify/:submissionId',
+    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(

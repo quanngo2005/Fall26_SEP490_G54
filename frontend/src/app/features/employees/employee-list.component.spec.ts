@@ -13,9 +13,7 @@ import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { EmployeeDetailDrawerComponent } from './employee-detail-drawer.component';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
-class HeaderStub {
-  readonly pageTitle = input<string>();
-}
+class HeaderStub {}
 
 @Component({ selector: 'app-sidebar', standalone: true, template: '' })
 class SidebarStub {}

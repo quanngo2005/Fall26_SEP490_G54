@@ -57,14 +57,12 @@ public sealed class EmployeeService(
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim().ToLowerInvariant();
-#pragma warning disable CA1862, CA1311, CA1304 // EF Core translates parameterless ToLower() to SQL lower(); StringComparison overloads are not translatable
+            var keyword = filter.Keyword.Trim();
             query = query.Where(e =>
-                e.EmployeeCode.ToLower().Contains(keyword) ||
-                e.FullName.ToLower().Contains(keyword) ||
-                e.Email.ToLower().Contains(keyword) ||
+                e.EmployeeCode.Contains(keyword) ||
+                e.FullName.Contains(keyword) ||
+                e.Email.Contains(keyword) ||
                 (e.Phone != null && e.Phone.Contains(keyword)));
-#pragma warning restore CA1862, CA1311, CA1304
         }
 
         if (filter.DepartmentId.HasValue)

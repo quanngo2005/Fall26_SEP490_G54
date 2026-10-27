@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -13,14 +13,12 @@ import { NavigationService } from './navigation.service';
   styleUrl: './header.component.scss',
 })
 export class HeaderComponent extends LocalizedComponent {
-  readonly pageTitle = input<string>();
   readonly navigation = inject(NavigationService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly user = this.auth.currentUser;
   readonly loggingOut = signal(false);
   readonly logoutFailed = signal(false);
-
   get initials(): string {
     return (this.user()?.fullName ?? '')
       .trim()
