@@ -93,14 +93,15 @@ public static class EvaluationDisputeRules
             var from = period.StartDate.ToBusinessDayStart();
             var to = period.EndDate.AddDays(1).ToBusinessDayStart();
 
-            var anotherInProgress = await db.Appeals.AnyAsync(
-                a => a.Id != appealId
-                    && a.EmployeeId == employeeId
-                    && a.ResultSubmissionId != null
-                    && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
-                    && a.ResultSubmission!.SubmittedAt >= from
-                    && a.ResultSubmission.SubmittedAt < to,
-                cancellationToken);
+            var anotherInProgress = await db.Appeals
+                .Where(AppealRules.InProgress)
+                .AnyAsync(
+                    a => a.Id != appealId
+                        && a.EmployeeId == employeeId
+                        && a.ResultSubmissionId != null
+                        && a.ResultSubmission!.SubmittedAt >= from
+                        && a.ResultSubmission.SubmittedAt < to,
+                    cancellationToken);
             if (anotherInProgress)
             {
                 continue;

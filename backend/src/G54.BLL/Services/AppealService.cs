@@ -291,10 +291,9 @@ public sealed class AppealService(
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 
     private Task<bool> HasAppealInProgressAsync(Guid submissionId, CancellationToken cancellationToken)
-        => db.Appeals.AnyAsync(
-            a => a.ResultSubmissionId == submissionId
-                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview),
-            cancellationToken);
+        => db.Appeals
+            .Where(AppealRules.InProgress)
+            .AnyAsync(a => a.ResultSubmissionId == submissionId, cancellationToken);
 
     private Task<Appeal?> LoadAppealAsync(Guid appealId, CancellationToken cancellationToken)
         => db.Appeals.AsNoTracking()

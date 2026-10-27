@@ -680,18 +680,17 @@ public sealed partial class EvaluationService(
 
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
         var unrankedRows = new List<CalibrationEmployeeRowDto>();
-        var disputedPendingCount = 0;
+        var disputedEmployeeIds = EvaluationDisputeRules.DisputedEmployeeIds(evaluations);
 
         foreach (var emp in employees)
         {
-            evalDict.TryGetValue(emp.Id, out var pe);
-
             // BR-31: a score under dispute (Disputed_Pending) is hidden from the ranking, quota and bell curve.
-            if (pe?.IsDisputedPending() == true)
+            if (disputedEmployeeIds.Contains(emp.Id))
             {
-                disputedPendingCount++;
                 continue;
             }
+
+            evalDict.TryGetValue(emp.Id, out var pe);
 
             targetsGroup.TryGetValue(emp.Id, out var empTargets);
             actualsGroup.TryGetValue(emp.Id, out var empActuals);
@@ -814,7 +813,7 @@ public sealed partial class EvaluationService(
             rankedRoster,
             canSubmit,
             overallStatus,
-            disputedPendingCount);
+            disputedEmployeeIds.Count);
     }
 
     public async Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
