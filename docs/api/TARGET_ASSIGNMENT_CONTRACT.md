@@ -1,7 +1,8 @@
 # Target assignment (Branch / Department / Employee)
 
 Status: backend implemented (`POST /target-assignments`, `POST /target-assignments/{id}/allocations`,
-`GET /target-assignments/{id}`). Frontend client: **planned, not implemented**. Routes use the backend origin with no
+`GET /target-assignments/{id}`, `POST /target-assignments/{id}/period-allocations`,
+`GET /target-assignments`). Frontend client: **planned, not implemented**. Routes use the backend origin with no
 API prefix; all responses use `ApiResponse<T>` (see `API_CONVENTIONS.md`). Enums are UPPER_SNAKE strings matching
 PostgreSQL names.
 
@@ -42,8 +43,7 @@ Otherwise 403 `FORBIDDEN`.
 ## Common rules
 
 - Targets are created **ACTIVE** at once (no draft/approval step): `version = 1`, `assignedAt = approvedAt = now`.
-- Changing a value is a later "new version" endpoint (not part of this revision, nor are listing, closing and `PERIOD`
-  splits).
+- Changing a value is a later "new version" endpoint (not part of this revision, nor are closing).
 
 ## `POST /target-assignments` (root target)
 
@@ -101,6 +101,64 @@ offers only the level directly below (branch to departments, department to teams
 
 `id` is the assignment id (GUID). `data`: `TargetAssignment`, 200.
 
+## `POST /target-assignments/{id}/period-allocations` (split by period)
+
+Splits the target `{id}` across evaluation periods by creating **every child in one transaction** (all or nothing).
+Returns **201** with a `Location` header pointing at `GET /target-assignments/{id}` (the parent); the envelope
+`status` is 201. `data`: `TargetAssignment[]` in request order.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `allocations` | array | required, at least 1 row |
+| `allocations[].evaluationPeriodId` | GUID | required; must be distinct within request; must exist and be a descendant of the parent's period |
+| `allocations[].targetValue` | decimal | required |
+| `changeReason` | string or null | optional, at most 1000 characters, stored on every child |
+
+```json
+{
+  "allocations": [
+    { "evaluationPeriodId": "5eed0000-0000-0000-000f-000000000008", "targetValue": 300 },
+    { "evaluationPeriodId": "5eed0000-0000-0000-000f-000000000009", "targetValue": 300 },
+    { "evaluationPeriodId": "5eed0000-0000-0000-000f-00000000000a", "targetValue": 300 },
+    { "evaluationPeriodId": "5eed0000-0000-0000-000f-00000000000b", "targetValue": 300 }
+  ],
+  "changeReason": "Split year into quarters"
+}
+```
+
+Children keep the parent's KPI and organisation owner (department/employee), get `splitDimension = PERIOD` and
+inherit `businessObjectiveId`. For a `SUM` KPI the database requires the children to total the parent's
+`targetValue` exactly (checked when the transaction commits). The caller must be admin or own the parent target's
+owning department.
+
+## `GET /target-assignments`
+
+Lists target assignments with optional filters. Returns **200** with `data`: `TargetAssignment[]`, sorted by
+`evaluationPeriodId`, then `parentAssignmentId` (null first), then `createdAt`.
+
+| Query parameter | Type | Rules |
+| --- | --- | --- |
+| `kpiDefinitionId` | GUID or absent | filter by KPI; absent = all KPIs |
+| `evaluationPeriodId` | GUID or absent | filter by period; absent = all periods |
+| `departmentId` | GUID or absent | filter by department owner; absent = all departments accessible to caller |
+| `status` | UPPER_SNAKE or absent | filter by status (e.g., `ACTIVE`, `DRAFT`, `CLOSED`); absent = all statuses |
+
+**Scope**:
+- Admin (`target:manage` scope `All`): sees all targets.
+- Non-admin: sees only targets where the owning department (for an employee target: the employee's department) is
+  the caller's department or a descendant thereof.
+- If `departmentId` is supplied and outside the caller's accessible scope, return 403 `FORBIDDEN`.
+- If `departmentId` is supplied and does not exist, return 404 `NOT_FOUND`.
+
+```json
+{
+  "kpiDefinitionId": "5eed0000-0000-0000-0005-000000000001",
+  "evaluationPeriodId": "5eed0000-0000-0000-000f-000000000001",
+  "departmentId": "5eed0000-0000-0000-0001-000000000001",
+  "status": "ACTIVE"
+}
+```
+
 ## `TargetAssignment`
 
 ```json
@@ -131,8 +189,8 @@ offers only the level directly below (branch to departments, department to teams
 
 | Status | `errorCode` | When |
 | --- | --- | --- |
-| 400 | `VALIDATION_ERROR` | malformed body; missing required field; `changeReason` too long; empty `allocations` |
+| 400 | `VALIDATION_ERROR` | malformed body; missing required field; `changeReason` too long; empty `allocations`; duplicate `evaluationPeriodId` in period-allocations; `evaluationPeriodId` is not a descendant of the parent period; `status` not UPPER_SNAKE |
 | 401 | `UNAUTHORIZED` | missing or invalid token |
-| 403 | `FORBIDDEN` | missing `target:manage`, root target without scope `All`, target outside the caller's department |
-| 404 | `NOT_FOUND` | unknown assignment id |
+| 403 | `FORBIDDEN` | missing `target:manage`, root target without scope `All`, target outside the caller's department; `departmentId` outside the caller's accessible scope in GET list |
+| 404 | `NOT_FOUND` | unknown assignment id; unknown `departmentId` in GET list; unknown `evaluationPeriodId` in period-allocations |
 | 500 | `INTERNAL_ERROR` | a database rule was violated (hierarchy, `SUM` total, duplicate, value range, unknown KPI/period/department/employee) |

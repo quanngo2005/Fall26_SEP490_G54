@@ -104,7 +104,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
-                p.PerformanceEvaluations.Any(),
+                p.PerformanceEvaluations.Count != 0,
                 p.EvaluationProfileItems.Sum(i => i.WeightPercent),
                 p.UpdatedAt,
                 p.EvaluationProfileItems
