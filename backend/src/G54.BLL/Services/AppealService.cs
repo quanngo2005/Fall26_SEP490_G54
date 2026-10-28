@@ -531,7 +531,7 @@ public sealed partial class AppealService(
     }
 
     private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
-        new(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset);
+        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime(); // Npgsql only writes UTC offsets.
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 

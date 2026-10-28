@@ -10,7 +10,11 @@ internal static class AppealScoreLedger
     public static async Task<PerformanceEvaluation> CurrentAsync(AppDbContext db, Guid employeeId, DateOnly today, CancellationToken ct) =>
         await db.PerformanceEvaluations.Include(e => e.EvaluationPeriod)
             .Where(e => e.EmployeeId == employeeId && e.TotalScore != null
-                && (e.Status == PerformanceEvaluationStatus.Calculated || e.Status == PerformanceEvaluationStatus.InReview)
+                && (e.Status == PerformanceEvaluationStatus.Calculated || e.Status == PerformanceEvaluationStatus.InReview
+                    // BR-31 freezes the filer's score as Disputed; it is still adjustable unless it was already approved.
+                    || (e.Status == PerformanceEvaluationStatus.Disputed
+                        && (e.PreDisputeStatus == null || e.PreDisputeStatus == PerformanceEvaluationStatus.Calculated
+                            || e.PreDisputeStatus == PerformanceEvaluationStatus.InReview)))
                 && (e.EvaluationPeriod.Status == PeriodStatus.Open || e.EvaluationPeriod.Status == PeriodStatus.InReview)
                 && e.EvaluationPeriod.StartDate <= today && e.EvaluationPeriod.EndDate >= today)
             .OrderByDescending(e => e.EvaluationPeriod.StartDate).ThenBy(e => e.EvaluationPeriod.EndDate).ThenBy(e => e.Id)
@@ -55,7 +59,8 @@ internal static class AppealScoreLedger
 
         var evaluation = await db.PerformanceEvaluations.Include(e => e.EvaluationPeriod).SingleAsync(e => e.Id == hold.EvaluationId, ct);
         if (evaluation.EvaluationPeriod.Status is PeriodStatus.Locked or PeriodStatus.Closed
-            || evaluation.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final)
+            || evaluation.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final
+            || (evaluation.Status == PerformanceEvaluationStatus.Disputed && evaluation.PreDisputeStatus == PerformanceEvaluationStatus.Approved))
         {
             evaluation = await CurrentAsync(db, hold.EmployeeId, today, ct);
         }
