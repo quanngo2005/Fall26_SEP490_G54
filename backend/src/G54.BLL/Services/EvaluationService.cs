@@ -1706,7 +1706,7 @@ public sealed partial class EvaluationService(
         return employee;
     }
 
-    private static decimal MapRiskPenalty(RiskEventSeverity severity) => severity switch
+    internal static decimal MapRiskPenalty(RiskEventSeverity severity) => severity switch
     {
         RiskEventSeverity.Critical => 20m,
         RiskEventSeverity.High => 10m,
