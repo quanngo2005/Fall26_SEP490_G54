@@ -44,7 +44,8 @@ public sealed record EvaluationCriterionGroupDto(
     decimal GroupScore,
     List<EvaluationKpiItemDto> KpiItems,
     decimal? QualitativeScore = null,
-    string? QualitativeNotes = null);
+    string? QualitativeNotes = null,
+    bool IsQualitative = false);
 
 public sealed record EvaluationRiskEventDto(
     Guid Id,
@@ -61,7 +62,8 @@ public sealed record EvaluationCalculationSummaryDto(
     decimal OperationsScore,
     decimal TotalRiskPenalty,
     decimal TotalScore,
-    string ProposedTier);
+    string ProposedTier,
+    decimal WeightedScore);
 
 public sealed record PerformanceEvaluationStateDto(
     Guid? Id,
@@ -75,6 +77,12 @@ public sealed record PerformanceEvaluationStateDto(
     string? CoachingPlan,
     bool CoachingRequired);
 
+public sealed record PreviousPeriodSummaryDto(
+    string PeriodCode,
+    decimal TotalScore,
+    string Tier,
+    decimal ScoreDifference);
+
 public sealed record EvaluationFormDto(
     EvaluationEmployeeDto Employee,
     EvaluationPeriodDto Period,
@@ -83,7 +91,11 @@ public sealed record EvaluationFormDto(
     List<EvaluationRiskEventDto> RiskEvents,
     EvaluationCalculationSummaryDto Summary,
     PerformanceEvaluationStateDto CurrentEvaluation,
-    bool CanEdit);
+    bool CanEdit,
+    int PendingSubmissionCount,
+    int OpenAppealCount,
+    bool HasOpenDispute,
+    PreviousPeriodSummaryDto? PreviousPeriod);
 
 public sealed record QualitativeScoreInputDto(
     Guid KpiGroupId,

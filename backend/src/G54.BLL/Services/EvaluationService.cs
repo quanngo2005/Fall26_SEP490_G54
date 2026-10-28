@@ -170,7 +170,7 @@ public sealed partial class EvaluationService(
             var kpiItemDtos = new List<EvaluationKpiItemDto>();
             foreach (var kpi in groupKpis)
             {
-                targetsDict.TryGetValue(kpi.Id, out var targetVal);
+                var hasTarget = targetsDict.TryGetValue(kpi.Id, out var targetVal);
                 actualsDict.TryGetValue(kpi.Id, out var actualVal);
 
                 decimal achievement = 0m;
@@ -199,12 +199,13 @@ public sealed partial class EvaluationService(
 
                 var componentScore = achievement;
 
+                // A KPI without an assigned target has no target value (N/A), never a zero.
                 kpiItemDtos.Add(new EvaluationKpiItemDto(
                     kpi.Id,
                     kpi.Code,
                     kpi.Name,
                     kpi.Unit,
-                    targetVal,
+                    hasTarget ? targetVal : null,
                     actualVal,
                     achievement,
                     componentScore));
@@ -253,12 +254,13 @@ public sealed partial class EvaluationService(
                 groupScore,
                 kpiItemDtos,
                 qualitativeScore,
-                qualitativeNotes));
+                qualitativeNotes,
+                kpiItemDtos.Count == 0));
         }
 
         var totalCalculated = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = TierDeterminer.DetermineTier(
-            totalCalculated, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
+        var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
+        var proposedTier = TierDeterminer.DetermineTier(totalCalculated, riskEvents, downgradeConfiguration);
 
         var employeeDto = new EvaluationEmployeeDto(
             employee.Id,
@@ -290,7 +292,8 @@ public sealed partial class EvaluationService(
             operationsScore,
             totalRiskPenalty,
             existingEvaluation?.TotalScore ?? totalCalculated,
-            proposedTier);
+            proposedTier,
+            Math.Round(totalWeightedScore, 2));
 
         var currentEvaluationDto = new PerformanceEvaluationStateDto(
             existingEvaluation?.Id,
@@ -304,8 +307,26 @@ public sealed partial class EvaluationService(
             coachingPlan,
             !string.IsNullOrWhiteSpace(coachingPlan));
 
+        var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
+            .GetValueOrDefault(employeeId);
+
+        var openAppealCount = existingEvaluation is null
+            ? 0
+            : await db.Appeals
+                .AsNoTracking()
+                .CountAsync(a => a.PerformanceEvaluationId == existingEvaluation.Id
+                    && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview), cancellationToken);
+        var hasOpenDispute = existingEvaluation?.IsDisputedPending() == true || openAppealCount > 0;
+
+        var previousPeriod = await LoadPreviousPeriodSummaryAsync(
+            employeeId, period, summaryDto.TotalScore, downgradeConfiguration, cancellationToken);
+
+        // The reviewer needs evaluation:submit over the employee's department and cannot evaluate themselves or a disputed score.
         var canEdit = period.Status is PeriodStatus.Open or PeriodStatus.InReview
-            && (existingEvaluation == null || existingEvaluation.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
+            && (existingEvaluation == null || existingEvaluation.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated)
+            && employee.Id != reviewer.Id
+            && !hasOpenDispute
+            && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, employee.DepartmentId, cancellationToken);
 
         return new EvaluationFormDto(
             employeeDto,
@@ -315,7 +336,49 @@ public sealed partial class EvaluationService(
             riskDtos,
             summaryDto,
             currentEvaluationDto,
-            canEdit);
+            canEdit,
+            pendingSubmissionCount,
+            openAppealCount,
+            hasOpenDispute,
+            previousPeriod);
+    }
+
+    /// <summary>
+    /// The latest earlier period of the same type in which the employee has a scored evaluation, with the score gap to the
+    /// current total. No such period means no comparison (null), never a zero.
+    /// </summary>
+    private async Task<PreviousPeriodSummaryDto?> LoadPreviousPeriodSummaryAsync(
+        Guid employeeId,
+        EvaluationPeriod period,
+        decimal currentTotalScore,
+        DowngradeConfiguration downgradeConfiguration,
+        CancellationToken cancellationToken)
+    {
+        var previous = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Include(pe => pe.EvaluationPeriod)
+            .Where(pe => pe.EmployeeId == employeeId
+                && pe.TotalScore != null
+                && pe.EvaluationPeriod.PeriodType == period.PeriodType
+                && pe.EvaluationPeriod.EndDate < period.StartDate)
+            .OrderByDescending(pe => pe.EvaluationPeriod.EndDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (previous?.TotalScore is not { } previousScore)
+        {
+            return null;
+        }
+
+        var previousRisks = await LoadRiskEventsByEmployeeAsync([employeeId], previous.EvaluationPeriod, cancellationToken);
+        var tier = TierDeterminer.DetermineTier(
+            previousScore,
+            previousRisks.GetValueOrDefault(employeeId),
+            downgradeConfiguration);
+
+        return new PreviousPeriodSummaryDto(
+            previous.EvaluationPeriod.Code,
+            previousScore,
+            tier,
+            Math.Round(currentTotalScore - previousScore, 2));
     }
 
     public async Task<EvaluationResultDto> SubmitEvaluationAsync(
@@ -548,11 +611,17 @@ public sealed partial class EvaluationService(
         var targetDeptId = departmentId ?? reviewer.DepartmentId;
         await EnsureDepartmentInScopeAsync(currentUserId, "read", reviewer, targetDeptId, cancellationToken);
 
+        // The roster covers the target department and every department beneath it, like the employee list.
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepartments = hierarchy.Nodes.ContainsKey(targetDeptId)
+            ? hierarchy.Subtree(targetDeptId)
+            : [targetDeptId];
+
         var employees = await db.Employees
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.JobPosition)
-            .Where(e => e.DepartmentId == targetDeptId && e.Status == EmployeeStatus.Active)
+            .Where(e => rosterDepartments.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .OrderBy(e => e.FullName)
             .ToListAsync(cancellationToken);
 
@@ -584,8 +653,9 @@ public sealed partial class EvaluationService(
         var quantitativeScores = await LoadQuantitativeScoresAsync(employees, period, cancellationToken);
 
         var periodAcceptsEvaluation = period?.Status is PeriodStatus.Open or PeriodStatus.InReview;
-        var callerMaySubmit = periodAcceptsEvaluation
-            && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, targetDeptId, cancellationToken);
+        var submitDepartments = periodAcceptsEvaluation
+            ? await DepartmentsInSubmitScopeAsync(currentUserId, reviewer, hierarchy, cancellationToken)
+            : null;
 
         return employees.Select(emp =>
         {
@@ -607,7 +677,8 @@ public sealed partial class EvaluationService(
             }
 
             var hasOpenDispute = pe?.IsDisputedPending() == true || employeesWithOpenAppeal.Contains(emp.Id);
-            var canEvaluate = callerMaySubmit
+            var canEvaluate = periodAcceptsEvaluation
+                && (submitDepartments is null || submitDepartments.Contains(emp.DepartmentId))
                 && emp.Id != reviewer.Id
                 && !hasOpenDispute
                 && (pe is null || pe.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
@@ -1688,6 +1759,21 @@ public sealed partial class EvaluationService(
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
         var covered = AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
         return covered is not null && covered.Contains(departmentId);
+    }
+
+    /// <summary>
+    /// Departments the caller may submit evaluations for: null for every department (All), otherwise the Dept or
+    /// Branch subtree, and an empty set when evaluation:submit is absent or only Own.
+    /// </summary>
+    private async Task<HashSet<Guid>?> DepartmentsInSubmitScopeAsync(
+        Guid actorAccountId,
+        Employee reviewer,
+        DepartmentHierarchy hierarchy,
+        CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "evaluation", "submit");
+        return AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)
