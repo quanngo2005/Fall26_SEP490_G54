@@ -182,7 +182,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'auditReview', icon: 'auditReview' },
   { id: 'riskEvents', icon: 'riskEvents' },
   { id: 'reportsAnalytics', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
-  { id: 'accounts', icon: 'people' },
+  { id: 'accounts', icon: 'people', route: '/user-accounts' },
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
@@ -230,6 +230,7 @@ export class NavigationService {
     '/kpi-definitions',
     '/sidebar-settings',
     '/roles',
+    '/user-accounts',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
