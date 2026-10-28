@@ -71,9 +71,9 @@ describe('authInterceptor', () => {
     expect(localStorage.getItem('g54.auth.session')).not.toBeNull();
   });
 
-  it('attaches the token to admin configuration endpoints', () => {
+  it('attaches the token to admin configuration and lookup endpoints', () => {
     localStorage.setItem('g54.auth.session', JSON.stringify(refreshedSession));
-    for (const path of ['/sidebar-configurations', '/roles']) {
+    for (const path of ['/sidebar-configurations', '/roles', '/job-positions']) {
       client.get(`${environment.apiUrl}${path}`).subscribe();
       const request = http.expectOne(`${environment.apiUrl}${path}`);
       expect(request.request.headers.get('Authorization')).toBe('Bearer rotated-access-token');

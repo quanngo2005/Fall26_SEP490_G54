@@ -4,14 +4,14 @@ public static class SidebarCatalog
 {
     public static IReadOnlySet<string> Routes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        "", "/home", "/departments", "/department-performance", "/employee-profile", "/work-type-detail", "/review-verify", "/kpi-definitions", "/sidebar-settings",
+        "", "/home", "/my-work", "/departments", "/department-performance", "/employee-profile", "/work-type-detail", "/review-verify", "/kpi-definitions", "/sidebar-settings",
     };
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "reportsComplaints", "notifications", "myProfile"],
         ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "teamPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
-        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "branchPerformance", "departmentPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
-        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "reportsComplaints", "notifications", "myProfile"],
+        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
+        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "reportsComplaints", "notifications", "myProfile"],
         ["qa"] = ["overview", "verificationQueue", "reportsComplaints", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
         ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "systemConfiguration", "systemAudit", "myProfile"],
     };

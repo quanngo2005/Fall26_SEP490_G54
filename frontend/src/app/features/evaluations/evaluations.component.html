@@ -1,0 +1,284 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content evaluation-page">
+      <!-- Title -->
+      <h1 class="page-title">{{localization.evaluations.pageTitle}}</h1>
+
+      <!-- Context Bar -->
+      <section class="context-bar">
+        <div class="context-left">
+          <div class="period-select-wrap">
+            <span class="period-label">{{localization.evaluations.periodPrefix}}</span>
+            <select
+              class="period-select"
+              [value]="selectedPeriodId()"
+              (change)="onPeriodChange($event)"
+              [attr.aria-label]="localization.evaluations.periodAria"
+            >
+              @for (period of periods(); track period.id) {
+                <option [value]="period.id" [selected]="period.id === selectedPeriodId()">
+                  {{period.code}}
+                </option>
+              }
+            </select>
+            <app-layout-icon name="chevronDown" class="select-chevron" />
+          </div>
+
+          <span class="status-badge evaluating">{{periodStatusText()}}</span>
+
+          <span class="dept-info">
+            {{periodInfo().departmentName ?? localization.evaluations.emptyValue}} ·
+            {{periodInfo().employeeCount}} {{localization.evaluations.unitEmployees}} ·
+            {{localization.evaluations.deadlinePrefix}}
+            {{periodInfo().period?.endDate | appDate}}
+          </span>
+        </div>
+
+        <div class="context-right">
+          <div class="progress-wrap">
+            <span class="progress-label"
+              >{{localization.evaluations.progressPrefix}} {{periodInfo().completedCount}} /
+              {{periodInfo().employeeCount}}</span
+            >
+            <div
+              class="progress-bar-track"
+              role="progressbar"
+              [attr.aria-valuenow]="periodInfo().progressPercent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div class="progress-bar-fill" [style.width.%]="periodInfo().progressPercent"></div>
+            </div>
+            <span class="progress-percent">{{progressText()}}</span>
+          </div>
+
+          <button type="button" class="btn-calibrate" disabled>
+            {{localization.evaluations.calibrateButton}}
+          </button>
+        </div>
+      </section>
+
+      <!-- Stat Cards -->
+      <section class="stat-cards-grid">
+        <button
+          type="button"
+          class="stat-card"
+          [class.active]="activeStatFilter() === 'ALL'"
+          (click)="setStatFilter('ALL')"
+        >
+          <span class="stat-title">{{localization.evaluations.cardAll}}</span>
+          <span class="stat-value">{{statSummary().allCount}}</span>
+        </button>
+
+        <button
+          type="button"
+          class="stat-card"
+          [class.active]="activeStatFilter() === 'NOT_EVALUATED'"
+          (click)="setStatFilter('NOT_EVALUATED')"
+        >
+          <span class="stat-title">{{localization.evaluations.cardNotEvaluated}}</span>
+          <span class="stat-value">{{statSummary().notEvaluatedCount}}</span>
+        </button>
+
+        <button
+          type="button"
+          class="stat-card"
+          [class.active]="activeStatFilter() === 'DRAFT'"
+          (click)="setStatFilter('DRAFT')"
+        >
+          <span class="stat-title">{{localization.evaluations.cardDraft}}</span>
+          <span class="stat-value">{{statSummary().draftCount}}</span>
+        </button>
+
+        <button
+          type="button"
+          class="stat-card"
+          [class.active]="activeStatFilter() === 'COMPLETED'"
+          (click)="setStatFilter('COMPLETED')"
+        >
+          <span class="stat-title">{{localization.evaluations.cardCompleted}}</span>
+          <span class="stat-value">{{statSummary().completedCount}}</span>
+        </button>
+
+        <button
+          type="button"
+          class="stat-card"
+          [class.active]="activeStatFilter() === 'ATTENTION'"
+          (click)="setStatFilter('ATTENTION')"
+        >
+          <span class="stat-title">{{localization.evaluations.cardAttention}}</span>
+          <span class="stat-value">{{statSummary().attentionCount}}</span>
+        </button>
+      </section>
+
+      <!-- Search & Filters Toolbar -->
+      <section class="filter-toolbar">
+        <div class="search-box">
+          <app-layout-icon name="search" class="search-icon" />
+          <input
+            type="text"
+            class="search-input"
+            [placeholder]="localization.evaluations.searchPlaceholder"
+            [value]="searchKeyword()"
+            (input)="onSearchInput($event)"
+            [attr.aria-label]="localization.evaluations.searchAria"
+          />
+        </div>
+
+        <div class="select-box">
+          <select
+            class="filter-select"
+            (change)="onPositionFilterChange($event)"
+            [attr.aria-label]="localization.evaluations.positionAria"
+          >
+            <option value="ALL">
+              {{localization.evaluations.positionPrefix}}
+              {{localization.evaluations.positionAll}}
+            </option>
+            @for (pos of positions(); track pos.id) {
+              <option [value]="pos.id">{{pos.title}}</option>
+            }
+          </select>
+          <app-layout-icon name="chevronDown" class="select-chevron" />
+        </div>
+
+        <div class="select-box">
+          <select
+            class="filter-select"
+            (change)="onAttentionFilterChange($event)"
+            [attr.aria-label]="localization.evaluations.attentionAria"
+          >
+            <option value="ALL">{{localization.evaluations.attentionFilter}}</option>
+            <option value="ATTENTION">{{localization.evaluations.cardAttention}}</option>
+          </select>
+          <app-layout-icon name="chevronDown" class="select-chevron" />
+        </div>
+
+        <button type="button" class="btn-save-filter">
+          {{localization.evaluations.saveFilter}}
+        </button>
+      </section>
+
+      <!-- Evaluation Data Table -->
+      <section class="table-card">
+        <div class="table-container">
+          <table class="evaluation-table">
+            <thead>
+              <tr>
+                <th class="th-code">{{localization.evaluations.colCode}}</th>
+                <th class="th-name">{{localization.evaluations.colName}}</th>
+                <th class="th-position">{{localization.evaluations.colPosition}}</th>
+                <th class="th-quantitative text-right">
+                  {{localization.evaluations.colQuantitative}}
+                </th>
+                <th class="th-qualitative text-right">
+                  {{localization.evaluations.colQualitative}}
+                </th>
+                <th class="th-total text-right">{{localization.evaluations.colTotal}}</th>
+                <th class="th-status text-center">{{localization.evaluations.colStatus}}</th>
+                <th class="th-attention text-center">
+                  {{localization.evaluations.colAttention}}
+                </th>
+                <th class="th-updated text-center">{{localization.evaluations.colUpdated}}</th>
+                <th class="th-action text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of displayedEvaluations(); track item.employeeId) {
+                <tr>
+                  <td class="td-code">{{item.employeeCode}}</td>
+                  <td class="td-name">{{item.fullName}}</td>
+                  <td class="td-position">{{item.jobPositionTitle}}</td>
+                  <td class="td-quantitative text-right">
+                    @if (item.quantitativeScore !== null) {
+                      {{item.quantitativeScore | appNumber: 2}}
+                    } @else {
+                      <span class="text-muted">{{localization.evaluations.noData}}</span>
+                    }
+                  </td>
+                  <td class="td-qualitative text-right">
+                    @if (item.qualitativeScore !== null) {
+                      {{item.qualitativeScore | appNumber: 2}}
+                    } @else {
+                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                    }
+                  </td>
+                  <td class="td-total text-right">
+                    @if (item.totalScore !== null) {
+                      <strong class="total-score">{{item.totalScore | appNumber: 2}}</strong>
+                    } @else {
+                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                    }
+                  </td>
+                  <td class="td-status text-center">
+                    @switch (listStatus(item)) {
+                      @case ('DRAFT') {
+                        <span class="badge badge-draft">{{localization.evaluations.statusDraft}}</span>
+                      }
+                      @case ('COMPLETED') {
+                        <span class="badge badge-completed">{{localization.evaluations.statusCompleted}}</span>
+                      }
+                      @case ('NOT_EVALUATED') {
+                        <span class="badge badge-unscored">{{localization.evaluations.statusNotEvaluated}}</span>
+                      }
+                    }
+                  </td>
+                  <td class="td-attention text-center">
+                    @if (needsAttention(item)) {
+                      @if (item.pendingSubmissionCount > 0) {
+                        <span class="badge badge-warning"
+                          >{{item.pendingSubmissionCount}}
+                          {{localization.evaluations.pendingReviewSuffix}}</span
+                        >
+                      }
+                      @if (item.hasOpenDispute) {
+                        <span class="badge badge-danger">{{localization.evaluations.disputeOpen}}</span>
+                      }
+                    } @else {
+                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                    }
+                  </td>
+                  <td class="td-updated text-center">
+                    @if (item.updatedAt) {
+                      {{item.updatedAt | appDate}}
+                    } @else {
+                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                    }
+                  </td>
+                  <td class="td-action text-right">
+                    @if (item.canEvaluate) {
+                      <button type="button" class="btn-action evaluate">
+                        {{localization.evaluations.actionEvaluate}}
+                      </button>
+                    } @else {
+                      <button type="button" class="btn-action view">
+                        {{localization.evaluations.actionView}}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="10" class="text-muted text-center">{{listStateText()}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Footer -->
+        <div class="table-footer">
+          <span class="footer-summary">{{footerSummaryText()}}</span>
+        </div>
+      </section>
+
+      <!-- Bottom Alert Banner -->
+      <section class="banner-alert">
+        <strong class="banner-bold">{{localization.evaluations.bannerNoteBold}}</strong>
+        <span class="banner-text"> {{bannerText()}}</span>
+      </section>
+    </main>
+  </div>
+</div>

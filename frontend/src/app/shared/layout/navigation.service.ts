@@ -147,7 +147,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
-  { id: 'myWork', icon: 'myWork', permission: 'WORK_READ' },
+  { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
   { id: 'myPerformance', icon: 'myPerformance' },
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
@@ -164,7 +164,7 @@ const ITEMS: readonly NavigationItem[] = [
     ],
   },
   { id: 'employeeData', icon: 'employeeData', permission: 'KPI_READ' },
-  { id: 'teamWork', icon: 'teamWork' },
+  { id: 'teamWork', icon: 'teamWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'handoverDelegation', icon: 'handoverDelegation' },
   {
     id: 'reviewVerify',
@@ -172,7 +172,7 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
   },
-  { id: 'teamPerformance', icon: 'teamPerformance' },
+  { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   { id: 'targetsAndCampaigns', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'branchWork', icon: 'branchWork' },
   { id: 'branchPerformance', icon: 'branchPerformance' },
@@ -188,7 +188,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
   { id: 'systemAudit', icon: 'systemAudit' },
   // Legacy items for backward compat
-  { id: 'tasks', icon: 'myWork', permission: 'WORK_READ' },
+  { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'personalKpis', icon: 'employeeData', permission: 'KPI_READ' },
   {
     id: 'review',
@@ -222,6 +222,7 @@ export class NavigationService {
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
   readonly routeOptions = [
     '/home',
+    '/my-work',
     '/departments',
     '/department-performance',
     '/employee-detail',
@@ -257,6 +258,10 @@ export class NavigationService {
     ),
   ]);
   readonly isAdmin = computed(() => this.roles().includes('admin'));
+  /** A department or branch manager: someone who also oversees other people's work. */
+  readonly isManager = computed(() =>
+    this.roles().some((role) => role === 'departmentManager' || role === 'branchManager'),
+  );
 
   constructor() {
     effect((onCleanup) => {
