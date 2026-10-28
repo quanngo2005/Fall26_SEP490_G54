@@ -1,3 +1,4 @@
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.JobPosition;
 using G54.BLL.Services;
 using G54.DAL;
@@ -53,6 +54,141 @@ public sealed class JobPositionWorkTypeTests
 
         Assert.Equal(["SHARED", "TELLER_ONLY"], tellerDetail!.WorkTypes.Select(w => w.Code));
         Assert.Equal(["SHARED"], salesDetail!.WorkTypes.Select(w => w.Code));
+    }
+
+    [Fact]
+    public async Task AssignWorkTypeLinksItAndReturnsTheUpdatedDetail()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var workType = world.AddWorkType("MO_TK", RecordStatus.Active);
+        await world.SaveAsync();
+
+        var detail = await world.Service().AssignWorkTypeAsync(teller.Id, new AssignJobPositionWorkTypeDto(workType.Id));
+
+        Assert.Equal(["MO_TK"], detail.WorkTypes.Select(w => w.Code));
+    }
+
+    [Fact]
+    public async Task AssignWorkTypeRejectsAnUnknownPositionAndTheDevelopmentBootstrapPosition()
+    {
+        var world = new World();
+        var bootstrap = world.AddPosition("DEV_ADMIN");
+        var workType = world.AddWorkType("MO_TK", RecordStatus.Active);
+        await world.SaveAsync();
+        var service = world.Service();
+        var request = new AssignJobPositionWorkTypeDto(workType.Id);
+
+        var unknown = await Assert.ThrowsAsync<NotFoundException>(() => service.AssignWorkTypeAsync(Guid.NewGuid(), request));
+        var bootstrapError = await Assert.ThrowsAsync<NotFoundException>(() => service.AssignWorkTypeAsync(bootstrap.Id, request));
+
+        Assert.Equal(404, unknown.StatusCode);
+        Assert.Equal(404, bootstrapError.StatusCode);
+    }
+
+    [Fact]
+    public async Task AssignWorkTypeRejectsAMissingOrInactiveWorkType()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var inactive = world.AddWorkType("OLD", RecordStatus.Inactive);
+        await world.SaveAsync();
+        var service = world.Service();
+
+        var empty = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AssignWorkTypeAsync(teller.Id, new AssignJobPositionWorkTypeDto(Guid.Empty)));
+        var unknown = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AssignWorkTypeAsync(teller.Id, new AssignJobPositionWorkTypeDto(Guid.NewGuid())));
+        var retired = await Assert.ThrowsAsync<ValidationException>(() =>
+            service.AssignWorkTypeAsync(teller.Id, new AssignJobPositionWorkTypeDto(inactive.Id)));
+
+        Assert.All([empty, unknown, retired], error => Assert.Equal(400, error.StatusCode));
+    }
+
+    [Fact]
+    public async Task AssignWorkTypeRejectsAnAlreadyLinkedWorkTypeWithConflict()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var workType = world.AddWorkType("MO_TK", RecordStatus.Active);
+        world.Link(teller, workType);
+        await world.SaveAsync();
+
+        var error = await Assert.ThrowsAsync<ConflictException>(() =>
+            world.Service().AssignWorkTypeAsync(teller.Id, new AssignJobPositionWorkTypeDto(workType.Id)));
+
+        Assert.Equal(409, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task RemoveWorkTypeUnlinksOnlyThatPairAndReturnsTheUpdatedDetail()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var sales = world.AddPosition("SALES");
+        var shared = world.AddWorkType("SHARED", RecordStatus.Active);
+        var other = world.AddWorkType("OTHER", RecordStatus.Active);
+        world.Link(teller, shared);
+        world.Link(teller, other);
+        world.Link(sales, shared);
+        await world.SaveAsync();
+        var service = world.Service();
+
+        var detail = await service.RemoveWorkTypeAsync(teller.Id, shared.Id);
+
+        Assert.Equal(["OTHER"], detail.WorkTypes.Select(w => w.Code));
+        Assert.Equal(["SHARED"], (await service.GetJobPositionByIdAsync(sales.Id))!.WorkTypes.Select(w => w.Code));
+    }
+
+    [Fact]
+    public async Task RemoveWorkTypeStillUnlinksAnInactiveWorkType()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var retired = world.AddWorkType("OLD", RecordStatus.Inactive);
+        world.Link(teller, retired);
+        await world.SaveAsync();
+
+        await world.Service().RemoveWorkTypeAsync(teller.Id, retired.Id);
+
+        Assert.Empty(await world.LinksAsync());
+    }
+
+    [Fact]
+    public async Task RemoveWorkTypeRejectsAnUnknownPositionAndTheDevelopmentBootstrapPosition()
+    {
+        var world = new World();
+        var bootstrap = world.AddPosition("DEV_ADMIN");
+        var workType = world.AddWorkType("MO_TK", RecordStatus.Active);
+        world.Link(bootstrap, workType);
+        await world.SaveAsync();
+        var service = world.Service();
+
+        var unknown = await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveWorkTypeAsync(Guid.NewGuid(), workType.Id));
+        var bootstrapError = await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveWorkTypeAsync(bootstrap.Id, workType.Id));
+
+        Assert.Equal(404, unknown.StatusCode);
+        Assert.Equal(404, bootstrapError.StatusCode);
+        Assert.Single(await world.LinksAsync());
+    }
+
+    [Fact]
+    public async Task RemoveWorkTypeRejectsAWorkTypeThatIsNotAssignedWith404()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var sales = world.AddPosition("SALES");
+        var workType = world.AddWorkType("MO_TK", RecordStatus.Active);
+        world.Link(sales, workType);
+        await world.SaveAsync();
+        var service = world.Service();
+
+        var notAssigned = await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveWorkTypeAsync(teller.Id, workType.Id));
+        var unknownWorkType = await Assert.ThrowsAsync<NotFoundException>(() => service.RemoveWorkTypeAsync(teller.Id, Guid.NewGuid()));
+
+        Assert.Equal(404, notAssigned.StatusCode);
+        Assert.Equal(404, unknownWorkType.StatusCode);
+        Assert.Single(await world.LinksAsync());
     }
 
     [Fact]
@@ -168,6 +304,8 @@ public sealed class JobPositionWorkTypeTests
         public JobPositionService Service() => new(Db, new FixedTime(Now));
 
         public Task<int> SaveAsync() => Db.SaveChangesAsync();
+
+        public Task<List<JobPositionWorkType>> LinksAsync() => Db.JobPositionWorkTypes.AsNoTracking().ToListAsync();
 
         public JobPosition AddPosition(string code)
         {
