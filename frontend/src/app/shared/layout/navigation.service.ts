@@ -172,7 +172,7 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
   },
-  { id: 'teamPerformance', icon: 'teamPerformance' },
+  { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   { id: 'targetsAndCampaigns', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'branchWork', icon: 'branchWork' },
   { id: 'branchPerformance', icon: 'branchPerformance' },

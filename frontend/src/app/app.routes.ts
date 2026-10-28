@@ -67,6 +67,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluations',
+    canActivate: [authGuard],
+    title: 'Đánh giá nhân viên',
+    loadComponent: () =>
+      import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
+  },
+  {
     path: 'employees',
     canActivate: [authGuard],
     title: 'Nhân viên',
