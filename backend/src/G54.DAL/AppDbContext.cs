@@ -1746,6 +1746,7 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_work_type_kpi_work_type");
         });
 
+        ConfigureScores(modelBuilder);
         OnModelCreatingPartial(modelBuilder);
     }
 

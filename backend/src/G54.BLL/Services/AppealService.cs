@@ -15,7 +15,7 @@ using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class AppealService(
+public sealed partial class AppealService(
     AppDbContext db,
     IPermissionService permissions,
     IStorageService storage,
@@ -149,6 +149,10 @@ public sealed class AppealService(
             appeal.ResolvedByNavigation = await db.Employees.FindAsync([caller.Employee.Id], cancellationToken);
             appeal.DecidedAt = now;
             appeal.UpdatedAt = now;
+            if (decision == "ACCEPT")
+            {
+                await AppealScoreLedger.RefundAsync(db, appeal.Id, caller.Employee.Id, time.GetBusinessToday(), now, cancellationToken);
+            }
             await db.SaveChangesAsync(cancellationToken);
             if (transaction is not null)
             {
@@ -527,7 +531,7 @@ public sealed class AppealService(
     }
 
     private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
-        new(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset);
+        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime(); // Npgsql only writes UTC offsets.
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 
@@ -578,7 +582,8 @@ public sealed class AppealService(
             appeal.Note,
             appeal.ResolvedBy,
             appeal.ResolvedByNavigation?.FullName,
-            evidences);
+            evidences,
+            appeal.ScoreDisputeReason);
     }
 
     private async Task<Caller> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)

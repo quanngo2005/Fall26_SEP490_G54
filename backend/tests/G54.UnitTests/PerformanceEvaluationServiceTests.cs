@@ -21,6 +21,30 @@ public sealed class PerformanceEvaluationServiceTests
     // ----- Calculation ----------------------------------------------------------------------
 
     [Fact]
+    public async Task Calculate_PreservesLedgerDeductionsOnEveryRecalculation()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
+        world.AddProgress(world.KpiSum, 40m, null, Day10);
+        world.Db.ScoreEntries.Add(new ScoreEntry
+        {
+            Id = Guid.NewGuid(),
+            EvaluationId = world.Evaluation.Id,
+            EmployeeId = world.Employee.Id,
+            RecordedByEmployeeId = world.ManagerAccount.EmployeeId,
+            Points = -5,
+            Kind = ScoreEntryKind.Hold,
+            Source = ScoreEntrySource.System,
+            Reason = "Tạm giữ điểm trong lúc xét khiếu nại",
+            CreatedAt = Now,
+        });
+        await world.SaveAsync();
+        Assert.Equal(23m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
+        Assert.Equal(23m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
+        Assert.Single(await world.Db.ScoreEntries.ToListAsync());
+    }
+
+    [Fact]
     public async Task Calculate_StoresSnapshotsAndScoresFromTheRealFormula()
     {
         using var world = await World.CreateAsync();

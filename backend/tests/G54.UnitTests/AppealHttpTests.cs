@@ -184,6 +184,8 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
             Assert.Equal(12.5m, (await db.ActualProgresses.AsNoTracking().SingleAsync(p => p.Id == item.ActualProgressId)).Value);
         }
 
+        await CheckScoreHoldHttpAsync();
+
         var adjust = await AddRejectedSubmissionAsync();
         Authenticate(_maker);
         var adjustAppeal = await FileAppealAsync(adjust);
@@ -211,7 +213,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         Assert.Equal("REJECTED", detailBody.GetProperty("data").GetProperty("status").GetString());
         using var list = await _client.GetAsync("/appeals?status=ACCEPTED&page=1&pageSize=20");
         var listBody = await CheckAsync(list, HttpStatusCode.OK);
-        Assert.Equal(3, listBody.GetProperty("data").GetProperty("totalCount").GetInt32());
+        Assert.Equal(4, listBody.GetProperty("data").GetProperty("totalCount").GetInt32());
 
         // Race a withdrawal against acceptance using separate HTTP requests/DbContexts.
         var raced = await AddRejectedSubmissionAsync();
@@ -251,7 +253,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         await CheckAsync(lockedResponse, HttpStatusCode.Unauthorized, "UNAUTHORIZED");
     }
 
-    private void Authenticate(Account account)
+    private void Authenticate(Account account, string[]? roles = null)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -260,7 +262,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
             ["Jwt:Audience"] = "AppealHttpTests",
         }).Build();
         var token = new JwtTokenProvider(configuration).CreateAccessToken(
-            account.Id, account.Employee.Email, account.Employee.FullName, [], [], TimeSpan.FromMinutes(10));
+            account.Id, account.Employee.Email, account.Employee.FullName, roles ?? [], [], TimeSpan.FromMinutes(10));
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
     }
 
@@ -435,6 +437,36 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         db.KpiDefinitions.Add(kpi);
         db.WorkTypes.Add(type);
         db.EvaluationPeriods.Add(period);
+        var profile = new EvaluationProfile
+        {
+            Id = Guid.NewGuid(),
+            JobPositionId = _maker.Employee.JobPositionId,
+            Code = "HTTP-PROFILE",
+            Name = "Profile",
+            Version = 1,
+            EffectiveFrom = period.StartDate,
+            Status = EvaluationProfileStatus.Active,
+        };
+        db.EvaluationProfiles.Add(profile);
+        db.EvaluationProfileItems.Add(new EvaluationProfileItem
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profile.Id,
+            KpiGroupId = group.Id,
+            WeightPercent = 100m,
+            DisplayOrder = 1,
+        });
+        db.PerformanceEvaluations.Add(new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = _maker.EmployeeId,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = profile.Id,
+            TotalScore = 100m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
         db.WorkTypeKpis.Add(new WorkTypeKpi
         {
             Id = Guid.NewGuid(),
@@ -458,6 +490,60 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         var submission = await db.ResultSubmissions.Include(s => s.Work).SingleAsync(s => s.Id == submissionId);
         submission.Work.WorkTypeId = type.Id;
         await db.SaveChangesAsync();
+    }
+
+    private async Task CheckScoreHoldHttpAsync()
+    {
+        var submissionId = await AddRejectedSubmissionAsync();
+        Authenticate(_maker);
+        var appealId = await FileAppealAsync(submissionId);
+        using var unauthorizedReview = await _client.PostAsJsonAsync($"/appeals/{appealId}/review", new { points = 9, reason = "Tạm giữ điểm trong lúc xác minh" });
+        await CheckAsync(unauthorizedReview, HttpStatusCode.Forbidden, "FORBIDDEN");
+        Authenticate(_checker);
+        using var adminOnly = await _client.PutAsJsonAsync("/system-parameters/appeal-score-hold", new { defaultPoints = 9 });
+        await CheckAsync(adminOnly, HttpStatusCode.Forbidden, "FORBIDDEN");
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = new Role { Id = Guid.NewGuid(), Code = "ADMIN", Name = "Admin", Status = RecordStatus.Active };
+            db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), AccountId = _checker.Id, Role = role });
+            await db.SaveChangesAsync();
+        }
+
+        Authenticate(_checker, ["ADMIN"]);
+        using var setting = await _client.PutAsJsonAsync("/system-parameters/appeal-score-hold", new { defaultPoints = 9 });
+        await CheckAsync(setting, HttpStatusCode.OK);
+        using var review = await _client.PostAsJsonAsync($"/appeals/{appealId}/review", new { reason = "Tạm giữ điểm trong lúc xác minh" });
+        var reviewBody = await CheckAsync(review, HttpStatusCode.OK);
+        Assert.Equal(-9, reviewBody.GetProperty("data").GetProperty("points").GetDecimal());
+        Assert.Equal("SYSTEM", reviewBody.GetProperty("data").GetProperty("source").GetString());
+        using var repeatedReview = await _client.PostAsJsonAsync($"/appeals/{appealId}/review", new { reason = "Không được trừ thêm lần thứ hai" });
+        await CheckAsync(repeatedReview, HttpStatusCode.Conflict, "APPEAL_INVALID_STATE");
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(91, (await db.PerformanceEvaluations.SingleAsync()).TotalScore);
+            var hold = await db.ScoreEntries.SingleAsync();
+            hold.Reason = "Không được sửa lịch sử";
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+
+        Authenticate(_maker);
+        using var dispute = await _client.PostAsJsonAsync($"/appeals/{appealId}/score-dispute", new { reason = "Tôi đề nghị xem xét lại khoản giữ điểm" });
+        var disputeBody = await CheckAsync(dispute, HttpStatusCode.OK);
+        Assert.Equal("Tôi đề nghị xem xét lại khoản giữ điểm", disputeBody.GetProperty("data").GetProperty("scoreDisputeReason").GetString());
+        Authenticate(_checker, ["ADMIN"]);
+        await DecideAsync(appealId, "ACCEPT", "APPROVED", "VERIFIED");
+        Authenticate(_maker);
+        using var entries = await _client.GetAsync($"/appeals/{appealId}/score-entries");
+        var entryBody = await CheckAsync(entries, HttpStatusCode.OK);
+        Assert.Equal(2, entryBody.GetProperty("data").GetArrayLength());
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(100, (await db.PerformanceEvaluations.SingleAsync()).TotalScore);
+            Assert.Equal(0, await db.ScoreEntries.SumAsync(e => e.Points));
+        }
     }
 
     private static Account Person(string code, Guid departmentId, Guid jobId, DateTimeOffset now) => new()
