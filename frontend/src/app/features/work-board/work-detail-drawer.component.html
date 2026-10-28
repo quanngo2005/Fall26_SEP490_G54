@@ -1,0 +1,93 @@
+<button
+  type="button"
+  class="drawer-backdrop"
+  tabindex="-1"
+  (click)="closed.emit()"
+  [attr.aria-label]="localization.common.close"
+></button>
+<aside
+  class="drawer"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="localization.work.drawer.title"
+>
+  <header class="drawer-head">
+    <div>
+      <p class="drawer-eyebrow">{{localization.work.drawer.title}}</p>
+      @if (work(); as w) {
+        <p class="drawer-code mono">{{w.code}}</p>
+      }
+    </div>
+    <button
+      type="button"
+      class="drawer-close"
+      (click)="closed.emit()"
+      [attr.aria-label]="localization.common.close"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="drawer-body" [attr.aria-busy]="loading()">
+    @if (loading()) {
+      <div class="drawer-state" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>{{localization.work.drawer.loading}}</p>
+      </div>
+    } @else if (failed() || !work()) {
+      <div class="drawer-state drawer-error" role="alert">
+        <p>{{localization.work.drawer.error}}</p>
+      </div>
+    } @else {
+      @let w = work()!;
+      <h2 class="drawer-title">{{w.title}}</h2>
+      <div class="drawer-badges">
+        <span class="pill" [attr.data-status]="w.status">{{localization.work.status[w.status]}}</span>
+        <span class="pill" [attr.data-priority]="w.priority">
+          {{localization.work.priority[w.priority]}}
+        </span>
+      </div>
+      <dl class="detail-fields">
+        <div>
+          <dt>{{localization.work.drawer.workType}}</dt>
+          <dd>{{text(w.workTypeName)}}</dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.campaign}}</dt>
+          <dd>{{text(w.businessCampaignName)}}</dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.assignee}}</dt>
+          <dd>
+            {{text(w.assigneeEmployeeName)}}
+            @if (w.assigneeEmployeeCode) {
+              <span class="mono muted">({{w.assigneeEmployeeCode}})</span>
+            }
+          </dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.estimatedHours}}</dt>
+          <dd class="mono">
+            {{w.estimatedHours === null ? localization.department.notAvailable : w.estimatedHours}}
+          </dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.plannedStart}}</dt>
+          <dd class="mono">{{day(w.plannedStartDate)}}</dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.plannedEnd}}</dt>
+          <dd class="mono">{{day(w.plannedEndDate)}}</dd>
+        </div>
+        <div>
+          <dt>{{localization.work.drawer.updatedAt}}</dt>
+          <dd class="mono">{{i18n.formatDate(w.updatedAt, 'DD/MM/YYYY HH:mm')}}</dd>
+        </div>
+      </dl>
+      <section class="description">
+        <h3>{{localization.work.drawer.description}}</h3>
+        <p>{{text(w.description)}}</p>
+      </section>
+    }
+  </div>
+</aside>
