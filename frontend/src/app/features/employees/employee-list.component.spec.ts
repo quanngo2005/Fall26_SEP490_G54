@@ -117,6 +117,7 @@ describe('EmployeeListComponent', () => {
       })
       .compileComponents();
 
+    TestBed.inject(I18nService).setLanguage('vi');
     fixture = TestBed.createComponent(EmployeeListComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
