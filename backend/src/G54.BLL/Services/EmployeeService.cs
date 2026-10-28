@@ -41,7 +41,8 @@ public sealed class EmployeeService(
         e.Status.ToEnumString(),
         e.InverseManager.Count,
         e.LastSyncAt,
-        e.UpdatedAt);
+        e.UpdatedAt,
+        e.Account != null ? e.Account.Username : null);
 
     public async Task<PagedResult<EmployeeDetailDto>> GetEmployeesAsync(
         Guid callerAccountId,

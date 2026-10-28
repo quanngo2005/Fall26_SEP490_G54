@@ -4,7 +4,12 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
-import { EmployeeDetail, EmployeeFilter } from './employee.models';
+import {
+  EmployeeDepartmentOption,
+  EmployeeDetail,
+  EmployeeFilter,
+  EmployeeJobPositionOption,
+} from './employee.models';
 
 @Injectable({ providedIn: 'root' })
 export class EmployeeService {
@@ -20,6 +25,18 @@ export class EmployeeService {
   detail(id: string): Observable<EmployeeDetail> {
     return this.http
       .get<ApiResponse<EmployeeDetail>>(`${this.url}/${encodeURIComponent(id)}`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  departments(): Observable<EmployeeDepartmentOption[]> {
+    return this.http
+      .get<ApiResponse<EmployeeDepartmentOption[]>>(`${this.url}/departments`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  jobPositions(): Observable<EmployeeJobPositionOption[]> {
+    return this.http
+      .get<ApiResponse<EmployeeJobPositionOption[]>>(`${this.url}/job-positions`)
       .pipe(map((response) => this.unwrap(response)));
   }
 

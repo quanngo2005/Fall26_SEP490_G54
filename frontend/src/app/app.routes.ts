@@ -67,6 +67,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'employees',
+    canActivate: [authGuard],
+    title: 'Nhân viên',
+    loadComponent: () =>
+      import('./features/employees/employee-list.component').then((m) => m.EmployeeListComponent),
+  },
+  {
     path: 'employee-detail',
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
@@ -84,6 +91,14 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail',
+    title: 'Work Type Detail',
+    loadComponent: () =>
+      import('./features/work-type-detail/work-type-detail.component').then(
+        (m) => m.WorkTypeDetailComponent,
+      ),
+  },
+  {
+    path: 'work-type-detail/:id',
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(

@@ -223,8 +223,8 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         var decideTask = _client.PostAsJsonAsync($"/appeals/{racedAppeal}/decision", new { decision = "ACCEPT" });
         using var withdrawResponse = await withdrawTask;
         using var decideResponse = await decideTask;
-        Assert.True(withdrawResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, _apiLog.ToString());
-        Assert.True(decideResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, _apiLog.ToString());
+        Assert.True(withdrawResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, GetApiLog());
+        Assert.True(decideResponse.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict, GetApiLog());
         Assert.NotEqual(withdrawResponse.StatusCode == HttpStatusCode.OK, decideResponse.StatusCode == HttpStatusCode.OK);
         await using (var raceScope = _provider.CreateAsyncScope())
         {
@@ -266,9 +266,22 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
 
     private void AppendLog(string? line)
     {
+        if (line is null)
+        {
+            return;
+        }
+
         lock (_apiLog)
         {
             _apiLog.AppendLine(line);
+        }
+    }
+
+    private string GetApiLog()
+    {
+        lock (_apiLog)
+        {
+            return _apiLog.ToString();
         }
     }
 
