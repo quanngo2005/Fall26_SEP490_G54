@@ -214,7 +214,8 @@
         "operationalNotifications": "Thông báo tác nghiệp",
         "workingSchedule": "Lịch làm việc & SLA",
         "hrmsSynced": "Đã đồng bộ HRMS",
-        "coreBankingSystems": "Hệ thống ngân hàng lõi & Tuân thủ"
+        "coreBankingSystems": "Hệ thống ngân hàng lõi & Tuân thủ",
+        "teamWork": "Công việc phòng"
       },
       "profile": {
         "phone": "Số điện thoại",
@@ -1010,6 +1011,137 @@
           "All": "Toàn hệ thống"
         }
       },
+      "work": {
+        "title": "Công việc của tôi",
+        "breadcrumbHome": "Trang chủ",
+        "breadcrumbCurrent": "Công việc",
+        "viewSwitch": "Chế độ xem",
+        "viewBoard": "Dạng thẻ",
+        "viewList": "Danh sách",
+        "transfer": "Chuyển giao",
+        "create": "Tạo việc",
+        "comingSoon": "Chức năng đang được phát triển",
+        "kpi": {
+          "label": "Tổng quan công việc",
+          "open": "Việc đang mở",
+          "openHint": "Mới + Đang thực hiện + Đã nộp",
+          "dueToday": "Hạn hôm nay",
+          "timeLeft": "Còn {hours}h {minutes}p",
+          "overdue": "Quá hạn",
+          "done": "Hoàn thành tháng này",
+          "doneTotal": "Tổng {total}",
+          "employeesCount": "{count} nhân viên",
+          "actionNeeded": "Cần xử lý"
+        },
+        "filters": {
+          "search": "Tìm công việc",
+          "searchPlaceholder": "Tìm mã việc, tiêu đề",
+          "workType": "Lọc theo loại việc",
+          "workTypeAll": "Loại việc: Tất cả",
+          "due": "Lọc theo hạn",
+          "dueAll": "Hạn: Tất cả",
+          "dueToday": "Hạn: Hôm nay",
+          "dueWeek": "Hạn: Tuần này",
+          "dueMonth": "Hạn: Tháng này",
+          "priority": "Lọc theo ưu tiên",
+          "priorityAll": "Ưu tiên: Tất cả",
+          "count": "{count} việc",
+          "employee": "Lọc theo nhân viên",
+          "employeeAll": "Nhân viên: Tất cả",
+          "position": "Lọc theo vị trí",
+          "positionAll": "Vị trí: Tất cả"
+        },
+        "columns": {
+          "new": "Mới",
+          "inProgress": "Đang thực hiện",
+          "submitted": "Đã nộp",
+          "done": "Hoàn thành",
+          "overdue": "Quá hạn"
+        },
+        "priority": {
+          "Low": "Thấp",
+          "Medium": "Thường",
+          "High": "Cao",
+          "Critical": "Khẩn"
+        },
+        "status": {
+          "New": "Mới",
+          "InProgress": "Đang thực hiện",
+          "HandedOver": "Đang bàn giao",
+          "Submitted": "Chờ thẩm định",
+          "Verified": "Đã thẩm định",
+          "Rejected": "Cần làm lại",
+          "Overdue": "Quá hạn",
+          "Done": "Hoàn thành",
+          "Cancelled": "Đã hủy"
+        },
+        "card": {
+          "due": "Hạn {date}",
+          "noDue": "Chưa đặt hạn",
+          "today": "Hôm nay",
+          "overdueDays": "-{days} ngày",
+          "start": "Bắt đầu",
+          "startLabel": "Bắt đầu công việc {code}",
+          "viewMore": "Xem thêm {count} việc",
+          "loadMore": "Tải thêm",
+          "loadingMore": "Đang tải…",
+          "empty": "Không có công việc",
+          "columnError": "Không tải được cột này"
+        },
+        "state": {
+          "loading": "Đang tải công việc…",
+          "error": "Không tải được danh sách công việc.",
+          "retry": "Thử lại",
+          "footnote": "Kéo việc Mới, Đang bàn giao hoặc Cần làm lại sang Đang thực hiện để bắt đầu. Các cột còn lại do hệ thống cập nhật khi bạn nộp kết quả, được thẩm định hoặc quá hạn."
+        },
+        "list": {
+          "code": "Mã việc",
+          "title": "Tiêu đề",
+          "workType": "Loại việc",
+          "priority": "Ưu tiên",
+          "due": "Hạn",
+          "updated": "Cập nhật",
+          "empty": "Không có công việc phù hợp.",
+          "prev": "Trước",
+          "next": "Sau",
+          "page": "Trang {page}/{pages}",
+          "assignee": "Người thực hiện"
+        },
+        "toast": {
+          "started": "Đã bắt đầu {code}",
+          "moveFailed": "Không thể chuyển trạng thái công việc.",
+          "moveConflict": "Không thể bắt đầu {code} từ trạng thái hiện tại.",
+          "moveForbidden": "Bạn không có quyền chuyển công việc này.",
+          "loadMoreFailed": "Không tải thêm được công việc.",
+          "completed": "Đã hoàn thành {code}",
+          "completeFailed": "Không thể hoàn thành công việc.",
+          "completeForbidden": "Chỉ quản lý trực tiếp mới được hoàn thành công việc."
+        },
+        "drawer": {
+          "title": "Chi tiết công việc",
+          "loading": "Đang tải chi tiết…",
+          "error": "Không tải được chi tiết công việc.",
+          "workType": "Loại việc",
+          "campaign": "Chiến dịch",
+          "assignee": "Người thực hiện",
+          "estimatedHours": "Giờ ước tính",
+          "plannedStart": "Bắt đầu dự kiến",
+          "plannedEnd": "Hạn hoàn thành",
+          "updatedAt": "Cập nhật lần cuối",
+          "description": "Mô tả"
+        },
+        "team": {
+          "title": "Công việc của phòng",
+          "breadcrumbCurrent": "Công việc phòng",
+          "assignWork": "Giao việc",
+          "kpiLabel": "Tổng quan công việc phòng",
+          "loading": "Đang tải công việc phòng…",
+          "error": "Không tải được danh sách công việc phòng."
+        },
+        "scopeSwitch": "Phạm vi công việc",
+        "scopeMine": "Của tôi",
+        "scopeTeam": "Cả phòng"
+      },
       "jobPositions": {
         "title": "Vị trí công việc",
         "breadcrumbHome": "Trang chủ",
@@ -1355,7 +1487,8 @@
         "operationalNotifications": "Operational Notices",
         "workingSchedule": "Work Schedule & SLA",
         "hrmsSynced": "HRMS Synced",
-        "coreBankingSystems": "Core Banking Systems & Compliance"
+        "coreBankingSystems": "Core Banking Systems & Compliance",
+        "teamWork": "Department Work"
       },
       "profile": {
         "phone": "Phone number",
@@ -2150,6 +2283,137 @@
           "Branch": "Branch",
           "All": "System-wide"
         }
+      },
+      "work": {
+        "title": "My work",
+        "breadcrumbHome": "Home",
+        "breadcrumbCurrent": "Work",
+        "viewSwitch": "View mode",
+        "viewBoard": "Board",
+        "viewList": "List",
+        "transfer": "Hand over",
+        "create": "New work",
+        "comingSoon": "This feature is under development",
+        "kpi": {
+          "label": "Work overview",
+          "open": "Open work",
+          "openHint": "New + In progress + Submitted",
+          "dueToday": "Due today",
+          "timeLeft": "{hours}h {minutes}m left",
+          "overdue": "Overdue",
+          "done": "Completed this month",
+          "doneTotal": "Total {total}",
+          "employeesCount": "{count} employees",
+          "actionNeeded": "Action needed"
+        },
+        "filters": {
+          "search": "Search work",
+          "searchPlaceholder": "Search work code or title",
+          "workType": "Filter by work type",
+          "workTypeAll": "Work type: All",
+          "due": "Filter by due date",
+          "dueAll": "Due: All",
+          "dueToday": "Due: Today",
+          "dueWeek": "Due: This week",
+          "dueMonth": "Due: This month",
+          "priority": "Filter by priority",
+          "priorityAll": "Priority: All",
+          "count": "{count} items",
+          "employee": "Filter by employee",
+          "employeeAll": "Employee: All",
+          "position": "Filter by position",
+          "positionAll": "Position: All"
+        },
+        "columns": {
+          "new": "New",
+          "inProgress": "In progress",
+          "submitted": "Submitted",
+          "done": "Done",
+          "overdue": "Overdue"
+        },
+        "priority": {
+          "Low": "Low",
+          "Medium": "Normal",
+          "High": "High",
+          "Critical": "Urgent"
+        },
+        "status": {
+          "New": "New",
+          "InProgress": "In progress",
+          "HandedOver": "Being handed over",
+          "Submitted": "Awaiting review",
+          "Verified": "Verified",
+          "Rejected": "Needs rework",
+          "Overdue": "Overdue",
+          "Done": "Done",
+          "Cancelled": "Cancelled"
+        },
+        "card": {
+          "due": "Due {date}",
+          "noDue": "No due date",
+          "today": "Today",
+          "overdueDays": "-{days} d",
+          "start": "Start",
+          "startLabel": "Start work {code}",
+          "viewMore": "Show {count} more",
+          "loadMore": "Load more",
+          "loadingMore": "Loading…",
+          "empty": "No work items",
+          "columnError": "This column could not be loaded"
+        },
+        "state": {
+          "loading": "Loading work…",
+          "error": "The work list could not be loaded.",
+          "retry": "Try again",
+          "footnote": "Drag New, Being handed over or Needs rework items to In progress to start them. The other columns are updated by the system when you submit a result, it is reviewed or it becomes overdue."
+        },
+        "list": {
+          "code": "Code",
+          "title": "Title",
+          "workType": "Work type",
+          "priority": "Priority",
+          "due": "Due",
+          "updated": "Updated",
+          "empty": "No matching work.",
+          "prev": "Previous",
+          "next": "Next",
+          "page": "Page {page}/{pages}",
+          "assignee": "Assignee"
+        },
+        "toast": {
+          "started": "Started {code}",
+          "moveFailed": "The work status could not be changed.",
+          "moveConflict": "{code} cannot be started from its current status.",
+          "moveForbidden": "You are not allowed to move this work.",
+          "loadMoreFailed": "More work could not be loaded.",
+          "completed": "Completed {code}",
+          "completeFailed": "The work status could not be changed.",
+          "completeForbidden": "Only direct manager can complete this work."
+        },
+        "drawer": {
+          "title": "Work details",
+          "loading": "Loading details…",
+          "error": "The work details could not be loaded.",
+          "workType": "Work type",
+          "campaign": "Campaign",
+          "assignee": "Assignee",
+          "estimatedHours": "Estimated hours",
+          "plannedStart": "Planned start",
+          "plannedEnd": "Due date",
+          "updatedAt": "Last updated",
+          "description": "Description"
+        },
+        "team": {
+          "title": "Department Work",
+          "breadcrumbCurrent": "Department Work",
+          "assignWork": "Assign Work",
+          "kpiLabel": "Department work overview",
+          "loading": "Loading department work…",
+          "error": "The department work list could not be loaded."
+        },
+        "scopeSwitch": "Work scope",
+        "scopeMine": "Mine",
+        "scopeTeam": "Department"
       },
       "jobPositions": {
         "title": "Job Positions",
