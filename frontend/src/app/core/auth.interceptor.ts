@@ -8,10 +8,10 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const apiBase = new URL(environment.apiUrl || '/', window.location.origin);
   const requestUrl = new URL(request.url, window.location.origin);
   const isApiRequest =
-   requestUrl.origin === apiBase.origin &&
-  /^\/(auth|me|departments|employees|works|work-types|job-positions|workflows|kpis|kpi-definitions|kpi-results|business-objectives|submissions|verifications|verification|evidence|hello|sidebar-configurations|evaluations|campaigns|roles|user-accounts|system-parameters)(\/|$)/.test(
-    requestUrl.pathname,
-  );
+    requestUrl.origin === apiBase.origin &&
+    /^\/(auth|me|departments|employees|works|work-types|job-positions|workflows|kpis|kpi-definitions|kpi-results|business-objectives|submissions|verifications|verification|evidence|hello|sidebar-configurations|evaluations|campaigns|roles|user-accounts|system-parameters)(\/|$)/.test(
+      requestUrl.pathname,
+    );
   const isLoginRequest = requestUrl.pathname === '/auth/login';
   const isRefreshRequest = requestUrl.pathname === '/auth/refresh';
   const authService = isApiRequest ? inject(AuthService) : null;
