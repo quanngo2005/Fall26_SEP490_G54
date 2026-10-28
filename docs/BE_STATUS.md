@@ -30,7 +30,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | Excel import: employee, transaction, service rating | ❌ | No import service or xlsx library. Blocks steps 6–7, BR-07, BR-17/18, BR-22 |
 | System parameters (e.g. BR-01 handover threshold) | ❌ | |
 | Product multipliers, quality ratio | ❌ | |
-| Risk events (QA) | ❌ | Entity `RiskEvent` only |
+| Risk events (QA) | 🟡 | `POST /risk-events`, `GET /risk-events/{id}`, `/confirm` (writes a negative `performance_contribution`), `/dismiss`, `/resolve` (docs/api/RISK_EVENT_CONTRACT.md). Missing: list/search API, evidence upload, `risk_event:*` permission seed for a QA role |
 | QA 5% random sampling (BR-32) | ❌ | |
 | Appeals, 2-level (Dept → Branch), withdraw | ❌ | Entity `Appeal` only |
 | Period pre-close / Publish / Lock | 🟡 | `EvaluationPeriod` + finalize; pre-close carry-over missing |
