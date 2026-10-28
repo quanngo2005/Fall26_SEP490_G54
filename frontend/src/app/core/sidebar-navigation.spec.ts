@@ -129,6 +129,21 @@ describe('Configured sidebar navigation', () => {
     expect(navigation.configurations()).toEqual([]);
     expect(navigation.items()).toEqual([]);
   });
+  it('treats department and branch managers, and nobody else, as managers', () => {
+    const navigation = TestBed.inject(NavigationService);
+    const isManagerOf = (roles: string[]) => {
+      user.update((value) => value && { ...value, roles });
+      return navigation.isManager();
+    };
+
+    expect(isManagerOf(['EMPLOYEE'])).toBeFalse();
+    expect(isManagerOf(['HR_OFFICER'])).toBeFalse();
+    expect(isManagerOf(['ADMIN'])).toBeFalse();
+    expect(isManagerOf(['DEPT_MANAGER'])).toBeTrue();
+    expect(isManagerOf(['manager'])).toBeTrue();
+    expect(isManagerOf(['BRANCH_MANAGER'])).toBeTrue();
+    expect(isManagerOf(['EMPLOYEE', 'DEPT_MANAGER'])).toBeTrue();
+  });
   it('allows the editor route only for admin role aliases', () => {
     const router = TestBed.inject(Router);
     const denied = TestBed.runInInjectionContext(() => adminGuard({} as never, {} as never));

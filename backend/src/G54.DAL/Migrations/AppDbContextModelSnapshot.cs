@@ -204,6 +204,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("result_submission_id");
 
+                    b.Property<string>("ScoreDisputeReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("score_dispute_reason");
+
                     b.Property<int>("Status")
                         .HasColumnType("appeal_status")
                         .HasColumnName("status");
@@ -230,6 +235,34 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
 
                             t.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.AppealScoreSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("DefaultPoints")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("default_points");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("appeal_score_setting", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_appeal_score_setting_points", "default_points > 0 AND default_points <= 1000");
+
+                            t.HasCheckConstraint("ck_appeal_score_setting_singleton", "id = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            DefaultPoints = 5m
                         });
                 });
 
@@ -1630,6 +1663,89 @@ namespace G54.DAL.Migrations
                     b.ToTable("role_permission", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ScoreEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AppealId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("appeal_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("EvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<decimal>("Points")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("points");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("RecordedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by_employee_id");
+
+                    b.Property<Guid?>("ReversesEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reverses_entry_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source");
+
+                    b.Property<Guid?>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EvaluationId");
+
+                    b.HasIndex("RecordedByEmployeeId");
+
+                    b.HasIndex("ReversesEntryId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkId");
+
+                    b.HasIndex("AppealId", "Kind")
+                        .IsUnique()
+                        .HasFilter("appeal_id IS NOT NULL");
+
+                    b.HasIndex("EmployeeId", "Kind");
+
+                    b.ToTable("score_entry", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_score_entry_kind", "(kind IN ('HOLD', 'TASK_DEDUCTION') AND points < 0 AND reverses_entry_id IS NULL) OR (kind = 'REFUND' AND points > 0 AND reverses_entry_id IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_score_entry_origin", "(kind = 'TASK_DEDUCTION' AND work_id IS NOT NULL AND appeal_id IS NULL) OR (kind IN ('HOLD', 'REFUND') AND appeal_id IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.SidebarConfiguration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2764,6 +2880,44 @@ namespace G54.DAL.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ScoreEntry", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Appeal", null)
+                        .WithMany()
+                        .HasForeignKey("AppealId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "Evaluation")
+                        .WithMany()
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.ScoreEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("G54.DAL.Entities.Work", null)
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Evaluation");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>

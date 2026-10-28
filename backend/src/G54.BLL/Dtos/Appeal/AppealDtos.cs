@@ -2,6 +2,12 @@ using Microsoft.AspNetCore.Http;
 
 namespace G54.BLL.Dtos.Appeal;
 
+public sealed record ReviewAppealRequestDto(decimal? Points, string? Reason);
+public sealed record ScoreDisputeRequestDto(string? Reason);
+public sealed record AppealScoreSettingDto(decimal DefaultPoints);
+public sealed record ScoreEntryDto(Guid Id, Guid? AppealId, Guid? WorkId, Guid EvaluationId, decimal Points,
+    string Kind, string Source, string Reason, Guid RecordedByEmployeeId, DateTimeOffset CreatedAt, Guid? ReversesEntryId);
+
 public sealed record DecideAppealRequestDto
 {
     public string? Decision { get; init; }
@@ -77,4 +83,5 @@ public sealed record AppealDetailDto(
     string? Note,
     Guid? ResolvedByEmployeeId,
     string? ResolvedByEmployeeName,
-    IReadOnlyList<AppealEvidenceDto> Evidences);
+    IReadOnlyList<AppealEvidenceDto> Evidences,
+    string? ScoreDisputeReason = null);

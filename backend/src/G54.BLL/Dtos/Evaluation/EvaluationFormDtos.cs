@@ -131,4 +131,10 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     decimal? TotalScore,
     string EvaluationStatus,
     string? ProposedTier,
-    DateTimeOffset? CalculatedAt);
+    DateTimeOffset? CalculatedAt,
+    decimal? QuantitativeScore,
+    decimal? QualitativeScore,
+    bool HasOpenDispute,
+    int PendingSubmissionCount,
+    bool CanEvaluate,
+    DateTimeOffset? UpdatedAt);

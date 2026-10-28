@@ -23,6 +23,8 @@ public partial class Appeal
 
     public string? Note { get; set; }
 
+    public string? ScoreDisputeReason { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public AppealStatus Status { get; set; }

@@ -67,6 +67,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluations',
+    canActivate: [authGuard],
+    title: 'Đánh giá nhân viên',
+    loadComponent: () =>
+      import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
+  },
+  {
     path: 'employees',
     canActivate: [authGuard],
     title: 'Nhân viên',
@@ -120,6 +127,13 @@ export const routes: Routes = [
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
       ),
+  },
+  {
+    path: 'my-work',
+    canActivate: [authGuard],
+    title: 'Công việc',
+    loadComponent: () =>
+      import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },
   {
     path: 'kpi-definitions',

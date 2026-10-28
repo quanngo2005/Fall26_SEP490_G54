@@ -222,6 +222,17 @@ public sealed class VerificationService(
             submission.UpdatedAt = now;
             submission.Work.Status = newWorkStatus;
             submission.Work.UpdatedAt = now;
+            if (dbDecision == VerificationDecision.Approved)
+            {
+                var acceptedAppeals = await db.Appeals
+                    .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
+                    .Select(a => a.Id)
+                    .ToListAsync(cancellationToken);
+                foreach (var appealId in acceptedAppeals)
+                {
+                    await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
+                }
+            }
             await db.SaveChangesAsync(cancellationToken);
             if (transaction is not null)
             {

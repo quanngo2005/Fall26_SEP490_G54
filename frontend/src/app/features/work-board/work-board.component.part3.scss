@@ -1,0 +1,294 @@
+/* CDK drag states. The preview is a clone that carries this component's attributes. */
+.cdk-drag-preview {
+  box-sizing: border-box;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 22%);
+  cursor: grabbing;
+  opacity: 0.95;
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+
+.cdk-drag-animating {
+  transition: transform 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.cdk-drop-list-dragging .work-card:not(.cdk-drag-placeholder) {
+  transition: transform 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.column-body.cdk-drop-list-receiving {
+  background: rgb(0 43 73 / 6%);
+  border-radius: 6px;
+  outline: 2px dashed #94a3b8;
+  outline-offset: -2px;
+}
+
+.board-note {
+  margin: 16px 0 0;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 10px 14px;
+}
+
+/* List view */
+.table-card {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.work-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+
+  th {
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    font:
+      600 12px/18px Inter,
+      sans-serif;
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td {
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    padding: 10px 14px;
+    vertical-align: middle;
+  }
+
+  .col-date {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .strong {
+    color: #0f172a;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .cell-title {
+    min-width: 220px;
+    font-weight: 500;
+  }
+
+  .empty-cell {
+    color: #94a3b8;
+    font-style: italic;
+    padding: 36px 14px;
+    text-align: center;
+  }
+}
+
+.work-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: #f8fafc;
+  }
+
+  &.is-selected {
+    background: #eff6ff;
+    box-shadow: inset 3px 0 0 #002b49;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: -2px;
+  }
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #f1f5f9;
+  padding: 10px 14px;
+
+  .button {
+    min-height: 32px;
+  }
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  border-radius: 8px;
+  background: #0f172a;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 25%);
+  color: #fff;
+  font-size: 13px;
+  padding: 10px 14px;
+  animation: toast-in 0.2s ease;
+
+  button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  &.toast-error {
+    background: #9f1239;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .toast,
+  .kpi,
+  .cdk-drag-animating {
+    animation-duration: 0ms;
+    transition-duration: 0ms;
+  }
+}
+
+@media (max-width: 720px) {
+  .filter-search,
+  .filter-select {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
+/* Only on the personal board: the row under a card (chip + start button) and its start action. */
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.start-button {
+  margin-left: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #002b49;
+  cursor: pointer;
+  font:
+    600 11px Inter,
+    sans-serif;
+  padding: 3px 10px;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+
+  &:focus-visible {
+    opacity: 1;
+    outline: 2px solid #002b49;
+    outline-offset: 1px;
+  }
+}
+
+.work-card:hover .start-button,
+.work-card:focus-within .start-button {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .start-button {
+    opacity: 1;
+  }
+}
+
+/* The department board: who a card belongs to, and the avatar next to a name in the list. */
+.card-assignee {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.avatar-circle,
+.avatar-circle-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0284c7;
+  color: #fff;
+  font-family: Inter, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.avatar-circle {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+}
+
+.avatar-circle-sm {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+
+.assignee-name {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.assignee-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-meta-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.card-meta.text-danger {
+  color: #b91c1c;
+  font-weight: 600;
+}

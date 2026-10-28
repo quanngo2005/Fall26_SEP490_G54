@@ -449,7 +449,8 @@ public sealed partial class EvaluationService(
         }
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
-        var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
+        var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2))
+            + await AppealScoreLedger.NetAsync(db, request.EmployeeId, request.PeriodId, cancellationToken);
         var proposedTier = TierDeterminer.DetermineTier(
             finalScore, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 
@@ -571,6 +572,22 @@ public sealed partial class EvaluationService(
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(employeeIds, period, cancellationToken);
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
+        var evaluationIds = evaluations.Select(pe => pe.Id).ToList();
+        var employeesWithOpenAppeal = (await db.Appeals
+            .AsNoTracking()
+            .Where(a => a.PerformanceEvaluationId.HasValue
+                && evaluationIds.Contains(a.PerformanceEvaluationId.Value)
+                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview))
+            .Select(a => a.EmployeeId)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
+        var pendingSubmissions = await LoadPendingSubmissionCountsAsync(employeeIds, period, cancellationToken);
+        var quantitativeScores = await LoadQuantitativeScoresAsync(employees, period, cancellationToken);
+
+        var periodAcceptsEvaluation = period?.Status is PeriodStatus.Open or PeriodStatus.InReview;
+        var callerMaySubmit = periodAcceptsEvaluation
+            && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, targetDeptId, cancellationToken);
+
         return employees.Select(emp =>
         {
             evalDict.TryGetValue(emp.Id, out var pe);
@@ -579,6 +596,22 @@ public sealed partial class EvaluationService(
             var tier = pe?.TotalScore != null
                 ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                 : null;
+
+            decimal? qualitativeScore = null;
+            if (pe is not null)
+            {
+                var (_, _, qualScores, _, _, _) = ParseStoredComment(pe.Comment);
+                if (qualScores.Count > 0)
+                {
+                    qualitativeScore = Math.Round(qualScores.Values.Average(q => q.Score), 2);
+                }
+            }
+
+            var hasOpenDispute = pe?.IsDisputedPending() == true || employeesWithOpenAppeal.Contains(emp.Id);
+            var canEvaluate = callerMaySubmit
+                && emp.Id != reviewer.Id
+                && !hasOpenDispute
+                && (pe is null || pe.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
 
             return new DepartmentEmployeeEvaluationSummaryDto(
                 emp.Id,
@@ -592,8 +625,139 @@ public sealed partial class EvaluationService(
                 pe?.TotalScore,
                 status,
                 tier,
-                pe?.CalculatedAt);
+                pe?.CalculatedAt,
+                quantitativeScores.GetValueOrDefault(emp.Id),
+                qualitativeScore,
+                hasOpenDispute,
+                pendingSubmissions.GetValueOrDefault(emp.Id),
+                canEvaluate,
+                pe?.UpdatedAt);
         }).ToList();
+    }
+
+    /// <summary>Submitted or under-review result submissions of each employee that were submitted inside the period.</summary>
+    private async Task<Dictionary<Guid, int>> LoadPendingSubmissionCountsAsync(
+        List<Guid> employeeIds,
+        EvaluationPeriod? period,
+        CancellationToken cancellationToken)
+    {
+        if (period is null || employeeIds.Count == 0)
+        {
+            return [];
+        }
+
+        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        var submitters = await db.ResultSubmissions
+            .AsNoTracking()
+            .Where(rs => employeeIds.Contains(rs.SubmitterEmployeeId)
+                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview)
+                && rs.SubmittedAt >= periodStart
+                && rs.SubmittedAt <= periodEnd)
+            .Select(rs => rs.SubmitterEmployeeId)
+            .ToListAsync(cancellationToken);
+
+        return submitters.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    /// <summary>
+    /// Weighted mean (by profile weight) of the achievement-based score of the profile groups that own active KPIs.
+    /// An employee without a profile or without a scorable KPI group has no value (N/A, never 0).
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal?>> LoadQuantitativeScoresAsync(
+        List<Employee> employees,
+        EvaluationPeriod? period,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<Guid, decimal?>();
+        if (period is null || employees.Count == 0)
+        {
+            return result;
+        }
+
+        var employeeIds = employees.Select(e => e.Id).ToList();
+        var profilesByPosition = await LoadProfilesByPositionAsync(employees.Select(e => e.JobPositionId), period, cancellationToken);
+
+        var targetAssignments = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(ta => ta.EmployeeId.HasValue
+                && employeeIds.Contains(ta.EmployeeId.Value)
+                && ta.EvaluationPeriodId == period.Id
+                && ta.Status == TargetAssignmentStatus.Active)
+            .ToListAsync(cancellationToken);
+        var targetsByEmployee = targetAssignments
+            .GroupBy(ta => ta.EmployeeId!.Value)
+            .ToDictionary(g => g.Key, g => g.GroupBy(t => t.KpiDefinitionId)
+                .ToDictionary(tg => tg.Key, tg => tg.OrderByDescending(t => t.Version).First().TargetValue));
+
+        var actualProgresses = await db.ActualProgresses
+            .AsNoTracking()
+            .Include(ap => ap.TargetAssignment)
+            .Where(ap => ap.TargetAssignment.EmployeeId.HasValue
+                && employeeIds.Contains(ap.TargetAssignment.EmployeeId.Value)
+                && ap.TargetAssignment.EvaluationPeriodId == period.Id
+                && ap.Status == ActualProgressStatus.Valid)
+            .ToListAsync(cancellationToken);
+        var actualsByEmployee = actualProgresses
+            .GroupBy(ap => ap.TargetAssignment.EmployeeId!.Value)
+            .ToDictionary(g => g.Key, g => g.GroupBy(a => a.TargetAssignment.KpiDefinitionId)
+                .ToDictionary(ag => ag.Key, ag => ag.Sum(a => a.Value)));
+
+        foreach (var employee in employees)
+        {
+            if (!profilesByPosition.TryGetValue(employee.JobPositionId, out var profile))
+            {
+                continue;
+            }
+
+            var targets = targetsByEmployee.GetValueOrDefault(employee.Id) ?? [];
+            var actuals = actualsByEmployee.GetValueOrDefault(employee.Id) ?? [];
+
+            decimal weightedSum = 0m;
+            decimal weightTotal = 0m;
+            foreach (var item in profile.EvaluationProfileItems)
+            {
+                var kpis = item.KpiGroup.KpiDefinitions.Where(kd => kd.Status == KpiStatus.Active).ToList();
+                if (kpis.Count == 0)
+                {
+                    continue;
+                }
+
+                var groupScore = kpis.Average(kpi => ComputeAchievementPercent(
+                    kpi,
+                    targets.GetValueOrDefault(kpi.Id),
+                    actuals.GetValueOrDefault(kpi.Id)));
+                weightedSum += groupScore * item.WeightPercent;
+                weightTotal += item.WeightPercent;
+            }
+
+            if (weightTotal > 0)
+            {
+                result[employee.Id] = Math.Round(weightedSum / weightTotal, 2);
+            }
+        }
+
+        return result;
+    }
+
+    private static decimal ComputeAchievementPercent(KpiDefinition kpi, decimal targetValue, decimal actualValue)
+    {
+        decimal achievement = 0m;
+        if (targetValue > 0)
+        {
+            achievement = kpi.Direction == KpiDirection.LowerBetter
+                ? (actualValue > 0 ? Math.Round(targetValue / actualValue * 100m, 2) : 100m)
+                : Math.Round(actualValue / targetValue * 100m, 2);
+        }
+        else if (actualValue > 0)
+        {
+            achievement = 100m;
+        }
+
+        return kpi.MaxAchievementPercent.HasValue && achievement > kpi.MaxAchievementPercent.Value
+            ? kpi.MaxAchievementPercent.Value
+            : achievement;
     }
 
     public async Task<CalibrationOverviewDto> GetDepartmentCalibrationAsync(
@@ -1502,19 +1666,29 @@ public sealed partial class EvaluationService(
         Guid departmentId,
         CancellationToken cancellationToken)
     {
+        if (!await IsDepartmentInScopeAsync(actorAccountId, action, reviewer, departmentId, cancellationToken))
+        {
+            throw new ForbiddenException("Bạn không có quyền thao tác đánh giá trên phòng ban/nhân sự này.");
+        }
+    }
+
+    private async Task<bool> IsDepartmentInScopeAsync(
+        Guid actorAccountId,
+        string action,
+        Employee reviewer,
+        Guid departmentId,
+        CancellationToken cancellationToken)
+    {
         var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
         var level = AccessScope.LevelFor(granted, "evaluation", action);
         if (level >= AccessScope.AllLevel)
         {
-            return;
+            return true;
         }
 
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
         var covered = AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
-        if (covered is null || !covered.Contains(departmentId))
-        {
-            throw new ForbiddenException("Bạn không có quyền thao tác đánh giá trên phòng ban/nhân sự này.");
-        }
+        return covered is not null && covered.Contains(departmentId);
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)
@@ -1532,7 +1706,7 @@ public sealed partial class EvaluationService(
         return employee;
     }
 
-    private static decimal MapRiskPenalty(RiskEventSeverity severity) => severity switch
+    internal static decimal MapRiskPenalty(RiskEventSeverity severity) => severity switch
     {
         RiskEventSeverity.Critical => 20m,
         RiskEventSeverity.High => 10m,
