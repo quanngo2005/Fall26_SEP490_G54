@@ -37,6 +37,30 @@ public sealed class JobPositionsControllerTests
             LastId = id;
             return Task.FromResult(DetailToReturn);
         }
+
+        public AssignJobPositionWorkTypeDto? LastAssign { get; private set; }
+
+        public Task<JobPositionDetailDto> AssignWorkTypeAsync(
+            Guid id,
+            AssignJobPositionWorkTypeDto request,
+            CancellationToken cancellationToken = default)
+        {
+            LastId = id;
+            LastAssign = request;
+            return Task.FromResult(DetailToReturn!);
+        }
+
+        public Guid? LastRemovedWorkTypeId { get; private set; }
+
+        public Task<JobPositionDetailDto> RemoveWorkTypeAsync(
+            Guid id,
+            Guid workTypeId,
+            CancellationToken cancellationToken = default)
+        {
+            LastId = id;
+            LastRemovedWorkTypeId = workTypeId;
+            return Task.FromResult(DetailToReturn!);
+        }
     }
 
     private static JobPositionsController CreateController(StubJobPositionService stub) =>
@@ -109,6 +133,54 @@ public sealed class JobPositionsControllerTests
         var envelope = Assert.IsType<ApiResponse<JobPositionDetailDto>>(ok.Value);
         Assert.Equal(id, envelope.Data?.Id);
         Assert.Equal(id, stub.LastId);
+    }
+
+    [Fact]
+    public async Task AssignWorkTypeReturns201WithTheDetailEnvelopeAndRequiresJobPositionManage()
+    {
+        var id = Guid.NewGuid();
+        var workTypeId = Guid.NewGuid();
+        var stub = new StubJobPositionService
+        {
+            DetailToReturn = new(id, "TELLER", "Teller", null, 1, DateTimeOffset.UtcNow, "ACTIVE", null, []),
+        };
+
+        var result = await CreateController(stub).AssignWorkType(id, new AssignJobPositionWorkTypeDto(workTypeId), CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(JobPositionsController.GetJobPosition), created.ActionName);
+        var envelope = Assert.IsType<ApiResponse<JobPositionDetailDto>>(created.Value);
+        Assert.Equal(id, envelope.Data?.Id);
+        Assert.Equal(workTypeId, stub.LastAssign?.WorkTypeId);
+
+        var method = typeof(JobPositionsController).GetMethod(nameof(JobPositionsController.AssignWorkType));
+        Assert.Equal("{id:guid}/work-types", method?.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        var permission = Assert.Single(method!.GetCustomAttributes<HasPermissionAttribute>());
+        Assert.Equal(("job-position", "manage", "Dept"), (permission.Resource, permission.Action, permission.Scope));
+    }
+
+    [Fact]
+    public async Task RemoveWorkTypeReturns200WithTheDetailEnvelopeAndRequiresJobPositionManage()
+    {
+        var id = Guid.NewGuid();
+        var workTypeId = Guid.NewGuid();
+        var stub = new StubJobPositionService
+        {
+            DetailToReturn = new(id, "TELLER", "Teller", null, 1, DateTimeOffset.UtcNow, "ACTIVE", null, []),
+        };
+
+        var result = await CreateController(stub).RemoveWorkType(id, workTypeId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<JobPositionDetailDto>>(ok.Value);
+        Assert.Equal(id, envelope.Data?.Id);
+        Assert.Equal(id, stub.LastId);
+        Assert.Equal(workTypeId, stub.LastRemovedWorkTypeId);
+
+        var method = typeof(JobPositionsController).GetMethod(nameof(JobPositionsController.RemoveWorkType));
+        Assert.Equal("{id:guid}/work-types/{workTypeId:guid}", method?.GetCustomAttribute<HttpDeleteAttribute>()?.Template);
+        var permission = Assert.Single(method!.GetCustomAttributes<HasPermissionAttribute>());
+        Assert.Equal(("job-position", "manage", "Dept"), (permission.Resource, permission.Action, permission.Scope));
     }
 
     [Fact]
