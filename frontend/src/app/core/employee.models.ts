@@ -7,6 +7,7 @@ export interface EmployeeDetail {
   id: string;
   employeeCode: string;
   fullName: string;
+  username?: string | null;
   email: string;
   phone: string | null;
   departmentId: string;
@@ -29,8 +30,22 @@ export interface EmployeeFilter {
   departmentId?: string;
   jobPositionId?: string;
   managerId?: string;
+  status?: EmployeeStatus;
   page?: number;
   pageSize?: number;
+}
+
+export interface EmployeeDepartmentOption {
+  id: string;
+  code: string;
+  name: string;
+  levelType: number;
+}
+
+export interface EmployeeJobPositionOption {
+  id: string;
+  code: string;
+  title: string;
 }
 
 export type EmployeePagedResult = PagedResult<EmployeeDetail>;

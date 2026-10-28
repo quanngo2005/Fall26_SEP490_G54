@@ -27,6 +27,15 @@ public partial class PerformanceEvaluation
 
     public PerformanceEvaluationStatus Status { get; set; }
 
+    /// <summary>
+    /// Status held before a dispute froze the score (BR-31); restored when the last dispute is withdrawn.
+    /// Only set while <see cref="Status"/> is <see cref="PerformanceEvaluationStatus.Disputed"/>.
+    /// </summary>
+    public PerformanceEvaluationStatus? PreDisputeStatus { get; set; }
+
+    /// <summary>When the score became disputed (pending); null otherwise.</summary>
+    public DateTimeOffset? DisputedAt { get; set; }
+
     public virtual ICollection<Appeal> Appeals { get; set; } = new List<Appeal>();
 
     public virtual Employee Employee { get; set; } = null!;

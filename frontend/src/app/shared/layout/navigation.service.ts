@@ -153,7 +153,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
-  { id: 'employees', icon: 'people', route: '/employee-detail' },
+  { id: 'employees', icon: 'people', route: '/employees' },
   {
     id: 'organization',
     icon: 'organization',

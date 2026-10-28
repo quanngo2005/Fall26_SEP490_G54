@@ -217,10 +217,8 @@ public sealed partial class DepartmentService(
         if (period is not null)
         {
             var evaluations = await db.PerformanceEvaluations.AsNoTracking()
-                .Where(pe => pe.EvaluationPeriodId == period.Id
-                    && pe.TotalScore != null
-                    && pe.Status != PerformanceEvaluationStatus.Draft
-                    && ids.Contains(pe.EmployeeId))
+                .Where(pe => pe.EvaluationPeriodId == period.Id && ids.Contains(pe.EmployeeId))
+                .Where(PerformanceEvaluationExtensions.HasRankableScore)
                 .Select(pe => new { pe.EmployeeId, Score = pe.TotalScore!.Value })
                 .ToListAsync(cancellationToken);
             scores = evaluations.ToDictionary(x => x.EmployeeId, x => Round(x.Score));
@@ -464,10 +462,9 @@ public sealed partial class DepartmentService(
     {
         var scores = await db.PerformanceEvaluations.AsNoTracking()
             .Where(pe => pe.EvaluationPeriodId == periodId
-                && pe.TotalScore != null
-                && pe.Status != PerformanceEvaluationStatus.Draft
                 && pe.Employee.Status != EmployeeStatus.Terminated
                 && subtree.Contains(pe.Employee.DepartmentId))
+            .Where(PerformanceEvaluationExtensions.HasRankableScore)
             .Select(pe => pe.TotalScore!.Value)
             .ToListAsync(cancellationToken);
 

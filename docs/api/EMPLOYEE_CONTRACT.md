@@ -3,23 +3,56 @@
 Status: backend implemented (read endpoints used by the frontend). Typed client:
 `frontend/src/app/core/employee.service.ts`. Routes use the backend origin, no API prefix; all
 responses use `ApiResponse<T>` (see `API_CONVENTIONS.md`). Write endpoints
-(`POST/PUT/PATCH/DELETE /employees...`) and the option lookups (`/employees/departments`,
-`/employees/job-positions`) exist on the backend but are **not used** by the
-employee detail page and are not part of this contract revision.
+(`POST/PUT/PATCH/DELETE /employees...`) exist but are not used by the read-only list or detail page.
+The list at `/employees` also uses the department and job-position option lookups below.
 
 ## Authorization
 
-`[Authorize]` only (any authenticated account). There is no department-scope check on these
-endpoints; the page additionally reads `/departments/{id}/members`, which is scoped (see
-`DEPARTMENT_CONTRACT.md`) and returns 403 outside the caller's scope.
+`GET /employees`, `GET /employees/{id}` and `GET /employees/by-code/{code}` require
+`employee:read` at `Own` scope or higher. The service restricts rows to self (`Own`), the caller's
+department subtree (`Dept`), the nearest branch subtree (`Branch`), or everyone (`All`/full access).
+Missing permission returns 403; an unknown or out-of-scope employee detail returns 404.
+`GET /employees/me` and the option lookups require authentication. The lookups return all active
+departments/positions, not a scope-filtered employee roster.
+The detail page additionally reads scoped `/departments/{id}/members` (see `DEPARTMENT_CONTRACT.md`).
 
 ## Endpoints
 
 ### `GET /employees`
 
 Query: `keyword` (code/name/email/phone contains), `departmentId`, `jobPositionId`, `managerId`
-(GUIDs), `status`, `page` (default 1), `pageSize` (default 20, clamped 1..100).
+(GUIDs), `status`, `page` (default 1),
+`pageSize` (default 20, clamped 1..100).
 `data`: `PagedResult<EmployeeDetail>`.
+
+Rows are ordered by employee code. The list omits `pageSize` on its initial request and uses the
+server-returned page size for subsequent requests; it derives page counts and display ranges from
+the response, not local sample counts. Search and filters are applied on the server.
+
+### `GET /employees/departments`
+
+`data`: an array of `{ id, code, name, levelType }`. IDs are GUID strings;
+`levelType` follows the backend's current numeric `DepartmentLevelType` serialization
+(`Branch`, `Department`, `Team` in declaration order). The list does not use this field
+to decide access or filtering. Active departments only, ordered by code.
+
+### `GET /employees/job-positions`
+
+`data`: an array of `{ id, code, title }`. IDs are GUID strings.
+Active positions only, ordered by code. Both lookup filters send GUID IDs, not display codes.
+
+### List limitations
+
+The employee DTO includes `username` from the related account, or null when there is no account.
+The list displays the username verbatim and a localized "No account" label for null.
+The DTO has no account state, joining date, import batch, global synchronization
+timestamp or locked evaluation tier/history. The list displays N/A for global synchronization,
+does not infer import state from employee status. There is no account filter or username lookup endpoint.
+`MISSING_IN_FILE` is not an employee status. No write or automatic fallback to demo data is performed.
+Drawer integration is a separate task.
+The list preserves its two pagination buttons, binding them to adjacent server-derived page numbers
+so later pages remain reachable without changing the layout. Search sends a request on input changes,
+with the previous request cancelled; no timer or demo fallback is used.
 
 ### `GET /employees/me`
 
@@ -44,6 +77,7 @@ legacy link (see "Identifier hand-off").
   "id": "5eed0000-0000-0000-0007-000000000004",
   "employeeCode": "NV004",
   "fullName": "Lê Minh Châu",
+  "username": "chau",
   "email": "chau@example.test",
   "phone": null,
   "departmentId": "5eed0000-0000-0000-0001-000000000004",
@@ -63,6 +97,7 @@ legacy link (see "Identifier hand-off").
 ```
 
 `phone`, `managerId`, `managerCode`, `managerName` are nullable; the client renders `null` as N/A.
+`username` is nullable and means no linked account when null; it does not describe whether an account is locked.
 
 ## Enum API format
 
@@ -98,8 +133,8 @@ Links from before this change still open: `/employee-detail?id={guid}`, `/employ
 `/departments?departmentId={guid}` are resolved, and the address bar is replaced with the code form
 (`/employee-detail/{code}`).
 
-Replacing the GUID in the address is presentation only. Authorization is unchanged: any authenticated
-account can read any employee through these endpoints (see "Authorization").
+Replacing the GUID in the address is presentation only. The same employee-read permission and scope
+checks apply (see "Authorization").
 
 ## Own record: change phone and password
 

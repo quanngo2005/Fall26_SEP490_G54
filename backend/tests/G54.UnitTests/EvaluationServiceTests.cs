@@ -877,6 +877,135 @@ public sealed class EvaluationServiceTests
         Assert.Contains("APPROVAL_COMMENTS", updatedEval.Comment);
     }
 
+    // ----- BR-31: Disputed_Pending scores are hidden from ranking and block the lock --------
+
+    private static async Task<(Employee Peer, PerformanceEvaluation Disputed, PerformanceEvaluation Ranked)> SeedDisputedAndRankedAsync(
+        AppDbContext context, Department dept, JobPosition position, EvaluationPeriod period, Employee staff)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var peer = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV002",
+            FullName = "Lê Văn Tranh Chấp",
+            Email = "peer@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Employees.AddAsync(peer);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var ranked = await AddScoredEvaluationAsync(context, staff, period, profile, 80m, PerformanceEvaluationStatus.InReview);
+        var disputed = await AddScoredEvaluationAsync(context, peer, period, profile, 99m, PerformanceEvaluationStatus.Disputed);
+        return (peer, disputed, ranked);
+    }
+
+    [Fact]
+    public async Task GetDepartmentCalibrationAsync_HidesDisputedPendingScoresFromRosterAndQuota()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (peer, _, _) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var overview = await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id);
+
+        Assert.DoesNotContain(overview.RankedRoster, r => r.EmployeeId == peer.Id);
+        Assert.Contains(overview.RankedRoster, r => r.EmployeeId == staff.Id && r.Rank == 1);
+        Assert.Equal(1, overview.DisputedPendingCount);
+        Assert.DoesNotContain(overview.RankedRoster, r => r.EvaluationStatus == "DISPUTED");
+        Assert.Equal(overview.RankedRoster.Count, overview.Quota.TotalEmployees);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_DoesNotTouchADisputedPendingScore()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (peer, disputed, _) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var request = new SubmitCalibrationRequestDto(
+            dept.Id,
+            period.Id,
+            [
+                new CalibrationAdjustmentItemDto(staff.Id, "B", "Điều chỉnh"),
+                new CalibrationAdjustmentItemDto(peer.Id, "A1"),
+            ],
+            IsDraft: false);
+        var result = await service.SubmitDepartmentCalibrationAsync(request, manager.Id);
+
+        Assert.Equal(1, result.TotalAdjusted);
+        Assert.Equal(0, result.TierACount);
+        var stored = await context.PerformanceEvaluations.FindAsync(disputed.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored!.Status);
+        Assert.Null(stored.Comment);
+    }
+
+    [Fact]
+    public async Task GetBranchApprovalOverviewAsync_ExcludesDisputedPendingScores_AndBlocksFinalize()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        var summary = overview.Departments.Single(d => d.DepartmentId == dept.Id);
+        Assert.Equal(1, overview.DisputedPendingCount);
+        Assert.Equal(1, overview.TotalEvaluated);
+        Assert.Equal(80m, summary.AverageScore);
+        Assert.False(overview.CanFinalize);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_ThrowsWhileAScoreIsDisputedPending_AndChangesNothing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (_, disputed, ranked) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id));
+
+        Assert.Equal(ErrorCodes.EvaluationDisputePending, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal(PeriodStatus.Open, (await context.EvaluationPeriods.FindAsync(period.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, (await context.PerformanceEvaluations.FindAsync(disputed.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.InReview, (await context.PerformanceEvaluations.FindAsync(ranked.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsForADisputedPendingScore_AndKeepsItDisputed()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var disputed = await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.Disputed);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, "Cập nhật"), manager.Id));
+
+        Assert.Equal(ErrorCodes.EvaluationDisputePending, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        var stored = await context.PerformanceEvaluations.FindAsync(disputed.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored!.Status);
+        Assert.Equal(90m, stored.TotalScore);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_LeavesADisputedPendingScoreDisputed()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (_, disputed, ranked) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        await service.RejectDepartmentCalibrationAsync(dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, (await context.PerformanceEvaluations.FindAsync(disputed.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, (await context.PerformanceEvaluations.FindAsync(ranked.Id))!.Status);
+    }
+
     [Fact]
     public async Task FinalizeAndLockPeriodAsync_ThrowsWhenPeriodAlreadyLocked()
     {
