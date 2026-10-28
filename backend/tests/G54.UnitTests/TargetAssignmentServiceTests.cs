@@ -4,6 +4,7 @@ using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using G54.DAL.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace G54.UnitTests;
@@ -26,7 +27,11 @@ public sealed class TargetAssignmentServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private TargetAssignmentService Service(bool admin) => new(_db, new FakePermissions(admin), new FixedTime());
+    private TargetAssignmentService Service(bool admin) => new(
+        new TargetAssignmentRepository(_db),
+        new Repository<EvaluationPeriod>(_db),
+        new FakePermissions(admin),
+        new FixedTime());
 
     /// <summary>BRANCH > (DEPT, DEPT_OTHER). The manager and the member belong to DEPT.</summary>
     private async Task SeedAsync()
@@ -248,6 +253,120 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         Assert.Equal(_member.Id, (await Service(admin: false).GetAsync(_manager, target.Id)).EmployeeId);
     }
 
+    private EvaluationPeriod AddPeriod(string code, PeriodType type, Guid? parent, Guid? id = null)
+    {
+        var period = new EvaluationPeriod
+        {
+            Id = id ?? Guid.NewGuid(),
+            Code = code,
+            Name = code,
+            PeriodType = type,
+            ParentPeriodId = parent,
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = Now,
+        };
+        _db.EvaluationPeriods.Add(period);
+        return period;
+    }
+
+    /// <summary>Year (= _periodId) > H1 > Q1; plus an unrelated year.</summary>
+    private async Task<(Guid h1, Guid q1, Guid otherYear)> SeedPeriodsAsync()
+    {
+        AddPeriod("2026", PeriodType.Year, null, _periodId);
+        var h1 = AddPeriod("H1", PeriodType.HalfYear, _periodId);
+        var q1 = AddPeriod("Q1", PeriodType.Quarter, h1.Id);
+        var other = AddPeriod("2027", PeriodType.Year, null);
+        await _db.SaveChangesAsync();
+        return (h1.Id, q1.Id, other.Id);
+    }
+
+    [Fact]
+    public async Task AllocateByPeriod_CreatesPeriodChildrenKeepingTheOwner()
+    {
+        await SeedAsync();
+        var (h1, q1, _) = await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dto = new AllocateTargetByPeriodDto
+        {
+            Allocations = [new() { EvaluationPeriodId = h1, TargetValue = 400 }, new() { EvaluationPeriodId = q1, TargetValue = 200 }],
+        };
+
+        var children = await Service(admin: false).AllocateByPeriodAsync(_manager, parent.Id, dto);
+
+        Assert.Equal(2, children.Count);
+        Assert.All(children, c =>
+        {
+            Assert.Equal("PERIOD", c.SplitDimension);
+            Assert.Equal(_dept.Id, c.DepartmentId);
+            Assert.Null(c.EmployeeId);
+            Assert.Equal(parent.Id, c.ParentAssignmentId);
+        });
+        Assert.Equal(q1, children[1].EvaluationPeriodId);
+    }
+
+    [Fact]
+    public async Task AllocateByPeriod_RejectsDuplicateSameOrNonDescendantPeriods()
+    {
+        await SeedAsync();
+        var (h1, _, otherYear) = await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var service = Service(admin: true);
+
+        AllocateTargetByPeriodDto Dto(params Guid[] ids) => new()
+        {
+            Allocations = [.. ids.Select(id => new TargetPeriodAllocationItemDto { EvaluationPeriodId = id, TargetValue = 1 })],
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.AllocateByPeriodAsync(_admin, parent.Id, Dto(h1, h1)));
+        await Assert.ThrowsAsync<ValidationException>(() => service.AllocateByPeriodAsync(_admin, parent.Id, Dto(_periodId)));
+        await Assert.ThrowsAsync<ValidationException>(() => service.AllocateByPeriodAsync(_admin, parent.Id, Dto(otherYear)));
+        Assert.Single(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task AllocateByPeriod_ByAManagerOfAnotherDepartment_IsForbidden()
+    {
+        await SeedAsync();
+        var (h1, _, _) = await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_deptOther);
+        var dto = new AllocateTargetByPeriodDto { Allocations = [new() { EvaluationPeriodId = h1, TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).AllocateByPeriodAsync(_manager, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task List_ScopesNonAdminsToTheirDepartmentTree()
+    {
+        await SeedAsync();
+        var own = await StoreDepartmentTargetAsync(_dept);
+        var other = await StoreDepartmentTargetAsync(_deptOther);
+        var branch = await StoreDepartmentTargetAsync(_branch);
+
+        var mine = await Service(admin: false).ListAsync(_manager, new TargetAssignmentQueryDto());
+        var all = await Service(admin: true).ListAsync(_admin, new TargetAssignmentQueryDto());
+        var filtered = await Service(admin: true).ListAsync(_admin, new TargetAssignmentQueryDto { DepartmentId = _deptOther.Id });
+
+        Assert.Equal([own.Id], mine.Select(t => t.Id));
+        Assert.Equal(3, all.Count);
+        Assert.Equal([other.Id], filtered.Select(t => t.Id));
+        Assert.DoesNotContain(branch.Id, mine.Select(t => t.Id));
+    }
+
+    [Fact]
+    public async Task List_RejectsOutOfScopeUnknownDepartmentsAndBadStatus()
+    {
+        await SeedAsync();
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            Service(admin: false).ListAsync(_manager, new TargetAssignmentQueryDto { DepartmentId = _deptOther.Id }));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            Service(admin: true).ListAsync(_admin, new TargetAssignmentQueryDto { DepartmentId = Guid.NewGuid() }));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service(admin: true).ListAsync(_admin, new TargetAssignmentQueryDto { Status = "NOPE" }));
+    }
+
     private sealed class FixedTime : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;
@@ -268,4 +387,5 @@ public sealed class TargetAssignmentServiceTests : IDisposable
 
         public Task InvalidateRolePermissionsAsync(Guid roleId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
+
 }

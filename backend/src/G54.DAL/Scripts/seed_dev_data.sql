@@ -164,11 +164,15 @@ JOIN work_type wt ON wt.code = m.work_type_code
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- Evaluation periods: 2026 -> H2 -> Q4 -> Oct/Nov/Dec -> every day of Q4
+-- Evaluation periods: 2026 -> H1/H2 -> Q1..Q4 -> Oct/Nov/Dec -> every day of Q4
 -- ---------------------------------------------------------------------------
 INSERT INTO evaluation_period (id, code, name, period_type, parent_period_id, start_date, end_date, status) VALUES
  ('5eed0000-0000-0000-000f-000000000001', '2026',    'Năm 2026',          'YEAR',      NULL,                                   '2026-01-01', '2026-12-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000007', '2026-H1', '6 tháng đầu 2026',  'HALF_YEAR', '5eed0000-0000-0000-000f-000000000001', '2026-01-01', '2026-06-30', 'OPEN'),
  ('5eed0000-0000-0000-000f-000000000002', '2026-H2', '6 tháng cuối 2026', 'HALF_YEAR', '5eed0000-0000-0000-000f-000000000001', '2026-07-01', '2026-12-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000008', '2026-Q1', 'Quý 1/2026',        'QUARTER',   '5eed0000-0000-0000-000f-000000000007', '2026-01-01', '2026-03-31', 'OPEN'),
+ ('5eed0000-0000-0000-000f-000000000009', '2026-Q2', 'Quý 2/2026',        'QUARTER',   '5eed0000-0000-0000-000f-000000000007', '2026-04-01', '2026-06-30', 'OPEN'),
+ ('5eed0000-0000-0000-000f-00000000000a', '2026-Q3', 'Quý 3/2026',        'QUARTER',   '5eed0000-0000-0000-000f-000000000002', '2026-07-01', '2026-09-30', 'OPEN'),
  ('5eed0000-0000-0000-000f-000000000003', '2026-Q4', 'Quý 4/2026',        'QUARTER',   '5eed0000-0000-0000-000f-000000000002', '2026-10-01', '2026-12-31', 'OPEN'),
  ('5eed0000-0000-0000-000f-000000000004', '2026-10', 'Tháng 10/2026',     'MONTH',     '5eed0000-0000-0000-000f-000000000003', '2026-10-01', '2026-10-31', 'OPEN'),
  ('5eed0000-0000-0000-000f-000000000005', '2026-11', 'Tháng 11/2026',     'MONTH',     '5eed0000-0000-0000-000f-000000000003', '2026-11-01', '2026-11-30', 'OPEN'),
@@ -262,6 +266,73 @@ FROM (VALUES
     ('00000000000d', '000000000002', NULL,           '000000000006', NULL,           NULL,    40, 'ACTIVE', '000000000002', NULL),
     ('00000000000e', '000000000004', NULL,           '000000000008', NULL,           NULL,   4.5, 'DRAFT',  '000000000003', 'Chờ duyệt')
 ) AS t(row_no, kpi_no, dept_no, emp_no, parent_no, split, target_value, status, assigned_by_no, reason)
+ORDER BY t.row_no
+ON CONFLICT DO NOTHING;
+
+-- Year-level targets (DU_NO and KH_MOI) to be split by quarters
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       ('5eed0000-0000-0000-0005-' || t.kpi_no)::uuid,
+       ('5eed0000-0000-0000-0001-' || t.dept_no)::uuid,
+       NULL::uuid,
+       '5eed0000-0000-0000-000f-000000000001'::uuid,
+       NULL::uuid,
+       NULL::target_split_dimension,
+       t.target_value,
+       'ACTIVE'::target_assignment_status,
+       now(),
+       now(),
+       t.reason
+FROM (VALUES
+    ('000000000010', '000000000003', '000000000001', 1200, 'Chỉ tiêu dư nợ năm 2026'),
+    ('000000000020', '000000000002', '000000000001',  480, NULL)
+) AS t(row_no, kpi_no, dept_no, target_value, reason)
+ON CONFLICT DO NOTHING;
+
+-- Quarter-level allocations of DU_NO (period split of year)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       '5eed0000-0000-0000-0005-000000000003'::uuid,
+       '5eed0000-0000-0000-0001-000000000001'::uuid,
+       NULL::uuid,
+       ('5eed0000-0000-0000-000f-' || t.period_no)::uuid,
+       '5eed0000-0000-0000-0015-000000000010'::uuid,
+       'PERIOD'::target_split_dimension,
+       t.target_value,
+       'ACTIVE'::target_assignment_status,
+       now(),
+       now(),
+       NULL
+FROM (VALUES
+    ('000000000011', '000000000008', 300),
+    ('000000000012', '000000000009', 300),
+    ('000000000013', '00000000000a', 300),
+    ('000000000014', '000000000003', 300)
+) AS t(row_no, period_no, target_value)
+ORDER BY t.row_no
+ON CONFLICT DO NOTHING;
+
+-- ORG-level split of Q1 (DU_NO quarter target to departments)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       '5eed0000-0000-0000-0005-000000000003'::uuid,
+       ('5eed0000-0000-0000-0001-' || t.dept_no)::uuid,
+       NULL::uuid,
+       '5eed0000-0000-0000-000f-000000000008'::uuid,
+       '5eed0000-0000-0000-0015-000000000011'::uuid,
+       'ORG'::target_split_dimension,
+       t.target_value,
+       'ACTIVE'::target_assignment_status,
+       now(),
+       now(),
+       NULL
+FROM (VALUES
+    ('000000000015', '000000000002', 250),
+    ('000000000016', '000000000003',  50)
+) AS t(row_no, dept_no, target_value)
 ORDER BY t.row_no
 ON CONFLICT DO NOTHING;
 

@@ -165,6 +165,19 @@ public sealed class TargetAssignmentsControllerTests
             return Task.FromResult(Children);
         }
 
+        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
+        {
+            CallerId = accountId;
+            RequestedId = parentAssignmentId;
+            return Task.FromResult(Children);
+        }
+
+        public Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query)
+        {
+            CallerId = accountId;
+            return Task.FromResult(Children);
+        }
+
         public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId)
         {
             CallerId = accountId;
