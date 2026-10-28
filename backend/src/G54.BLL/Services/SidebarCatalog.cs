@@ -10,8 +10,8 @@ public static class SidebarCatalog
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "reportsComplaints", "notifications", "myProfile"],
         ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "teamPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
-        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "branchPerformance", "departmentPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
-        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "reportsComplaints", "notifications", "myProfile"],
+        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
+        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "reportsComplaints", "notifications", "myProfile"],
         ["qa"] = ["overview", "verificationQueue", "reportsComplaints", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
         ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "systemConfiguration", "systemAudit", "myProfile"],
     };

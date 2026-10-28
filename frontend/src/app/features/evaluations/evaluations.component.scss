@@ -1,0 +1,296 @@
+.page-title {
+  margin: 0 0 16px;
+  font:
+    700 20px/28px Inter,
+    system-ui,
+    sans-serif;
+  color: #0f172a;
+}
+
+.period-select-wrap,
+.select-box,
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 31px;
+  background: #fff;
+  border: 1px solid #8494a9;
+  border-radius: 6px;
+}
+
+.period-select-wrap {
+  padding: 0 8px;
+}
+
+.period-label,
+.dept-info,
+.progress-label,
+.progress-percent,
+.footer-summary {
+  font-size: 13px;
+  color: #475569;
+}
+
+.period-select,
+.filter-select,
+.search-input {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  outline: none;
+}
+
+.period-select {
+  font-weight: 600;
+  color: #0f172a;
+  padding-right: 18px;
+  cursor: pointer;
+}
+
+.filter-select {
+  color: #475569;
+  cursor: pointer;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  color: #8494a9;
+  width: 14px;
+  height: 14px;
+}
+
+.status-badge.evaluating,
+.banner-alert {
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #0e7490;
+}
+
+.status-badge.evaluating {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font:
+    600 12px Inter,
+    sans-serif;
+}
+
+.progress-bar-track {
+  width: 160px;
+  height: 8px;
+  background: #eef2f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #0e7490;
+}
+
+.progress-percent,
+.td-code,
+.td-quantitative,
+.td-qualitative,
+.total-score,
+.td-updated {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+}
+
+.btn-calibrate {
+  height: 35px;
+  padding: 0 14px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #8494a9;
+  font-size: 13px;
+  cursor: not-allowed;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 71px;
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  &.active {
+    border: 2px solid #2563eb;
+  }
+}
+
+.stat-title {
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font:
+    700 26px/1.1 Inter,
+    sans-serif;
+  color: #0f172a;
+}
+
+.search-box {
+  width: 240px;
+  padding: 0 10px 0 32px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  color: #8494a9;
+}
+
+.search-input {
+  width: 100%;
+  color: #0f172a;
+  &::placeholder {
+    color: #8494a9;
+  }
+}
+
+.select-box {
+  padding: 0 24px 0 10px;
+}
+
+.btn-save-filter,
+.btn-action {
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.evaluation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  thead th {
+    height: 36px;
+    background: #eef2f6;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 14px;
+    text-align: left;
+  }
+
+  tbody tr {
+    height: 44px;
+    border-top: 1px solid #eef2f6;
+    &:hover {
+      background: #f8fafc;
+    }
+    &.highlighted {
+      background: #eff6ff;
+    }
+  }
+
+  tbody td {
+    padding: 0 14px;
+    color: #0f172a;
+  }
+}
+
+.td-code,
+.total-score {
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font:
+    600 11px Inter,
+    sans-serif;
+  white-space: nowrap;
+}
+
+.badge-draft,
+.badge-warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.badge-completed {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+}
+
+.badge-unscored {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+.badge-danger {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.text-right {
+  text-align: right;
+}
+.text-center {
+  text-align: center;
+}
+.text-muted {
+  color: #8494a9;
+}
+
+.page-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+  &.active {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #2563eb;
+  }
+}
+
+.banner-alert {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  strong {
+    font-weight: 700;
+  }
+}
