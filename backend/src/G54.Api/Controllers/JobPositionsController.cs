@@ -44,6 +44,19 @@ public sealed class JobPositionsController(IJobPositionService service) : Contro
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:guid}/work-types")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<JobPositionWorkTypeDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<JobPositionWorkTypeDto>>>> GetWorkTypes(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetWorkTypesAsync(id, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("{id:guid}/work-types")]
     [HasPermission("job-position", "manage", "Dept")]
     [ProducesResponseType<ApiResponse<JobPositionDetailDto>>(StatusCodes.Status201Created)]
