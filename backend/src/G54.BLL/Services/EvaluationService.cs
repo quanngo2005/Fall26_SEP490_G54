@@ -449,7 +449,8 @@ public sealed partial class EvaluationService(
         }
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
-        var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
+        var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2))
+            + await AppealScoreLedger.NetAsync(db, request.EmployeeId, request.PeriodId, cancellationToken);
         var proposedTier = TierDeterminer.DetermineTier(
             finalScore, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
 

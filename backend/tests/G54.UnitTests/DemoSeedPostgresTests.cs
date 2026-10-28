@@ -243,8 +243,9 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^1]);
-        Assert.Equal("20261027120000_SeedOrganizationReadAccess", migrations[^2]);
+        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^1]);
+        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^2]);
+        Assert.Equal("20261027120000_SeedOrganizationReadAccess", migrations[^3]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

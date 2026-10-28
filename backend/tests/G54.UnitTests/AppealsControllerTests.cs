@@ -187,6 +187,12 @@ public sealed class AppealsControllerTests
 
     private sealed class RecordingService : IAppealService
     {
+        public Task<ScoreEntryDto> ReviewAppealAsync(Guid appealId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ScoreEntryDto> DeductTaskScoreAsync(Guid workId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ScoreEntryDto>> GetScoreEntriesAsync(Guid appealId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AppealDetailDto> DisputeScoreAsync(Guid appealId, Guid userId, ScoreDisputeRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AppealScoreSettingDto> GetScoreSettingAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AppealScoreSettingDto> UpdateScoreSettingAsync(Guid userId, AppealScoreSettingDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public int Calls { get; private set; }
         public Guid UserId { get; private set; }
         public Guid SubmissionId { get; private set; }

@@ -173,6 +173,10 @@ public sealed class PerformanceEvaluationService(
 
         // The stored score always reflects the latest calculation: a null total clears a stale one.
         var total = RoundScore(formula.CalculateTotal(groupEntries));
+        if (total.HasValue)
+        {
+            total += await AppealScoreLedger.NetAsync(db, evaluation.EmployeeId, evaluation.EvaluationPeriodId, cancellationToken);
+        }
         evaluation.TotalScore = total;
         evaluation.CalculatedAt = total.HasValue ? now : null;
         evaluation.Status = total.HasValue ? PerformanceEvaluationStatus.Calculated : PerformanceEvaluationStatus.Draft;
