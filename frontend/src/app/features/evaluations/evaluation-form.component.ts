@@ -62,7 +62,7 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   readonly qualitativeAverage = computed<number | null>(() => {
     const scores = this.qualitativeGroups()
-      .map((group) => this.qualitativeScores()[group.kpiGroupId])
+      .map((group) => this.qualitativeScores()[group.evaluationProfileItemId])
       .filter((score): score is number => typeof score === 'number');
     return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
   });
@@ -79,7 +79,7 @@ export class EvaluationFormComponent extends LocalizedComponent {
   /** Out-of-range or non-numeric scores block both actions; a missing score or comment only blocks completion. */
   readonly scoreInvalid = computed(() =>
     this.qualitativeGroups().some((group) => {
-      const score = this.qualitativeScores()[group.kpiGroupId];
+      const score = this.qualitativeScores()[group.evaluationProfileItemId];
       return score !== null && score !== undefined && !this.isValidScore(score);
     }),
   );
@@ -87,7 +87,9 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly completeBlocked = computed(
     () =>
       this.commentInput().trim().length === 0 ||
-      this.qualitativeGroups().some((group) => this.qualitativeScores()[group.kpiGroupId] == null),
+      this.qualitativeGroups().some(
+        (group) => this.qualitativeScores()[group.evaluationProfileItemId] == null,
+      ),
   );
 
   readonly canSubmit = computed(
@@ -204,8 +206,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
     return Number.isFinite(score) && score >= SCORE_MIN && score <= SCORE_MAX;
   }
 
-  setQualitativeScore(kpiGroupId: string, value: number | null): void {
-    this.qualitativeScores.update((scores) => ({ ...scores, [kpiGroupId]: value }));
+  setQualitativeScore(itemId: string, value: number | null): void {
+    this.qualitativeScores.update((scores) => ({ ...scores, [itemId]: value }));
   }
 
   onPrev(): void {
@@ -277,7 +279,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
     this.commentInput.set(form.currentEvaluation.comment ?? '');
     const scores: Record<string, number | null> = {};
     for (const group of form.criteriaGroups) {
-      if (group.isQualitative) scores[group.kpiGroupId] = group.qualitativeScore ?? null;
+      if (group.isQualitative)
+        scores[group.evaluationProfileItemId] = group.qualitativeScore ?? null;
     }
     this.qualitativeScores.set(scores);
   }
@@ -310,10 +313,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
       coachingPlan: form.currentEvaluation.coachingPlan,
       coachingRequired: form.currentEvaluation.coachingRequired,
       qualitativeScores: this.qualitativeGroups()
-        .filter((group) => typeof this.qualitativeScores()[group.kpiGroupId] === 'number')
+        .filter(
+          (group) => typeof this.qualitativeScores()[group.evaluationProfileItemId] === 'number',
+        )
         .map((group) => ({
-          kpiGroupId: group.kpiGroupId,
-          score: this.qualitativeScores()[group.kpiGroupId] as number,
+          evaluationProfileItemId: group.evaluationProfileItemId,
+          score: this.qualitativeScores()[group.evaluationProfileItemId] as number,
           notes: group.qualitativeNotes,
         })),
       isDraft,

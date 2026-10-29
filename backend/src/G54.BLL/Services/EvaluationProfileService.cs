@@ -17,6 +17,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
 {
     private const decimal RequiredTotalWeightPercent = 100m;
     private const int WeightScale = 4;
+    private const int MaxTreeDepth = 3;
 
     private static readonly Action<ILogger, string, Guid, Exception?> LogProfileAudit =
         LoggerMessage.Define<string, Guid>(
@@ -77,8 +78,8 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
-                p.EvaluationProfileItems.Count,
-                p.EvaluationProfileItems.Sum(i => i.WeightPercent),
+                p.EvaluationProfileItems.Count(i => i.ParentItemId == null),
+                p.EvaluationProfileItems.Where(i => i.ParentItemId == null).Sum(i => i.WeightPercent),
                 p.UpdatedAt))
             .ToListAsync(cancellationToken);
 
@@ -89,7 +90,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        return await db.EvaluationProfiles
+        var profile = await db.EvaluationProfiles
             .AsNoTracking()
             .Where(p => p.Id == id)
             .Select(p => new EvaluationProfileDto(
@@ -104,20 +105,18 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
-                p.PerformanceEvaluations.Any(),
-                p.EvaluationProfileItems.Sum(i => i.WeightPercent),
+                p.PerformanceEvaluations.Count != 0,
+                p.EvaluationProfileItems.Where(i => i.ParentItemId == null).Sum(i => i.WeightPercent),
                 p.UpdatedAt,
-                p.EvaluationProfileItems
-                    .OrderBy(i => i.DisplayOrder)
-                    .ThenBy(i => i.KpiGroup.Code)
-                    .Select(i => new EvaluationProfileItemDto(
-                        i.KpiGroupId,
-                        i.KpiGroup.Code,
-                        i.KpiGroup.Name,
-                        i.WeightPercent,
-                        i.DisplayOrder))
-                    .ToList()))
+                new List<EvaluationProfileItemDto>()))
             .SingleOrDefaultAsync(cancellationToken);
+
+        if (profile is null)
+        {
+            return null;
+        }
+
+        return profile with { Items = await LoadItemTreeAsync(id, cancellationToken) };
     }
 
     public async Task<EvaluationProfileDto> CreateProfileAsync(
@@ -131,7 +130,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         ValidateItems(dto.Items);
 
         await EnsureJobPositionExistsAsync(dto.JobPositionId, cancellationToken);
-        await EnsureKpiGroupsExistAsync(dto.Items, cancellationToken);
+        await EnsureKpiDefinitionsExistAsync(dto.Items, cancellationToken);
 
         var existingVersion = await db.EvaluationProfiles
             .AsNoTracking()
@@ -161,9 +160,9 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
-        foreach (var item in dto.Items)
+        foreach (var item in FlattenItems(profile.Id, null, dto.Items))
         {
-            profile.EvaluationProfileItems.Add(NewItem(profile.Id, item));
+            profile.EvaluationProfileItems.Add(item);
         }
 
         db.EvaluationProfiles.Add(profile);
@@ -201,7 +200,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             await EnsureJobPositionExistsAsync(dto.JobPositionId, cancellationToken);
         }
 
-        await EnsureKpiGroupsExistAsync(dto.Items, cancellationToken);
+        await EnsureKpiDefinitionsExistAsync(dto.Items, cancellationToken);
 
         var isInUse = await db.PerformanceEvaluations.AnyAsync(e => e.EvaluationProfileId == id, cancellationToken);
         if (isInUse && (positionChanged || profile.EffectiveFrom != dto.EffectiveFrom || ItemsDiffer(profile, dto.Items)))
@@ -218,7 +217,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
 
         if (profile.Status == EvaluationProfileStatus.Active)
         {
-            EnsureTotalWeightIsComplete(dto.Items.Sum(i => i.WeightPercent));
+            EnsureTotalWeightIsComplete(dto.Items);
 
             if (positionChanged || periodChanged)
             {
@@ -304,56 +303,100 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             return null;
         }
 
-        return await db.EvaluationProfileItems
-            .AsNoTracking()
-            .Where(i => i.EvaluationProfileId == profileId)
-            .OrderBy(i => i.DisplayOrder)
-            .ThenBy(i => i.KpiGroup.Code)
-            .Select(i => new EvaluationProfileItemDto(
-                i.KpiGroupId,
-                i.KpiGroup.Code,
-                i.KpiGroup.Name,
-                i.WeightPercent,
-                i.DisplayOrder))
-            .ToListAsync(cancellationToken);
+        return await LoadItemTreeAsync(profileId, cancellationToken);
     }
 
     public async Task<EvaluationProfileItemDto> AddItemAsync(
         Guid profileId,
-        EvaluationProfileItemInputDto dto,
+        AddEvaluationProfileItemDto dto,
         CancellationToken cancellationToken = default)
     {
-        ValidateItem(dto);
+        ValidateNodeShape(dto.Name, dto.KpiDefinitionId, dto.WeightPercent, dto.DisplayOrder);
 
         var profile = await GetEditableProfileAsync(profileId, cancellationToken);
-        await EnsureKpiGroupsExistAsync([dto], cancellationToken);
+        var items = await db.EvaluationProfileItems.Where(i => i.EvaluationProfileId == profileId).ToListAsync(cancellationToken);
 
-        var alreadyAdded = await db.EvaluationProfileItems.AnyAsync(
-            i => i.EvaluationProfileId == profileId && i.KpiGroupId == dto.KpiGroupId,
-            cancellationToken);
-        if (alreadyAdded)
+        var depth = 1;
+        if (dto.ParentItemId.HasValue)
         {
-            throw new ConflictException("Nhóm KPI này đã có trong hồ sơ đánh giá.");
+            var parent = items.SingleOrDefault(i => i.Id == dto.ParentItemId.Value)
+                ?? throw new NotFoundException("Không tìm thấy nút cha trong hồ sơ đánh giá.");
+            if (parent.KpiDefinitionId.HasValue)
+            {
+                throw new ValidationException("Nút cha phải là một nhóm, không phải một KPI.");
+            }
+
+            depth = DepthOf(items, parent) + 1;
+        }
+        else if (dto.KpiDefinitionId.HasValue)
+        {
+            throw new ValidationException("Nút gốc phải là một nhóm KPI, không phải một KPI.");
         }
 
-        db.EvaluationProfileItems.Add(NewItem(profileId, dto));
-        profile.UpdatedAt = DateTimeOffset.UtcNow;
+        if (depth > MaxTreeDepth)
+        {
+            throw new ValidationException($"Cây trọng số tối đa {MaxTreeDepth} cấp.");
+        }
+
+        if (!dto.KpiDefinitionId.HasValue)
+        {
+            EnsureSiblingNameIsFree(items, dto.ParentItemId, dto.Name!, null);
+        }
+
+        if (dto.KpiDefinitionId.HasValue)
+        {
+            await EnsureKpiDefinitionsExistAsync(
+                [new EvaluationProfileItemInputDto { KpiDefinitionId = dto.KpiDefinitionId }], cancellationToken);
+            if (items.Any(i => i.KpiDefinitionId == dto.KpiDefinitionId))
+            {
+                throw new ConflictException("KPI này đã có trong hồ sơ đánh giá.");
+            }
+        }
+
+        var item = new EvaluationProfileItem
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profileId,
+            ParentItemId = dto.ParentItemId,
+            KpiDefinitionId = dto.KpiDefinitionId,
+            Name = dto.KpiDefinitionId.HasValue ? null : dto.Name!.Trim(),
+            WeightPercent = dto.WeightPercent,
+            DisplayOrder = dto.DisplayOrder,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+
+        db.EvaluationProfileItems.Add(item);
+        profile.UpdatedAt = item.UpdatedAt;
         await SaveChangesAsync(cancellationToken);
 
         LogProfileAudit(logger, "ADD_EVALUATION_PROFILE_ITEM", profileId, null);
-        return await GetRequiredItemAsync(profileId, dto.KpiGroupId, cancellationToken);
+        return await GetRequiredItemAsync(profileId, item.Id, cancellationToken);
     }
 
     public async Task<EvaluationProfileItemDto> UpdateItemAsync(
         Guid profileId,
-        Guid kpiGroupId,
+        Guid itemId,
         UpdateEvaluationProfileItemDto dto,
         CancellationToken cancellationToken = default)
     {
         ValidateItemValues(dto.WeightPercent, dto.DisplayOrder);
 
         var profile = await GetEditableProfileAsync(profileId, cancellationToken);
-        var item = await FindItemAsync(profileId, kpiGroupId, cancellationToken);
+        var item = await FindItemAsync(profileId, itemId, cancellationToken);
+
+        if (dto.Name is not null)
+        {
+            if (item.KpiDefinitionId.HasValue)
+            {
+                throw new ValidationException("Chỉ nhóm KPI mới có tên; KPI lấy tên từ danh mục KPI.");
+            }
+
+            var siblings = await db.EvaluationProfileItems
+                .Where(i => i.EvaluationProfileId == profileId)
+                .ToListAsync(cancellationToken);
+            EnsureSiblingNameIsFree(siblings, item.ParentItemId, dto.Name, item.Id);
+            item.Name = NormalizeNodeName(dto.Name);
+        }
 
         item.WeightPercent = dto.WeightPercent;
         item.DisplayOrder = dto.DisplayOrder;
@@ -362,15 +405,22 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         await SaveChangesAsync(cancellationToken);
 
         LogProfileAudit(logger, "UPDATE_EVALUATION_PROFILE_ITEM", profileId, null);
-        return await GetRequiredItemAsync(profileId, kpiGroupId, cancellationToken);
+        return await GetRequiredItemAsync(profileId, itemId, cancellationToken);
     }
 
-    public async Task RemoveItemAsync(Guid profileId, Guid kpiGroupId, CancellationToken cancellationToken = default)
+    public async Task RemoveItemAsync(Guid profileId, Guid itemId, CancellationToken cancellationToken = default)
     {
         var profile = await GetEditableProfileAsync(profileId, cancellationToken);
-        var item = await FindItemAsync(profileId, kpiGroupId, cancellationToken);
+        var items = await db.EvaluationProfileItems.Where(i => i.EvaluationProfileId == profileId).ToListAsync(cancellationToken);
+        var item = items.SingleOrDefault(i => i.Id == itemId)
+            ?? throw new NotFoundException("Không tìm thấy nút trong hồ sơ đánh giá.");
 
-        db.EvaluationProfileItems.Remove(item);
+        // The self reference does not cascade in the database, so the subtree is removed explicitly, leaves first.
+        var childrenOf = items.Where(i => i.ParentItemId.HasValue).ToLookup(i => i.ParentItemId!.Value);
+        var subtree = new List<EvaluationProfileItem>();
+        CollectSubtree(item, childrenOf, subtree);
+        db.EvaluationProfileItems.RemoveRange(subtree);
+
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         await SaveChangesAsync(cancellationToken);
 
@@ -378,8 +428,8 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
     }
 
     /// <summary>
-    /// Item-by-item changes are allowed only while the total weight is not enforced (DRAFT, INACTIVE). An ACTIVE
-    /// profile must keep its total at the required value, so it is changed as a whole through the profile update.
+    /// Item-by-item changes are allowed only while the weights are not enforced (DRAFT, INACTIVE). An ACTIVE
+    /// profile must keep every sibling group at 100, so it is changed as a whole through the profile update.
     /// </summary>
     private async Task<EvaluationProfile> GetEditableProfileAsync(Guid profileId, CancellationToken cancellationToken)
     {
@@ -401,7 +451,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         if (profile.Status == EvaluationProfileStatus.Active)
         {
             throw new ConflictException(
-                "Hồ sơ đánh giá đang hoạt động (Active) phải giữ tổng trọng số hợp lệ nên chỉ được đổi toàn bộ danh sách nhóm KPI qua cập nhật hồ sơ.");
+                "Hồ sơ đánh giá đang hoạt động (Active) phải giữ trọng số hợp lệ nên chỉ được đổi toàn bộ cây trọng số qua cập nhật hồ sơ.");
         }
 
         return profile;
@@ -409,33 +459,125 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
 
     private async Task<EvaluationProfileItem> FindItemAsync(
         Guid profileId,
-        Guid kpiGroupId,
+        Guid itemId,
         CancellationToken cancellationToken)
     {
         return await db.EvaluationProfileItems.SingleOrDefaultAsync(
-                i => i.EvaluationProfileId == profileId && i.KpiGroupId == kpiGroupId,
+                i => i.EvaluationProfileId == profileId && i.Id == itemId,
                 cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy nhóm KPI trong hồ sơ đánh giá.");
+            ?? throw new NotFoundException("Không tìm thấy nút trong hồ sơ đánh giá.");
     }
 
     private async Task<EvaluationProfileItemDto> GetRequiredItemAsync(
         Guid profileId,
-        Guid kpiGroupId,
+        Guid itemId,
         CancellationToken cancellationToken)
     {
-        return await db.EvaluationProfileItems
-            .AsNoTracking()
-            .Where(i => i.EvaluationProfileId == profileId && i.KpiGroupId == kpiGroupId)
-            .Select(i => new EvaluationProfileItemDto(
-                i.KpiGroupId,
-                i.KpiGroup.Code,
-                i.KpiGroup.Name,
-                i.WeightPercent,
-                i.DisplayOrder))
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("Không tìm thấy nhóm KPI trong hồ sơ đánh giá.");
+        var tree = await LoadItemTreeAsync(profileId, cancellationToken);
+        return FindInTree(tree, itemId)
+            ?? throw new NotFoundException("Không tìm thấy nút trong hồ sơ đánh giá.");
     }
 
+    /// <summary>The profile's items as a tree: root groups in display order, each with its children.</summary>
+    private async Task<List<EvaluationProfileItemDto>> LoadItemTreeAsync(Guid profileId, CancellationToken cancellationToken)
+    {
+        var items = await db.EvaluationProfileItems
+            .AsNoTracking()
+            .Where(i => i.EvaluationProfileId == profileId)
+            .Include(i => i.KpiDefinition)
+            .ToListAsync(cancellationToken);
+
+        var childrenOf = items.Where(i => i.ParentItemId.HasValue).ToLookup(i => i.ParentItemId!.Value);
+        return items
+            .Where(i => !i.ParentItemId.HasValue)
+            .OrderBy(i => i.DisplayOrder)
+            .Select(i => ToDto(i, childrenOf))
+            .ToList();
+    }
+
+    private static EvaluationProfileItemDto ToDto(EvaluationProfileItem item, ILookup<Guid, EvaluationProfileItem> childrenOf) =>
+        new(
+            item.Id,
+            item.ParentItemId,
+            item.Name,
+            item.KpiDefinitionId,
+            item.KpiDefinition?.Code,
+            item.KpiDefinition?.Name,
+            item.WeightPercent,
+            item.DisplayOrder,
+            childrenOf[item.Id]
+                .OrderBy(child => child.DisplayOrder)
+                .Select(child => ToDto(child, childrenOf))
+                .ToList());
+
+    private static EvaluationProfileItemDto? FindInTree(IEnumerable<EvaluationProfileItemDto> nodes, Guid id)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Id == id)
+            {
+                return node;
+            }
+
+            var found = FindInTree(node.Children, id);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static void CollectSubtree(
+        EvaluationProfileItem item,
+        ILookup<Guid, EvaluationProfileItem> childrenOf,
+        List<EvaluationProfileItem> result)
+    {
+        foreach (var child in childrenOf[item.Id])
+        {
+            CollectSubtree(child, childrenOf, result);
+        }
+
+        result.Add(item);
+    }
+
+    /// <summary>Sibling groups are told apart by name (case-insensitive), so a name may appear once under a parent.</summary>
+    private static void EnsureSiblingNameIsFree(
+        List<EvaluationProfileItem> items,
+        Guid? parentItemId,
+        string name,
+        Guid? exceptItemId)
+    {
+        var wanted = NormalizeNodeName(name);
+        var taken = items.Any(i => i.ParentItemId == parentItemId
+            && i.Id != exceptItemId
+            && !i.KpiDefinitionId.HasValue
+            && string.Equals(i.Name?.Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+        if (taken)
+        {
+            throw new ConflictException($"Đã có nhóm tên '{name.Trim()}' cùng cấp trong hồ sơ đánh giá.");
+        }
+    }
+
+    private static int DepthOf(List<EvaluationProfileItem> items, EvaluationProfileItem item)
+    {
+        var depth = 1;
+        var current = item;
+        var seen = new HashSet<Guid> { item.Id };
+        while (current.ParentItemId.HasValue)
+        {
+            current = items.Single(i => i.Id == current.ParentItemId!.Value);
+            if (!seen.Add(current.Id))
+            {
+                break;
+            }
+
+            depth++;
+        }
+
+        return depth;
+    }
     /// <summary>
     /// The unique index allows one ACTIVE profile per code, and EF may order the updates of a single save freely,
     /// so the previous ACTIVE version is retired and saved before the new one is activated, inside one transaction.
@@ -443,7 +585,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
     private async Task ActivateAsync(EvaluationProfile profile, CancellationToken cancellationToken)
     {
         EnsureHasItems(profile);
-        EnsureTotalWeightIsComplete(profile.EvaluationProfileItems.Sum(i => i.WeightPercent));
+        EnsureTreeIsComplete(profile.EvaluationProfileItems);
 
         var position = await db.JobPositions
             .AsNoTracking()
@@ -515,20 +657,24 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
     }
 
-    private async Task EnsureKpiGroupsExistAsync(
+    private async Task EnsureKpiDefinitionsExistAsync(
         List<EvaluationProfileItemInputDto> items,
         CancellationToken cancellationToken)
     {
-        var groupIds = items.Select(i => i.KpiGroupId).Distinct().ToList();
-        if (groupIds.Count == 0)
+        var kpiIds = Descendants(items)
+            .Where(i => i.KpiDefinitionId.HasValue)
+            .Select(i => i.KpiDefinitionId!.Value)
+            .Distinct()
+            .ToList();
+        if (kpiIds.Count == 0)
         {
             return;
         }
 
-        var existing = await db.KpiGroups.CountAsync(g => groupIds.Contains(g.Id), cancellationToken);
-        if (existing != groupIds.Count)
+        var existing = await db.KpiDefinitions.CountAsync(k => kpiIds.Contains(k.Id), cancellationToken);
+        if (existing != kpiIds.Count)
         {
-            throw new NotFoundException("Một hoặc nhiều nhóm KPI được chọn không tồn tại.");
+            throw new NotFoundException("Một hoặc nhiều KPI được chọn không tồn tại.");
         }
     }
 
@@ -574,62 +720,143 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
     }
 
+    /// <summary>Compares the stored tree with the requested one, ignoring ids (the request carries none).</summary>
     private static bool ItemsDiffer(EvaluationProfile profile, List<EvaluationProfileItemInputDto> items)
     {
-        if (profile.EvaluationProfileItems.Count != items.Count)
-        {
-            return true;
-        }
+        var childrenOf = profile.EvaluationProfileItems
+            .Where(i => i.ParentItemId.HasValue)
+            .ToLookup(i => i.ParentItemId!.Value);
+        var roots = profile.EvaluationProfileItems.Where(i => !i.ParentItemId.HasValue).ToList();
 
-        var current = profile.EvaluationProfileItems.ToDictionary(i => i.KpiGroupId);
-        return items.Any(i =>
-            !current.TryGetValue(i.KpiGroupId, out var existing)
-            || existing.WeightPercent != i.WeightPercent
-            || existing.DisplayOrder != i.DisplayOrder);
+        return !SameLevel(roots, items, childrenOf);
     }
 
-    /// <summary>Updates matching items in place, removes missing ones and adds new ones.</summary>
+    private static bool SameLevel(
+        List<EvaluationProfileItem> stored,
+        List<EvaluationProfileItemInputDto> requested,
+        ILookup<Guid, EvaluationProfileItem> childrenOf)
+    {
+        if (stored.Count != requested.Count)
+        {
+            return false;
+        }
+
+        var storedByKey = stored.ToDictionary(NodeKey);
+        foreach (var input in requested)
+        {
+            if (!storedByKey.TryGetValue(NodeKey(input), out var existing)
+                || existing.WeightPercent != input.WeightPercent
+                || existing.DisplayOrder != input.DisplayOrder
+                || (!existing.KpiDefinitionId.HasValue && existing.Name != input.Name?.Trim())
+                || !SameLevel(childrenOf[existing.Id].ToList(), input.Children, childrenOf))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>A leaf is identified by its KPI, a group by its name (case-insensitive) among its siblings.</summary>
+    private static string NodeKey(EvaluationProfileItem item) =>
+        item.KpiDefinitionId.HasValue ? $"kpi:{item.KpiDefinitionId}" : $"group:{item.Name?.Trim().ToUpperInvariant()}";
+
+    private static string NodeKey(EvaluationProfileItemInputDto input) =>
+        input.KpiDefinitionId.HasValue ? $"kpi:{input.KpiDefinitionId}" : $"group:{input.Name?.Trim().ToUpperInvariant()}";
+
+    /// <summary>
+    /// Brings the stored tree to the requested one. A node is matched with its stored counterpart by its key (the KPI of
+    /// a leaf, the name of a group) among the same parent: matches are updated in place and keep their id, nodes that
+    /// are no longer requested are removed with everything beneath them, and new nodes are added.
+    /// </summary>
     private void ReplaceItems(EvaluationProfile profile, List<EvaluationProfileItemInputDto> items)
     {
-        var requested = items.ToDictionary(i => i.KpiGroupId);
-        var current = profile.EvaluationProfileItems.ToDictionary(i => i.KpiGroupId);
+        var childrenOf = profile.EvaluationProfileItems
+            .Where(i => i.ParentItemId.HasValue)
+            .ToLookup(i => i.ParentItemId!.Value);
+        var roots = profile.EvaluationProfileItems.Where(i => !i.ParentItemId.HasValue).ToList();
 
-        foreach (var (groupId, existing) in current)
+        SyncLevel(profile.Id, null, roots, items, childrenOf);
+    }
+
+    private void SyncLevel(
+        Guid profileId,
+        Guid? parentId,
+        List<EvaluationProfileItem> stored,
+        List<EvaluationProfileItemInputDto> requested,
+        ILookup<Guid, EvaluationProfileItem> childrenOf)
+    {
+        var storedByKey = stored.ToDictionary(NodeKey);
+        var requestedKeys = requested.Select(NodeKey).ToHashSet();
+
+        // The self reference does not cascade in the database: a removed node goes with its subtree, children first.
+        foreach (var gone in stored.Where(item => !requestedKeys.Contains(NodeKey(item))))
         {
-            if (!requested.ContainsKey(groupId))
-            {
-                db.EvaluationProfileItems.Remove(existing);
-            }
+            var removed = new List<EvaluationProfileItem>();
+            CollectSubtree(gone, childrenOf, removed);
+            db.EvaluationProfileItems.RemoveRange(removed);
         }
 
-        foreach (var (groupId, input) in requested)
+        foreach (var input in requested)
         {
-            if (current.TryGetValue(groupId, out var existing))
+            if (!storedByKey.TryGetValue(NodeKey(input), out var existing))
             {
-                if (existing.WeightPercent != input.WeightPercent || existing.DisplayOrder != input.DisplayOrder)
+                foreach (var added in FlattenItems(profileId, parentId, [input]))
                 {
-                    existing.WeightPercent = input.WeightPercent;
-                    existing.DisplayOrder = input.DisplayOrder;
-                    existing.UpdatedAt = DateTimeOffset.UtcNow;
+                    db.EvaluationProfileItems.Add(added);
                 }
+
+                continue;
             }
-            else
+
+            var name = input.KpiDefinitionId.HasValue ? null : input.Name!.Trim();
+            if (existing.WeightPercent != input.WeightPercent
+                || existing.DisplayOrder != input.DisplayOrder
+                || existing.Name != name)
             {
-                db.EvaluationProfileItems.Add(NewItem(profile.Id, input));
+                existing.WeightPercent = input.WeightPercent;
+                existing.DisplayOrder = input.DisplayOrder;
+                existing.Name = name;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            if (!existing.KpiDefinitionId.HasValue)
+            {
+                SyncLevel(profileId, existing.Id, childrenOf[existing.Id].ToList(), input.Children, childrenOf);
+            }
+        }
+    }
+    /// <summary>Turns the requested tree into flat entities with generated ids and parent links.</summary>
+    private static IEnumerable<EvaluationProfileItem> FlattenItems(
+        Guid profileId,
+        Guid? parentId,
+        List<EvaluationProfileItemInputDto> inputs)
+    {
+        foreach (var input in inputs)
+        {
+            var item = new EvaluationProfileItem
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = profileId,
+                ParentItemId = parentId,
+                KpiDefinitionId = input.KpiDefinitionId,
+                Name = input.KpiDefinitionId.HasValue ? null : input.Name!.Trim(),
+                WeightPercent = input.WeightPercent,
+                DisplayOrder = input.DisplayOrder,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            yield return item;
+
+            foreach (var child in FlattenItems(profileId, item.Id, input.Children))
+            {
+                yield return child;
             }
         }
     }
 
-    private static EvaluationProfileItem NewItem(Guid profileId, EvaluationProfileItemInputDto input) => new()
-    {
-        Id = Guid.NewGuid(),
-        EvaluationProfileId = profileId,
-        KpiGroupId = input.KpiGroupId,
-        WeightPercent = input.WeightPercent,
-        DisplayOrder = input.DisplayOrder,
-        UpdatedAt = DateTimeOffset.UtcNow,
-    };
-
+    private static IEnumerable<EvaluationProfileItemInputDto> Descendants(IEnumerable<EvaluationProfileItemInputDto> inputs) =>
+        inputs.SelectMany(i => new[] { i }.Concat(Descendants(i.Children)));
     private async Task<EvaluationProfileDto> GetRequiredProfileAsync(Guid id, CancellationToken cancellationToken)
     {
         return await GetProfileByIdAsync(id, cancellationToken)
@@ -644,15 +871,47 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
     }
 
-    private static void EnsureTotalWeightIsComplete(decimal totalWeightPercent)
+    /// <summary>Activation rules on the stored tree: see <see cref="EnsureTreeShape"/>.</summary>
+    private static void EnsureTreeIsComplete(IEnumerable<EvaluationProfileItem> items)
+    {
+        var all = items.ToList();
+        var childrenOf = all.Where(i => i.ParentItemId.HasValue).ToLookup(i => i.ParentItemId!.Value);
+
+        if (all.Any(i => !i.ParentItemId.HasValue && i.KpiDefinitionId.HasValue))
+        {
+            throw new ValidationException("Nút gốc phải là một nhóm KPI, không phải một KPI.");
+        }
+
+        EnsureSiblingsTotal(all.Where(i => !i.ParentItemId.HasValue).Sum(i => i.WeightPercent), "gốc");
+        foreach (var group in all.Where(i => !i.KpiDefinitionId.HasValue))
+        {
+            var children = childrenOf[group.Id].ToList();
+            if (children.Count == 0)
+            {
+                throw new ValidationException($"Nhóm '{group.Name}' phải có ít nhất một nhóm con hoặc KPI.");
+            }
+
+            EnsureSiblingsTotal(children.Sum(i => i.WeightPercent), $"nhóm '{group.Name}'");
+        }
+    }
+
+    private static void EnsureTotalWeightIsComplete(List<EvaluationProfileItemInputDto> items)
+    {
+        EnsureSiblingsTotal(items.Sum(i => i.WeightPercent), "gốc");
+        foreach (var group in Descendants(items).Where(i => !i.KpiDefinitionId.HasValue))
+        {
+            EnsureSiblingsTotal(group.Children.Sum(i => i.WeightPercent), $"nhóm '{group.Name}'");
+        }
+    }
+
+    private static void EnsureSiblingsTotal(decimal totalWeightPercent, string where)
     {
         if (totalWeightPercent != RequiredTotalWeightPercent)
         {
             throw new ValidationException(
-                $"Tổng trọng số các nhóm KPI phải bằng đúng {RequiredTotalWeightPercent:0}% (hiện tại {totalWeightPercent:0.####}%).");
+                $"Tổng trọng số các nút cùng cấp dưới {where} phải bằng đúng {RequiredTotalWeightPercent:0}% (hiện tại {totalWeightPercent:0.####}%).");
         }
     }
-
     private static string NormalizeCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code) || code.Trim().Length > 50)
@@ -702,6 +961,11 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
     }
 
+    /// <summary>
+    /// Shape of a requested tree: roots and sub-nodes are groups with children or KPI leaves without any, a KPI
+    /// appears once, siblings share no display order or name, and the tree has at most <see cref="MaxTreeDepth"/> levels.
+    /// The sibling totals are enforced on activation only, so a draft may be saved half done.
+    /// </summary>
     private static void ValidateItems(List<EvaluationProfileItemInputDto>? items)
     {
         if (items is null)
@@ -709,34 +973,94 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             throw new ValidationException("Danh sách nhóm KPI là bắt buộc.");
         }
 
-        var duplicate = items.GroupBy(i => i.KpiGroupId).FirstOrDefault(g => g.Count() > 1);
+        EnsureTreeShape(items, 1);
+
+        var duplicate = Descendants(items)
+            .Where(i => i.KpiDefinitionId.HasValue)
+            .GroupBy(i => i.KpiDefinitionId!.Value)
+            .FirstOrDefault(g => g.Count() > 1);
         if (duplicate is not null)
         {
-            throw new ValidationException($"Danh sách nhóm KPI chứa nhóm trùng lặp (ID: {duplicate.Key}).");
-        }
-
-        foreach (var item in items)
-        {
-            ValidateItem(item);
+            throw new ValidationException($"Danh sách chứa KPI trùng lặp (ID: {duplicate.Key}).");
         }
     }
 
-    private static void ValidateItem(EvaluationProfileItemInputDto item)
+    private static void EnsureTreeShape(List<EvaluationProfileItemInputDto> level, int depth)
     {
-        if (item.KpiGroupId == Guid.Empty)
+        if (depth > MaxTreeDepth)
         {
-            throw new ValidationException("KpiGroupId không được để trống.");
+            throw new ValidationException($"Cây trọng số tối đa {MaxTreeDepth} cấp.");
         }
 
-        ValidateItemValues(item.WeightPercent, item.DisplayOrder);
+        var duplicateName = level
+            .Where(i => !i.KpiDefinitionId.HasValue)
+            .GroupBy(i => i.Name?.Trim().ToUpperInvariant())
+            .FirstOrDefault(g => g.Count() > 1);
+        if (duplicateName is not null)
+        {
+            throw new ValidationException($"Các nhóm cùng cấp không được trùng tên ('{duplicateName.First().Name}').");
+        }
+
+        foreach (var item in level)
+        {
+            ValidateNodeShape(item.Name, item.KpiDefinitionId, item.WeightPercent, item.DisplayOrder);
+
+            if (item.KpiDefinitionId.HasValue)
+            {
+                if (depth == 1)
+                {
+                    throw new ValidationException("Nút gốc phải là một nhóm KPI, không phải một KPI.");
+                }
+
+                if (item.Children.Count > 0)
+                {
+                    throw new ValidationException("Một KPI không được có nút con.");
+                }
+            }
+            else
+            {
+                EnsureTreeShape(item.Children, depth + 1);
+            }
+        }
     }
 
+    /// <summary>A node is a group (a name) or a KPI leaf (a KPI), never both and never neither.</summary>
+    private static void ValidateNodeShape(string? name, Guid? kpiDefinitionId, decimal weightPercent, int displayOrder)
+    {
+        var hasName = !string.IsNullOrWhiteSpace(name);
+        if (hasName == (kpiDefinitionId.HasValue && kpiDefinitionId.Value != Guid.Empty) || (!hasName && !kpiDefinitionId.HasValue))
+        {
+            throw new ValidationException("Mỗi nút phải là một nhóm (có tên) hoặc một KPI (có KpiDefinitionId), không phải cả hai.");
+        }
+
+        if (kpiDefinitionId == Guid.Empty)
+        {
+            throw new ValidationException("KpiDefinitionId không được để trống.");
+        }
+
+        if (hasName)
+        {
+            NormalizeNodeName(name!);
+        }
+
+        ValidateItemValues(weightPercent, displayOrder);
+    }
+
+    private static string NormalizeNodeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
+        {
+            throw new ValidationException("Tên nhóm KPI là bắt buộc và tối đa 200 ký tự.");
+        }
+
+        return name.Trim();
+    }
     private static void ValidateItemValues(decimal weightPercent, int displayOrder)
     {
         if (weightPercent <= 0 || weightPercent > RequiredTotalWeightPercent)
         {
             throw new ValidationException(
-                $"Trọng số của mỗi nhóm KPI phải lớn hơn 0 và không vượt quá {RequiredTotalWeightPercent:0}.");
+                $"Trọng số của mỗi nút phải lớn hơn 0 và không vượt quá {RequiredTotalWeightPercent:0}.");
         }
 
         if (decimal.Round(weightPercent, WeightScale) != weightPercent)

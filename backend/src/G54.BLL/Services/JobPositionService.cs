@@ -261,13 +261,16 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
                 p.Version,
                 p.EffectiveFrom,
                 p.Status,
+                // The profile is a weight tree: only its root groups are listed. A group node has
+                // no code of its own, so GroupCode stays empty until this view shows the tree.
                 Items = p.EvaluationProfileItems
+                    .Where(item => item.ParentItemId == null)
                     .OrderBy(item => item.DisplayOrder)
                     .Select(item => new
                     {
                         item.Id,
-                        GroupName = item.KpiGroup.Name,
-                        GroupCode = item.KpiGroup.Code,
+                        GroupName = item.Name,
+                        GroupCode = string.Empty,
                         item.WeightPercent,
                         item.DisplayOrder,
                     })
@@ -282,7 +285,7 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
 
         var items = profile.Items
             .Select(item => new JobPositionEvaluationProfileItemDto(
-                item.Id, item.GroupName, item.GroupCode, item.WeightPercent, item.DisplayOrder))
+                item.Id, item.GroupName ?? string.Empty, item.GroupCode, item.WeightPercent, item.DisplayOrder))
             .ToList();
 
         return new JobPositionEvaluationProfileDto(

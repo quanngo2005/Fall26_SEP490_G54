@@ -114,15 +114,27 @@ public sealed class EvaluationFormTests
         context.KpiGroups.Add(group);
         context.KpiDefinitions.Add(kpi);
         context.EvaluationProfiles.Add(profile);
-        context.EvaluationProfileItems.Add(new EvaluationProfileItem
+        var rootItem = new EvaluationProfileItem
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = group.Id,
+            Name = "Business",
             WeightPercent = 100m,
             DisplayOrder = 1,
             UpdatedAt = now,
-        });
+        };
+        context.EvaluationProfileItems.AddRange(
+            rootItem,
+            new EvaluationProfileItem
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = profile.Id,
+                ParentItemId = rootItem.Id,
+                KpiDefinitionId = kpi.Id,
+                WeightPercent = 100m,
+                DisplayOrder = 1,
+                UpdatedAt = now,
+            });
 
         EvaluationPeriod Period(string code, DateOnly start, DateOnly end, PeriodStatus status) => new()
         {
@@ -589,5 +601,89 @@ public sealed class EvaluationFormTests
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
         Assert.False(form.CriteriaGroups.Single().IsQualitative);
+    }
+
+    [Fact]
+    public async Task Form_KpiItem_CarriesItsShareOfTheGroupAsWeightPercent()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal(100m, form.CriteriaGroups.Single().KpiItems.Single().WeightPercent);
+    }
+
+    [Fact]
+    public async Task Form_KpiItems_ShareTheGroupThroughNestedWeights()
+    {
+        // Business (100) -> [ Sales (60) -> [ HDV 25, KH_MOI 75 ], Service (40) -> [ CSAT 100 ] ]
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var business = await context.EvaluationProfileItems.SingleAsync(i => i.Name == "Business");
+        var hdvLeaf = await context.EvaluationProfileItems.SingleAsync(i => i.KpiDefinitionId == s.Kpi.Id);
+        context.EvaluationProfileItems.Remove(hdvLeaf);
+        await context.SaveChangesAsync();
+
+        KpiDefinition Kpi(string code) => new()
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = s.KpiGroup.Id,
+            Code = code,
+            Name = code,
+            Unit = "unit",
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
+            Status = KpiStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        EvaluationProfileItem Node(Guid? parent, string? name, KpiDefinition? kpi, decimal weight, int order) => new()
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = s.Profile.Id,
+            ParentItemId = parent,
+            Name = name,
+            KpiDefinitionId = kpi?.Id,
+            WeightPercent = weight,
+            DisplayOrder = order,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+
+        var hdv = Kpi("N-HDV");
+        var khMoi = Kpi("N-KH");
+        var csat = Kpi("N-CSAT");
+        context.KpiDefinitions.AddRange(hdv, khMoi, csat);
+        var sales = Node(business.Id, "Sales", null, 60m, 1);
+        var service = Node(business.Id, "Service", null, 40m, 2);
+        context.EvaluationProfileItems.AddRange(
+            sales,
+            service,
+            Node(sales.Id, null, hdv, 25m, 1),
+            Node(sales.Id, null, khMoi, 75m, 2),
+            Node(service.Id, null, csat, 100m, 1));
+        await context.SaveChangesAsync();
+        var form = await CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept)
+            .GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        var items = form.CriteriaGroups.Single().KpiItems.ToDictionary(k => k.KpiCode, k => k.WeightPercent);
+        Assert.Equal(15m, items["N-HDV"]);   // 60% x 25%
+        Assert.Equal(45m, items["N-KH"]);    // 60% x 75%
+        Assert.Equal(40m, items["N-CSAT"]);  // 40% x 100%
+        Assert.Equal(100m, items.Values.Sum());
+    }
+
+    [Fact]
+    public async Task Form_WeightPercent_DoesNotChangeWhenAKpiHasNoTarget()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        var item = form.CriteriaGroups.Single().KpiItems.Single();
+        Assert.Null(item.TargetValue);
+        Assert.Equal(100m, item.WeightPercent);
     }
 }

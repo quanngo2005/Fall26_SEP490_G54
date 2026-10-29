@@ -154,7 +154,7 @@ describe('EvaluationService', () => {
       employeeId: 'e1',
       periodId: period.id,
       comment: 'Good',
-      qualitativeScores: [{ kpiGroupId: 'g1', score: 7 }],
+      qualitativeScores: [{ evaluationProfileItemId: 'g1', score: 7 }],
       isDraft: true,
     };
     const result = { evaluationId: 'ev1', status: 'DRAFT' } as unknown as EvaluationResult;

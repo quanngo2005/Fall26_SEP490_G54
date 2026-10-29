@@ -26,18 +26,27 @@ public sealed record EvaluationProfileSummaryDto(
     string Name,
     int Version);
 
+/// <summary>
+/// One KPI leaf of a group. WeightPercent is its share of the root group: its weight among its siblings multiplied
+/// by the weights of its parent groups, so the leaves of a group add up to 100.
+/// </summary>
 public sealed record EvaluationKpiItemDto(
     Guid KpiDefinitionId,
     string KpiCode,
     string KpiName,
     string Unit,
+    decimal WeightPercent,
     decimal? TargetValue,
     decimal ActualValue,
     decimal AchievementPercent,
     decimal ComponentScore);
 
+/// <summary>
+/// A root group of the evaluation profile tree. EvaluationProfileItemId is the tree node and the key of its
+/// qualitative score; GroupCode is the code of the catalog KPI group of its KPIs.
+/// </summary>
 public sealed record EvaluationCriterionGroupDto(
-    Guid KpiGroupId,
+    Guid EvaluationProfileItemId,
     string GroupCode,
     string GroupName,
     decimal WeightPercent,
@@ -98,7 +107,7 @@ public sealed record EvaluationFormDto(
     PreviousPeriodSummaryDto? PreviousPeriod);
 
 public sealed record QualitativeScoreInputDto(
-    Guid KpiGroupId,
+    Guid EvaluationProfileItemId,
     decimal Score,
     string? Notes = null);
 

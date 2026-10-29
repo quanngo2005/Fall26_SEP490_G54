@@ -156,6 +156,9 @@
                   <thead>
                     <tr>
                       <th class="th-item">{{localization.evaluationForm.colKpiItem}}</th>
+                      <th class="th-weight text-center">
+                        {{localization.evaluationForm.colWeight}}
+                      </th>
                       <th class="th-target text-center">
                         {{localization.evaluationForm.colTarget}}
                       </th>
@@ -171,20 +174,20 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @for (group of data.criteriaGroups; track group.kpiGroupId) {
+                    @for (group of data.criteriaGroups; track group.evaluationProfileItemId) {
                       <tr class="group-header-row">
                         <td colspan="5" class="group-header-cell">
                           {{group.groupName}} · {{group.weightPercent | appNumber: 2}}%
+                        </td>
+                        <td class="group-header-cell group-score-cell text-center">
+                          {{group.groupScore | appNumber: 2}}
                         </td>
                       </tr>
 
                       @if (group.isQualitative) {
                         <tr class="kpi-row">
-                          <td colspan="4" class="td-item">
+                          <td colspan="6" class="td-item">
                             {{localization.evaluationForm.qualitativeGroupRow}}
-                          </td>
-                          <td class="td-score text-center">
-                            {{group.groupScore | appNumber: 2}}
                           </td>
                         </tr>
                       }
@@ -192,6 +195,9 @@
                       @for (item of group.kpiItems; track item.kpiDefinitionId) {
                         <tr class="kpi-row">
                           <td class="td-item">{{item.kpiName}}</td>
+                          <td class="td-weight text-center">
+                            {{item.weightPercent | appNumber: 2}}%
+                          </td>
                           <td class="td-target text-center">
                             @if (item.targetValue !== null) {
                               {{item.targetValue | appNumber: 2}} {{item.unit}}
@@ -213,7 +219,7 @@
                     }
 
                     <tr class="summary-row kpi-total-row">
-                      <td colspan="4" class="td-summary-label">
+                      <td colspan="5" class="td-summary-label">
                         {{localization.evaluationForm.rowTotalKpi}}
                       </td>
                       <td class="td-summary-value text-center">
@@ -226,7 +232,7 @@
                         <td class="td-penalty-title">
                           {{localization.evaluationForm.rowRiskPenalty}}
                         </td>
-                        <td colspan="3" class="td-penalty-desc">
+                        <td colspan="4" class="td-penalty-desc">
                           {{event.code}} · {{event.description}}
                         </td>
                         <td class="td-penalty-value text-center">
@@ -236,7 +242,7 @@
                     }
 
                     <tr class="summary-row final-quantitative-row">
-                      <td colspan="4" class="td-summary-label">
+                      <td colspan="5" class="td-summary-label">
                         {{localization.evaluationForm.rowFinalTotal}}
                       </td>
                       <td class="td-summary-value text-center">
@@ -259,18 +265,21 @@
                 {{localization.evaluationForm.qualitativeCardTitle}}
               </h3>
 
-              @for (group of qualitativeGroups(); track group.kpiGroupId) {
+              @for (group of qualitativeGroups(); track group.evaluationProfileItemId) {
                 <div class="form-group">
-                  <label class="form-label required" [for]="'score-' + group.kpiGroupId">
+                  <label
+                    class="form-label required"
+                    [for]="'score-' + group.evaluationProfileItemId"
+                  >
                     {{group.groupName}} <span class="required-star">*</span>
                   </label>
                   <div class="score-input-wrap">
                     <input
-                      [id]="'score-' + group.kpiGroupId"
+                      [id]="'score-' + group.evaluationProfileItemId"
                       type="number"
                       class="score-input"
-                      [ngModel]="qualitativeScores()[group.kpiGroupId]"
-                      (ngModelChange)="setQualitativeScore(group.kpiGroupId, $event)"
+                      [ngModel]="qualitativeScores()[group.evaluationProfileItemId]"
+                      (ngModelChange)="setQualitativeScore(group.evaluationProfileItemId, $event)"
                       [min]="scoreMin"
                       [max]="scoreMax"
                       [disabled]="!data.canEdit"

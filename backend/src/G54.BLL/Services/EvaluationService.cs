@@ -156,16 +156,12 @@ public sealed partial class EvaluationService(
         decimal operationsScore = 0m;
         decimal totalWeightedScore = 0m;
 
-        var profileItems = profile.EvaluationProfileItems
-            .OrderBy(pi => pi.DisplayOrder)
-            .ToList();
-
-        foreach (var item in profileItems)
+        foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
         {
-            var kpiGroup = item.KpiGroup;
-            var groupKpis = kpiGroup.KpiDefinitions
-                .Where(kd => kd.Status == KpiStatus.Active)
+            var groupKpis = EvaluationProfileTree.ActiveLeaves(root)
+                .Select(leaf => leaf.Kpi!)
                 .ToList();
+            var leafShares = EvaluationProfileTree.LeafShares(root);
 
             var kpiItemDtos = new List<EvaluationKpiItemDto>();
             foreach (var kpi in groupKpis)
@@ -205,6 +201,7 @@ public sealed partial class EvaluationService(
                     kpi.Code,
                     kpi.Name,
                     kpi.Unit,
+                    Math.Round(leafShares[kpi.Id], 2),
                     hasTarget ? targetVal : null,
                     actualVal,
                     achievement,
@@ -215,7 +212,7 @@ public sealed partial class EvaluationService(
             decimal? qualitativeScore = null;
             string? qualitativeNotes = null;
 
-            if (qualitativeSaved.TryGetValue(kpiGroup.Id, out var savedQual))
+            if (qualitativeSaved.TryGetValue(root.Item.Id, out var savedQual))
             {
                 qualitativeScore = savedQual.Score;
                 qualitativeNotes = savedQual.Notes;
@@ -223,16 +220,22 @@ public sealed partial class EvaluationService(
 
             if (kpiItemDtos.Count > 0)
             {
-                groupScore = Math.Round(kpiItemDtos.Average(k => k.ComponentScore), 2);
+                // Weighted by each node's weight among its siblings; a KPI that is not active leaves the others' share.
+                var scoreByKpi = kpiItemDtos.ToDictionary(k => k.KpiDefinitionId, k => k.ComponentScore);
+                groupScore = Math.Round(
+                    EvaluationProfileTree.ScoreNode(root, leaf =>
+                        scoreByKpi.TryGetValue(leaf.Item.KpiDefinitionId!.Value, out var score) ? score : null) ?? 0m,
+                    2);
             }
             else
             {
                 groupScore = qualitativeScore ?? 100m;
             }
 
-            totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+            totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
 
-            var codeUpper = kpiGroup.Code.ToUpperInvariant();
+            var groupCode = EvaluationProfileTree.CatalogGroupCode(root);
+            var codeUpper = groupCode.ToUpperInvariant();
             if (codeUpper.Contains("KD") || codeUpper.Contains("SALES") || codeUpper.Contains("BUSINESS"))
             {
                 businessScore = groupScore;
@@ -247,10 +250,10 @@ public sealed partial class EvaluationService(
             }
 
             criteriaGroups.Add(new EvaluationCriterionGroupDto(
-                kpiGroup.Id,
-                kpiGroup.Code,
-                kpiGroup.Name,
-                item.WeightPercent,
+                root.Item.Id,
+                groupCode,
+                EvaluationProfileTree.NodeName(root),
+                root.Item.WeightPercent,
                 groupScore,
                 kpiItemDtos,
                 qualitativeScore,
@@ -454,61 +457,34 @@ public sealed partial class EvaluationService(
             .ToDictionary(g => g.Key, g => g.OrderByDescending(ta => ta.Version).First().TargetValue);
 
         var qualInputsDict = (request.QualitativeScores ?? new List<QualitativeScoreInputDto>())
-            .ToDictionary(q => q.KpiGroupId, q => q);
+            .ToDictionary(q => q.EvaluationProfileItemId, q => q);
 
         decimal totalWeightedScore = 0m;
-        foreach (var item in profile.EvaluationProfileItems)
+        foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
         {
-            var kpiGroup = item.KpiGroup;
-            var groupKpis = kpiGroup.KpiDefinitions.Where(kd => kd.Status == KpiStatus.Active).ToList();
+            var groupKpis = EvaluationProfileTree.ActiveLeaves(root).ToList();
 
             decimal groupScore;
-            if (qualInputsDict.TryGetValue(kpiGroup.Id, out var qualInput))
+            if (qualInputsDict.TryGetValue(root.Item.Id, out var qualInput))
             {
                 groupScore = qualInput.Score;
             }
             else if (groupKpis.Count > 0)
             {
-                var scores = groupKpis.Select(kpi =>
-                {
-                    targetsDict.TryGetValue(kpi.Id, out var targetVal);
-                    actualsDict.TryGetValue(kpi.Id, out var actualVal);
-
-                    decimal achievement = 0m;
-                    if (targetVal > 0)
-                    {
-                        if (kpi.Direction == KpiDirection.LowerBetter)
-                        {
-                            achievement = actualVal > 0
-                                ? Math.Round((targetVal / actualVal) * 100m, 2)
-                                : 100m;
-                        }
-                        else
-                        {
-                            achievement = Math.Round((actualVal / targetVal) * 100m, 2);
-                        }
-                    }
-                    else if (actualVal > 0)
-                    {
-                        achievement = 100m;
-                    }
-
-                    if (kpi.MaxAchievementPercent.HasValue && achievement > kpi.MaxAchievementPercent.Value)
-                    {
-                        achievement = kpi.MaxAchievementPercent.Value;
-                    }
-
-                    return achievement;
-                });
-
-                groupScore = Math.Round(scores.Average(), 2);
+                groupScore = Math.Round(
+                    EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                        ? ComputeAchievementPercent(
+                            kpi,
+                            targetsDict.GetValueOrDefault(kpi.Id),
+                            actualsDict.GetValueOrDefault(kpi.Id))
+                        : null) ?? 0m,
+                    2);
             }
             else
             {
                 groupScore = 100m;
             }
-
-            totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+            totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
         }
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
@@ -785,27 +761,21 @@ public sealed partial class EvaluationService(
             var targets = targetsByEmployee.GetValueOrDefault(employee.Id) ?? [];
             var actuals = actualsByEmployee.GetValueOrDefault(employee.Id) ?? [];
 
-            decimal weightedSum = 0m;
-            decimal weightTotal = 0m;
-            foreach (var item in profile.EvaluationProfileItems)
-            {
-                var kpis = item.KpiGroup.KpiDefinitions.Where(kd => kd.Status == KpiStatus.Active).ToList();
-                if (kpis.Count == 0)
-                {
-                    continue;
-                }
+            // Only groups that own active KPIs count; the weighted mean is normalised over them.
+            var groups = EvaluationProfileTree.Build(profile.EvaluationProfileItems)
+                .Select(root => (
+                    Weight: root.Item.WeightPercent,
+                    Score: EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                        ? ComputeAchievementPercent(
+                            kpi,
+                            targets.GetValueOrDefault(kpi.Id),
+                            actuals.GetValueOrDefault(kpi.Id))
+                        : null)));
 
-                var groupScore = kpis.Average(kpi => ComputeAchievementPercent(
-                    kpi,
-                    targets.GetValueOrDefault(kpi.Id),
-                    actuals.GetValueOrDefault(kpi.Id)));
-                weightedSum += groupScore * item.WeightPercent;
-                weightTotal += item.WeightPercent;
-            }
-
-            if (weightTotal > 0)
+            var quantitative = EvaluationProfileTree.WeightedMean(groups);
+            if (quantitative.HasValue)
             {
-                result[employee.Id] = Math.Round(weightedSum / weightTotal, 2);
+                result[employee.Id] = Math.Round(quantitative.Value, 2);
             }
         }
 
@@ -1538,47 +1508,21 @@ public sealed partial class EvaluationService(
             targetsDict ??= new();
             actualsDict ??= new();
 
-            foreach (var item in profile.EvaluationProfileItems)
+            foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
             {
-                var kpiGroup = item.KpiGroup;
-                var groupKpis = kpiGroup?.KpiDefinitions?.Where(kd => kd.Status == KpiStatus.Active).ToList() ?? new();
+                var hasActiveKpis = EvaluationProfileTree.ActiveLeaves(root).Any();
 
                 decimal groupScore;
-                if (groupKpis.Count > 0)
+                if (hasActiveKpis)
                 {
-                    var scores = groupKpis.Select(kpi =>
-                    {
-                        targetsDict.TryGetValue(kpi.Id, out var targetVal);
-                        actualsDict.TryGetValue(kpi.Id, out var actualVal);
-
-                        decimal achievement = 0m;
-                        if (targetVal > 0)
-                        {
-                            if (kpi.Direction == KpiDirection.LowerBetter)
-                            {
-                                achievement = actualVal > 0
-                                    ? Math.Round((targetVal / actualVal) * 100m, 2)
-                                    : 100m;
-                            }
-                            else
-                            {
-                                achievement = Math.Round((actualVal / targetVal) * 100m, 2);
-                            }
-                        }
-                        else if (actualVal > 0)
-                        {
-                            achievement = 100m;
-                        }
-
-                        if (kpi.MaxAchievementPercent.HasValue && achievement > kpi.MaxAchievementPercent.Value)
-                        {
-                            achievement = kpi.MaxAchievementPercent.Value;
-                        }
-
-                        return achievement;
-                    });
-
-                    groupScore = Math.Round(scores.Average(), 2);
+                    groupScore = Math.Round(
+                        EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                            ? ComputeAchievementPercent(
+                                kpi,
+                                targetsDict.GetValueOrDefault(kpi.Id),
+                                actualsDict.GetValueOrDefault(kpi.Id))
+                            : null) ?? 0m,
+                        2);
                 }
                 else
                 {
@@ -1586,9 +1530,9 @@ public sealed partial class EvaluationService(
                     qualitativeScore = 100m;
                 }
 
-                totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+                totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
 
-                var codeUpper = kpiGroup?.Code?.ToUpperInvariant() ?? string.Empty;
+                var codeUpper = EvaluationProfileTree.CatalogGroupCode(root).ToUpperInvariant();
                 if (codeUpper.Contains("KD") || codeUpper.Contains("SALES") || codeUpper.Contains("BUSINESS"))
                 {
                     businessScore = groupScore;
@@ -1709,8 +1653,8 @@ public sealed partial class EvaluationService(
         var profiles = await db.EvaluationProfiles
             .AsNoTracking()
             .Include(ep => ep.EvaluationProfileItems)
-                .ThenInclude(epi => epi.KpiGroup)
-                    .ThenInclude(kg => kg.KpiDefinitions)
+                .ThenInclude(epi => epi.KpiDefinition)
+                    .ThenInclude(kd => kd!.KpiGroup)
             .Where(ep => ids.Contains(ep.JobPositionId))
             .ToListAsync(cancellationToken);
 
@@ -1929,7 +1873,7 @@ public sealed partial class EvaluationService(
             {
                 var json = qualMatch.Groups[1].Value.Trim();
                 var items = JsonSerializer.Deserialize<List<QualitativeScoreInputDto>>(json, JsonOptions) ?? new();
-                qualDict = items.ToDictionary(i => i.KpiGroupId, i => i);
+                qualDict = items.ToDictionary(i => i.EvaluationProfileItemId, i => i);
             }
             catch
             {

@@ -123,7 +123,7 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupKd.Id,
+            Name = "Kinh doanh",
             WeightPercent = 40m,
             DisplayOrder = 1,
             UpdatedAt = now,
@@ -132,7 +132,7 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupCldv.Id,
+            Name = "Chat luong dich vu",
             WeightPercent = 30m,
             DisplayOrder = 2,
             UpdatedAt = now,
@@ -141,13 +141,23 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupTt.Id,
+            Name = "Van hanh & Tuan thu",
             WeightPercent = 30m,
             DisplayOrder = 3,
             UpdatedAt = now,
         };
-        await context.EvaluationProfileItems.AddRangeAsync(itemKd, itemCldv, itemTt);
-
+        EvaluationProfileItem Leaf(EvaluationProfileItem parent, KpiDefinition kpi) => new()
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profile.Id,
+            ParentItemId = parent.Id,
+            KpiDefinitionId = kpi.Id,
+            WeightPercent = 100m,
+            DisplayOrder = 1,
+            UpdatedAt = now,
+        };
+        await context.EvaluationProfileItems.AddRangeAsync(
+            itemKd, itemCldv, itemTt, Leaf(itemKd, kpiHdv), Leaf(itemCldv, kpiCsat));
         var position = new JobPosition
         {
             Id = Guid.NewGuid(),
@@ -281,6 +291,9 @@ public sealed class EvaluationServiceTests
         Assert.Equal(10m, hdvItem.TargetValue);
         Assert.Equal(10m, hdvItem.ActualValue);
         Assert.Equal(100m, hdvItem.AchievementPercent);
+        Assert.Equal(100m, hdvItem.WeightPercent);
+        Assert.NotEqual(Guid.Empty, kdGroup.EvaluationProfileItemId);
+        Assert.Equal("Kinh doanh", kdGroup.GroupName);
     }
 
     [Fact]
@@ -381,14 +394,14 @@ public sealed class EvaluationServiceTests
         await context.RiskEvents.AddAsync(risk);
         await context.SaveChangesAsync();
 
-        var cldvGroup = await context.KpiGroups.FirstAsync(g => g.Code == "CLDV");
+        var cldvItem = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Chat luong dich vu");
         var request = new SubmitEvaluationRequestDto(
             EmployeeId: staff.Id,
             PeriodId: period.Id,
             Comment: "Có vi phạm nghiêm trọng trong kỳ",
             QualitativeScores: new List<QualitativeScoreInputDto>
             {
-                new(cldvGroup.Id, 100m, "Chăm sóc khách hàng tốt"),
+                new(cldvItem.Id, 100m, "Chăm sóc khách hàng tốt"),
             },
             IsDraft: false);
 

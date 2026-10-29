@@ -101,8 +101,9 @@ public sealed partial class PerformanceDashboardService
     }
 
     /// <summary>
-    /// Mean, over the employees that have one, of each employee's group score; an employee's group score is the
-    /// mean of that employee's non-null KPI scores in the group.
+    /// Mean, over the employees that have one, of each employee's group score. Employees of different positions have
+    /// different profile trees with no shared node, so the unit view groups KPIs by the catalog KPI group; an
+    /// employee's group score is the mean of that employee's non-null KPI scores in it, not weighted by any profile.
     /// </summary>
     private static List<DashboardUnitGroupDto> BuildUnitGroups(List<KpiContributionRow> contributions) =>
         contributions

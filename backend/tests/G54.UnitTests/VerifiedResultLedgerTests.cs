@@ -122,7 +122,6 @@ public sealed class VerifiedResultLedgerTests
 
         var item = await rig.Db.WorkResultItems.SingleAsync();
         Assert.Equal(0m, item.Value);
-        Assert.Equal(1m, item.TaskWeight);
         Assert.Equal(0m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
     }
 

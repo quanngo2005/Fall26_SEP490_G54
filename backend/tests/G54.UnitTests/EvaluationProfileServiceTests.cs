@@ -38,26 +38,63 @@ public sealed class EvaluationProfileServiceTests
         return position;
     }
 
-    private static KpiGroup AddGroup(AppDbContext db, string code)
+    /// <summary>A KPI that a test puts under a root group named after it; <see cref="Code"/> is the group name.</summary>
+    private sealed record Kpi(Guid Id, string Code);
+
+    private static Kpi AddGroup(AppDbContext db, string code)
     {
-        var group = new KpiGroup
+        var catalog = db.KpiGroups.FirstOrDefault(g => g.Code == "CATALOG");
+        if (catalog is null)
+        {
+            catalog = new KpiGroup
+            {
+                Id = Guid.NewGuid(),
+                Code = "CATALOG",
+                Name = "Catalog",
+                Status = KpiStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            db.KpiGroups.Add(catalog);
+        }
+
+        var kpi = new KpiDefinition
         {
             Id = Guid.NewGuid(),
+            KpiGroupId = catalog.Id,
             Code = code,
-            Name = $"Group {code}",
+            Name = $"KPI {code}",
+            Unit = "unit",
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
             Status = KpiStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-        db.KpiGroups.Add(group);
+        db.KpiDefinitions.Add(kpi);
         db.SaveChanges();
-        return group;
+        return new Kpi(kpi.Id, code);
     }
 
-    private static EvaluationProfileItemInputDto Item(KpiGroup group, decimal weight, int order = 1) =>
-        new() { KpiGroupId = group.Id, WeightPercent = weight, DisplayOrder = order };
+    /// <summary>A root group (named after the KPI code) with the weight, holding that KPI as its only leaf.</summary>
+    private static EvaluationProfileItemInputDto Item(Kpi kpi, decimal weight, int order = 1) =>
+        new()
+        {
+            Name = kpi.Code,
+            WeightPercent = weight,
+            DisplayOrder = order,
+            Children = [new() { KpiDefinitionId = kpi.Id, WeightPercent = 100, DisplayOrder = 1 }],
+        };
 
-    private static List<EvaluationProfileItemInputDto> FullItems(KpiGroup a, KpiGroup b) =>
+    private static List<EvaluationProfileItemInputDto> FullItems(Kpi a, Kpi b) =>
         [Item(a, 60, 1), Item(b, 40, 2)];
+
+    private static EvaluationProfileItemInputDto ToInput(EvaluationProfileItemDto item) => new()
+    {
+        Name = item.Name,
+        KpiDefinitionId = item.KpiDefinitionId,
+        WeightPercent = item.WeightPercent,
+        DisplayOrder = item.DisplayOrder,
+        Children = item.Children.Select(ToInput).ToList(),
+    };
 
     private static CreateEvaluationProfileDto CreateDto(
         JobPosition position,
@@ -87,14 +124,7 @@ public sealed class EvaluationProfileServiceTests
             JobPositionId = jobPositionId ?? current.JobPositionId,
             EffectiveFrom = effectiveFrom ?? current.EffectiveFrom,
             EffectiveTo = effectiveTo ?? current.EffectiveTo,
-            Items = items ?? current.Items
-            .Select(i => new EvaluationProfileItemInputDto
-            {
-                KpiGroupId = i.KpiGroupId,
-                WeightPercent = i.WeightPercent,
-                DisplayOrder = i.DisplayOrder,
-            })
-            .ToList(),
+            Items = items ?? current.Items.Select(ToInput).ToList(),
         };
 
     private static EvaluationProfileStatusDto Status(string value) => new() { Status = value };
@@ -102,8 +132,8 @@ public sealed class EvaluationProfileServiceTests
     private static async Task<EvaluationProfileDto> CreateActiveAsync(
         EvaluationProfileService service,
         JobPosition position,
-        KpiGroup a,
-        KpiGroup b,
+        Kpi a,
+        Kpi b,
         string code = "TELLER",
         DateOnly? from = null,
         DateOnly? to = null)
@@ -151,7 +181,7 @@ public sealed class EvaluationProfileServiceTests
             Assert.Equal("DRAFT", result.Status);
             Assert.False(result.IsInUse);
             Assert.Equal(100m, result.TotalWeightPercent);
-            Assert.Equal(["A", "B"], result.Items.Select(i => i.KpiGroupCode));
+            Assert.Equal(["A", "B"], result.Items.Select(i => i.Name));
             Assert.Equal(position.Code, result.JobPositionCode);
         }
     }
@@ -239,13 +269,13 @@ public sealed class EvaluationProfileServiceTests
     }
 
     [Fact]
-    public async Task Create_UnknownKpiGroup_IsNotFound()
+    public async Task Create_UnknownKpi_IsNotFound()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
             var position = AddPosition(db);
-            var unknown = new KpiGroup { Id = Guid.NewGuid() };
+            var unknown = new Kpi(Guid.NewGuid(), "UNKNOWN");
 
             await Assert.ThrowsAsync<NotFoundException>(() =>
                 service.CreateProfileAsync(CreateDto(position, [Item(unknown, 100)])));
@@ -335,7 +365,7 @@ public sealed class EvaluationProfileServiceTests
     }
 
     [Fact]
-    public async Task Create_DuplicateKpiGroup_IsAValidationError()
+    public async Task Create_DuplicateGroupNameAmongSiblings_IsAValidationError()
     {
         var (db, service) = CreateEnvironment();
         using (db)
@@ -817,9 +847,11 @@ public sealed class EvaluationProfileServiceTests
             Assert.Equal("TELLER", result.Code);
             Assert.Equal(1, result.Version);
             Assert.Equal("DRAFT", result.Status);
-            Assert.Equal(["B", "C"], result.Items.Select(i => i.KpiGroupCode));
+            Assert.Equal(["B", "C"], result.Items.Select(i => i.Name));
             Assert.Equal([70m, 30m], result.Items.Select(i => i.WeightPercent));
-            Assert.Equal(2, await db.EvaluationProfileItems.CountAsync(i => i.EvaluationProfileId == created.Id));
+            // Two root groups, each holding one KPI leaf.
+            Assert.Equal(4, await db.EvaluationProfileItems.CountAsync(i => i.EvaluationProfileId == created.Id));
+            Assert.Equal(2, await db.EvaluationProfileItems.CountAsync(i => i.EvaluationProfileId == created.Id && i.ParentItemId == null));
         }
     }
 
@@ -833,11 +865,11 @@ public sealed class EvaluationProfileServiceTests
             var a = AddGroup(db, "A");
             var b = AddGroup(db, "B");
             var created = await service.CreateProfileAsync(CreateDto(position, FullItems(a, b)));
-            var itemId = (await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.KpiGroupId == a.Id)).Id;
+            var itemId = (await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.Name == "A")).Id;
 
             await service.UpdateProfileAsync(created.Id, UpdateDto(created, [Item(a, 55, 1), Item(b, 45, 2)]));
 
-            var kept = await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.KpiGroupId == a.Id);
+            var kept = await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.Name == "A");
             Assert.Equal(itemId, kept.Id);
             Assert.Equal(55m, kept.WeightPercent);
         }

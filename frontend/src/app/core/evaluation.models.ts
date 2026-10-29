@@ -69,6 +69,8 @@ export interface EvaluationKpiItem {
   kpiCode: string;
   kpiName: string;
   unit: string;
+  /** Share of the root group in percent; the active KPIs of a group add up to 100. */
+  weightPercent: number;
   targetValue: number | null;
   actualValue: number;
   achievementPercent: number;
@@ -76,7 +78,8 @@ export interface EvaluationKpiItem {
 }
 
 export interface EvaluationCriterionGroup {
-  kpiGroupId: string;
+  /** The root node of the profile tree; also the key of the qualitative score. */
+  evaluationProfileItemId: string;
   groupCode: string;
   groupName: string;
   weightPercent: number;
@@ -143,7 +146,7 @@ export interface EvaluationFormModel {
 }
 
 export interface QualitativeScoreInput {
-  kpiGroupId: string;
+  evaluationProfileItemId: string;
   score: number;
   notes?: string | null;
 }

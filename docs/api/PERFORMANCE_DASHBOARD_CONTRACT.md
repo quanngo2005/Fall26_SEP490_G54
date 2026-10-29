@@ -90,8 +90,7 @@ The BLL also requires an active, unlocked account. A department or employee outs
     "calculatedAt": "2026-10-21T04:10:00+00:00",
     "groups": [
       {
-        "kpiGroupId": "5eed0000-0000-0000-0003-000000000001",
-        "code": "KD",
+        "evaluationProfileItemId": "5eed0000-0000-0000-0004-000000000001",
         "name": "Kinh doanh",
         "weightPercent": 70.0,
         "score": 102.5,
@@ -121,9 +120,11 @@ Field definitions:
 
 - `evaluationStatus`: the evaluation's status, `null` when the employee has no evaluation for the period.
 - `totalScore`: the stored `performance_evaluation.total_score`; `null` when not scored.
-- `groups`: one entry per item of the **evaluation's own profile**, ordered by `displayOrder`; `weightPercent` is the
-  item's weight. `score` is the mean of the non-null KPI scores of the group, `null` when there is none.
-- `kpis`: the group's KPIs that have a calculated contribution, ordered by `code` (ordinal). `targetValue` and
+- `groups`: one entry per root group of the **evaluation's own profile tree**, ordered by `displayOrder`;
+  `evaluationProfileItemId` is the tree node, `weightPercent` its weight among the roots. `score` is the mean of the
+  scored parts of the group (KPI leaves and sub-groups) weighted by their weight among siblings and normalised over
+  the parts that have a score, `null` when there is none.
+- `kpis`: the KPIs of the group and its sub-groups that have a calculated contribution, ordered by `code` (ordinal). `targetValue` and
   `actualValue` are the snapshots stored by the calculation. `achievementPercentRaw`, `achievementPercentCapped` and
   `score` are the stored values. A KPI of a group that is not part of the profile is not listed.
 - An employee without an evaluation, or with a `DRAFT` one, has `groups: []` and `totalScore: null`.
@@ -181,7 +182,8 @@ Field definitions:
 - `employeeCount`: non-`TERMINATED` employees of the subtree. `evaluatedEmployeeCount`: those with a scored evaluation.
 - `averageScore`: mean of the scored evaluations' `totalScore` over the subtree; `null` when none is scored.
   `previousAverageScore` is the same figure for the previous period.
-- `groups`: KPI groups found in the scored employees' contributions, ordered by `code`. `averageScore` is the mean, over
+- `groups`: catalog KPI groups (`kpi_group`) found in the scored employees' contributions, ordered by `code`. The unit view
+  uses the catalog group, not the profile tree, because employees of different positions have different trees. `averageScore` is the mean, over
   the employees that have one, of each employee's group score (mean of that employee's non-null KPI scores in the
   group); `employeeCount` is the number of employees averaged. Weights are not returned because profiles differ per
   position.

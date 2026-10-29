@@ -46,7 +46,7 @@ The response is not paged. `departmentId` / `departmentName` of a row are the em
 | `evaluationStatus` | string | `NOT_STARTED` (no row) or `DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL` |
 | `proposedTier` | string or null | tier of the stored total |
 | `calculatedAt` | timestamp or null | last calculation |
-| `quantitativeScore` | number or null | weighted mean of the achievement scores of the profile groups that own active KPIs; null when the employee has no profile or no scorable KPI |
+| `quantitativeScore` | number or null | weighted mean of the achievement scores of the root groups of the profile tree that own active KPIs; null when the employee has no profile or no scorable KPI |
 | `qualitativeScore` | number or null | mean of the qualitative scores saved on the evaluation; null when none |
 | `hasOpenDispute` | bool | evaluation is `DISPUTED` or an appeal on it is `OPEN`/`UNDER_REVIEW` |
 | `pendingSubmissionCount` | number | result submissions of the employee in `SUBMITTED`/`UNDER_REVIEW`, submitted inside the period |
@@ -83,8 +83,9 @@ Query: `employeeId`, `periodId` (GUID, required). `data` (`EvaluationFormDto`):
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `employee`, `period`, `profile` | object | identity of the evaluated employee, the period and the evaluation profile |
-| `criteriaGroups[]` | array | one entry per profile group, in display order: `kpiGroupId`, `groupCode`, `groupName`, `weightPercent`, `groupScore`, `kpiItems[]`, `qualitativeScore`, `qualitativeNotes`, `isQualitative` |
-| `criteriaGroups[].isQualitative` | bool | the group owns no active KPI; its score is the qualitative score the reviewer enters (`kpiGroupId` is the key of the submit input) |
+| `criteriaGroups[]` | array | one entry per root group of the profile tree, in display order: `evaluationProfileItemId`, `groupCode`, `groupName`, `weightPercent`, `groupScore`, `kpiItems[]`, `qualitativeScore`, `qualitativeNotes`, `isQualitative`. `evaluationProfileItemId` is the tree node; `groupName` is its name; `groupCode` is the code of the catalog KPI group of its KPIs (empty when it has none); `kpiItems[]` lists the active KPI leaves of the group and of its sub-groups |
+| `criteriaGroups[].kpiItems[]` | array | `kpiDefinitionId`, `kpiCode`, `kpiName`, `unit`, `weightPercent`, `targetValue`, `actualValue`, `achievementPercent`, `componentScore`. `weightPercent` is the KPI's share of its root group in percent (its weight among its siblings times the weights of its parent groups), so the active KPIs of a group add up to 100; it comes from the configured profile weights and does not change when a KPI has no target. `targetValue` is null when the KPI has no assigned target |
+| `criteriaGroups[].isQualitative` | bool | the group owns no active KPI; its score is the qualitative score the reviewer enters (`evaluationProfileItemId` is the key of the submit input) |
 | `riskEvents[]` | array | risk events of the period that were not dismissed, with `penaltyPoints` |
 | `summary` | object | `weightedScore` (weighted group scores before the penalty), `totalRiskPenalty`, `totalScore` (stored total when saved, otherwise the calculated one), `proposedTier`, `businessScore`, `serviceQualityScore`, `operationsScore` |
 | `currentEvaluation` | object | stored state: `id`, `totalScore`, `status` (`DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL`, `DRAFT` when nothing is stored), `comment`, `coachingPlan`, `coachingRequired` |
@@ -97,7 +98,7 @@ Query: `employeeId`, `periodId` (GUID, required). `data` (`EvaluationFormDto`):
 ### `POST /evaluations/submit`
 
 Body: `employeeId`, `periodId`, `comment`, `coachingPlan`, `coachingRequired`, `qualitativeScores[]`
-(`kpiGroupId`, `score`, `notes`), `isDraft`. `data`: `evaluationId`, `employeeId`, `periodId`, `totalScore`,
+(`evaluationProfileItemId`, `score`, `notes`), `isDraft`. `data`: `evaluationId`, `employeeId`, `periodId`, `totalScore`,
 `status` (`DRAFT` when `isDraft`, otherwise `CALCULATED`), `proposedTier`, `calculatedAt`, `message`.
 
 The backend does not validate the length of the free text or the range of a qualitative score, so the frontend checks them before sending. Errors: 400 `MAKER_CANNOT_BE_CHECKER`; 403 `FORBIDDEN`; 404; 409 `CONFLICT` (period `LOCKED`/`CLOSED`); 409 `EVALUATION_DISPUTE_PENDING` (score under dispute).

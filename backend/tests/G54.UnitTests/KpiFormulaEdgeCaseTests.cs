@@ -204,7 +204,7 @@ public sealed class KpiFormulaEdgeCaseTests
         Guid.NewGuid(),
         "G",
         100m,
-        scores.Select(s => new KpiScoreEntry(Guid.NewGuid(), "K", new KpiScoreResult(s, s, s))).ToList());
+        scores.Select(s => new GroupScorePart(100m / scores.Length, s)).ToList());
 
     [Fact]
     public void CalculateGroup_AZeroScoreCountsAndPullsTheMeanDown()

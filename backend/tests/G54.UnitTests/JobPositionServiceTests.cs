@@ -196,7 +196,7 @@ public sealed class JobPositionServiceTests
         Assert.Equal(3, profileDto.Version);
         Assert.Equal("ACTIVE", profileDto.Status);
         Assert.Equal(new DateOnly(2026, 1, 1), profileDto.EffectiveFrom);
-        Assert.Equal(["KD", "CLDV"], profileDto.Items.Select(i => i.GroupCode)); // by display order
+        Assert.Equal(["Kinh doanh", quality.Name], profileDto.Items.Select(i => i.GroupName)); // by display order
         Assert.Equal(70.5m, profileDto.TotalWeightPercent); // decimals are not truncated
         Assert.Equal(20.5m, profileDto.Items[0].WeightPercent);
 
@@ -334,7 +334,7 @@ public sealed class JobPositionServiceTests
             {
                 Id = Guid.NewGuid(),
                 EvaluationProfileId = profile.Id,
-                KpiGroupId = group.Id,
+                Name = group.Name,
                 WeightPercent = weight,
                 DisplayOrder = order,
                 UpdatedAt = Now,

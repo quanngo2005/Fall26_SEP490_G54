@@ -21,7 +21,7 @@ class StubHeaderComponent {}
 class StubSidebarComponent {}
 
 const quantitativeGroup: EvaluationCriterionGroup = {
-  kpiGroupId: 'g-kd',
+  evaluationProfileItemId: 'g-kd',
   groupCode: 'KD',
   groupName: 'Business',
   weightPercent: 70,
@@ -35,6 +35,7 @@ const quantitativeGroup: EvaluationCriterionGroup = {
       kpiCode: 'HDV',
       kpiName: 'Deposits',
       unit: 'bn',
+      weightPercent: 60,
       targetValue: 225,
       actualValue: 100,
       achievementPercent: 44.44,
@@ -45,6 +46,7 @@ const quantitativeGroup: EvaluationCriterionGroup = {
       kpiCode: 'KH_MOI',
       kpiName: 'New customers',
       unit: 'clients',
+      weightPercent: 40,
       targetValue: null,
       actualValue: 0,
       achievementPercent: 0,
@@ -54,7 +56,7 @@ const quantitativeGroup: EvaluationCriterionGroup = {
 };
 
 const qualitativeGroup: EvaluationCriterionGroup = {
-  kpiGroupId: 'g-q',
+  evaluationProfileItemId: 'g-q',
   groupCode: 'SOFT',
   groupName: 'Attitude',
   weightPercent: 30,
@@ -239,6 +241,88 @@ describe('EvaluationFormComponent', () => {
     );
   });
 
+  it('places the weight column between the KPI item and the target', async () => {
+    await create();
+    const labels = text();
+    const header = Array.from(
+      fixture.nativeElement.querySelectorAll('thead th') as NodeListOf<HTMLElement>,
+    ).map((cell) => cell.textContent?.trim());
+    expect(header.slice(0, 3)).toEqual([labels.colKpiItem, labels.colWeight, labels.colTarget]);
+  });
+
+  it('shows the weight of each KPI as a percent of its group', async () => {
+    await create();
+    const rows = fixture.nativeElement.querySelectorAll('tr.kpi-row') as NodeListOf<HTMLElement>;
+    const cells = Array.from(rows)
+      .filter((row) => row.querySelector('.td-weight'))
+      .map((row) =>
+        (row.querySelector('.td-weight') as HTMLElement).textContent?.replace(/\s/g, ''),
+      );
+    expect(cells.length).toBe(2);
+    expect(cells[0]).toContain('60');
+    expect(cells[1]).toContain('40');
+    expect(cells.every((cell) => cell?.endsWith('%'))).toBeTrue();
+  });
+
+  it('spans the group, summary and penalty rows over every column', async () => {
+    await create();
+    const columns = fixture.nativeElement.querySelectorAll('thead th').length;
+    const width = (row: Element): number =>
+      Array.from(row.children).reduce(
+        (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
+        0,
+      );
+    const groupRows = fixture.nativeElement.querySelectorAll(
+      'tr.group-header-row',
+    ) as NodeListOf<HTMLElement>;
+    expect(groupRows.length).toBeGreaterThan(0);
+    groupRows.forEach((row) => expect(width(row)).toBe(columns));
+    const penalty = fixture.nativeElement.querySelector('tr.penalty-row') as HTMLElement;
+    const penaltyWidth = Array.from(penalty.children).reduce(
+      (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
+      0,
+    );
+    expect(penaltyWidth).toBe(columns);
+    const total = fixture.nativeElement.querySelector('tr.kpi-total-row') as HTMLElement;
+    const totalWidth = Array.from(total.children).reduce(
+      (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
+      0,
+    );
+    expect(totalWidth).toBe(columns);
+  });
+
+  it('shows the score of each group on its header row, in the score column', async () => {
+    await create();
+    const rows = Array.from(
+      fixture.nativeElement.querySelectorAll('tr.group-header-row') as NodeListOf<HTMLElement>,
+    );
+    const columns = fixture.nativeElement.querySelectorAll('thead th').length;
+    const scoreOf = (row: HTMLElement): string | undefined =>
+      row.querySelector('.group-score-cell')?.textContent?.replace(/\s/g, '');
+
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain('Business');
+    expect(scoreOf(rows[0])).toContain('50');
+    expect(scoreOf(rows[1])).toContain('100');
+    rows.forEach((row) => {
+      // The score cell is the last one, so it sits under the SCORE column.
+      expect(row.lastElementChild?.classList.contains('group-score-cell')).toBeTrue();
+      expect(row.lastElementChild?.classList.contains('text-center')).toBeTrue();
+      expect(columns).toBe(6);
+    });
+  });
+
+  it('does not repeat the score of a qualitative group on a second row', async () => {
+    await create();
+    const rows = Array.from(
+      fixture.nativeElement.querySelectorAll('tr.group-header-row') as NodeListOf<HTMLElement>,
+    );
+    const qualitative = rows.find((row) => row.textContent?.includes('Attitude'));
+    expect(qualitative?.querySelector('.group-score-cell')).not.toBeNull();
+    const note = (qualitative?.nextElementSibling as HTMLElement).textContent?.trim();
+    expect(note).toBe(text().qualitativeGroupRow);
+    expect((qualitative?.nextElementSibling as HTMLElement).querySelector('.td-score')).toBeNull();
+  });
   it('centres every table column except the KPI item', async () => {
     await create();
     const header = fixture.nativeElement.querySelectorAll('thead th') as NodeListOf<HTMLElement>;
@@ -346,7 +430,7 @@ describe('EvaluationFormComponent', () => {
         comment: 'New comment',
         coachingPlan: 'plan',
         coachingRequired: true,
-        qualitativeScores: [{ kpiGroupId: 'g-q', score: 90, notes: 'note' }],
+        qualitativeScores: [{ evaluationProfileItemId: 'g-q', score: 90, notes: 'note' }],
         isDraft: true,
       });
       expect(component.saveMessage()?.kind).toBe('success');
