@@ -1,0 +1,85 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  font:
+    500 14px Inter,
+    sans-serif;
+  padding: 10px 14px;
+}
+.tab:hover,
+.tab.is-active {
+  color: #002b49;
+}
+.tab.is-active {
+  border-bottom-color: #002b49;
+}
+.filters {
+  display: grid;
+  grid-template-columns: minmax(200px, 320px) minmax(200px, 320px);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.row-link {
+  cursor: pointer;
+}
+.code {
+  color: #0f172a;
+  font-weight: 600;
+}
+.num {
+  text-align: right;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.link {
+  color: #1d4ed8;
+  font-weight: 500;
+  text-decoration: none;
+}
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.progress-track {
+  width: 60px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: #0e7490;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+.pager-buttons {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}

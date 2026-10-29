@@ -144,6 +144,22 @@ export const routes: Routes = [
         (m) => m.KpiDefinitionsComponent,
       ),
   },
+  {
+    path: 'campaigns',
+    canActivate: [authGuard],
+    title: 'Chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/:id',
+    canActivate: [authGuard],
+    title: 'Chi tiết chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-detail.component').then(
+        (m) => m.CampaignDetailComponent,
+      ),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: '**', redirectTo: 'login' },
 ];

@@ -1,0 +1,169 @@
+<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+  <div
+    class="modal-dialog is-wide"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="campaign-batch-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="campaign-batch-title">
+        {{localization.campaign.batch.title}} – {{campaign().code}}
+      </h2>
+      <button
+        type="button"
+        class="modal-close"
+        (click)="close()"
+        [attr.aria-label]="localization.common.close"
+      >
+        ×
+      </button>
+    </div>
+    <form (ngSubmit)="submit()">
+      <div class="modal-body">
+        @if (error(); as message) {
+          <div class="notice is-error" role="alert">
+            <span>{{message}}</span>
+          </div>
+        }
+        <div class="form-grid">
+          <div class="field">
+            <label for="batch-work-type">{{localization.campaign.batch.workType}} *</label>
+            <select id="batch-work-type" class="select" name="workType" [(ngModel)]="workTypeId">
+              @for (workType of campaign().workTypes; track workType.workTypeId) {
+                <option [value]="workType.workTypeId">
+                  {{workType.code}} {{workType.name}}
+                </option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="batch-rule">{{localization.campaign.batch.rule}}</label>
+            <select id="batch-rule" class="select" name="rule" [(ngModel)]="allocationRule">
+              @for (rule of rules; track rule) {
+                <option [value]="rule">{{ruleLabel(rule)}}</option>
+              }
+            </select>
+          </div>
+          <div class="field full">
+            <label for="batch-pool">{{localization.campaign.batch.leadPool}} *</label>
+            <input
+              id="batch-pool"
+              class="input"
+              name="leadPool"
+              maxlength="500"
+              [(ngModel)]="leadPoolSource"
+              [placeholder]="localization.campaign.batch.leadPoolPlaceholder"
+            />
+          </div>
+          <div class="field">
+            <label for="batch-total">{{localization.campaign.batch.totalLeads}} *</label>
+            <input
+              id="batch-total"
+              type="number"
+              class="input"
+              name="total"
+              min="1"
+              [max]="maxWorks"
+              step="1"
+              [(ngModel)]="totalLeadsCount"
+            />
+            <p class="hint">{{localization.campaign.batch.totalLeadsHint}}</p>
+          </div>
+          <div class="field">
+            <label for="batch-deadline">{{localization.campaign.batch.deadline}}</label>
+            <input
+              id="batch-deadline"
+              type="date"
+              class="input"
+              name="deadline"
+              [min]="campaign().startDate"
+              [max]="campaign().endDate"
+              [(ngModel)]="plannedEndDate"
+            />
+          </div>
+          <div class="field full">
+            <label for="batch-target">
+              {{localization.campaign.batch.targetValue}}
+              @if (targetUnit) {
+                ({{targetUnit}})
+              }
+            </label>
+            <input
+              id="batch-target"
+              type="number"
+              class="input"
+              name="target"
+              min="0"
+              step="any"
+              [(ngModel)]="targetValue"
+            />
+            <p class="hint">{{localization.campaign.batch.targetHint}}</p>
+          </div>
+        </div>
+
+        <h3 class="section-title">{{localization.campaign.batch.participants}}</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>{{localization.campaign.detail.employee}}</th>
+                <th>{{localization.campaign.detail.position}}</th>
+                <th class="num">{{localization.campaign.detail.assigned}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (participant of campaign().participants; track participant.employeeId) {
+                <tr>
+                  <td>
+                    <input
+                      type="checkbox"
+                      [checked]="isSelected(participant.employeeId)"
+                      (change)="toggle(participant.employeeId)"
+                      [attr.aria-label]="participant.fullName"
+                    />
+                  </td>
+                  <td>{{participant.fullName}}</td>
+                  <td>{{participant.jobPositionTitle ?? localization.campaign.noValue}}</td>
+                  <td class="num">{{participant.assignedTasksCount}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="panel-footnote">{{localization.campaign.batch.hint}}</p>
+      </div>
+      <div class="modal-footer">
+        <span class="footer-hint">
+          {{localization.campaign.batch.willCreate}}
+          <strong>{{totalLeadsCount}} {{localization.campaign.batch.works}}</strong>
+          {{localization.campaign.batch.for}}
+          <strong>{{selectedCount()}} {{localization.campaign.batch.employees}}</strong>
+          @if (targetValue !== null) {
+            <br />
+            {{localization.campaign.batch.targetSummary}}
+            <strong>{{targetValue | number: '1.0-4'}} {{targetUnit}}</strong>
+            @if (averagePerPerson !== null) {
+              ({{localization.campaign.batch.perPerson}} {{averagePerPerson | number: '1.0-2'}}
+              {{targetUnit}}{{localization.campaign.batch.perPersonUnit}})
+            }
+          }
+        </span>
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="close()"
+        >
+          {{localization.common.cancel}}
+        </button>
+        <button type="submit" class="button button-primary" [disabled]="saving()">
+          {{saving() ? localization.campaign.batch.submitting : localization.campaign.batch.submit}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
