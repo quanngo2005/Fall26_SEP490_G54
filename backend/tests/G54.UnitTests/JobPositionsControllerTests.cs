@@ -38,6 +38,16 @@ public sealed class JobPositionsControllerTests
             return Task.FromResult(DetailToReturn);
         }
 
+        public List<JobPositionWorkTypeDto> WorkTypesToReturn { get; } = [];
+
+        public Task<IReadOnlyList<JobPositionWorkTypeDto>> GetWorkTypesAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            LastId = id;
+            return Task.FromResult<IReadOnlyList<JobPositionWorkTypeDto>>(WorkTypesToReturn);
+        }
+
         public AssignJobPositionWorkTypeDto? LastAssign { get; private set; }
 
         public Task<JobPositionDetailDto> AssignWorkTypeAsync(
@@ -133,6 +143,28 @@ public sealed class JobPositionsControllerTests
         var envelope = Assert.IsType<ApiResponse<JobPositionDetailDto>>(ok.Value);
         Assert.Equal(id, envelope.Data?.Id);
         Assert.Equal(id, stub.LastId);
+    }
+
+    [Fact]
+    public async Task GetWorkTypesReturnsTheListEnvelopeUnderTheOrganizationReadPermissionOnly()
+    {
+        var id = Guid.NewGuid();
+        var stub = new StubJobPositionService();
+        stub.WorkTypesToReturn.Add(new(Guid.NewGuid(), "MO_TK", "Mo tai khoan", null, 0, []));
+
+        var result = await CreateController(stub).GetWorkTypes(id, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<IReadOnlyList<JobPositionWorkTypeDto>>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Equal("trace-1", envelope.TraceId);
+        Assert.Equal("MO_TK", Assert.Single(envelope.Data!).Code);
+        Assert.Equal(id, stub.LastId);
+
+        var method = typeof(JobPositionsController).GetMethod(nameof(JobPositionsController.GetWorkTypes));
+        Assert.Equal("{id:guid}/work-types", method?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        // A read: no method-level permission, so the controller-level organization:read applies.
+        Assert.Empty(method!.GetCustomAttributes<HasPermissionAttribute>());
     }
 
     [Fact]

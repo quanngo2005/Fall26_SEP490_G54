@@ -5,7 +5,6 @@ using G54.BLL.Dtos.JobPosition;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace G54.BLL.Services;
 
@@ -151,6 +150,14 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
             workTypes);
     }
 
+    public async Task<IReadOnlyList<JobPositionWorkTypeDto>> GetWorkTypesAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsurePositionExistsAsync(id, cancellationToken);
+        return await LoadWorkTypesAsync(id, time.GetBusinessToday(), cancellationToken);
+    }
+
     public async Task<JobPositionDetailDto> AssignWorkTypeAsync(
         Guid id,
         AssignJobPositionWorkTypeDto request,
@@ -191,7 +198,7 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
         {
             throw new ConflictException(WorkTypeAlreadyAssignedMessage);
         }

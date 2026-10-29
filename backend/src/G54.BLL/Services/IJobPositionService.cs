@@ -13,6 +13,10 @@ public interface IJobPositionService
         Guid id,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<JobPositionWorkTypeDto>> GetWorkTypesAsync(
+        Guid id,
+        CancellationToken cancellationToken = default);
+
     Task<JobPositionDetailDto> AssignWorkTypeAsync(
         Guid id,
         AssignJobPositionWorkTypeDto request,

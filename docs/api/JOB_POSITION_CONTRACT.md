@@ -138,6 +138,36 @@ Field rules:
   ordered by KPI `code`; `kpiCount` equals `kpis.length`.
 - `employeeCount` follows the list rule.
 
+### `GET /job-positions/{id}/work-types`
+
+Lists the work types assigned to one job position. Same permission as the other reads (`organization:read`, scope `Dept` or
+higher); no `job-position:manage` is needed.
+
+- `id` is a GUID. `404 NOT_FOUND` for an unknown id and for the development bootstrap position.
+- `data`: an array of `JobPositionWorkType`, the same shape and rules as `workTypes` in `GET /job-positions/{id}`: only `ACTIVE`
+  work types, ordered by `code`, with `kpis` the mappings effective today (Vietnam business day) ordered by KPI `code`, and
+  `kpiCount` equal to `kpis.length`. A position with no work type returns an empty array (`200`), not `404`.
+- Not paged: a position has a small, bounded set of work types.
+
+```json
+{
+  "success": true,
+  "status": 200,
+  "data": [
+    {
+      "id": "5eed0000-0000-0000-000c-000000000001",
+      "code": "MO_TAI_KHOAN",
+      "name": "Mở tài khoản khách hàng",
+      "description": null,
+      "kpiCount": 1,
+      "kpis": [
+        { "id": "5eed0000-0000-0000-0005-000000000002", "code": "KH_MOI", "name": "Khách hàng mới", "isRequired": true, "unit": "Tài khoản" }
+      ]
+    }
+  ]
+}
+```
+
 ### `POST /job-positions/{id}/work-types`
 
 Assigns a work type to a job position. Requires `job-position:manage` with scope `Dept` or higher (in addition to the
@@ -174,5 +204,5 @@ higher (`BRANCH_MANAGER`, `DEPT_MANAGER` / `MANAGER`); `SYSTEM_ADMIN` receives `
 | 400 `VALIDATION_ERROR` | unknown `status` filter; `workTypeId` empty, unknown or not `ACTIVE` (assign) |
 | 401 `UNAUTHORIZED` | missing, expired or invalid access token |
 | 403 `FORBIDDEN` | the caller has none of the allowed roles |
-| 404 `NOT_FOUND` | unknown id (detail, assign, remove); work type not assigned to the position (remove) |
+| 404 `NOT_FOUND` | unknown id (detail, work types, assign, remove); work type not assigned to the position (remove) |
 | 409 `CONFLICT` | the work type is already assigned to the position (assign) |
