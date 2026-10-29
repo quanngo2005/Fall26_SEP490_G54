@@ -19,8 +19,6 @@ public partial class KpiGroup
 
     public KpiStatus Status { get; set; }
 
-    public virtual ICollection<EvaluationProfileItem> EvaluationProfileItems { get; set; } = new List<EvaluationProfileItem>();
-
     public virtual ICollection<KpiGroup> InverseParentKpiGroup { get; set; } = new List<KpiGroup>();
 
     public virtual ICollection<KpiDefinition> KpiDefinitions { get; set; } = new List<KpiDefinition>();

@@ -184,6 +184,16 @@ public enum PerformanceEvaluationStatus
     [PgName("FINAL")] Final,
 }
 
+public enum PerformanceEvaluationHistoryAction
+{
+    [PgName("CALCULATED")] Calculated,
+    [PgName("STATUS_CHANGED")] StatusChanged,
+    [PgName("APPROVED")] Approved,
+    [PgName("DISPUTED")] Disputed,
+    [PgName("DISPUTE_WITHDRAWN")] DisputeWithdrawn,
+    [PgName("APPEAL_RESOLVED")] AppealResolved,
+}
+
 public enum TargetAssignmentStatus
 {
     [PgName("DRAFT")] Draft,

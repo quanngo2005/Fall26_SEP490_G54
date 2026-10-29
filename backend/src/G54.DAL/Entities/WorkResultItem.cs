@@ -17,8 +17,6 @@ public partial class WorkResultItem
 
     public decimal? Denominator { get; set; }
 
-    public decimal TaskWeight { get; set; } = 1m;
-
     public DateTimeOffset UpdatedAt { get; set; }
 
     public virtual ActualProgress ActualProgress { get; set; } = null!;
