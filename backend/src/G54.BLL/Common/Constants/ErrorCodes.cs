@@ -65,6 +65,9 @@ public static class ErrorCodes
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
     public const string EvaluationDisputePending = "EVALUATION_DISPUTE_PENDING";           // BR-31
 
+    // Evaluation periods (docs/api/EVALUATION_PERIOD_CONTRACT.md)
+    public const string EvaluationPeriodInvalidState = "EVALUATION_PERIOD_INVALID_STATE";
+
     // Risk events (docs/api/RISK_EVENT_CONTRACT.md)
     public const string RiskEventInvalidState = "RISK_EVENT_INVALID_STATE";
     public const string RiskEventPeriodUnavailable = "RISK_EVENT_PERIOD_UNAVAILABLE";
@@ -118,6 +121,7 @@ public static class ErrorCodes
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
+        [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
         [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),

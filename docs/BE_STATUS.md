@@ -33,7 +33,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | Risk events (QA) | 🟡 | `POST /risk-events`, `GET /risk-events/{id}`, `/confirm` (writes a negative `performance_contribution`), `/dismiss`, `/resolve` (docs/api/RISK_EVENT_CONTRACT.md). Missing: list/search API, evidence upload, `risk_event:*` permission seed for a QA role |
 | QA 5% random sampling (BR-32) | ❌ | |
 | Appeals, 2-level (Dept → Branch), withdraw | ❌ | Entity `Appeal` only |
-| Period pre-close / Publish / Lock | 🟡 | `EvaluationPeriod` + finalize; pre-close carry-over missing |
+| Period pre-close / Publish / Lock | 🟡 | `POST /evaluation-periods` (create), `/{id}/close` (OPEN → IN_REVIEW + pre-close check), finalize = lock (docs/api/EVALUATION_PERIOD_CONTRACT.md). Missing: Publish, carry-over of In Review results; read API (`GET` list/detail), update/delete/reopen period; lock is only at `POST /evaluations/approvals/finalize` (no `/evaluation-periods/{id}/lock` alias). Note: close does not block on pending results / open appeals (only reports counts); open appeals block lock via BR-31 – confirm against requirements |
 | Audit log | 🟡 | `AuthAuditLog` for auth only; Admin audit log missing |
 
 ## 3. Conflicts to fix (built code vs 25/10 decisions)
