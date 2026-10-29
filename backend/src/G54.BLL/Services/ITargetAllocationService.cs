@@ -12,5 +12,5 @@ public interface ITargetAllocationService
 
     Task<TargetNodeDto> ConfirmAsync(Guid deptYearId, Guid userId, CancellationToken ct = default);
 
-    Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, CancellationToken ct = default);
+    Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, Guid userId, CancellationToken ct = default);
 }

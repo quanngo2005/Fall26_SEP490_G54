@@ -20,6 +20,15 @@ export const routes: Routes = [
       import('./features/role-permissions/role-list.component').then((m) => m.RoleListComponent),
   },
   {
+    path: 'user-accounts',
+    canActivate: [authGuard, adminGuard],
+    title: 'Tài khoản người dùng',
+    loadComponent: () =>
+      import('./features/user-accounts/user-account-list.component').then(
+        (m) => m.UserAccountListComponent,
+      ),
+  },
+  {
     path: 'role-permissions',
     canActivate: [authGuard, adminGuard],
     title: 'Thiết lập quyền',

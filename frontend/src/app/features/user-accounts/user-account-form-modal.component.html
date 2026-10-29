@@ -1,0 +1,220 @@
+@let t = localization.userAccounts;
+<div class="modal-backdrop" (click)="close()" role="presentation">
+  <div
+    class="modal-dialog account-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="account-form-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    @if (created(); as result) {
+      <div class="modal-header">
+        <h2 id="account-form-title">{{createdTitle()}}</h2>
+        <button
+          type="button"
+          class="modal-close"
+          (click)="closed.emit()"
+          [attr.aria-label]="t.close"
+        >
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="temp-password">{{t.tempPassword}}</label>
+          <div class="password-row">
+            <input
+              id="temp-password"
+              class="input mono"
+              readonly
+              [value]="result.temporaryPassword"
+            />
+            <button type="button" class="button button-secondary" (click)="copyPassword()">
+              {{copied() ? t.copied : t.copy}}
+            </button>
+          </div>
+        </div>
+        <div class="callout is-info" role="status">
+          <strong>{{t.tempNoticeTitle}}</strong>
+          <span>{{t.tempPasswordOnce}}</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button button-primary" (click)="closed.emit()">
+          {{t.done}}
+        </button>
+      </div>
+    } @else {
+      <div class="modal-header">
+        <div>
+          <h2 id="account-form-title">
+            {{isEdit() ? t.editTitle + ' · ' + account()!.username : t.createTitle}}
+          </h2>
+          @if (!isEdit()) {
+            <p class="modal-subtitle">SCR-ADM-01-M1 · {{t.createSubtitle}}</p>
+          } @else {
+            <p class="modal-subtitle">SCR-ADM-02-M1</p>
+          }
+        </div>
+        <button type="button" class="modal-close" (click)="close()" [attr.aria-label]="t.close">
+          ×
+        </button>
+      </div>
+      <form (ngSubmit)="submit()" novalidate>
+        <div class="modal-body">
+          @if (serverError() === 'accountExists' || serverError() === 'saveError') {
+            <div class="callout is-error" role="alert">
+              <span>
+                {{serverError() === 'accountExists' ? t.accountExists : t.saveError}}
+              </span>
+            </div>
+          }
+
+          @if (isEdit()) {
+            <div class="form-grid">
+              <div class="field">
+                <label for="locked-employee">{{t.employee}}</label>
+                <input
+                  id="locked-employee"
+                  class="input"
+                  readonly
+                  [value]="summaryLabel(account()!)"
+                />
+              </div>
+              <div class="field">
+                <label for="locked-username">{{t.username}}</label>
+                <input id="locked-username" class="input" readonly [value]="account()!.username" />
+              </div>
+            </div>
+          } @else {
+            <div class="field">
+              <label for="account-employee">{{t.employee}} <span class="req">*</span></label>
+              <select
+                id="account-employee"
+                class="select"
+                name="employee"
+                [class.is-invalid]="employeeError()"
+                [disabled]="loadingEmployees()"
+                [ngModel]="employeeId()"
+                (ngModelChange)="selectEmployee($event)"
+              >
+                <option value="">{{t.employeePlaceholder}}</option>
+                @for (item of eligible(); track item.id) {
+                  <option [value]="item.id">{{summaryLabel(item)}}</option>
+                }
+              </select>
+              @if (employeeError(); as message) {
+                <p class="field-error" role="alert">{{message}}</p>
+              } @else if (employeesFailed()) {
+                <p class="field-error" role="alert">
+                  {{t.loadError}}
+                  <button type="button" class="link-button" (click)="loadEmployees()">
+                    {{t.retry}}
+                  </button>
+                </p>
+              } @else if (!loadingEmployees() && !eligible().length) {
+                <p class="field-hint">{{t.noEligible}}</p>
+              } @else {
+                <p class="field-hint">{{t.employeeHint}}</p>
+              }
+            </div>
+
+            @if (employee(); as item) {
+              <dl class="employee-card">
+                <div>
+                  <dt>{{t.department}}</dt>
+                  <dd>{{item.departmentName}}</dd>
+                </div>
+                <div>
+                  <dt>{{t.position}}</dt>
+                  <dd>{{item.jobPositionTitle ?? '—'}}</dd>
+                </div>
+                <div>
+                  <dt>{{t.email}}</dt>
+                  <dd>{{item.email}}</dd>
+                </div>
+                <div>
+                  <dt>{{t.source}}</dt>
+                  <dd>{{item.source}}</dd>
+                </div>
+              </dl>
+            }
+          }
+
+          <div class="form-grid">
+            @if (!isEdit()) {
+              <div class="field">
+                <label for="account-username">{{t.username}} <span class="req">*</span></label>
+                <input
+                  id="account-username"
+                  class="input"
+                  name="username"
+                  maxlength="50"
+                  autocomplete="off"
+                  [class.is-invalid]="usernameError()"
+                  [ngModel]="username()"
+                  (ngModelChange)="setUsername($event)"
+                />
+                @if (usernameError(); as message) {
+                  <p class="field-error" role="alert">{{message}}</p>
+                }
+              </div>
+            }
+            <div class="field" [class.full]="isEdit()">
+              <label for="account-role">{{t.role}} <span class="req">*</span></label>
+              <select
+                id="account-role"
+                class="select"
+                name="role"
+                [class.is-invalid]="roleError()"
+                [ngModel]="roleId()"
+                (ngModelChange)="roleId.set($event)"
+              >
+                <option value="">{{t.rolePlaceholder}}</option>
+                @for (role of roles(); track role.id) {
+                  <option [value]="role.id">{{role.name}}</option>
+                }
+              </select>
+              @if (roleError(); as message) {
+                <p class="field-error" role="alert">{{message}}</p>
+              } @else if (!isEdit()) {
+                <p class="field-hint">{{t.roleHint}}</p>
+              }
+            </div>
+          </div>
+
+          @if (mismatch(); as message) {
+            <div class="callout is-warning" role="status">
+              <strong>{{t.mismatchTitle}}</strong>
+              <span>{{message}}</span>
+            </div>
+          }
+
+          @if (isEdit()) {
+            <p class="field-hint">{{t.importOnly}}</p>
+          } @else {
+            <label class="check-row">
+              <input type="checkbox" checked disabled />
+              <span>{{t.mustChange}}</span>
+            </label>
+            <div class="callout is-info">
+              <strong>{{t.tempNoticeTitle}}</strong>
+              <span>{{t.tempNotice}}</span>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <span class="footer-hint">{{t.escToClose}}</span>
+          <button type="button" class="button button-secondary" (click)="close()">
+            {{t.cancel}}
+          </button>
+          <button type="submit" class="button button-primary" [disabled]="saving()">
+            {{saving() ? t.saving : isEdit() ? t.submitSave : t.submitCreate}}
+          </button>
+        </div>
+      </form>
+    }
+  </div>
+</div>
