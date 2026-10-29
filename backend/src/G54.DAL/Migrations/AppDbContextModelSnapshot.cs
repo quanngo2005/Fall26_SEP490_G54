@@ -2215,6 +2215,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("work_status")
                         .HasColumnName("status");
 
+                    b.Property<decimal?>("TargetValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("target_value");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -2254,6 +2259,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
 
                             t.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
+
+                            t.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
                         });
                 });
 

@@ -29,6 +29,12 @@ public partial class Work : IBaseEntity
 
     public DateOnly? PlannedEndDate { get; set; }
 
+    /// <summary>
+    /// Expected result of this work in the unit of the work type's KPI (accounts, VND billion, ...); null when no
+    /// target was set. Set when work is generated in batch from a campaign.
+    /// </summary>
+    public decimal? TargetValue { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public WorkPriority Priority { get; set; }
