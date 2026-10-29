@@ -5,6 +5,7 @@ using G54.BLL.Dtos.JobPosition;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace G54.BLL.Services;
 
@@ -16,6 +17,10 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
 {
     /// <summary>Position used only to bootstrap a local development admin; it is not a business position.</summary>
     internal const string DevelopmentBootstrapCode = "DEV_ADMIN";
+
+    private const string PositionResourceName = "Vị trí công việc";
+    private const string WorkTypeAlreadyAssignedMessage = "Loại công việc đã được gán cho vị trí công việc này.";
+    private const string WorkTypeNotAssignedMessage = "Loại công việc chưa được gán cho vị trí công việc này.";
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Performance",
@@ -145,6 +150,94 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
             profile,
             workTypes);
     }
+
+    public async Task<JobPositionDetailDto> AssignWorkTypeAsync(
+        Guid id,
+        AssignJobPositionWorkTypeDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.WorkTypeId == Guid.Empty)
+        {
+            throw new ValidationException("Loại công việc là bắt buộc.");
+        }
+
+        await EnsurePositionExistsAsync(id, cancellationToken);
+
+        var workTypeIsActive = await dbContext.WorkTypes
+            .AsNoTracking()
+            .AnyAsync(workType => workType.Id == request.WorkTypeId && workType.Status == RecordStatus.Active, cancellationToken);
+        if (!workTypeIsActive)
+        {
+            throw new ValidationException("Loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
+        }
+
+        var alreadyLinked = await dbContext.JobPositionWorkTypes
+            .AsNoTracking()
+            .AnyAsync(link => link.JobPositionId == id && link.WorkTypeId == request.WorkTypeId, cancellationToken);
+        if (alreadyLinked)
+        {
+            throw new ConflictException(WorkTypeAlreadyAssignedMessage);
+        }
+
+        dbContext.JobPositionWorkTypes.Add(new JobPositionWorkType
+        {
+            Id = Guid.NewGuid(),
+            JobPositionId = id,
+            WorkTypeId = request.WorkTypeId,
+            UpdatedAt = time.GetUtcNow(),
+        });
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new ConflictException(WorkTypeAlreadyAssignedMessage);
+        }
+
+        return await GetRequiredJobPositionAsync(id, cancellationToken);
+    }
+
+    public async Task<JobPositionDetailDto> RemoveWorkTypeAsync(
+        Guid id,
+        Guid workTypeId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsurePositionExistsAsync(id, cancellationToken);
+
+        var link = await dbContext.JobPositionWorkTypes
+            .SingleOrDefaultAsync(candidate => candidate.JobPositionId == id && candidate.WorkTypeId == workTypeId, cancellationToken)
+            ?? throw new NotFoundException(WorkTypeNotAssignedMessage);
+
+        dbContext.JobPositionWorkTypes.Remove(link);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The link was removed by another request between the read and the delete.
+            throw new NotFoundException(WorkTypeNotAssignedMessage);
+        }
+
+        return await GetRequiredJobPositionAsync(id, cancellationToken);
+    }
+
+    private async Task EnsurePositionExistsAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var exists = await dbContext.JobPositions
+            .AsNoTracking()
+            .AnyAsync(position => position.Id == id && position.Code != DevelopmentBootstrapCode, cancellationToken);
+        if (!exists)
+        {
+            throw new NotFoundException(PositionResourceName, id);
+        }
+    }
+
+    private async Task<JobPositionDetailDto> GetRequiredJobPositionAsync(Guid id, CancellationToken cancellationToken) =>
+        await GetJobPositionByIdAsync(id, cancellationToken) ?? throw new NotFoundException(PositionResourceName, id);
 
     private async Task<JobPositionEvaluationProfileDto?> LoadActiveProfileAsync(
         Guid positionId,

@@ -4,13 +4,13 @@ Status: implemented. Typed client: `frontend/src/app/core/job-position.service.t
 Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`; paging uses `PagedResult<T>`
 (`items`, `totalCount`, `page`, `pageSize`) as defined in `API_CONVENTIONS.md`.
 
-The endpoints are read-only. Every figure and label is read from the database; nothing is computed from constants,
+The `GET` endpoints are read-only. Every figure and label is read from the database; nothing is computed from constants,
 renamed or synthesised. A value with no data is `null` (or an empty list / `0` for counts) and the client renders `null`
 as N/A.
 
 ## Authorization
 
-Both endpoints require the permission `organization:read` with scope `Dept` or higher
+All endpoints require the permission `organization:read` with scope `Dept` or higher
 (`[HasPermission("organization", "read", "Dept")]`; permission code `ORGANIZATION_READ`). It is read from
 `role_permission`, so access is configuration, not code. The migration `SeedOrganizationReadAccess` creates the permission,
 the roles `SYSTEM_ADMIN`, `BRANCH_MANAGER` and `DEPT_MANAGER`, and grants it to exactly:
@@ -138,11 +138,41 @@ Field rules:
   ordered by KPI `code`; `kpiCount` equals `kpis.length`.
 - `employeeCount` follows the list rule.
 
+### `POST /job-positions/{id}/work-types`
+
+Assigns a work type to a job position. Requires `job-position:manage` with scope `Dept` or higher (in addition to the
+controller-level `organization:read`). Migration `SeedJobPositionManageAccess` grants it to managers only: `BRANCH_MANAGER`
+(`Branch`) and `DEPT_MANAGER` / `MANAGER` (`Dept`). `SYSTEM_ADMIN` administers the system, not job positions, so it is not granted
+and receives `403 FORBIDDEN`. Job positions are global reference data, so the scope is a minimum level, not a data filter.
+
+Body:
+
+```json
+{ "workTypeId": "5eed0000-0000-0000-000c-000000000001" }
+```
+
+- `id` is a GUID; the development bootstrap position is treated as unknown.
+- `workTypeId` must be a GUID of an existing work type with status `ACTIVE`.
+- Success is `201 Created` with a `Location` header pointing to `GET /job-positions/{id}`; `data` is the updated
+  `JobPositionDetail` (same shape as the detail endpoint).
+- A work type is linked to a position at most once (unique `job_position_id` + `work_type_id`); assigning it again is `409`.
+
+### `DELETE /job-positions/{id}/work-types/{workTypeId}`
+
+Removes a work type from a job position. Same permission as the assign endpoint: `job-position:manage` with scope `Dept` or
+higher (`BRANCH_MANAGER`, `DEPT_MANAGER` / `MANAGER`); `SYSTEM_ADMIN` receives `403 FORBIDDEN`.
+
+- `id` and `workTypeId` are GUIDs. The development bootstrap position is treated as unknown.
+- Only the link between the position and the work type is deleted; the work type itself and its link to other positions are untouched.
+- A link to a work type that is no longer `ACTIVE` can still be removed.
+- Success is `200 OK` with `data` = the updated `JobPositionDetail` (same shape as the detail endpoint).
+- Removing a work type that is not assigned to the position is `404 NOT_FOUND` (it is not silently reported as success).
 ## Errors
 
 | Status | When |
 | --- | --- |
-| 400 `VALIDATION_ERROR` | unknown `status` filter |
+| 400 `VALIDATION_ERROR` | unknown `status` filter; `workTypeId` empty, unknown or not `ACTIVE` (assign) |
 | 401 `UNAUTHORIZED` | missing, expired or invalid access token |
 | 403 `FORBIDDEN` | the caller has none of the allowed roles |
-| 404 `NOT_FOUND` | unknown id (detail) |
+| 404 `NOT_FOUND` | unknown id (detail, assign, remove); work type not assigned to the position (remove) |
+| 409 `CONFLICT` | the work type is already assigned to the position (assign) |

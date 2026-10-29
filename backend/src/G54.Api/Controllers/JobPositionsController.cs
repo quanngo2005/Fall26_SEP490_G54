@@ -43,4 +43,37 @@ public sealed class JobPositionsController(IJobPositionService service) : Contro
             ?? throw new NotFoundException("Vị trí công việc", id);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("{id:guid}/work-types")]
+    [HasPermission("job-position", "manage", "Dept")]
+    [ProducesResponseType<ApiResponse<JobPositionDetailDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<JobPositionDetailDto>>> AssignWorkType(
+        Guid id,
+        [FromBody] AssignJobPositionWorkTypeDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AssignWorkTypeAsync(id, dto, cancellationToken);
+        var response = ApiResponse.Ok(result, "Gán loại công việc cho vị trí công việc thành công.", HttpContext.TraceIdentifier);
+        return CreatedAtAction(nameof(GetJobPosition), new { id }, response);
+    }
+
+    [HttpDelete("{id:guid}/work-types/{workTypeId:guid}")]
+    [HasPermission("job-position", "manage", "Dept")]
+    [ProducesResponseType<ApiResponse<JobPositionDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<JobPositionDetailDto>>> RemoveWorkType(
+        Guid id,
+        Guid workTypeId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.RemoveWorkTypeAsync(id, workTypeId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Gỡ loại công việc khỏi vị trí công việc thành công.", HttpContext.TraceIdentifier));
+    }
 }

@@ -170,6 +170,21 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [PostgresFact]
+    public async Task OnlyTheManagersCanManageJobPositionsAndTheSystemAdministratorCannot()
+    {
+        var holders = await QueryAsync("""
+            SELECT r.code || '=' || rp.scope
+            FROM role_permission rp
+            JOIN role r ON r.id = rp.role_id
+            JOIN permission p ON p.id = rp.permission_id
+            WHERE p.code = 'JOB_POSITION_MANAGE'
+            ORDER BY r.code
+            """);
+
+        Assert.Equal(["BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept", "MANAGER=Dept"], holders);
+    }
+
+    [PostgresFact]
     public async Task SeedingAgainIsIdempotentAndRemovesRolesThatAnEarlierSeedAddedByMistake()
     {
         // Simulate a database seeded by the previous layout: NV002 also holds MANAGER and VERIFIER.
@@ -230,7 +245,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
 
         await migrator.MigrateAsync("20261027120000_SeedOrganizationReadAccess");
         var afterRollback = await GrantsAsync("DEPT_MANAGER");
-        await migrator.MigrateAsync("20261027140000_GrantWorkAccessToOrganizationRoles");
+        await migrator.MigrateAsync();
         var reapplied = await GrantsAsync("DEPT_MANAGER");
 
         Assert.Equal(["ORGANIZATION_READ=Dept"], afterRollback);
@@ -243,8 +258,10 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^1]);
-        Assert.Equal("20261027120000_SeedOrganizationReadAccess", migrations[^2]);
+        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^1]);
+        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^2]);
+        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^3]);
+        Assert.Equal("20261027120000_SeedOrganizationReadAccess", migrations[^4]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

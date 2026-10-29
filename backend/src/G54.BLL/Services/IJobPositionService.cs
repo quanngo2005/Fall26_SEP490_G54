@@ -12,5 +12,15 @@ public interface IJobPositionService
     Task<JobPositionDetailDto?> GetJobPositionByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    Task<JobPositionDetailDto> AssignWorkTypeAsync(
+        Guid id,
+        AssignJobPositionWorkTypeDto request,
+        CancellationToken cancellationToken = default);
+
+    Task<JobPositionDetailDto> RemoveWorkTypeAsync(
+        Guid id,
+        Guid workTypeId,
+        CancellationToken cancellationToken = default);
 }
 
