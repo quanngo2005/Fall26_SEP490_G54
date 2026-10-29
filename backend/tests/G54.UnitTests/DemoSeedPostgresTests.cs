@@ -259,9 +259,10 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
         Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^1]);
-        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^2]);
-        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^3]);
-        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^4]);
+        Assert.Equal("20261028155338_AddWorkTargetValue", migrations[^2]);
+        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^3]);
+        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^4]);
+        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^5]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>
