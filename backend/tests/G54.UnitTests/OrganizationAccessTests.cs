@@ -359,6 +359,9 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
                 ? new JobPositionDetailDto(PositionId, "TELLER", "Teller", null, 0, DateTimeOffset.UnixEpoch, "ACTIVE", null, [])
                 : null);
 
+        public Task<IReadOnlyList<JobPositionWorkTypeDto>> GetWorkTypesAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<JobPositionDetailDto> AssignWorkTypeAsync(
             Guid id,
             AssignJobPositionWorkTypeDto request,

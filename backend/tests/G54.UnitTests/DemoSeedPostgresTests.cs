@@ -253,7 +253,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [Fact]
-    public void TheGrantMigrationIsTheLatestOne()
+    public void TheLatestMigrationsAreInOrder()
     {
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();

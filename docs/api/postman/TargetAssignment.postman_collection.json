@@ -1,0 +1,585 @@
+{
+  "info": {
+    "_postman_id": "target-assignment-api",
+    "name": "Target Assignment API",
+    "description": "Branch / department / employee target allocation. Contract: docs/api/TARGET_ASSIGNMENT_CONTRACT.md. Run on a DB just seeded (request 3 only succeeds once). Variables (passwords) left blank - user fills in from DatabaseSeeder or test data.\nadminEmail is NV001 (MANAGER of the branch, owns the branch target). Run against a freshly seeded DB: the first period split succeeds only once.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth / Login branch manager (NV001, owns branch targets)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response has token', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData).to.have.property('accessToken');",
+              "  pm.collectionVariables.set('token', jsonData.accessToken);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET list by KPI+year",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments?kpiDefinitionId={{kpiKhMoi}}&evaluationPeriodId={{periodYear}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments"
+          ],
+          "query": [
+            {
+              "key": "kpiDefinitionId",
+              "value": "{{kpiKhMoi}}"
+            },
+            {
+              "key": "evaluationPeriodId",
+              "value": "{{periodYear}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response has yearTargetId', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData.data).to.be.an('array');",
+              "  var found = jsonData.data.find(t => t.id === pm.collectionVariables.get('yearTargetId'));",
+              "  pm.expect(found).to.exist;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST period-allocations (480 → 120×4)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"evaluationPeriodId\": \"{{periodQ1}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ2}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ3}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ4}}\", \"targetValue\": 120 }\n  ],\n  \"changeReason\": \"Split year into quarters\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{yearTargetId}}/period-allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{yearTargetId}}",
+            "period-allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Response has 4 allocations with PERIOD split', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData.data).to.be.an('array').with.lengthOf(4);",
+              "  pm.expect(jsonData.data.every(t => t.splitDimension === 'PERIOD')).to.be.true;",
+              "  pm.expect(jsonData.data.every(t => t.departmentId === pm.collectionVariables.get('branchId'))).to.be.true;",
+              "  pm.collectionVariables.set('quarterQ1Id', jsonData.data[0].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST period-allocations again (should fail - unique constraint)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"evaluationPeriodId\": \"{{periodQ1}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ2}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ3}}\", \"targetValue\": 120 },\n    { \"evaluationPeriodId\": \"{{periodQ4}}\", \"targetValue\": 120 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{yearTargetId}}/period-allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{yearTargetId}}",
+            "period-allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 500 (DB rule - unique ACTIVE constraint)', function () {",
+              "  pm.response.to.have.status(500);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST period-allocations with unknown period (404)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"evaluationPeriodId\": \"00000000-0000-0000-0000-000000000000\", \"targetValue\": 100 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{yearTargetId}}/period-allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{yearTargetId}}",
+            "period-allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 404 (invalid period)', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST period-allocations with duplicate period",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"evaluationPeriodId\": \"{{periodQ1}}\", \"targetValue\": 100 },\n    { \"evaluationPeriodId\": \"{{periodQ1}}\", \"targetValue\": 100 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{yearTargetId}}/period-allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{yearTargetId}}",
+            "period-allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 400 (duplicate period)', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST allocations (ORG split) on Q1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"departmentId\": \"{{deptKd}}\", \"targetValue\": 100 },\n    { \"departmentId\": \"{{deptGd}}\", \"targetValue\": 20 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{quarterQ1Id}}/allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{quarterQ1Id}}",
+            "allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "pm.test('Response has 2 ORG allocations', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData.data).to.be.an('array').with.lengthOf(2);",
+              "  pm.expect(jsonData.data.every(t => t.splitDimension === 'ORG')).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET list filtered by period",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments?evaluationPeriodId={{periodQ1}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments"
+          ],
+          "query": [
+            {
+              "key": "evaluationPeriodId",
+              "value": "{{periodQ1}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response contains Q1 target + 2 children', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData.data).to.be.an('array').that.has.lengthOf.at.least(3);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login manager",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Response has token', function () {",
+              "  var jsonData = pm.response.json();",
+              "  pm.expect(jsonData).to.have.property('accessToken');",
+              "  pm.collectionVariables.set('token', jsonData.accessToken);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST period-allocations as non-owning manager (should fail)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allocations\": [\n    { \"evaluationPeriodId\": \"{{periodQ1}}\", \"targetValue\": 100 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments/{{yearTargetId}}/period-allocations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments",
+            "{{yearTargetId}}",
+            "period-allocations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 403 (Forbidden)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET without token",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/target-assignments",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "target-assignments"
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status is 401 (Unauthorized)', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "an.nguyen@progest.local",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "managerEmail",
+      "value": "binh.tran@progest.local",
+      "type": "string"
+    },
+    {
+      "key": "managerPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "yearTargetId",
+      "value": "5eed0000-0000-0000-0015-000000000020",
+      "type": "string"
+    },
+    {
+      "key": "kpiKhMoi",
+      "value": "5eed0000-0000-0000-0005-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "periodYear",
+      "value": "5eed0000-0000-0000-000f-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "periodQ1",
+      "value": "5eed0000-0000-0000-000f-000000000008",
+      "type": "string"
+    },
+    {
+      "key": "periodQ2",
+      "value": "5eed0000-0000-0000-000f-000000000009",
+      "type": "string"
+    },
+    {
+      "key": "periodQ3",
+      "value": "5eed0000-0000-0000-000f-00000000000a",
+      "type": "string"
+    },
+    {
+      "key": "periodQ4",
+      "value": "5eed0000-0000-0000-000f-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "branchId",
+      "value": "5eed0000-0000-0000-0001-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "deptKd",
+      "value": "5eed0000-0000-0000-0001-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "deptGd",
+      "value": "5eed0000-0000-0000-0001-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "quarterQ1Id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
+}

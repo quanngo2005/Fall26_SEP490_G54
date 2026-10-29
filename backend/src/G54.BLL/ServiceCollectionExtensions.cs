@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IRiskEventService, RiskEventService>();
+        services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();

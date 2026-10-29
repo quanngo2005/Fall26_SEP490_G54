@@ -1611,6 +1611,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_work_estimated_hours", "estimated_hours IS NULL OR estimated_hours >= 0");
                 table.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
                 table.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
+                table.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
             });
 
             entity.HasIndex(e => e.AssigneeEmployeeId, "ix_work_assignee");
@@ -1641,6 +1642,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ParentWorkId).HasColumnName("parent_work_id");
             entity.Property(e => e.PlannedEndDate).HasColumnName("planned_end_date");
             entity.Property(e => e.PlannedStartDate).HasColumnName("planned_start_date");
+            entity.Property(e => e.TargetValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("target_value");
             entity.Property(e => e.Title)
                 .HasMaxLength(255)
                 .HasColumnName("title");

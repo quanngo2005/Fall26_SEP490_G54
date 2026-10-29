@@ -19,6 +19,19 @@ namespace G54.Api.Controllers;
 public sealed class CampaignController(ICampaignService campaignService) : ControllerBase
 {
     /// <summary>
+    /// Lists the business objectives a campaign plan can be linked to.
+    /// </summary>
+    [HttpGet("/business-objectives")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<CampaignObjectiveDto>>>(StatusCodes.Status200OK)]
+    [HasPermission("campaign", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<CampaignObjectiveDto>>>> GetObjectives(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await campaignService.GetObjectivesAsync(cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
     /// Gets a paginated list of business campaigns with overview metrics and filtering.
     /// </summary>
     [HttpGet]

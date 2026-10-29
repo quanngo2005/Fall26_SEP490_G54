@@ -57,6 +57,63 @@ public sealed class JobPositionWorkTypeTests
     }
 
     [Fact]
+    public async Task GetWorkTypesListsOnlyThisPositionsActiveWorkTypesOrderedByCodeWithTheirCurrentKpis()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER");
+        var sales = world.AddPosition("SALES");
+        var last = world.AddWorkType("C_LAST", RecordStatus.Active);
+        var first = world.AddWorkType("A_FIRST", RecordStatus.Active);
+        var retired = world.AddWorkType("B_RETIRED", RecordStatus.Inactive);
+        var salesOnly = world.AddWorkType("D_SALES", RecordStatus.Active);
+        world.Link(teller, last);
+        world.Link(teller, first);
+        world.Link(teller, retired);
+        world.Link(sales, salesOnly);
+        world.MapKpi(first, world.AddKpi("KH_MOI", "Khach hang moi"), true, Today.AddDays(-1), null);
+        await world.SaveAsync();
+
+        var workTypes = await world.Service().GetWorkTypesAsync(teller.Id);
+
+        Assert.Equal(["A_FIRST", "C_LAST"], workTypes.Select(w => w.Code));
+        Assert.Equal(1, workTypes[0].KpiCount);
+        Assert.Equal("KH_MOI", Assert.Single(workTypes[0].Kpis).Code);
+        Assert.Empty(workTypes[1].Kpis);
+    }
+
+    [Fact]
+    public async Task GetWorkTypesReturnsAnEmptyListForAPositionWithoutLinksAndMatchesTheDetail()
+    {
+        var world = new World();
+        var bare = world.AddPosition("BARE");
+        var teller = world.AddPosition("TELLER");
+        world.Link(teller, world.AddWorkType("MO_TK", RecordStatus.Active));
+        await world.SaveAsync();
+        var service = world.Service();
+
+        Assert.Empty(await service.GetWorkTypesAsync(bare.Id));
+        var list = await service.GetWorkTypesAsync(teller.Id);
+        var detail = await service.GetJobPositionByIdAsync(teller.Id);
+        Assert.Equal(detail!.WorkTypes.Select(w => w.Code), list.Select(w => w.Code));
+    }
+
+    [Fact]
+    public async Task GetWorkTypesRejectsAnUnknownPositionAndTheDevelopmentBootstrapPosition()
+    {
+        var world = new World();
+        var bootstrap = world.AddPosition("DEV_ADMIN");
+        world.Link(bootstrap, world.AddWorkType("MO_TK", RecordStatus.Active));
+        await world.SaveAsync();
+        var service = world.Service();
+
+        var unknown = await Assert.ThrowsAsync<NotFoundException>(() => service.GetWorkTypesAsync(Guid.NewGuid()));
+        var bootstrapError = await Assert.ThrowsAsync<NotFoundException>(() => service.GetWorkTypesAsync(bootstrap.Id));
+
+        Assert.Equal(404, unknown.StatusCode);
+        Assert.Equal(404, bootstrapError.StatusCode);
+    }
+
+    [Fact]
     public async Task AssignWorkTypeLinksItAndReturnsTheUpdatedDetail()
     {
         var world = new World();

@@ -1,0 +1,180 @@
+<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+  <div
+    class="modal-dialog is-wide"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="campaign-create-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="campaign-create-title">{{localization.campaign.form.title}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        (click)="close()"
+        [attr.aria-label]="localization.common.close"
+      >
+        ×
+      </button>
+    </div>
+    <form (ngSubmit)="submit()">
+      <div class="modal-body">
+        @if (error(); as message) {
+          <div class="notice is-error" role="alert">
+            <span>{{message}}</span>
+          </div>
+        }
+        <h3 class="section-title">{{localization.campaign.form.sectionGeneral}}</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label for="campaign-code">{{localization.campaign.form.code}} *</label>
+            <input
+              id="campaign-code"
+              class="input mono"
+              name="code"
+              maxlength="50"
+              [(ngModel)]="code"
+            />
+          </div>
+          <div class="field">
+            <label for="campaign-objective">{{localization.campaign.form.objective}} *</label>
+            <select
+              id="campaign-objective"
+              class="select"
+              name="objective"
+              [(ngModel)]="objectiveId"
+            >
+              <option value="">{{localization.campaign.form.selectObjective}}</option>
+              @for (objective of objectives(); track objective.id) {
+                <option [value]="objective.id">{{objective.code}} · {{objective.name}}</option>
+              }
+            </select>
+          </div>
+          <div class="field full">
+            <label for="campaign-name">{{localization.campaign.form.name}} *</label>
+            <input
+              id="campaign-name"
+              class="input"
+              name="name"
+              maxlength="200"
+              [(ngModel)]="name"
+            />
+          </div>
+          <div class="field">
+            <label for="campaign-start">{{localization.campaign.form.from}} *</label>
+            <input
+              id="campaign-start"
+              type="date"
+              class="input"
+              name="startDate"
+              [(ngModel)]="startDate"
+            />
+          </div>
+          <div class="field">
+            <label for="campaign-end">{{localization.campaign.form.to}} *</label>
+            <input
+              id="campaign-end"
+              type="date"
+              class="input"
+              name="endDate"
+              [min]="startDate"
+              [(ngModel)]="endDate"
+            />
+          </div>
+          <div class="field full">
+            <label for="campaign-description">{{localization.campaign.form.description}}</label>
+            <textarea
+              id="campaign-description"
+              class="textarea"
+              name="description"
+              maxlength="1000"
+              [(ngModel)]="description"
+            ></textarea>
+          </div>
+        </div>
+
+        <h3 class="section-title">{{localization.campaign.form.sectionScope}}</h3>
+        <div class="scope-grid">
+          <fieldset class="field scope-box">
+            <legend>{{localization.campaign.form.workTypes}} *</legend>
+            @for (workType of workTypes(); track workType.id) {
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  [checked]="workTypeIds().includes(workType.id)"
+                  (change)="toggleWorkType(workType.id)"
+                />
+                <span class="mono">{{workType.code}}</span>
+                <span>{{workType.name}}</span>
+              </label>
+            }
+          </fieldset>
+          <div class="field scope-box">
+            <label for="campaign-participants"
+              >{{localization.campaign.form.participants}} *</label
+            >
+            <input
+              id="campaign-participants"
+              type="search"
+              class="input"
+              name="keyword"
+              autocomplete="off"
+              [(ngModel)]="keyword"
+              (ngModelChange)="onKeyword($event)"
+              [placeholder]="localization.campaign.form.searchParticipants"
+            />
+            @if (keyword.trim() && matches().length === 0) {
+              <p class="hint">{{localization.campaign.form.noResults}}</p>
+            }
+            @if (matches().length) {
+              <ul class="pick-list">
+                @for (employee of matches(); track employee.id) {
+                  <li>
+                    <button
+                      type="button"
+                      [disabled]="isSelected(employee.id)"
+                      (click)="addParticipant(employee)"
+                    >
+                      <strong>{{employee.fullName}}</strong>
+                      <span>{{employee.employeeCode}} · {{employee.departmentName}}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+            <ul class="chips">
+              @for (employee of participants(); track employee.id) {
+                <li class="chip">
+                  {{employee.fullName}}
+                  <button
+                    type="button"
+                    (click)="removeParticipant(employee.id)"
+                    [attr.aria-label]="localization.common.close + ' ' + employee.fullName"
+                  >
+                    ×
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="footer-hint">{{localization.campaign.form.submitHint}}</span>
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="close()"
+        >
+          {{localization.common.cancel}}
+        </button>
+        <button type="submit" class="button button-primary" [disabled]="saving()">
+          {{saving() ? localization.campaign.form.submitting : localization.campaign.form.submit}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

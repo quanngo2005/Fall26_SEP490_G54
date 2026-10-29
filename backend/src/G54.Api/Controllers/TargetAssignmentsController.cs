@@ -24,7 +24,7 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, Created(result, "Giao target cho chi nhánh thành công."));
     }
 
-    /// <summary>Splits an ACTIVE target across the level directly below its owner.</summary>
+    /// <summary>Splits an ACTIVE target across the level directly below its owner (by organization).</summary>
     [HttpPost("{id:guid}/allocations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
@@ -35,6 +35,29 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     {
         var result = await service.AllocateAsync(User.GetRequiredUserId(), id, dto);
         return CreatedAtAction(nameof(GetById), new { id }, Created(result, "Phân bổ target thành công."));
+    }
+
+    /// <summary>Splits an ACTIVE target across evaluation periods (by period).</summary>
+    [HttpPost("{id:guid}/period-allocations")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> AllocateByPeriod(
+        Guid id,
+        [FromBody] AllocateTargetByPeriodDto dto)
+    {
+        var result = await service.AllocateByPeriodAsync(User.GetRequiredUserId(), id, dto);
+        return CreatedAtAction(nameof(GetById), new { id }, Created(result, "Phân bổ target theo kỳ thành công."));
+    }
+
+    /// <summary>Lists target assignments with optional filters.</summary>
+    [HttpGet]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> List([FromQuery] TargetAssignmentQueryDto query)
+    {
+        var result = await service.ListAsync(User.GetRequiredUserId(), query);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:guid}")]

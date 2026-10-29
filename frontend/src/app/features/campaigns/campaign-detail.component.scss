@@ -1,0 +1,150 @@
+.breadcrumb a {
+  color: inherit;
+  text-decoration: none;
+}
+.title-line {
+  gap: 12px;
+}
+.back {
+  min-width: 40px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.stat-label {
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+.stat-value {
+  margin-bottom: 8px;
+  color: #0f172a;
+  font:
+    700 28px Manrope,
+    sans-serif;
+}
+.stat-value small {
+  color: #64748b;
+  font:
+    400 13px Inter,
+    sans-serif;
+}
+.stat-value.is-overdue small {
+  color: #be123c;
+}
+.stat-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+.progress-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: #0e7490;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  font:
+    500 14px Inter,
+    sans-serif;
+  padding: 10px 14px;
+}
+.tab:hover,
+.tab.is-active {
+  color: #002b49;
+}
+.tab.is-active {
+  border-bottom-color: #002b49;
+}
+.overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+dt {
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+dd {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 14px;
+}
+h3 {
+  margin: 20px 0 8px;
+  color: #475569;
+  font:
+    600 12px Inter,
+    sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.metrics {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.metrics li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+  padding: 6px 0;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  padding: 4px 12px;
+}
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+.num {
+  text-align: right;
+}
+@media (max-width: 960px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overview {
+    grid-template-columns: 1fr;
+  }
+}

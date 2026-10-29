@@ -20,6 +20,15 @@ export const routes: Routes = [
       import('./features/role-permissions/role-list.component').then((m) => m.RoleListComponent),
   },
   {
+    path: 'user-accounts',
+    canActivate: [authGuard, adminGuard],
+    title: 'Tài khoản người dùng',
+    loadComponent: () =>
+      import('./features/user-accounts/user-account-list.component').then(
+        (m) => m.UserAccountListComponent,
+      ),
+  },
+  {
     path: 'role-permissions',
     canActivate: [authGuard, adminGuard],
     title: 'Thiết lập quyền',
@@ -151,6 +160,22 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/kpi-definitions/kpi-definitions.component').then(
         (m) => m.KpiDefinitionsComponent,
+      ),
+  },
+  {
+    path: 'campaigns',
+    canActivate: [authGuard],
+    title: 'Chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/:id',
+    canActivate: [authGuard],
+    title: 'Chi tiết chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-detail.component').then(
+        (m) => m.CampaignDetailComponent,
       ),
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },

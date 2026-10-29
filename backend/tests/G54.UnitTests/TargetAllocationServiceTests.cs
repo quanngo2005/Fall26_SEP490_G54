@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Services;
 using G54.DAL;
@@ -69,7 +70,7 @@ public sealed class TargetAllocationServiceTests
         db.TargetAssignments.Add(branchYearTarget);
         await db.SaveChangesAsync();
 
-        return new Fixture(db, new TargetAllocationService(new UnitOfWork(db)), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
+        return new Fixture(db, new TargetAllocationService(new UnitOfWork(db), new AllocationPermissions(admin: true)), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
     }
 
     [Fact]
@@ -234,5 +235,108 @@ public sealed class TargetAllocationServiceTests
 
         await Assert.ThrowsAsync<ValidationException>(() =>
             f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid()));
+    }
+
+    private static TargetAllocationService NonAdmin(Fixture f) =>
+        new(new UnitOfWork(f.Db), new AllocationPermissions(admin: false));
+
+    /// <summary>Adds a sibling department D2 under the branch and an active employee account in <paramref name="departmentId"/>.</summary>
+    private static async Task<(Guid SiblingId, Guid AccountId)> SeedScopeAsync(Fixture f, Guid? departmentId = null)
+    {
+        var sibling = new Department { Id = Guid.NewGuid(), Code = "D2", Name = "Dept2", LevelType = DepartmentLevelType.Department, ParentDepartmentId = f.BranchId };
+        var employee = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "MGR",
+            FullName = "Manager",
+            Email = "mgr@x.local",
+            DepartmentId = departmentId ?? f.DeptId,
+            JobPositionId = Guid.NewGuid(),
+            Status = EmployeeStatus.Active,
+        };
+        var account = new Account { Id = Guid.NewGuid(), EmployeeId = employee.Id, Username = "mgr", PasswordHash = "h" };
+        f.Db.Departments.Add(sibling);
+        f.Db.Employees.Add(employee);
+        f.Db.Accounts.Add(account);
+        await f.Db.SaveChangesAsync();
+        return (sibling.Id, account.Id);
+    }
+
+    [Fact]
+    public async Task DepartmentManager_CannotSplitBranchTarget()
+    {
+        var f = await CreateAsync();
+        var (_, manager) = await SeedScopeAsync(f);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            NonAdmin(f).AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), manager));
+    }
+
+    [Fact]
+    public async Task DepartmentManager_CannotAllocateOrConfirmOtherDepartment_ButCanOwn()
+    {
+        var f = await CreateAsync();
+        var (siblingId, manager) = await SeedScopeAsync(f);
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id,
+            new([new(f.DeptId, f.KpiId, 500m), new(siblingId, f.KpiId, 500m)], null), Guid.NewGuid());
+        var rows = await f.Db.TargetAssignments.Where(t => t.ParentAssignmentId == f.BranchYearTarget.Id).ToListAsync();
+        var own = rows.Single(r => r.DepartmentId == f.DeptId);
+        var other = rows.Single(r => r.DepartmentId == siblingId);
+        var service = NonAdmin(f);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.AllocateQuartersAsync(other.Id, new([new(f.Q1Id, f.KpiId, 500m)], null), manager));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ConfirmAsync(other.Id, manager));
+
+        await service.AllocateQuartersAsync(own.Id, new([new(f.Q1Id, f.KpiId, 500m)], null), manager);
+        await service.ConfirmAsync(own.Id, manager);
+    }
+
+    [Fact]
+    public async Task Tree_DepartmentManagerSeesOnlyOwnBranchSlice()
+    {
+        var f = await CreateAsync();
+        var (siblingId, manager) = await SeedScopeAsync(f);
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id,
+            new([new(f.DeptId, f.KpiId, 500m), new(siblingId, f.KpiId, 500m)], null), Guid.NewGuid());
+
+        var tree = await NonAdmin(f).GetTreeAsync(f.BranchId, 2026, null, manager);
+        var full = await f.Service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid());
+
+        var root = Assert.Single(tree);
+        Assert.Equal([f.DeptId], root.Children.Select(c => c.DepartmentId));
+        Assert.Equal(2, Assert.Single(full).Children.Count);
+    }
+
+    [Fact]
+    public async Task Tree_OtherBranchOrUnknownAccount_IsForbidden()
+    {
+        var f = await CreateAsync();
+        var otherBranch = new Department { Id = Guid.NewGuid(), Code = "BR2", Name = "Branch2", LevelType = DepartmentLevelType.Branch };
+        f.Db.Departments.Add(otherBranch);
+        await f.Db.SaveChangesAsync();
+        var (_, outsider) = await SeedScopeAsync(f, otherBranch.Id);
+        var service = NonAdmin(f);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, outsider));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid()));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.ImportYearTargetsAsync(f.BranchId, 2026, Stream.Null, outsider));
+    }
+
+    private sealed class AllocationPermissions(bool admin) : IPermissionService
+    {
+        public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<UserPermissionsResponseDto?>(null);
+
+        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UserPermissionDto>>([]);
+
+        public Task<bool> HasPermissionAsync(Guid id, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
+            Task.FromResult(admin && resource == "target" && action == "manage" && requiredScope == "All");
+
+        public Task InvalidateUserPermissionsAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task InvalidateRolePermissionsAsync(Guid roleId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
