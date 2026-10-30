@@ -1178,4 +1178,98 @@ public sealed class EvaluationServiceTests
         Assert.All(form.CriteriaGroups, g => Assert.Null(g.QualitativeScore));
         Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
     }
+
+    // ----- Stored qualitative data the reader skips must survive writes that do not own it --------
+
+    private const string LegacyQualitativeMarker =
+        "<!-- QUALITATIVE_JSON: [{\"kpiGroupId\":\"6f1b0f0e-0000-4000-8000-000000000001\",\"score\":55,\"notes\":\"cũ\"}] -->";
+
+    private const string MalformedQualitativeMarker = "<!-- QUALITATIVE_JSON: [{not json -->";
+
+    private static async Task<string?> ReadStoredCommentAsync(AppDbContext context, Guid employeeId, Guid periodId)
+    {
+        context.ChangeTracker.Clear();
+        return (await context.PerformanceEvaluations
+            .AsNoTracking()
+            .SingleAsync(pe => pe.EmployeeId == employeeId && pe.EvaluationPeriodId == periodId)).Comment;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubmitDepartmentCalibrationAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.SubmitDepartmentCalibrationAsync(
+            new SubmitCalibrationRequestDto(
+                dept.Id, period.Id, [new(staff.Id, "A3", "Hiệu chỉnh", false)], "Ghi chú", IsDraft: true),
+            manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("CALIBRATION_JSON", stored);
+        Assert.StartsWith("Nhận xét", stored);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_ReplacesThePreviousCalibrationMarker_InsteadOfDuplicatingIt()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{LegacyQualitativeMarker}");
+
+        for (var i = 0; i < 2; i++)
+        {
+            await service.SubmitDepartmentCalibrationAsync(
+                new SubmitCalibrationRequestDto(
+                    dept.Id, period.Id, [new(staff.Id, i == 0 ? "A3" : "A2", "Hiệu chỉnh", false)], null, IsDraft: true),
+                manager.Id);
+        }
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(stored!, "CALIBRATION_JSON"));
+        Assert.Contains("\"CalibratedTier\":\"A2\"", stored);
+        Assert.DoesNotContain("\"CalibratedTier\":\"A3\"", stored);
+        Assert.Contains(LegacyQualitativeMarker, stored);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RejectDepartmentCalibrationAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.RejectDepartmentCalibrationAsync(
+            dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("RECALIBRATION_REASON: Cần hiệu chuẩn lại", stored);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FinalizeAndLockPeriodAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Phê duyệt"), manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("APPROVAL_COMMENTS: Phê duyệt", stored);
+    }
 }

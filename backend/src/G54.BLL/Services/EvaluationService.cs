@@ -1119,14 +1119,17 @@ public sealed partial class EvaluationService(
 
             if (evalDict.TryGetValue(empId, out var existingPe))
             {
-                var (comment, coachPlan, qualScores, _, recalibReason, apprComments) = ParseStoredComment(existingPe.Comment);
-                existingPe.Comment = BuildStoredComment(
-                    comment ?? request.Notes,
-                    coachPlan,
-                    qualScores.Values.ToList(),
-                    calibData,
-                    recalibReason,
-                    apprComments);
+                // Only the calibration marker is owned here; every other stored part (including qualitative
+                // entries the reader skips) is preserved as is.
+                var (existingText, _, _, _, _, _) = ParseStoredComment(existingPe.Comment);
+                var baseComment = existingText is null && !string.IsNullOrWhiteSpace(request.Notes)
+                    ? $"{request.Notes.Trim()}\n\n{existingPe.Comment}"
+                    : existingPe.Comment;
+                existingPe.Comment = SetStoredMarker(
+                    baseComment,
+                    CalibrationMarkerRegex(),
+                    "CALIBRATION_JSON",
+                    JsonSerializer.Serialize(calibData, JsonOptions));
                 existingPe.Status = targetStatus;
                 existingPe.UpdatedAt = now;
             }
@@ -1417,8 +1420,7 @@ public sealed partial class EvaluationService(
         foreach (var pe in evaluations.Where(e => !e.IsDisputedPending()))
         {
             pe.Status = PerformanceEvaluationStatus.Calculated;
-            var (comment, coachPlan, qualScores, calib, _, appr) = ParseStoredComment(pe.Comment);
-            pe.Comment = BuildStoredComment(comment, coachPlan, qualScores.Values.ToList(), calib, reasonTrimmed, appr);
+            pe.Comment = SetStoredMarker(pe.Comment, RecalibrationReasonMarkerRegex(), "RECALIBRATION_REASON", reasonTrimmed);
             pe.UpdatedAt = now;
         }
 
@@ -1477,8 +1479,7 @@ public sealed partial class EvaluationService(
 
             if (!string.IsNullOrWhiteSpace(comments))
             {
-                var (comment, coachPlan, qualScores, calib, recalib, _) = ParseStoredComment(pe.Comment);
-                pe.Comment = BuildStoredComment(comment, coachPlan, qualScores.Values.ToList(), calib, recalib, comments);
+                pe.Comment = SetStoredMarker(pe.Comment, ApprovalCommentsMarkerRegex(), "APPROVAL_COMMENTS", comments);
             }
         }
 
@@ -1854,6 +1855,39 @@ public sealed partial class EvaluationService(
     }
 
     /// <summary>
+    /// Replaces (or removes, when <paramref name="value"/> is blank) a single marker and returns every other part of
+    /// the stored comment untouched. Unlike a parse/rebuild round trip, it keeps stored data the reader skips
+    /// (legacy or malformed qualitative entries), so a write that does not own a marker never discards it.
+    /// </summary>
+    private static string? SetStoredMarker(string? storedComment, Regex markerRegex, string markerName, string? value)
+    {
+        var working = storedComment ?? string.Empty;
+
+        foreach (var match in markerRegex.Matches(working).Reverse())
+        {
+            var start = match.Index > 0 && working[match.Index - 1] == '\n' ? match.Index - 1 : match.Index;
+            working = working.Remove(start, match.Index + match.Length - start);
+        }
+
+        working = working.Trim();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return working.Length == 0 ? null : working;
+        }
+
+        var marker = $"<!-- {markerName}: {value.Trim()} -->";
+        if (working.Length == 0)
+        {
+            return marker;
+        }
+
+        return working.EndsWith("-->", StringComparison.Ordinal)
+            ? $"{working}\n{marker}"
+            : $"{working}\n\n{marker}";
+    }
+
+    /// <summary>
     /// Qualitative scores keyed by the root group they score. Rejects an empty id (a client still sending the old
     /// catalog group id), a duplicate id, and an id that is not a root group of the profile.
     /// </summary>
@@ -1897,6 +1931,7 @@ public sealed partial class EvaluationService(
     {
         // Qualitative scores saved before the profile became a tree are keyed by the catalog group id, which the
         // tree no longer knows; they deserialize to an empty id and are skipped here (and logged), never scored.
+        // Skipping is read-only: writers other than the form save must use SetStoredMarker, not a parse/rebuild.
         if (string.IsNullOrWhiteSpace(storedComment))
         {
             return (null, null, new(), null, null, null);
