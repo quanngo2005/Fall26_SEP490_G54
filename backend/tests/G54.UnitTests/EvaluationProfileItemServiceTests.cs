@@ -273,6 +273,39 @@ public sealed class EvaluationProfileItemServiceTests
     }
 
     [Fact]
+    public async Task AddItem_ADisplayOrderAlreadyUsedAmongTheSiblings_IsAConflictAndStoresNothing()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Business", 50, 2));
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddGroupDto("Quality", 10, 2)));
+
+            Assert.Equal(409, ex.StatusCode);
+            Assert.Equal(1, await db.EvaluationProfileItems.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_ADisplayOrderUsedOnlyUnderAnotherParent_IsAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 50, 1), Input("B", 50, 2));
+            var groupA = await RootIdAsync(db, "A");
+            var groupB = await RootIdAsync(db, "B");
+            await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupA, 100, 1));
+
+            var added = await service.AddItemAsync(profile.Id, AddGroupDto("Sub", 100, 1, groupB));
+
+            Assert.Equal(1, added.DisplayOrder);
+        }
+    }
+
+    [Fact]
     public async Task AddItem_AnUnknownKpi_IsNotFound()
     {
         var (db, service) = CreateEnvironment();
@@ -392,6 +425,45 @@ public sealed class EvaluationProfileItemServiceTests
         }
     }
 
+    [Fact]
+    public async Task AddItem_WithAnEmptyKpiId_ReportsTheEmptyIdWhetherOrNotItHasAName()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var withoutName = new AddEvaluationProfileItemDto { ParentItemId = groupId, KpiDefinitionId = Guid.Empty, WeightPercent = 10, DisplayOrder = 1 };
+            var withName = withoutName with { Name = "X" };
+
+            var first = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, withoutName));
+            var second = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, withName));
+
+            Assert.Contains("KpiDefinitionId", first.Message);
+            Assert.Contains("KpiDefinitionId", second.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_WithBothANameAndAKpi_Or_Neither_ReportsTheGroupOrLeafRule()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var both = new AddEvaluationProfileItemDto { ParentItemId = groupId, Name = "X", KpiDefinitionId = kpi.Id, WeightPercent = 10, DisplayOrder = 1 };
+            var neither = new AddEvaluationProfileItemDto { ParentItemId = groupId, WeightPercent = 10, DisplayOrder = 1 };
+
+            var first = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, both));
+            var second = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, neither));
+
+            Assert.DoesNotContain("không được để trống", first.Message);
+            Assert.Equal(first.Message, second.Message);
+        }
+    }
+
     // ----- UpdateItem -----------------------------------------------------------------------
 
     [Fact]
@@ -413,6 +485,43 @@ public sealed class EvaluationProfileItemServiceTests
             var stored = await db.EvaluationProfileItems.SingleAsync();
             Assert.Equal(35.5m, stored.WeightPercent);
             Assert.Equal(3, stored.DisplayOrder);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItem_ToADisplayOrderUsedByASibling_IsAConflictAndChangesNothing()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var id = await RootIdAsync(db, "A");
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateItemAsync(
+                profile.Id, id, new UpdateEvaluationProfileItemDto { WeightPercent = 10, DisplayOrder = 2 }));
+
+            Assert.Equal(409, ex.StatusCode);
+            var stored = await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.Id == id);
+            Assert.Equal(1, stored.DisplayOrder);
+            Assert.Equal(60m, stored.WeightPercent);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItem_KeepingItsOwnDisplayOrder_IsAcceptedEvenWhenASiblingAlreadySharesIt()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var id = await RootIdAsync(db, "A");
+            (await db.EvaluationProfileItems.SingleAsync(i => i.Name == "B")).DisplayOrder = 1;
+            await db.SaveChangesAsync();
+
+            var item = await service.UpdateItemAsync(
+                profile.Id, id, new UpdateEvaluationProfileItemDto { WeightPercent = 55, DisplayOrder = 1 });
+
+            Assert.Equal(55m, item.WeightPercent);
         }
     }
 

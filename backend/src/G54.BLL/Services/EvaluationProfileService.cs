@@ -343,6 +343,8 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             EnsureSiblingNameIsFree(items, dto.ParentItemId, dto.Name!, null);
         }
 
+        EnsureSiblingOrderIsFree(items, dto.ParentItemId, dto.DisplayOrder, null);
+
         if (dto.KpiDefinitionId.HasValue)
         {
             await EnsureKpiDefinitionsExistAsync(
@@ -384,17 +386,31 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         var profile = await GetEditableProfileAsync(profileId, cancellationToken);
         var item = await FindItemAsync(profileId, itemId, cancellationToken);
 
-        if (dto.Name is not null)
+        if (dto.Name is not null && item.KpiDefinitionId.HasValue)
         {
-            if (item.KpiDefinitionId.HasValue)
-            {
-                throw new ValidationException("Chỉ nhóm KPI mới có tên; KPI lấy tên từ danh mục KPI.");
-            }
+            throw new ValidationException("Chỉ nhóm KPI mới có tên; KPI lấy tên từ danh mục KPI.");
+        }
 
+        // Only a changed display order is checked, so a tree that already holds a duplicate can still have its weights edited.
+        var orderChanged = dto.DisplayOrder != item.DisplayOrder;
+        if (dto.Name is not null || orderChanged)
+        {
             var siblings = await db.EvaluationProfileItems
                 .Where(i => i.EvaluationProfileId == profileId)
                 .ToListAsync(cancellationToken);
-            EnsureSiblingNameIsFree(siblings, item.ParentItemId, dto.Name, item.Id);
+            if (dto.Name is not null)
+            {
+                EnsureSiblingNameIsFree(siblings, item.ParentItemId, dto.Name, item.Id);
+            }
+
+            if (orderChanged)
+            {
+                EnsureSiblingOrderIsFree(siblings, item.ParentItemId, dto.DisplayOrder, item.Id);
+            }
+        }
+
+        if (dto.Name is not null)
+        {
             item.Name = NormalizeNodeName(dto.Name);
         }
 
@@ -557,6 +573,22 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         if (taken)
         {
             throw new ConflictException($"Đã có nhóm tên '{name.Trim()}' cùng cấp trong hồ sơ đánh giá.");
+        }
+    }
+
+    /// <summary>Siblings are shown in display order, so a display order may be used once under a parent.</summary>
+    private static void EnsureSiblingOrderIsFree(
+        List<EvaluationProfileItem> items,
+        Guid? parentItemId,
+        int displayOrder,
+        Guid? exceptItemId)
+    {
+        var taken = items.Any(i => i.ParentItemId == parentItemId
+            && i.Id != exceptItemId
+            && i.DisplayOrder == displayOrder);
+        if (taken)
+        {
+            throw new ConflictException($"Đã có nút cùng cấp dùng thứ tự hiển thị {displayOrder} trong hồ sơ đánh giá.");
         }
     }
 
@@ -741,7 +773,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             return false;
         }
 
-        var storedByKey = stored.ToDictionary(NodeKey);
+        var storedByKey = IndexByKey(stored);
         foreach (var input in requested)
         {
             if (!storedByKey.TryGetValue(NodeKey(input), out var existing)
@@ -765,6 +797,33 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         input.KpiDefinitionId.HasValue ? $"kpi:{input.KpiDefinitionId}" : $"group:{input.Name?.Trim().ToUpperInvariant()}";
 
     /// <summary>
+    /// Indexes the stored siblings by key. Unique indexes keep sibling group names apart (case-insensitively), so a
+    /// duplicate can only come from data that predates them or was written around the API; the tree cannot be matched
+    /// then and the caller gets a conflict instead of an unhandled error.
+    /// </summary>
+    private static Dictionary<string, EvaluationProfileItem> IndexByKey(List<EvaluationProfileItem> stored)
+    {
+        var index = new Dictionary<string, EvaluationProfileItem>(stored.Count);
+        var duplicates = new List<string>();
+        foreach (var item in stored)
+        {
+            if (!index.TryAdd(NodeKey(item), item))
+            {
+                duplicates.Add(item.Name ?? NodeKey(item));
+            }
+        }
+
+        if (duplicates.Count > 0)
+        {
+            throw new ConflictException(
+                $"Hồ sơ đánh giá có các nút trùng nhau cùng cấp ({string.Join(", ", duplicates.Distinct())}). " +
+                "Hãy xử lý dữ liệu trùng trước khi chỉnh sửa.");
+        }
+
+        return index;
+    }
+
+    /// <summary>
     /// Brings the stored tree to the requested one. A node is matched with its stored counterpart by its key (the KPI of
     /// a leaf, the name of a group) among the same parent: matches are updated in place and keep their id, nodes that
     /// are no longer requested are removed with everything beneath them, and new nodes are added.
@@ -786,7 +845,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         List<EvaluationProfileItemInputDto> requested,
         ILookup<Guid, EvaluationProfileItem> childrenOf)
     {
-        var storedByKey = stored.ToDictionary(NodeKey);
+        var storedByKey = IndexByKey(stored);
         var requestedKeys = requested.Select(NodeKey).ToHashSet();
 
         // The self reference does not cascade in the database: a removed node goes with its subtree, children first.
@@ -1001,6 +1060,14 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             throw new ValidationException($"Các nhóm cùng cấp không được trùng tên ('{duplicateName.First().Name}').");
         }
 
+        var duplicateOrder = level
+            .GroupBy(i => i.DisplayOrder)
+            .FirstOrDefault(g => g.Count() > 1);
+        if (duplicateOrder is not null)
+        {
+            throw new ValidationException($"Các nút cùng cấp không được trùng thứ tự hiển thị ({duplicateOrder.Key}).");
+        }
+
         foreach (var item in level)
         {
             ValidateNodeShape(item.Name, item.KpiDefinitionId, item.WeightPercent, item.DisplayOrder);
@@ -1027,18 +1094,20 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
     /// <summary>A node is a group (a name) or a KPI leaf (a KPI), never both and never neither.</summary>
     private static void ValidateNodeShape(string? name, Guid? kpiDefinitionId, decimal weightPercent, int displayOrder)
     {
-        var hasName = !string.IsNullOrWhiteSpace(name);
-        if (hasName == (kpiDefinitionId.HasValue && kpiDefinitionId.Value != Guid.Empty) || (!hasName && !kpiDefinitionId.HasValue))
-        {
-            throw new ValidationException("Mỗi nút phải là một nhóm (có tên) hoặc một KPI (có KpiDefinitionId), không phải cả hai.");
-        }
-
         if (kpiDefinitionId == Guid.Empty)
         {
             throw new ValidationException("KpiDefinitionId không được để trống.");
         }
 
-        if (hasName)
+        var hasName = !string.IsNullOrWhiteSpace(name);
+        var isGroup = hasName && !kpiDefinitionId.HasValue;
+        var isLeaf = !hasName && kpiDefinitionId.HasValue;
+        if (!isGroup && !isLeaf)
+        {
+            throw new ValidationException("Mỗi nút phải là một nhóm (có tên) hoặc một KPI (có KpiDefinitionId), không phải cả hai.");
+        }
+
+        if (isGroup)
         {
             NormalizeNodeName(name!);
         }

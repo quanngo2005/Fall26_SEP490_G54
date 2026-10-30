@@ -10,8 +10,14 @@ public sealed record ProfileNode(EvaluationProfileItem Item, IReadOnlyList<Profi
 {
     public bool IsLeaf => Item.KpiDefinitionId.HasValue;
 
-    /// <summary>The KPI of a leaf; null for a group, or when the definition was not loaded.</summary>
-    public KpiDefinition? Kpi => Item.KpiDefinition;
+    /// <summary>
+    /// The KPI of a leaf; null for a group. A leaf whose definition was not loaded is a caller error (a missing
+    /// <c>Include</c>) and throws, so such a KPI is never silently treated as inactive.
+    /// </summary>
+    public KpiDefinition? Kpi => Item.KpiDefinitionId.HasValue
+        ? Item.KpiDefinition ?? throw new InvalidOperationException(
+            $"The KPI definition of evaluation profile item {Item.Id} was not loaded; include EvaluationProfileItems.KpiDefinition.")
+        : null;
 }
 
 /// <summary>Builds and scores the weight tree of an evaluation profile from its flat items.</summary>
@@ -33,8 +39,8 @@ public static class EvaluationProfileTree
     }
 
     /// <summary>
-    /// Name of a root node: a group's own name, or the KPI name for a KPI leaf placed directly at the root (the
-    /// database allows it).
+    /// Name of a root node: a group's own name. The database allows a KPI leaf at the root but the API rejects it, so
+    /// the fallback to the KPI name only serves data that was not written through the API (for example a manual edit).
     /// </summary>
     public static string NodeName(ProfileNode node) =>
         node.Item.Name ?? node.Item.KpiDefinition?.Name ?? string.Empty;

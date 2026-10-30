@@ -6,6 +6,7 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -1033,5 +1034,148 @@ public sealed class EvaluationServiceTests
             service.FinalizeAndLockPeriodAsync(request, manager.Id));
 
         Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+    }
+
+    // ----- Qualitative scores: keyed by the root group of the profile tree ---------------------
+
+    private sealed class CapturingLogger : ILogger<EvaluationService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private static async Task StoreCommentAsync(AppDbContext context, Employee employee, EvaluationPeriod period, string comment)
+    {
+        var profile = context.EvaluationProfiles.Single();
+        var evaluation = await AddScoredEvaluationAsync(context, employee, period, profile, 80m);
+        evaluation.Comment = comment;
+        await context.SaveChangesAsync();
+    }
+
+    private static EvaluationService CreateServiceWith(AppDbContext context, ILogger<EvaluationService> logger) =>
+        new(context, logger, new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")));
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m)]), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenTwoLegacyScoresBothHaveNoItemId()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m), new(Guid.Empty, 70m)]),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsDuplicated()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 80m), new(qualitativeRoot.Id, 70m)]),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsNotARootGroup()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var leaf = await context.EvaluationProfileItems.FirstAsync(i => i.ParentItemId != null);
+
+        var unknown = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.NewGuid(), 80m)]), manager.Id));
+        var notRoot = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(leaf.Id, 80m)]), manager.Id));
+
+        Assert.Equal(400, unknown.StatusCode);
+        Assert.Equal(400, notRoot.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_StoresAValidQualitativeScore_AndTheFormReadsItBack()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 64m, "Ghi chú")]),
+            manager.Id);
+        var form = await service.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
+        Assert.Equal(64m, group.QualitativeScore);
+        Assert.Equal("Ghi chú", group.QualitativeNotes);
+    }
+
+    [Fact]
+    public async Task GetEvaluationFormAsync_SkipsEmptyAndDuplicateStoredQualitativeScores_AndLogsAWarning()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+        var json = $$"""
+            [{"kpiGroupId":"{{Guid.NewGuid()}}","score":55,"notes":"cũ"},
+             {"evaluationProfileItemId":"{{qualitativeRoot.Id}}","score":70,"notes":"đầu"},
+             {"evaluationProfileItemId":"{{qualitativeRoot.Id}}","score":20,"notes":"trùng"}]
+            """;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n<!-- QUALITATIVE_JSON: {json} -->");
+        var logger = new CapturingLogger();
+
+        var form = await CreateServiceWith(context, logger).GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
+        Assert.Equal(70m, group.QualitativeScore);
+        Assert.Equal("đầu", group.QualitativeNotes);
+        Assert.Equal(2, logger.Entries.Count(e => e.Level == LogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task GetEvaluationFormAsync_DoesNotThrow_WhenTheStoredQualitativeJsonIsMalformed_AndLogsAWarning()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "<!-- QUALITATIVE_JSON: [{not json -->");
+        var logger = new CapturingLogger();
+
+        var form = await CreateServiceWith(context, logger).GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        Assert.All(form.CriteriaGroups, g => Assert.Null(g.QualitativeScore));
+        Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
     }
 }

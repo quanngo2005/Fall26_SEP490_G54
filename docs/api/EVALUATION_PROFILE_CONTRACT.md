@@ -197,7 +197,7 @@ Body `CreateEvaluationProfile`; creates a `DRAFT` profile. `201` with a `Locatio
 | `items[].kpiDefinitionId` | KPI of a leaf, must exist (404 `NOT_FOUND` otherwise), no duplicates in the profile; absent for a group |
 | `items[].children` | children of a group (at most 3 levels in total); a leaf has none |
 | `items[].weightPercent` | `> 0` and `<= 100`, at most 4 decimal places, relative to the siblings (the totals are enforced on activation) |
-| `items[].displayOrder` | `>= 1` |
+| `items[].displayOrder` | `>= 1`, unique among siblings (a group's children and the roots each form one level) |
 
 When the `code` already exists the request creates the next version; the `jobPositionId` must then equal the
 job position of the existing versions, otherwise 409 `CONFLICT`. A second profile for the same job position
@@ -217,6 +217,17 @@ that are no longer sent are removed with everything beneath them, and new nodes 
 - `ACTIVE` profile: the total weight must stay exactly `100` (400 `VALIDATION_ERROR`), the job position must be
   `ACTIVE`, and the period must not overlap another `ACTIVE` profile of the same job position (409
   `CONFLICT`).
+- Renaming a group is not an in-place change: a group is matched by its name, so a body with a new name removes the
+  old node (with everything beneath it) and adds a new one with a new `id`. Nothing may refer to the old `id`
+  afterwards, which is why a profile **in use** rejects it (409 `EVALUATION_PROFILE_IN_USE`, above): a stored
+  evaluation or qualitative score is never left pointing at a removed node. A profile that is not in use has no
+  evaluation yet, so only the `id` changes. To rename a group in place use `PUT /evaluation-profiles/{id}/items/{itemId}`,
+  which keeps the `id`.
+- Sibling group names are unique case-insensitively, under one parent and among the root groups of a profile; the
+  database enforces it, so two concurrent writes that add the same group leave one of them as 409 `CONFLICT`. Names
+  that were already duplicated before the indexes existed were kept and renamed by the migration (the first keeps its
+  name, the others get the start of their `id` appended in brackets). Stored siblings that still share a key through
+  other means cannot be matched: 409 `CONFLICT`, and the duplicate must be fixed first.
 - Same validation rules as create otherwise.
 
 ### `PATCH /evaluation-profiles/{id}/status`
@@ -251,7 +262,9 @@ Rules for `POST`, `PUT` and `DELETE`:
 - `POST` with a KPI already in the profile is 409 `CONFLICT`. An unknown KPI or parent node is 404 `NOT_FOUND`. A parent
   that is a KPI leaf, a root KPI leaf, or a tree deeper than 3 levels is 400 `VALIDATION_ERROR`. `PUT` or `DELETE`
   for a node that is not in the profile is 404 `NOT_FOUND`.
-- Invalid `weightPercent` or `displayOrder` is 400 `VALIDATION_ERROR` (same rules as create).
+- Invalid `weightPercent` or `displayOrder` is 400 `VALIDATION_ERROR` (same rules as create). A `displayOrder`
+  already used by a sibling is 409 `CONFLICT` for `POST`, and for `PUT` when the `displayOrder` changes (a `PUT` that
+  keeps the node's own `displayOrder` is not checked, so a stored duplicate does not block editing the weight).
 - Every successful change updates the profile's `updatedAt`.
 - Risk: two concurrent requests can leave the total weight temporarily different from `100` on a `DRAFT` or
   `INACTIVE` profile; this is safe because activation checks the total again.

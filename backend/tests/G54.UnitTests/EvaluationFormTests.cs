@@ -522,6 +522,20 @@ public sealed class EvaluationFormTests
         Assert.Null(form.PreviousPeriod);
     }
 
+    [Fact]
+    public async Task Form_PreviousPeriod_IgnoresAnEarlierDraftEvenWhenItHoldsAScore()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var earlier = context.EvaluationPeriods.Single(p => p.Code == "2026-09");
+        await AddEvaluationAsync(context, s, s.Staff1, earlier, 70m, PerformanceEvaluationStatus.Draft);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Null(form.PreviousPeriod);
+    }
+
     // ----- the calculation ----------------------------------------------------------------------------
 
     [Fact]

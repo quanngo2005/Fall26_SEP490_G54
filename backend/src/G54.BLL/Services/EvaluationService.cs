@@ -66,6 +66,18 @@ public sealed partial class EvaluationService(
             new EventId(4, "PeriodFinalized"),
             "Evaluation period {PeriodId} finalized and hard-locked: TotalFinalized={TotalFinalized}");
 
+    private static readonly Action<ILogger, Guid, Exception?> LogQualitativeEntryIgnored =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(5, "QualitativeEntryIgnored"),
+            "Stored qualitative score ignored (empty or duplicate evaluation profile item id {EvaluationProfileItemId})");
+
+    private static readonly Action<ILogger, Exception?> LogQualitativeJsonUnreadable =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(6, "QualitativeJsonUnreadable"),
+            "Stored qualitative scores could not be read and were ignored");
+
     public async Task<EvaluationFormDto> GetEvaluationFormAsync(
         Guid employeeId,
         Guid periodId,
@@ -347,8 +359,9 @@ public sealed partial class EvaluationService(
     }
 
     /// <summary>
-    /// The latest earlier period of the same type in which the employee has a scored evaluation, with the score gap to the
-    /// current total. No such period means no comparison (null), never a zero.
+    /// The latest earlier period of the same type in which the employee has a scored evaluation that is not a draft, with
+    /// the score gap to the current total. No such period means no comparison (null), never a zero. The stored score of an
+    /// earlier period is not recalculated, so the gap may mix two scoring formulas.
     /// </summary>
     private async Task<PreviousPeriodSummaryDto?> LoadPreviousPeriodSummaryAsync(
         Guid employeeId,
@@ -362,6 +375,7 @@ public sealed partial class EvaluationService(
             .Include(pe => pe.EvaluationPeriod)
             .Where(pe => pe.EmployeeId == employeeId
                 && pe.TotalScore != null
+                && pe.Status != PerformanceEvaluationStatus.Draft
                 && pe.EvaluationPeriod.PeriodType == period.PeriodType
                 && pe.EvaluationPeriod.EndDate < period.StartDate)
             .OrderByDescending(pe => pe.EvaluationPeriod.EndDate)
@@ -456,11 +470,11 @@ public sealed partial class EvaluationService(
             .GroupBy(ta => ta.KpiDefinitionId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(ta => ta.Version).First().TargetValue);
 
-        var qualInputsDict = (request.QualitativeScores ?? new List<QualitativeScoreInputDto>())
-            .ToDictionary(q => q.EvaluationProfileItemId, q => q);
+        var roots = EvaluationProfileTree.Build(profile.EvaluationProfileItems);
+        var qualInputsDict = BuildQualitativeInputs(request.QualitativeScores, roots);
 
         decimal totalWeightedScore = 0m;
-        foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
+        foreach (var root in roots)
         {
             var groupKpis = EvaluationProfileTree.ActiveLeaves(root).ToList();
 
@@ -1480,7 +1494,7 @@ public sealed partial class EvaluationService(
             "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.");
     }
 
-    private static (decimal BusinessScore, decimal ServiceQualityScore, decimal OperationsScore, decimal QualitativeScore, decimal TotalScore)
+    private (decimal BusinessScore, decimal ServiceQualityScore, decimal OperationsScore, decimal QualitativeScore, decimal TotalScore)
         ComputeEmployeeScores(
             Employee employee,
             EvaluationProfile? profile,
@@ -1839,7 +1853,41 @@ public sealed partial class EvaluationService(
             : $"{trimmedComment}\n\n{markerBlock}";
     }
 
-    private static (
+    /// <summary>
+    /// Qualitative scores keyed by the root group they score. Rejects an empty id (a client still sending the old
+    /// catalog group id), a duplicate id, and an id that is not a root group of the profile.
+    /// </summary>
+    private static Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
+        IEnumerable<QualitativeScoreInputDto>? inputs,
+        IReadOnlyList<ProfileNode> roots)
+    {
+        var rootIds = roots.Select(root => root.Item.Id).ToHashSet();
+        var result = new Dictionary<Guid, QualitativeScoreInputDto>();
+
+        foreach (var input in inputs ?? [])
+        {
+            if (input.EvaluationProfileItemId == Guid.Empty)
+            {
+                throw new ValidationException("Điểm định tính thiếu evaluationProfileItemId (mã nhóm gốc của hồ sơ đánh giá).");
+            }
+
+            if (!rootIds.Contains(input.EvaluationProfileItemId))
+            {
+                throw new ValidationException(
+                    $"evaluationProfileItemId {input.EvaluationProfileItemId} không phải nhóm gốc của hồ sơ đánh giá.");
+            }
+
+            if (!result.TryAdd(input.EvaluationProfileItemId, input))
+            {
+                throw new ValidationException(
+                    $"Điểm định tính bị trùng cho evaluationProfileItemId {input.EvaluationProfileItemId}.");
+            }
+        }
+
+        return result;
+    }
+
+    private (
         string? Comment,
         string? CoachingPlan,
         Dictionary<Guid, QualitativeScoreInputDto> QualitativeScores,
@@ -1847,6 +1895,8 @@ public sealed partial class EvaluationService(
         string? RecalibrationReason,
         string? ApprovalComments) ParseStoredComment(string? storedComment)
     {
+        // Qualitative scores saved before the profile became a tree are keyed by the catalog group id, which the
+        // tree no longer knows; they deserialize to an empty id and are skipped here (and logged), never scored.
         if (string.IsNullOrWhiteSpace(storedComment))
         {
             return (null, null, new(), null, null, null);
@@ -1873,11 +1923,17 @@ public sealed partial class EvaluationService(
             {
                 var json = qualMatch.Groups[1].Value.Trim();
                 var items = JsonSerializer.Deserialize<List<QualitativeScoreInputDto>>(json, JsonOptions) ?? new();
-                qualDict = items.ToDictionary(i => i.EvaluationProfileItemId, i => i);
+                foreach (var item in items)
+                {
+                    if (item.EvaluationProfileItemId == Guid.Empty || !qualDict.TryAdd(item.EvaluationProfileItemId, item))
+                    {
+                        LogQualitativeEntryIgnored(logger, item.EvaluationProfileItemId, null);
+                    }
+                }
             }
-            catch
+            catch (JsonException ex)
             {
-                // ignore malformed qualitative JSON
+                LogQualitativeJsonUnreadable(logger, ex);
             }
             working = working.Replace(qualMatch.Value, "");
         }

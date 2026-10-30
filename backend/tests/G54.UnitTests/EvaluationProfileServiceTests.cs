@@ -378,6 +378,61 @@ public sealed class EvaluationProfileServiceTests
         }
     }
 
+    [Fact]
+    public async Task Create_DuplicateDisplayOrderAmongRootGroups_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.CreateProfileAsync(CreateDto(position, [Item(a, 50, 1), Item(b, 50, 1)])));
+
+            Assert.Equal(400, ex.StatusCode);
+            Assert.Empty(db.EvaluationProfiles);
+        }
+    }
+
+    [Fact]
+    public async Task Create_DuplicateDisplayOrderAmongLeavesOfOneGroup_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var group = Item(a, 100) with
+            {
+                Children =
+                [
+                    new() { KpiDefinitionId = a.Id, WeightPercent = 50, DisplayOrder = 1 },
+                    new() { KpiDefinitionId = b.Id, WeightPercent = 50, DisplayOrder = 1 },
+                ],
+            };
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateProfileAsync(CreateDto(position, [group])));
+        }
+    }
+
+    [Fact]
+    public async Task Create_TheSameDisplayOrderUnderDifferentParents_IsAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+
+            var created = await service.CreateProfileAsync(
+                CreateDto(position, FullItems(AddGroup(db, "A"), AddGroup(db, "B"))));
+
+            Assert.All(created.Items, root => Assert.Equal(1, root.Children.Single().DisplayOrder));
+        }
+    }
+
     // ----- Read -----------------------------------------------------------------------------
 
     [Fact]
@@ -969,6 +1024,62 @@ public sealed class EvaluationProfileServiceTests
         }
     }
 
+    private static void AddDuplicateRootGroup(AppDbContext db, Guid profileId, string name)
+    {
+        db.EvaluationProfileItems.Add(new EvaluationProfileItem
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profileId,
+            Name = name,
+            WeightPercent = 0,
+            DisplayOrder = 99,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        db.SaveChanges();
+    }
+
+    [Fact]
+    public async Task Update_StoredSiblingsWithTheSameGroupName_IsAConflictInsteadOfAnUnhandledError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var created = await service.CreateProfileAsync(CreateDto(position, FullItems(a, b)));
+            AddDuplicateRootGroup(db, created.Id, "a");
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.UpdateProfileAsync(created.Id, UpdateDto(created, [Item(a, 50, 1), Item(b, 50, 2)])));
+
+            Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+            Assert.Contains("a", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task Update_InUse_StoredSiblingsWithTheSameGroupName_IsAConflictInsteadOfAnUnhandledError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var c = AddGroup(db, "C");
+            var created = await service.CreateProfileAsync(CreateDto(position, FullItems(a, b)));
+            AddDuplicateRootGroup(db, created.Id, "A");
+            MarkInUse(db, created.Id);
+
+            // Same number of root nodes as stored (three), so the stored level is compared and cannot be matched.
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.UpdateProfileAsync(created.Id, UpdateDto(created, [Item(a, 50, 1), Item(b, 30, 2), Item(c, 20, 3)])));
+
+            Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+        }
+    }
+
     // ----- Update of a profile that is in use ------------------------------------------------
 
     [Fact]
@@ -1038,6 +1149,56 @@ public sealed class EvaluationProfileServiceTests
                     service.UpdateProfileAsync(created.Id, UpdateDto(created, items)));
                 Assert.Equal(ErrorCodes.EvaluationProfileInUse, ex.ErrorCode);
             }
+        }
+    }
+
+    private static List<EvaluationProfileItemInputDto> WithFirstGroupRenamed(EvaluationProfileDto profile, string name)
+    {
+        var items = profile.Items.Select(ToInput).ToList();
+        items[0] = items[0] with { Name = name };
+        return items;
+    }
+
+    [Fact]
+    public async Task Update_InUse_RenamingAGroup_IsRejectedAndLeavesTheStoredGroupAndItsIdUntouched()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var created = await service.CreateProfileAsync(CreateDto(position, FullItems(AddGroup(db, "A"), AddGroup(db, "B"))));
+            MarkInUse(db, created.Id);
+            var storedIds = created.Items.Select(i => i.Id).ToList();
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                service.UpdateProfileAsync(created.Id, UpdateDto(created, WithFirstGroupRenamed(created, "Renamed group"))));
+
+            Assert.Equal(ErrorCodes.EvaluationProfileInUse, ex.ErrorCode);
+            var after = (await service.GetProfileByIdAsync(created.Id))!;
+            Assert.Equal(storedIds, after.Items.Select(i => i.Id).ToList());
+            Assert.Equal("A", after.Items[0].Name);
+        }
+    }
+
+    [Fact]
+    public async Task Update_NotInUse_RenamingAGroup_ReplacesItWithANewIdBecauseAGroupIsMatchedByItsName()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var created = await service.CreateProfileAsync(CreateDto(position, FullItems(AddGroup(db, "A"), AddGroup(db, "B"))));
+            var renamedId = created.Items[0].Id;
+            var untouchedId = created.Items[1].Id;
+
+            var updated = await service.UpdateProfileAsync(
+                created.Id, UpdateDto(created, WithFirstGroupRenamed(created, "Renamed group")));
+
+            Assert.Equal(2, updated.Items.Count);
+            var renamed = updated.Items.Single(i => i.Name == "Renamed group");
+            Assert.NotEqual(renamedId, renamed.Id);
+            Assert.Equal(untouchedId, updated.Items.Single(i => i.Name == "B").Id);
+            Assert.DoesNotContain(updated.Items, i => i.Id == renamedId);
         }
     }
 

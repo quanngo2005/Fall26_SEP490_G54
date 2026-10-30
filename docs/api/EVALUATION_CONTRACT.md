@@ -93,7 +93,7 @@ Query: `employeeId`, `periodId` (GUID, required). `data` (`EvaluationFormDto`):
 | `pendingSubmissionCount` | number | result submissions of the employee in `SUBMITTED`/`UNDER_REVIEW` inside the period |
 | `openAppealCount` | number | appeals on the stored evaluation in `OPEN`/`UNDER_REVIEW` |
 | `hasOpenDispute` | bool | evaluation is `DISPUTED` or `openAppealCount > 0` |
-| `previousPeriod` | object or null | latest earlier period of the same type with a scored evaluation: `periodCode`, `totalScore`, `tier`, `scoreDifference` (current total minus previous); null = no comparison (N/A) |
+| `previousPeriod` | object or null | latest earlier period of the same type with a scored evaluation that is not `DRAFT`: `periodCode`, `totalScore`, `tier`, `scoreDifference` (current total minus previous); null = no comparison (N/A). `totalScore` is the stored score and is never recalculated, so a score saved before the group score became a weighted average still follows the old formula and `scoreDifference` is then indicative only |
 
 ### `POST /evaluations/submit`
 
@@ -101,7 +101,7 @@ Body: `employeeId`, `periodId`, `comment`, `coachingPlan`, `coachingRequired`, `
 (`evaluationProfileItemId`, `score`, `notes`), `isDraft`. `data`: `evaluationId`, `employeeId`, `periodId`, `totalScore`,
 `status` (`DRAFT` when `isDraft`, otherwise `CALCULATED`), `proposedTier`, `calculatedAt`, `message`.
 
-The backend does not validate the length of the free text or the range of a qualitative score, so the frontend checks them before sending. Errors: 400 `MAKER_CANNOT_BE_CHECKER`; 403 `FORBIDDEN`; 404; 409 `CONFLICT` (period `LOCKED`/`CLOSED`); 409 `EVALUATION_DISPUTE_PENDING` (score under dispute).
+The backend does not validate the length of the free text or the range of a qualitative score, so the frontend checks them before sending. Each `qualitativeScores[].evaluationProfileItemId` must be the id of a root group of the employee's profile and appear at most once; an empty id (a client still sending the old `kpiGroupId`), a duplicate, or a non-root id is rejected with 400 `VALIDATION_ERROR` before anything is saved. Qualitative scores saved before the profile became a tree were keyed by the catalog group id and no longer apply: they are skipped (with a warning in the log) when the form is read, so the reviewer enters them again. Errors: 400 `VALIDATION_ERROR`; 400 `MAKER_CANNOT_BE_CHECKER`; 403 `FORBIDDEN`; 404; 409 `CONFLICT` (period `LOCKED`/`CLOSED`); 409 `EVALUATION_DISPUTE_PENDING` (score under dispute).
 
 Notes:
 
