@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Evaluation;
@@ -109,13 +110,13 @@ public sealed record EvaluationFormDto(
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,
     decimal Score,
-    string? Notes = null);
+    [param: StringLength(1000, ErrorMessage = "Ghi chú điểm định tính không vượt quá 1000 ký tự.")] string? Notes = null);
 
 public sealed record SubmitEvaluationRequestDto(
     Guid EmployeeId,
     Guid PeriodId,
-    string? Comment = null,
-    string? CoachingPlan = null,
+    [param: StringLength(1000, ErrorMessage = "Nhận xét không vượt quá 1000 ký tự.")] string? Comment = null,
+    [param: StringLength(1000, ErrorMessage = "Kế hoạch kèm cặp không vượt quá 1000 ký tự.")] string? CoachingPlan = null,
     bool CoachingRequired = false,
     List<QualitativeScoreInputDto>? QualitativeScores = null,
     bool IsDraft = false);

@@ -1684,6 +1684,7 @@
         "forbidden": "Bạn không có quyền truy cập biểu mẫu đánh giá này.",
         "notFound": "Không tìm thấy nhân viên, kỳ đánh giá hoặc hồ sơ đánh giá.",
         "loadError": "Không thể tải biểu mẫu đánh giá. Vui lòng thử lại.",
+        "confirmDiscard": "Nhận xét hoặc điểm vừa nhập chưa được lưu. Rời khỏi biểu mẫu và bỏ các thay đổi này?",
         "back": "Quay lại danh sách"
       }
     },
@@ -3351,6 +3352,7 @@
         "forbidden": "You do not have permission to view this evaluation form.",
         "notFound": "The employee, evaluation period or evaluation profile was not found.",
         "loadError": "Unable to load evaluation form. Please try again.",
+        "confirmDiscard": "The comment or scores you entered are not saved. Leave the form and discard them?",
         "back": "Back to list"
       }
     }

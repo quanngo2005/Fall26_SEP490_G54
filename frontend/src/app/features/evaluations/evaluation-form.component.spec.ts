@@ -520,6 +520,104 @@ describe('EvaluationFormComponent', () => {
     }
   });
 
+  describe('rejected input', () => {
+    it('shows the message the API sends for an HTTP 400', async () => {
+      const message = 'Điểm định tính của nhóm "Attitude" phải nằm trong khoảng từ 0 đến 100.';
+      api.submit.and.returnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 400, error: { success: false, message } }),
+        ),
+      );
+      await create();
+      component.onSaveDraft();
+      expect(component.saveMessage()).toEqual({ kind: 'error', text: message });
+      expect(component.saving()).toBeFalse();
+    });
+
+    it('falls back to the generic message for an HTTP 400 without a message', async () => {
+      api.submit.and.returnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
+      await create();
+      component.onSaveDraft();
+      expect(component.saveMessage()).toEqual({ kind: 'error', text: text().saveError });
+    });
+  });
+
+  describe('unsaved changes', () => {
+    let confirmSpy: jasmine.Spy;
+
+    beforeEach(() => {
+      confirmSpy = spyOn(window, 'confirm').and.returnValue(true);
+    });
+
+    it('does not ask while nothing was changed', async () => {
+      await create();
+      expect(component.hasUnsavedChanges()).toBeFalse();
+      component.onNext();
+      component.onBackToList();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledTimes(2);
+    });
+
+    it('asks before moving to another employee when the comment was edited', async () => {
+      await create();
+      component.commentInput.set('Edited comment');
+      expect(component.hasUnsavedChanges()).toBeTrue();
+      component.onNext();
+      expect(confirmSpy).toHaveBeenCalledOnceWith(text().confirmDiscard);
+      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
+        queryParams: { employeeId: 'e3', periodId: 'period-1' },
+      });
+    });
+
+    it('asks when a qualitative score was changed', async () => {
+      await create();
+      component.setQualitativeScore('g-q', 55);
+      expect(component.hasUnsavedChanges()).toBeTrue();
+      component.onPrev();
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays on the form and keeps the input when the reviewer declines', async () => {
+      confirmSpy.and.returnValue(false);
+      await create();
+      component.commentInput.set('Edited comment');
+      component.onNext();
+      component.onPrev();
+      component.onBackToList();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(component.commentInput()).toBe('Edited comment');
+    });
+
+    it('asks before going back to the list', async () => {
+      await create();
+      component.commentInput.set('Edited comment');
+      component.onBackToList();
+      expect(confirmSpy).toHaveBeenCalledOnceWith(text().confirmDiscard);
+      expect(router.navigate).toHaveBeenCalledWith(['/evaluations']);
+    });
+
+    it('treats the input as saved once the form is reloaded after a save', async () => {
+      api.submit.and.returnValue(of(savedResult));
+      await create();
+      component.commentInput.set('Edited comment');
+      api.form.and.returnValue(
+        of(
+          buildForm({
+            currentEvaluation: { ...buildForm().currentEvaluation, comment: 'Edited comment' },
+          }),
+        ),
+      );
+      component.onSaveDraft();
+      expect(component.hasUnsavedChanges()).toBeFalse();
+    });
+
+    it('does not ask on a read only form', async () => {
+      await create(buildForm({ canEdit: false }));
+      component.commentInput.set('Edited comment');
+      expect(component.hasUnsavedChanges()).toBeFalse();
+    });
+  });
+
   describe('previous and next', () => {
     it('loads the roster once, without a department, so it matches the list', async () => {
       await create();

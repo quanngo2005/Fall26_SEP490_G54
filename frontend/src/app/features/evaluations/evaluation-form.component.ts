@@ -15,8 +15,9 @@ import {
 } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppNumberPipe } from '../../shared/pipes';
+import { serverMessage } from '../campaigns/campaign.utils';
 
-/** Longest comment the form accepts; the backend does not limit it, so the form does. */
+/** Longest comment the form accepts; the backend enforces the same limit on submit. */
 const COMMENT_MAX_LENGTH = 1000;
 /** A qualitative score is a percentage of the group, so it runs from 0 to the percent scale. */
 const SCORE_MIN = 0;
@@ -95,6 +96,18 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly canSubmit = computed(
     () => !!this.form()?.canEdit && !this.saving() && !this.scoreInvalid(),
   );
+
+  /** The comment or a qualitative score differs from what the loaded form holds, so leaving would lose it. */
+  readonly hasUnsavedChanges = computed(() => {
+    const form = this.form();
+    if (!form || !form.canEdit) return false;
+    if (this.commentInput() !== (form.currentEvaluation.comment ?? '')) return true;
+    return this.qualitativeGroups().some(
+      (group) =>
+        (this.qualitativeScores()[group.evaluationProfileItemId] ?? null) !==
+        (group.qualitativeScore ?? null),
+    );
+  });
 
   readonly stateText = computed(() => {
     const text = this.localization.evaluationForm;
@@ -234,13 +247,20 @@ export class EvaluationFormComponent extends LocalizedComponent {
   }
 
   onBackToList(): void {
+    if (!this.confirmLeave()) return;
     void this.router.navigate(['/evaluations']);
+  }
+
+  /** True when there is nothing to lose or the reviewer agrees to discard the unsaved input. */
+  private confirmLeave(): boolean {
+    return !this.hasUnsavedChanges() || confirm(this.localization.evaluationForm.confirmDiscard);
   }
 
   private openRosterEntry(index: number): void {
     const target = this.roster()[index];
     const periodId = this.form()?.period.id;
     if (!target || !periodId) return;
+    if (!this.confirmLeave()) return;
     void this.router.navigate(['/evaluations/form'], {
       queryParams: { employeeId: target.employeeId, periodId },
     });
@@ -350,6 +370,9 @@ export class EvaluationFormComponent extends LocalizedComponent {
     switch (status) {
       case 0:
         return text.offline;
+      case 400:
+        // The API says which rule the input broke (range, length, a group that takes no qualitative score...).
+        return serverMessage(error) ?? text.saveError;
       case 403:
         return text.saveForbidden;
       case 409:

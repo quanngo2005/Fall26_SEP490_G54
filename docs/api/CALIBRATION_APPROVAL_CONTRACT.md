@@ -168,6 +168,7 @@ Save draft or submit department calibration proposal to Executive.
   - Evaluations status transitioned to `IN_REVIEW`.
 - **BR-31**: adjustments for an employee whose evaluation is `DISPUTED` are ignored (not counted in `totalAdjusted`,
   `tierACount` or the quota base) and the evaluation keeps `DISPUTED`.
+- `notes` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is saved): the column that stores it also holds system markers.
 - If `isDraft == true`:
   - Saves adjustments without transitioning status to `IN_REVIEW`.
 
@@ -203,6 +204,10 @@ Executive overview of evaluation submissions across departments with Tier A comp
 `DISPUTED` evaluations are excluded from every figure of the response (`totalEmployees`, `totalEvaluated`, per-department
 counts, `averageScore`, tier counts) and `canFinalize` is `false` while any exists. `disputedPendingCount` (int, default 0)
 returns how many there are.
+
+`canFinalize` is also `false` while any evaluation of the period is still `DRAFT` or `CALCULATED` (never sent for
+review), whichever department it belongs to: the same condition `POST /evaluations/approvals/finalize` refuses with 409
+`PERFORMANCE_EVALUATION_INVALID_STATE`.
 
 #### 200 OK Response
 ```json
@@ -269,6 +274,7 @@ Reject department proposal and request re-calibration (UC106 Alt).
 ```
 
 #### Behavior
+- `reason` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is changed).
 - Reverts department evaluations from `IN_REVIEW` back to `CALCULATED`. `DISPUTED` evaluations (BR-31) are left unchanged.
 - Records rejection feedback in evaluations.
 
@@ -305,8 +311,10 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 #### Behavior
 - **BR-31**: rejected with 409 `EVALUATION_DISPUTE_PENDING` (nothing is changed) while any evaluation of the period is
   `DISPUTED`.
+- **Not ready**: rejected with 409 `PERFORMANCE_EVALUATION_INVALID_STATE` (nothing is changed) while any evaluation of the period is still `DRAFT` or `CALCULATED`, i.e. was never sent for review; the message gives how many. Only `IN_REVIEW`, `APPROVED` and `FINAL` evaluations can be locked.
+- `approvalComments` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is changed).
 - Sets `evaluation_period.status = LOCKED`.
-- Sets all evaluations in period: `status = FINAL`, `approved_at = NOW()`.
+- Sets every evaluation in the period that is not yet `FINAL` to `status = FINAL`, `approved_at = NOW()`; an evaluation already `FINAL` keeps its `approved_at`.
 - Immutable lock prevents subsequent modifications.
 
 #### 200 OK Response

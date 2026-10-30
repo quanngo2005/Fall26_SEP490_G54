@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using G54.BLL.Common.Constants;
@@ -36,6 +37,15 @@ public sealed partial class EvaluationService(
 
     [GeneratedRegex(@"<!--\s*APPROVAL_COMMENTS:\s*(.*?)\s*-->", RegexOptions.Singleline)]
     private static partial Regex ApprovalCommentsMarkerRegex();
+
+    /// <summary>
+    /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
+    /// shared by the approval overview's <c>CanFinalize</c> flag and the finalize action that enforces it.
+    /// </summary>
+    private static readonly Expression<Func<PerformanceEvaluation, bool>> NotReadyToLock =
+        pe => pe.Status == PerformanceEvaluationStatus.Draft || pe.Status == PerformanceEvaluationStatus.Calculated;
+
+    private static readonly Func<PerformanceEvaluation, bool> NotReadyToLockCompiled = NotReadyToLock.Compile();
 
     private sealed record InternalCalibrationData(
         string CalibratedTier,
@@ -213,7 +223,7 @@ public sealed partial class EvaluationService(
                     kpi.Code,
                     kpi.Name,
                     kpi.Unit,
-                    Math.Round(leafShares[kpi.Id], 2),
+                    Math.Round(leafShares.GetValueOrDefault(kpi.Id), 2),
                     hasTarget ? targetVal : null,
                     actualVal,
                     achievement,
@@ -230,7 +240,8 @@ public sealed partial class EvaluationService(
                 qualitativeNotes = savedQual.Notes;
             }
 
-            if (kpiItemDtos.Count > 0)
+            var isQualitativeGroup = EvaluationProfileTree.IsQualitative(root);
+            if (!isQualitativeGroup)
             {
                 // Weighted by each node's weight among its siblings; a KPI that is not active leaves the others' share.
                 var scoreByKpi = kpiItemDtos.ToDictionary(k => k.KpiDefinitionId, k => k.ComponentScore);
@@ -241,7 +252,8 @@ public sealed partial class EvaluationService(
             }
             else
             {
-                groupScore = qualitativeScore ?? 100m;
+                // A group the reviewer has not scored yet counts as 0, never as a full score.
+                groupScore = qualitativeScore ?? 0m;
             }
 
             totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
@@ -270,7 +282,7 @@ public sealed partial class EvaluationService(
                 kpiItemDtos,
                 qualitativeScore,
                 qualitativeNotes,
-                kpiItemDtos.Count == 0));
+                isQualitativeGroup));
         }
 
         var totalCalculated = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
@@ -360,8 +372,9 @@ public sealed partial class EvaluationService(
 
     /// <summary>
     /// The latest earlier period of the same type in which the employee has a scored evaluation that is not a draft, with
-    /// the score gap to the current total. No such period means no comparison (null), never a zero. The stored score of an
-    /// earlier period is not recalculated, so the gap may mix two scoring formulas.
+    /// the score gap to the current total. No such period means no comparison (null), never a zero. The stored score and the
+    /// stored calibrated tier of an earlier period are not recalculated (the tier is recalculated only when none was
+    /// stored), so the gap may mix two scoring formulas.
     /// </summary>
     private async Task<PreviousPeriodSummaryDto?> LoadPreviousPeriodSummaryAsync(
         Guid employeeId,
@@ -385,11 +398,17 @@ public sealed partial class EvaluationService(
             return null;
         }
 
-        var previousRisks = await LoadRiskEventsByEmployeeAsync([employeeId], previous.EvaluationPeriod, cancellationToken);
-        var tier = TierDeterminer.DetermineTier(
-            previousScore,
-            previousRisks.GetValueOrDefault(employeeId),
-            downgradeConfiguration);
+        // The tier stored by calibration is the final one; it is recalculated only when none was stored.
+        var (_, _, _, calibration, _, _) = ParseStoredComment(previous.Comment);
+        var tier = calibration?.CalibratedTier;
+        if (tier is null)
+        {
+            var previousRisks = await LoadRiskEventsByEmployeeAsync([employeeId], previous.EvaluationPeriod, cancellationToken);
+            tier = TierDeterminer.DetermineTier(
+                previousScore,
+                previousRisks.GetValueOrDefault(employeeId),
+                downgradeConfiguration);
+        }
 
         return new PreviousPeriodSummaryDto(
             previous.EvaluationPeriod.Code,
@@ -420,6 +439,8 @@ public sealed partial class EvaluationService(
             ?? throw new NotFoundException("Nhân viên", request.EmployeeId);
 
         await EnsureDepartmentInScopeAsync(currentUserId, "submit", reviewer, employee.DepartmentId, cancellationToken);
+
+        ValidateSubmitText(request);
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
@@ -474,16 +495,11 @@ public sealed partial class EvaluationService(
         var qualInputsDict = BuildQualitativeInputs(request.QualitativeScores, roots);
 
         decimal totalWeightedScore = 0m;
+        var unscoredQualitativeGroups = new List<string>();
         foreach (var root in roots)
         {
-            var groupKpis = EvaluationProfileTree.ActiveLeaves(root).ToList();
-
             decimal groupScore;
-            if (qualInputsDict.TryGetValue(root.Item.Id, out var qualInput))
-            {
-                groupScore = qualInput.Score;
-            }
-            else if (groupKpis.Count > 0)
+            if (!EvaluationProfileTree.IsQualitative(root))
             {
                 groupScore = Math.Round(
                     EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
@@ -494,9 +510,15 @@ public sealed partial class EvaluationService(
                         : null) ?? 0m,
                     2);
             }
+            else if (qualInputsDict.TryGetValue(root.Item.Id, out var qualInput))
+            {
+                groupScore = qualInput.Score;
+            }
             else
             {
-                groupScore = 100m;
+                // A group the reviewer has not scored yet counts as 0, never as a full score; completing is refused below.
+                unscoredQualitativeGroups.Add(EvaluationProfileTree.NodeName(root));
+                groupScore = 0m;
             }
             totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
         }
@@ -515,6 +537,22 @@ public sealed partial class EvaluationService(
         {
             throw PerformanceEvaluationExtensions.DisputePendingConflict(
                 "Điểm đánh giá đang tranh chấp (Disputed_Pending) nên không thể cập nhật cho đến khi khiếu nại được xử lý hoặc rút lại.");
+        }
+
+        // Only a draft or a calculated evaluation can be saved again; one already sent for review, approved or
+        // finalized is not overwritten (the form's CanEdit says the same, but a direct call bypasses it).
+        if (existingEvaluation is not null
+            && existingEvaluation.Status is not (PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated))
+        {
+            throw new ConflictException(
+                $"Đánh giá đang ở trạng thái {existingEvaluation.Status.ToEnumString()}, không thể lưu hoặc cập nhật.",
+                ErrorCodes.PerformanceEvaluationInvalidState);
+        }
+
+        if (!request.IsDraft && unscoredQualitativeGroups.Count > 0)
+        {
+            throw new ValidationException(
+                $"Chưa có điểm định tính cho nhóm: {string.Join(", ", unscoredQualitativeGroups)}. Cần chấm đủ trước khi hoàn tất đánh giá.");
         }
 
         var (_, _, _, existingCalib, existingRecalib, existingAppr) = ParseStoredComment(existingEvaluation?.Comment);
@@ -553,7 +591,16 @@ public sealed partial class EvaluationService(
             evaluationId = newEvaluation.Id;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            // Two reviewers saving the first evaluation of the employee for this period at the same time.
+            throw new ConflictException(
+                "Đánh giá của nhân viên trong kỳ này vừa được lưu bởi một yêu cầu khác. Hãy tải lại biểu mẫu rồi thử lại.");
+        }
 
         LogEvaluationSaved(logger, request.EmployeeId, request.PeriodId, finalScore, targetStatus.ToString(), null);
 
@@ -1044,6 +1091,8 @@ public sealed partial class EvaluationService(
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         await EnsureDepartmentInScopeAsync(currentUserId, "calibrate", reviewer, request.DepartmentId, cancellationToken);
 
+        EnsureNoMarkerSyntax(request.Notes, "Notes");
+
         var period = await db.EvaluationPeriods
             .FirstOrDefaultAsync(p => p.Id == request.PeriodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", request.PeriodId);
@@ -1355,8 +1404,17 @@ public sealed partial class EvaluationService(
             period.PeriodType.ToString().ToUpperInvariant(),
             period.Status.ToString().ToUpperInvariant());
 
+        // The same condition FinalizeAndLockPeriodAsync enforces: every evaluation of the period, not only those of the
+        // departments listed above, must have been sent for review.
+        var notReadyToLock = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Where(pe => pe.EvaluationPeriodId == periodId)
+            .Where(NotReadyToLock)
+            .AnyAsync(cancellationToken);
+
         var canFinalize = period.Status is PeriodStatus.Open or PeriodStatus.InReview
             && disputedPendingCount == 0
+            && !notReadyToLock
             && deptSummaries.Count > 0
             && deptSummaries.All(d => d.Status is "IN_REVIEW" or "APPROVED" or "FINAL");
 
@@ -1380,6 +1438,8 @@ public sealed partial class EvaluationService(
         CancellationToken cancellationToken = default)
     {
         await ResolveEmployeeAsync(currentUserId, cancellationToken);
+
+        EnsureNoMarkerSyntax(request.Reason, "Reason");
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
@@ -1442,6 +1502,8 @@ public sealed partial class EvaluationService(
     {
         await ResolveEmployeeAsync(currentUserId, cancellationToken);
 
+        EnsureNoMarkerSyntax(request.ApprovalComments, "ApprovalComments");
+
         var period = await db.EvaluationPeriods
             .FirstOrDefaultAsync(p => p.Id == request.PeriodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", request.PeriodId);
@@ -1465,13 +1527,23 @@ public sealed partial class EvaluationService(
                 $"Còn {disputedPending} điểm đánh giá đang tranh chấp (Disputed_Pending). Hãy xử lý hoặc chờ nhân viên rút khiếu nại trước khi khóa kỳ đánh giá.");
         }
 
+        // Only an evaluation that was sent for review (or already approved or final) can be locked; a draft or a
+        // calculated one has not been through calibration, so the whole period is refused and nothing is changed.
+        var notReady = evaluations.Count(NotReadyToLockCompiled);
+        if (notReady > 0)
+        {
+            throw new ConflictException(
+                $"Còn {notReady} đánh giá chưa được trình duyệt (trạng thái DRAFT hoặc CALCULATED). Hãy hoàn tất hiệu chuẩn và trình duyệt trước khi khóa kỳ đánh giá.",
+                ErrorCodes.PerformanceEvaluationInvalidState);
+        }
+
         var now = DateTimeOffset.UtcNow;
         period.Status = PeriodStatus.Locked;
         period.UpdatedAt = now;
 
         var comments = request.ApprovalComments?.Trim();
 
-        foreach (var pe in evaluations)
+        foreach (var pe in evaluations.Where(e => e.Status != PerformanceEvaluationStatus.Final))
         {
             pe.Status = PerformanceEvaluationStatus.Final;
             pe.ApprovedAt = now;
@@ -1516,19 +1588,18 @@ public sealed partial class EvaluationService(
         decimal serviceQualityScore = 0m;
         decimal operationsScore = 0m;
         decimal totalWeightedScore = 0m;
-        decimal qualitativeScore = 0m;
+        var qualitativeScores = new List<decimal>();
 
         if (profile?.EvaluationProfileItems is { Count: > 0 })
         {
             targetsDict ??= new();
             actualsDict ??= new();
+            var (_, _, savedQualitative, _, _, _) = ParseStoredComment(pe?.Comment);
 
             foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
             {
-                var hasActiveKpis = EvaluationProfileTree.ActiveLeaves(root).Any();
-
                 decimal groupScore;
-                if (hasActiveKpis)
+                if (!EvaluationProfileTree.IsQualitative(root))
                 {
                     groupScore = Math.Round(
                         EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
@@ -1541,8 +1612,9 @@ public sealed partial class EvaluationService(
                 }
                 else
                 {
-                    groupScore = 100m;
-                    qualitativeScore = 100m;
+                    // The score the reviewer saved for the group; without one it counts as 0, never as a full score.
+                    groupScore = savedQualitative.TryGetValue(root.Item.Id, out var saved) ? saved.Score : 0m;
+                    qualitativeScores.Add(groupScore);
                 }
 
                 totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
@@ -1572,6 +1644,8 @@ public sealed partial class EvaluationService(
 
         var totalRiskPenalty = riskEvents?.Sum(re => MapRiskPenalty(re.Severity)) ?? 0m;
         var finalScore = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
+
+        var qualitativeScore = qualitativeScores.Count > 0 ? qualitativeScores.Average() : 0m;
 
         return (businessScore, serviceQualityScore, operationsScore, qualitativeScore, pe?.TotalScore ?? finalScore);
     }
@@ -1888,14 +1962,37 @@ public sealed partial class EvaluationService(
     }
 
     /// <summary>
+    /// Free text is stored in the same column as the system markers, so text that contains the marker delimiters is
+    /// refused: a reviewer's words can never be read back as a calibration tier, reason or approval comment.
+    /// </summary>
+    private static void EnsureNoMarkerSyntax(string? text, string fieldName)
+    {
+        if (text is not null && (text.Contains("<!--", StringComparison.Ordinal) || text.Contains("-->", StringComparison.Ordinal)))
+        {
+            throw new ValidationException($"{fieldName} không được chứa ký tự \"<!--\" hoặc \"-->\".");
+        }
+    }
+
+    /// <summary>
+    /// Content check of the free-text fields of the evaluation form, run before anything is read or saved. Their length is
+    /// limited by the validation attributes of <see cref="SubmitEvaluationRequestDto"/>.
+    /// </summary>
+    private static void ValidateSubmitText(SubmitEvaluationRequestDto request)
+    {
+        EnsureNoMarkerSyntax(request.Comment, "Comment");
+        EnsureNoMarkerSyntax(request.CoachingPlan, "CoachingPlan");
+    }
+
+    /// <summary>
     /// Qualitative scores keyed by the root group they score. Rejects an empty id (a client still sending the old
-    /// catalog group id), a duplicate id, and an id that is not a root group of the profile.
+    /// catalog group id), a duplicate id, an id that is not a root group of the profile, and a group that owns an active
+    /// KPI (its score comes from the KPIs, a reviewer's score never overrides it).
     /// </summary>
     private static Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
         IEnumerable<QualitativeScoreInputDto>? inputs,
         IReadOnlyList<ProfileNode> roots)
     {
-        var rootIds = roots.Select(root => root.Item.Id).ToHashSet();
+        var rootsById = roots.ToDictionary(root => root.Item.Id);
         var result = new Dictionary<Guid, QualitativeScoreInputDto>();
 
         foreach (var input in inputs ?? [])
@@ -1905,10 +2002,23 @@ public sealed partial class EvaluationService(
                 throw new ValidationException("Điểm định tính thiếu evaluationProfileItemId (mã nhóm gốc của hồ sơ đánh giá).");
             }
 
-            if (!rootIds.Contains(input.EvaluationProfileItemId))
+            if (!rootsById.TryGetValue(input.EvaluationProfileItemId, out var root))
             {
                 throw new ValidationException(
                     $"evaluationProfileItemId {input.EvaluationProfileItemId} không phải nhóm gốc của hồ sơ đánh giá.");
+            }
+
+            if (!EvaluationProfileTree.IsQualitative(root))
+            {
+                throw new ValidationException(
+                    $"Nhóm \"{EvaluationProfileTree.NodeName(root)}\" có KPI đang hoạt động nên điểm của nhóm lấy từ KPI, không nhận điểm định tính.");
+            }
+
+            // A qualitative score is a percentage of its group, so it runs from 0 to the percent scale.
+            if (input.Score is < 0m or > 100m)
+            {
+                throw new ValidationException(
+                    $"Điểm định tính của nhóm \"{EvaluationProfileTree.NodeName(root)}\" phải nằm trong khoảng từ 0 đến 100.");
             }
 
             if (!result.TryAdd(input.EvaluationProfileItemId, input))
