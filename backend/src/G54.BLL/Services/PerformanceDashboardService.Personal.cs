@@ -80,8 +80,9 @@ public sealed partial class PerformanceDashboardService
             .SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>
-    /// The profile's groups in display order, each with the KPIs the calculation stored a contribution for.
-    /// A group's score is the mean of its non-null KPI scores.
+    /// The profile's root groups in display order, each with the KPIs (leaves of the group and of its sub-groups)
+    /// the calculation stored a contribution for. A group's score is the mean of its scored parts weighted by
+    /// their weight among siblings, normalised over the parts that have a score.
     /// </summary>
     private async Task<List<DashboardGroupDto>> BuildGroupsAsync(
         EvaluationRow evaluation,
@@ -89,26 +90,29 @@ public sealed partial class PerformanceDashboardService
     {
         var items = await db.EvaluationProfileItems.AsNoTracking()
             .Where(i => i.EvaluationProfileId == evaluation.ProfileId)
-            .OrderBy(i => i.DisplayOrder)
-            .Select(i => new { i.KpiGroupId, i.KpiGroup.Code, i.KpiGroup.Name, i.WeightPercent })
+            .Include(i => i.KpiDefinition)
             .ToListAsync(cancellationToken);
 
         var contributions = await LoadKpiContributionsAsync([evaluation.Id], cancellationToken);
-        var byGroup = contributions.ToLookup(c => c.KpiGroupId);
+        var byKpi = contributions.ToLookup(c => c.KpiDefinitionId);
 
-        return items
-            .Select(item =>
+        return EvaluationProfileTree.Build(items)
+            .Select(root =>
             {
-                var kpis = byGroup[item.KpiGroupId]
+                var kpis = EvaluationProfileTree.Leaves(root)
+                    .SelectMany(leaf => byKpi[leaf.Item.KpiDefinitionId!.Value].Take(1))
                     .OrderBy(c => c.KpiCode, StringComparer.Ordinal)
                     .ToList();
 
+                var score = EvaluationProfileTree.ScoreNode(
+                    root,
+                    leaf => byKpi[leaf.Item.KpiDefinitionId!.Value].FirstOrDefault()?.ComponentScore);
+
                 return new DashboardGroupDto(
-                    item.KpiGroupId,
-                    item.Code,
-                    item.Name,
-                    item.WeightPercent,
-                    Mean(kpis.Where(k => k.ComponentScore.HasValue).Select(k => k.ComponentScore!.Value)),
+                    root.Item.Id,
+                    EvaluationProfileTree.NodeName(root),
+                    root.Item.WeightPercent,
+                    RoundOrNull(score),
                     kpis.Select(k => new DashboardKpiDto(
                         k.KpiDefinitionId,
                         k.KpiCode,

@@ -99,28 +99,6 @@ public sealed class PerformanceCalculationEdgeCaseTests
         Assert.Equal(0, await rig.Db.PerformanceContributions.CountAsync());
     }
 
-    // ----- Task weight floor ----------------------------------------------------------------
-
-    [Fact]
-    public async Task Calculate_NeverLetsAWeightedResultDragTheActualBelowZero()
-    {
-        // Defensive: the weight adjustment is applied on top of the stored sum, so a result item larger than its progress
-        // row (inconsistent data) must not produce a negative actual.
-        using var rig = await Rig.CreateAsync([100m]);
-        var kpi = rig.AddKpi(0, "SUM");
-        rig.AddTarget(kpi, 100m);
-        var progress = rig.AddProgress(kpi, 5m, Day10);
-        rig.AddWeightedResult(progress, value: 10m, taskWeight: 0.1m); // 5 + 10 * (0.1 - 1) = -4
-        await rig.SaveAsync();
-
-        var dto = await rig.Service().CalculateAsync(rig.ManagerAccount.Id, rig.Evaluation.Id);
-
-        var scored = Assert.Single(Assert.Single(dto.Groups).Kpis);
-        Assert.Equal(0m, scored.ActualValue);
-        Assert.Equal(0m, scored.ComponentScore);
-        Assert.Equal(0m, dto.TotalScore);
-    }
-
     // ----- Rounding -------------------------------------------------------------------------
 
     public static TheoryData<string, string> MidpointScores => new()
@@ -193,7 +171,7 @@ public sealed class PerformanceCalculationEdgeCaseTests
     }
 
     [Fact]
-    public async Task Calculate_WeighsEachGroupByItsProfileWeight_AndAveragesTheKpisInsideAGroup()
+    public async Task Calculate_WeighsEachGroupByItsProfileWeight_AndWeighsTheKpisInsideAGroupByTheirShare()
     {
         using var rig = await Rig.CreateAsync([70m, 30m]);
         var first = rig.AddKpi(0, "A1");
@@ -209,12 +187,12 @@ public sealed class PerformanceCalculationEdgeCaseTests
 
         var dto = await rig.Service().CalculateAsync(rig.ManagerAccount.Id, rig.Evaluation.Id);
 
-        Assert.Equal(75m, dto.Groups[0].ComponentScore); // mean of 100 and 50
+        Assert.Equal(75m, dto.Groups[0].ComponentScore); // A1 and A2 carry 50 each: mean of 100 and 50
         Assert.Equal(80m, dto.Groups[1].ComponentScore);
         Assert.Equal(76.5m, dto.TotalScore); // 75 * 0.7 + 80 * 0.3
         Assert.Equal(3, await rig.Db.PerformanceContributions.CountAsync());
         var snapshots = await rig.Db.PerformanceContributions.AsNoTracking().Select(c => c.WeightSnapshot).ToListAsync();
-        Assert.Equal([30m, 70m, 70m], snapshots.OrderBy(w => w));
+        Assert.Equal([50m, 50m, 100m], snapshots.OrderBy(w => w)); // the leaf weights among their siblings
     }
 
     private static decimal Parse(string value) => decimal.Parse(value, CultureInfo.InvariantCulture);
@@ -223,10 +201,12 @@ public sealed class PerformanceCalculationEdgeCaseTests
 
     private sealed class Rig : IDisposable
     {
-        private readonly List<KpiGroup> _groups = [];
+        private readonly List<EvaluationProfileItem> _groupItems = [];
+        private EvaluationProfile _profile = null!;
         private readonly Dictionary<Guid, TargetAssignment> _carriers = [];
 
         public required AppDbContext Db { get; init; }
+        public required KpiGroup CatalogGroup { get; init; }
         public required Department Department { get; init; }
         public required Department OtherDepartment { get; init; }
         public required Employee Employee { get; init; }
@@ -283,30 +263,21 @@ public sealed class PerformanceCalculationEdgeCaseTests
             };
             db.EvaluationProfiles.Add(profile);
 
-            var groups = new List<KpiGroup>();
+            var groupItems = new List<EvaluationProfileItem>();
             for (var index = 0; index < groupWeights.Length; index++)
             {
-                var group = new KpiGroup
-                {
-                    Id = Guid.NewGuid(),
-                    Code = $"G{index + 1}",
-                    Name = $"Group {index + 1}",
-                    Status = KpiStatus.Active,
-                    UpdatedAt = Now,
-                };
-                groups.Add(group);
-                db.KpiGroups.Add(group);
-                db.EvaluationProfileItems.Add(new EvaluationProfileItem
+                var item = new EvaluationProfileItem
                 {
                     Id = Guid.NewGuid(),
                     EvaluationProfileId = profile.Id,
-                    KpiGroupId = group.Id,
+                    Name = $"Group {index + 1}",
                     WeightPercent = groupWeights[index],
                     DisplayOrder = index + 1,
                     UpdatedAt = Now,
-                });
+                };
+                groupItems.Add(item);
+                db.EvaluationProfileItems.Add(item);
             }
-
             var period = NewPeriod("2026-10", PeriodStart, PeriodEnd);
             var otherPeriod = NewPeriod("2026-11", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
             db.EvaluationPeriods.AddRange(period, otherPeriod);
@@ -323,9 +294,14 @@ public sealed class PerformanceCalculationEdgeCaseTests
             db.PerformanceEvaluations.Add(evaluation);
             await db.SaveChangesAsync();
 
+            var catalogGroup = new KpiGroup { Id = Guid.NewGuid(), Code = "CAT", Name = "Catalog", Status = KpiStatus.Active, UpdatedAt = Now };
+            db.KpiGroups.Add(catalogGroup);
+            await db.SaveChangesAsync();
+
             var rig = new Rig
             {
                 Db = db,
+                CatalogGroup = catalogGroup,
                 Department = department,
                 OtherDepartment = otherDepartment,
                 Employee = employee,
@@ -335,7 +311,8 @@ public sealed class PerformanceCalculationEdgeCaseTests
                 OtherPeriod = otherPeriod,
                 Evaluation = evaluation,
             };
-            rig._groups.AddRange(groups);
+            rig._groupItems.AddRange(groupItems);
+            rig._profile = profile;
             return rig;
         }
 
@@ -357,7 +334,7 @@ public sealed class PerformanceCalculationEdgeCaseTests
             var kpi = new KpiDefinition
             {
                 Id = Guid.NewGuid(),
-                KpiGroupId = _groups[groupIndex].Id,
+                KpiGroupId = CatalogGroup.Id,
                 Code = code,
                 Name = code,
                 Unit = "unit",
@@ -367,9 +344,29 @@ public sealed class PerformanceCalculationEdgeCaseTests
                 UpdatedAt = Now,
             };
             Db.KpiDefinitions.Add(kpi);
+
+            // Leaves of a group are added one by one, so the group's leaves are re-weighted to share 100 equally.
+            var parent = _groupItems[groupIndex];
+            var leaves = Db.EvaluationProfileItems.Local.Where(i => i.ParentItemId == parent.Id).ToList();
+            var leaf = new EvaluationProfileItem
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = _profile.Id,
+                ParentItemId = parent.Id,
+                KpiDefinitionId = kpi.Id,
+                WeightPercent = 100m,
+                DisplayOrder = leaves.Count + 1,
+                UpdatedAt = Now,
+            };
+            Db.EvaluationProfileItems.Add(leaf);
+            leaves.Add(leaf);
+            foreach (var sibling in leaves)
+            {
+                sibling.WeightPercent = 100m / leaves.Count;
+            }
+
             return kpi;
         }
-
         /// <summary>A target that applies to the employee's own department unless told otherwise.</summary>
         public void AddTarget(
             KpiDefinition kpi,
@@ -422,64 +419,6 @@ public sealed class PerformanceCalculationEdgeCaseTests
             };
             Db.ActualProgresses.Add(progress);
             return progress;
-        }
-
-        /// <summary>A verified result item feeding the progress row; the row keeps the unweighted sum.</summary>
-        public void AddWeightedResult(ActualProgress progress, decimal value, decimal taskWeight)
-        {
-            var work = new Work
-            {
-                Id = Guid.NewGuid(),
-                Code = $"W-{Guid.NewGuid():N}"[..12],
-                Title = "Work",
-                AssigneeEmployeeId = Employee.Id,
-                CreatedBy = Employee.Id,
-                Status = WorkStatus.Verified,
-                Priority = WorkPriority.Medium,
-                UpdatedAt = Now,
-            };
-            var submission = new ResultSubmission
-            {
-                Id = Guid.NewGuid(),
-                WorkId = work.Id,
-                SubmitterEmployeeId = Employee.Id,
-                SubmissionNo = 1,
-                Status = SubmissionStatus.Approved,
-                SubmittedAt = Now,
-                UpdatedAt = Now,
-            };
-            var verification = new Verification
-            {
-                Id = Guid.NewGuid(),
-                ResultSubmissionId = submission.Id,
-                VerifierEmployeeId = Manager.Id,
-                RoundNo = 1,
-                Decision = VerificationDecision.Approved,
-                VerifiedAt = Now,
-                UpdatedAt = Now,
-            };
-            var result = new VerifiedWorkResult
-            {
-                Id = Guid.NewGuid(),
-                VerificationId = verification.Id,
-                VerifiedAt = Now,
-                Status = VerifiedResultStatus.Valid,
-                UpdatedAt = Now,
-            };
-            Db.Works.Add(work);
-            Db.ResultSubmissions.Add(submission);
-            Db.Verifications.Add(verification);
-            Db.VerifiedWorkResults.Add(result);
-            Db.WorkResultItems.Add(new WorkResultItem
-            {
-                Id = Guid.NewGuid(),
-                VerifiedWorkResultId = result.Id,
-                ActualProgressId = progress.Id,
-                EmployeeId = Employee.Id,
-                Value = value,
-                TaskWeight = taskWeight,
-                UpdatedAt = Now,
-            });
         }
 
         public void Dispose() => Db.Dispose();

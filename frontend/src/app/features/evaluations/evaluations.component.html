@@ -249,11 +249,19 @@
                   </td>
                   <td class="td-action text-right">
                     @if (item.canEvaluate) {
-                      <button type="button" class="btn-action evaluate">
+                      <button
+                        type="button"
+                        class="btn-action evaluate"
+                        (click)="openEvaluationForm(item)"
+                      >
                         {{localization.evaluations.actionEvaluate}}
                       </button>
                     } @else {
-                      <button type="button" class="btn-action view">
+                      <button
+                        type="button"
+                        class="btn-action view"
+                        (click)="openEvaluationForm(item)"
+                      >
                         {{localization.evaluations.actionView}}
                       </button>
                     }

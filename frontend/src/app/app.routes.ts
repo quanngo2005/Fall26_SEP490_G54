@@ -76,6 +76,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluations/form',
+    canActivate: [authGuard],
+    title: 'Đánh giá nhân viên',
+    loadComponent: () =>
+      import('./features/evaluations/evaluation-form.component').then(
+        (m) => m.EvaluationFormComponent,
+      ),
+  },
+  {
     path: 'evaluations',
     canActivate: [authGuard],
     title: 'Đánh giá nhân viên',

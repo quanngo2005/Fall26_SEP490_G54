@@ -37,24 +37,52 @@ public sealed class EvaluationProfileItemServiceTests
         return position;
     }
 
-    private static KpiGroup AddGroup(AppDbContext db, string code)
+    /// <summary>A KPI of the catalog that a test can place as a leaf.</summary>
+    private static KpiDefinition AddKpi(AppDbContext db, string code)
     {
-        var group = new KpiGroup
+        var catalog = db.KpiGroups.FirstOrDefault(g => g.Code == "CATALOG");
+        if (catalog is null)
+        {
+            catalog = new KpiGroup
+            {
+                Id = Guid.NewGuid(),
+                Code = "CATALOG",
+                Name = "Catalog",
+                Status = KpiStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            db.KpiGroups.Add(catalog);
+        }
+
+        var kpi = new KpiDefinition
         {
             Id = Guid.NewGuid(),
+            KpiGroupId = catalog.Id,
             Code = code,
-            Name = $"Group {code}",
+            Name = $"KPI {code}",
+            Unit = "unit",
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
             Status = KpiStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-        db.KpiGroups.Add(group);
+        db.KpiDefinitions.Add(kpi);
         db.SaveChanges();
-        return group;
+        return kpi;
     }
 
-    private static EvaluationProfileItemInputDto Input(KpiGroup group, decimal weight, int order = 1) =>
-        new() { KpiGroupId = group.Id, WeightPercent = weight, DisplayOrder = order };
+    /// <summary>A root group with the weight, without children (a draft may hold it).</summary>
+    private static EvaluationProfileItemInputDto Input(string name, decimal weight, int order = 1) =>
+        new() { Name = name, WeightPercent = weight, DisplayOrder = order };
 
+    private static AddEvaluationProfileItemDto AddGroupDto(string name, decimal weight, int order = 1, Guid? parent = null) =>
+        new() { ParentItemId = parent, Name = name, WeightPercent = weight, DisplayOrder = order };
+
+    private static AddEvaluationProfileItemDto AddLeafDto(KpiDefinition kpi, Guid parent, decimal weight, int order = 1) =>
+        new() { ParentItemId = parent, KpiDefinitionId = kpi.Id, WeightPercent = weight, DisplayOrder = order };
+
+    private static Task<Guid> RootIdAsync(AppDbContext db, string name) =>
+        db.EvaluationProfileItems.Where(i => i.Name == name).Select(i => i.Id).SingleAsync();
     private static async Task<EvaluationProfileDto> CreateDraftAsync(
         EvaluationProfileService service,
         JobPosition position,
@@ -92,21 +120,27 @@ public sealed class EvaluationProfileItemServiceTests
     // ----- GetItems -------------------------------------------------------------------------
 
     [Fact]
-    public async Task GetItems_ReturnsTheItemsOrderedByDisplayOrderThenGroupCode()
+    public async Task GetItems_ReturnsTheRootsOrderedByDisplayOrderWithTheirChildren()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var a = AddGroup(db, "A_GROUP");
-            var b = AddGroup(db, "B_GROUP");
-            var c = AddGroup(db, "C_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(c, 20, 2), Input(b, 30, 1), Input(a, 50, 2));
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(
+                service,
+                AddPosition(db),
+                Input("Second", 40, 2) with { Children = [new() { KpiDefinitionId = kpi.Id, WeightPercent = 100, DisplayOrder = 1 }] },
+                Input("First", 60, 1));
 
             var items = await service.GetItemsAsync(profile.Id);
 
             Assert.NotNull(items);
-            Assert.Equal(["B_GROUP", "A_GROUP", "C_GROUP"], items.Select(i => i.KpiGroupCode));
+            Assert.Equal(["First", "Second"], items.Select(i => i.Name));
+            Assert.Empty(items[0].Children);
+            var leaf = Assert.Single(items[1].Children);
+            Assert.Equal(kpi.Id, leaf.KpiDefinitionId);
+            Assert.Equal("KPI_A", leaf.KpiCode);
+            Assert.Equal(items[1].Id, leaf.ParentItemId);
         }
     }
 
@@ -138,25 +172,42 @@ public sealed class EvaluationProfileItemServiceTests
     // ----- AddItem --------------------------------------------------------------------------
 
     [Fact]
-    public async Task AddItem_ToADraftProfile_StoresTheItemAndTouchesTheProfile()
+    public async Task AddItem_ARootGroup_StoresItAndTouchesTheProfile()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var group = AddGroup(db, "SERVICE_QUALITY");
-            var profile = await CreateDraftAsync(service, position);
+            var profile = await CreateDraftAsync(service, AddPosition(db));
 
-            var item = await service.AddItemAsync(profile.Id, Input(group, 30, 2));
+            var item = await service.AddItemAsync(profile.Id, AddGroupDto("Service quality", 30, 2));
 
-            Assert.Equal(group.Id, item.KpiGroupId);
-            Assert.Equal("SERVICE_QUALITY", item.KpiGroupCode);
+            Assert.Equal("Service quality", item.Name);
+            Assert.Null(item.ParentItemId);
+            Assert.Null(item.KpiDefinitionId);
             Assert.Equal(30m, item.WeightPercent);
             Assert.Equal(2, item.DisplayOrder);
-            var stored = await db.EvaluationProfileItems.SingleAsync(i => i.EvaluationProfileId == profile.Id);
-            Assert.Equal(group.Id, stored.KpiGroupId);
+            Assert.Equal(1, await db.EvaluationProfileItems.CountAsync(i => i.EvaluationProfileId == profile.Id));
             var storedProfile = await db.EvaluationProfiles.SingleAsync(p => p.Id == profile.Id);
             Assert.True(storedProfile.UpdatedAt > profile.UpdatedAt);
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_AKpiLeafUnderAGroup_IsStoredWithItsParent()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+
+            var leaf = await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 100));
+
+            Assert.Equal(groupId, leaf.ParentItemId);
+            Assert.Equal(kpi.Id, leaf.KpiDefinitionId);
+            Assert.Null(leaf.Name);
+            Assert.Equal("KPI_A", leaf.KpiCode);
         }
     }
 
@@ -166,12 +217,10 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var group = AddGroup(db, "OPERATIONS");
-            var profile = await CreateDraftAsync(service, position);
+            var profile = await CreateDraftAsync(service, AddPosition(db));
             await SetStatusAsync(db, profile.Id, EvaluationProfileStatus.Inactive);
 
-            var item = await service.AddItemAsync(profile.Id, Input(group, 40));
+            var item = await service.AddItemAsync(profile.Id, AddGroupDto("Operations", 40));
 
             Assert.Equal(40m, item.WeightPercent);
         }
@@ -183,12 +232,9 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var a = AddGroup(db, "A_GROUP");
-            var b = AddGroup(db, "B_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(a, 80, 1));
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 80, 1));
 
-            await service.AddItemAsync(profile.Id, Input(b, 80, 2));
+            await service.AddItemAsync(profile.Id, AddGroupDto("B", 80, 2));
 
             var total = await db.EvaluationProfileItems
                 .Where(i => i.EvaluationProfileId == profile.Id)
@@ -198,31 +244,137 @@ public sealed class EvaluationProfileItemServiceTests
     }
 
     [Fact]
-    public async Task AddItem_WithAGroupAlreadyInTheProfile_IsAConflict()
+    public async Task AddItem_AKpiAlreadyInTheProfile_IsAConflict()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var group = AddGroup(db, "A_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(group, 50));
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 50));
 
-            await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, Input(group, 10)));
+            await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 10, 2)));
 
+            Assert.Equal(2, await db.EvaluationProfileItems.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_AGroupNameAlreadyUsedAmongTheSiblings_IsAConflict()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Business", 50));
+
+            await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddGroupDto("business", 10, 2)));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_ADisplayOrderAlreadyUsedAmongTheSiblings_IsAConflictAndStoresNothing()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Business", 50, 2));
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddGroupDto("Quality", 10, 2)));
+
+            Assert.Equal(409, ex.StatusCode);
             Assert.Equal(1, await db.EvaluationProfileItems.CountAsync());
         }
     }
 
     [Fact]
-    public async Task AddItem_WithAnUnknownGroup_IsNotFound()
+    public async Task AddItem_ADisplayOrderUsedOnlyUnderAnotherParent_IsAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 50, 1), Input("B", 50, 2));
+            var groupA = await RootIdAsync(db, "A");
+            var groupB = await RootIdAsync(db, "B");
+            await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupA, 100, 1));
+
+            var added = await service.AddItemAsync(profile.Id, AddGroupDto("Sub", 100, 1, groupB));
+
+            Assert.Equal(1, added.DisplayOrder);
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_AnUnknownKpi_IsNotFound()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var unknown = new AddEvaluationProfileItemDto { ParentItemId = groupId, KpiDefinitionId = Guid.NewGuid(), WeightPercent = 10, DisplayOrder = 1 };
+
+            await Assert.ThrowsAsync<NotFoundException>(() => service.AddItemAsync(profile.Id, unknown));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_UnderAnUnknownParent_IsNotFound()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
             var profile = await CreateDraftAsync(service, AddPosition(db));
-            var unknown = new EvaluationProfileItemInputDto { KpiGroupId = Guid.NewGuid(), WeightPercent = 10, DisplayOrder = 1 };
 
-            await Assert.ThrowsAsync<NotFoundException>(() => service.AddItemAsync(profile.Id, unknown));
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                service.AddItemAsync(profile.Id, AddGroupDto("Child", 10, 1, Guid.NewGuid())));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_UnderAKpiLeaf_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var leaf = await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 100));
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.AddItemAsync(profile.Id, AddGroupDto("Under leaf", 10, 1, leaf.Id)));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_AKpiAtTheRoot_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db));
+            var rootLeaf = new AddEvaluationProfileItemDto { KpiDefinitionId = kpi.Id, WeightPercent = 100, DisplayOrder = 1 };
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, rootLeaf));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_BeyondThreeLevels_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("L1", 100));
+            var l1 = await RootIdAsync(db, "L1");
+            var l2 = await service.AddItemAsync(profile.Id, AddGroupDto("L2", 100, 1, l1));
+            var l3 = await service.AddItemAsync(profile.Id, AddGroupDto("L3", 100, 1, l2.Id));
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.AddItemAsync(profile.Id, AddGroupDto("L4", 100, 1, l3.Id)));
         }
     }
 
@@ -232,9 +384,7 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var group = AddGroup(db, "A_GROUP");
-
-            await Assert.ThrowsAsync<NotFoundException>(() => service.AddItemAsync(Guid.NewGuid(), Input(group, 10)));
+            await Assert.ThrowsAsync<NotFoundException>(() => service.AddItemAsync(Guid.NewGuid(), AddGroupDto("A", 10)));
         }
     }
 
@@ -249,9 +399,8 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var group = AddGroup(db, "A_GROUP");
             var profile = await CreateDraftAsync(service, AddPosition(db));
-            var dto = Input(group, decimal.Parse(weight, System.Globalization.CultureInfo.InvariantCulture), order);
+            var dto = AddGroupDto("A", decimal.Parse(weight, System.Globalization.CultureInfo.InvariantCulture), order);
 
             await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, dto));
 
@@ -260,15 +409,58 @@ public sealed class EvaluationProfileItemServiceTests
     }
 
     [Fact]
-    public async Task AddItem_WithAnEmptyGroupId_IsAValidationError()
+    public async Task AddItem_WithBothANameAndAKpi_Or_Neither_IsAValidationError()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var profile = await CreateDraftAsync(service, AddPosition(db));
-            var dto = new EvaluationProfileItemInputDto { KpiGroupId = Guid.Empty, WeightPercent = 10, DisplayOrder = 1 };
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var both = new AddEvaluationProfileItemDto { ParentItemId = groupId, Name = "X", KpiDefinitionId = kpi.Id, WeightPercent = 10, DisplayOrder = 1 };
+            var neither = new AddEvaluationProfileItemDto { ParentItemId = groupId, WeightPercent = 10, DisplayOrder = 1 };
 
-            await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, dto));
+            await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, both));
+            await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, neither));
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_WithAnEmptyKpiId_ReportsTheEmptyIdWhetherOrNotItHasAName()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var withoutName = new AddEvaluationProfileItemDto { ParentItemId = groupId, KpiDefinitionId = Guid.Empty, WeightPercent = 10, DisplayOrder = 1 };
+            var withName = withoutName with { Name = "X" };
+
+            var first = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, withoutName));
+            var second = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, withName));
+
+            Assert.Contains("KpiDefinitionId", first.Message);
+            Assert.Contains("KpiDefinitionId", second.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AddItem_WithBothANameAndAKpi_Or_Neither_ReportsTheGroupOrLeafRule()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+            var both = new AddEvaluationProfileItemDto { ParentItemId = groupId, Name = "X", KpiDefinitionId = kpi.Id, WeightPercent = 10, DisplayOrder = 1 };
+            var neither = new AddEvaluationProfileItemDto { ParentItemId = groupId, WeightPercent = 10, DisplayOrder = 1 };
+
+            var first = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, both));
+            var second = await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, neither));
+
+            Assert.DoesNotContain("không được để trống", first.Message);
+            Assert.Equal(first.Message, second.Message);
         }
     }
 
@@ -280,13 +472,12 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var group = AddGroup(db, "A_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(group, 50, 1));
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 50, 1));
+            var id = await RootIdAsync(db, "A");
 
             var item = await service.UpdateItemAsync(
                 profile.Id,
-                group.Id,
+                id,
                 new UpdateEvaluationProfileItemDto { WeightPercent = 35.5m, DisplayOrder = 3 });
 
             Assert.Equal(35.5m, item.WeightPercent);
@@ -298,18 +489,73 @@ public sealed class EvaluationProfileItemServiceTests
     }
 
     [Fact]
-    public async Task UpdateItem_ForAGroupNotInTheProfile_IsNotFound()
+    public async Task UpdateItem_ToADisplayOrderUsedByASibling_IsAConflictAndChangesNothing()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var other = AddGroup(db, "OTHER");
-            var profile = await CreateDraftAsync(service, position);
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var id = await RootIdAsync(db, "A");
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateItemAsync(
+                profile.Id, id, new UpdateEvaluationProfileItemDto { WeightPercent = 10, DisplayOrder = 2 }));
+
+            Assert.Equal(409, ex.StatusCode);
+            var stored = await db.EvaluationProfileItems.AsNoTracking().SingleAsync(i => i.Id == id);
+            Assert.Equal(1, stored.DisplayOrder);
+            Assert.Equal(60m, stored.WeightPercent);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItem_KeepingItsOwnDisplayOrder_IsAcceptedEvenWhenASiblingAlreadySharesIt()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var id = await RootIdAsync(db, "A");
+            (await db.EvaluationProfileItems.SingleAsync(i => i.Name == "B")).DisplayOrder = 1;
+            await db.SaveChangesAsync();
+
+            var item = await service.UpdateItemAsync(
+                profile.Id, id, new UpdateEvaluationProfileItemDto { WeightPercent = 55, DisplayOrder = 1 });
+
+            Assert.Equal(55m, item.WeightPercent);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItem_RenamesAGroup_ButNotAKpiLeaf()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 100));
+            var groupId = await RootIdAsync(db, "A");
+            var leaf = await service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 100));
+
+            var renamed = await service.UpdateItemAsync(
+                profile.Id, groupId, new UpdateEvaluationProfileItemDto { Name = "  Renamed ", WeightPercent = 100, DisplayOrder = 1 });
+
+            Assert.Equal("Renamed", renamed.Name);
+            await Assert.ThrowsAsync<ValidationException>(() => service.UpdateItemAsync(
+                profile.Id, leaf.Id, new UpdateEvaluationProfileItemDto { Name = "Nope", WeightPercent = 100, DisplayOrder = 1 }));
+        }
+    }
+
+    [Fact]
+    public async Task UpdateItem_ForANodeNotInTheProfile_IsNotFound()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateDraftAsync(service, AddPosition(db));
 
             await Assert.ThrowsAsync<NotFoundException>(() => service.UpdateItemAsync(
                 profile.Id,
-                other.Id,
+                Guid.NewGuid(),
                 new UpdateEvaluationProfileItemDto { WeightPercent = 10, DisplayOrder = 1 }));
         }
     }
@@ -320,13 +566,12 @@ public sealed class EvaluationProfileItemServiceTests
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var group = AddGroup(db, "A_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(group, 50, 1));
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 50, 1));
+            var id = await RootIdAsync(db, "A");
 
             await Assert.ThrowsAsync<ValidationException>(() => service.UpdateItemAsync(
                 profile.Id,
-                group.Id,
+                id,
                 new UpdateEvaluationProfileItemDto { WeightPercent = 0, DisplayOrder = 1 }));
 
             Assert.Equal(50m, (await db.EvaluationProfileItems.SingleAsync()).WeightPercent);
@@ -336,25 +581,40 @@ public sealed class EvaluationProfileItemServiceTests
     // ----- RemoveItem -----------------------------------------------------------------------
 
     [Fact]
-    public async Task RemoveItem_DeletesOnlyTheRequestedItem()
+    public async Task RemoveItem_DeletesOnlyTheRequestedNode()
     {
         var (db, service) = CreateEnvironment();
         using (db)
         {
-            var position = AddPosition(db);
-            var a = AddGroup(db, "A_GROUP");
-            var b = AddGroup(db, "B_GROUP");
-            var profile = await CreateDraftAsync(service, position, Input(a, 60, 1), Input(b, 40, 2));
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var aId = await RootIdAsync(db, "A");
 
-            await service.RemoveItemAsync(profile.Id, a.Id);
+            await service.RemoveItemAsync(profile.Id, aId);
 
-            var remaining = await db.EvaluationProfileItems.SingleAsync();
-            Assert.Equal(b.Id, remaining.KpiGroupId);
+            Assert.Equal("B", (await db.EvaluationProfileItems.SingleAsync()).Name);
         }
     }
 
     [Fact]
-    public async Task RemoveItem_ForAGroupNotInTheProfile_IsNotFound()
+    public async Task RemoveItem_AGroupTakesItsWholeSubtreeWithIt()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("A", 60, 1), Input("B", 40, 2));
+            var aId = await RootIdAsync(db, "A");
+            var sub = await service.AddItemAsync(profile.Id, AddGroupDto("Sub", 100, 1, aId));
+            await service.AddItemAsync(profile.Id, AddLeafDto(kpi, sub.Id, 100));
+
+            await service.RemoveItemAsync(profile.Id, aId);
+
+            Assert.Equal("B", (await db.EvaluationProfileItems.SingleAsync()).Name);
+        }
+    }
+
+    [Fact]
+    public async Task RemoveItem_ForANodeNotInTheProfile_IsNotFound()
     {
         var (db, service) = CreateEnvironment();
         using (db)
@@ -377,15 +637,13 @@ public sealed class EvaluationProfileItemServiceTests
 
     // ----- Profile state guards (add, update and remove share them) -------------------------
 
-    private static async Task<(AppDbContext Db, EvaluationProfileService Service, EvaluationProfileDto Profile, KpiGroup Group)>
+    private static async Task<(AppDbContext Db, EvaluationProfileService Service, EvaluationProfileDto Profile, Guid ItemId)>
         ProfileWithOneItemAsync()
     {
         var (db, service) = CreateEnvironment();
         var position = AddPosition(db);
-        var group = AddGroup(db, "A_GROUP");
-        AddGroup(db, "SPARE");
-        var profile = await CreateDraftAsync(service, position, Input(group, 100, 1));
-        return (db, service, profile, group);
+        var profile = await CreateDraftAsync(service, position, Input("A", 100, 1));
+        return (db, service, profile, await RootIdAsync(db, "A"));
     }
 
     [Theory]
@@ -393,16 +651,15 @@ public sealed class EvaluationProfileItemServiceTests
     [InlineData(EvaluationProfileStatus.Archived)]
     public async Task EveryWrite_OnAnActiveOrArchivedProfile_IsAGenericConflictAndChangesNothing(EvaluationProfileStatus status)
     {
-        var (db, service, profile, group) = await ProfileWithOneItemAsync();
+        var (db, service, profile, itemId) = await ProfileWithOneItemAsync();
         using (db)
         {
             await SetStatusAsync(db, profile.Id, status);
-            var spare = await db.KpiGroups.SingleAsync(g => g.Code == "SPARE");
 
-            var add = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, Input(spare, 10, 2)));
+            var add = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddGroupDto("Spare", 10, 2)));
             var update = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateItemAsync(
-                profile.Id, group.Id, new UpdateEvaluationProfileItemDto { WeightPercent = 50, DisplayOrder = 1 }));
-            var remove = await Assert.ThrowsAsync<ConflictException>(() => service.RemoveItemAsync(profile.Id, group.Id));
+                profile.Id, itemId, new UpdateEvaluationProfileItemDto { WeightPercent = 50, DisplayOrder = 1 }));
+            var remove = await Assert.ThrowsAsync<ConflictException>(() => service.RemoveItemAsync(profile.Id, itemId));
 
             Assert.All([add, update, remove], e => Assert.Equal(ErrorCodes.Conflict, e.ErrorCode));
             var stored = await db.EvaluationProfileItems.SingleAsync();
@@ -413,16 +670,15 @@ public sealed class EvaluationProfileItemServiceTests
     [Fact]
     public async Task EveryWrite_OnAProfileInUse_IsAConflictWithTheInUseCode()
     {
-        var (db, service, profile, group) = await ProfileWithOneItemAsync();
+        var (db, service, profile, itemId) = await ProfileWithOneItemAsync();
         using (db)
         {
             MarkInUse(db, profile.Id);
-            var spare = await db.KpiGroups.SingleAsync(g => g.Code == "SPARE");
 
-            var add = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, Input(spare, 10, 2)));
+            var add = await Assert.ThrowsAsync<ConflictException>(() => service.AddItemAsync(profile.Id, AddGroupDto("Spare", 10, 2)));
             var update = await Assert.ThrowsAsync<ConflictException>(() => service.UpdateItemAsync(
-                profile.Id, group.Id, new UpdateEvaluationProfileItemDto { WeightPercent = 50, DisplayOrder = 1 }));
-            var remove = await Assert.ThrowsAsync<ConflictException>(() => service.RemoveItemAsync(profile.Id, group.Id));
+                profile.Id, itemId, new UpdateEvaluationProfileItemDto { WeightPercent = 50, DisplayOrder = 1 }));
+            var remove = await Assert.ThrowsAsync<ConflictException>(() => service.RemoveItemAsync(profile.Id, itemId));
 
             Assert.All([add, update, remove], e => Assert.Equal(ErrorCodes.EvaluationProfileInUse, e.ErrorCode));
             Assert.Equal(1, await db.EvaluationProfileItems.CountAsync());
@@ -438,9 +694,8 @@ public sealed class EvaluationProfileItemServiceTests
         using (db)
         {
             var position = AddPosition(db);
-            var group = AddGroup(db, "A_GROUP");
 
-            await Assert.ThrowsAsync<ValidationException>(() => CreateDraftAsync(service, position, Input(group, 0, 1)));
+            await Assert.ThrowsAsync<ValidationException>(() => CreateDraftAsync(service, position, Input("A", 0, 1)));
         }
     }
 }

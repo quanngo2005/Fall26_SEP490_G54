@@ -39,7 +39,7 @@ public sealed class EvaluationProfilesControllerTests
         false,
         100m,
         DateTimeOffset.UtcNow,
-        [new EvaluationProfileItemDto(Guid.NewGuid(), "SERVICE_QUALITY", "Service quality", 30m, 1)]);
+        [new EvaluationProfileItemDto(Guid.NewGuid(), null, "Service quality", null, null, null, 100m, 1, [])]);
 
     // ----- Routes and policies --------------------------------------------------------------
 
@@ -52,8 +52,8 @@ public sealed class EvaluationProfilesControllerTests
     [InlineData(nameof(EvaluationProfilesController.DeleteProfile), typeof(HttpDeleteAttribute), "{id:guid}")]
     [InlineData(nameof(EvaluationProfilesController.GetItems), typeof(HttpGetAttribute), "{id:guid}/items")]
     [InlineData(nameof(EvaluationProfilesController.AddItem), typeof(HttpPostAttribute), "{id:guid}/items")]
-    [InlineData(nameof(EvaluationProfilesController.UpdateItem), typeof(HttpPutAttribute), "{id:guid}/items/{kpiGroupId:guid}")]
-    [InlineData(nameof(EvaluationProfilesController.RemoveItem), typeof(HttpDeleteAttribute), "{id:guid}/items/{kpiGroupId:guid}")]
+    [InlineData(nameof(EvaluationProfilesController.UpdateItem), typeof(HttpPutAttribute), "{id:guid}/items/{itemId:guid}")]
+    [InlineData(nameof(EvaluationProfilesController.RemoveItem), typeof(HttpDeleteAttribute), "{id:guid}/items/{itemId:guid}")]
     public void EveryAction_UsesTheDocumentedVerbAndRoute(string action, Type verb, string? template)
     {
         var method = typeof(EvaluationProfilesController).GetMethod(action);
@@ -124,7 +124,7 @@ public sealed class EvaluationProfilesControllerTests
         Assert.Equal("ACTIVE", data.GetProperty("status").GetString());
         Assert.False(data.GetProperty("isInUse").GetBoolean());
         Assert.Equal(JsonValueKind.Null, data.GetProperty("effectiveTo").ValueKind);
-        Assert.Equal("SERVICE_QUALITY", data.GetProperty("items")[0].GetProperty("kpiGroupCode").GetString());
+        Assert.Equal("Service quality", data.GetProperty("items")[0].GetProperty("name").GetString());
     }
 
     [Fact]
@@ -224,7 +224,7 @@ public sealed class EvaluationProfilesControllerTests
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value, JsonOptions));
         var data = document.RootElement.GetProperty("data");
         Assert.Equal(1, data.GetArrayLength());
-        Assert.Equal("SERVICE_QUALITY", data[0].GetProperty("kpiGroupCode").GetString());
+        Assert.Equal("Service quality", data[0].GetProperty("name").GetString());
         Assert.Equal("trace-1", document.RootElement.GetProperty("traceId").GetString());
     }
 
@@ -246,7 +246,7 @@ public sealed class EvaluationProfilesControllerTests
         var id = Guid.NewGuid();
         var service = new RecordingService();
         var controller = CreateController(service);
-        var dto = new EvaluationProfileItemInputDto { KpiGroupId = Guid.NewGuid(), WeightPercent = 25, DisplayOrder = 1 };
+        var dto = new AddEvaluationProfileItemDto { Name = "Quality", WeightPercent = 25, DisplayOrder = 1 };
 
         var result = await controller.AddItem(id, dto, CancellationToken.None);
 
@@ -265,16 +265,16 @@ public sealed class EvaluationProfilesControllerTests
     public async Task UpdateItem_PassesTheRouteIdsAndBodyAndReturns200()
     {
         var id = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
         var service = new RecordingService();
         var controller = CreateController(service);
         var dto = new UpdateEvaluationProfileItemDto { WeightPercent = 40, DisplayOrder = 2 };
 
-        var result = await controller.UpdateItem(id, groupId, dto, CancellationToken.None);
+        var result = await controller.UpdateItem(id, itemId, dto, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(id, service.ItemProfileId);
-        Assert.Equal(groupId, service.ItemGroupId);
+        Assert.Equal(itemId, service.ItemId);
         Assert.Same(dto, service.UpdateItemDto);
         Assert.IsType<ApiResponse<EvaluationProfileItemDto>>(ok.Value);
     }
@@ -283,15 +283,15 @@ public sealed class EvaluationProfilesControllerTests
     public async Task RemoveItem_PassesTheRouteIdsAndReturnsAnEmptyEnvelope()
     {
         var id = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
         var service = new RecordingService();
         var controller = CreateController(service);
 
-        var result = await controller.RemoveItem(id, groupId, CancellationToken.None);
+        var result = await controller.RemoveItem(id, itemId, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(id, service.ItemProfileId);
-        Assert.Equal(groupId, service.ItemGroupId);
+        Assert.Equal(itemId, service.ItemId);
         Assert.True(Assert.IsType<ApiResponse>(ok.Value).Success);
     }
 
@@ -308,8 +308,8 @@ public sealed class EvaluationProfilesControllerTests
         public EvaluationProfileStatusDto? StatusDto { get; private set; }
         public Guid? DeletedId { get; private set; }
         public Guid? ItemProfileId { get; private set; }
-        public Guid? ItemGroupId { get; private set; }
-        public EvaluationProfileItemInputDto? AddItemDto { get; private set; }
+        public Guid? ItemId { get; private set; }
+        public AddEvaluationProfileItemDto? AddItemDto { get; private set; }
         public UpdateEvaluationProfileItemDto? UpdateItemDto { get; private set; }
 
         public Task<PagedResult<EvaluationProfileListItemDto>> GetProfilesAsync(
@@ -378,30 +378,32 @@ public sealed class EvaluationProfilesControllerTests
 
         public Task<EvaluationProfileItemDto> AddItemAsync(
             Guid profileId,
-            EvaluationProfileItemInputDto dto,
+            AddEvaluationProfileItemDto dto,
             CancellationToken cancellationToken = default)
         {
             ItemProfileId = profileId;
             AddItemDto = dto;
-            return Task.FromResult(new EvaluationProfileItemDto(dto.KpiGroupId, "CODE", "Name", dto.WeightPercent, dto.DisplayOrder));
+            return Task.FromResult(new EvaluationProfileItemDto(
+                Guid.NewGuid(), dto.ParentItemId, dto.Name, dto.KpiDefinitionId, null, null, dto.WeightPercent, dto.DisplayOrder, []));
         }
 
         public Task<EvaluationProfileItemDto> UpdateItemAsync(
             Guid profileId,
-            Guid kpiGroupId,
+            Guid itemId,
             UpdateEvaluationProfileItemDto dto,
             CancellationToken cancellationToken = default)
         {
             ItemProfileId = profileId;
-            ItemGroupId = kpiGroupId;
+            ItemId = itemId;
             UpdateItemDto = dto;
-            return Task.FromResult(new EvaluationProfileItemDto(kpiGroupId, "CODE", "Name", dto.WeightPercent, dto.DisplayOrder));
+            return Task.FromResult(new EvaluationProfileItemDto(
+                itemId, null, dto.Name, null, null, null, dto.WeightPercent, dto.DisplayOrder, []));
         }
 
-        public Task RemoveItemAsync(Guid profileId, Guid kpiGroupId, CancellationToken cancellationToken = default)
+        public Task RemoveItemAsync(Guid profileId, Guid itemId, CancellationToken cancellationToken = default)
         {
             ItemProfileId = profileId;
-            ItemGroupId = kpiGroupId;
+            ItemId = itemId;
             return Task.CompletedTask;
         }
     }

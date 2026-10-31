@@ -2,6 +2,7 @@ import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -30,6 +31,7 @@ export type ListStatus = 'NOT_EVALUATED' | 'DRAFT' | 'COMPLETED';
   styleUrls: ['./evaluations.component.scss', './evaluations.layout.scss'],
 })
 export class EvaluationsComponent extends LocalizedComponent {
+  private readonly router = inject(Router);
   private readonly evaluationService = inject(EvaluationService);
   private readonly destroyRef = inject(DestroyRef);
   private rowsRequest?: Subscription;
@@ -53,9 +55,13 @@ export class EvaluationsComponent extends LocalizedComponent {
     const period = this.selectedPeriod();
     const list = this.allEvaluations();
     const completed = list.filter((item) => this.listStatus(item) === 'COMPLETED').length;
+    const departmentNames = new Set(list.map((item) => item.departmentName));
     return {
       period,
-      departmentName: list[0]?.departmentName ?? null,
+      departmentName:
+        departmentNames.size > 1
+          ? this.i18n.translate('evaluations.departmentCount', { count: departmentNames.size })
+          : (list[0]?.departmentName ?? null),
       employeeCount: list.length,
       completedCount: completed,
       progressPercent: list.length ? Math.round((completed * 100) / list.length) : null,
@@ -254,5 +260,14 @@ export class EvaluationsComponent extends LocalizedComponent {
   onAttentionFilterChange(event: Event): void {
     const target = event.target as HTMLSelectElement;
     this.attentionFilter.set(target.value);
+  }
+
+  openEvaluationForm(item: DepartmentEmployeeEvaluation): void {
+    void this.router.navigate(['/evaluations/form'], {
+      queryParams: {
+        employeeId: item.employeeId,
+        periodId: this.selectedPeriodId(),
+      },
+    });
   }
 }

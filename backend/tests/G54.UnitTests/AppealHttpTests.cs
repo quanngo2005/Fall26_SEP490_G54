@@ -448,14 +448,25 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
             Status = EvaluationProfileStatus.Active,
         };
         db.EvaluationProfiles.Add(profile);
-        db.EvaluationProfileItems.Add(new EvaluationProfileItem
+        var rootItem = new EvaluationProfileItem
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = group.Id,
+            Name = "Group",
             WeightPercent = 100m,
             DisplayOrder = 1,
-        });
+        };
+        db.EvaluationProfileItems.AddRange(
+            rootItem,
+            new EvaluationProfileItem
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = profile.Id,
+                ParentItemId = rootItem.Id,
+                KpiDefinitionId = kpi.Id,
+                WeightPercent = 100m,
+                DisplayOrder = 1,
+            });
         db.PerformanceEvaluations.Add(new PerformanceEvaluation
         {
             Id = Guid.NewGuid(),
