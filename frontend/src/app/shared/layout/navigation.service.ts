@@ -173,7 +173,12 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'VERIFICATION_DECIDE',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
-  { id: 'targetsAndCampaigns', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
+  {
+    id: 'targetsAndCampaigns',
+    icon: 'targetsAndCampaigns',
+    route: '/campaigns',
+    permission: 'TARGET_MANAGE',
+  },
   { id: 'branchWork', icon: 'branchWork' },
   { id: 'branchPerformance', icon: 'branchPerformance' },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
@@ -182,7 +187,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'auditReview', icon: 'auditReview' },
   { id: 'riskEvents', icon: 'riskEvents' },
   { id: 'reportsAnalytics', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
-  { id: 'accounts', icon: 'people' },
+  { id: 'accounts', icon: 'people', route: '/user-accounts' },
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
@@ -229,8 +234,10 @@ export class NavigationService {
     '/work-type-detail',
     '/review-verify',
     '/kpi-definitions',
+    '/campaigns',
     '/sidebar-settings',
     '/roles',
+    '/user-accounts',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);

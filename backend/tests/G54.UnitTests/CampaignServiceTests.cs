@@ -1441,5 +1441,182 @@ public sealed class CampaignServiceTests
             Assert.Contains("Mục tiêu kinh doanh", ex.Message);
         }
     }
-}
 
+    [Fact]
+    public async Task GetObjectives_ReturnsNonCancelledObjectivesByCode()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            foreach (var (code, status) in new[]
+            {
+                ("OBJ-2", BusinessObjectiveStatus.Active),
+                ("OBJ-1", BusinessObjectiveStatus.Draft),
+                ("OBJ-3", BusinessObjectiveStatus.Cancelled),
+            })
+            {
+                context.BusinessObjectives.Add(new BusinessObjective
+                {
+                    Id = Guid.NewGuid(),
+                    Code = code,
+                    Name = $"Objective {code}",
+                    StartDate = new DateOnly(2026, 1, 1),
+                    EndDate = new DateOnly(2026, 12, 31),
+                    Status = status,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            var objectives = await service.GetObjectivesAsync();
+
+            Assert.Equal(["OBJ-1", "OBJ-2"], objectives.Select(o => o.Code));
+        }
+    }
+
+    private static async Task<(BusinessCampaign Campaign, WorkType WorkType, Employee Employee)> SeedTargetCampaignAsync(
+        AppDbContext context,
+        string? kpiUnit = "tài khoản")
+    {
+        var (objective, workType, emp1, emp2) = await SeedBasicTestDataAsync(context);
+        var campaign = new BusinessCampaign
+        {
+            Id = Guid.NewGuid(),
+            BusinessObjectiveId = objective.Id,
+            Code = "CMP-TARGET",
+            Name = "Chiến dịch có mức mong muốn",
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 10, 31),
+            Status = BusinessCampaignStatus.Running,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        context.BusinessCampaigns.Add(campaign);
+        context.CampaignWorkTypes.Add(new CampaignWorkType
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaign.Id,
+            WorkTypeId = workType.Id,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        context.Participants.AddRange(
+            new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp1.Id, UpdatedAt = DateTimeOffset.UtcNow },
+            new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp2.Id, UpdatedAt = DateTimeOffset.UtcNow });
+        if (kpiUnit is not null)
+        {
+            var kpi = new KpiDefinition
+            {
+                Id = Guid.NewGuid(),
+                KpiGroupId = Guid.NewGuid(),
+                Code = "KPI-ACC",
+                Name = "Số tài khoản mở mới",
+                Unit = kpiUnit,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            context.KpiDefinitions.Add(kpi);
+            context.WorkTypeKpis.Add(new WorkTypeKpi
+            {
+                Id = Guid.NewGuid(),
+                WorkTypeId = workType.Id,
+                KpiDefinitionId = kpi.Id,
+                IsRequired = true,
+                EffectiveFrom = new DateOnly(2026, 1, 1),
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
+        await context.SaveChangesAsync();
+        return (campaign, workType, emp1);
+    }
+
+    private static BatchWorkGeneratorRequestDto TargetRequest(Guid workTypeId, int works, decimal? target) => new(
+        WorkTypeId: workTypeId,
+        LeadPoolSource: "Pool KH",
+        AllocationRule: "ROUND_ROBIN",
+        TotalLeadsCount: works,
+        PlannedEndDate: new DateOnly(2026, 10, 20),
+        TargetValue: target);
+
+    [Fact]
+    public async Task BatchGenerateWorkAsync_WithTarget_SplitsItAcrossWorksAndNamesTheKpiUnit()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, workType, employee) = await SeedTargetCampaignAsync(context);
+
+            await service.BatchGenerateWorkAsync(campaign.Id, TargetRequest(workType.Id, 3, 100m), employee.Id);
+
+            var works = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();
+            Assert.Equal(100m, works.Sum(w => w.TargetValue));
+            Assert.Equal(2, works.Count(w => w.TargetValue == 33.3333m));
+            Assert.Contains(works, w => w.TargetValue == 33.3334m);
+            Assert.All(works, w => Assert.Contains($"Mức mong muốn: {w.TargetValue!.Value.ToString("0.####", CultureInfo.InvariantCulture)} tài khoản.", w.Description));
+        }
+    }
+
+    [Fact]
+    public async Task BatchGenerateWorkAsync_WithoutTarget_LeavesTheTargetEmpty()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, workType, employee) = await SeedTargetCampaignAsync(context);
+
+            await service.BatchGenerateWorkAsync(campaign.Id, TargetRequest(workType.Id, 2, null), employee.Id);
+
+            var works = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();
+            Assert.All(works, w => Assert.Null(w.TargetValue));
+            Assert.All(works, w => Assert.DoesNotContain("Mức mong muốn", w.Description));
+        }
+    }
+
+    [Fact]
+    public async Task BatchGenerateWorkAsync_TargetWithoutKpiUnit_StillRecordsTheValue()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, workType, employee) = await SeedTargetCampaignAsync(context, kpiUnit: null);
+
+            await service.BatchGenerateWorkAsync(campaign.Id, TargetRequest(workType.Id, 2, 10m), employee.Id);
+
+            var works = await context.Works.Where(w => w.BusinessCampaignId == campaign.Id).ToListAsync();
+            Assert.All(works, w => Assert.Equal(5m, w.TargetValue));
+            Assert.All(works, w => Assert.Contains("Mức mong muốn: 5.", w.Description));
+        }
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10_000_000_000_000)]
+    public async Task BatchGenerateWorkAsync_InvalidTarget_IsRejectedAndCreatesNothing(long target)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, workType, employee) = await SeedTargetCampaignAsync(context);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.BatchGenerateWorkAsync(campaign.Id, TargetRequest(workType.Id, 2, target), employee.Id));
+
+            Assert.Empty(await context.Works.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task GetCampaignByIdAsync_ReturnsTheKpiUnitOfEachWorkType()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, workType, _) = await SeedTargetCampaignAsync(context);
+
+            var detail = await service.GetCampaignByIdAsync(campaign.Id);
+
+            var item = Assert.Single(detail.WorkTypes);
+            Assert.Equal(workType.Id, item.WorkTypeId);
+            Assert.Equal("tài khoản", item.TargetUnit);
+        }
+    }
+}

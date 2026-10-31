@@ -130,7 +130,7 @@ public sealed class EvaluationProfilesController(IEvaluationProfileService servi
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<EvaluationProfileItemDto>>> AddItem(
         Guid id,
-        [FromBody] EvaluationProfileItemInputDto dto,
+        [FromBody] AddEvaluationProfileItemDto dto,
         CancellationToken cancellationToken)
     {
         var result = await service.AddItemAsync(id, dto, cancellationToken);
@@ -138,7 +138,7 @@ public sealed class EvaluationProfilesController(IEvaluationProfileService servi
         return CreatedAtAction(nameof(GetItems), new { id }, response);
     }
 
-    [HttpPut("{id:guid}/items/{kpiGroupId:guid}")]
+    [HttpPut("{id:guid}/items/{itemId:guid}")]
     [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse<EvaluationProfileItemDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
@@ -146,25 +146,25 @@ public sealed class EvaluationProfilesController(IEvaluationProfileService servi
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<EvaluationProfileItemDto>>> UpdateItem(
         Guid id,
-        Guid kpiGroupId,
+        Guid itemId,
         [FromBody] UpdateEvaluationProfileItemDto dto,
         CancellationToken cancellationToken)
     {
-        var result = await service.UpdateItemAsync(id, kpiGroupId, dto, cancellationToken);
+        var result = await service.UpdateItemAsync(id, itemId, dto, cancellationToken);
         return Ok(ApiResponse.Ok(result, "Cập nhật nhóm KPI của hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
     }
 
-    [HttpDelete("{id:guid}/items/{kpiGroupId:guid}")]
+    [HttpDelete("{id:guid}/items/{itemId:guid}")]
     [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse>> RemoveItem(
         Guid id,
-        Guid kpiGroupId,
+        Guid itemId,
         CancellationToken cancellationToken)
     {
-        await service.RemoveItemAsync(id, kpiGroupId, cancellationToken);
+        await service.RemoveItemAsync(id, itemId, cancellationToken);
         return Ok(ApiResponse.Ok("Xóa nhóm KPI khỏi hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
     }
 }

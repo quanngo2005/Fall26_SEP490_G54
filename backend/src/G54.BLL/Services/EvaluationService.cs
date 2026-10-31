@@ -66,6 +66,18 @@ public sealed partial class EvaluationService(
             new EventId(4, "PeriodFinalized"),
             "Evaluation period {PeriodId} finalized and hard-locked: TotalFinalized={TotalFinalized}");
 
+    private static readonly Action<ILogger, Guid, Exception?> LogQualitativeEntryIgnored =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(5, "QualitativeEntryIgnored"),
+            "Stored qualitative score ignored (empty or duplicate evaluation profile item id {EvaluationProfileItemId})");
+
+    private static readonly Action<ILogger, Exception?> LogQualitativeJsonUnreadable =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(6, "QualitativeJsonUnreadable"),
+            "Stored qualitative scores could not be read and were ignored");
+
     public async Task<EvaluationFormDto> GetEvaluationFormAsync(
         Guid employeeId,
         Guid periodId,
@@ -156,21 +168,17 @@ public sealed partial class EvaluationService(
         decimal operationsScore = 0m;
         decimal totalWeightedScore = 0m;
 
-        var profileItems = profile.EvaluationProfileItems
-            .OrderBy(pi => pi.DisplayOrder)
-            .ToList();
-
-        foreach (var item in profileItems)
+        foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
         {
-            var kpiGroup = item.KpiGroup;
-            var groupKpis = kpiGroup.KpiDefinitions
-                .Where(kd => kd.Status == KpiStatus.Active)
+            var groupKpis = EvaluationProfileTree.ActiveLeaves(root)
+                .Select(leaf => leaf.Kpi!)
                 .ToList();
+            var leafShares = EvaluationProfileTree.LeafShares(root);
 
             var kpiItemDtos = new List<EvaluationKpiItemDto>();
             foreach (var kpi in groupKpis)
             {
-                targetsDict.TryGetValue(kpi.Id, out var targetVal);
+                var hasTarget = targetsDict.TryGetValue(kpi.Id, out var targetVal);
                 actualsDict.TryGetValue(kpi.Id, out var actualVal);
 
                 decimal achievement = 0m;
@@ -199,12 +207,14 @@ public sealed partial class EvaluationService(
 
                 var componentScore = achievement;
 
+                // A KPI without an assigned target has no target value (N/A), never a zero.
                 kpiItemDtos.Add(new EvaluationKpiItemDto(
                     kpi.Id,
                     kpi.Code,
                     kpi.Name,
                     kpi.Unit,
-                    targetVal,
+                    Math.Round(leafShares[kpi.Id], 2),
+                    hasTarget ? targetVal : null,
                     actualVal,
                     achievement,
                     componentScore));
@@ -214,7 +224,7 @@ public sealed partial class EvaluationService(
             decimal? qualitativeScore = null;
             string? qualitativeNotes = null;
 
-            if (qualitativeSaved.TryGetValue(kpiGroup.Id, out var savedQual))
+            if (qualitativeSaved.TryGetValue(root.Item.Id, out var savedQual))
             {
                 qualitativeScore = savedQual.Score;
                 qualitativeNotes = savedQual.Notes;
@@ -222,16 +232,22 @@ public sealed partial class EvaluationService(
 
             if (kpiItemDtos.Count > 0)
             {
-                groupScore = Math.Round(kpiItemDtos.Average(k => k.ComponentScore), 2);
+                // Weighted by each node's weight among its siblings; a KPI that is not active leaves the others' share.
+                var scoreByKpi = kpiItemDtos.ToDictionary(k => k.KpiDefinitionId, k => k.ComponentScore);
+                groupScore = Math.Round(
+                    EvaluationProfileTree.ScoreNode(root, leaf =>
+                        scoreByKpi.TryGetValue(leaf.Item.KpiDefinitionId!.Value, out var score) ? score : null) ?? 0m,
+                    2);
             }
             else
             {
                 groupScore = qualitativeScore ?? 100m;
             }
 
-            totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+            totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
 
-            var codeUpper = kpiGroup.Code.ToUpperInvariant();
+            var groupCode = EvaluationProfileTree.CatalogGroupCode(root);
+            var codeUpper = groupCode.ToUpperInvariant();
             if (codeUpper.Contains("KD") || codeUpper.Contains("SALES") || codeUpper.Contains("BUSINESS"))
             {
                 businessScore = groupScore;
@@ -246,19 +262,20 @@ public sealed partial class EvaluationService(
             }
 
             criteriaGroups.Add(new EvaluationCriterionGroupDto(
-                kpiGroup.Id,
-                kpiGroup.Code,
-                kpiGroup.Name,
-                item.WeightPercent,
+                root.Item.Id,
+                groupCode,
+                EvaluationProfileTree.NodeName(root),
+                root.Item.WeightPercent,
                 groupScore,
                 kpiItemDtos,
                 qualitativeScore,
-                qualitativeNotes));
+                qualitativeNotes,
+                kpiItemDtos.Count == 0));
         }
 
         var totalCalculated = Math.Max(0m, Math.Round(totalWeightedScore - totalRiskPenalty, 2));
-        var proposedTier = TierDeterminer.DetermineTier(
-            totalCalculated, riskEvents, await LoadDowngradeConfigurationAsync(cancellationToken));
+        var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
+        var proposedTier = TierDeterminer.DetermineTier(totalCalculated, riskEvents, downgradeConfiguration);
 
         var employeeDto = new EvaluationEmployeeDto(
             employee.Id,
@@ -290,7 +307,8 @@ public sealed partial class EvaluationService(
             operationsScore,
             totalRiskPenalty,
             existingEvaluation?.TotalScore ?? totalCalculated,
-            proposedTier);
+            proposedTier,
+            Math.Round(totalWeightedScore, 2));
 
         var currentEvaluationDto = new PerformanceEvaluationStateDto(
             existingEvaluation?.Id,
@@ -304,8 +322,26 @@ public sealed partial class EvaluationService(
             coachingPlan,
             !string.IsNullOrWhiteSpace(coachingPlan));
 
+        var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
+            .GetValueOrDefault(employeeId);
+
+        var openAppealCount = existingEvaluation is null
+            ? 0
+            : await db.Appeals
+                .AsNoTracking()
+                .CountAsync(a => a.PerformanceEvaluationId == existingEvaluation.Id
+                    && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview), cancellationToken);
+        var hasOpenDispute = existingEvaluation?.IsDisputedPending() == true || openAppealCount > 0;
+
+        var previousPeriod = await LoadPreviousPeriodSummaryAsync(
+            employeeId, period, summaryDto.TotalScore, downgradeConfiguration, cancellationToken);
+
+        // The reviewer needs evaluation:submit over the employee's department and cannot evaluate themselves or a disputed score.
         var canEdit = period.Status is PeriodStatus.Open or PeriodStatus.InReview
-            && (existingEvaluation == null || existingEvaluation.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
+            && (existingEvaluation == null || existingEvaluation.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated)
+            && employee.Id != reviewer.Id
+            && !hasOpenDispute
+            && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, employee.DepartmentId, cancellationToken);
 
         return new EvaluationFormDto(
             employeeDto,
@@ -315,7 +351,51 @@ public sealed partial class EvaluationService(
             riskDtos,
             summaryDto,
             currentEvaluationDto,
-            canEdit);
+            canEdit,
+            pendingSubmissionCount,
+            openAppealCount,
+            hasOpenDispute,
+            previousPeriod);
+    }
+
+    /// <summary>
+    /// The latest earlier period of the same type in which the employee has a scored evaluation that is not a draft, with
+    /// the score gap to the current total. No such period means no comparison (null), never a zero. The stored score of an
+    /// earlier period is not recalculated, so the gap may mix two scoring formulas.
+    /// </summary>
+    private async Task<PreviousPeriodSummaryDto?> LoadPreviousPeriodSummaryAsync(
+        Guid employeeId,
+        EvaluationPeriod period,
+        decimal currentTotalScore,
+        DowngradeConfiguration downgradeConfiguration,
+        CancellationToken cancellationToken)
+    {
+        var previous = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Include(pe => pe.EvaluationPeriod)
+            .Where(pe => pe.EmployeeId == employeeId
+                && pe.TotalScore != null
+                && pe.Status != PerformanceEvaluationStatus.Draft
+                && pe.EvaluationPeriod.PeriodType == period.PeriodType
+                && pe.EvaluationPeriod.EndDate < period.StartDate)
+            .OrderByDescending(pe => pe.EvaluationPeriod.EndDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (previous?.TotalScore is not { } previousScore)
+        {
+            return null;
+        }
+
+        var previousRisks = await LoadRiskEventsByEmployeeAsync([employeeId], previous.EvaluationPeriod, cancellationToken);
+        var tier = TierDeterminer.DetermineTier(
+            previousScore,
+            previousRisks.GetValueOrDefault(employeeId),
+            downgradeConfiguration);
+
+        return new PreviousPeriodSummaryDto(
+            previous.EvaluationPeriod.Code,
+            previousScore,
+            tier,
+            Math.Round(currentTotalScore - previousScore, 2));
     }
 
     public async Task<EvaluationResultDto> SubmitEvaluationAsync(
@@ -390,62 +470,35 @@ public sealed partial class EvaluationService(
             .GroupBy(ta => ta.KpiDefinitionId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(ta => ta.Version).First().TargetValue);
 
-        var qualInputsDict = (request.QualitativeScores ?? new List<QualitativeScoreInputDto>())
-            .ToDictionary(q => q.KpiGroupId, q => q);
+        var roots = EvaluationProfileTree.Build(profile.EvaluationProfileItems);
+        var qualInputsDict = BuildQualitativeInputs(request.QualitativeScores, roots);
 
         decimal totalWeightedScore = 0m;
-        foreach (var item in profile.EvaluationProfileItems)
+        foreach (var root in roots)
         {
-            var kpiGroup = item.KpiGroup;
-            var groupKpis = kpiGroup.KpiDefinitions.Where(kd => kd.Status == KpiStatus.Active).ToList();
+            var groupKpis = EvaluationProfileTree.ActiveLeaves(root).ToList();
 
             decimal groupScore;
-            if (qualInputsDict.TryGetValue(kpiGroup.Id, out var qualInput))
+            if (qualInputsDict.TryGetValue(root.Item.Id, out var qualInput))
             {
                 groupScore = qualInput.Score;
             }
             else if (groupKpis.Count > 0)
             {
-                var scores = groupKpis.Select(kpi =>
-                {
-                    targetsDict.TryGetValue(kpi.Id, out var targetVal);
-                    actualsDict.TryGetValue(kpi.Id, out var actualVal);
-
-                    decimal achievement = 0m;
-                    if (targetVal > 0)
-                    {
-                        if (kpi.Direction == KpiDirection.LowerBetter)
-                        {
-                            achievement = actualVal > 0
-                                ? Math.Round((targetVal / actualVal) * 100m, 2)
-                                : 100m;
-                        }
-                        else
-                        {
-                            achievement = Math.Round((actualVal / targetVal) * 100m, 2);
-                        }
-                    }
-                    else if (actualVal > 0)
-                    {
-                        achievement = 100m;
-                    }
-
-                    if (kpi.MaxAchievementPercent.HasValue && achievement > kpi.MaxAchievementPercent.Value)
-                    {
-                        achievement = kpi.MaxAchievementPercent.Value;
-                    }
-
-                    return achievement;
-                });
-
-                groupScore = Math.Round(scores.Average(), 2);
+                groupScore = Math.Round(
+                    EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                        ? ComputeAchievementPercent(
+                            kpi,
+                            targetsDict.GetValueOrDefault(kpi.Id),
+                            actualsDict.GetValueOrDefault(kpi.Id))
+                        : null) ?? 0m,
+                    2);
             }
             else
             {
                 groupScore = 100m;
             }
-
-            totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+            totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
         }
 
         var totalRiskPenalty = riskEvents.Sum(re => MapRiskPenalty(re.Severity));
@@ -549,11 +602,17 @@ public sealed partial class EvaluationService(
         var targetDeptId = departmentId ?? reviewer.DepartmentId;
         await EnsureDepartmentInScopeAsync(currentUserId, "read", reviewer, targetDeptId, cancellationToken);
 
+        // The roster covers the target department and every department beneath it, like the employee list.
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepartments = hierarchy.Nodes.ContainsKey(targetDeptId)
+            ? hierarchy.Subtree(targetDeptId)
+            : [targetDeptId];
+
         var employees = await db.Employees
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.JobPosition)
-            .Where(e => e.DepartmentId == targetDeptId && e.Status == EmployeeStatus.Active)
+            .Where(e => rosterDepartments.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .OrderBy(e => e.FullName)
             .ToListAsync(cancellationToken);
 
@@ -585,8 +644,9 @@ public sealed partial class EvaluationService(
         var quantitativeScores = await LoadQuantitativeScoresAsync(employees, period, cancellationToken);
 
         var periodAcceptsEvaluation = period?.Status is PeriodStatus.Open or PeriodStatus.InReview;
-        var callerMaySubmit = periodAcceptsEvaluation
-            && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, targetDeptId, cancellationToken);
+        var submitDepartments = periodAcceptsEvaluation
+            ? await DepartmentsInSubmitScopeAsync(currentUserId, reviewer, hierarchy, cancellationToken)
+            : null;
 
         return employees.Select(emp =>
         {
@@ -608,7 +668,8 @@ public sealed partial class EvaluationService(
             }
 
             var hasOpenDispute = pe?.IsDisputedPending() == true || employeesWithOpenAppeal.Contains(emp.Id);
-            var canEvaluate = callerMaySubmit
+            var canEvaluate = periodAcceptsEvaluation
+                && (submitDepartments is null || submitDepartments.Contains(emp.DepartmentId))
                 && emp.Id != reviewer.Id
                 && !hasOpenDispute
                 && (pe is null || pe.Status is PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
@@ -714,27 +775,21 @@ public sealed partial class EvaluationService(
             var targets = targetsByEmployee.GetValueOrDefault(employee.Id) ?? [];
             var actuals = actualsByEmployee.GetValueOrDefault(employee.Id) ?? [];
 
-            decimal weightedSum = 0m;
-            decimal weightTotal = 0m;
-            foreach (var item in profile.EvaluationProfileItems)
-            {
-                var kpis = item.KpiGroup.KpiDefinitions.Where(kd => kd.Status == KpiStatus.Active).ToList();
-                if (kpis.Count == 0)
-                {
-                    continue;
-                }
+            // Only groups that own active KPIs count; the weighted mean is normalised over them.
+            var groups = EvaluationProfileTree.Build(profile.EvaluationProfileItems)
+                .Select(root => (
+                    Weight: root.Item.WeightPercent,
+                    Score: EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                        ? ComputeAchievementPercent(
+                            kpi,
+                            targets.GetValueOrDefault(kpi.Id),
+                            actuals.GetValueOrDefault(kpi.Id))
+                        : null)));
 
-                var groupScore = kpis.Average(kpi => ComputeAchievementPercent(
-                    kpi,
-                    targets.GetValueOrDefault(kpi.Id),
-                    actuals.GetValueOrDefault(kpi.Id)));
-                weightedSum += groupScore * item.WeightPercent;
-                weightTotal += item.WeightPercent;
-            }
-
-            if (weightTotal > 0)
+            var quantitative = EvaluationProfileTree.WeightedMean(groups);
+            if (quantitative.HasValue)
             {
-                result[employee.Id] = Math.Round(weightedSum / weightTotal, 2);
+                result[employee.Id] = Math.Round(quantitative.Value, 2);
             }
         }
 
@@ -1064,14 +1119,17 @@ public sealed partial class EvaluationService(
 
             if (evalDict.TryGetValue(empId, out var existingPe))
             {
-                var (comment, coachPlan, qualScores, _, recalibReason, apprComments) = ParseStoredComment(existingPe.Comment);
-                existingPe.Comment = BuildStoredComment(
-                    comment ?? request.Notes,
-                    coachPlan,
-                    qualScores.Values.ToList(),
-                    calibData,
-                    recalibReason,
-                    apprComments);
+                // Only the calibration marker is owned here; every other stored part (including qualitative
+                // entries the reader skips) is preserved as is.
+                var (existingText, _, _, _, _, _) = ParseStoredComment(existingPe.Comment);
+                var baseComment = existingText is null && !string.IsNullOrWhiteSpace(request.Notes)
+                    ? $"{request.Notes.Trim()}\n\n{existingPe.Comment}"
+                    : existingPe.Comment;
+                existingPe.Comment = SetStoredMarker(
+                    baseComment,
+                    CalibrationMarkerRegex(),
+                    "CALIBRATION_JSON",
+                    JsonSerializer.Serialize(calibData, JsonOptions));
                 existingPe.Status = targetStatus;
                 existingPe.UpdatedAt = now;
             }
@@ -1362,8 +1420,7 @@ public sealed partial class EvaluationService(
         foreach (var pe in evaluations.Where(e => !e.IsDisputedPending()))
         {
             pe.Status = PerformanceEvaluationStatus.Calculated;
-            var (comment, coachPlan, qualScores, calib, _, appr) = ParseStoredComment(pe.Comment);
-            pe.Comment = BuildStoredComment(comment, coachPlan, qualScores.Values.ToList(), calib, reasonTrimmed, appr);
+            pe.Comment = SetStoredMarker(pe.Comment, RecalibrationReasonMarkerRegex(), "RECALIBRATION_REASON", reasonTrimmed);
             pe.UpdatedAt = now;
         }
 
@@ -1422,8 +1479,7 @@ public sealed partial class EvaluationService(
 
             if (!string.IsNullOrWhiteSpace(comments))
             {
-                var (comment, coachPlan, qualScores, calib, recalib, _) = ParseStoredComment(pe.Comment);
-                pe.Comment = BuildStoredComment(comment, coachPlan, qualScores.Values.ToList(), calib, recalib, comments);
+                pe.Comment = SetStoredMarker(pe.Comment, ApprovalCommentsMarkerRegex(), "APPROVAL_COMMENTS", comments);
             }
         }
 
@@ -1439,7 +1495,7 @@ public sealed partial class EvaluationService(
             "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.");
     }
 
-    private static (decimal BusinessScore, decimal ServiceQualityScore, decimal OperationsScore, decimal QualitativeScore, decimal TotalScore)
+    private (decimal BusinessScore, decimal ServiceQualityScore, decimal OperationsScore, decimal QualitativeScore, decimal TotalScore)
         ComputeEmployeeScores(
             Employee employee,
             EvaluationProfile? profile,
@@ -1467,47 +1523,21 @@ public sealed partial class EvaluationService(
             targetsDict ??= new();
             actualsDict ??= new();
 
-            foreach (var item in profile.EvaluationProfileItems)
+            foreach (var root in EvaluationProfileTree.Build(profile.EvaluationProfileItems))
             {
-                var kpiGroup = item.KpiGroup;
-                var groupKpis = kpiGroup?.KpiDefinitions?.Where(kd => kd.Status == KpiStatus.Active).ToList() ?? new();
+                var hasActiveKpis = EvaluationProfileTree.ActiveLeaves(root).Any();
 
                 decimal groupScore;
-                if (groupKpis.Count > 0)
+                if (hasActiveKpis)
                 {
-                    var scores = groupKpis.Select(kpi =>
-                    {
-                        targetsDict.TryGetValue(kpi.Id, out var targetVal);
-                        actualsDict.TryGetValue(kpi.Id, out var actualVal);
-
-                        decimal achievement = 0m;
-                        if (targetVal > 0)
-                        {
-                            if (kpi.Direction == KpiDirection.LowerBetter)
-                            {
-                                achievement = actualVal > 0
-                                    ? Math.Round((targetVal / actualVal) * 100m, 2)
-                                    : 100m;
-                            }
-                            else
-                            {
-                                achievement = Math.Round((actualVal / targetVal) * 100m, 2);
-                            }
-                        }
-                        else if (actualVal > 0)
-                        {
-                            achievement = 100m;
-                        }
-
-                        if (kpi.MaxAchievementPercent.HasValue && achievement > kpi.MaxAchievementPercent.Value)
-                        {
-                            achievement = kpi.MaxAchievementPercent.Value;
-                        }
-
-                        return achievement;
-                    });
-
-                    groupScore = Math.Round(scores.Average(), 2);
+                    groupScore = Math.Round(
+                        EvaluationProfileTree.ScoreNode(root, leaf => leaf.Kpi is { Status: KpiStatus.Active } kpi
+                            ? ComputeAchievementPercent(
+                                kpi,
+                                targetsDict.GetValueOrDefault(kpi.Id),
+                                actualsDict.GetValueOrDefault(kpi.Id))
+                            : null) ?? 0m,
+                        2);
                 }
                 else
                 {
@@ -1515,9 +1545,9 @@ public sealed partial class EvaluationService(
                     qualitativeScore = 100m;
                 }
 
-                totalWeightedScore += (groupScore * item.WeightPercent) / 100m;
+                totalWeightedScore += (groupScore * root.Item.WeightPercent) / 100m;
 
-                var codeUpper = kpiGroup?.Code?.ToUpperInvariant() ?? string.Empty;
+                var codeUpper = EvaluationProfileTree.CatalogGroupCode(root).ToUpperInvariant();
                 if (codeUpper.Contains("KD") || codeUpper.Contains("SALES") || codeUpper.Contains("BUSINESS"))
                 {
                     businessScore = groupScore;
@@ -1638,8 +1668,8 @@ public sealed partial class EvaluationService(
         var profiles = await db.EvaluationProfiles
             .AsNoTracking()
             .Include(ep => ep.EvaluationProfileItems)
-                .ThenInclude(epi => epi.KpiGroup)
-                    .ThenInclude(kg => kg.KpiDefinitions)
+                .ThenInclude(epi => epi.KpiDefinition)
+                    .ThenInclude(kd => kd!.KpiGroup)
             .Where(ep => ids.Contains(ep.JobPositionId))
             .ToListAsync(cancellationToken);
 
@@ -1689,6 +1719,21 @@ public sealed partial class EvaluationService(
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
         var covered = AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
         return covered is not null && covered.Contains(departmentId);
+    }
+
+    /// <summary>
+    /// Departments the caller may submit evaluations for: null for every department (All), otherwise the Dept or
+    /// Branch subtree, and an empty set when evaluation:submit is absent or only Own.
+    /// </summary>
+    private async Task<HashSet<Guid>?> DepartmentsInSubmitScopeAsync(
+        Guid actorAccountId,
+        Employee reviewer,
+        DepartmentHierarchy hierarchy,
+        CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "evaluation", "submit");
+        return AccessScope.DepartmentsInScope(level, reviewer.DepartmentId, hierarchy);
     }
 
     private async Task<Employee> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)
@@ -1809,7 +1854,74 @@ public sealed partial class EvaluationService(
             : $"{trimmedComment}\n\n{markerBlock}";
     }
 
-    private static (
+    /// <summary>
+    /// Replaces (or removes, when <paramref name="value"/> is blank) a single marker and returns every other part of
+    /// the stored comment untouched. Unlike a parse/rebuild round trip, it keeps stored data the reader skips
+    /// (legacy or malformed qualitative entries), so a write that does not own a marker never discards it.
+    /// </summary>
+    private static string? SetStoredMarker(string? storedComment, Regex markerRegex, string markerName, string? value)
+    {
+        var working = storedComment ?? string.Empty;
+
+        foreach (var match in markerRegex.Matches(working).Reverse())
+        {
+            var start = match.Index > 0 && working[match.Index - 1] == '\n' ? match.Index - 1 : match.Index;
+            working = working.Remove(start, match.Index + match.Length - start);
+        }
+
+        working = working.Trim();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return working.Length == 0 ? null : working;
+        }
+
+        var marker = $"<!-- {markerName}: {value.Trim()} -->";
+        if (working.Length == 0)
+        {
+            return marker;
+        }
+
+        return working.EndsWith("-->", StringComparison.Ordinal)
+            ? $"{working}\n{marker}"
+            : $"{working}\n\n{marker}";
+    }
+
+    /// <summary>
+    /// Qualitative scores keyed by the root group they score. Rejects an empty id (a client still sending the old
+    /// catalog group id), a duplicate id, and an id that is not a root group of the profile.
+    /// </summary>
+    private static Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
+        IEnumerable<QualitativeScoreInputDto>? inputs,
+        IReadOnlyList<ProfileNode> roots)
+    {
+        var rootIds = roots.Select(root => root.Item.Id).ToHashSet();
+        var result = new Dictionary<Guid, QualitativeScoreInputDto>();
+
+        foreach (var input in inputs ?? [])
+        {
+            if (input.EvaluationProfileItemId == Guid.Empty)
+            {
+                throw new ValidationException("Điểm định tính thiếu evaluationProfileItemId (mã nhóm gốc của hồ sơ đánh giá).");
+            }
+
+            if (!rootIds.Contains(input.EvaluationProfileItemId))
+            {
+                throw new ValidationException(
+                    $"evaluationProfileItemId {input.EvaluationProfileItemId} không phải nhóm gốc của hồ sơ đánh giá.");
+            }
+
+            if (!result.TryAdd(input.EvaluationProfileItemId, input))
+            {
+                throw new ValidationException(
+                    $"Điểm định tính bị trùng cho evaluationProfileItemId {input.EvaluationProfileItemId}.");
+            }
+        }
+
+        return result;
+    }
+
+    private (
         string? Comment,
         string? CoachingPlan,
         Dictionary<Guid, QualitativeScoreInputDto> QualitativeScores,
@@ -1817,6 +1929,9 @@ public sealed partial class EvaluationService(
         string? RecalibrationReason,
         string? ApprovalComments) ParseStoredComment(string? storedComment)
     {
+        // Qualitative scores saved before the profile became a tree are keyed by the catalog group id, which the
+        // tree no longer knows; they deserialize to an empty id and are skipped here (and logged), never scored.
+        // Skipping is read-only: writers other than the form save must use SetStoredMarker, not a parse/rebuild.
         if (string.IsNullOrWhiteSpace(storedComment))
         {
             return (null, null, new(), null, null, null);
@@ -1843,11 +1958,17 @@ public sealed partial class EvaluationService(
             {
                 var json = qualMatch.Groups[1].Value.Trim();
                 var items = JsonSerializer.Deserialize<List<QualitativeScoreInputDto>>(json, JsonOptions) ?? new();
-                qualDict = items.ToDictionary(i => i.KpiGroupId, i => i);
+                foreach (var item in items)
+                {
+                    if (item.EvaluationProfileItemId == Guid.Empty || !qualDict.TryAdd(item.EvaluationProfileItemId, item))
+                    {
+                        LogQualitativeEntryIgnored(logger, item.EvaluationProfileItemId, null);
+                    }
+                }
             }
-            catch
+            catch (JsonException ex)
             {
-                // ignore malformed qualitative JSON
+                LogQualitativeJsonUnreadable(logger, ex);
             }
             working = working.Replace(qualMatch.Value, "");
         }

@@ -48,5 +48,7 @@ public partial class PerformanceEvaluation
 
     public virtual PerformanceEvaluation? ParentEvaluation { get; set; }
 
+    public virtual ICollection<PerformanceEvaluationHistory> Histories { get; set; } = new List<PerformanceEvaluationHistory>();
+
     public virtual ICollection<PerformanceContribution> PerformanceContributions { get; set; } = new List<PerformanceContribution>();
 }

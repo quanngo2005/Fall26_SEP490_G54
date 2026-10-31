@@ -29,6 +29,8 @@ public partial class KpiDefinition
 
     public virtual KpiGroup KpiGroup { get; set; } = null!;
 
+    public virtual ICollection<EvaluationProfileItem> EvaluationProfileItems { get; set; } = new List<EvaluationProfileItem>();
+
     public virtual ICollection<ObjectiveKpi> ObjectiveKpis { get; set; } = new List<ObjectiveKpi>();
 
     public virtual ICollection<TargetAssignment> TargetAssignments { get; set; } = new List<TargetAssignment>();

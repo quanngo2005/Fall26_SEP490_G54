@@ -4,6 +4,9 @@ namespace G54.BLL.Services;
 
 public interface ICampaignService
 {
+    /// <summary>Business objectives a campaign can be linked to (everything but cancelled), by code.</summary>
+    Task<IReadOnlyList<CampaignObjectiveDto>> GetObjectivesAsync(CancellationToken cancellationToken = default);
+
     Task<CampaignListOverviewDto> GetCampaignsAsync(
         string? search,
         string? status,

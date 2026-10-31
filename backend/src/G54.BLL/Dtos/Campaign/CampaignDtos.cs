@@ -36,7 +36,8 @@ public sealed record CampaignWorkTypeItemDto(
     string Name,
     string? Process,
     string? ExpectedResult,
-    string? RequiredEvidence);
+    string? RequiredEvidence,
+    string? TargetUnit = null);
 
 public sealed record CampaignParticipantItemDto(
     Guid EmployeeId,
@@ -135,7 +136,8 @@ public sealed record BatchWorkGeneratorRequestDto(
     DateOnly? PlannedEndDate = null,
     string? Priority = "MEDIUM",
     List<Guid>? TargetEmployeeIds = null,
-    List<BatchLeadItemDto>? Leads = null);
+    List<BatchLeadItemDto>? Leads = null,
+    decimal? TargetValue = null);
 
 public sealed record BatchWorkGenerateResultDto(
     Guid CampaignId,

@@ -253,15 +253,16 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [Fact]
-    public void TheGrantMigrationIsTheLatestOne()
+    public void TheLatestMigrationsAreInOrder()
     {
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^1]);
-        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^2]);
-        Assert.Equal("20261027140000_GrantWorkAccessToOrganizationRoles", migrations[^3]);
-        Assert.Equal("20261027120000_SeedOrganizationReadAccess", migrations[^4]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^1]);
+        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^2]);
+        Assert.Equal("20261028155338_AddWorkTargetValue", migrations[^3]);
+        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^4]);
+        Assert.Equal("20261027151929_AddAppealScoreLedger", migrations[^5]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

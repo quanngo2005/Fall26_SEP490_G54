@@ -17,6 +17,9 @@ public sealed class CampaignService(
     ILogger<CampaignService> logger,
     TimeProvider time) : ICampaignService
 {
+    /// <summary>Largest value <c>work.target_value</c> (numeric(18,4)) can hold.</summary>
+    private const decimal MaxTargetValue = 9_999_999_999_999m;
+
     private static readonly Action<ILogger, string, Guid, Exception?> LogCampaignCreated =
         LoggerMessage.Define<string, Guid>(
             LogLevel.Information,
@@ -40,6 +43,13 @@ public sealed class CampaignService(
             LogLevel.Information,
             new EventId(4, "BatchWorkGenerated"),
             "Batch work generated for Campaign {CampaignId}: Count={Count}, Rule={Rule}");
+
+    public async Task<IReadOnlyList<CampaignObjectiveDto>> GetObjectivesAsync(CancellationToken cancellationToken = default) =>
+        await db.BusinessObjectives.AsNoTracking()
+            .Where(o => o.Status != BusinessObjectiveStatus.Cancelled)
+            .OrderBy(o => o.Code)
+            .Select(o => new CampaignObjectiveDto(o.Id, o.Code, o.Name, o.Description))
+            .ToListAsync(cancellationToken);
 
     public async Task<CampaignListOverviewDto> GetCampaignsAsync(
         string? search,
@@ -143,8 +153,11 @@ public sealed class CampaignService(
                 cwt.WorkType.Name,
                 null,
                 cwt.WorkType.Description,
+                null,
                 null))
             .ToListAsync(cancellationToken);
+        var targetUnits = await GetTargetUnitsAsync(workTypes.ConvertAll(w => w.WorkTypeId), cancellationToken);
+        workTypes = workTypes.ConvertAll(w => w with { TargetUnit = targetUnits.GetValueOrDefault(w.WorkTypeId) });
 
         var participants = await db.Participants
             .AsNoTracking()
@@ -604,6 +617,11 @@ public sealed class CampaignService(
             throw new ValidationException("Số lượng đầu việc cần sinh phải từ 1 đến 1000.");
         }
 
+        if (request.TargetValue is < 0 or > MaxTargetValue)
+        {
+            throw new ValidationException("Mức mong muốn phải là số không âm và không vượt quá 9.999.999.999.999.");
+        }
+
         var startDate = request.PlannedStartDate ?? campaign.StartDate;
         var endDate = request.PlannedEndDate ?? campaign.EndDate;
 
@@ -668,6 +686,9 @@ public sealed class CampaignService(
 
         var leads = request.Leads ?? [];
         var totalLeads = request.TotalLeadsCount;
+        var targetUnit = request.TargetValue is null
+            ? null
+            : (await GetTargetUnitsAsync([request.WorkTypeId], cancellationToken)).GetValueOrDefault(request.WorkTypeId);
         var generatedWorks = new List<Work>(totalLeads);
         var todayStr = time.GetBusinessToday().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var exclusivityEnd = startDate.AddDays(7);
@@ -743,12 +764,19 @@ public sealed class CampaignService(
                 description = $"Đầu việc được sinh tự động từ nguồn: {leadPoolSource}. {exclusivityNote}";
             }
 
+            var workTarget = SplitTarget(request.TargetValue, totalLeads, i);
+            if (workTarget is { } expected)
+            {
+                description += $" Mức mong muốn: {expected.ToString("0.####", CultureInfo.InvariantCulture)} {targetUnit}".TrimEnd() + ".";
+            }
+
             var work = new Work
             {
                 Id = Guid.NewGuid(),
                 Code = workCode,
                 Title = title,
                 Description = description,
+                TargetValue = workTarget,
                 WorkTypeId = request.WorkTypeId,
                 BusinessCampaignId = campaign.Id,
                 AssigneeEmployeeId = assigneeId,
@@ -779,6 +807,38 @@ public sealed class CampaignService(
             GeneratedAt: DateTimeOffset.UtcNow,
             Message: $"Đã tự động sinh {generatedWorks.Count} đầu việc và phân bổ thành công cho {activeParticipants.Count} cán bộ theo quy tắc {rule}."
         );
+    }
+
+    /// <summary>
+    /// The unit of the KPI each work type is measured by (accounts, VND billion, ...): the current required KPI first,
+    /// otherwise the earliest current one. Work types without a current KPI have no entry.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> GetTargetUnitsAsync(
+        IReadOnlyCollection<Guid> workTypeIds,
+        CancellationToken cancellationToken)
+    {
+        var today = time.GetBusinessToday();
+        var units = await db.WorkTypeKpis.AsNoTracking()
+            .Where(k => workTypeIds.Contains(k.WorkTypeId) && k.EffectiveFrom <= today && (k.EffectiveTo == null || k.EffectiveTo >= today))
+            .OrderByDescending(k => k.IsRequired).ThenBy(k => k.EffectiveFrom).ThenBy(k => k.Id)
+            .Select(k => new { k.WorkTypeId, k.KpiDefinition.Unit })
+            .ToListAsync(cancellationToken);
+        return units.GroupBy(k => k.WorkTypeId).ToDictionary(g => g.Key, g => g.First().Unit);
+    }
+
+    /// <summary>
+    /// The share of <paramref name="total"/> for work number <paramref name="index"/> of <paramref name="count"/>: an even
+    /// share rounded down to 4 decimals, with the remainder on the last work so the shares add up exactly.
+    /// </summary>
+    private static decimal? SplitTarget(decimal? total, int count, int index)
+    {
+        if (total is not { } value)
+        {
+            return null;
+        }
+
+        var share = Math.Round(value / count, 4, MidpointRounding.ToZero);
+        return index == count - 1 ? value - (share * (count - 1)) : share;
     }
 
     private async Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)

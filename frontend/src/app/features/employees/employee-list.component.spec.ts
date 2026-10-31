@@ -83,6 +83,7 @@ describe('EmployeeListComponent', () => {
   let api: jasmine.SpyObj<EmployeeService>;
 
   beforeEach(async () => {
+    localStorage.removeItem('bpms_language');
     api = jasmine.createSpyObj<EmployeeService>('EmployeeService', [
       'list',
       'departments',

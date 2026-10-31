@@ -196,7 +196,7 @@ public sealed class JobPositionServiceTests
         Assert.Equal(3, profileDto.Version);
         Assert.Equal("ACTIVE", profileDto.Status);
         Assert.Equal(new DateOnly(2026, 1, 1), profileDto.EffectiveFrom);
-        Assert.Equal(["KD", "CLDV"], profileDto.Items.Select(i => i.GroupCode)); // by display order
+        Assert.Equal(["Kinh doanh", quality.Name], profileDto.Items.Select(i => i.GroupName)); // by display order
         Assert.Equal(70.5m, profileDto.TotalWeightPercent); // decimals are not truncated
         Assert.Equal(20.5m, profileDto.Items[0].WeightPercent);
 
@@ -207,6 +207,41 @@ public sealed class JobPositionServiceTests
         Assert.Equal(["CSAT", "KH_MOI"], workType.Kpis.Select(k => k.Code));
         Assert.True(workType.Kpis.Single(k => k.Code == "KH_MOI").IsRequired);
         Assert.Equal("Điểm", workType.Kpis.Single(k => k.Code == "CSAT").Unit);
+    }
+
+    [Fact]
+    public async Task DetailProfileGroupCodeIsTheCatalogGroupOfItsFirstKpiInDisplayOrder()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER", "Giao dịch viên", null);
+        var profile = world.AddProfile(teller.Id, "EP-TELLER", "Hồ sơ", 1, new DateOnly(2026, 1, 1), null, EvaluationProfileStatus.Active);
+        var business = world.AddGroup("KD", "Kinh doanh");
+        var service = world.AddGroup("CLDV", "Chất lượng dịch vụ");
+        var mixed = world.AddProfileItem(profile, world.AddGroup("MIX", "Nhóm hỗn hợp"), 100m, 1);
+        world.AddProfileLeaf(mixed, service, "LEAF_SECOND", 2);
+        world.AddProfileLeaf(mixed, business, "LEAF_FIRST", 1);
+        await world.SaveAsync();
+
+        var detail = await world.Service().GetJobPositionByIdAsync(teller.Id);
+
+        var item = Assert.Single(Assert.IsType<JobPositionEvaluationProfileDto>(detail!.EvaluationProfile).Items);
+        Assert.Equal("Nhóm hỗn hợp", item.GroupName);
+        Assert.Equal("KD", item.GroupCode);
+    }
+
+    [Fact]
+    public async Task DetailProfileGroupCodeIsEmptyWhenTheGroupHasNoKpi()
+    {
+        var world = new World();
+        var teller = world.AddPosition("TELLER", "Giao dịch viên", null);
+        var profile = world.AddProfile(teller.Id, "EP-TELLER", "Hồ sơ", 1, new DateOnly(2026, 1, 1), null, EvaluationProfileStatus.Active);
+        world.AddProfileItem(profile, world.AddGroup("KD", "Kinh doanh"), 100m, 1);
+        await world.SaveAsync();
+
+        var detail = await world.Service().GetJobPositionByIdAsync(teller.Id);
+
+        var item = Assert.Single(Assert.IsType<JobPositionEvaluationProfileDto>(detail!.EvaluationProfile).Items);
+        Assert.Equal(string.Empty, item.GroupCode);
     }
 
     [Fact]
@@ -329,16 +364,46 @@ public sealed class JobPositionServiceTests
             return group;
         }
 
-        public void AddProfileItem(EvaluationProfile profile, KpiGroup group, decimal weight, int order) =>
-            Db.EvaluationProfileItems.Add(new EvaluationProfileItem
+        public EvaluationProfileItem AddProfileItem(EvaluationProfile profile, KpiGroup group, decimal weight, int order)
+        {
+            var item = new EvaluationProfileItem
             {
                 Id = Guid.NewGuid(),
                 EvaluationProfileId = profile.Id,
-                KpiGroupId = group.Id,
+                Name = group.Name,
                 WeightPercent = weight,
                 DisplayOrder = order,
                 UpdatedAt = Now,
+            };
+            Db.EvaluationProfileItems.Add(item);
+            return item;
+        }
+
+        /// <summary>A KPI leaf of <paramref name="catalogGroup"/> under the group node <paramref name="parent"/>.</summary>
+        public void AddProfileLeaf(EvaluationProfileItem parent, KpiGroup catalogGroup, string kpiCode, int order)
+        {
+            var kpi = new KpiDefinition
+            {
+                Id = Guid.NewGuid(),
+                KpiGroupId = catalogGroup.Id,
+                Code = kpiCode,
+                Name = kpiCode,
+                Unit = "unit",
+                Status = KpiStatus.Active,
+                UpdatedAt = Now,
+            };
+            Db.KpiDefinitions.Add(kpi);
+            Db.EvaluationProfileItems.Add(new EvaluationProfileItem
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = parent.EvaluationProfileId,
+                ParentItemId = parent.Id,
+                KpiDefinitionId = kpi.Id,
+                WeightPercent = 100m,
+                DisplayOrder = order,
+                UpdatedAt = Now,
             });
+        }
 
         public WorkType AddWorkType(string code, string name, RecordStatus status, string? description = null)
         {

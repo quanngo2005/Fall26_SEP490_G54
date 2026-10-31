@@ -31,6 +31,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_history_action", new[] { "CALCULATED", "STATUS_CHANGED", "APPROVED", "DISPUTED", "DISPUTE_WITHDRAWN", "APPEAL_RESOLVED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_status", new[] { "DRAFT", "CALCULATED", "IN_REVIEW", "APPROVED", "DISPUTED", "FINAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_status", new[] { "OPEN", "IN_REVIEW", "LOCKED", "CLOSED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_type", new[] { "YEAR", "HALF_YEAR", "QUARTER", "MONTH", "WEEK", "DAY" });
@@ -788,9 +789,18 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("evaluation_profile_id");
 
-                    b.Property<Guid>("KpiGroupId")
+                    b.Property<Guid?>("KpiDefinitionId")
                         .HasColumnType("uuid")
-                        .HasColumnName("kpi_group_id");
+                        .HasColumnName("kpi_definition_id");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("ParentItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_item_id");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -806,14 +816,19 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("evaluation_profile_item_pkey");
 
-                    b.HasIndex("KpiGroupId");
+                    b.HasIndex(new[] { "KpiDefinitionId" }, "ix_evaluation_profile_item_kpi_definition");
 
-                    b.HasIndex(new[] { "EvaluationProfileId", "KpiGroupId" }, "uq_evaluation_profile_item")
-                        .IsUnique();
+                    b.HasIndex(new[] { "ParentItemId" }, "ix_evaluation_profile_item_parent");
+
+                    b.HasIndex(new[] { "EvaluationProfileId", "KpiDefinitionId" }, "uq_evaluation_profile_item_kpi")
+                        .IsUnique()
+                        .HasFilter("kpi_definition_id IS NOT NULL");
 
                     b.ToTable("evaluation_profile_item", null, t =>
                         {
                             t.HasCheckConstraint("ck_evaluation_profile_item_display_order", "display_order > 0");
+
+                            t.HasCheckConstraint("ck_evaluation_profile_item_node", "num_nonnulls(name, kpi_definition_id) = 1");
 
                             t.HasCheckConstraint("ck_evaluation_profile_item_weight", "weight_percent > 0 AND weight_percent <= 100");
                         });
@@ -1348,6 +1363,62 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_performance_evaluation_pre_dispute", "pre_dispute_status IS NULL OR status = 'DISPUTED'::performance_evaluation_status");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.PerformanceEvaluationHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("performance_evaluation_history_action")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ChangedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("performance_evaluation_status")
+                        .HasColumnName("from_status");
+
+                    b.Property<decimal?>("NewTotalScore")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)")
+                        .HasColumnName("new_total_score");
+
+                    b.Property<decimal?>("OldTotalScore")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)")
+                        .HasColumnName("old_total_score");
+
+                    b.Property<Guid>("PerformanceEvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("performance_evaluation_id");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("performance_evaluation_status")
+                        .HasColumnName("to_status");
+
+                    b.HasKey("Id")
+                        .HasName("performance_evaluation_history_pkey");
+
+                    b.HasIndex(new[] { "PerformanceEvaluationId", "CreatedAt" }, "ix_performance_evaluation_history_evaluation");
+
+                    b.ToTable("performance_evaluation_history", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.PermissionRecord", b =>
@@ -2215,6 +2286,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("work_status")
                         .HasColumnName("status");
 
+                    b.Property<decimal?>("TargetValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("target_value");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -2254,6 +2330,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
 
                             t.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
+
+                            t.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
                         });
                 });
 
@@ -2277,13 +2355,6 @@ namespace G54.DAL.Migrations
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
-
-                    b.Property<decimal>("TaskWeight")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(8, 4)
-                        .HasColumnType("numeric(8,4)")
-                        .HasDefaultValue(1m)
-                        .HasColumnName("task_weight");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -2315,8 +2386,6 @@ namespace G54.DAL.Migrations
                     b.ToTable("work_result_item", null, t =>
                         {
                             t.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
-
-                            t.HasCheckConstraint("ck_work_result_item_task_weight", "task_weight > 0");
 
                             t.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                         });
@@ -2611,16 +2680,23 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_evaluation_profile_item_profile");
 
-                    b.HasOne("G54.DAL.Entities.KpiGroup", "KpiGroup")
+                    b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
                         .WithMany("EvaluationProfileItems")
-                        .HasForeignKey("KpiGroupId")
+                        .HasForeignKey("KpiDefinitionId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_evaluation_profile_item_group");
+                        .HasConstraintName("fk_evaluation_profile_item_kpi_definition");
+
+                    b.HasOne("G54.DAL.Entities.EvaluationProfileItem", "ParentItem")
+                        .WithMany("ChildItems")
+                        .HasForeignKey("ParentItemId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .HasConstraintName("fk_evaluation_profile_item_parent");
 
                     b.Navigation("EvaluationProfile");
 
-                    b.Navigation("KpiGroup");
+                    b.Navigation("KpiDefinition");
+
+                    b.Navigation("ParentItem");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Evidence", b =>
@@ -2817,6 +2893,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("EvaluationProfile");
 
                     b.Navigation("ParentEvaluation");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.PerformanceEvaluationHistory", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.PerformanceEvaluation", "PerformanceEvaluation")
+                        .WithMany("Histories")
+                        .HasForeignKey("PerformanceEvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_performance_evaluation_history_evaluation");
+
+                    b.Navigation("PerformanceEvaluation");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
@@ -3274,6 +3362,11 @@ namespace G54.DAL.Migrations
                     b.Navigation("PerformanceEvaluations");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.EvaluationProfileItem", b =>
+                {
+                    b.Navigation("ChildItems");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
                 {
                     b.Navigation("Employees");
@@ -3285,6 +3378,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.KpiDefinition", b =>
                 {
+                    b.Navigation("EvaluationProfileItems");
+
                     b.Navigation("ObjectiveKpis");
 
                     b.Navigation("TargetAssignments");
@@ -3294,8 +3389,6 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.KpiGroup", b =>
                 {
-                    b.Navigation("EvaluationProfileItems");
-
                     b.Navigation("InverseParentKpiGroup");
 
                     b.Navigation("KpiDefinitions");
@@ -3304,6 +3397,8 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.PerformanceEvaluation", b =>
                 {
                     b.Navigation("Appeals");
+
+                    b.Navigation("Histories");
 
                     b.Navigation("InverseParentEvaluation");
 

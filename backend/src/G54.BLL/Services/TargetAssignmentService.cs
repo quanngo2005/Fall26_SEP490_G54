@@ -1,9 +1,8 @@
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Dtos.TargetAssignment;
-using G54.DAL;
 using G54.DAL.Entities;
-using Microsoft.EntityFrameworkCore;
+using G54.DAL.Repositories;
 
 namespace G54.BLL.Services;
 
@@ -12,7 +11,8 @@ namespace G54.BLL.Services;
 /// Hierarchy, sum, uniqueness and value rules are enforced by the database; the frontend validates the rest.
 /// </summary>
 public sealed class TargetAssignmentService(
-    AppDbContext db,
+    ITargetAssignmentRepository targetRepository,
+    IRepository<EvaluationPeriod> periodRepository,
     IPermissionService permissions,
     TimeProvider time) : ITargetAssignmentService
 {
@@ -25,8 +25,8 @@ public sealed class TargetAssignmentService(
 
         var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason);
         target.DepartmentId = dto.DepartmentId;
-        db.TargetAssignments.Add(target);
-        await db.SaveChangesAsync();
+        await targetRepository.AddAsync(target);
+        await targetRepository.SaveChangesAsync();
 
         return ToDto(target);
     }
@@ -46,10 +46,124 @@ public sealed class TargetAssignmentService(
             return child;
         }).ToList();
 
-        db.TargetAssignments.AddRange(children);
-        await db.SaveChangesAsync();
+        await targetRepository.AddRangeAsync(children);
+        await targetRepository.SaveChangesAsync();
 
         return [.. children.Select(ToDto)];
+    }
+
+    public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
+    {
+        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
+
+        // Check for duplicate evaluationPeriodId in request
+        var periodIds = dto.Allocations!.Select(a => a.EvaluationPeriodId!.Value).ToList();
+        if (periodIds.Count != periodIds.Distinct().Count())
+        {
+            throw new ValidationException("Kỳ đánh giá không được trùng nhau trong danh sách.");
+        }
+
+        // Load all evaluation periods to check hierarchy
+        var allPeriods = await periodRepository.ListAsync();
+        var periodMap = allPeriods.ToDictionary(p => p.Id);
+
+        foreach (var periodId in periodIds)
+        {
+            if (!periodMap.ContainsKey(periodId))
+            {
+                throw new NotFoundException("Kỳ đánh giá", periodId);
+            }
+
+            // Check if the period is a descendant of the parent period
+            var current = periodId;
+            var found = false;
+            var maxIterations = 100; // Prevent infinite loops
+            var iterations = 0;
+
+            while (iterations < maxIterations && periodMap.TryGetValue(current, out var period))
+            {
+                iterations++;
+                if (current == parent.EvaluationPeriodId)
+                {
+                    found = true;
+                    break;
+                }
+
+                if (period.ParentPeriodId.HasValue)
+                {
+                    current = period.ParentPeriodId.Value;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (!found || current == periodId)
+            {
+                throw new ValidationException("Kỳ đánh giá phải là hậu duệ của kỳ cha.");
+            }
+        }
+
+        var children = dto.Allocations!.Select(item =>
+        {
+            var child = NewTarget(parent.KpiDefinitionId, item.EvaluationPeriodId!.Value, item.TargetValue!.Value, dto.ChangeReason);
+            child.BusinessObjectiveId = parent.BusinessObjectiveId;
+            child.ParentAssignmentId = parent.Id;
+            child.SplitDimension = TargetSplitDimension.Period;
+            child.DepartmentId = parent.DepartmentId;
+            child.EmployeeId = parent.EmployeeId;
+            return child;
+        }).ToList();
+
+        await targetRepository.AddRangeAsync(children);
+        await targetRepository.SaveChangesAsync();
+
+        return [.. children.Select(ToDto)];
+    }
+
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query)
+    {
+        // Parse status if provided
+        TargetAssignmentStatus? status = null;
+        if (!string.IsNullOrWhiteSpace(query.Status))
+        {
+            status = EnumApiFormat.ParseEnum<TargetAssignmentStatus>(query.Status, "status");
+        }
+
+        // Determine accessible departments
+        IReadOnlyCollection<Guid>? ownerDepartmentIds = null;
+
+        if (!await IsAdminAsync(accountId))
+        {
+            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId)
+                ?? throw new ForbiddenException("Bạn không có quyền xem target.");
+            ownerDepartmentIds = await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId);
+        }
+
+        // If departmentId is specified, validate it
+        if (query.DepartmentId.HasValue)
+        {
+            if (!await targetRepository.DepartmentExistsAsync(query.DepartmentId.Value))
+            {
+                throw new NotFoundException("Phòng ban", query.DepartmentId.Value);
+            }
+
+            if (ownerDepartmentIds is not null && !ownerDepartmentIds.Contains(query.DepartmentId.Value))
+            {
+                throw new ForbiddenException("Bạn không có quyền truy cập phòng ban này.");
+            }
+
+            ownerDepartmentIds = [query.DepartmentId.Value];
+        }
+
+        var targets = await targetRepository.ListAsync(
+            query.KpiDefinitionId,
+            query.EvaluationPeriodId,
+            status,
+            ownerDepartmentIds);
+
+        return [.. targets.Select(ToDto)];
     }
 
     public async Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId) =>
@@ -57,17 +171,12 @@ public sealed class TargetAssignmentService(
 
     private async Task<TargetAssignment> LoadAccessibleAsync(Guid accountId, Guid id)
     {
-        var target = await db.TargetAssignments.AsNoTracking()
-            .Include(t => t.Employee)
-            .SingleOrDefaultAsync(t => t.Id == id)
+        var target = await targetRepository.GetWithOwnerAsync(id)
             ?? throw new NotFoundException("Target", id);
 
         if (!await IsAdminAsync(accountId))
         {
-            var callerDepartmentId = await db.Accounts.AsNoTracking()
-                .Where(a => a.Id == accountId)
-                .Select(a => a.Employee.DepartmentId)
-                .SingleOrDefaultAsync();
+            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId);
             if (callerDepartmentId != (target.DepartmentId ?? target.Employee!.DepartmentId))
             {
                 throw new ForbiddenException("Bạn không có quyền với target của đơn vị này.");

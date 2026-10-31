@@ -2,7 +2,13 @@ import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { DepartmentEmployeeEvaluation, EvaluationPeriodOption } from './evaluation.models';
+import {
+  DepartmentEmployeeEvaluation,
+  EvaluationFormModel,
+  EvaluationPeriodOption,
+  EvaluationResult,
+  SubmitEvaluationRequest,
+} from './evaluation.models';
 import { EvaluationService } from './evaluation.service';
 
 describe('EvaluationService', () => {
@@ -107,5 +113,78 @@ describe('EvaluationService', () => {
         { status: 403, statusText: 'Forbidden' },
       );
     expect(status).toBe(403);
+  });
+
+  it('loads the evaluation form with the employee and period as query parameters', () => {
+    const form = { employee: { id: 'e1' }, canEdit: true } as unknown as EvaluationFormModel;
+    service.form('e1', period.id).subscribe((result) => expect(result.canEdit).toBeTrue());
+    const request = http.expectOne((r) => r.url === `${url}/form`);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('employeeId')).toBe('e1');
+    expect(request.request.params.get('periodId')).toBe(period.id);
+    request.flush({ success: true, status: 200, data: form });
+  });
+
+  it('treats an empty form envelope as an error instead of sample data', () => {
+    let failed = false;
+    service.form('e1', period.id).subscribe({ error: () => (failed = true) });
+    http
+      .expectOne((r) => r.url === `${url}/form`)
+      .flush({ success: true, status: 200, data: null });
+    expect(failed).toBeTrue();
+  });
+
+  it('propagates the HTTP status of a missing form', () => {
+    let status: number | undefined;
+    service.form('e1', period.id).subscribe({
+      next: () => fail('A 404 must not succeed'),
+      error: (error: HttpErrorResponse) => (status = error.status),
+    });
+    http
+      .expectOne((r) => r.url === `${url}/form`)
+      .flush(
+        { success: false, status: 404, errorCode: 'NOT_FOUND' },
+        { status: 404, statusText: 'Not Found' },
+      );
+    expect(status).toBe(404);
+  });
+
+  it('posts the evaluation to /submit with the draft flag and the qualitative scores', () => {
+    const body: SubmitEvaluationRequest = {
+      employeeId: 'e1',
+      periodId: period.id,
+      comment: 'Good',
+      qualitativeScores: [{ evaluationProfileItemId: 'g1', score: 7 }],
+      isDraft: true,
+    };
+    const result = { evaluationId: 'ev1', status: 'DRAFT' } as unknown as EvaluationResult;
+    service.submit(body).subscribe((saved) => expect(saved.evaluationId).toBe('ev1'));
+    const request = http.expectOne(`${url}/submit`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(body);
+    request.flush({ success: true, status: 200, data: result });
+  });
+
+  it('propagates a conflict from /submit', () => {
+    let status: number | undefined;
+    service
+      .submit({
+        employeeId: 'e1',
+        periodId: period.id,
+        comment: null,
+        qualitativeScores: [],
+        isDraft: false,
+      })
+      .subscribe({
+        next: () => fail('A 409 must not succeed'),
+        error: (error: HttpErrorResponse) => (status = error.status),
+      });
+    http
+      .expectOne(`${url}/submit`)
+      .flush(
+        { success: false, status: 409, errorCode: 'CONFLICT' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    expect(status).toBe(409);
   });
 });

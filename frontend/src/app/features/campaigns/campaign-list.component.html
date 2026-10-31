@@ -1,0 +1,162 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.campaign.breadcrumb}}</p>
+          <h1>{{localization.campaign.title}}</h1>
+        </div>
+        <button type="button" class="button button-primary" (click)="createOpen.set(true)">
+          ＋ {{localization.campaign.createPlan}}
+        </button>
+      </div>
+
+      <div class="tabs" role="tablist">
+        @for (tab of tabs; track tab.status) {
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.is-active]="status === tab.status"
+            [attr.aria-selected]="status === tab.status"
+            (click)="selectTab(tab.status)"
+          >
+            {{tabLabel(tab.status)}} {{overview()?.metrics?.[tab.count] ?? 0}}
+          </button>
+        }
+      </div>
+
+      <form class="filters" (ngSubmit)="refresh(true)">
+        <input
+          type="search"
+          class="input"
+          name="search"
+          [(ngModel)]="search"
+          [placeholder]="localization.campaign.searchPlaceholder"
+          [attr.aria-label]="localization.campaign.searchPlaceholder"
+        />
+        <select
+          class="select"
+          name="objective"
+          [(ngModel)]="objectiveId"
+          (ngModelChange)="refresh(true)"
+          [attr.aria-label]="localization.campaign.allObjectives"
+        >
+          <option value="">{{localization.campaign.allObjectives}}</option>
+          @for (objective of objectives(); track objective.id) {
+            <option [value]="objective.id">{{objective.code}} · {{objective.name}}</option>
+          }
+        </select>
+      </form>
+
+      @if (loading() && !overview()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.campaign.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.campaign.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="refresh()">
+            {{localization.campaign.retry}}
+          </button>
+        </div>
+      } @else {
+        <section class="panel surface-card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{localization.campaign.colCode}}</th>
+                  <th>{{localization.campaign.colName}}</th>
+                  <th>{{localization.campaign.colPeriod}}</th>
+                  <th>{{localization.campaign.colObjective}}</th>
+                  <th class="num">{{localization.campaign.colPeople}}</th>
+                  <th>{{localization.campaign.colProgress}}</th>
+                  <th class="num">{{localization.campaign.colWorks}}</th>
+                  <th>{{localization.campaign.colStatus}}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (campaign of overview()?.campaigns?.items ?? []; track campaign.id) {
+                  <tr class="row-link" (click)="open(campaign)">
+                    <td class="mono code">{{campaign.code}}</td>
+                    <td>{{campaign.name}}</td>
+                    <td class="nowrap">
+                      {{campaign.startDate | appDate}} – {{campaign.endDate | appDate}}
+                    </td>
+                    <td [title]="campaign.businessObjectiveName">
+                      {{campaign.businessObjectiveCode}}
+                    </td>
+                    <td class="num">{{campaign.participantsCount}}</td>
+                    <td>
+                      @let percent =
+                        progress(campaign.generatedWorksCount, campaign.completedWorksCount);
+                      @if (percent !== null) {
+                        <span class="progress">
+                          <span class="progress-track">
+                            <span class="progress-fill" [style.width.%]="percent"></span>
+                          </span>
+                          {{percent}}%
+                        </span>
+                      } @else {
+                        {{localization.campaign.noValue}}
+                      }
+                    </td>
+                    <td class="num">{{campaign.generatedWorksCount}}</td>
+                    <td>
+                      <span class="status-badge" [class]="badgeClass(campaign.status)">
+                        {{statusLabel(campaign.status)}}
+                      </span>
+                    </td>
+                    <td>
+                      <a
+                        class="link"
+                        [routerLink]="['/campaigns', campaign.id]"
+                        (click)="$event.stopPropagation()"
+                      >
+                        {{localization.campaign.view}}
+                      </a>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td class="empty-cell" colspan="9">{{localization.campaign.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <span>{{rangeText()}}</span>
+            <div class="pager-buttons">
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="loading() || page <= 1"
+                (click)="goToPage(page - 1)"
+              >
+                {{localization.campaign.previous}}
+              </button>
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="loading() || page >= totalPages()"
+                (click)="goToPage(page + 1)"
+              >
+                {{localization.campaign.next}}
+              </button>
+            </div>
+          </div>
+        </section>
+      }
+    </main>
+  </div>
+</div>
+
+@if (createOpen()) {
+  <app-campaign-create-modal (closed)="createOpen.set(false)" (created)="onCreated($event)" />
+}

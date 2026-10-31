@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { EvaluationsComponent } from './evaluations.component';
 import { EvaluationService } from '../../core/evaluation.service';
@@ -210,5 +210,35 @@ describe('EvaluationsComponent', () => {
       TestBed.inject(I18nService).localization.evaluations.emptyList,
     );
     expect(component.periodInfo().progressPercent).toBeNull();
+  });
+
+  it('navigates to /evaluations/form when openEvaluationForm is called', () => {
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate');
+    component.openEvaluationForm(rows[0]);
+    expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
+      queryParams: {
+        employeeId: 'e1',
+        periodId: 'period-1',
+      },
+    });
+  });
+
+  it('shows the number of units when the rows span several departments', () => {
+    api.departmentEmployees.and.returnValue(
+      of([
+        row({ employeeId: 'e1', departmentName: 'Team 1' }),
+        row({ employeeId: 'e2', departmentName: 'Team 2' }),
+        row({ employeeId: 'e3', departmentName: 'Team 2' }),
+      ]),
+    );
+    component = TestBed.createComponent(EvaluationsComponent).componentInstance;
+    expect(component.periodInfo().departmentName).toBe(
+      TestBed.inject(I18nService).translate('evaluations.departmentCount', { count: 2 }),
+    );
+  });
+
+  it('keeps the department name when every row belongs to one department', () => {
+    expect(component.periodInfo().departmentName).toBe(rows[0].departmentName);
   });
 });

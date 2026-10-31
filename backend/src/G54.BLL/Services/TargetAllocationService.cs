@@ -8,13 +8,40 @@ using G54.DAL.Uow;
 
 namespace G54.BLL.Services;
 
-public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocationService
+public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService permissions) : ITargetAllocationService
 {
+    private const string AccessDenied = "Bạn không có quyền với target của đơn vị này.";
+
+    /// <summary>Returns null for admins (target:manage:All); otherwise the caller's department subtree.</summary>
+    private async Task<HashSet<Guid>?> ResolveVisibleAsync(Guid userId, CancellationToken ct)
+    {
+        if (await permissions.HasPermissionAsync(userId, "target", "manage", "All", ct))
+            return null;
+
+        var callerDepartmentId = await uow.TargetAssignments.GetAccountDepartmentIdAsync(userId, ct)
+            ?? throw new ForbiddenException(AccessDenied);
+        return [.. await uow.TargetAssignments.GetDescendantDepartmentIdsAsync(callerDepartmentId, ct)];
+    }
+
+    private async Task EnsureDepartmentAccessAsync(Guid userId, Guid? departmentId, CancellationToken ct)
+    {
+        var visible = await ResolveVisibleAsync(userId, ct);
+        if (visible is not null && (departmentId is null || !visible.Contains(departmentId.Value)))
+            throw new ForbiddenException(AccessDenied);
+    }
+
+    private static bool IsVisibleRow(TargetAssignment row, HashSet<Guid>? visible) =>
+        visible is null
+        || row.ParentAssignmentId == null
+        || (row.DepartmentId.HasValue && visible.Contains(row.DepartmentId.Value));
+
     public async Task<TargetImportResultDto> ImportYearTargetsAsync(Guid branchId, int year, Stream excel, Guid userId, CancellationToken ct = default)
     {
         var branch = await uow.Departments.GetByIdAsync(branchId, ct);
         if (branch?.LevelType != DepartmentLevelType.Branch)
             throw new NotFoundException("Branch not found or invalid type.");
+
+        await EnsureDepartmentAccessAsync(userId, branchId, ct);
 
         var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
         if (yearPeriod == null)
@@ -133,7 +160,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(branchId, year, null, ct);
+        var tree = await GetTreeAsync(branchId, year, null, userId, ct);
         return new(branchId, year, tree);
     }
 
@@ -142,6 +169,8 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
         var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(branchYearId, ct);
         if (branchYearTarget == null || branchYearTarget.ParentAssignmentId != null)
             throw new NotFoundException("Branch-year target not found.");
+
+        await EnsureDepartmentAccessAsync(userId, branchYearTarget.DepartmentId, ct);
 
         if (branchYearTarget.EvaluationPeriod?.Status != PeriodStatus.Open)
             throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
@@ -234,7 +263,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, userId, ct);
         return tree;
     }
 
@@ -243,6 +272,8 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
         var deptYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
         if (deptYearTarget == null || deptYearTarget.ParentAssignmentId == null)
             throw new NotFoundException("Department-year target not found.");
+
+        await EnsureDepartmentAccessAsync(userId, deptYearTarget.DepartmentId, ct);
 
         var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId.Value, ct);
         if (branchYearTarget?.ParentAssignmentId != null)
@@ -335,7 +366,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        var tree = await GetTreeAsync(branchYearTarget.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, userId, ct);
         return tree;
     }
 
@@ -344,6 +375,8 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
         var deptYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearId, ct);
         if (deptYearTarget == null)
             throw new NotFoundException("Department-year target not found.");
+
+        await EnsureDepartmentAccessAsync(userId, deptYearTarget.DepartmentId, ct);
 
         var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId!.Value, ct);
 
@@ -422,17 +455,28 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             }
         }, ct);
 
-        var tree = await GetTreeAsync(branchYearTarget!.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, ct);
+        var tree = await GetTreeAsync(branchYearTarget!.DepartmentId!.Value, int.Parse(branchYearTarget.EvaluationPeriod!.Code, System.Globalization.CultureInfo.InvariantCulture), null, userId, ct);
         return FindNode(tree, deptYearTarget.Id) ?? throw new NotFoundException("Department-year target not found.");
     }
 
-    public async Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, CancellationToken ct = default)
+    public async Task<List<TargetNodeDto>> GetTreeAsync(Guid branchId, int year, int? compareYear, Guid userId, CancellationToken ct = default)
     {
+        // Callers whose subtree holds the branch see the whole tree; a department inside the branch
+        // sees the branch root plus its own subtree; anyone else is refused.
+        var visible = await ResolveVisibleAsync(userId, ct);
+        if (visible is not null && visible.Contains(branchId))
+            visible = null;
+        if (visible is not null
+            && !visible.Overlaps(await uow.TargetAssignments.GetDescendantDepartmentIdsAsync(branchId, ct)))
+            throw new ForbiddenException(AccessDenied);
+
         var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
         if (yearPeriod == null)
             return [];
 
-        var rows = await uow.TargetAssignments.GetTreeAsync(branchId, yearPeriod.Id, ct);
+        var rows = (await uow.TargetAssignments.GetTreeAsync(branchId, yearPeriod.Id, ct))
+            .Where(r => IsVisibleRow(r, visible))
+            .ToList();
 
         var compareTree = new Dictionary<(Guid, Guid?, int), (decimal Target, decimal Actual)>();
         if (compareYear.HasValue)
@@ -441,7 +485,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow) : ITargetAllocation
             if (compareYearPeriod != null)
             {
                 var compareRows = await uow.TargetAssignments.GetTreeAsync(branchId, compareYearPeriod.Id, ct);
-                foreach (var row in compareRows.Where(r => r.Status != TargetAssignmentStatus.Superseded))
+                foreach (var row in compareRows.Where(r => r.Status != TargetAssignmentStatus.Superseded && IsVisibleRow(r, visible)))
                 {
                     var key = (row.KpiDefinitionId, row.DepartmentId, GetPeriodPosition(row.EvaluationPeriod?.Code ?? ""));
                     var actual = row.ActualProgresses?.Sum(ap => ap.Value) ?? 0;

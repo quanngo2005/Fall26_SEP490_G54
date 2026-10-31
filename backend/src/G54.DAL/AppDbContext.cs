@@ -54,6 +54,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<PerformanceEvaluation> PerformanceEvaluations { get; set; }
 
+    public virtual DbSet<PerformanceEvaluationHistory> PerformanceEvaluationHistories { get; set; }
+
     public virtual DbSet<PermissionRecord> Permissions { get; set; }
 
     public virtual DbSet<ResultSubmission> ResultSubmissions { get; set; }
@@ -111,6 +113,7 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<PeriodStatus>("public", "period_status")
             .HasPostgresEnum<EvaluationProfileStatus>("public", "evaluation_profile_status")
             .HasPostgresEnum<PerformanceEvaluationStatus>("public", "performance_evaluation_status")
+            .HasPostgresEnum<PerformanceEvaluationHistoryAction>("public", "performance_evaluation_history_action")
             .HasPostgresEnum<TargetAssignmentStatus>("public", "target_assignment_status")
             .HasPostgresEnum<TargetSplitDimension>("public", "target_split_dimension")
             .HasPostgresExtension("pgcrypto");
@@ -598,9 +601,14 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_evaluation_profile_item_weight", "weight_percent > 0 AND weight_percent <= 100");
                 table.HasCheckConstraint("ck_evaluation_profile_item_display_order", "display_order > 0");
+                table.HasCheckConstraint("ck_evaluation_profile_item_node", "num_nonnulls(name, kpi_definition_id) = 1");
             });
 
-            entity.HasIndex(e => new { e.EvaluationProfileId, e.KpiGroupId }, "uq_evaluation_profile_item").IsUnique();
+            entity.HasIndex(e => new { e.EvaluationProfileId, e.KpiDefinitionId }, "uq_evaluation_profile_item_kpi")
+                .IsUnique()
+                .HasFilter("kpi_definition_id IS NOT NULL");
+            entity.HasIndex(e => e.ParentItemId, "ix_evaluation_profile_item_parent");
+            entity.HasIndex(e => e.KpiDefinitionId, "ix_evaluation_profile_item_kpi_definition");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -609,7 +617,11 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValue(1)
                 .HasColumnName("display_order");
             entity.Property(e => e.EvaluationProfileId).HasColumnName("evaluation_profile_id");
-            entity.Property(e => e.KpiGroupId).HasColumnName("kpi_group_id");
+            entity.Property(e => e.ParentItemId).HasColumnName("parent_item_id");
+            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.Name)
+                .HasMaxLength(200)
+                .HasColumnName("name");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -621,10 +633,15 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EvaluationProfileId)
                 .HasConstraintName("fk_evaluation_profile_item_profile");
 
-            entity.HasOne(d => d.KpiGroup).WithMany(p => p.EvaluationProfileItems)
-                .HasForeignKey(d => d.KpiGroupId)
+            entity.HasOne(d => d.ParentItem).WithMany(p => p.ChildItems)
+                .HasForeignKey(d => d.ParentItemId)
+                .OnDelete(DeleteBehavior.ClientCascade)
+                .HasConstraintName("fk_evaluation_profile_item_parent");
+
+            entity.HasOne(d => d.KpiDefinition).WithMany(p => p.EvaluationProfileItems)
+                .HasForeignKey(d => d.KpiDefinitionId)
                 .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_evaluation_profile_item_group");
+                .HasConstraintName("fk_evaluation_profile_item_kpi_definition");
         });
 
         modelBuilder.Entity<Evidence>(entity =>
@@ -1026,6 +1043,44 @@ public partial class AppDbContext : DbContext
                 .HasColumnType("performance_evaluation_status")
                 .HasColumnName("pre_dispute_status");
             entity.Property(e => e.DisputedAt).HasColumnName("disputed_at");
+        });
+
+        modelBuilder.Entity<PerformanceEvaluationHistory>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("performance_evaluation_history_pkey");
+
+            entity.ToTable("performance_evaluation_history");
+
+            entity.HasIndex(e => new { e.PerformanceEvaluationId, e.CreatedAt }, "ix_performance_evaluation_history_evaluation");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
+            entity.Property(e => e.Action)
+                .HasColumnType("performance_evaluation_history_action")
+                .HasColumnName("action");
+            entity.Property(e => e.FromStatus)
+                .HasColumnType("performance_evaluation_status")
+                .HasColumnName("from_status");
+            entity.Property(e => e.ToStatus)
+                .HasColumnType("performance_evaluation_status")
+                .HasColumnName("to_status");
+            entity.Property(e => e.OldTotalScore)
+                .HasPrecision(10, 4)
+                .HasColumnName("old_total_score");
+            entity.Property(e => e.NewTotalScore)
+                .HasPrecision(10, 4)
+                .HasColumnName("new_total_score");
+            entity.Property(e => e.ChangedBy).HasColumnName("changed_by");
+            entity.Property(e => e.Comment).HasColumnName("comment");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.Histories)
+                .HasForeignKey(d => d.PerformanceEvaluationId)
+                .HasConstraintName("fk_performance_evaluation_history_evaluation");
         });
 
         modelBuilder.Entity<PermissionRecord>(entity =>
@@ -1556,6 +1611,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_work_estimated_hours", "estimated_hours IS NULL OR estimated_hours >= 0");
                 table.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
                 table.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
+                table.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
             });
 
             entity.HasIndex(e => e.AssigneeEmployeeId, "ix_work_assignee");
@@ -1586,6 +1642,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ParentWorkId).HasColumnName("parent_work_id");
             entity.Property(e => e.PlannedEndDate).HasColumnName("planned_end_date");
             entity.Property(e => e.PlannedStartDate).HasColumnName("planned_start_date");
+            entity.Property(e => e.TargetValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("target_value");
             entity.Property(e => e.Title)
                 .HasMaxLength(255)
                 .HasColumnName("title");
@@ -1636,7 +1695,6 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                 table.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
-                table.HasCheckConstraint("ck_work_result_item_task_weight", "task_weight > 0");
             });
 
             entity.HasIndex(e => e.ActualProgressId, "ix_work_result_item_progress");
@@ -1655,10 +1713,6 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(18, 4)
                 .HasColumnName("denominator");
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
-            entity.Property(e => e.TaskWeight)
-                .HasPrecision(8, 4)
-                .HasDefaultValue(1m)
-                .HasColumnName("task_weight");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

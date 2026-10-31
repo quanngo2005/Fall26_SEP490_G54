@@ -79,7 +79,7 @@ public sealed class TargetAssignmentController(ITargetAllocationService service,
         [FromQuery] int? compareYear,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetTreeAsync(branchId, year, compareYear, cancellationToken);
+        var result = await service.GetTreeAsync(branchId, year, compareYear, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

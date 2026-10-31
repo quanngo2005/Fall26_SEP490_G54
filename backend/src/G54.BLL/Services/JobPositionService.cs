@@ -5,7 +5,6 @@ using G54.BLL.Dtos.JobPosition;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace G54.BLL.Services;
 
@@ -151,6 +150,14 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
             workTypes);
     }
 
+    public async Task<IReadOnlyList<JobPositionWorkTypeDto>> GetWorkTypesAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsurePositionExistsAsync(id, cancellationToken);
+        return await LoadWorkTypesAsync(id, time.GetBusinessToday(), cancellationToken);
+    }
+
     public async Task<JobPositionDetailDto> AssignWorkTypeAsync(
         Guid id,
         AssignJobPositionWorkTypeDto request,
@@ -191,7 +198,7 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
         {
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
         {
             throw new ConflictException(WorkTypeAlreadyAssignedMessage);
         }
@@ -261,17 +268,6 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
                 p.Version,
                 p.EffectiveFrom,
                 p.Status,
-                Items = p.EvaluationProfileItems
-                    .OrderBy(item => item.DisplayOrder)
-                    .Select(item => new
-                    {
-                        item.Id,
-                        GroupName = item.KpiGroup.Name,
-                        GroupCode = item.KpiGroup.Code,
-                        item.WeightPercent,
-                        item.DisplayOrder,
-                    })
-                    .ToList(),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -280,9 +276,22 @@ public sealed class JobPositionService(AppDbContext dbContext, TimeProvider time
             return null;
         }
 
-        var items = profile.Items
-            .Select(item => new JobPositionEvaluationProfileItemDto(
-                item.Id, item.GroupName, item.GroupCode, item.WeightPercent, item.DisplayOrder))
+        // The profile is a weight tree: only its root groups are listed. A group has no code of its own, so its code
+        // is the catalog KPI group of its KPIs, the same rule the evaluation form uses.
+        var nodes = await dbContext.EvaluationProfileItems
+            .AsNoTracking()
+            .Include(item => item.KpiDefinition)
+                .ThenInclude(kpi => kpi!.KpiGroup)
+            .Where(item => item.EvaluationProfileId == profile.Id)
+            .ToListAsync(cancellationToken);
+
+        var items = EvaluationProfileTree.Build(nodes)
+            .Select(root => new JobPositionEvaluationProfileItemDto(
+                root.Item.Id,
+                EvaluationProfileTree.NodeName(root),
+                EvaluationProfileTree.CatalogGroupCode(root),
+                root.Item.WeightPercent,
+                root.Item.DisplayOrder))
             .ToList();
 
         return new JobPositionEvaluationProfileDto(
