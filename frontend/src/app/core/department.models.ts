@@ -13,6 +13,13 @@ export interface DepartmentSummary {
   parentDepartmentName: string | null;
   employeeCount: number;
   childDepartmentCount: number;
+  /** Derived manager; null when none can be determined (render N/A). */
+  managerName: string | null;
+  /** Active employees in the subtree holding the TELLER position; 0 when none. */
+  tellerCount: number;
+  /** Active employees in the subtree holding the SALES position; 0 when none. */
+  salesCount: number;
+  lastSyncAt: string;
 }
 export interface DepartmentDetail {
   id: string;

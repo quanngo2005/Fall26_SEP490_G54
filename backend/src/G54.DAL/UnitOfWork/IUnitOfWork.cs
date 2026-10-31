@@ -20,6 +20,9 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IRepository<KpiDefinition> KpiDefinitions { get; }
     IRepository<Department> Departments { get; }
     IRepository<JobPosition> JobPositions { get; }
+    ITargetAssignmentRepository TargetAssignments { get; }
+    IEvaluationPeriodRepository EvaluationPeriods { get; }
+    IRepository<ActualProgress> ActualProgresses { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;
 

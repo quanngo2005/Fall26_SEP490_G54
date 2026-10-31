@@ -1,0 +1,214 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content">
+      <div class="master-detail-container" [class.has-detail]="selectedEmployee() !== null">
+        <section class="master-panel">
+          <div class="page-heading">
+            <nav class="breadcrumb" [attr.aria-label]="localization.employeeList.breadcrumbLabel">
+              <ol>
+                <li>{{localization.employeeList.breadcrumbHr}}</li>
+
+                <li aria-current="page">{{localization.employeeList.breadcrumbEmployees}}</li>
+              </ol>
+            </nav>
+
+            <div class="title-line">
+              <h1>{{localization.employeeList.title}}</h1>
+
+              <span class="read-only-badge">{{localization.employeeList.readOnlyBadge}}</span>
+            </div>
+          </div>
+
+          <div class="sync-banner" role="note">
+            <span class="sync-time">
+              {{localization.employeeList.syncTimeLabel}}
+
+              <strong>{{localization.employee.notAvailable}}</strong>
+            </span>
+
+            <span class="sync-source">{{localization.employeeList.syncSourceUnavailable}}</span>
+          </div>
+
+          <div class="filter-toolbar">
+            <div class="search-box">
+              <app-layout-icon class="search-icon" name="search" />
+
+              <input
+                type="search"
+                class="search-input"
+                [ngModel]="keyword()"
+                (ngModelChange)="onSearchChange($event)"
+                [placeholder]="localization.employeeList.searchPlaceholder"
+                [attr.aria-label]="localization.employeeList.searchPlaceholder"
+              />
+            </div>
+
+            <div class="filter-dropdowns">
+              <select
+                class="dropdown-select"
+                [ngModel]="selectedDepartment()"
+                (ngModelChange)="changeDepartment($event)"
+                [disabled]="optionsLoading() || optionsFailed()"
+                [attr.aria-label]="localization.employeeList.filterDepartment"
+              >
+                <option value="">{{localization.employeeList.filterDepartment}}</option>
+
+                @if (departments().length > 0) {
+                  @for (dept of departments(); track dept.id) {
+                    <option [value]="dept.id">{{dept.code}} · {{dept.name}}</option>
+                  }
+                }
+              </select>
+
+              <select
+                class="dropdown-select"
+                [ngModel]="selectedPosition()"
+                (ngModelChange)="changePosition($event)"
+                [disabled]="optionsLoading() || optionsFailed()"
+                [attr.aria-label]="localization.employeeList.filterPosition"
+              >
+                <option value="">{{localization.employeeList.filterPosition}}</option>
+
+                @if (positions().length > 0) {
+                  @for (pos of positions(); track pos.id) {
+                    <option [value]="pos.id">{{pos.code}} · {{pos.title}}</option>
+                  }
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="table-card" [attr.aria-busy]="loading()">
+            <div class="table-wrap">
+              <table class="employee-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.employeeList.colCode}}</th>
+
+                    <th scope="col">{{localization.employeeList.colFullName}}</th>
+
+                    <th scope="col">{{localization.employeeList.colDepartment}}</th>
+
+                    <th scope="col">{{localization.employeeList.colPosition}}</th>
+
+                    <th scope="col">{{localization.employeeList.colStatus}}</th>
+
+                    <th scope="col">{{localization.employeeList.colAccount}}</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  @for (emp of filteredEmployees(); track emp.id) {
+                    <tr
+                      class="employee-row"
+                      [class.is-selected]="selectedEmployeeId() === emp.id"
+                      (click)="selectEmployee(emp)"
+                      tabindex="0"
+                      (keydown.enter)="selectEmployee(emp)"
+                      (keydown.space)="selectEmployee(emp); $event.preventDefault()"
+                    >
+                      <td class="font-bold">{{emp.code}}</td>
+
+                      <td>{{emp.fullName}}</td>
+
+                      <td [title]="emp.departmentName">{{emp.departmentCode}}</td>
+
+                      <td [title]="emp.positionTitle">{{emp.positionCode}}</td>
+
+                      <td>
+                        <span
+                          class="status-pill"
+                          [class.status-active]="emp.status === 'ACTIVE'"
+                          [class.status-missing]="emp.status === 'MISSING_IN_FILE'"
+                          [class.status-terminated]="emp.status === 'TERMINATED'"
+                        >
+                          @switch (emp.status) {
+                            @case ('ACTIVE') {
+                              {{localization.employeeList.statusActive}}
+                            }
+
+                            @case ('MISSING_IN_FILE') {
+                              {{localization.employeeList.statusMissing}}
+                            }
+
+                            @case ('TERMINATED') {
+                              {{localization.employeeList.statusTerminated}}
+                            }
+
+                            @case ('INACTIVE') {
+                              {{localization.employeeList.statusInactive}}
+                            }
+
+                            @case ('ON_LEAVE') {
+                              {{localization.employeeList.statusOnLeave}}
+                            }
+
+                            @default {
+                              {{localization.employee.notAvailable}}
+                            }
+                          }
+                        </span>
+                      </td>
+
+                      <td
+                        class="account-tag"
+                        [class.is-muted]="emp.account === localization.employeeList.accountNone"
+                      >
+                        {{emp.account}}
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="empty-cell">
+                        {{listStateText()}}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <footer class="table-footer">
+              <span class="pagination-info">{{paginationInfoText()}}</span>
+
+              <nav
+                class="pagination-controls"
+                [attr.aria-label]="localization.employeeList.paginationLabel"
+              >
+                <button
+                  type="button"
+                  class="page-btn"
+                  [class.is-active]="page() === paginationPages()[0]"
+                  [disabled]="loading() || paginationPages()[0] === undefined"
+                  (click)="goToPage(paginationPages()[0])"
+                >
+                  {{paginationPages()[0] ?? localization.employee.notAvailable}}
+                </button>
+
+                <button
+                  type="button"
+                  class="page-btn"
+                  [class.is-active]="page() === paginationPages()[1]"
+                  [disabled]="loading() || paginationPages()[1] === undefined"
+                  (click)="goToPage(paginationPages()[1])"
+                >
+                  {{paginationPages()[1] ?? localization.employee.notAvailable}}
+                </button>
+              </nav>
+            </footer>
+          </div>
+
+          <p class="table-footnote" aria-live="polite">{{listNoteText()}}</p>
+        </section>
+
+        @if (selectedEmployee(); as selected) {
+          <app-employee-detail-drawer [employee]="selected" (closeDrawer)="closeDrawer()" />
+        }
+      </div>
+    </main>
+  </div>
+</div>

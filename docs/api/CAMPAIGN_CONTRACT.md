@@ -36,6 +36,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chi�
 
 | Method | Endpoint | Description | Auth / Role |
 | :--- | :--- | :--- | :--- |
+| `GET` | `/business-objectives` | Lists the business objectives a campaign can be linked to (everything but `CANCELLED`), ordered by code. Feeds the objective dropdown of the plan form. | `[Authorize]` `campaign:read` (Dept) |
 | `GET` | `/campaigns` | Lists business campaigns with status/objective filters, pagination, and KPI metric summary cards. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `GET` | `/campaigns/{id}` | Gets campaign detail including linked objective, configured work types, participants, and progress metrics. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `POST` | `/campaigns` | Creates a new campaign plan with participants and work types (Status: `PLANNED`). | `[Authorize]` Dept Mgr |
@@ -47,6 +48,11 @@ This contract specifies the canonical backend API for **Business Campaigns (Chi�
 ---
 
 ## 3. Endpoint Specifications
+
+### 3.0 GET `/business-objectives`
+`data`: array of `{ id, code, name, description }` for objectives whose status is not `CANCELLED`, ordered by `code`.
+
+---
 
 ### 3.1 GET `/campaigns`
 Gets paginated list of campaigns with summary metrics.
@@ -130,7 +136,8 @@ Gets complete campaign details, linked work types, participant rosters, and prog
         "code": "WT-CALL-DEP",
         "name": "Tư vấn mở sổ tiết kiệm đến hạn",
         "expectedResult": "Sổ tiết kiệm tái tục hoặc gửi mới",
-        "requiredEvidence": "Mã hợp đồng tiền gửi Core Banking"
+        "requiredEvidence": "Mã hợp đồng tiền gửi Core Banking",
+        "targetUnit": "tài khoản"
       }
     ],
     "participants": [
@@ -234,6 +241,7 @@ Generates and idempotently distributes lead tasks to active campaign participant
   "plannedEndDate": "2026-10-31",
   "priority": "HIGH",
   "targetEmployeeIds": [],
+  "targetValue": 600,
   "leads": [
     {
       "customerCode": "CUST-8801",
@@ -243,6 +251,8 @@ Generates and idempotently distributes lead tasks to active campaign participant
   ]
 }
 ```
+
+**Expected result (`targetValue`, optional):** the total result the generated works should reach, in the unit of the work type's KPI (`targetUnit` of the work type in `GET /campaigns/{id}`: accounts, VND billion, ...). It must be `>= 0` and at most `9,999,999,999,999`; otherwise `400 VALIDATION_ERROR` and nothing is created. It is split evenly across the generated works (rounded down to 4 decimals, the remainder goes on the last work so the shares add up exactly) and stored in `work.target_value`; each work description also ends with `Mức mong muốn: <value> <unit>.`. When omitted, `work.target_value` stays `null`. `targetUnit` is the unit of the current required KPI of the work type (otherwise the earliest current one), or `null` when it has none.
 
 **Supported Allocation Rules:**
 - `ROUND_ROBIN`: Sequential alternating distribution across participants.
@@ -280,7 +290,7 @@ Generates and idempotently distributes lead tasks to active campaign participant
 | `VALIDATION_ERROR` | 400 | Missing required fields, invalid date range (`endDate < startDate`), non-positive lead count. |
 | `NOT_FOUND` | 404 | Campaign, BusinessObjective, WorkType, or Employee not found. |
 | `CONFLICT` | 409 | Duplicate campaign code (`uq_business_campaign_code`) or campaign status already completed/cancelled. |
-| `MSG14` | 400 | Total allocated target percentage does not sum to 100% (BR-24). |
-| `MSG18` | 400 | Submission date or work deadline exceeds campaign end date (BR-12). |
-| `MSG22` | 409 | Work item already exists or duplicates an existing task ID (BR-08). |
-| `FORBIDDEN` | 403 | Attempt to approve own campaign plan (BR-02 Maker != Checker). |
+| `TARGET_ALLOCATION_NOT_100_PERCENT` | 400 | Total allocated target percentage does not sum to 100% (BR-24). |
+| `VALIDATION_ERROR` | 400 | Also: work deadline exceeds campaign end date, or campaign end date is earlier than the deadline of already generated works (BR-12). |
+| `KPI_ALREADY_CONTRIBUTED` | 409 | Work item already exists or duplicates an existing task ID (BR-08). |
+| `MAKER_CANNOT_BE_CHECKER` | 400 | Attempt to approve own campaign plan (BR-02 Maker != Checker). |

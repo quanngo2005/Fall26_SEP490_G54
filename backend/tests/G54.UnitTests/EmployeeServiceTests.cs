@@ -130,6 +130,11 @@ public sealed class EmployeeServiceTests
             Assert.Equal("DEV-001", resultKeyword.Items[0].EmployeeCode);
             Assert.Equal("MGR-001", resultKeyword.Items[0].ManagerCode);
 
+            // Keyword matches the employee code as stored
+            var resultCode = await service.GetEmployeesAsync(
+                Guid.Empty, new EmployeeFilterDto { Keyword = "DEV-001", Page = 1, PageSize = 10 });
+            Assert.Equal("DEV-001", Assert.Single(resultCode.Items).EmployeeCode);
+
             // Filter by status Active
             var filterByStatus = new EmployeeFilterDto { Status = "ACTIVE" };
             var resultStatus = await service.GetEmployeesAsync(Guid.Empty, filterByStatus);

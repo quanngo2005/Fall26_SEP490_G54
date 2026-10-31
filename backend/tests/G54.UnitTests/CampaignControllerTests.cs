@@ -90,6 +90,9 @@ public sealed class CampaignControllerTests
         public Guid LastDecidedUserId { get; private set; }
         public CampaignDecisionRequestDto? LastDecisionRequest { get; private set; }
 
+        public Task<IReadOnlyList<CampaignObjectiveDto>> GetObjectivesAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<CampaignDecisionResultDto> DecideCampaignAsync(
             Guid id,
             CampaignDecisionRequestDto request,

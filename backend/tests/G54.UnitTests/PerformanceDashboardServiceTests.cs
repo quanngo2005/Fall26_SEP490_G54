@@ -31,7 +31,7 @@ public sealed class PerformanceDashboardServiceTests
         Assert.Equal("CALCULATED", dto.EvaluationStatus);
         Assert.Equal(80m, dto.TotalScore);
         Assert.Equal(Now.AddHours(-1), dto.CalculatedAt);
-        var group = Assert.Single(dto.Groups, g => g.Code == "KD");
+        var group = Assert.Single(dto.Groups, g => g.Name == "KD");
         Assert.Equal(2, dto.Groups.Count);
         Assert.Equal(70m, group.WeightPercent);
         Assert.Equal(90m, group.Score);
@@ -62,7 +62,7 @@ public sealed class PerformanceDashboardServiceTests
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
         Assert.Equal(60m, dto.TotalScore);
-        var kpi = Assert.Single(Assert.Single(dto.Groups, g => g.Code == "KD").Kpis);
+        var kpi = Assert.Single(Assert.Single(dto.Groups, g => g.Name == "KD").Kpis);
         Assert.Equal(60m, kpi.Score);
     }
 
@@ -119,8 +119,8 @@ public sealed class PerformanceDashboardServiceTests
 
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
-        Assert.Single(Assert.Single(dto.Groups, g => g.Code == "KD").Kpis);
-        Assert.Empty(Assert.Single(dto.Groups, g => g.Code == "CLDV").Kpis);
+        Assert.Single(Assert.Single(dto.Groups, g => g.Name == "KD").Kpis);
+        Assert.Empty(Assert.Single(dto.Groups, g => g.Name == "CLDV").Kpis);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public sealed class PerformanceDashboardServiceTests
 
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
-        var kpi = Assert.Single(Assert.Single(dto.Groups, g => g.Code == "KD").Kpis);
+        var kpi = Assert.Single(Assert.Single(dto.Groups, g => g.Name == "KD").Kpis);
         Assert.Equal("HDV", kpi.Code);
     }
 
@@ -164,7 +164,7 @@ public sealed class PerformanceDashboardServiceTests
 
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
-        Assert.Equal(["KD", "CLDV"], dto.Groups.Select(g => g.Code).ToArray());
+        Assert.Equal(["KD", "CLDV"], dto.Groups.Select(g => g.Name).ToArray());
         Assert.Equal([70m, 30m], dto.Groups.Select(g => g.WeightPercent).ToArray());
         Assert.NotNull(dto.Groups[0].Score);
         Assert.Null(dto.Groups[1].Score);
@@ -172,7 +172,7 @@ public sealed class PerformanceDashboardServiceTests
     }
 
     [Fact]
-    public async Task Me_AveragesOnlyTheKpisThatHaveAScoreInAGroup()
+    public async Task Me_ScoresAGroupOverOnlyTheKpisThatHaveAScore()
     {
         using var world = await World.CreateAsync();
         var evaluation = world.AddEvaluation(world.Employee, world.October, 50m, PerformanceEvaluationStatus.Calculated);
@@ -182,9 +182,29 @@ public sealed class PerformanceDashboardServiceTests
 
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
-        var group = Assert.Single(dto.Groups, g => g.Code == "KD");
+        var group = Assert.Single(dto.Groups, g => g.Name == "KD");
         Assert.Equal(40m, group.Score);
         Assert.Equal(2, group.Kpis.Count);
+    }
+
+    [Fact]
+    public async Task Me_WeighsTheKpisOfAGroupByTheirWeight()
+    {
+        // HDV and KH carry 50 each in the seed; re-weight them to 80 / 20.
+        using var world = await World.CreateAsync();
+        var hdvLeaf = await world.Db.EvaluationProfileItems.SingleAsync(i => i.KpiDefinitionId == world.KpiHdv.Id);
+        var khLeaf = await world.Db.EvaluationProfileItems.SingleAsync(i => i.KpiDefinitionId == world.KpiKh.Id);
+        hdvLeaf.WeightPercent = 80m;
+        khLeaf.WeightPercent = 20m;
+        var evaluation = world.AddEvaluation(world.Employee, world.October, 50m, PerformanceEvaluationStatus.Calculated);
+        world.AddKpiRow(evaluation, world.Employee, world.KpiHdv, 100m, 50m, 50m, 50m, 50m);
+        world.AddKpiRow(evaluation, world.Employee, world.KpiKh, 10m, 10m, 100m, 100m, 100m);
+        await world.SaveAsync();
+
+        var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
+
+        // 50 x 80% + 100 x 20% = 60; the plain mean would be 75.
+        Assert.Equal(60m, Assert.Single(dto.Groups, g => g.Name == "KD").Score);
     }
 
     [Fact]
@@ -367,7 +387,7 @@ public sealed class PerformanceDashboardServiceTests
             .GetEmployeeDashboardAsync(world.ManagerAccount.Id, world.Employee.Id, null);
 
         Assert.Equal(77m, dto.TotalScore);
-        Assert.Single(Assert.Single(dto.Groups, g => g.Code == "KD").Kpis);
+        Assert.Single(Assert.Single(dto.Groups, g => g.Name == "KD").Kpis);
     }
 
     [Fact]
@@ -419,6 +439,23 @@ public sealed class PerformanceDashboardServiceTests
         Assert.Equal(3, dto.EmployeeCount);
         Assert.Equal(2, dto.EvaluatedEmployeeCount);
         Assert.Equal(85m, dto.AverageScore);
+    }
+
+    [Fact]
+    public async Task Department_HidesDisputedPendingScoresFromAverageAndCounts_ButKeepsTheMemberStatus()
+    {
+        using var world = await World.CreateAsync();
+        world.AddEvaluation(world.Employee, world.October, 80m, PerformanceEvaluationStatus.Calculated);
+        world.AddEvaluation(world.DeptAManager, world.October, 40m, PerformanceEvaluationStatus.Disputed);
+        await world.SaveAsync();
+
+        var dto = await world.Service(PermissionScopes.Dept).GetDepartmentDashboardAsync(world.ManagerAccount.Id, world.DeptA.Id, null);
+
+        Assert.Equal(1, dto.EvaluatedEmployeeCount);
+        Assert.Equal(80m, dto.AverageScore);
+        var disputed = dto.Members.Single(m => m.EmployeeId == world.DeptAManager.Id);
+        Assert.Equal("DISPUTED", disputed.EvaluationStatus);
+        Assert.Null(disputed.TotalScore);
     }
 
     [Fact]
@@ -869,7 +906,8 @@ public sealed class PerformanceDashboardServiceTests
 
             var hdv = Kpi("HDV", business);
             var kh = Kpi("KH", business);
-            db.KpiDefinitions.AddRange(hdv, kh);
+            var csat = Kpi("CSAT", quality);
+            db.KpiDefinitions.AddRange(hdv, kh, csat);
 
             var profile = new EvaluationProfile
             {
@@ -883,9 +921,15 @@ public sealed class PerformanceDashboardServiceTests
                 UpdatedAt = Now,
             };
             db.EvaluationProfiles.Add(profile);
+            // Weight tree: root groups KD (70) and CLDV (30); KD holds HDV and KH at 50 each, CLDV holds CSAT.
+            var kdRoot = new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, Name = "KD", WeightPercent = 70m, DisplayOrder = 1, UpdatedAt = Now };
+            var cldvRoot = new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, Name = "CLDV", WeightPercent = 30m, DisplayOrder = 2, UpdatedAt = Now };
             db.EvaluationProfileItems.AddRange(
-                new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, KpiGroupId = business.Id, WeightPercent = 70m, DisplayOrder = 1, UpdatedAt = Now },
-                new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, KpiGroupId = quality.Id, WeightPercent = 30m, DisplayOrder = 2, UpdatedAt = Now });
+                kdRoot,
+                cldvRoot,
+                new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, ParentItemId = kdRoot.Id, KpiDefinitionId = hdv.Id, WeightPercent = 50m, DisplayOrder = 1, UpdatedAt = Now },
+                new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, ParentItemId = kdRoot.Id, KpiDefinitionId = kh.Id, WeightPercent = 50m, DisplayOrder = 2, UpdatedAt = Now },
+                new EvaluationProfileItem { Id = Guid.NewGuid(), EvaluationProfileId = profile.Id, ParentItemId = cldvRoot.Id, KpiDefinitionId = csat.Id, WeightPercent = 100m, DisplayOrder = 1, UpdatedAt = Now });
 
             var october = Period("2026-10", PeriodType.Month, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
             var september = Period("2026-09", PeriodType.Month, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));

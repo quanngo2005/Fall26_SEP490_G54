@@ -25,10 +25,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
+        services.AddScoped<IRiskEventService, RiskEventService>();
+        services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
+        services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IJobPositionService, JobPositionService>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
@@ -36,7 +40,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
+        services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
+        services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
+        services.AddHostedService<HandoverEscalationBackgroundService>();
         return services;
     }
 }

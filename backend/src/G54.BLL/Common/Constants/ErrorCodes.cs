@@ -1,5 +1,10 @@
 namespace G54.BLL.Common.Constants;
 
+/// <summary>
+/// Stable error codes returned in <c>errorCode</c> of the API error envelope. Every constant must have an entry in
+/// <see cref="DefaultMessages"/> (enforced by tests). Non-error outcomes live in <see cref="SuccessMessages"/>.
+/// The <c>MSGxx</c> / <c>BR-xx</c> references in comments point to COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md.
+/// </summary>
 public static class ErrorCodes
 {
     // Generic & HTTP Errors
@@ -10,6 +15,11 @@ public static class ErrorCodes
     public const string Conflict = "CONFLICT";
     public const string InternalError = "INTERNAL_ERROR";
 
+    // Input validation & authentication
+    public const string RequiredField = "REQUIRED_FIELD";                       // MSG02
+    public const string MaxLengthExceeded = "MAX_LENGTH_EXCEEDED";              // MSG08
+    public const string InvalidCredentials = "INVALID_CREDENTIALS";             // MSG09
+
     // My Profile (docs/api/MY_PROFILE_CONTRACT.md)
     public const string InvalidCurrentPassword = "INVALID_CURRENT_PASSWORD";
 
@@ -17,9 +27,23 @@ public static class ErrorCodes
     public const string SubmissionInvalidState = "SUBMISSION_INVALID_STATE";
     public const string VerificationInvalidState = "VERIFICATION_INVALID_STATE";
     public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
+    public const string MakerCannotBeChecker = "MAKER_CANNOT_BE_CHECKER";       // MSG10, BR-02
+    public const string KpiAlreadyContributed = "KPI_ALREADY_CONTRIBUTED";      // MSG22, BR-08
+    public const string EvidenceLocked = "EVIDENCE_LOCKED";                     // MSG23, BR-13
+    public const string MediaTimestampRequired = "MEDIA_TIMESTAMP_REQUIRED";    // MSG28, BR-19
 
     // Work lifecycle (docs/api/WORK_CONTRACT.md)
     public const string WorkInvalidState = "WORK_INVALID_STATE";
+
+    // Campaign (docs/api/CAMPAIGN_CONTRACT.md)
+    public const string CampaignDeadlineExpired = "CAMPAIGN_DEADLINE_EXPIRED";            // MSG18, BR-12 (late submission)
+    public const string TargetAllocationNot100Percent = "TARGET_ALLOCATION_NOT_100_PERCENT";          // MSG14, BR-24
+
+    // Assignment & configuration rules
+    public const string VipCertificationRequired = "VIP_CERTIFICATION_REQUIRED";  // MSG11, BR-03
+    public const string DelegationLoop = "DELEGATION_LOOP";                       // MSG12, BR-04
+    public const string KpiTypeMismatch = "KPI_TYPE_MISMATCH";                    // MSG13, BR-09
+    public const string DepartmentTransferBlocked = "DEPARTMENT_TRANSFER_BLOCKED"; // MSG29, BR-23
 
     // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
     public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
@@ -29,33 +53,32 @@ public static class ErrorCodes
     public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
     public const string AppealWindowExpired = "APPEAL_WINDOW_EXPIRED";
 
+    // Handover (docs/api/HANDOVER_CONTRACT.md)
+    public const string HandoverAmountExceedsThreshold = "HANDOVER_AMOUNT_EXCEEDS_THRESHOLD";
+    public const string HandoverAlreadyPending = "HANDOVER_ALREADY_PENDING";
+    public const string HandoverNotPending = "HANDOVER_NOT_PENDING";
+
     // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
     public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
 
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
+    public const string EvaluationDisputePending = "EVALUATION_DISPUTE_PENDING";           // BR-31
 
-    // Application Message Codes (COMMON_REQUIREMENTS_AND_MESSAGES_SPECIFICATION.md)
-    public const string MSG01 = "MSG01"; // Không tìm thấy kết quả phù hợp
-    public const string MSG02 = "MSG02"; // Trường (*) là bắt buộc nhập
-    public const string MSG03 = "MSG03"; // Cập nhật thành công
-    public const string MSG04 = "MSG04"; // Tạo mới thành công
-    public const string MSG05 = "MSG05"; // Gửi yêu cầu bàn giao thành công
-    public const string MSG06 = "MSG06"; // Nộp kết quả công việc thành công
-    public const string MSG07 = "MSG07"; // Xóa thành công
-    public const string MSG08 = "MSG08"; // Độ dài vượt quá giới hạn
-    public const string MSG09 = "MSG09"; // Sai thông tin đăng nhập
-    public const string MSG10 = "MSG10"; // Maker tự chọn mình làm Approver (BR-02)
-    public const string MSG11 = "MSG11"; // Giao KH VIP cho nhân sự chưa có chứng chỉ VIP (BR-03)
-    public const string MSG12 = "MSG12"; // Cấu hình ủy quyền tạo vòng lặp vô tận (BR-04)
-    public const string MSG13 = "MSG13"; // Ánh xạ kiểu chỉ số không tương thích (BR-09)
-    public const string MSG14 = "MSG14"; // Tổng % chỉ tiêu chiến dịch != 100% (BR-24)
-    public const string MSG17 = "MSG17"; // Nộp trễ hạn trong thời gian gia hạn 5 phút (BR-12)
-    public const string MSG18 = "MSG18"; // Nộp quá thời gian gia hạn chiến dịch (BR-12)
-    public const string MSG22 = "MSG22"; // Trùng lặp điểm KPI cho 1 Task ID (BR-08)
-    public const string MSG23 = "MSG23"; // Sửa đổi minh chứng đã duyệt bị từ chối (BR-13)
-    public const string MSG28 = "MSG28"; // Trừ điểm CLDV thiếu Timestamp (BR-19)
-    public const string MSG29 = "MSG29"; // Chuyển phòng ban cho nhân sự còn việc tồn (BR-23)
+    // Evaluation periods (docs/api/EVALUATION_PERIOD_CONTRACT.md)
+    public const string EvaluationPeriodInvalidState = "EVALUATION_PERIOD_INVALID_STATE";
+
+    // Risk events (docs/api/RISK_EVENT_CONTRACT.md)
+    public const string RiskEventInvalidState = "RISK_EVENT_INVALID_STATE";
+    public const string RiskEventPeriodUnavailable = "RISK_EVENT_PERIOD_UNAVAILABLE";
+
+    // Target allocation (docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetDepartmentSumBelow = "TARGET_DEPARTMENT_SUM_BELOW";
+    public const string TargetQuarterSumBelow = "TARGET_QUARTER_SUM_BELOW";
+    public const string TargetPeriodNotOpen = "TARGET_PERIOD_NOT_OPEN";
+    public const string TargetDepartmentNotInBranch = "TARGET_DEPARTMENT_NOT_IN_BRANCH";
+    public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
+    public const string TargetInvalidState = "TARGET_INVALID_STATE";
 
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
@@ -65,36 +88,42 @@ public static class ErrorCodes
         [Forbidden] = ("Bạn không có quyền thực hiện thao tác này.", "Access forbidden."),
         [Conflict] = ("Dữ liệu bị xung đột hoặc đã tồn tại.", "Resource conflict or already exists."),
         [InternalError] = ("Đã xảy ra lỗi hệ thống không mong muốn.", "An unexpected system error occurred."),
+        [RequiredField] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),
+        [MaxLengthExceeded] = ("Độ dài giá trị nhập vượt quá quy định.", "Input length exceeded allowed limit."),
+        [InvalidCredentials] = ("Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.", "Incorrect user name or password. Please check again."),
         [InvalidCurrentPassword] = ("Mật khẩu hiện tại không đúng.", "The current password is incorrect."),
         [SubmissionInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với báo cáo kết quả.", "The current state does not allow this submission action."),
         [VerificationInvalidState] = ("Hồ sơ không ở trạng thái chờ thẩm định.", "The submission is not awaiting verification."),
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
+        [MakerCannotBeChecker] = ("Lỗi kiểm tra: Người thực hiện (Maker) không được phép tự phân công mình làm người phê duyệt (Checker).", "Validation Error: Maker cannot assign self as Checker/Approver for this task."),
+        [KpiAlreadyContributed] = ("Lỗi Xung đột: Công việc ID đã đóng góp KPI vào hệ thống trước đó.", "Conflict Error: Task ID has already contributed KPI to the system."),
+        [EvidenceLocked] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
+        [MediaTimestampRequired] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
+        [CampaignDeadlineExpired] = ("Từ chối nộp: Thời hạn chiến dịch đã kết thúc.", "Submission Rejected: Campaign deadline expired."),
+        [TargetAllocationNot100Percent] = ("Lỗi kiểm tra: Tổng tỷ lệ chỉ tiêu phân bổ bắt buộc phải bằng chính xác 100%.", "Validation Error: Total allocated target percentage must sum to exactly 100%."),
+        [VipCertificationRequired] = ("Lỗi kiểm tra: Nhân sự được phân công chưa có chứng chỉ VIP_Trained phục vụ Khách hàng Ưu tiên.", "Validation Error: Assigned employee lacks VIP_Trained certification required for Priority Customers."),
+        [DelegationLoop] = ("Lỗi cấu hình: Lộ trình ủy quyền không hợp lệ. Nghiêm cấm tạo vòng lặp ủy quyền.", "Validation Error: Invalid delegation path. Circular delegation loops are not permitted."),
+        [KpiTypeMismatch] = ("Lỗi ánh xạ: Kiểu chỉ số không đồng nhất (Định lượng vs Định tính).", "Mapping Error: Metric types do not match (Quantitative vs Qualitative)."),
+        [DepartmentTransferBlocked] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
         [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
         [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
+        [HandoverAmountExceedsThreshold] = ("Giá trị giao dịch vượt ngưỡng cho phép bàn giao (BR-01).", "The amount exceeds the allowed handover threshold (BR-01)."),
+        [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
+        [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
-        [MSG01] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
-        [MSG02] = ("Trường (*) là bắt buộc nhập.", "The * field is required."),
-        [MSG03] = ("Cập nhật thành công.", "Update successfully."),
-        [MSG04] = ("Tạo mới thành công.", "Create successfully."),
-        [MSG05] = ("Gửi yêu cầu bàn giao thành công.", "Handover request sent successfully."),
-        [MSG06] = ("Nộp kết quả công việc thành công. Đang chờ thẩm định.", "Work result submitted successfully. Awaiting verification."),
-        [MSG07] = ("Xóa thành công.", "Delete successfully."),
-        [MSG08] = ("Độ dài giá trị nhập vượt quá quy định.", "Input length exceeded allowed limit."),
-        [MSG09] = ("Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.", "Incorrect user name or password. Please check again."),
-        [MSG10] = ("Lỗi kiểm tra: Người thực hiện (Maker) không được phép tự phân công mình làm người phê duyệt (Checker).", "Validation Error: Maker cannot assign self as Checker/Approver for this task."),
-        [MSG11] = ("Lỗi kiểm tra: Nhân sự được phân công chưa có chứng chỉ VIP_Trained phục vụ Khách hàng Ưu tiên.", "Validation Error: Assigned employee lacks VIP_Trained certification required for Priority Customers."),
-        [MSG12] = ("Lỗi cấu hình: Lộ trình ủy quyền không hợp lệ. Nghiêm cấm tạo vòng lặp ủy quyền.", "Validation Error: Invalid delegation path. Circular delegation loops are not permitted."),
-        [MSG13] = ("Lỗi ánh xạ: Kiểu chỉ số không đồng nhất (Định lượng vs Định tính).", "Mapping Error: Metric types do not match (Quantitative vs Qualitative)."),
-        [MSG14] = ("Lỗi kiểm tra: Tổng tỷ lệ chỉ tiêu phân bổ bắt buộc phải bằng chính xác 100%.", "Validation Error: Total allocated target percentage must sum to exactly 100%."),
-        [MSG17] = ("Nộp trễ hạn: Đã nhận trong thời gian gia hạn 5 phút. Chuyển sang luồng Thẩm định Nộp trễ.", "Late Submission: Received within 5-minute grace period. Routed for Late Submission Review."),
-        [MSG18] = ("Từ chối nộp: Thời hạn chiến dịch đã kết thúc.", "Submission Rejected: Campaign deadline expired."),
-        [MSG22] = ("Lỗi Xung đột: Công việc ID đã đóng góp KPI vào hệ thống trước đó.", "Conflict Error: Task ID has already contributed KPI to the system."),
-        [MSG23] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
-        [MSG28] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
-        [MSG29] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
+        [TargetDepartmentSumBelow] = ("Tổng chỉ tiêu năm của các phòng ban phải lớn hơn hoặc bằng chỉ tiêu năm của chi nhánh.", "Department year targets must add up to at least the branch year target."),
+        [TargetQuarterSumBelow] = ("Tổng chỉ tiêu các quý phải lớn hơn hoặc bằng chỉ tiêu năm của phòng ban.", "Quarter targets must add up to at least the department year target."),
+        [TargetPeriodNotOpen] = ("Kỳ đánh giá không ở trạng thái mở nên không thể giao chỉ tiêu.", "The evaluation period is not open for target allocation."),
+        [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
+        [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
+        [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
+        [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
+        [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
+        [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
     };
 

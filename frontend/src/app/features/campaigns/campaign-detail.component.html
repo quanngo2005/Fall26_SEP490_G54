@@ -1,0 +1,212 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && !campaign()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.campaign.loading}}</p>
+        </div>
+      } @else if (failed() || !campaign()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.campaign.detail.notFound}}</p>
+          <a class="button button-secondary" routerLink="/campaigns">
+            {{localization.campaign.detail.back}}
+          </a>
+        </div>
+      } @else if (campaign(); as c) {
+        <p class="breadcrumb">
+          <a routerLink="/campaigns">{{localization.campaign.title}}</a> / {{c.code}}
+        </p>
+        <div class="page-toolbar">
+          <div class="title-line">
+            <button
+              type="button"
+              class="button button-secondary back"
+              (click)="back()"
+              [attr.aria-label]="localization.campaign.detail.back"
+            >
+              ←
+            </button>
+            <div>
+              <h1>{{c.code}} – {{c.name}}</h1>
+              <span class="status-badge" [class]="badgeClass(c.status)">
+                {{statusLabel(c.status)}}
+              </span>
+            </div>
+          </div>
+          @if (c.canGenerateBatchWork && c.workTypes.length && c.participants.length) {
+            <button type="button" class="button button-primary" (click)="batchOpen.set(true)">
+              ＋ {{localization.campaign.detail.createBatch}}
+            </button>
+          }
+        </div>
+
+        @if (notice(); as message) {
+          <div class="notice" role="status">
+            <span>{{message}}</span>
+            <button
+              type="button"
+              (click)="notice.set(null)"
+              [attr.aria-label]="localization.common.close"
+            >
+              ×
+            </button>
+          </div>
+        }
+
+        <section class="stats">
+          <article class="panel surface-card">
+            <p class="stat-label">{{localization.campaign.detail.statProgress}}</p>
+            <p class="stat-value">{{c.metrics.progressPercent}}%</p>
+            <span class="progress-track">
+              <span class="progress-fill" [style.width.%]="c.metrics.progressPercent"></span>
+            </span>
+          </article>
+          <article class="panel surface-card">
+            <p class="stat-label">{{localization.campaign.detail.statParticipants}}</p>
+            <p class="stat-value">
+              {{c.participants.length}}
+              <small>{{localization.campaign.detail.statParticipantsUnit}}</small>
+            </p>
+          </article>
+          <article class="panel surface-card">
+            <p class="stat-label">{{localization.campaign.detail.statWorks}}</p>
+            <p class="stat-value">
+              {{c.metrics.totalWorksCount}} / {{c.metrics.completedWorksCount}}
+            </p>
+            <p class="stat-note">
+              {{localization.campaign.detail.statCompletion}}:
+              {{progress(c.metrics.totalWorksCount, c.metrics.completedWorksCount) ?? 0}}%
+            </p>
+          </article>
+          <article class="panel surface-card">
+            <p class="stat-label">{{localization.campaign.detail.statRemaining}}</p>
+            @let days = daysLeft(c);
+            <p class="stat-value" [class.is-overdue]="days < 0">
+              @if (days >= 0) {
+                {{days}} <small>{{localization.campaign.detail.days}}</small>
+              } @else {
+                <small>{{localization.campaign.detail.overdue}}</small>
+              }
+            </p>
+            <p class="stat-note">
+              {{localization.campaign.detail.deadline}}: {{c.endDate | appDate}}
+            </p>
+          </article>
+        </section>
+
+        <div class="tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.is-active]="tab() === 'overview'"
+            [attr.aria-selected]="tab() === 'overview'"
+            (click)="tab.set('overview')"
+          >
+            {{localization.campaign.detail.tabOverview}}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.is-active]="tab() === 'participants'"
+            [attr.aria-selected]="tab() === 'participants'"
+            (click)="tab.set('participants')"
+          >
+            {{localization.campaign.detail.tabParticipants}} {{c.participants.length}}
+          </button>
+        </div>
+
+        @if (tab() === 'overview') {
+          <div class="overview">
+            <section class="panel surface-card">
+              <h2>{{localization.campaign.detail.generalInfo}}</h2>
+              <dl>
+                <dt>{{localization.campaign.detail.objective}}</dt>
+                <dd>{{c.businessObjective.code}} · {{c.businessObjective.name}}</dd>
+                <dt>{{localization.campaign.detail.period}}</dt>
+                <dd class="mono">{{c.startDate | appDate}} – {{c.endDate | appDate}}</dd>
+                <dt>{{localization.campaign.detail.description}}</dt>
+                <dd>{{c.description || localization.campaign.detail.noDescription}}</dd>
+              </dl>
+            </section>
+            <section class="panel surface-card">
+              <h2>{{localization.campaign.detail.metrics}}</h2>
+              <ul class="metrics">
+                <li>
+                  <span>{{localization.campaign.detail.completed}}</span>
+                  <strong>{{c.metrics.completedWorksCount}}</strong>
+                </li>
+                <li>
+                  <span>{{localization.campaign.detail.inExecution}}</span>
+                  <strong>{{c.metrics.inExecutionWorksCount}}</strong>
+                </li>
+                <li>
+                  <span>{{localization.campaign.detail.pending}}</span>
+                  <strong>{{c.metrics.pendingWorksCount}}</strong>
+                </li>
+              </ul>
+              <h3>{{localization.campaign.detail.workTypes}}</h3>
+              <ul class="chips">
+                @for (workType of c.workTypes; track workType.workTypeId) {
+                  <li class="chip">
+                    <span class="mono">{{workType.code}}</span> {{workType.name}}
+                  </li>
+                } @empty {
+                  <li class="muted">{{localization.campaign.detail.noWorkTypes}}</li>
+                }
+              </ul>
+            </section>
+          </div>
+        } @else {
+          <section class="panel surface-card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{{localization.campaign.detail.employee}}</th>
+                    <th>{{localization.campaign.detail.position}}</th>
+                    <th>{{localization.campaign.detail.department}}</th>
+                    <th class="num">{{localization.campaign.detail.assigned}}</th>
+                    <th class="num">{{localization.campaign.detail.done}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (participant of c.participants; track participant.employeeId) {
+                    <tr>
+                      <td>
+                        <strong>{{participant.fullName}}</strong>
+                        <span class="muted mono"> {{participant.employeeCode}}</span>
+                      </td>
+                      <td>{{participant.jobPositionTitle ?? localization.campaign.noValue}}</td>
+                      <td>{{participant.departmentName ?? localization.campaign.noValue}}</td>
+                      <td class="num">{{participant.assignedTasksCount}}</td>
+                      <td class="num">{{participant.completedTasksCount}}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td class="empty-cell" colspan="5">
+                        {{localization.campaign.detail.noParticipants}}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+
+        @if (batchOpen()) {
+          <app-campaign-batch-modal
+            [campaign]="c"
+            (closed)="batchOpen.set(false)"
+            (generated)="onGenerated($event)"
+          />
+        }
+      }
+    </main>
+  </div>
+</div>

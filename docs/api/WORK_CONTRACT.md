@@ -136,13 +136,13 @@ Response Body:
     "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
   }
   ```
-- **400 Bad Request (`MSG18`)**:
+- **409 Conflict (`CONFLICT`)**:
   ```json
   {
     "success": false,
-    "status": 400,
-    "title": "MSG18",
-    "errorCode": "MSG18",
+    "status": 409,
+    "title": "CONFLICT",
+    "errorCode": "CONFLICT",
     "message": "Chiến dịch được gắn không trong trạng thái hoạt động.",
     "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
   }
@@ -368,8 +368,10 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 |---|---|---|---|---|
 | 400 | `VALIDATION_ERROR` | `InvalidModelState` (ASP.NET Core Model Binding / DataAnnotations) | `Title` thiếu hoặc độ dài ngoài 5-255; `EstimatedHours` ngoài 0-9999.99; `Description` vượt 2000; lỗi parse kiểu dữ liệu JSON | `field: message` (Ví dụ: `"Title: The field Title must be a string with a minimum length of 5 and a maximum length of 255."`) |
 | 400 | `VALIDATION_ERROR` | `ValidationException` (`WorkService`) | `Title` rỗng sau khi trim hoặc ngoài 5-255; `PlannedEndDate` &lt; `PlannedStartDate`; `EstimatedHours` &lt; 0; `WorkTypeId` không tồn tại hoặc không Active; `AssigneeEmployeeId` không tồn tại hoặc không Active | Message chi tiết tương ứng từ service (ví dụ: `"Loại công việc không tồn tại hoặc đã bị vô hiệu hóa."`, `"Nhân viên được phân công không tồn tại hoặc không ở trạng thái hoạt động."`) |
+| 400 | `VALIDATION_ERROR` | `ValidationException` (`WorkService`) | **POST /works**: `workTypeId` không nằm trong danh sách loại công việc đã gán cho chức danh của nhân viên được giao (bảng `job_position_work_type`, quản lý qua `JOB_POSITION_CONTRACT.md`) | `"Loại công việc không hợp lệ với chức danh của nhân viên được phân công."` |
 | 400 | `VALIDATION_ERROR` | `BusinessRuleException` (`WorkService`) | Gắn chiến dịch nhưng nhân viên được giao việc chưa là Participant trong chiến dịch | `"Nhân viên được giao việc chưa được đăng ký tham gia (Participant) trong chiến dịch này."` |
-| 400 | `MSG18` | `BusinessRuleException` (`WorkService`) | Chiến dịch không ở trạng thái `Running` hoặc `Planned`; hoặc `PlannedEndDate` vượt quá `EndDate` của chiến dịch | `"Chiến dịch được gắn không trong trạng thái hoạt động."` hoặc `"Hạn hoàn thành công việc (...) vượt quá ngày kết thúc chiến dịch (...)."` |
+| 409 | `CONFLICT` | `ConflictException` (`WorkService`) | Chiến dịch không ở trạng thái `Running` hoặc `Planned` | `"Chiến dịch được gắn không trong trạng thái hoạt động."` |
+| 400 | `VALIDATION_ERROR` | `ValidationException` (`WorkService`) | `PlannedEndDate` vượt quá `EndDate` của chiến dịch | `"Hạn hoàn thành công việc (...) vượt quá ngày kết thúc chiến dịch (...)."` |
 | 401 | `UNAUTHORIZED` | JwtBearer `OnChallenge` (`Program.cs`) | Thiếu header `Authorization`, token sai định dạng, token hết hạn hoặc token đã bị thu hồi | `"Phiên làm việc không hợp lệ hoặc đã hết hạn."` |
 | 403 | `FORBIDDEN` | JwtBearer `OnForbidden` (`Program.cs`) | Người dùng không có quyền truy cập endpoint | `"Bạn không có quyền thực hiện thao tác này."` *(Hiện tại controller chỉ có `[Authorize]`, chưa có policy/permission nên thực tế không xuất hiện trong luồng chuẩn).* |
 | 404 | `NOT_FOUND` | `NotFoundException` (`WorkService`) | **POST /works**: `businessCampaignId` truyền lên không tồn tại trong hệ thống | `"Chiến dịch với khóa '{id}' không tồn tại."` |
@@ -387,7 +389,8 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 4. **`checklistItems` chưa được lưu trữ**: Trường `checklistItems` có mặt trong request DTO nhưng service hiện tại chưa xử lý lưu vào cơ sở dữ liệu (bị bỏ qua).
 5. **Ràng buộc `[Required]` với `Guid.Empty`**: Thuộc tính `[Required]` của DataAnnotations coi `Guid.Empty` (`00000000-0000-0000-0000-000000000000`) là giá trị hợp lệ. Tuy nhiên khi vào service, câu truy vấn tìm kiếm theo `Guid.Empty` sẽ không tìm thấy bản ghi và ném ra lỗi 400 (`VALIDATION_ERROR`).
 6. **Không tìm thấy WorkType hoặc Assignee trả 400, không phải 404**: Khác với chiến dịch (`businessCampaignId` không tồn tại trả 404), khi `workTypeId` hoặc `assigneeEmployeeId` không tồn tại (hoặc không ở trạng thái Active), service ném `ValidationException` dẫn tới mã HTTP trả về là **400** (`VALIDATION_ERROR`).
-7. **`MSG18` dùng chung cho 2 trường hợp**: Mã lỗi `MSG18` được dùng cho cả trường hợp chiến dịch không hoạt động lẫn trường hợp hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch.
+7. **Lỗi gắn chiến dịch dùng mã chung**: chiến dịch không ở trạng thái `Running`/`Planned` trả 409 `CONFLICT`; hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch trả 400 `VALIDATION_ERROR`. Client phân biệt qua `message`, không qua `errorCode` (trước đây cả hai dùng chung `MSG18`).
+8. **WorkType phải hợp lệ theo chức danh của người được giao**: `POST /works` chỉ chấp nhận `workTypeId` đã được gán cho chức danh (`jobPositionId`) của `assigneeEmployeeId` (xem `GET /job-positions/{id}/work-types`). Chức danh chưa gán loại công việc nào thì mọi `workTypeId` đều bị từ chối. Kiểm tra này chạy sau khi xác nhận WorkType và Assignee đều Active, nên lỗi không tồn tại/không Active vẫn có message riêng. Lỗi trả 400 `VALIDATION_ERROR`; client nên lọc dropdown loại công việc theo chức danh người được giao để tránh lỗi này.
 
 ---
 
@@ -436,7 +439,7 @@ Cùng bảng trên, nhìn theo hành động (`WorkAction`, đúng như `WorkSta
 | `Reject` | `Submitted`, `InProgress` | `Rejected` | Người thẩm định |
 | `Complete` | `Verified` | `Done` | Quản lý trực tiếp của assignee (`PATCH`) |
 | `Cancel` | `New`, `InProgress`, `HandedOver`, `Rejected`, `Overdue` | `Cancelled` | Quản lý trực tiếp của assignee (`PATCH`, bắt buộc `reason`) |
-| `Handover` | `New`, `InProgress` | `HandedOver` | Luồng bàn giao (chưa triển khai) |
+| `Handover` | `New`, `InProgress` | `HandedOver` | Người nhận chấp nhận yêu cầu bàn giao (`POST /handovers/{id}/accept`, xem `HANDOVER_CONTRACT.md`) |
 | `MarkOverdue` | `New`, `InProgress`, `HandedOver` | `Overdue` | Tiến trình nền |
 
 Sau khi người thẩm định yêu cầu bổ sung (`REVISION_REQUIRED`), công việc về `InProgress` còn báo cáo vẫn ở `UNDER_REVIEW`. `SubmissionStateMachine` cho phép thẩm định lại báo cáo đó, nên `Verify`, `Reject` và `Reopen` cũng được phép từ `InProgress`.
@@ -447,5 +450,5 @@ Sau khi người thẩm định yêu cầu bổ sung (`REVISION_REQUIRED`), côn
 - Tiến trình nền `WorkOverdueBackgroundService` chạy định kỳ (`WorkOverdue:IntervalMinutes`, mặc định 15 phút; `WorkOverdue:Enabled`, mặc định `true`) và chuyển các công việc `New`, `InProgress`, `HandedOver` có `plannedEndDate` &lt; ngày hiện tại theo giờ Việt Nam (UTC+7, `TimeProvider.GetBusinessToday()`) sang `Overdue`. `plannedEndDate` là ngày lịch do người dùng nhập, nên việc có hạn 21/10 chỉ bị chuyển `Overdue` từ 00:00 ngày 22/10 giờ Việt Nam.
 - `Submitted`, `Verified`, `Rejected` không bị chuyển quá hạn (đang chờ thẩm định hoặc đã có kết quả).
 - Công việc `Overdue` **không thể** quay lại `InProgress` bằng `PATCH /works/{id}/status`: tiến trình nền sẽ chuyển lại về `Overdue` ở lần chạy kế tiếp (hạn vẫn nằm trong quá khứ), nên trạng thái chỉ nhảy qua lại. Yêu cầu này trả 409 `WORK_INVALID_STATE`. Công việc rời `Overdue` bằng cách nộp kết quả (`Submitted`) hoặc bị hủy (`Cancelled`).
-- Công việc `Overdue` vẫn được nộp kết quả (`Overdue -> Submitted`), hiện chưa có quy tắc chặn nộp trễ nào được thực thi (`MSG18` chỉ được dự phòng trong `SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`).
+- Công việc `Overdue` vẫn được nộp kết quả (`Overdue -> Submitted`), hiện chưa có quy tắc chặn nộp trễ nào được thực thi (`CAMPAIGN_DEADLINE_EXPIRED` chỉ được dự phòng trong `SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`).
 - Thống kê phòng ban: công việc `Overdue` được tính vào số lượng quá hạn và là công việc đang mở.

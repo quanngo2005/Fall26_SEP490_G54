@@ -21,6 +21,74 @@ public sealed class AppealsController(IAppealService appealService) : Controller
     /// <summary>10 files of up to 25 MB plus room for the other form fields; raised only for the appeal upload.</summary>
     private const long MaxAppealRequestBytes = (10 * StorageService.DefaultMaxFileSizeBytes) + (1024 * 1024);
 
+    [HttpPost("appeals/{id:guid}/review")]
+    [HasPermission("verification", "decide", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<ScoreEntryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<ScoreEntryDto>>> ReviewAppeal(Guid id, [FromBody] ReviewAppealRequestDto request, CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.ReviewAppealAsync(id, User.GetRequiredUserId(), request, cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpPost("works/{id:guid}/score-deductions")]
+    [HasPermission("verification", "decide", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<ScoreEntryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<ScoreEntryDto>>> DeductTaskScore(Guid id, [FromBody] ReviewAppealRequestDto request, CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.DeductTaskScoreAsync(id, User.GetRequiredUserId(), request, cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpGet("appeals/{id:guid}/score-entries")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<ScoreEntryDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ScoreEntryDto>>>> GetScoreEntries(Guid id, CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.GetScoreEntriesAsync(id, User.GetRequiredUserId(), cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpPost("appeals/{id:guid}/score-dispute")]
+    [ProducesResponseType<ApiResponse<AppealDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<AppealDetailDto>>> DisputeScore(Guid id, [FromBody] ScoreDisputeRequestDto request, CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.DisputeScoreAsync(id, User.GetRequiredUserId(), request, cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpGet("system-parameters/appeal-score-hold")]
+    [Authorize(Roles = "ADMIN,Admin")]
+    [ProducesResponseType<ApiResponse<AppealScoreSettingDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<AppealScoreSettingDto>>> GetScoreSetting(CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.GetScoreSettingAsync(User.GetRequiredUserId(), cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpPut("system-parameters/appeal-score-hold")]
+    [Authorize(Roles = "ADMIN,Admin")]
+    [ProducesResponseType<ApiResponse<AppealScoreSettingDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<AppealScoreSettingDto>>> UpdateScoreSetting([FromBody] AppealScoreSettingDto request, CancellationToken cancellationToken) =>
+        Ok(ApiResponse.Ok(await appealService.UpdateScoreSettingAsync(User.GetRequiredUserId(), request, cancellationToken), traceId: HttpContext.TraceIdentifier));
+
+    [HttpPost("appeals/{id:guid}/decision")]
+    [HasPermission("verification", "decide", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<AppealDecisionResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<AppealDecisionResultDto>>> DecideAppeal(
+        Guid id,
+        [FromBody] DecideAppealRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await appealService.DecideAppealAsync(id, User.GetRequiredUserId(), request, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("submissions/{submissionId:guid}/appeals")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxAppealRequestBytes)]
@@ -39,7 +107,7 @@ public sealed class AppealsController(IAppealService appealService) : Controller
         var result = await appealService.CreateAppealAsync(submissionId, User.GetRequiredUserId(), request, cancellationToken);
         var response = ApiResponse.Ok(
             result,
-            ErrorCodes.GetDefaultMessage(ErrorCodes.MSG04),
+            SuccessMessages.GetMessage(SuccessMessages.Created),
             HttpContext.TraceIdentifier);
 
         return CreatedAtAction(nameof(GetAppealById), new { id = result.Id }, response);

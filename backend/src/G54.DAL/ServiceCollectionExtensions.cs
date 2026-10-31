@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         dataSourceBuilder.MapEnum<PeriodStatus>("period_status");
         dataSourceBuilder.MapEnum<EvaluationProfileStatus>("evaluation_profile_status");
         dataSourceBuilder.MapEnum<PerformanceEvaluationStatus>("performance_evaluation_status");
+        dataSourceBuilder.MapEnum<PerformanceEvaluationHistoryAction>("performance_evaluation_history_action");
         dataSourceBuilder.MapEnum<TargetAssignmentStatus>("target_assignment_status");
         dataSourceBuilder.MapEnum<TargetSplitDimension>("target_split_dimension");
         var dataSource = dataSourceBuilder.Build();
@@ -45,6 +46,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IWorkRepository, WorkRepository>();
+        services.AddScoped<ITargetAssignmentRepository, TargetAssignmentRepository>();
+        services.AddScoped<IEvaluationPeriodRepository, EvaluationPeriodRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }

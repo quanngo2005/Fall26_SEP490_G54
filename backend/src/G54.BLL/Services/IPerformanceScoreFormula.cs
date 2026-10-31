@@ -11,10 +11,13 @@ public interface IPerformanceScoreFormula
     /// <summary>Scores one KPI from its target and aggregated actual.</summary>
     KpiScoreResult CalculateKpi(KpiScoreInput input);
 
-    /// <summary>Scores one KPI group from the scored KPIs beneath it.</summary>
+    /// <summary>
+    /// Scores one group node of the profile tree from the scored parts beneath it: the weighted mean of its
+    /// scored KPI leaves and sub-groups, normalised over the parts that have a score.
+    /// </summary>
     decimal? CalculateGroup(GroupScoreInput input);
 
-    /// <summary>Scores the whole evaluation from its weighted groups.</summary>
+    /// <summary>Scores the whole evaluation from its weighted root groups.</summary>
     decimal? CalculateTotal(IReadOnlyList<GroupScoreEntry> groups);
 }
 
@@ -36,10 +39,16 @@ public sealed record KpiScoreResult(
 
 public sealed record KpiScoreEntry(Guid KpiDefinitionId, string KpiCode, KpiScoreResult Score);
 
-public sealed record GroupScoreInput(
-    Guid KpiGroupId,
-    string KpiGroupCode,
-    decimal WeightPercent,
-    IReadOnlyList<KpiScoreEntry> Kpis);
+/// <summary>One scored part of a group: a KPI leaf or a sub-group, with its weight among its siblings.</summary>
+public sealed record GroupScorePart(decimal WeightPercent, decimal? Score);
 
-public sealed record GroupScoreEntry(Guid KpiGroupId, decimal WeightPercent, decimal? ComponentScore);
+/// <summary>
+/// A group node of the profile tree (<paramref name="EvaluationProfileItemId"/>) and the parts scored beneath it.
+/// </summary>
+public sealed record GroupScoreInput(
+    Guid EvaluationProfileItemId,
+    string Name,
+    decimal WeightPercent,
+    IReadOnlyList<GroupScorePart> Parts);
+
+public sealed record GroupScoreEntry(Guid EvaluationProfileItemId, decimal WeightPercent, decimal? ComponentScore);

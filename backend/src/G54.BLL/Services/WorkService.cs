@@ -64,6 +64,15 @@ public sealed partial class WorkService(
             throw new ValidationException("Nhân viên được phân công không tồn tại hoặc không ở trạng thái hoạt động.");
         }
 
+        // The work type must be one of the types assigned to the assignee's job position (job_position_work_type).
+        var typeAllowedForPosition = await unitOfWork.Repository<JobPositionWorkType>().AnyAsync(
+            link => link.JobPositionId == assignee.JobPositionId && link.WorkTypeId == workType.Id,
+            cancellationToken);
+        if (!typeAllowedForPosition)
+        {
+            throw new ValidationException("Loại công việc không hợp lệ với chức danh của nhân viên được phân công.");
+        }
+
         BusinessCampaign? campaign = null;
         if (request.BusinessCampaignId.HasValue)
         {
@@ -76,15 +85,12 @@ public sealed partial class WorkService(
 
             if (campaign.Status != BusinessCampaignStatus.Running && campaign.Status != BusinessCampaignStatus.Planned)
             {
-                throw new BusinessRuleException(
-                    ErrorCodes.MSG18,
-                    "Chiến dịch được gắn không trong trạng thái hoạt động.");
+                throw new ConflictException("Chiến dịch được gắn không trong trạng thái hoạt động.");
             }
 
             if (request.PlannedEndDate.HasValue && request.PlannedEndDate.Value > campaign.EndDate)
             {
-                throw new BusinessRuleException(
-                    ErrorCodes.MSG18,
+                throw new ValidationException(
                     $"Hạn hoàn thành công việc ({request.PlannedEndDate.Value}) vượt quá ngày kết thúc chiến dịch ({campaign.EndDate}).");
             }
 

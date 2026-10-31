@@ -147,24 +147,24 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
-  { id: 'myWork', icon: 'myWork', permission: 'WORK_READ' },
+  { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
   { id: 'myPerformance', icon: 'myPerformance' },
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
-  { id: 'employees', icon: 'people', route: '/employee-detail' },
+  { id: 'employees', icon: 'people', route: '/employees' },
   {
     id: 'organization',
     icon: 'organization',
     children: [
       { id: 'departments', icon: 'departments', route: '/departments' },
-      { id: 'jobPositions', icon: 'jobPositions' },
+      { id: 'jobPositions', icon: 'jobPositions', route: '/job-positions' },
       { id: 'reportingLines', icon: 'reportingLines' },
     ],
   },
   { id: 'employeeData', icon: 'employeeData', permission: 'KPI_READ' },
-  { id: 'teamWork', icon: 'teamWork' },
+  { id: 'teamWork', icon: 'teamWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'handoverDelegation', icon: 'handoverDelegation' },
   {
     id: 'reviewVerify',
@@ -172,23 +172,28 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
   },
-  { id: 'teamPerformance', icon: 'teamPerformance' },
-  { id: 'targetsAndCampaigns', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
+  { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
+  {
+    id: 'targetsAndCampaigns',
+    icon: 'targetsAndCampaigns',
+    route: '/campaigns',
+    permission: 'TARGET_MANAGE',
+  },
   { id: 'branchWork', icon: 'branchWork' },
   { id: 'branchPerformance', icon: 'branchPerformance' },
-  { id: 'departmentPerformance', icon: 'departmentPerformance' },
+  { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
   { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
   { id: 'riskEvents', icon: 'riskEvents' },
   { id: 'reportsAnalytics', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
-  { id: 'accounts', icon: 'people' },
-  { id: 'rolesPermissions', icon: 'people' },
+  { id: 'accounts', icon: 'people', route: '/user-accounts' },
+  { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
   { id: 'systemAudit', icon: 'systemAudit' },
   // Legacy items for backward compat
-  { id: 'tasks', icon: 'myWork', permission: 'WORK_READ' },
+  { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'personalKpis', icon: 'employeeData', permission: 'KPI_READ' },
   {
     id: 'review',
@@ -222,12 +227,17 @@ export class NavigationService {
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
   readonly routeOptions = [
     '/home',
+    '/my-work',
     '/departments',
+    '/department-performance',
     '/employee-detail',
     '/work-type-detail',
     '/review-verify',
     '/kpi-definitions',
+    '/campaigns',
     '/sidebar-settings',
+    '/roles',
+    '/user-accounts',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -254,6 +264,10 @@ export class NavigationService {
     ),
   ]);
   readonly isAdmin = computed(() => this.roles().includes('admin'));
+  /** A department or branch manager: someone who also oversees other people's work. */
+  readonly isManager = computed(() =>
+    this.roles().some((role) => role === 'departmentManager' || role === 'branchManager'),
+  );
 
   constructor() {
     effect((onCleanup) => {

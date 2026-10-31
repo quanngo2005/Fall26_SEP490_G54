@@ -1,0 +1,760 @@
+{
+  "info": {
+    "_postman_id": "target-allocation-branch-dept",
+    "name": "Target Allocation API (Branch -> Department)",
+    "description": "Full flow: import branch-year (Excel) -> phân bổ phòng (năm) -> phân bổ quý -> confirm -> tree -> re-allocate. Contract: docs/api/TARGET_ALLOCATION_CONTRACT.md.\n\nChạy tuần tự (Collection Runner) trên DB vừa seed (seed_dev_data.sql). Dùng KPI KH_MOI vì HDV/DU_NO đã có target quý cho phòng KD/GD trong seed (sẽ trả 409). Điền managerPassword và chọn file Excel cho request import.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login branch manager (NV001)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{managerEmail}}\",\n  \"password\": \"{{managerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Has accessToken', () => pm.expect(j.accessToken).to.be.a('string'));",
+                  "pm.collectionVariables.set('token', j.accessToken);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Import branch-year (Excel)",
+      "item": [
+        {
+          "name": "Import without file -> 400",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": []
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/import?branchId={{branchId}}&year={{year}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "import"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Import year targets -> 201",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/import?branchId={{branchId}}&year={{year}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "import"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                }
+              ]
+            },
+            "description": "Chọn file .xlsx ở tab Body: sheet 1, dòng 1 là header, cột A = tên KPI \"Khách hàng mới\", cột B = 600.\nSeed đã có KH_MOI năm 2026 ACTIVE 480 nên import tạo version mới ACTIVE (\"Re-import\"); DB trống thì tạo DRAFT."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "function findNode(nodes, pred) {",
+                  "  for (const n of nodes || []) { if (pred(n)) return n; const c = findNode(n.children, pred); if (c) return c; }",
+                  "  return null;",
+                  "}",
+                  "const j = pm.response.json();",
+                  "const n = findNode(j.data.targets, x => x.kpiDefinitionId === pm.collectionVariables.get('kpiId') && x.departmentId === pm.collectionVariables.get('branchId') && x.periodType === 'YEAR' && x.status !== 'SUPERSEDED');",
+                  "pm.test('Branch-year node found', () => pm.expect(n).to.exist);",
+                  "pm.test('Branch-year = 600', () => pm.expect(Number(n.targetValue)).to.eql(600));",
+                  "if (n) pm.collectionVariables.set('branchYearId', n.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Branch -> Departments (year)",
+      "item": [
+        {
+          "name": "Departments sum below branch -> 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"departmentId\": \"{{deptKd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    },\n    {\n      \"departmentId\": \"{{deptGd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    }\n  ],\n  \"changeReason\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{branchYearId}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{branchYearId}}", "departments"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Error code TARGET_DEPARTMENT_SUM_BELOW', () => pm.expect(pm.response.text()).to.include('TARGET_DEPARTMENT_SUM_BELOW'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team (not direct child of branch) -> 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"departmentId\": \"{{teamKd1}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 600\n    }\n  ],\n  \"changeReason\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{branchYearId}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{branchYearId}}", "departments"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Error code TARGET_DEPARTMENT_NOT_IN_BRANCH', () => pm.expect(pm.response.text()).to.include('TARGET_DEPARTMENT_NOT_IN_BRANCH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allocate departments (KD 400 + GD 200 = 600) -> 200",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"departmentId\": \"{{deptKd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 400\n    },\n    {\n      \"departmentId\": \"{{deptGd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 200\n    }\n  ],\n  \"changeReason\": \"Phân bổ năm cho phòng\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{branchYearId}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{branchYearId}}", "departments"]
+            },
+            "description": "Gửi đủ mọi phòng mỗi lần (replace full set). Tổng phải bằng đúng branch-year thì bước confirm mới qua."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "function findNode(nodes, pred) {",
+                  "  for (const n of nodes || []) { if (pred(n)) return n; const c = findNode(n.children, pred); if (c) return c; }",
+                  "  return null;",
+                  "}",
+                  "const data = pm.response.json().data;",
+                  "const kpi = pm.collectionVariables.get('kpiId');",
+                  "['deptKd', 'deptGd'].forEach(k => {",
+                  "  const n = findNode(data, x => x.kpiDefinitionId === kpi && x.departmentId === pm.collectionVariables.get(k) && x.periodType === 'YEAR' && x.status !== 'SUPERSEDED');",
+                  "  pm.test(k + ' year node exists', () => pm.expect(n).to.exist);",
+                  "  if (n) pm.collectionVariables.set(k + 'YearId', n.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Department -> Quarters",
+      "item": [
+        {
+          "name": "Confirm KD before quarters -> 409",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptKdYearId}}/confirm",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptKdYearId}}", "confirm"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Error code TARGET_INVALID_STATE', () => pm.expect(pm.response.text()).to.include('TARGET_INVALID_STATE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "KD quarters sum below year -> 422",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"quarterPeriodId\": \"{{periodQ1}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ2}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ3}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ4}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    }\n  ],\n  \"changeReason\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptKdYearId}}/quarters",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptKdYearId}}", "quarters"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('Error code TARGET_QUARTER_SUM_BELOW', () => pm.expect(pm.response.text()).to.include('TARGET_QUARTER_SUM_BELOW'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "KD quarters (100 x 4 = 400) -> 200",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"quarterPeriodId\": \"{{periodQ1}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ2}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ3}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ4}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 100\n    }\n  ],\n  \"changeReason\": \"Phân bổ quý KD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptKdYearId}}/quarters",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptKdYearId}}", "quarters"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GD quarters (50 x 4 = 200) -> 200",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"quarterPeriodId\": \"{{periodQ1}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ2}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ3}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    },\n    {\n      \"quarterPeriodId\": \"{{periodQ4}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 50\n    }\n  ],\n  \"changeReason\": \"Phân bổ quý GD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptGdYearId}}/quarters",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptGdYearId}}", "quarters"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Confirm (DRAFT -> ACTIVE, sinh month/day)",
+      "item": [
+        {
+          "name": "Confirm KD -> 200",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptKdYearId}}/confirm",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptKdYearId}}", "confirm"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('KD ACTIVE', () => pm.expect(pm.response.json().data.status).to.eql('ACTIVE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm GD -> 200 (branch-year ACTIVE)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{deptGdYearId}}/confirm",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{deptGdYearId}}", "confirm"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('GD ACTIVE', () => pm.expect(pm.response.json().data.status).to.eql('ACTIVE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Tree",
+      "item": [
+        {
+          "name": "Tree branch/year with compareYear -> 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/tree?branchId={{branchId}}&year={{year}}&compareYear={{compareYear}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "tree"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                },
+                {
+                  "key": "compareYear",
+                  "value": "{{compareYear}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "function findNode(nodes, pred) {",
+                  "  for (const n of nodes || []) { if (pred(n)) return n; const c = findNode(n.children, pred); if (c) return c; }",
+                  "  return null;",
+                  "}",
+                  "const data = pm.response.json().data;",
+                  "const b = findNode(data, x => x.id === pm.collectionVariables.get('branchYearId'));",
+                  "pm.test('Branch-year ACTIVE', () => pm.expect(b && b.status).to.eql('ACTIVE'));",
+                  "pm.test('Allocated = target', () => pm.expect(Number(b.allocatedValue)).to.eql(Number(b.targetValue)));",
+                  "const kd = findNode(data, x => x.id === pm.collectionVariables.get('deptKdYearId'));",
+                  "pm.test('KD has 4 quarters', () => pm.expect(kd.children.filter(c => c.periodType === 'QUARTER').length).to.eql(4));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Re-allocate ACTIVE (versioning)",
+      "item": [
+        {
+          "name": "Change ACTIVE departments without reason -> 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"departmentId\": \"{{deptKd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 350\n    },\n    {\n      \"departmentId\": \"{{deptGd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 250\n    }\n  ],\n  \"changeReason\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{branchYearId}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{branchYearId}}", "departments"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change ACTIVE departments with reason -> 200 (Version+1)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"departmentId\": \"{{deptKd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 350\n    },\n    {\n      \"departmentId\": \"{{deptGd}}\",\n      \"kpiDefinitionId\": \"{{kpiId}}\",\n      \"targetValue\": 250\n    }\n  ],\n  \"changeReason\": \"Điều chỉnh giữa năm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/{{branchYearId}}/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "{{branchYearId}}", "departments"]
+            },
+            "description": "Dòng ACTIVE cũ -> SUPERSEDED, chèn Version+1. Sau đó phân bổ lại quý và confirm lại (lặp bước 3-4 với KD 350, GD 250)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "function findNode(nodes, pred) {",
+                  "  for (const n of nodes || []) { if (pred(n)) return n; const c = findNode(n.children, pred); if (c) return c; }",
+                  "  return null;",
+                  "}",
+                  "const data = pm.response.json().data;",
+                  "const kpi = pm.collectionVariables.get('kpiId');",
+                  "['deptKd', 'deptGd'].forEach(k => {",
+                  "  const n = findNode(data, x => x.kpiDefinitionId === kpi && x.departmentId === pm.collectionVariables.get(k) && x.periodType === 'YEAR' && x.status !== 'SUPERSEDED');",
+                  "  pm.test(k + ' year node exists', () => pm.expect(n).to.exist);",
+                  "  if (n) pm.collectionVariables.set(k + 'YearId', n.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Security",
+      "item": [
+        {
+          "name": "Tree without token -> 401",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/target-assignments/tree?branchId={{branchId}}&year={{year}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["target-assignments", "tree"],
+              "query": [
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "managerEmail",
+      "value": "an.nguyen@progest.local",
+      "type": "string"
+    },
+    {
+      "key": "managerPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "year",
+      "value": "2026",
+      "type": "string"
+    },
+    {
+      "key": "compareYear",
+      "value": "2025",
+      "type": "string"
+    },
+    {
+      "key": "branchId",
+      "value": "5eed0000-0000-0000-0001-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "deptKd",
+      "value": "5eed0000-0000-0000-0001-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "deptGd",
+      "value": "5eed0000-0000-0000-0001-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "teamKd1",
+      "value": "5eed0000-0000-0000-0001-000000000004",
+      "type": "string"
+    },
+    {
+      "key": "kpiId",
+      "value": "5eed0000-0000-0000-0005-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "periodQ1",
+      "value": "5eed0000-0000-0000-000f-000000000008",
+      "type": "string"
+    },
+    {
+      "key": "periodQ2",
+      "value": "5eed0000-0000-0000-000f-000000000009",
+      "type": "string"
+    },
+    {
+      "key": "periodQ3",
+      "value": "5eed0000-0000-0000-000f-00000000000a",
+      "type": "string"
+    },
+    {
+      "key": "periodQ4",
+      "value": "5eed0000-0000-0000-000f-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "branchYearId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deptKdYearId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deptGdYearId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

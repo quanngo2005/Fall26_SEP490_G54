@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
+import { organizationGuard } from './core/organization.guard';
 
 export const routes: Routes = [
   {
@@ -9,6 +10,31 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/sidebar-settings/sidebar-settings.component').then(
         (m) => m.SidebarSettingsComponent,
+      ),
+  },
+  {
+    path: 'roles',
+    canActivate: [authGuard, adminGuard],
+    title: 'Vai trò & quyền',
+    loadComponent: () =>
+      import('./features/role-permissions/role-list.component').then((m) => m.RoleListComponent),
+  },
+  {
+    path: 'user-accounts',
+    canActivate: [authGuard, adminGuard],
+    title: 'Tài khoản người dùng',
+    loadComponent: () =>
+      import('./features/user-accounts/user-account-list.component').then(
+        (m) => m.UserAccountListComponent,
+      ),
+  },
+  {
+    path: 'role-permissions',
+    canActivate: [authGuard, adminGuard],
+    title: 'Thiết lập quyền',
+    loadComponent: () =>
+      import('./features/role-permissions/role-permission-matrix.component').then(
+        (m) => m.RolePermissionMatrixComponent,
       ),
   },
   {
@@ -24,12 +50,53 @@ export const routes: Routes = [
   },
   {
     path: 'departments',
-    canActivate: [authGuard],
-    title: 'Department View',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Phòng ban',
+    loadComponent: () =>
+      import('./features/departments/department-list.component').then(
+        (module) => module.DepartmentListComponent,
+      ),
+  },
+  {
+    path: 'job-positions',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Vị trí công việc',
+    loadComponent: () =>
+      import('./features/job-positions/job-position-list.component').then(
+        (m) => m.JobPositionListComponent,
+      ),
+  },
+  {
+    path: 'department-performance',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Hiệu suất phòng ban',
     loadComponent: () =>
       import('./features/departments/department-view.component').then(
         (module) => module.DepartmentViewComponent,
       ),
+  },
+  {
+    path: 'evaluations/form',
+    canActivate: [authGuard],
+    title: 'Đánh giá nhân viên',
+    loadComponent: () =>
+      import('./features/evaluations/evaluation-form.component').then(
+        (m) => m.EvaluationFormComponent,
+      ),
+  },
+  {
+    path: 'evaluations',
+    canActivate: [authGuard],
+    title: 'Đánh giá nhân viên',
+    loadComponent: () =>
+      import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
+  },
+  {
+    path: 'employees',
+    canActivate: [authGuard],
+    title: 'Nhân viên',
+    loadComponent: () =>
+      import('./features/employees/employee-list.component').then((m) => m.EmployeeListComponent),
   },
   {
     path: 'employee-detail',
@@ -56,6 +123,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'work-type-detail/:id',
+    title: 'Work Type Detail',
+    loadComponent: () =>
+      import('./features/work-type-detail/work-type-detail.component').then(
+        (m) => m.WorkTypeDetailComponent,
+      ),
+  },
+  {
     path: 'review-verify',
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
@@ -72,12 +147,35 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'my-work',
+    canActivate: [authGuard],
+    title: 'Công việc',
+    loadComponent: () =>
+      import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
+  },
+  {
     path: 'kpi-definitions',
     canActivate: [authGuard],
     title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
     loadComponent: () =>
       import('./features/kpi-definitions/kpi-definitions.component').then(
         (m) => m.KpiDefinitionsComponent,
+      ),
+  },
+  {
+    path: 'campaigns',
+    canActivate: [authGuard],
+    title: 'Chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/:id',
+    canActivate: [authGuard],
+    title: 'Chi tiết chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-detail.component').then(
+        (m) => m.CampaignDetailComponent,
       ),
   },
   { path: '', pathMatch: 'full', redirectTo: 'login' },

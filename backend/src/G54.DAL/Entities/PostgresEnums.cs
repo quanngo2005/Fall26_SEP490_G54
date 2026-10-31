@@ -154,6 +154,7 @@ public enum PeriodType
     [PgName("HALF_YEAR")] HalfYear,
     [PgName("QUARTER")] Quarter,
     [PgName("MONTH")] Month,
+    [PgName("WEEK")] Week,
     [PgName("DAY")] Day,
 }
 
@@ -181,6 +182,16 @@ public enum PerformanceEvaluationStatus
     [PgName("APPROVED")] Approved,
     [PgName("DISPUTED")] Disputed,
     [PgName("FINAL")] Final,
+}
+
+public enum PerformanceEvaluationHistoryAction
+{
+    [PgName("CALCULATED")] Calculated,
+    [PgName("STATUS_CHANGED")] StatusChanged,
+    [PgName("APPROVED")] Approved,
+    [PgName("DISPUTED")] Disputed,
+    [PgName("DISPUTE_WITHDRAWN")] DisputeWithdrawn,
+    [PgName("APPEAL_RESOLVED")] AppealResolved,
 }
 
 public enum TargetAssignmentStatus

@@ -6,6 +6,7 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -21,9 +22,14 @@ public sealed class EvaluationServiceTests
         return new AppDbContext(options);
     }
 
-    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment()
+    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(bool seedDowngradeConfiguration = true)
     {
         var context = CreateInMemoryDbContext();
+        if (seedDowngradeConfiguration)
+        {
+            DowngradeTestData.Seed(context);
+        }
+
         // Evaluation scopes at All: the scope checks are a no-op for the workflow tests in this file.
         var permissions = new FakePermissionService(
             null,
@@ -118,7 +124,7 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupKd.Id,
+            Name = "Kinh doanh",
             WeightPercent = 40m,
             DisplayOrder = 1,
             UpdatedAt = now,
@@ -127,7 +133,7 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupCldv.Id,
+            Name = "Chat luong dich vu",
             WeightPercent = 30m,
             DisplayOrder = 2,
             UpdatedAt = now,
@@ -136,13 +142,23 @@ public sealed class EvaluationServiceTests
         {
             Id = Guid.NewGuid(),
             EvaluationProfileId = profile.Id,
-            KpiGroupId = kpiGroupTt.Id,
+            Name = "Van hanh & Tuan thu",
             WeightPercent = 30m,
             DisplayOrder = 3,
             UpdatedAt = now,
         };
-        await context.EvaluationProfileItems.AddRangeAsync(itemKd, itemCldv, itemTt);
-
+        EvaluationProfileItem Leaf(EvaluationProfileItem parent, KpiDefinition kpi) => new()
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profile.Id,
+            ParentItemId = parent.Id,
+            KpiDefinitionId = kpi.Id,
+            WeightPercent = 100m,
+            DisplayOrder = 1,
+            UpdatedAt = now,
+        };
+        await context.EvaluationProfileItems.AddRangeAsync(
+            itemKd, itemCldv, itemTt, Leaf(itemKd, kpiHdv), Leaf(itemCldv, kpiCsat));
         var position = new JobPosition
         {
             Id = Guid.NewGuid(),
@@ -276,6 +292,9 @@ public sealed class EvaluationServiceTests
         Assert.Equal(10m, hdvItem.TargetValue);
         Assert.Equal(10m, hdvItem.ActualValue);
         Assert.Equal(100m, hdvItem.AchievementPercent);
+        Assert.Equal(100m, hdvItem.WeightPercent);
+        Assert.NotEqual(Guid.Empty, kdGroup.EvaluationProfileItemId);
+        Assert.Equal("Kinh doanh", kdGroup.GroupName);
     }
 
     [Fact]
@@ -302,7 +321,7 @@ public sealed class EvaluationServiceTests
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitEvaluationAsync(request, manager.Id));
 
-        Assert.Equal(ErrorCodes.MSG10, ex.ErrorCode);
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, ex.ErrorCode);
     }
 
     [Fact]
@@ -376,14 +395,14 @@ public sealed class EvaluationServiceTests
         await context.RiskEvents.AddAsync(risk);
         await context.SaveChangesAsync();
 
-        var cldvGroup = await context.KpiGroups.FirstAsync(g => g.Code == "CLDV");
+        var cldvItem = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Chat luong dich vu");
         var request = new SubmitEvaluationRequestDto(
             EmployeeId: staff.Id,
             PeriodId: period.Id,
             Comment: "Có vi phạm nghiêm trọng trong kỳ",
             QualitativeScores: new List<QualitativeScoreInputDto>
             {
-                new(cldvGroup.Id, 100m, "Chăm sóc khách hàng tốt"),
+                new(cldvItem.Id, 100m, "Chăm sóc khách hàng tốt"),
             },
             IsDraft: false);
 
@@ -392,6 +411,159 @@ public sealed class EvaluationServiceTests
         Assert.NotNull(result);
         // Due to critical risk, tier is capped at B
         Assert.Equal("B", result.ProposedTier);
+    }
+
+    // ----- Downgrade: every place that decides a tier must apply it the same way ------------
+
+    private static async Task<PerformanceEvaluation> AddScoredEvaluationAsync(
+        AppDbContext context, Employee employee, EvaluationPeriod period, EvaluationProfile profile, decimal score,
+        PerformanceEvaluationStatus status = PerformanceEvaluationStatus.Calculated)
+    {
+        var evaluation = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = profile.Id,
+            TotalScore = score,
+            Status = status,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(evaluation);
+        await context.SaveChangesAsync();
+        return evaluation;
+    }
+
+    private static async Task AddRiskEventAsync(
+        AppDbContext context, Employee employee, Employee recorder, RiskEventSeverity severity,
+        RiskEventStatus status = RiskEventStatus.Confirmed, DateTimeOffset? occurredAt = null)
+    {
+        await context.RiskEvents.AddAsync(new RiskEvent
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            RecordedBy = recorder.Id,
+            Code = $"RSK-{Guid.NewGuid():N}"[..12],
+            EventType = "PROCEDURE_VIOLATION",
+            Description = "Procedure violation",
+            Severity = severity,
+            Status = status,
+            OccurredAt = occurredAt ?? new DateTimeOffset(2026, 10, 10, 8, 0, 0, TimeSpan.Zero),
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Downgrade_CapsTheRosterTier_AndTheCalibrationTier_ForAnEmployeeWithASevereRiskEvent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+        var calibration = await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id);
+
+        var rosterTier = roster.Single(r => r.EmployeeId == staff.Id).ProposedTier;
+        var calibrationTier = calibration.RankedRoster.Single(r => r.EmployeeId == staff.Id).ProposedTier;
+        Assert.Equal("B", rosterTier);
+        Assert.Equal(rosterTier, calibrationTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_IsNotAppliedToAnEmployeeWithoutASevereRiskEvent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A1", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_IgnoresADismissedRiskEvent_AndOneOutsideThePeriod()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical, RiskEventStatus.Dismissed);
+        await AddRiskEventAsync(
+            context, staff, manager, RiskEventSeverity.Critical,
+            occurredAt: new DateTimeOffset(2026, 9, 30, 23, 0, 0, TimeSpan.Zero));
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A1", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_CountsTowardsTheTierAQuotaInTheApprovalOverview_LikeTheCalibrationScreen()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m, PerformanceEvaluationStatus.InReview);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.Critical);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        var summary = overview.Departments.Single(d => d.DepartmentId == dept.Id);
+        Assert.Equal(0, summary.TierACount);
+        Assert.True(summary.TierBCount >= 1);
+    }
+
+    [Fact]
+    public async Task Downgrade_ApprovalOverview_WithoutARiskEvent_CountsTheEmployeeInTierA()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m, PerformanceEvaluationStatus.InReview);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        Assert.Equal(1, overview.Departments.Single(d => d.DepartmentId == dept.Id).TierACount);
+    }
+
+    [Fact]
+    public async Task Downgrade_ReadsTheConfigurationFromTheDatabase_NotFromTheCode()
+    {
+        // Different from the defaults: the downgrade caps at A3 and triggers from High upwards.
+        var context = CreateInMemoryDbContext();
+        DowngradeTestData.Seed(context, downgradeSeverity: RiskEventSeverity.High, downgradeCapTier: "A3");
+        var permissions = new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
+        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+        await AddRiskEventAsync(context, staff, manager, RiskEventSeverity.High);
+
+        var roster = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id);
+
+        Assert.Equal("A3", roster.Single(r => r.EmployeeId == staff.Id).ProposedTier);
+    }
+
+    [Fact]
+    public async Task Downgrade_WithoutConfiguration_FailsClearlyInsteadOfUsingBuiltInNumbers()
+    {
+        var (context, service) = CreateTestEnvironment(seedDowngradeConfiguration: false);
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.GetDepartmentEmployeesForEvaluationAsync(period.Id, dept.Id, manager.Id));
+
+        Assert.Contains("ranking_tier_threshold", ex.Message);
     }
 
     [Fact]
@@ -719,6 +891,135 @@ public sealed class EvaluationServiceTests
         Assert.Contains("APPROVAL_COMMENTS", updatedEval.Comment);
     }
 
+    // ----- BR-31: Disputed_Pending scores are hidden from ranking and block the lock --------
+
+    private static async Task<(Employee Peer, PerformanceEvaluation Disputed, PerformanceEvaluation Ranked)> SeedDisputedAndRankedAsync(
+        AppDbContext context, Department dept, JobPosition position, EvaluationPeriod period, Employee staff)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var peer = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV002",
+            FullName = "Lê Văn Tranh Chấp",
+            Email = "peer@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Employees.AddAsync(peer);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var ranked = await AddScoredEvaluationAsync(context, staff, period, profile, 80m, PerformanceEvaluationStatus.InReview);
+        var disputed = await AddScoredEvaluationAsync(context, peer, period, profile, 99m, PerformanceEvaluationStatus.Disputed);
+        return (peer, disputed, ranked);
+    }
+
+    [Fact]
+    public async Task GetDepartmentCalibrationAsync_HidesDisputedPendingScoresFromRosterAndQuota()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (peer, _, _) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var overview = await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id);
+
+        Assert.DoesNotContain(overview.RankedRoster, r => r.EmployeeId == peer.Id);
+        Assert.Contains(overview.RankedRoster, r => r.EmployeeId == staff.Id && r.Rank == 1);
+        Assert.Equal(1, overview.DisputedPendingCount);
+        Assert.DoesNotContain(overview.RankedRoster, r => r.EvaluationStatus == "DISPUTED");
+        Assert.Equal(overview.RankedRoster.Count, overview.Quota.TotalEmployees);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_DoesNotTouchADisputedPendingScore()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (peer, disputed, _) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var request = new SubmitCalibrationRequestDto(
+            dept.Id,
+            period.Id,
+            [
+                new CalibrationAdjustmentItemDto(staff.Id, "B", "Điều chỉnh"),
+                new CalibrationAdjustmentItemDto(peer.Id, "A1"),
+            ],
+            IsDraft: false);
+        var result = await service.SubmitDepartmentCalibrationAsync(request, manager.Id);
+
+        Assert.Equal(1, result.TotalAdjusted);
+        Assert.Equal(0, result.TierACount);
+        var stored = await context.PerformanceEvaluations.FindAsync(disputed.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored!.Status);
+        Assert.Null(stored.Comment);
+    }
+
+    [Fact]
+    public async Task GetBranchApprovalOverviewAsync_ExcludesDisputedPendingScores_AndBlocksFinalize()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        var summary = overview.Departments.Single(d => d.DepartmentId == dept.Id);
+        Assert.Equal(1, overview.DisputedPendingCount);
+        Assert.Equal(1, overview.TotalEvaluated);
+        Assert.Equal(80m, summary.AverageScore);
+        Assert.False(overview.CanFinalize);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_ThrowsWhileAScoreIsDisputedPending_AndChangesNothing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (_, disputed, ranked) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id));
+
+        Assert.Equal(ErrorCodes.EvaluationDisputePending, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal(PeriodStatus.Open, (await context.EvaluationPeriods.FindAsync(period.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, (await context.PerformanceEvaluations.FindAsync(disputed.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.InReview, (await context.PerformanceEvaluations.FindAsync(ranked.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsForADisputedPendingScore_AndKeepsItDisputed()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var disputed = await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.Disputed);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, "Cập nhật"), manager.Id));
+
+        Assert.Equal(ErrorCodes.EvaluationDisputePending, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        var stored = await context.PerformanceEvaluations.FindAsync(disputed.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored!.Status);
+        Assert.Equal(90m, stored.TotalScore);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_LeavesADisputedPendingScoreDisputed()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var (_, disputed, ranked) = await SeedDisputedAndRankedAsync(context, dept, position, period, staff);
+
+        await service.RejectDepartmentCalibrationAsync(dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, (await context.PerformanceEvaluations.FindAsync(disputed.Id))!.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, (await context.PerformanceEvaluations.FindAsync(ranked.Id))!.Status);
+    }
+
     [Fact]
     public async Task FinalizeAndLockPeriodAsync_ThrowsWhenPeriodAlreadyLocked()
     {
@@ -733,5 +1034,242 @@ public sealed class EvaluationServiceTests
             service.FinalizeAndLockPeriodAsync(request, manager.Id));
 
         Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+    }
+
+    // ----- Qualitative scores: keyed by the root group of the profile tree ---------------------
+
+    private sealed class CapturingLogger : ILogger<EvaluationService>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private static async Task StoreCommentAsync(AppDbContext context, Employee employee, EvaluationPeriod period, string comment)
+    {
+        var profile = context.EvaluationProfiles.Single();
+        var evaluation = await AddScoredEvaluationAsync(context, employee, period, profile, 80m);
+        evaluation.Comment = comment;
+        await context.SaveChangesAsync();
+    }
+
+    private static EvaluationService CreateServiceWith(AppDbContext context, ILogger<EvaluationService> logger) =>
+        new(context, logger, new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")));
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m)]), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenTwoLegacyScoresBothHaveNoItemId()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m), new(Guid.Empty, 70m)]),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsDuplicated()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 80m), new(qualitativeRoot.Id, 70m)]),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsNotARootGroup()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var leaf = await context.EvaluationProfileItems.FirstAsync(i => i.ParentItemId != null);
+
+        var unknown = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.NewGuid(), 80m)]), manager.Id));
+        var notRoot = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(leaf.Id, 80m)]), manager.Id));
+
+        Assert.Equal(400, unknown.StatusCode);
+        Assert.Equal(400, notRoot.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_StoresAValidQualitativeScore_AndTheFormReadsItBack()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 64m, "Ghi chú")]),
+            manager.Id);
+        var form = await service.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
+        Assert.Equal(64m, group.QualitativeScore);
+        Assert.Equal("Ghi chú", group.QualitativeNotes);
+    }
+
+    [Fact]
+    public async Task GetEvaluationFormAsync_SkipsEmptyAndDuplicateStoredQualitativeScores_AndLogsAWarning()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+        var json = $$"""
+            [{"kpiGroupId":"{{Guid.NewGuid()}}","score":55,"notes":"cũ"},
+             {"evaluationProfileItemId":"{{qualitativeRoot.Id}}","score":70,"notes":"đầu"},
+             {"evaluationProfileItemId":"{{qualitativeRoot.Id}}","score":20,"notes":"trùng"}]
+            """;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n<!-- QUALITATIVE_JSON: {json} -->");
+        var logger = new CapturingLogger();
+
+        var form = await CreateServiceWith(context, logger).GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
+        Assert.Equal(70m, group.QualitativeScore);
+        Assert.Equal("đầu", group.QualitativeNotes);
+        Assert.Equal(2, logger.Entries.Count(e => e.Level == LogLevel.Warning));
+    }
+
+    [Fact]
+    public async Task GetEvaluationFormAsync_DoesNotThrow_WhenTheStoredQualitativeJsonIsMalformed_AndLogsAWarning()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "<!-- QUALITATIVE_JSON: [{not json -->");
+        var logger = new CapturingLogger();
+
+        var form = await CreateServiceWith(context, logger).GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        Assert.All(form.CriteriaGroups, g => Assert.Null(g.QualitativeScore));
+        Assert.Single(logger.Entries, e => e.Level == LogLevel.Warning);
+    }
+
+    // ----- Stored qualitative data the reader skips must survive writes that do not own it --------
+
+    private const string LegacyQualitativeMarker =
+        "<!-- QUALITATIVE_JSON: [{\"kpiGroupId\":\"6f1b0f0e-0000-4000-8000-000000000001\",\"score\":55,\"notes\":\"cũ\"}] -->";
+
+    private const string MalformedQualitativeMarker = "<!-- QUALITATIVE_JSON: [{not json -->";
+
+    private static async Task<string?> ReadStoredCommentAsync(AppDbContext context, Guid employeeId, Guid periodId)
+    {
+        context.ChangeTracker.Clear();
+        return (await context.PerformanceEvaluations
+            .AsNoTracking()
+            .SingleAsync(pe => pe.EmployeeId == employeeId && pe.EvaluationPeriodId == periodId)).Comment;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SubmitDepartmentCalibrationAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.SubmitDepartmentCalibrationAsync(
+            new SubmitCalibrationRequestDto(
+                dept.Id, period.Id, [new(staff.Id, "A3", "Hiệu chỉnh", false)], "Ghi chú", IsDraft: true),
+            manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("CALIBRATION_JSON", stored);
+        Assert.StartsWith("Nhận xét", stored);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_ReplacesThePreviousCalibrationMarker_InsteadOfDuplicatingIt()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{LegacyQualitativeMarker}");
+
+        for (var i = 0; i < 2; i++)
+        {
+            await service.SubmitDepartmentCalibrationAsync(
+                new SubmitCalibrationRequestDto(
+                    dept.Id, period.Id, [new(staff.Id, i == 0 ? "A3" : "A2", "Hiệu chỉnh", false)], null, IsDraft: true),
+                manager.Id);
+        }
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Count(stored!, "CALIBRATION_JSON"));
+        Assert.Contains("\"CalibratedTier\":\"A2\"", stored);
+        Assert.DoesNotContain("\"CalibratedTier\":\"A3\"", stored);
+        Assert.Contains(LegacyQualitativeMarker, stored);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RejectDepartmentCalibrationAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.RejectDepartmentCalibrationAsync(
+            dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("RECALIBRATION_REASON: Cần hiệu chuẩn lại", stored);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FinalizeAndLockPeriodAsync_KeepsSkippedQualitativeEntries(bool malformed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+
+        await service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Phê duyệt"), manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Contains(marker, stored);
+        Assert.Contains("APPROVAL_COMMENTS: Phê duyệt", stored);
     }
 }

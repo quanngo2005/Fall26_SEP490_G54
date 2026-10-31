@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Department;
 using G54.BLL.Services;
@@ -9,7 +10,7 @@ namespace G54.Api.Controllers;
 /// <summary>Department view, tree and management. Contract: docs/api/DEPARTMENT_CONTRACT.md.</summary>
 [ApiController]
 [Route("departments")]
-[HasPermission("evaluation", "read", "Dept")]
+[HasPermission(OrganizationAccessCodes.Resource, OrganizationAccessCodes.Read, "Dept")]
 public sealed class DepartmentsController(IDepartmentService service) : ControllerBase
 {
     [HttpGet]

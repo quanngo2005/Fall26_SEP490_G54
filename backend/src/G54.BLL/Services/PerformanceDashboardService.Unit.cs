@@ -66,7 +66,9 @@ public sealed partial class PerformanceDashboardService
             .Select(e => new UnitEmployee(e.Id, e.EmployeeCode, e.FullName, e.DepartmentId, e.JobPosition.Title))
             .ToListAsync(cancellationToken);
 
-    /// <summary>The scored evaluations of the period by employee id.</summary>
+    /// <summary>
+    /// The scored evaluations of the period by employee id; a disputed score (BR-31) is not rankable and is left out.
+    /// </summary>
     private async Task<Dictionary<Guid, ScoredEvaluation>> LoadScoredEvaluationsAsync(
         Guid periodId,
         List<UnitEmployee> employees,
@@ -74,10 +76,8 @@ public sealed partial class PerformanceDashboardService
     {
         var ids = employees.Select(e => e.Id).ToList();
         var rows = await db.PerformanceEvaluations.AsNoTracking()
-            .Where(e => e.EvaluationPeriodId == periodId
-                && ids.Contains(e.EmployeeId)
-                && e.Status != PerformanceEvaluationStatus.Draft
-                && e.TotalScore != null)
+            .Where(e => e.EvaluationPeriodId == periodId && ids.Contains(e.EmployeeId))
+            .Where(PerformanceEvaluationExtensions.HasRankableScore)
             .Select(e => new ScoredEvaluation(e.Id, e.EmployeeId, e.Status, e.TotalScore!.Value))
             .ToListAsync(cancellationToken);
 
@@ -101,8 +101,9 @@ public sealed partial class PerformanceDashboardService
     }
 
     /// <summary>
-    /// Mean, over the employees that have one, of each employee's group score; an employee's group score is the
-    /// mean of that employee's non-null KPI scores in the group.
+    /// Mean, over the employees that have one, of each employee's group score. Employees of different positions have
+    /// different profile trees with no shared node, so the unit view groups KPIs by the catalog KPI group; an
+    /// employee's group score is the mean of that employee's non-null KPI scores in it, not weighted by any profile.
     /// </summary>
     private static List<DashboardUnitGroupDto> BuildUnitGroups(List<KpiContributionRow> contributions) =>
         contributions

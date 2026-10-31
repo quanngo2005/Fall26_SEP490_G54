@@ -44,6 +44,38 @@ public sealed class TargetAllocationItemDto
     public decimal? TargetValue { get; set; }
 }
 
+/// <summary>Splits a target across evaluation periods (e.g., year to quarters).</summary>
+public sealed class AllocateTargetByPeriodDto
+{
+    [Required(ErrorMessage = "Danh sách phân bổ là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Danh sách phân bổ phải có ít nhất một đối tượng.")]
+    public List<TargetPeriodAllocationItemDto>? Allocations { get; set; }
+
+    [StringLength(1000, ErrorMessage = "Ghi chú không vượt quá 1000 ký tự.")]
+    public string? ChangeReason { get; set; }
+}
+
+public sealed class TargetPeriodAllocationItemDto
+{
+    [Required(ErrorMessage = "Kỳ đánh giá là bắt buộc.")]
+    public Guid? EvaluationPeriodId { get; set; }
+
+    [Required(ErrorMessage = "Giá trị target là bắt buộc.")]
+    public decimal? TargetValue { get; set; }
+}
+
+/// <summary>Query parameters for listing target assignments.</summary>
+public sealed class TargetAssignmentQueryDto
+{
+    public Guid? KpiDefinitionId { get; set; }
+
+    public Guid? EvaluationPeriodId { get; set; }
+
+    public Guid? DepartmentId { get; set; }
+
+    public string? Status { get; set; }
+}
+
 public sealed record TargetAssignmentDto(
     Guid Id,
     Guid KpiDefinitionId,

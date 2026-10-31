@@ -1,3 +1,4 @@
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Department;
 using G54.BLL.Dtos.Permission;
@@ -56,6 +57,21 @@ public sealed class DepartmentServiceTests
     }
 
     [Fact]
+    public async Task OnlyTheOrganizationReadPermissionGrantsDepartmentData()
+    {
+        var world = await World.CreateAsync();
+        var service = new DepartmentService(
+            world.Db,
+            new FakePermissions(world.AdminAccount, "All", resource: "evaluation", action: "read"),
+            new FixedTime(Now));
+
+        // evaluation:read used to open the department data; the dedicated organization:read permission replaced it.
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetDepartmentsAsync(world.AdminAccount, new DepartmentFilterDto()));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.GetDepartmentAsync(world.AdminAccount, world.Department.Id));
+    }
+    [Fact]
     public async Task OwnScopeOrMissingPermissionIsForbidden()
     {
         var world = await World.CreateAsync();
@@ -96,6 +112,73 @@ public sealed class DepartmentServiceTests
         Assert.Equal(0, byStatus.TotalCount);
         Assert.Equal(["B-D-T"], paged.Items.Select(i => i.Code));
         Assert.Equal(3, paged.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListSummarisesManagerAndHeadcountByJobPositionCode()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+        var unit = await world.AddDepartmentAsync("UNIT", world.Branch.Id, DepartmentLevelType.Department);
+        var teller = world.AddPosition(JobPositionCodes.Teller, "Giao dịch viên");
+        var sales = world.AddPosition(JobPositionCodes.Sales, "Chuyên viên Kinh doanh");
+        // A title that merely looks like a role must not be counted: only the position code decides.
+        var lookalike = world.AddPosition("LEAD", "Trưởng nhóm Kinh doanh - Bán hàng");
+
+        var lead = world.AddEmployee("L001", unit.Id, lookalike.Id, null, EmployeeStatus.Active);
+        world.AddEmployee("T101", unit.Id, teller.Id, lead.Id, EmployeeStatus.Active);
+        world.AddEmployee("T102", unit.Id, teller.Id, lead.Id, EmployeeStatus.Active);
+        world.AddEmployee("S101", unit.Id, sales.Id, lead.Id, EmployeeStatus.Active);
+        world.AddEmployee("S102", unit.Id, sales.Id, lead.Id, EmployeeStatus.OnLeave);
+        world.AddEmployee("S103", unit.Id, sales.Id, lead.Id, EmployeeStatus.Terminated);
+        await world.Db.SaveChangesAsync();
+
+        var result = await service.GetDepartmentsAsync(
+            world.AdminAccount, new DepartmentFilterDto { Keyword = "UNIT" });
+
+        var row = Assert.Single(result.Items);
+        Assert.Equal("L001", row.ManagerName);
+        Assert.Equal(2, row.TellerCount);
+        Assert.Equal(1, row.SalesCount); // on-leave and terminated sales staff are not counted
+        Assert.Equal(5, row.EmployeeCount); // the contract's non-terminated headcount is unchanged
+        Assert.Equal(world.Clock, row.LastSyncAt);
+    }
+
+    [Fact]
+    public async Task ListLeavesManagerNullAndCountsZeroForAnEmptyDepartment()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var empty = await world.AddDepartmentAsync("EMPTY", world.Branch.Id, DepartmentLevelType.Team);
+        var result = await service.GetDepartmentsAsync(
+            world.AdminAccount, new DepartmentFilterDto { Keyword = "EMPTY" });
+
+        var row = Assert.Single(result.Items);
+        Assert.Equal(empty.Id, row.Id);
+        Assert.Null(row.ManagerName);
+        Assert.Equal(0, row.TellerCount);
+        Assert.Equal(0, row.SalesCount);
+        Assert.Equal(0, row.EmployeeCount);
+    }
+
+    [Fact]
+    public async Task ListAndDetailAgreeOnTheDepartmentManager()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var list = await service.GetDepartmentsAsync(world.AdminAccount, new DepartmentFilterDto());
+        foreach (var item in list.Items)
+        {
+            var detail = await service.GetDepartmentAsync(world.AdminAccount, item.Id);
+            if (detail.Manager is not null && item.ManagerName is not null)
+            {
+                Assert.Equal(detail.Manager.FullName, item.ManagerName);
+            }
+        }
+
+        Assert.Equal("M001", list.Items.Single(i => i.Code == "B-D").ManagerName);
     }
 
     [Fact]
@@ -383,6 +466,30 @@ public sealed class DepartmentServiceTests
             return department;
         }
 
+        /// <summary>Stages an extra job position; call <see cref="Db"/>.SaveChangesAsync afterwards.</summary>
+        public JobPosition AddPosition(string code, string title)
+        {
+            var position = new JobPosition
+            {
+                Id = Guid.NewGuid(),
+                Code = code,
+                Title = title,
+                Status = RecordStatus.Active,
+                LastSyncAt = Clock,
+                UpdatedAt = Clock,
+            };
+            Db.JobPositions.Add(position);
+            return position;
+        }
+
+        /// <summary>Stages an extra employee; call <see cref="Db"/>.SaveChangesAsync afterwards.</summary>
+        public Employee AddEmployee(string code, Guid departmentId, Guid positionId, Guid? managerId, EmployeeStatus status)
+        {
+            var employee = Employee(code, departmentId, positionId, managerId, status);
+            Db.Employees.Add(employee);
+            return employee;
+        }
+
         private async Task SeedAsync(bool withPeriods)
         {
             Branch = await AddDepartmentAsync("B", null, DepartmentLevelType.Branch);
@@ -655,7 +762,8 @@ public sealed class DepartmentServiceTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class FakePermissions(Guid accountId, string? scope) : IPermissionService
+    private sealed class FakePermissions(
+        Guid accountId, string? scope, string resource = "organization", string action = "read") : IPermissionService
     {
         public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<UserPermissionsResponseDto?>(null);
@@ -663,7 +771,7 @@ public sealed class DepartmentServiceTests
         public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid id, CancellationToken cancellationToken)
         {
             IReadOnlyList<UserPermissionDto> result = id == accountId && scope is not null
-                ? [new UserPermissionDto("evaluation", "read", scope, "EVALUATION_READ")]
+                ? [new UserPermissionDto(resource, action, scope, $"{resource}:{action}")]
                 : [];
             return Task.FromResult(result);
         }

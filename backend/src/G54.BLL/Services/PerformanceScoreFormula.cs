@@ -3,8 +3,9 @@ using G54.DAL.Entities;
 namespace G54.BLL.Services;
 
 /// <summary>
-/// KPI score = achievement percent of the weighted actual against the target (capped by the KPI maximum).
-/// Group score = mean of its scored KPIs. Total score = sum of group scores weighted by the profile.
+/// KPI score = achievement percent of the actual against the target (capped by the KPI maximum).
+/// Group score = mean of its scored parts (KPI leaves and sub-groups) weighted by their weight among siblings,
+/// normalised over the parts that have a score. Total score = sum of root group scores weighted by the profile.
 /// </summary>
 public sealed class PerformanceScoreFormula : IPerformanceScoreFormula
 {
@@ -28,15 +29,8 @@ public sealed class PerformanceScoreFormula : IPerformanceScoreFormula
         return new KpiScoreResult(raw, capped, capped);
     }
 
-    public decimal? CalculateGroup(GroupScoreInput input)
-    {
-        var scores = input.Kpis
-            .Where(k => k.Score.ComponentScore.HasValue)
-            .Select(k => k.Score.ComponentScore!.Value)
-            .ToList();
-
-        return scores.Count == 0 ? null : scores.Average();
-    }
+    public decimal? CalculateGroup(GroupScoreInput input) =>
+        EvaluationProfileTree.WeightedMean(input.Parts.Select(p => (p.WeightPercent, p.Score)));
 
     public decimal? CalculateTotal(IReadOnlyList<GroupScoreEntry> groups)
     {

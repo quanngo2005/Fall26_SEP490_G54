@@ -33,6 +33,19 @@
     </button>
   </div>
 
+  <!-- Role context -->
+  @if (navigation.roles().length) {
+    <section class="role-context expanded-copy" [attr.aria-label]="localization.layout.role">
+      <span class="role-caption">{{localization.layout.role}}</span>
+      @for (role of navigation.roles(); track role) {
+        <strong class="role-name">{{localization.workspaceRoles[role]}}</strong>
+        <span class="role-scope"
+          >{{localization.layout.scope}} · {{localization.roleScopes[role]}}</span
+        >
+      }
+    </section>
+  }
+
   <!-- Navigation -->
   <nav>
     @if (navigation.loadFailed()) {
@@ -141,7 +154,7 @@
       [attr.aria-expanded]="!navigation.collapsed()"
     >
       <app-layout-icon name="chevron" />
-      <span class="expanded-copy">{{localization.layout.collapse}}</span>
+      <span class="expanded-copy">{{localization.layout.collapseMenu}}</span>
     </button>
     <div class="footer-brand expanded-copy">
       <span>BPMS</span>

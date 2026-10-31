@@ -1,0 +1,260 @@
+@let t = localization.roleList;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [class.has-drawer]="selected()" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+
+      <div class="list-toolbar">
+        <h1>{{t.title}}</h1>
+        <button type="button" class="button button-primary" disabled [title]="t.createUnavailable">
+          + {{t.create}}
+        </button>
+      </div>
+
+      <div class="list-filters">
+        <input
+          type="search"
+          class="input search-input"
+          [ngModel]="keyword()"
+          (ngModelChange)="keyword.set($event)"
+          [placeholder]="t.search"
+          [attr.aria-label]="t.search"
+        />
+        <select
+          class="select type-select"
+          [ngModel]="typeFilter()"
+          (ngModelChange)="typeFilter.set($event)"
+          [attr.aria-label]="t.type"
+        >
+          <option value="">{{t.typeAll}}</option>
+          <option value="system">{{t.typePrefix}}{{t.system}}</option>
+          <option value="custom">{{t.typePrefix}}{{t.custom}}</option>
+        </select>
+      </div>
+
+      @if (loading()) {
+        <div class="state-card"><span class="spinner" aria-hidden="true"></span></div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="surface-card table-card">
+          <table class="role-table">
+            <thead>
+              <tr>
+                <th>{{t.code}}</th>
+                <th>{{t.name}}</th>
+                <th>{{t.type}}</th>
+                <th class="num">{{t.accounts}}</th>
+                <th>{{t.status}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (role of visibleRoles(); track role.id) {
+                <tr
+                  [class.is-selected]="role.id === selectedId()"
+                  tabindex="0"
+                  (click)="open(role)"
+                  (keydown.enter)="open(role)"
+                >
+                  <td class="code">{{role.code}}</td>
+                  <td>{{role.name}}</td>
+                  <td>
+                    <span class="tag" [class.is-custom]="!role.isSystem">
+                      {{role.isSystem ? t.system : t.custom}}
+                    </span>
+                  </td>
+                  <td class="num">{{role.accountCount}}</td>
+                  <td>
+                    <span class="tag status" [class.is-inactive]="role.status !== 'Active'">
+                      {{role.status === 'Active' ? t.active : t.inactive}}
+                    </span>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="empty">{{t.empty}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="table-footer">
+            <span>{{summary()}}</span>
+            <span class="page-indicator">1</span>
+          </div>
+        </div>
+        <p class="footnote">{{t.footnote}}</p>
+      }
+    </main>
+  </div>
+
+  @if (selected(); as role) {
+    <aside class="drawer" role="dialog" [attr.aria-label]="role.code + ' · ' + role.name">
+      <header class="drawer-head">
+        <div>
+          <h2>{{role.code}} · {{role.name}}</h2>
+          <p>SCR-ADM-03-D1 · {{role.accountCount}} {{t.accountUnit}}</p>
+        </div>
+        <span class="tag" [class.is-custom]="!role.isSystem">
+          {{role.isSystem ? t.system : t.custom}}
+        </span>
+        <button type="button" class="icon-button" (click)="close()" [attr.aria-label]="t.close">
+          ×
+        </button>
+      </header>
+
+      <nav class="tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'info'"
+          [attr.aria-selected]="tab() === 'info'"
+          (click)="selectTab('info')"
+        >
+          {{t.tabInfo}}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'permissions'"
+          [attr.aria-selected]="tab() === 'permissions'"
+          (click)="selectTab('permissions')"
+        >
+          {{t.tabPermissions}}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'accounts'"
+          [attr.aria-selected]="tab() === 'accounts'"
+          (click)="selectTab('accounts')"
+        >
+          {{t.tabAccounts}} ({{role.accountCount}})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          [class.is-active]="tab() === 'history'"
+          [attr.aria-selected]="tab() === 'history'"
+          (click)="selectTab('history')"
+        >
+          {{t.tabHistory}}
+        </button>
+      </nav>
+
+      <section class="drawer-body" role="tabpanel">
+        @switch (tab()) {
+          @case ('info') {
+            <dl class="info-list">
+              <dt>{{t.code}}</dt>
+              <dd class="code">{{role.code}}</dd>
+              <dt>{{t.name}}</dt>
+              <dd>{{role.name}}</dd>
+              <dt>{{t.type}}</dt>
+              <dd>{{role.isSystem ? t.system : t.custom}}</dd>
+              <dt>{{t.status}}</dt>
+              <dd>{{role.status === 'Active' ? t.active : t.inactive}}</dd>
+              <dt>{{t.accounts}}</dt>
+              <dd>{{role.accountCount}}</dd>
+              <dt>{{t.description}}</dt>
+              <dd>{{role.description || t.noDescription}}</dd>
+            </dl>
+          }
+          @case ('permissions') {
+            @if (matrix().loading) {
+              <div class="tab-state"><span class="spinner" aria-hidden="true"></span></div>
+            } @else if (matrix().failed) {
+              <div class="tab-state" role="alert">
+                <p>{{t.tabError}}</p>
+                <button type="button" class="button button-secondary" (click)="retryTab()">
+                  {{t.retry}}
+                </button>
+              </div>
+            } @else if (!granted().length) {
+              <div class="tab-state">
+                <p>{{t.noPermissions}}</p>
+              </div>
+            } @else {
+              <div class="perm-card">
+                <div class="perm-row perm-head">
+                  <span>{{t.resource}}</span
+                  ><span>{{t.action}}</span
+                  ><span>{{t.scope}}</span>
+                </div>
+                @for (module of granted(); track module.module) {
+                  <div class="perm-group">{{module.name}}</div>
+                  @for (row of module.rows; track row.key) {
+                    <div class="perm-row">
+                      <span>
+                        {{row.name}}
+                        @if (row.locked) {
+                          <span class="lock" [title]="row.lockReason ?? ''" aria-label="locked"
+                            >🔒</span
+                          >
+                        }
+                      </span>
+                      <span>{{actionLabels(row.actions)}}</span>
+                      <span
+                        ><span class="scope-chip scope-{{row.scope}}">{{scopeLabel(row.scope)}}</span></span
+                      >
+                    </div>
+                  }
+                }
+              </div>
+              <p class="footnote">{{t.permissionsNote}}</p>
+            }
+          }
+          @case ('accounts') {
+            @if (accounts().loading) {
+              <div class="tab-state"><span class="spinner" aria-hidden="true"></span></div>
+            } @else if (accounts().failed) {
+              <div class="tab-state" role="alert">
+                <p>{{t.tabError}}</p>
+                <button type="button" class="button button-secondary" (click)="retryTab()">
+                  {{t.retry}}
+                </button>
+              </div>
+            } @else if (!accounts().data?.length) {
+              <div class="tab-state">
+                <p>{{t.noAccounts}}</p>
+              </div>
+            } @else {
+              <div class="perm-card">
+                <div class="perm-row perm-head">
+                  <span>{{t.employeeCode}}</span
+                  ><span>{{t.fullName}}</span
+                  ><span>{{t.department}}</span>
+                </div>
+                @for (account of accounts().data; track account.id) {
+                  <div class="perm-row">
+                    <span class="code">{{account.employeeCode}}</span>
+                    <span>{{account.fullName}}</span>
+                    <span>{{account.departmentName ?? '—'}}</span>
+                  </div>
+                }
+              </div>
+            }
+          }
+          @case ('history') {
+            <div class="tab-state">
+              <p>{{t.historyUnavailable}}</p>
+            </div>
+          }
+        }
+      </section>
+
+      <footer class="drawer-foot">
+        <span>{{t.stopHint}}</span>
+        <button type="button" class="button button-primary" (click)="setupPermissions()">
+          {{t.setup}}
+        </button>
+      </footer>
+    </aside>
+  }
+</div>

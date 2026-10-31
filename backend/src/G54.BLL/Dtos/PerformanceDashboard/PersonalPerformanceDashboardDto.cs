@@ -23,10 +23,9 @@ public sealed record DashboardEmployeeDto(
     string DepartmentName,
     string JobPositionTitle);
 
-/// <summary>A KPI group of the evaluation profile with its weight and the KPIs scored beneath it.</summary>
+/// <summary>A root group of the evaluation profile tree with its weight and the KPIs scored beneath it.</summary>
 public sealed record DashboardGroupDto(
-    Guid KpiGroupId,
-    string Code,
+    Guid EvaluationProfileItemId,
     string Name,
     decimal WeightPercent,
     decimal? Score,

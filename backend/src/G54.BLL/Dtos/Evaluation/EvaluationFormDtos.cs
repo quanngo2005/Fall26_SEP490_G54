@@ -26,25 +26,35 @@ public sealed record EvaluationProfileSummaryDto(
     string Name,
     int Version);
 
+/// <summary>
+/// One KPI leaf of a group. WeightPercent is its share of the root group: its weight among its siblings multiplied
+/// by the weights of its parent groups, so the leaves of a group add up to 100.
+/// </summary>
 public sealed record EvaluationKpiItemDto(
     Guid KpiDefinitionId,
     string KpiCode,
     string KpiName,
     string Unit,
+    decimal WeightPercent,
     decimal? TargetValue,
     decimal ActualValue,
     decimal AchievementPercent,
     decimal ComponentScore);
 
+/// <summary>
+/// A root group of the evaluation profile tree. EvaluationProfileItemId is the tree node and the key of its
+/// qualitative score; GroupCode is the code of the catalog KPI group of its KPIs.
+/// </summary>
 public sealed record EvaluationCriterionGroupDto(
-    Guid KpiGroupId,
+    Guid EvaluationProfileItemId,
     string GroupCode,
     string GroupName,
     decimal WeightPercent,
     decimal GroupScore,
     List<EvaluationKpiItemDto> KpiItems,
     decimal? QualitativeScore = null,
-    string? QualitativeNotes = null);
+    string? QualitativeNotes = null,
+    bool IsQualitative = false);
 
 public sealed record EvaluationRiskEventDto(
     Guid Id,
@@ -61,7 +71,8 @@ public sealed record EvaluationCalculationSummaryDto(
     decimal OperationsScore,
     decimal TotalRiskPenalty,
     decimal TotalScore,
-    string ProposedTier);
+    string ProposedTier,
+    decimal WeightedScore);
 
 public sealed record PerformanceEvaluationStateDto(
     Guid? Id,
@@ -75,6 +86,12 @@ public sealed record PerformanceEvaluationStateDto(
     string? CoachingPlan,
     bool CoachingRequired);
 
+public sealed record PreviousPeriodSummaryDto(
+    string PeriodCode,
+    decimal TotalScore,
+    string Tier,
+    decimal ScoreDifference);
+
 public sealed record EvaluationFormDto(
     EvaluationEmployeeDto Employee,
     EvaluationPeriodDto Period,
@@ -83,10 +100,14 @@ public sealed record EvaluationFormDto(
     List<EvaluationRiskEventDto> RiskEvents,
     EvaluationCalculationSummaryDto Summary,
     PerformanceEvaluationStateDto CurrentEvaluation,
-    bool CanEdit);
+    bool CanEdit,
+    int PendingSubmissionCount,
+    int OpenAppealCount,
+    bool HasOpenDispute,
+    PreviousPeriodSummaryDto? PreviousPeriod);
 
 public sealed record QualitativeScoreInputDto(
-    Guid KpiGroupId,
+    Guid EvaluationProfileItemId,
     decimal Score,
     string? Notes = null);
 
@@ -131,4 +152,10 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     decimal? TotalScore,
     string EvaluationStatus,
     string? ProposedTier,
-    DateTimeOffset? CalculatedAt);
+    DateTimeOffset? CalculatedAt,
+    decimal? QuantitativeScore,
+    decimal? QualitativeScore,
+    bool HasOpenDispute,
+    int PendingSubmissionCount,
+    bool CanEvaluate,
+    DateTimeOffset? UpdatedAt);

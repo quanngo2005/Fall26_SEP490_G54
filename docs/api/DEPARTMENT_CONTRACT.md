@@ -6,11 +6,13 @@ Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`
 
 ## Authorization
 
-Every endpoint requires permission `evaluation:read` with scope `Dept` or higher
-(`[HasPermission("evaluation", "read", "Dept")]`). Seeded roles: `ADMIN` (All) and `MANAGER`
-(Department) pass; `EMPLOYEE` (Own) and `VERIFIER` (no grant) receive 403.
-
-The BLL validates an active, unlocked database account and additionally restricts data to the caller's granted scope:
+Every endpoint requires the permission `organization:read` with scope `Dept` or higher
+(`[HasPermission("organization", "read", "Dept")]`; code `ORGANIZATION_READ`). The migration `SeedOrganizationReadAccess`
+grants it to `SYSTEM_ADMIN` and `ADMIN` (`All`), `BRANCH_MANAGER` (`Branch`) and `DEPT_MANAGER` / `MANAGER` (`Dept`) only.
+Every other role - employee, verifier, HR, QA - has no grant and receives 403 `FORBIDDEN`; holding `evaluation:read` (which
+this screen used to borrow) no longer opens it. A missing or invalid token receives 401. The same permission guards
+`/job-positions` (`JOB_POSITION_CONTRACT.md`).
+The BLL validates an active, unlocked database account and additionally restricts data to the scope granted for `organization:read`:
 
 | Granted scope | Visible departments |
 | --- | --- |
@@ -62,7 +64,11 @@ Query: `keyword` (code/name, case-insensitive contains), `status` (`ACTIVE|INACT
         "parentDepartmentId": "5eed0000-0000-0000-0001-000000000001",
         "parentDepartmentName": "Chi nhánh Hà Nội",
         "employeeCount": 5,
-        "childDepartmentCount": 2
+        "childDepartmentCount": 2,
+        "managerName": "Trần Thị Bình",
+        "tellerCount": 2,
+        "salesCount": 3,
+        "lastSyncAt": "2026-10-01T00:00:00+00:00"
       }
     ],
     "totalCount": 1, "page": 1, "pageSize": 20
@@ -73,6 +79,17 @@ Query: `keyword` (code/name, case-insensitive contains), `status` (`ACTIVE|INACT
 `employeeCount` is the subtree count. `childDepartmentCount` counts direct children.
 `parentDepartmentId` / `parentDepartmentName` are `null` for roots.
 `ARCHIVED` (soft-deleted) departments are omitted unless `status=ARCHIVED` is requested.
+
+Per-row summary fields (computed over the department subtree, `ACTIVE` employees only):
+
+- `managerName` - full name of the derived manager, using step 1 of the `DepartmentDetail.manager` rule: the active
+  employee whose own manager is outside the subtree and who has the most direct reports inside (tie: lowest
+  `employeeCode`). `null` when there is no such employee; the list does not fall back to a manager outside the
+  subtree (the detail endpoint does).
+- `tellerCount` / `salesCount` - active employees whose `jobPosition.code` is `TELLER` / `SALES`. Matching is by code
+  only, never by title text. `0` when nobody matches, never `null`. On-leave and terminated employees are not
+  counted, so `tellerCount + salesCount` can be lower than `employeeCount` (which keeps the non-`TERMINATED` rule).
+- `lastSyncAt` - ISO 8601 time the department was last synchronised from the source system. Never `null`.
 
 ### `GET /departments/tree`
 
@@ -295,7 +312,7 @@ There is no hard delete and no restore endpoint; `PATCH .../status` with `ACTIVE
 | --- | --- | --- |
 | 400 | `VALIDATION_ERROR` | invalid enum filter, `DAY` period, malformed GUID/number |
 | 401 | none (framework) | missing/invalid token; may have no JSON body |
-| 403 | none (framework) or `FORBIDDEN` | lacks `evaluation:read` (framework), or department outside granted scope (`FORBIDDEN`) |
+| 403 | none (framework) or `FORBIDDEN` | lacks `organization:read` (framework), or department outside granted scope (`FORBIDDEN`) |
 | 404 | `NOT_FOUND` | unknown department, parent or period |
 | 409 | `CONFLICT` | duplicate code; stopping/deleting a department that still has live children or employees |
 | 500 | `INTERNAL_ERROR` | unexpected |

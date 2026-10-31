@@ -36,20 +36,17 @@ Recalculation is allowed: calling the endpoint again refreshes the same contribu
 2. Read the `VALID` `actual_progress` rows recorded against the evaluated employee's own target assignments
    whose `progress_date` falls inside the evaluation period. Calculation never writes progress: rows are
    created when a result is verified (see the verification flow).
-3. Resolve the target of every `ACTIVE` KPI of the profile's groups: an employee-level `ACTIVE` target of the
+3. Resolve the target of every `ACTIVE` KPI leaf of the profile's weight tree: an employee-level `ACTIVE` target of the
    evaluation period wins over a department-level target of the employee's own department; within a level the
    highest `version` wins. Targets of other statuses are ignored.
 4. Aggregate the `VALID` actual progress of the period per KPI by `aggregationType`:
    `SUM` = sum of values, `AVG` = average of values, `RATIO` = sum of values (`actualValue`) over
    sum of denominators (`actualDenominator`). The `AVG` actual is rounded to 4 decimals with banker's
    rounding. A KPI without data is not stored (`null` is N/A, never `0`).
-   Each verified result counts at its task weight: a progress row stores the unweighted sum of its results,
-   so the value used is the row value plus, for every `VALID` result item of the row,
-   `work_result_item.value × (task_weight − 1)`. Items of an invalidated result, and of progress rows that are
-   not `VALID`, are left out. `work_result_item.task_weight` is `numeric(8,4)`, greater than 0, default `1`;
-   a result verified without a weight therefore counts as it is. A row's value is never reduced below 0.
-5. Write one `performance_contribution` per KPI with a target and data (target, actual and group weight
-   snapshots), linked to the KPI's latest progress row through `actual_progress_id`. Group scores are
+   The actual is the plain sum of the progress rows: `work_result_item.task_weight` no longer exists (removed by
+   migration `RestructureEvaluationProfileItemTree`), so no per-result multiplier is applied.
+5. Write one `performance_contribution` per KPI leaf with a target and data (target, actual and the leaf's
+   weight among its siblings as `weight_snapshot`), linked to the KPI's latest progress row through `actual_progress_id`. Group scores are
    computed on every calculation and are not stored. Contributions linked to a risk event are left untouched.
 6. Score through `IPerformanceScoreFormula` (KPI → group → total) and round every score to 4 decimals with
    banker's rounding (`MidpointRounding.ToEven`).
@@ -70,8 +67,13 @@ For one KPI, with `target` and the weighted `actual` from step 4 (for a `RATIO` 
   otherwise it equals the raw value. It is never above the raw value.
 - The KPI's `componentScore` is `achievementPercentCapped`.
 - A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`).
-- A group's score is the mean of the scores of its KPIs that have one; a group without a scored KPI has none.
-- `totalScore` is the sum over scored groups of `group score × weightPercent / 100`. Groups without a score
+- The profile is a tree: root nodes are groups, a group has KPI leaves and/or sub-groups (at most 3 levels), and the
+  `weightPercent` of a node is relative to its siblings (siblings add up to 100 on an `ACTIVE` profile).
+- A group's score is the mean of the scores of its scored parts (KPI leaves and sub-groups) weighted by
+  `weightPercent` and normalised over the parts that have a score:
+  `Σ(score × weight) / Σ(weight of scored parts)`. A leaf without a target or data, or an inactive KPI, leaves its
+  share to its siblings instead of counting as 0; a group without a scored part has none.
+- `totalScore` is the sum over scored root groups of `group score × weightPercent / 100`. Groups without a score
   add nothing. With no scored group the total is `null`.
 - Every score is rounded to 4 decimals with banker's rounding (`MidpointRounding.ToEven`).
 
@@ -80,8 +82,7 @@ With a total the evaluation becomes `CALCULATED` with `calculatedAt` set; withou
 calculation: when a recalculation cannot determine a total, a previous score is cleared and the status
 returns to `DRAFT`.
 
-Limits: the task weight is stored on the verified result item but verification does not accept one yet, so
-every result is counted at the default weight `1` until the verification contract carries it.
+Limits: there is no per-result or per-product multiplier (BR-32, BR-43 Task Multiplier) in the schema any more.
 Risk-event penalties are not part of this calculation.
 
 ### Success — 200
@@ -105,9 +106,7 @@ Risk-event penalties are not part of this calculation.
     "groups": [
       {
         "evaluationProfileItemId": "5eed0000-0000-0000-0004-000000000001",
-        "kpiGroupId": "5eed0000-0000-0000-0003-000000000001",
-        "kpiGroupCode": "KD",
-        "kpiGroupName": "Kinh doanh",
+        "groupName": "Kinh doanh",
         "weightPercent": 70.0,
         "componentScore": 17.7778,
         "kpis": [
@@ -135,7 +134,7 @@ Risk-event penalties are not part of this calculation.
 ```
 
 Field rules: IDs are GUID strings; timestamps are ISO 8601 with offset; decimals have at most 4 places;
-`groups` follow the profile `displayOrder`; `kpis` are ordered by `kpiCode` (ordinal). A group without any KPI
+`groups` are the root groups of the profile tree in `displayOrder`; `evaluationProfileItemId` is the tree node and `kpis` lists the KPI leaves of the group and of its sub-groups; `kpis` are ordered by `kpiCode` (ordinal). A group without any KPI
 data has an empty `kpis` array.
 
 ### Errors

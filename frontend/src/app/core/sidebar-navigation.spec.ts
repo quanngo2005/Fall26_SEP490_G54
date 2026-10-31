@@ -95,6 +95,29 @@ describe('Configured sidebar navigation', () => {
     );
     expect(navigation.items().some((item) => item.id === 'kpiDefinitions')).toBeFalse();
   });
+  it('links Department performance to its own route, separate from the department list', () => {
+    current.and.returnValue(
+      of([
+        {
+          role: 'employee',
+          itemIds: ['overview', 'organization', 'departments', 'departmentPerformance'],
+          version: 1,
+        },
+      ]),
+    );
+    const navigation = TestBed.inject(NavigationService);
+    TestBed.tick();
+
+    const items = navigation.items();
+    expect(items.find((item) => item.id === 'departmentPerformance')?.route).toBe(
+      '/department-performance',
+    );
+    expect(items.find((item) => item.id === 'organization')?.children?.[0].route).toBe(
+      '/departments',
+    );
+    expect(navigation.routeOptions).toContain('/department-performance');
+    expect(navigation.routeOptions).toContain('/departments');
+  });
   it('cancels an in-flight reload when the account signs out', () => {
     const response = new Subject<SidebarConfiguration[]>();
     current.and.returnValue(response);
@@ -105,6 +128,21 @@ describe('Configured sidebar navigation', () => {
     response.next([{ role: 'admin', itemIds: ['overview', 'systemConfiguration'], version: 1 }]);
     expect(navigation.configurations()).toEqual([]);
     expect(navigation.items()).toEqual([]);
+  });
+  it('treats department and branch managers, and nobody else, as managers', () => {
+    const navigation = TestBed.inject(NavigationService);
+    const isManagerOf = (roles: string[]) => {
+      user.update((value) => value && { ...value, roles });
+      return navigation.isManager();
+    };
+
+    expect(isManagerOf(['EMPLOYEE'])).toBeFalse();
+    expect(isManagerOf(['HR_OFFICER'])).toBeFalse();
+    expect(isManagerOf(['ADMIN'])).toBeFalse();
+    expect(isManagerOf(['DEPT_MANAGER'])).toBeTrue();
+    expect(isManagerOf(['manager'])).toBeTrue();
+    expect(isManagerOf(['BRANCH_MANAGER'])).toBeTrue();
+    expect(isManagerOf(['EMPLOYEE', 'DEPT_MANAGER'])).toBeTrue();
   });
   it('allows the editor route only for admin role aliases', () => {
     const router = TestBed.inject(Router);

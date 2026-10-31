@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
@@ -6,10 +7,12 @@ using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using G54.DAL.Uow;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -43,8 +46,12 @@ public sealed class AppealServiceTests : IDisposable
             .Build(),
         NullLogger<StorageService>.Instance);
 
-    private AppealService ServiceAt(DateTimeOffset now, params (string Resource, string Action, string Scope)[] grants) =>
-        new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now));
+    private int _appealRejectedHours = 48;
+
+    private AppealService ServiceAt(DateTimeOffset now, params (string Resource, string Action, string Scope)[] grants)
+    {
+        return new(_db, new GrantingPermissions(grants), Storage, NullLogger<AppealService>.Instance, new FixedTime(now), Options.Create(new SystemParametersOptions { AppealRejectedHours = _appealRejectedHours }));
+    }
 
     private async Task SeedDepartmentsAsync()
     {
@@ -56,6 +63,7 @@ public sealed class AppealServiceTests : IDisposable
             new Department { Id = _salesTeamId, Code = "ST", Name = "Sales team", ParentDepartmentId = _salesId, LevelType = DepartmentLevelType.Team, Status = RecordStatus.Active, UpdatedAt = now });
         await _db.SaveChangesAsync();
     }
+
 
     private async Task<Employee> AddEmployeeAsync(string code, Guid departmentId, EmployeeStatus status = EmployeeStatus.Active)
     {
@@ -168,7 +176,442 @@ public sealed class AppealServiceTests : IDisposable
         return await AddEmployeeAsync("SUBMITTER", _salesTeamId);
     }
 
+    [Theory]
+    [InlineData(" accept ", SubmissionStatus.Approved, WorkStatus.Verified, VerificationDecision.Approved)]
+    [InlineData("adjust", SubmissionStatus.UnderReview, WorkStatus.InProgress, VerificationDecision.NeedMoreInfo)]
+    public async Task Decide_AcceptOrAdjust_UpdatesSubmissionAndRecordsANewVerification(
+        string decision, SubmissionStatus status, WorkStatus workStatus, VerificationDecision verificationDecision)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission, AppealStatus.UnderReview);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var now = RejectedAt.AddDays(4); // Resolution is not limited by the filing window.
+        var result = await ServiceAt(now, ("verification", "decide", "Dept")).DecideAppealAsync(
+            appeal.Id, resolver.Account!.Id,
+            new DecideAppealRequestDto { Decision = decision, Note = "  Bổ sung chứng từ đối soát  " });
+
+        Assert.Equal("ACCEPTED", result.Appeal.Status);
+        Assert.Equal(resolver.Id, result.Appeal.ResolvedByEmployeeId);
+        Assert.Equal(resolver.FullName, result.Appeal.ResolvedByEmployeeName);
+        Assert.Equal(now, result.Appeal.DecidedAt);
+        Assert.Equal("Bổ sung chứng từ đối soát", result.Appeal.Note);
+        Assert.Equal(status, submission.Status);
+        Assert.Equal(workStatus, submission.Work.Status);
+        var verification = await _db.Verifications.SingleAsync(v => v.Id == result.VerificationId);
+        Assert.Equal(2, verification.RoundNo);
+        Assert.Equal(verificationDecision, verification.Decision);
+        Assert.Equal(resolver.Id, verification.VerifierEmployeeId);
+        Assert.Equal(result.Appeal.Note, verification.Comment);
+        Assert.Equal(decision.Trim().ToUpperInvariant(), result.Decision);
+        Assert.Equal(decision.Trim().Equals("accept", StringComparison.OrdinalIgnoreCase) ? 1 : 0,
+            await _db.VerifiedWorkResults.CountAsync());
+        Assert.Empty(await _db.WorkResultItems.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Decide_Reject_KeepsTheOriginalRejectionAndDoesNotResetTheAppealWindow()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var result = await ServiceAt(RejectedAt.AddHours(5), ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "REJECT", Note = "Hồ sơ chưa đáp ứng yêu cầu" });
+
+        Assert.Equal("REJECTED", result.Appeal.Status);
+        Assert.Equal("REJECTED", result.SubmissionStatus);
+        Assert.Equal("REJECTED", result.WorkStatus);
+        Assert.Null(result.VerificationId);
+        Assert.Equal(RejectedAt, submission.UpdatedAt);
+        Assert.Single(await _db.Verifications.ToListAsync());
+        Assert.Empty(await _db.VerifiedWorkResults.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Decide_AcceptWithVerifiedValue_ContributesKpiOnce()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT", Name = "Work type", Status = RecordStatus.Active };
+        var kpi = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            Code = "KPI",
+            Name = "KPI",
+            Unit = "Điểm",
+            KpiGroupId = Guid.NewGuid(),
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
+            Status = KpiStatus.Active,
+        };
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "P",
+            Name = "Period",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 10, 31),
+            Status = PeriodStatus.Open,
+        };
+        _db.WorkTypes.Add(workType);
+        _db.KpiDefinitions.Add(kpi);
+        _db.EvaluationPeriods.Add(period);
+        _db.WorkTypeKpis.Add(new WorkTypeKpi
+        {
+            Id = Guid.NewGuid(),
+            WorkTypeId = workType.Id,
+            KpiDefinitionId = kpi.Id,
+            EffectiveFrom = period.StartDate,
+        });
+        _db.TargetAssignments.Add(new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = kpi.Id,
+            EmployeeId = submitter.Id,
+            EvaluationPeriodId = period.Id,
+            Version = 1,
+            TargetValue = 100,
+            Status = TargetAssignmentStatus.Active,
+        });
+        submission.Work.WorkTypeId = workType.Id;
+        await _db.SaveChangesAsync();
+        var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
+        var request = new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m };
+
+        var result = await service.DecideAppealAsync(appeal.Id, resolver.Id, request);
+
+        var item = await _db.WorkResultItems.SingleAsync();
+        Assert.Equal(submitter.Id, item.EmployeeId);
+        Assert.Equal(12.5m, item.Value);
+        Assert.Equal(12.5m, (await _db.ActualProgresses.SingleAsync()).Value);
+        Assert.Equal(result.VerificationId, (await _db.VerifiedWorkResults.SingleAsync()).VerificationId);
+        await Assert.ThrowsAsync<ConflictException>(() => service.DecideAppealAsync(appeal.Id, resolver.Id, request));
+        Assert.Single(await _db.WorkResultItems.ToListAsync());
+        Assert.Equal(12.5m, (await _db.ActualProgresses.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task Decide_OverlongNote_IsInvalid()
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
+            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = "ACCEPT", Note = new string('a', 2001) }));
+    }
+
+    [Fact]
+    public async Task Decide_InactiveCaller_IsUnauthorized()
+    {
+        await SeedDepartmentsAsync();
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId, EmployeeStatus.Inactive);
+        await Assert.ThrowsAsync<UnauthorizedException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+    }
+
+    [Fact]
+    public async Task Decide_LockedAccount_IsUnauthorizedEvenWithCachedPermissions()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter));
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        resolver.Account!.IsLocked = true;
+        await _db.SaveChangesAsync();
+        await Assert.ThrowsAsync<UnauthorizedException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Account.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(AppealStatus.Open, appeal.Status);
+    }
+
+    [Theory]
+    [InlineData(null, null, null)]
+    [InlineData("UNKNOWN", null, null)]
+    [InlineData("ADJUST", null, null)]
+    [InlineData("REJECT", "short", null)]
+    [InlineData("ACCEPT", null, -1)]
+    [InlineData("ADJUST", "Bổ sung chứng từ đối soát", 1)]
+    [InlineData("REJECT", "Hồ sơ không đạt yêu cầu", 0)]
+    public async Task Decide_InvalidPayload_StoresNothing(string? decision, string? note, int? value)
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
+            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = decision, Note = note, VerifiedValue = value }));
+        Assert.Empty(await _db.Appeals.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("Own", "MANAGER")]
+    [InlineData("Dept", "OUTSIDE")]
+    [InlineData("", "MANAGER")]
+    public async Task Decide_WithoutPermissionOrOutsideScope_IsForbidden(string scope, string code)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync(code, code == "OUTSIDE" ? _tellerId : _salesId);
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceAt(RejectedAt, ("verification", "decide", scope)).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(AppealStatus.Open, appeal.Status);
+        Assert.Equal(SubmissionStatus.Rejected, submission.Status);
+    }
+
+    [Fact]
+    public async Task Decide_OwnAppeal_IsBlockedEvenForAnAdmin()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter));
+        var exception = await Assert.ThrowsAsync<BusinessRuleException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, submitter.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, exception.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(AppealStatus.Accepted)]
+    [InlineData(AppealStatus.Rejected)]
+    [InlineData(AppealStatus.Withdrawn)]
+    public async Task Decide_AlreadyClosed_IsAConflict(AppealStatus status)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter), status);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var exception = await Assert.ThrowsAsync<ConflictException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(ErrorCodes.AppealInvalidState, exception.ErrorCode);
+        Assert.Single(await _db.Verifications.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("submission")]
+    [InlineData("work")]
+    [InlineData("newer")]
+    public async Task Decide_StaleSubmissionOrWork_IsAConflict(string changed)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        if (changed == "submission")
+        {
+            submission.Status = SubmissionStatus.Approved;
+        }
+        else if (changed == "work")
+        {
+            submission.Work.Status = WorkStatus.Cancelled;
+        }
+        else
+        {
+            _db.ResultSubmissions.Add(new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = submission.WorkId,
+                SubmitterEmployeeId = submitter.Id,
+                SubmissionNo = 2,
+                Status = SubmissionStatus.Submitted,
+                SubmittedAt = RejectedAt,
+                UpdatedAt = RejectedAt,
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        await Assert.ThrowsAsync<ConflictException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(AppealStatus.Open, appeal.Status);
+    }
+
+    [Fact]
+    public async Task Decide_MissingOrEvaluationAppeal_IsNotFound()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var evaluationAppeal = await AddAppealAsync(submitter, null);
+        var service = ServiceAt(RejectedAt, ("*", "*", "All"));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.DecideAppealAsync(
+            Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.DecideAppealAsync(
+            evaluationAppeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+    }
+
     // ----- Create ----------------------------------------------------------------------------
+
+    private async Task<PerformanceEvaluation> AddScoreAsync(Employee employee, decimal score = 100m)
+    {
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "SCORE",
+            Name = "Score period",
+            PeriodType = PeriodType.Year,
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+        };
+        var evaluation = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriod = period,
+            EvaluationProfileId = Guid.NewGuid(),
+            TotalScore = score,
+            Status = PerformanceEvaluationStatus.Calculated,
+        };
+        _db.PerformanceEvaluations.Add(evaluation);
+        await _db.SaveChangesAsync();
+        return evaluation;
+    }
+
+    [Theory]
+    [InlineData(7, true, "MANAGER", -7)]
+    [InlineData(null, true, "TASK_HISTORY", -3)]
+    [InlineData(null, false, "SYSTEM", -5)]
+    public async Task Review_UsesManagerThenAllTimeTaskHistoryThenSetting(int? points, bool history, string source, int held)
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(employee);
+        var appeal = await AddAppealAsync(employee, submission);
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        var evaluation = await AddScoreAsync(employee);
+        var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Dept"));
+        if (history)
+        {
+            await service.DeductTaskScoreAsync(submission.WorkId, manager.Id, new ReviewAppealRequestDto(3, "Task thiếu chứng từ bắt buộc"));
+        }
+
+        var before = evaluation.TotalScore;
+        var entry = await service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(points, "Tạm giữ điểm trong lúc xác minh"));
+        Assert.Equal(source, entry.Source);
+        Assert.Equal(held, entry.Points);
+        Assert.Equal(before + held, evaluation.TotalScore);
+        Assert.Equal(AppealStatus.UnderReview, appeal.Status);
+        await Assert.ThrowsAsync<ConflictException>(() => service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(1, "Không được giữ lần thứ hai")));
+        await service.DecideAppealAsync(appeal.Id, manager.Id, new DecideAppealRequestDto { Decision = "ACCEPT" });
+        Assert.Equal(before, evaluation.TotalScore);
+        var refund = await _db.ScoreEntries.SingleAsync(e => e.Kind == ScoreEntryKind.Refund);
+        Assert.Equal(entry.Id, refund.ReversesEntryId);
+        Assert.Equal(-entry.Points, refund.Points);
+    }
+
+    [Theory]
+    [InlineData("REJECT")]
+    [InlineData("ADJUST")]
+    public async Task Review_RejectOrAdjust_DoesNotRefundImmediately(string decision)
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(employee);
+        var appeal = await AddAppealAsync(employee, submission);
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        var evaluation = await AddScoreAsync(employee);
+        var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "All"));
+        await service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(5, "Tạm giữ điểm trong lúc xác minh"));
+        await service.DisputeScoreAsync(appeal.Id, employee.Id, new ScoreDisputeRequestDto("Tôi không đồng ý với khoản điểm giữ"));
+        Assert.NotNull((await service.GetAppealByIdAsync(appeal.Id, manager.Id)).ScoreDisputeReason);
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.DisputeScoreAsync(appeal.Id, manager.Id, new ScoreDisputeRequestDto("Không được phản hồi thay nhân viên")));
+        await service.DecideAppealAsync(appeal.Id, manager.Id, new DecideAppealRequestDto { Decision = decision, Note = "Cần chứng từ bổ sung để xác minh" });
+        Assert.Equal(95, evaluation.TotalScore);
+        Assert.Single(await service.GetScoreEntriesAsync(appeal.Id, employee.Id));
+        if (decision == "ADJUST")
+        {
+            await new VerificationService(_db, NullLogger<VerificationService>.Instance, new FixedTime(RejectedAt.AddHours(6)), new GrantingPermissions([("verification", "decide", "All")]))
+                .SubmitDecisionAsync(submission.Id, manager.Account!.Id, new G54.BLL.Dtos.Verification.SubmitVerificationDecisionDto { Decision = "APPROVED" });
+            Assert.Equal(100, evaluation.TotalScore);
+        }
+    }
+
+    [Fact]
+    public async Task Review_WithoutPermission_ChangesNothing()
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(employee, await AddSubmissionAsync(employee));
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        var evaluation = await AddScoreAsync(employee, 2);
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceAt(RejectedAt).ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(1, "Không có quyền giữ điểm người khác")));
+        Assert.Equal(2, evaluation.TotalScore);
+        Assert.Equal(AppealStatus.Open, appeal.Status);
+        Assert.Empty(await _db.ScoreEntries.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Review_HoldLargerThanScore_MakesTotalNegativeAndRefundRestoresIt()
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(employee, await AddSubmissionAsync(employee));
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        var evaluation = await AddScoreAsync(employee, 2);
+        var service = ServiceAt(RejectedAt, ("verification", "decide", "All"));
+
+        await service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(5, "Điểm giữ vượt quá tổng hiện tại"));
+        Assert.Equal(-3, evaluation.TotalScore);
+
+        await service.DecideAppealAsync(appeal.Id, manager.Id, new DecideAppealRequestDto { Decision = "ACCEPT" });
+        Assert.Equal(2, evaluation.TotalScore);
+    }
+
+    [Fact]
+    public async Task Decide_Accept_WhenHeldPeriodIsLocked_RefundsIntoCurrentPeriod()
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(employee, await AddSubmissionAsync(employee));
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        var held = await AddScoreAsync(employee, 80);
+        var service = ServiceAt(RejectedAt, ("verification", "decide", "All"));
+        var hold = await service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(5, "Tạm giữ điểm trong lúc xác minh"));
+        Assert.Equal(75, held.TotalScore);
+
+        held.EvaluationPeriod.Status = PeriodStatus.Locked;
+        var next = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriod = new EvaluationPeriod
+            {
+                Id = Guid.NewGuid(),
+                Code = "NEXT",
+                Name = "Next period",
+                PeriodType = PeriodType.Year,
+                StartDate = new DateOnly(2026, 10, 1),
+                EndDate = new DateOnly(2026, 12, 31),
+                Status = PeriodStatus.Open,
+            },
+            EvaluationProfileId = Guid.NewGuid(),
+            TotalScore = 90,
+            Status = PerformanceEvaluationStatus.Calculated,
+        };
+        _db.PerformanceEvaluations.Add(next);
+        await _db.SaveChangesAsync();
+
+        await service.DecideAppealAsync(appeal.Id, manager.Id, new DecideAppealRequestDto { Decision = "ACCEPT" });
+
+        Assert.Equal(75, held.TotalScore);
+        Assert.Equal(95, next.TotalScore);
+        var refund = await _db.ScoreEntries.SingleAsync(e => e.Kind == ScoreEntryKind.Refund);
+        Assert.Equal(hold.Id, refund.ReversesEntryId);
+        Assert.Equal(next.Id, refund.EvaluationId);
+    }
+
+    [Fact]
+    public async Task Setting_AdminCanUpdateAndNewHoldUsesPersistedValue()
+    {
+        var employee = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(employee, await AddSubmissionAsync(employee));
+        var manager = await AddEmployeeAsync("MGR", _salesId);
+        await AddScoreAsync(employee);
+        var role = new Role { Id = Guid.NewGuid(), Code = "ADMIN", Name = "Admin" };
+        _db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), AccountId = manager.Account!.Id, Role = role });
+        await _db.SaveChangesAsync();
+        var service = ServiceAt(RejectedAt, ("*", "*", "All"));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateScoreSettingAsync(employee.Id, new AppealScoreSettingDto(8)));
+        await service.UpdateScoreSettingAsync(manager.Id, new AppealScoreSettingDto(8));
+        Assert.Equal(8, (await service.GetScoreSettingAsync(manager.Id)).DefaultPoints);
+        var entry = await service.ReviewAppealAsync(appeal.Id, manager.Id, new ReviewAppealRequestDto(null, "Tạm giữ theo cấu hình cập nhật"));
+        Assert.Equal(-8, entry.Points);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(1001)]
+    public async Task Review_InvalidPoints_AreRejected(int points)
+    {
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).ReviewAppealAsync(Guid.NewGuid(), Guid.NewGuid(), new ReviewAppealRequestDto(points, "Lý do đủ dài để kiểm tra")));
+    }
 
     [Fact]
     public async Task Create_WithinWindow_StoresAnOpenAppealWithItsEvidence()
@@ -271,6 +714,20 @@ public sealed class AppealServiceTests : IDisposable
         var result = await ServiceAt(RejectedAt.AddHours(60)).CreateAppealAsync(submission.Id, submitter.Id, Request());
 
         Assert.Equal("OPEN", result.Status);
+    }
+
+    [Fact]
+    public async Task Create_UsesTheConfiguredAppealWindow()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        _appealRejectedHours = 24;
+        var service = ServiceAt(RejectedAt.AddHours(30));
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.CreateAppealAsync(submission.Id, submitter.Id, Request()));
+
+        Assert.Equal(ErrorCodes.AppealWindowExpired, ex.ErrorCode);
     }
 
     [Fact]
@@ -866,6 +1323,120 @@ public sealed class AppealServiceTests : IDisposable
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAppealByIdAsync(Guid.NewGuid(), submitter.Id));
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAppealByIdAsync(evaluationAppeal.Id, submitter.Id));
+    }
+
+    // ----- BR-31: Disputed_Pending -----------------------------------------------------------
+
+    private async Task<PerformanceEvaluation> AddEvaluationAsync(
+        Employee employee,
+        PerformanceEvaluationStatus status,
+        DateOnly? start = null,
+        DateOnly? end = null,
+        PeriodStatus periodStatus = PeriodStatus.Open)
+    {
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"P-{Guid.NewGuid():N}"[..10],
+            Name = "Period",
+            PeriodType = PeriodType.Month,
+            StartDate = start ?? new DateOnly(2026, 10, 1),
+            EndDate = end ?? new DateOnly(2026, 10, 31),
+            Status = periodStatus,
+            UpdatedAt = RejectedAt,
+        };
+        var evaluation = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = Guid.NewGuid(),
+            TotalScore = 88m,
+            Status = status,
+            UpdatedAt = RejectedAt,
+        };
+        _db.EvaluationPeriods.Add(period);
+        _db.PerformanceEvaluations.Add(evaluation);
+        await _db.SaveChangesAsync();
+        return evaluation;
+    }
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.Calculated)]
+    [InlineData(PerformanceEvaluationStatus.InReview)]
+    [InlineData(PerformanceEvaluationStatus.Approved)]
+    public async Task Create_MarksTheScoreOfThePeriodDisputedPending_AndKeepsTheStatusItHad(PerformanceEvaluationStatus before)
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, before);
+        var now = RejectedAt.AddHours(5);
+
+        await ServiceAt(now).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored.Status);
+        Assert.Equal(before, stored.PreDisputeStatus);
+        Assert.Equal(now, stored.DisputedAt);
+        Assert.Equal(88m, stored.TotalScore);
+    }
+
+    [Fact]
+    public async Task Create_LeavesDraftFinalLockedOtherPeriodAndOtherEmployeeScoresAlone()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var colleague = await AddEmployeeAsync("COLLEAGUE", _salesTeamId);
+        var submission = await AddSubmissionAsync(submitter);
+        var draft = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Draft);
+        var final = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Final);
+        var locked = await AddEvaluationAsync(
+            submitter, PerformanceEvaluationStatus.Approved, periodStatus: PeriodStatus.Locked);
+        var otherPeriod = await AddEvaluationAsync(
+            submitter, PerformanceEvaluationStatus.Calculated, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
+        var others = await AddEvaluationAsync(colleague, PerformanceEvaluationStatus.Calculated);
+
+        await ServiceAt(RejectedAt.AddHours(5)).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        foreach (var untouched in new[] { draft, final, locked, otherPeriod, others })
+        {
+            var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == untouched.Id);
+            Assert.Equal(untouched.Status, stored.Status);
+            Assert.Null(stored.PreDisputeStatus);
+        }
+    }
+
+    [Fact]
+    public async Task Withdraw_RestoresThePreDisputeStatusOfTheScore()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var created = await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
+
+        await ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(created.Id, submitter.Id);
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Null(stored.PreDisputeStatus);
+        Assert.Null(stored.DisputedAt);
+    }
+
+    [Fact]
+    public async Task Withdraw_KeepsTheScoreDisputed_WhileAnotherAppealOfThePeriodIsInProgress()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var first = await AddSubmissionAsync(submitter);
+        var second = await AddSubmissionAsync(submitter);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Calculated);
+        var service = ServiceAt(RejectedAt.AddHours(2));
+        var firstAppeal = await service.CreateAppealAsync(first.Id, submitter.Id, Request());
+        await service.CreateAppealAsync(second.Id, submitter.Id, Request());
+
+        await service.WithdrawAppealAsync(firstAppeal.Id, submitter.Id);
+
+        var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Disputed, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, stored.PreDisputeStatus);
     }
 
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider

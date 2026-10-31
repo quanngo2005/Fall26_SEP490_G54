@@ -1,0 +1,362 @@
+@let t = localization.userAccounts;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [class.has-drawer]="selectedId()" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+
+      <div class="list-toolbar">
+        <h1>{{t.title}}</h1>
+        <button type="button" class="button button-primary" (click)="openCreate()">
+          + {{t.create}}
+        </button>
+      </div>
+
+      <div class="quick-cards">
+        <button
+          type="button"
+          class="quick-card"
+          [class.is-on]="status() === 'ACTIVE'"
+          (click)="setStatusCard('ACTIVE')"
+        >
+          <span>{{t.cardActive}}</span>
+          <strong>{{counts()?.activeCount ?? '—'}}</strong>
+        </button>
+        <button
+          type="button"
+          class="quick-card"
+          [class.is-on]="status() === 'LOCKED'"
+          (click)="setStatusCard('LOCKED')"
+        >
+          <span>{{t.cardLocked}}</span>
+          <strong>{{counts()?.lockedCount ?? '—'}}</strong>
+        </button>
+        <div class="quick-card is-static">
+          <span>{{t.cardNoAccount}}</span>
+          <strong>
+            {{counts()?.employeesWithoutAccountCount ?? '—'}}
+            @if (counts()?.employeesWithoutAccountCount) {
+              <button type="button" class="link-button" (click)="openCreate()">
+                {{t.cardView}}
+              </button>
+            }
+          </strong>
+        </div>
+      </div>
+
+      <div class="list-filters">
+        <input
+          type="search"
+          class="input search-input"
+          [ngModel]="keyword()"
+          (ngModelChange)="keyword.set($event)"
+          (change)="filterChanged()"
+          [placeholder]="t.search"
+          [attr.aria-label]="t.search"
+        />
+        <select
+          class="select filter-select"
+          [ngModel]="roleId()"
+          (ngModelChange)="roleId.set($event); filterChanged()"
+          [attr.aria-label]="t.role"
+        >
+          <option value="">{{t.roleAll}}</option>
+          @for (role of roles(); track role.id) {
+            <option [value]="role.id">{{role.name}}</option>
+          }
+        </select>
+        <select
+          class="select filter-select"
+          [ngModel]="departmentId()"
+          (ngModelChange)="departmentId.set($event); filterChanged()"
+          [attr.aria-label]="t.department"
+        >
+          <option value="">{{t.departmentAll}}</option>
+          @for (department of departments(); track department.id) {
+            <option [value]="department.id">{{department.code}}</option>
+          }
+        </select>
+        <select
+          class="select filter-select"
+          [ngModel]="status()"
+          (ngModelChange)="status.set($event); filterChanged()"
+          [attr.aria-label]="t.status"
+        >
+          <option value="">{{t.statusAll}}</option>
+          <option value="ACTIVE">{{t.statusPrefix}}{{t.statusActive}}</option>
+          <option value="LOCKED">{{t.statusPrefix}}{{t.statusLocked}}</option>
+          <option value="EMPLOYEE_TERMINATED">{{t.statusPrefix}}{{t.statusTerminated}}</option>
+        </select>
+      </div>
+      @if (filtersFailed()) {
+        <p class="field-error" role="alert">{{t.filtersLoadError}}</p>
+      }
+
+      @if (loading()) {
+        <div class="state-card"><span class="spinner" aria-hidden="true"></span></div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="surface-card table-card">
+          <table class="account-table">
+            <thead>
+              <tr>
+                <th>{{t.username}}</th>
+                <th>{{t.employeeCode}}</th>
+                <th>{{t.fullName}}</th>
+                <th>{{t.department}}</th>
+                <th>{{t.position}}</th>
+                <th>{{t.role}}</th>
+                <th>{{t.status}}</th>
+                <th>{{t.lastLogin}}</th>
+                <th class="center">{{t.actions}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (account of items(); track account.id) {
+                <tr [class.is-selected]="account.id === selectedId()">
+                  <td class="username">{{account.username}}</td>
+                  <td>{{account.employeeCode}}</td>
+                  <td>{{account.fullName}}</td>
+                  <td>{{account.departmentCode}}</td>
+                  <td>{{account.jobPositionTitle ?? '—'}}</td>
+                  <td>
+                    <span class="tag">{{account.roleName}}</span>
+                  </td>
+                  <td>
+                    <span class="tag status" [class]="'tag status ' + statusClass(account.status)">
+                      {{statusLabel(account.status)}}
+                    </span>
+                  </td>
+                  <td class="mono">{{account.lastLoginAt | appDate: dateTime}}</td>
+                  <td class="center row-actions">
+                    <button type="button" class="link-button" (click)="openDrawer(account)">
+                      {{t.view}}
+                    </button>
+                    @if (account.status !== 'EMPLOYEE_TERMINATED') {
+                      <button type="button" class="link-button" (click)="openEdit(account)">
+                        {{t.edit}}
+                      </button>
+                      <button
+                        type="button"
+                        class="link-button"
+                        disabled
+                        [title]="t.moreUnavailable"
+                        [attr.aria-label]="t.more"
+                      >
+                        ⋯
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="9" class="empty">{{t.empty}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="table-footer">
+            <span>{{range()}}</span>
+            <div class="pager">
+              <nav class="pager-pages" [attr.aria-label]="t.pagination">
+                @for (number of pages(); track number) {
+                  <button
+                    type="button"
+                    class="page-button"
+                    [class.is-on]="number === page()"
+                    [attr.aria-current]="number === page() ? 'page' : null"
+                    (click)="goTo(number)"
+                  >
+                    {{number}}
+                  </button>
+                }
+              </nav>
+              <select
+                class="select size-select"
+                [ngModel]="pageSize()"
+                (ngModelChange)="pageSize.set(+$event); filterChanged()"
+                [attr.aria-label]="t.pageSize"
+              >
+                @for (size of pageSizes; track size) {
+                  <option [ngValue]="size">{{t.pageSize.replace('{size}', '' + size)}}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+        <p class="footnote">{{t.footnote}}</p>
+      }
+    </main>
+  </div>
+
+  @if (selectedId()) {
+    <aside class="drawer" role="dialog" [attr.aria-label]="detail()?.username ?? t.title">
+      @if (detail(); as account) {
+        <header class="drawer-head">
+          <div>
+            <h2>{{account.username}}</h2>
+            <p>SCR-ADM-02 · {{account.fullName}}</p>
+          </div>
+          <span class="tag status" [class]="'tag status ' + statusClass(account.status)">
+            {{statusLabel(account.status)}}
+          </span>
+          <button
+            type="button"
+            class="icon-button"
+            (click)="closeDrawer()"
+            [attr.aria-label]="t.close"
+          >
+            ×
+          </button>
+        </header>
+
+        <nav class="tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            [class.is-active]="tab() === 'info'"
+            [attr.aria-selected]="tab() === 'info'"
+            (click)="tab.set('info')"
+          >
+            {{t.tabInfo}}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            [class.is-active]="tab() === 'history'"
+            [attr.aria-selected]="tab() === 'history'"
+            (click)="tab.set('history')"
+          >
+            {{t.tabHistory}}
+          </button>
+        </nav>
+
+        <section class="drawer-body" role="tabpanel">
+          @if (tab() === 'info') {
+            <h3 class="section-title">{{t.linkedEmployee}}</h3>
+            <div class="employee-line">
+              <span class="avatar" aria-hidden="true">{{initials(account.fullName)}}</span>
+              <strong>{{account.fullName}}</strong>
+              <span class="muted">{{account.employeeCode}} · {{account.departmentCode}}</span>
+              <a class="link-button" [routerLink]="['/employee-detail', account.employeeCode]">
+                {{t.openProfile}}
+              </a>
+            </div>
+
+            <h3 class="section-title">{{t.account}}</h3>
+            <dl class="info-grid">
+              <div>
+                <dt>{{t.role}}</dt>
+                <dd>{{account.roleName}}</dd>
+              </div>
+              <div>
+                <dt>{{t.lastLogin}}</dt>
+                <dd class="mono">{{account.lastLoginAt | appDate: dateTime}}</dd>
+              </div>
+              <div>
+                <dt>{{t.createdAt}}</dt>
+                <dd>{{account.createdAt | appDate}} · {{account.createdBy}}</dd>
+              </div>
+              <div>
+                <dt>{{t.passwordChangedAt}}</dt>
+                <dd>{{account.passwordChangedAt | appDate}}</dd>
+              </div>
+            </dl>
+          }
+
+          @if (tab() === 'history' || (tab() === 'info' && account.history.length)) {
+            @if (tab() === 'info') {
+              <h3 class="section-title">{{t.recentHistory}}</h3>
+            }
+            @if (account.history.length) {
+              <div class="history-card">
+                <div class="history-row history-head">
+                  <span>{{t.time}}</span
+                  ><span>{{t.event}}</span
+                  ><span>{{t.by}}</span>
+                </div>
+                @for (
+                  entry of tab() === 'info' ? account.history.slice(0, 3) : account.history;
+                  track $index
+                ) {
+                  <div class="history-row">
+                    <span class="mono">{{entry.occurredAt | appDate: dateTime}}</span>
+                    <span>{{entry.event}}</span>
+                    <span>{{entry.actor}}</span>
+                  </div>
+                }
+              </div>
+            } @else {
+              <p class="muted">{{t.noHistory}}</p>
+            }
+          }
+        </section>
+
+        <footer class="drawer-foot">
+          <button
+            type="button"
+            class="button button-secondary"
+            disabled
+            [title]="t.actionUnavailable"
+          >
+            {{t.resetPassword}}
+          </button>
+          <span class="spacer"></span>
+          @if (account.status !== 'EMPLOYEE_TERMINATED') {
+            <button
+              type="button"
+              class="button button-danger"
+              disabled
+              [title]="t.actionUnavailable"
+            >
+              {{t.lock}}
+            </button>
+            <button type="button" class="button button-primary" (click)="openEdit(account)">
+              {{t.edit}}
+            </button>
+          }
+        </footer>
+      } @else {
+        <header class="drawer-head">
+          <div></div>
+          <button
+            type="button"
+            class="icon-button"
+            (click)="closeDrawer()"
+            [attr.aria-label]="t.close"
+          >
+            ×
+          </button>
+        </header>
+        <section class="drawer-body">
+          @if (detailFailed()) {
+            <div class="tab-state" role="alert">
+              <p>{{t.detailError}}</p>
+              <button type="button" class="button button-secondary" (click)="retryDetail()">
+                {{t.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="tab-state"><span class="spinner" aria-hidden="true"></span></div>
+          }
+        </section>
+      }
+    </aside>
+  }
+
+  @if (formMode(); as mode) {
+    <app-user-account-form-modal
+      [account]="mode === 'edit' ? detail() : null"
+      [roles]="roles()"
+      (closed)="closeForm()"
+      (saved)="onSaved($event)"
+    />
+  }
+</div>

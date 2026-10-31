@@ -1,3 +1,6 @@
+using System.Data;
+using System.Linq.Expressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -8,15 +11,17 @@ using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class AppealService(
+public sealed partial class AppealService(
     AppDbContext db,
     IPermissionService permissions,
     IStorageService storage,
     ILogger<AppealService> logger,
-    TimeProvider time) : IAppealService
+    TimeProvider time,
+    IOptions<SystemParametersOptions> parameters) : IAppealService
 {
     private const int MaxReasonLength = 2000;
     private const int MaxFileCount = 10;
@@ -24,7 +29,148 @@ public sealed class AppealService(
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
     private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
 
-    private static readonly TimeSpan AppealWindow = TimeSpan.FromHours(48);
+    /// <summary>An appeal still awaiting a decision (OPEN or UNDER_REVIEW); WITHDRAWN and decided ones are not.</summary>
+    private static readonly Expression<Func<Appeal, bool>> InProgress =
+        a => a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview;
+
+    private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogAppealDecided =
+        LoggerMessage.Define<string, Guid, Guid>(
+            LogLevel.Information,
+            new EventId(3, "AppealDecided"),
+            "Appeal audit: Decision={Decision}, AppealId={AppealId}, ResolverId={ResolverId}");
+
+    public async Task<AppealDecisionResultDto> DecideAppealAsync(
+        Guid appealId,
+        Guid userId,
+        DecideAppealRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var decision = request.Decision?.Trim().ToUpperInvariant();
+        var note = request.Note?.Trim();
+        if (decision is not ("ACCEPT" or "ADJUST" or "REJECT"))
+        {
+            throw new ValidationException("Quyết định khiếu nại chỉ được là ACCEPT, ADJUST hoặc REJECT.");
+        }
+
+        if (note?.Length > MaxReasonLength
+            || (decision is "ADJUST" or "REJECT" && (string.IsNullOrEmpty(note) || note.Length < 10)))
+        {
+            throw new ValidationException("Ghi chú tối đa 2000 ký tự; yêu cầu bổ sung hoặc từ chối phải có lý do tối thiểu 10 ký tự.");
+        }
+
+        if (request.VerifiedValue is < 0 || (decision != "ACCEPT" && request.VerifiedValue.HasValue))
+        {
+            throw new ValidationException("Sản lượng công nhận phải không âm và chỉ được gửi khi ACCEPT.");
+        }
+
+        var caller = await ResolveCallerAsync(userId, cancellationToken);
+        var visibility = await ResolveVisibilityAsync(caller, cancellationToken);
+        // Serializable isolation prevents competing appeal decisions from both committing.
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
+        var appeal = await db.Appeals
+            .Include(a => a.Employee)
+            .Include(a => a.Evidences)
+            .Include(a => a.ResultSubmission!)
+                .ThenInclude(s => s.SubmitterEmployee)
+            .Include(a => a.ResultSubmission!)
+                .ThenInclude(s => s.Verifications)
+            .Include(a => a.ResultSubmission!)
+                .ThenInclude(s => s.Work)
+                    .ThenInclude(w => w.WorkType)
+                        .ThenInclude(wt => wt!.WorkTypeKpis)
+            .FirstOrDefaultAsync(a => a.Id == appealId && a.ResultSubmissionId != null, cancellationToken)
+            ?? throw new NotFoundException("Khiếu nại", appealId);
+        var submission = appeal.ResultSubmission!;
+        if (!visibility.SeesAll
+            && (!visibility.DepartmentIds.Contains(appeal.Employee.DepartmentId)
+                || !visibility.DepartmentIds.Contains(submission.SubmitterEmployee.DepartmentId)))
+        {
+            throw new ForbiddenException("Bạn không có quyền xử lý khiếu nại này.");
+        }
+
+        if (appeal.EmployeeId == caller.Employee.Id || submission.SubmitterEmployeeId == caller.Employee.Id)
+        {
+            throw new BusinessRuleException(ErrorCodes.MakerCannotBeChecker, statusCode: StatusCodes.Status422UnprocessableEntity);
+        }
+
+        if (appeal.Status is not (AppealStatus.Open or AppealStatus.UnderReview)
+            || submission.Status != SubmissionStatus.Rejected
+            || submission.Work.Status != WorkStatus.Rejected
+            || await db.ResultSubmissions.AnyAsync(
+                s => s.WorkId == submission.WorkId && s.SubmissionNo > submission.SubmissionNo, cancellationToken))
+        {
+            throw InvalidDecisionState();
+        }
+
+        var now = time.GetUtcNow();
+        Verification? verification = null;
+        try
+        {
+            if (decision != "REJECT")
+            {
+                verification = new Verification
+                {
+                    Id = Guid.NewGuid(),
+                    ResultSubmissionId = submission.Id,
+                    VerifierEmployeeId = caller.Employee.Id,
+                    RoundNo = submission.Verifications.Select(v => v.RoundNo).DefaultIfEmpty(0).Max() + 1,
+                    Decision = decision == "ACCEPT" ? VerificationDecision.Approved : VerificationDecision.NeedMoreInfo,
+                    Comment = string.IsNullOrEmpty(note) ? null : note,
+                    VerifiedAt = now,
+                    UpdatedAt = now,
+                };
+                if (decision == "ACCEPT")
+                {
+                    await VerifiedResultRecorder.RecordAsync(
+                        db, logger, time, verification, submission.Work, submission.SubmitterEmployeeId, request.VerifiedValue, now, cancellationToken);
+                }
+
+                db.Verifications.Add(verification);
+                // The lifecycle trigger rejects new verifications after a submission is APPROVED.
+                // Persist the verification first, inside the same transaction as the state changes.
+                if (transaction is not null)
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+
+                submission.Status = decision == "ACCEPT" ? SubmissionStatus.Approved : SubmissionStatus.UnderReview;
+                submission.Work.Status = decision == "ACCEPT" ? WorkStatus.Verified : WorkStatus.InProgress;
+                submission.UpdatedAt = now;
+                submission.Work.UpdatedAt = now;
+            }
+
+            appeal.Status = decision == "REJECT" ? AppealStatus.Rejected : AppealStatus.Accepted;
+            appeal.Note = string.IsNullOrEmpty(note) ? null : note;
+            appeal.ResolvedBy = caller.Employee.Id;
+            // Use a tracked resolver; attaching the no-tracking caller graph marks account/employee as modified.
+            appeal.ResolvedByNavigation = await db.Employees.FindAsync([caller.Employee.Id], cancellationToken);
+            appeal.DecidedAt = now;
+            appeal.UpdatedAt = now;
+            if (decision == "ACCEPT")
+            {
+                await AppealScoreLedger.RefundAsync(db, appeal.Id, caller.Employee.Id, time.GetBusinessToday(), now, cancellationToken);
+            }
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex) when (PostgresConflict.IsSerializationFailure(ex))
+        {
+            throw InvalidDecisionState();
+        }
+
+        LogAppealDecided(logger, decision, appeal.Id, caller.Employee.Id, null);
+        return new AppealDecisionResultDto(
+            MapDetail(appeal), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
+    }
+
+    private static ConflictException InvalidDecisionState() =>
+        new("Khiếu nại hoặc hồ sơ không còn ở trạng thái cho phép xử lý.", ErrorCodes.AppealInvalidState);
 
     private static readonly Action<ILogger, Guid, Guid, Guid, Exception?> LogAppealFiled =
         LoggerMessage.Define<Guid, Guid, Guid>(
@@ -86,7 +232,9 @@ public sealed class AppealService(
             .Where(v => v.Decision == VerificationDecision.Rejected)
             .Max(v => v.VerifiedAt)
             ?? submission.UpdatedAt;
-        if (now - rejectedAt > AppealWindow)
+        var appealWindowHours = parameters.Value.AppealRejectedHours;
+        var appealWindow = TimeSpan.FromHours(appealWindowHours);
+        if (now - rejectedAt > appealWindow)
         {
             throw new BusinessRuleException(
                 ErrorCodes.AppealWindowExpired,
@@ -115,6 +263,9 @@ public sealed class AppealService(
             UpdatedAt = now,
         };
         db.Appeals.Add(appeal);
+
+        // BR-31: the score of the period this result belongs to is frozen as Disputed_Pending until the appeal ends.
+        await MarkDisputedPendingAsync(caller.Employee.Id, submission.SubmittedAt, now, cancellationToken);
 
         foreach (var file in uploadedFiles)
         {
@@ -155,6 +306,9 @@ public sealed class AppealService(
     {
         var caller = await ResolveCallerAsync(userId, cancellationToken);
 
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
         var appeal = await db.Appeals
             .Include(a => a.Employee)
             .Include(a => a.ResolvedByNavigation)
@@ -176,9 +330,24 @@ public sealed class AppealService(
                 ErrorCodes.AppealInvalidState);
         }
 
+        var now = time.GetUtcNow();
         appeal.Status = AppealStatus.Withdrawn;
-        appeal.UpdatedAt = time.GetUtcNow();
-        await db.SaveChangesAsync(cancellationToken);
+        appeal.UpdatedAt = now;
+
+        // BR-31: give the score back its previous status unless another appeal of the period is still in progress.
+        await ReleaseDisputedPendingAsync(appeal.Id, appeal.EmployeeId, appeal.ResultSubmission!.SubmittedAt, now, cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex) when (PostgresConflict.IsSerializationFailure(ex))
+        {
+            throw InvalidDecisionState();
+        }
 
         LogAppealWithdrawn(logger, appeal.Id, appeal.ResultSubmissionId!.Value, caller.Employee.Id, null);
 
@@ -278,14 +447,98 @@ public sealed class AppealService(
         return MapDetail(appeal);
     }
 
+    /// <summary>
+    /// BR-31: marks every disputable evaluation of the employee whose period covers the submission date as
+    /// <c>DISPUTED</c> (Disputed_Pending). Drafts carry no score and FINAL / locked-period scores cannot change.
+    /// Only changes tracked entities; the caller saves them together with the appeal.
+    /// </summary>
+    private async Task MarkDisputedPendingAsync(
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var evaluations = await LoadEvaluationsOfPeriodAsync(employeeId, submittedAt, cancellationToken);
+        foreach (var evaluation in evaluations)
+        {
+            if (evaluation.Status is not (PerformanceEvaluationStatus.Calculated
+                    or PerformanceEvaluationStatus.InReview
+                    or PerformanceEvaluationStatus.Approved)
+                || evaluation.EvaluationPeriod.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+            {
+                continue;
+            }
+
+            evaluation.PreDisputeStatus = evaluation.Status;
+            evaluation.Status = PerformanceEvaluationStatus.Disputed;
+            evaluation.DisputedAt = now;
+            evaluation.UpdatedAt = now;
+        }
+    }
+
+    /// <summary>
+    /// BR-31: restores the pre-dispute status of the employee's disputed evaluations that have no other appeal in
+    /// progress. <paramref name="appealId"/> is the appeal being closed and is ignored when looking for others.
+    /// </summary>
+    private async Task ReleaseDisputedPendingAsync(
+        Guid appealId,
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var evaluations = await LoadEvaluationsOfPeriodAsync(employeeId, submittedAt, cancellationToken);
+        foreach (var evaluation in evaluations.Where(e => e.IsDisputedPending()))
+        {
+            var period = evaluation.EvaluationPeriod;
+            var from = StartOfBusinessDay(period.StartDate);
+            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
+
+            var anotherInProgress = await db.Appeals
+                .Where(InProgress)
+                .AnyAsync(
+                    a => a.Id != appealId
+                        && a.EmployeeId == employeeId
+                        && a.ResultSubmissionId != null
+                        && a.ResultSubmission!.SubmittedAt >= from
+                        && a.ResultSubmission.SubmittedAt < to,
+                    cancellationToken);
+            if (anotherInProgress)
+            {
+                continue;
+            }
+
+            evaluation.Status = evaluation.PreDisputeStatus ?? PerformanceEvaluationStatus.Calculated;
+            evaluation.PreDisputeStatus = null;
+            evaluation.DisputedAt = null;
+            evaluation.UpdatedAt = now;
+        }
+    }
+
+    /// <summary>The employee's evaluations whose period contains the submission date (UTC+7 calendar day).</summary>
+    private Task<List<PerformanceEvaluation>> LoadEvaluationsOfPeriodAsync(
+        Guid employeeId,
+        DateTimeOffset submittedAt,
+        CancellationToken cancellationToken)
+    {
+        var date = DateOnly.FromDateTime(submittedAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
+        return db.PerformanceEvaluations
+            .Include(e => e.EvaluationPeriod)
+            .Where(e => e.EmployeeId == employeeId
+                && e.EvaluationPeriod.StartDate <= date
+                && e.EvaluationPeriod.EndDate >= date)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
+        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime(); // Npgsql only writes UTC offsets.
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 
     private Task<bool> HasAppealInProgressAsync(Guid submissionId, CancellationToken cancellationToken)
-        => db.Appeals.AnyAsync(
-            a => a.ResultSubmissionId == submissionId
-                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview),
-            cancellationToken);
+        => db.Appeals
+            .Where(InProgress)
+            .AnyAsync(a => a.ResultSubmissionId == submissionId, cancellationToken);
 
     private Task<Appeal?> LoadAppealAsync(Guid appealId, CancellationToken cancellationToken)
         => db.Appeals.AsNoTracking()
@@ -329,7 +582,8 @@ public sealed class AppealService(
             appeal.Note,
             appeal.ResolvedBy,
             appeal.ResolvedByNavigation?.FullName,
-            evidences);
+            evidences,
+            appeal.ScoreDisputeReason);
     }
 
     private async Task<Caller> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)
@@ -338,7 +592,7 @@ public sealed class AppealService(
             .Include(e => e.Account)
             .FirstOrDefaultAsync(e => e.Id == userId || (e.Account != null && e.Account.Id == userId), cancellationToken);
 
-        if (employee is null || employee.Status != EmployeeStatus.Active)
+        if (employee is null || employee.Status != EmployeeStatus.Active || employee.Account is { IsLocked: true })
         {
             throw new UnauthorizedException("Không tìm thấy thông tin nhân viên hợp lệ hoặc tài khoản đã bị khóa.");
         }

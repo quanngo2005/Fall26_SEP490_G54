@@ -163,29 +163,46 @@ public sealed class PerformanceScoreFormulaTests
 
     // ----- Group ----------------------------------------------------------------------------
 
+    /// <summary>A group whose parts all carry the same weight, so the weighted mean equals the plain mean.</summary>
     private static GroupScoreInput Group(params decimal?[] scores) => new(
         Guid.NewGuid(),
         "KD",
         70m,
-        scores.Select(s => new KpiScoreEntry(Guid.NewGuid(), "K", new KpiScoreResult(s, s, s))).ToList());
+        scores.Select(s => new GroupScorePart(100m / scores.Length, s)).ToList());
+
+    private static GroupScoreInput Weighted(params (decimal Weight, decimal? Score)[] parts) => new(
+        Guid.NewGuid(),
+        "KD",
+        70m,
+        parts.Select(p => new GroupScorePart(p.Weight, p.Score)).ToList());
 
     [Fact]
-    public void CalculateGroup_IsTheMeanOfTheScoredKpis()
+    public void CalculateGroup_WithEqualWeights_IsTheMeanOfTheScoredParts()
     {
         Assert.Equal(60m, _formula.CalculateGroup(Group(40m, 80m)));
     }
 
     [Fact]
-    public void CalculateGroup_IgnoresKpisWithoutAScore()
+    public void CalculateGroup_WeightsEachPartByItsShareAmongItsSiblings()
     {
+        // 90 x 60% + 110 x 40% = 98 (the plain mean would be 100).
+        Assert.Equal(98m, _formula.CalculateGroup(Weighted((60m, 90m), (40m, 110m))));
+    }
+
+    [Fact]
+    public void CalculateGroup_AMissingPartLeavesItsShareToTheOthers()
+    {
+        // 90 x 60 / 60 = 90, not 90 x 60% = 54.
+        Assert.Equal(90m, _formula.CalculateGroup(Weighted((60m, 90m), (40m, null))));
         Assert.Equal(80m, _formula.CalculateGroup(Group(null, 80m)));
     }
 
     [Fact]
-    public void CalculateGroup_WithNoScoredKpi_HasNoScore()
+    public void CalculateGroup_WithNoScoredPart_HasNoScore()
     {
         Assert.Null(_formula.CalculateGroup(Group()));
         Assert.Null(_formula.CalculateGroup(Group(null, null)));
+        Assert.Null(_formula.CalculateGroup(Weighted((60m, null), (40m, null))));
     }
 
     // ----- Total ----------------------------------------------------------------------------

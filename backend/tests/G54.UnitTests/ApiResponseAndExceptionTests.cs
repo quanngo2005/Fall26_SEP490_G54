@@ -51,14 +51,14 @@ public sealed class ApiResponseAndExceptionTests
     public void ApiResponse_Fail_SetsFailureFields()
     {
         var response = ApiResponse.Fail(
-            errorCode: ErrorCodes.MSG02,
+            errorCode: ErrorCodes.RequiredField,
             message: "Validation failed",
             errors: SampleErrors,
             traceId: "trace-err",
             status: 400);
 
         Assert.False(response.Success);
-        Assert.Equal(ErrorCodes.MSG02, response.ErrorCode);
+        Assert.Equal(ErrorCodes.RequiredField, response.ErrorCode);
         Assert.Equal("Validation failed", response.Message);
         Assert.Equal(SampleErrors, response.Errors);
         Assert.Equal("trace-err", response.TraceId);
@@ -68,11 +68,11 @@ public sealed class ApiResponseAndExceptionTests
     [Fact]
     public void ErrorCodes_ReturnsExpectedBilingualMessages()
     {
-        var msg10Vi = ErrorCodes.GetDefaultMessage(ErrorCodes.MSG10, english: false);
-        var msg10En = ErrorCodes.GetDefaultMessage(ErrorCodes.MSG10, english: true);
+        var makerCheckerVi = ErrorCodes.GetDefaultMessage(ErrorCodes.MakerCannotBeChecker, english: false);
+        var makerCheckerEn = ErrorCodes.GetDefaultMessage(ErrorCodes.MakerCannotBeChecker, english: true);
 
-        Assert.Contains("Người thực hiện", msg10Vi);
-        Assert.Contains("Maker cannot assign self", msg10En);
+        Assert.Contains("Người thực hiện", makerCheckerVi);
+        Assert.Contains("Maker cannot assign self", makerCheckerEn);
 
         var fallback = ErrorCodes.GetDefaultMessage("NON_EXISTENT_CODE");
         Assert.Equal("Đã xảy ra lỗi.", fallback);
@@ -86,7 +86,7 @@ public sealed class ApiResponseAndExceptionTests
         context.Response.Body = new MemoryStream();
         context.TraceIdentifier = "test-trace-id";
 
-        var exception = new BusinessRuleException(ErrorCodes.MSG10);
+        var exception = new BusinessRuleException(ErrorCodes.MakerCannotBeChecker);
         var handled = await handler.TryHandleAsync(context, exception, CancellationToken.None);
 
         Assert.True(handled);
@@ -100,7 +100,7 @@ public sealed class ApiResponseAndExceptionTests
         var root = jsonDoc.RootElement;
 
         Assert.False(root.GetProperty("success").GetBoolean());
-        Assert.Equal(ErrorCodes.MSG10, root.GetProperty("errorCode").GetString());
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, root.GetProperty("errorCode").GetString());
         Assert.Equal("test-trace-id", root.GetProperty("traceId").GetString());
     }
 
@@ -194,6 +194,42 @@ public sealed class ApiResponseAndExceptionTests
         Assert.NotEqual("Đã xảy ra lỗi.", ErrorCodes.GetDefaultMessage(code));
         Assert.NotEqual("An error occurred.", ErrorCodes.GetDefaultMessage(code, english: true));
     }
+
+    [Fact]
+    public void ErrorCodes_EveryConstant_HasDistinctValueAndBilingualMessage()
+    {
+        var codes = ConstantValues(typeof(ErrorCodes));
+
+        Assert.NotEmpty(codes);
+        Assert.Equal(codes.Count, codes.Distinct().Count());
+        foreach (var code in codes)
+        {
+            Assert.Matches("^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$", code);
+            Assert.NotEqual("Đã xảy ra lỗi.", ErrorCodes.GetDefaultMessage(code));
+            Assert.NotEqual("An error occurred.", ErrorCodes.GetDefaultMessage(code, english: true));
+        }
+    }
+
+    [Fact]
+    public void SuccessMessages_EveryConstant_HasDistinctValueAndBilingualMessage()
+    {
+        var keys = ConstantValues(typeof(SuccessMessages));
+
+        Assert.NotEmpty(keys);
+        Assert.Equal(keys.Count, keys.Distinct().Count());
+        Assert.Empty(keys.Intersect(ConstantValues(typeof(ErrorCodes))));
+        foreach (var key in keys)
+        {
+            Assert.NotEqual("Thao tác thành công.", SuccessMessages.GetMessage(key));
+            Assert.NotEqual("Operation completed.", SuccessMessages.GetMessage(key, english: true));
+        }
+    }
+
+    private static List<string> ConstantValues(Type type) =>
+        type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .ToList();
 
     [Fact]
     public void EnumApiFormat_UsesPgNameAndApiDecisionVocabulary()
