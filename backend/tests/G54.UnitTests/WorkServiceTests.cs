@@ -59,6 +59,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.SaveChangesAsync();
 
             var request = new CreateWorkRequestDto(
@@ -151,6 +152,111 @@ public sealed class WorkServiceTests
         }
     }
 
+    private static (WorkType WorkType, Employee Employee) NewActiveWorkTypeAndEmployee(string code, Guid positionId) =>
+        (
+            new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = $"WT-{code}",
+                Name = $"Type {code}",
+                Status = RecordStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            },
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = code,
+                FullName = $"Employee {code}",
+                Email = $"{code.ToLowerInvariant()}@bank.com",
+                JobPositionId = positionId,
+                Status = EmployeeStatus.Active,
+            });
+
+    [Fact]
+    public async Task CreateWorkAsync_WorkTypeNotAssignedToAssigneePosition_ThrowsValidationAndCreatesNothing()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var positionId = Guid.NewGuid();
+            var (workType, employee) = NewActiveWorkTypeAndEmployee("EMP-NOLINK", positionId);
+            var otherPositionId = Guid.NewGuid();
+            context.WorkTypes.Add(workType);
+            context.Employees.Add(employee);
+            // Linked to a different job position only.
+            context.JobPositionWorkTypes.Add(new JobPositionWorkType
+            {
+                Id = Guid.NewGuid(),
+                JobPositionId = otherPositionId,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(
+                new CreateWorkRequestDto(
+                    Title: "Cong viec sai chuc danh",
+                    WorkTypeId: workType.Id,
+                    AssigneeEmployeeId: employee.Id),
+                employee.Id));
+
+            Assert.Equal("Loại công việc không hợp lệ với chức danh của nhân viên được phân công.", ex.Message);
+            Assert.Empty(context.Works);
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkAsync_PositionWithNoWorkTypesAssigned_ThrowsValidation()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (workType, employee) = NewActiveWorkTypeAndEmployee("EMP-EMPTY", Guid.NewGuid());
+            context.WorkTypes.Add(workType);
+            context.Employees.Add(employee);
+            await context.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(
+                new CreateWorkRequestDto(
+                    Title: "Cong viec chuc danh trong",
+                    WorkTypeId: workType.Id,
+                    AssigneeEmployeeId: employee.Id),
+                employee.Id));
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkAsync_WorkTypeAssignedToAssigneePosition_Succeeds()
+    {
+        var (context, _, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var positionId = Guid.NewGuid();
+            var (workType, employee) = NewActiveWorkTypeAndEmployee("EMP-OK", positionId);
+            var (otherWorkType, _) = NewActiveWorkTypeAndEmployee("OTHER", positionId);
+            context.WorkTypes.AddRange(workType, otherWorkType);
+            context.Employees.Add(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
+            await context.SaveChangesAsync();
+
+            var result = await service.CreateWorkAsync(
+                new CreateWorkRequestDto(
+                    Title: "Cong viec dung chuc danh",
+                    WorkTypeId: workType.Id,
+                    AssigneeEmployeeId: employee.Id),
+                employee.Id);
+            Assert.Equal(workType.Id, result.WorkTypeId);
+
+            // A type assigned to nobody at this position is still rejected for the same assignee.
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateWorkAsync(
+                new CreateWorkRequestDto(
+                    Title: "Cong viec loai khac",
+                    WorkTypeId: otherWorkType.Id,
+                    AssigneeEmployeeId: employee.Id),
+                employee.Id));
+        }
+    }
+
     [Fact]
     public async Task CreateWorkAsync_InactiveOrMissingAssignee_ThrowsValidationException()
     {
@@ -222,6 +328,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.SaveChangesAsync();
 
@@ -278,6 +385,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddAsync(participant);
             await context.SaveChangesAsync();
@@ -331,6 +439,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.SaveChangesAsync();
 
@@ -388,6 +497,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddAsync(participant);
             await context.SaveChangesAsync();
@@ -433,6 +543,7 @@ public sealed class WorkServiceTests
 
             await context.WorkTypes.AddAsync(workType);
             await context.Employees.AddAsync(employee);
+            context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
             await context.SaveChangesAsync();
 
             var controller = new WorksController(service)
@@ -941,6 +1052,14 @@ public sealed class WorkServiceTests
         }
     }
 
+    private static JobPositionWorkType LinkFor(Employee employee, WorkType workType) => new()
+    {
+        Id = Guid.NewGuid(),
+        JobPositionId = employee.JobPositionId,
+        WorkTypeId = workType.Id,
+        UpdatedAt = DateTimeOffset.UtcNow,
+    };
+
     private static async Task<(AppDbContext Context, WorkService Service, WorkType WorkType, Employee Employee)> CreateAtAsync(string utcNow)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -964,6 +1083,7 @@ public sealed class WorkServiceTests
         var employee = NewEmployee("EMP-CLOCK");
         context.WorkTypes.Add(workType);
         context.Employees.Add(employee);
+        context.JobPositionWorkTypes.Add(LinkFor(employee, workType));
         await context.SaveChangesAsync();
         return (context, service, workType, employee);
     }
