@@ -79,3 +79,8 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
+
+# ai-service
+.venv/
+__pycache__/
+.pytest_cache/
