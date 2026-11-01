@@ -89,6 +89,33 @@ public sealed class EvaluationProfilesController(IEvaluationProfileService servi
         return Ok(ApiResponse.Ok("Cập nhật trạng thái hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("{id:guid}/approve")]
+    [HasPermission("evaluation-profile", "approve", "All")]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse>> ApproveProfile(Guid id, CancellationToken cancellationToken)
+    {
+        await service.ApproveProfileAsync(id, cancellationToken);
+        return Ok(ApiResponse.Ok("Duyệt hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:guid}/reject")]
+    [HasPermission("evaluation-profile", "approve", "All")]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse>> RejectProfile(
+        Guid id,
+        [FromBody] RejectEvaluationProfileDto dto,
+        CancellationToken cancellationToken)
+    {
+        await service.RejectProfileAsync(id, dto, cancellationToken);
+        return Ok(ApiResponse.Ok("Từ chối hồ sơ đánh giá thành công.", HttpContext.TraceIdentifier));
+    }
+
     [HttpDelete("{id:guid}")]
     [HasPermission("kpi", "manage", "All")]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status200OK)]
