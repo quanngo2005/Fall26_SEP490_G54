@@ -207,3 +207,9 @@ public enum TargetSplitDimension
     [PgName("ORG")] Org,
     [PgName("PERIOD")] Period,
 }
+
+public enum TargetAssignmentFeedbackType
+{
+    [PgName("CONFIRM")] Confirm,
+    [PgName("COMMENT")] Comment,
+}

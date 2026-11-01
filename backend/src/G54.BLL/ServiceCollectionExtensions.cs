@@ -37,6 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
+        services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();

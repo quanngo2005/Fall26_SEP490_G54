@@ -201,7 +201,7 @@ export class EvaluationsComponent extends LocalizedComponent {
       .subscribe({
         next: (periods) => {
           this.periods.set(periods);
-          const initial = periods.find((period) => period.isActive) ?? periods[0];
+          const initial = this.defaultPeriod(periods);
           if (!initial) {
             this.allEvaluations.set([]);
             this.loading.set(false);
@@ -212,6 +212,25 @@ export class EvaluationsComponent extends LocalizedComponent {
         },
         error: (error: unknown) => this.fail(error),
       });
+  }
+
+  /** Targets are set per quarter, so the open quarter that contains today opens first, then any open period. */
+  private defaultPeriod(periods: EvaluationPeriodOption[]): EvaluationPeriodOption | undefined {
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+    const current = periods.filter(
+      (period) => period.isActive && period.startDate <= today && today <= period.endDate,
+    );
+    return (
+      current.find((period) => period.periodType === 'QUARTER') ??
+      current[0] ??
+      periods.find((period) => period.isActive) ??
+      periods[0]
+    );
   }
 
   private loadRows(): void {

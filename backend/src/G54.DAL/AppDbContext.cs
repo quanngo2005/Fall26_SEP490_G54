@@ -72,6 +72,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<TargetAssignment> TargetAssignments { get; set; }
 
+    public virtual DbSet<TargetAssignmentFeedback> TargetAssignmentFeedbacks { get; set; }
+
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
@@ -116,6 +118,7 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<PerformanceEvaluationHistoryAction>("public", "performance_evaluation_history_action")
             .HasPostgresEnum<TargetAssignmentStatus>("public", "target_assignment_status")
             .HasPostgresEnum<TargetSplitDimension>("public", "target_split_dimension")
+            .HasPostgresEnum<TargetAssignmentFeedbackType>("public", "target_assignment_feedback_type")
             .HasPostgresExtension("pgcrypto");
 
         modelBuilder.Entity<Account>(entity =>
@@ -1417,6 +1420,46 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.SplitDimension)
                 .HasColumnType("target_split_dimension")
                 .HasColumnName("split_dimension");
+        });
+
+        modelBuilder.Entity<TargetAssignmentFeedback>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("target_assignment_feedback_pkey");
+
+            entity.ToTable("target_assignment_feedback", table =>
+            {
+                table.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+            });
+
+            entity.HasIndex(e => e.TargetAssignmentId, "ix_target_assignment_feedback_target");
+            entity.HasIndex(e => e.EmployeeId, "ix_target_assignment_feedback_employee");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TargetAssignmentId).HasColumnName("target_assignment_id");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.Comment)
+                .HasMaxLength(500)
+                .HasColumnName("comment");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Type)
+                .HasColumnType("target_assignment_feedback_type")
+                .HasColumnName("type");
+
+            entity.HasOne(d => d.TargetAssignment)
+                .WithMany()
+                .HasForeignKey(d => d.TargetAssignmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_target_assignment_feedback_target");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_feedback_employee");
         });
 
         modelBuilder.Entity<TaskHandover>(entity =>

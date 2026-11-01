@@ -99,7 +99,7 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
  ('5eed0000-0000-0000-0007-000000000009', 'NV009', 'Bùi Văn Nam',    'nam.bui@progest.local',   '0901000009', '5eed0000-0000-0000-0001-000000000006', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000003'),
  ('5eed0000-0000-0000-0007-00000000000a', 'NV010', 'Đặng Ngọc Oanh', 'oanh.dang@progest.local', '0901000010', '5eed0000-0000-0000-0001-000000000007', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000003'),
  ('5eed0000-0000-0000-0007-00000000000b', 'NV011', 'Demo Manager',    'manager@bpms.com',        '0901000011', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
- ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000002'),
+ ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000b'),
  ('5eed0000-0000-0000-0007-00000000000d', 'NV013', 'Demo System Admin', 'sysadmin@bpms.com',     '0901000013', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-0006-000000000001', NULL),
  ('5eed0000-0000-0000-0007-00000000000e', 'NV014', 'Demo Verifier',     'verifier@bpms.com',     '0901000014', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001')
 ON CONFLICT DO NOTHING;
@@ -402,15 +402,67 @@ ORDER BY t.row_no
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
+-- Month-level employee targets: each Q4 employee target (rows ...08-...0b HDV, ...0c-...0d KH_MOI) split by month
+-- (Oct/Nov/Dec) so the evaluation screen has targets whichever Q4 period is picked.
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+SELECT ('5eed0000-0000-0000-0015-' || lpad(to_hex(256 + p.parent_seq * 3 + m.month_idx), 12, '0'))::uuid,
+       parent.business_objective_id,
+       parent.kpi_definition_id,
+       NULL::uuid,
+       parent.employee_id,
+       ('5eed0000-0000-0000-000f-00000000000' || (3 + m.month_idx))::uuid,
+       parent.id,
+       'PERIOD'::target_split_dimension,
+       CASE WHEN m.month_idx < 3 THEN floor(parent.target_value / 3) ELSE parent.target_value - 2 * floor(parent.target_value / 3) END,
+       'ACTIVE'::target_assignment_status,
+       now(),
+       now(),
+       NULL
+FROM (VALUES
+    ('000000000008', 0), ('000000000009', 1), ('00000000000a', 2), ('00000000000b', 3),
+    ('00000000000c', 4), ('00000000000d', 5)
+) AS p(parent_no, parent_seq)
+JOIN target_assignment parent ON parent.id = ('5eed0000-0000-0000-0015-' || p.parent_no)::uuid
+CROSS JOIN (VALUES (1), (2), (3)) AS m(month_idx)
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Employee target confirm / comment (SCR-STRAT-05 "Phản hồi", SCR-STRAT-03-D1).
+--   Q4 HDV: Châu confirmed, Dũng commented, Khang and Mai not viewed yet (no row).
+--   Demo Employee (employee@bpms.com) gets a standalone KH_MOI Q4 target with one comment so the
+--   employee login has data for GET /target-assignments/mine.
+-- Feedback rows are only inserted when the target exists and belongs to that employee, so a database where the
+-- target was created another way (one ACTIVE target per KPI/period/employee) still seeds cleanly.
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+VALUES ('5eed0000-0000-0000-0015-00000000000f', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000002',
+        NULL, '5eed0000-0000-0000-0007-00000000000c', '5eed0000-0000-0000-000f-000000000003', NULL, NULL,
+        30, 'ACTIVE', now(), now(), 'Chỉ tiêu KH mới Q4 (demo)')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment_feedback (id, target_assignment_id, employee_id, type, comment, created_at)
+SELECT f.id::uuid, ta.id, ta.employee_id, f.type::target_assignment_feedback_type, f.comment, now()
+FROM (VALUES
+    ('5eed0000-0000-0000-0030-000000000001', '5eed0000-0000-0000-0015-000000000008', '5eed0000-0000-0000-0007-000000000004', 'CONFIRM', NULL),
+    ('5eed0000-0000-0000-0030-000000000002', '5eed0000-0000-0000-0015-000000000009', '5eed0000-0000-0000-0007-000000000005', 'COMMENT', 'Tháng 11 tôi nghỉ phép 5 ngày, xin giảm chỉ tiêu tháng 11.'),
+    ('5eed0000-0000-0000-0030-000000000003', '5eed0000-0000-0000-0015-00000000000f', '5eed0000-0000-0000-0007-00000000000c', 'COMMENT', 'Đề nghị chia lại chỉ tiêu theo số ngày đi làm thực tế.')
+) AS f(id, target_id, employee_id, type, comment)
+JOIN target_assignment ta ON ta.id = f.target_id::uuid AND ta.employee_id = f.employee_id::uuid
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
 -- Work items (open, ready for submission / verification flows)
 -- ---------------------------------------------------------------------------
 WITH seed_work (id, work_type_id, business_campaign_id, assignee_employee_id, code, title, description, priority, estimated_hours, planned_start_date, planned_end_date, status) AS (VALUES
- ('5eed0000-0000-0000-0016-000000000001', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000004', 'W-2026-0001', 'Mở tài khoản cho nhóm KH khu Cầu Giấy',  NULL, 'HIGH',     16,  '2026-10-01', '2026-10-31', 'IN_PROGRESS'),
+ ('5eed0000-0000-0000-0016-000000000001', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000004', 'W-2026-0001', 'Mở tài khoản cho nhóm KH khu Cầu Giấy',  NULL, 'HIGH',     16,  '2026-10-01', '2026-12-31', 'IN_PROGRESS'),
  ('5eed0000-0000-0000-0016-000000000002', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000004', 'W-2026-0002', 'Huy động tiền gửi KH hiện hữu',           NULL, 'MEDIUM',   24,  '2026-10-05', '2026-11-30', 'NEW'),
  ('5eed0000-0000-0000-0016-000000000003', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000006', 'W-2026-0003', 'Huy động tiền gửi hộ kinh doanh chợ Hôm', NULL, 'HIGH',     24,  '2026-10-01', '2026-11-15', 'IN_PROGRESS'),
- ('5eed0000-0000-0000-0016-000000000004', '5eed0000-0000-0000-000c-000000000003', NULL,                                   '5eed0000-0000-0000-0007-000000000007', 'W-2026-0004', 'Giải ngân vay tiêu dùng hồ sơ A102',      NULL, 'CRITICAL', 8,   '2026-10-10', '2026-10-20', 'NEW'),
- ('5eed0000-0000-0000-0016-000000000005', '5eed0000-0000-0000-000c-000000000004', NULL,                                   '5eed0000-0000-0000-0007-000000000008', 'W-2026-0005', 'Giao dịch tại quầy tháng 10',             NULL, 'MEDIUM',   160, '2026-10-01', '2026-10-31', 'IN_PROGRESS'),
- ('5eed0000-0000-0000-0016-000000000006', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000009', 'W-2026-0006', 'Mở tài khoản tại quầy cho KH vãng lai',   NULL, 'LOW',      40,  '2026-10-01', '2026-12-31', 'IN_PROGRESS')
+ ('5eed0000-0000-0000-0016-000000000004', '5eed0000-0000-0000-000c-000000000003', NULL,                                   '5eed0000-0000-0000-0007-000000000007', 'W-2026-0004', 'Giải ngân vay tiêu dùng hồ sơ A102',      NULL, 'CRITICAL', 8,   '2026-10-10', '2026-12-15', 'NEW'),
+ ('5eed0000-0000-0000-0016-000000000005', '5eed0000-0000-0000-000c-000000000004', NULL,                                   '5eed0000-0000-0000-0007-000000000008', 'W-2026-0005', 'Giao dịch tại quầy tháng 10',             NULL, 'MEDIUM',   160, '2026-10-01', '2026-12-31', 'IN_PROGRESS'),
+ ('5eed0000-0000-0000-0016-000000000006', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0007-000000000009', 'W-2026-0006', 'Mở tài khoản tại quầy cho KH vãng lai',   NULL, 'LOW',      40,  '2026-10-01', '2026-12-31', 'IN_PROGRESS'),
+ ('5eed0000-0000-0000-0016-000000000007', '5eed0000-0000-0000-000c-000000000001', NULL, '5eed0000-0000-0000-0007-00000000000c', 'W-2026-0007', 'Mở tài khoản cho KH khu Đống Đa', NULL, 'HIGH',   16, '2026-11-01', '2026-12-31', 'NEW'),
+ ('5eed0000-0000-0000-0016-000000000008', '5eed0000-0000-0000-000c-000000000002', NULL, '5eed0000-0000-0000-0007-00000000000c', 'W-2026-0008', 'Huy động tiền gửi KH doanh nghiệp nhỏ', NULL, 'MEDIUM', 24, '2026-11-01', '2026-12-31', 'IN_PROGRESS')
 )
 INSERT INTO work (id, work_type_id, business_campaign_id, assignee_employee_id, created_by, code, title, description, priority, estimated_hours, planned_start_date, planned_end_date, status)
 SELECT sw.id::uuid, sw.work_type_id::uuid, sw.business_campaign_id::uuid, sw.assignee_employee_id::uuid, COALESCE(e.manager_id, e.id),

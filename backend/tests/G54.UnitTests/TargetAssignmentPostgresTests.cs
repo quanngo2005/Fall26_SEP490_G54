@@ -62,6 +62,7 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
             .EnableServiceProviderCaching(false).Options);
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IPermissionService, AdminPermissions>();
+        services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         _provider = services.BuildServiceProvider();
 
