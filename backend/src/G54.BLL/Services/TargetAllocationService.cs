@@ -378,11 +378,27 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
 
         await EnsureDepartmentAccessAsync(userId, deptYearTarget.DepartmentId, ct);
 
+        // BR-29: confirming rewrites the quarter and month targets, so a locked year (or any locked quarter) is read-only.
+        PeriodLockGuard.EnsureWritable(deptYearTarget.EvaluationPeriod);
+
         var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId!.Value, ct);
 
         var quarterTargets = await uow.TargetAssignments.GetCurrentChildrenAsync(deptYearTarget.Id, ct);
         if (quarterTargets.Count == 0)
             throw new ConflictException("Department has no quarter allocation to confirm.", ErrorCodes.TargetInvalidState);
+
+        // The month and day rows are generated under each quarter, so a locked quarter, month or day blocks the confirm.
+        foreach (var quarterTarget in quarterTargets)
+        {
+            PeriodLockGuard.EnsureWritable(quarterTarget.EvaluationPeriod);
+
+            var quarter = quarterTarget.EvaluationPeriod!;
+            foreach (var childType in new[] { PeriodType.Month, PeriodType.Day })
+            {
+                foreach (var childPeriod in await uow.EvaluationPeriods.GetInRangeAsync(childType, quarter.StartDate, quarter.EndDate, ct))
+                    PeriodLockGuard.EnsureWritable(childPeriod);
+            }
+        }
 
         // Unique index (kpi, department, period, version): new rows must take the next free version.
         var versions = (await uow.TargetAssignments.ListAsync(

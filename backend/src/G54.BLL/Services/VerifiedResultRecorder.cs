@@ -132,6 +132,7 @@ internal static class VerifiedResultRecorder
         CancellationToken cancellationToken)
     {
         var target = await db.TargetAssignments
+            .Include(t => t.EvaluationPeriod)
             .Where(t => t.KpiDefinitionId == kpiDefinitionId
                 && t.EmployeeId == employeeId
                 && t.Status == TargetAssignmentStatus.Active
@@ -143,6 +144,9 @@ internal static class VerifiedResultRecorder
         {
             return null;
         }
+
+        // BR-29: progress is never added to a locked period (409 PERIOD_LOCKED). Reversal entries (BR-16) are not implemented yet.
+        PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
 
         var progress = db.ActualProgresses.Local
                 .FirstOrDefault(p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate)

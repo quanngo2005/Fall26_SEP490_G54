@@ -229,6 +229,68 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Decide_AcceptWithVerifiedValue_IntoALockedPeriod_ThrowsPeriodLockedAndKeepsTheAppealOpen()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT", Name = "Work type", Status = RecordStatus.Active };
+        var kpi = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            Code = "KPI",
+            Name = "KPI",
+            Unit = "Điểm",
+            KpiGroupId = Guid.NewGuid(),
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
+            Status = KpiStatus.Active,
+        };
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "P",
+            Name = "Period",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 10, 31),
+            Status = PeriodStatus.Locked,
+        };
+        _db.WorkTypes.Add(workType);
+        _db.KpiDefinitions.Add(kpi);
+        _db.EvaluationPeriods.Add(period);
+        _db.WorkTypeKpis.Add(new WorkTypeKpi
+        {
+            Id = Guid.NewGuid(),
+            WorkTypeId = workType.Id,
+            KpiDefinitionId = kpi.Id,
+            EffectiveFrom = period.StartDate,
+        });
+        _db.TargetAssignments.Add(new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = kpi.Id,
+            EmployeeId = submitter.Id,
+            EvaluationPeriodId = period.Id,
+            Version = 1,
+            TargetValue = 100,
+            Status = TargetAssignmentStatus.Active,
+        });
+        submission.Work.WorkTypeId = workType.Id;
+        await _db.SaveChangesAsync();
+        var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m }));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Empty(await _db.WorkResultItems.ToListAsync());
+        Assert.Empty(await _db.ActualProgresses.ToListAsync());
+        Assert.Equal(AppealStatus.Open, (await _db.Appeals.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task Decide_AcceptWithVerifiedValue_ContributesKpiOnce()
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();

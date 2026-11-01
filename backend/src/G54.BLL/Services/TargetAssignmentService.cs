@@ -23,6 +23,8 @@ public sealed class TargetAssignmentService(
             throw new ForbiddenException("Chỉ quản trị viên mới được giao target gốc cho chi nhánh.");
         }
 
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value));
+
         var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason);
         target.DepartmentId = dto.DepartmentId;
         await targetRepository.AddAsync(target);
@@ -34,6 +36,7 @@ public sealed class TargetAssignmentService(
     public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto)
     {
         var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
 
         var children = dto.Allocations!.Select(item =>
         {
@@ -66,6 +69,13 @@ public sealed class TargetAssignmentService(
         // Load all evaluation periods to check hierarchy
         var allPeriods = await periodRepository.ListAsync();
         var periodMap = allPeriods.ToDictionary(p => p.Id);
+
+        // BR-29: neither the parent period nor any target period may be locked.
+        PeriodLockGuard.EnsureWritable(periodMap.GetValueOrDefault(parent.EvaluationPeriodId));
+        foreach (var lockedCandidateId in periodIds)
+        {
+            PeriodLockGuard.EnsureWritable(periodMap.GetValueOrDefault(lockedCandidateId));
+        }
 
         foreach (var periodId in periodIds)
         {

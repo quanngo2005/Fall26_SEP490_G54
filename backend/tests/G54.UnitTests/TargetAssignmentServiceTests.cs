@@ -1,3 +1,4 @@
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;
@@ -334,6 +335,104 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         var dto = new AllocateTargetByPeriodDto { Allocations = [new() { EvaluationPeriodId = h1, TargetValue = 1 }] };
 
         await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).AllocateByPeriodAsync(_manager, parent.Id, dto));
+    }
+
+    // ----- BR-29: a locked period rejects every write ---------------------------------------------
+
+    private async Task LockPeriodAsync(Guid periodId, PeriodStatus status)
+    {
+        var period = await _db.EvaluationPeriods.SingleAsync(p => p.Id == periodId);
+        period.Status = status;
+        await _db.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData(PeriodStatus.Locked)]
+    [InlineData(PeriodStatus.Closed)]
+    public async Task CreateRoot_InALockedPeriod_ThrowsPeriodLockedAndStoresNothing(PeriodStatus status)
+    {
+        await SeedAsync();
+        await SeedPeriodsAsync();
+        await LockPeriodAsync(_periodId, status);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => Service(admin: true).CreateRootAsync(_admin, Root()));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Empty(_db.TargetAssignments);
+    }
+
+    [Theory]
+    [InlineData(PeriodStatus.Open)]
+    [InlineData(PeriodStatus.InReview)]
+    public async Task CreateRoot_InAnOpenOrInReviewPeriod_StillSucceeds(PeriodStatus status)
+    {
+        await SeedAsync();
+        await SeedPeriodsAsync();
+        await LockPeriodAsync(_periodId, status);
+
+        var result = await Service(admin: true).CreateRootAsync(_admin, Root());
+
+        Assert.Equal("ACTIVE", result.Status);
+    }
+
+    [Fact]
+    public async Task Allocate_WhenTheParentPeriodIsLocked_ThrowsPeriodLockedAndStoresNothing()
+    {
+        await SeedAsync();
+        await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await LockPeriodAsync(_periodId, PeriodStatus.Locked);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }] };
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dto));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Single(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task AllocateByPeriod_WhenAnyTargetPeriodIsLocked_ThrowsPeriodLockedAndStoresNothing()
+    {
+        await SeedAsync();
+        var (h1, q1, _) = await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await LockPeriodAsync(q1, PeriodStatus.Closed);
+        var dto = new AllocateTargetByPeriodDto
+        {
+            Allocations = [new() { EvaluationPeriodId = h1, TargetValue = 400 }, new() { EvaluationPeriodId = q1, TargetValue = 200 }],
+        };
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => Service(admin: true).AllocateByPeriodAsync(_admin, parent.Id, dto));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Single(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task AllocateByPeriod_WhenTheParentPeriodIsLocked_ThrowsPeriodLocked()
+    {
+        await SeedAsync();
+        var (h1, _, _) = await SeedPeriodsAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await LockPeriodAsync(_periodId, PeriodStatus.Locked);
+        var dto = new AllocateTargetByPeriodDto { Allocations = [new() { EvaluationPeriodId = h1, TargetValue = 1 }] };
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => Service(admin: true).AllocateByPeriodAsync(_admin, parent.Id, dto));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task LockedPeriod_DoesNotHideForbiddenOrNotFound()
+    {
+        await SeedAsync();
+        await SeedPeriodsAsync();
+        var other = await StoreDepartmentTargetAsync(_deptOther);
+        await LockPeriodAsync(_periodId, PeriodStatus.Locked);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).AllocateAsync(_manager, other.Id, dto));
+        await Assert.ThrowsAsync<NotFoundException>(() => Service(admin: true).AllocateAsync(_admin, Guid.NewGuid(), dto));
     }
 
     [Fact]
