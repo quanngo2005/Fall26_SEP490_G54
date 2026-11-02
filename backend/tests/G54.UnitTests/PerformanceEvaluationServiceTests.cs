@@ -39,8 +39,10 @@ public sealed class PerformanceEvaluationServiceTests
             CreatedAt = Now,
         });
         await world.SaveAsync();
-        Assert.Equal(23m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
-        Assert.Equal(23m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
+        // SUM (share 50) scores 40; AVG and RATIO have no data and count as 0, so the group is 40 x 50% = 20 and the
+        // weighted score 20 x 70% = 14; the 5 held points leave 9.
+        Assert.Equal(9m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
+        Assert.Equal(9m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
         Assert.Single(await world.Db.ScoreEntries.ToListAsync());
     }
 
@@ -55,12 +57,13 @@ public sealed class PerformanceEvaluationServiceTests
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        Assert.Equal(28m, dto.TotalScore);
+        // SUM scores 40 (share 50); AVG and RATIO have no data and count as 0: group 20, total 20 x 70% = 14.
+        Assert.Equal(14m, dto.TotalScore);
         Assert.Equal("CALCULATED", dto.Status);
         Assert.Equal(Now, dto.CalculatedAt);
         var group = Assert.Single(dto.Groups);
         Assert.Equal(70m, group.WeightPercent);
-        Assert.Equal(40m, group.ComponentScore);
+        Assert.Equal(20m, group.ComponentScore);
         var kpi = Assert.Single(group.Kpis);
         Assert.Equal(world.KpiSum.Id, kpi.KpiDefinitionId);
         Assert.Equal(target.Id, kpi.TargetAssignmentId);
@@ -84,7 +87,7 @@ public sealed class PerformanceEvaluationServiceTests
         Assert.Null(row.RiskEventId);
 
         var stored = await world.Db.PerformanceEvaluations.AsNoTracking().SingleAsync();
-        Assert.Equal(28m, stored.TotalScore);
+        Assert.Equal(14m, stored.TotalScore);
         Assert.Equal(PerformanceEvaluationStatus.Calculated, stored.Status);
         Assert.Equal(Now, stored.CalculatedAt);
     }
@@ -231,7 +234,8 @@ public sealed class PerformanceEvaluationServiceTests
         var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
         Assert.Equal(30m, kpi.ActualValue);
         Assert.Equal(30m, kpi.AchievementPercentRaw);
-        Assert.Equal(21m, dto.TotalScore); // only SUM is scored: group 30, times the root weight 70%
+        // SUM scores 30 (share 50); AVG and RATIO have no data and count as 0: group 15, times the root weight 70%.
+        Assert.Equal(10.5m, dto.TotalScore);
     }
 
     [Fact]
@@ -253,8 +257,8 @@ public sealed class PerformanceEvaluationServiceTests
     [Fact]
     public async Task Calculate_WeightsTheKpisOfAGroupByTheirShare()
     {
-        // SUM (50) scores 50 and AVG (30) scores 100: (50 x 50 + 100 x 30) / 80 = 68.75; RATIO has no data and leaves
-        // its 20 to the others (the plain mean would be 75).
+        // SUM (50) scores 50 and AVG (30) scores 100; RATIO (20) has no data and counts as 0 with its share kept:
+        // (50 x 50 + 100 x 30 + 0 x 20) / 100 = 55 (the plain mean would be 50).
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
         world.AddTarget(world.KpiAvg, 10m, employeeLevel: false, version: 1);
@@ -265,14 +269,14 @@ public sealed class PerformanceEvaluationServiceTests
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         var group = Assert.Single(dto.Groups);
-        Assert.Equal(68.75m, group.ComponentScore);
-        Assert.Equal(48.125m, dto.TotalScore); // 68.75 x 70% root weight
+        Assert.Equal(55m, group.ComponentScore);
+        Assert.Equal(38.5m, dto.TotalScore); // 55 x 70% root weight
     }
 
     [Fact]
-    public async Task Calculate_AKpiWithoutATargetLeavesItsShareToTheOthers()
+    public async Task Calculate_AKpiWithoutATargetCountsAsZeroAndKeepsItsShare()
     {
-        // Only SUM has a target: it carries the whole group, not 50% of it.
+        // Only SUM (share 50) has a target and scores 50; AVG and RATIO count as 0, so SUM carries 50% of the group.
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
         world.AddProgress(world.KpiSum, 50m, null, Day10);
@@ -280,7 +284,8 @@ public sealed class PerformanceEvaluationServiceTests
 
         var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
-        Assert.Equal(50m, Assert.Single(dto.Groups).ComponentScore);
+        Assert.Equal(25m, Assert.Single(dto.Groups).ComponentScore);
+        Assert.Single(Assert.Single(dto.Groups).Kpis); // only the scored KPI has a detail row
     }
 
     [Fact]
@@ -432,17 +437,32 @@ public sealed class PerformanceEvaluationServiceTests
     [Fact]
     public async Task Calculate_WhenTotalIsNull_ClearsTheStaleScore()
     {
+        // The scoring rule never gives a null total for a profile with a root group, so a stub formula forces one.
         using var world = await World.CreateAsync();
         world.Evaluation.Status = PerformanceEvaluationStatus.Calculated;
         world.Evaluation.TotalScore = 50m;
         world.Evaluation.CalculatedAt = Now.AddDays(-1);
         await world.SaveAsync();
+        var formula = new FakeScoreFormula(new KpiScoreResult(null, null, null), null, null);
 
-        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+        var dto = await world.Service(formula).CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
 
         Assert.Null(dto.TotalScore);
         Assert.Null(dto.CalculatedAt);
         Assert.Equal("DRAFT", dto.Status);
+    }
+
+    [Fact]
+    public async Task Calculate_WithNoDataAtAll_ScoresZeroInsteadOfClearingTheScore()
+    {
+        using var world = await World.CreateAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        Assert.Equal(0m, dto.TotalScore);
+        Assert.Equal("CALCULATED", dto.Status);
+        Assert.Equal(0m, Assert.Single(dto.Groups).ComponentScore);
+        Assert.Empty(Assert.Single(dto.Groups).Kpis);
     }
 
     [Fact]
@@ -792,7 +812,7 @@ public sealed class PerformanceEvaluationServiceTests
             new(
                 Db,
                 new FakePermissions(scope),
-                formula ?? new PerformanceScoreFormula(),
+                new PerformanceScoreCalculator(Db, formula ?? new PerformanceScoreFormula()),
                 new FixedTime(Now),
                 NullLogger<PerformanceEvaluationService>.Instance);
 

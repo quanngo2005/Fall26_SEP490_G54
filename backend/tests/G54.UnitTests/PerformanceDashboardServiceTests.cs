@@ -167,12 +167,12 @@ public sealed class PerformanceDashboardServiceTests
         Assert.Equal(["KD", "CLDV"], dto.Groups.Select(g => g.Name).ToArray());
         Assert.Equal([70m, 30m], dto.Groups.Select(g => g.WeightPercent).ToArray());
         Assert.NotNull(dto.Groups[0].Score);
-        Assert.Null(dto.Groups[1].Score);
+        Assert.Equal(0m, dto.Groups[1].Score); // an active KPI without a contribution counts as 0
         Assert.Empty(dto.Groups[1].Kpis);
     }
 
     [Fact]
-    public async Task Me_ScoresAGroupOverOnlyTheKpisThatHaveAScore()
+    public async Task Me_ScoresAKpiWithoutAScoreAsZeroAndKeepsItsWeight()
     {
         using var world = await World.CreateAsync();
         var evaluation = world.AddEvaluation(world.Employee, world.October, 50m, PerformanceEvaluationStatus.Calculated);
@@ -183,7 +183,7 @@ public sealed class PerformanceDashboardServiceTests
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
 
         var group = Assert.Single(dto.Groups, g => g.Name == "KD");
-        Assert.Equal(40m, group.Score);
+        Assert.Equal(20m, group.Score); // HDV 40 and KH without a score (0), each with half the weight
         Assert.Equal(2, group.Kpis.Count);
     }
 
