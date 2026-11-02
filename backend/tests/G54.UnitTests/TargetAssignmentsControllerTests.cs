@@ -184,5 +184,45 @@ public sealed class TargetAssignmentsControllerTests
             RequestedId = assignmentId;
             return Task.FromResult(Result);
         }
+
+        public Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(BreakdownResult);
+        }
+
+        public TargetAssignmentBreakdownDto BreakdownResult { get; set; } = null!;
+
+        public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
+        {
+            CallerId = accountId;
+            return Task.FromResult(Children);
+        }
+
+        public Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackResult);
+        }
+
+        public Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackResult);
+        }
+
+        public TargetAssignmentFeedbackDto FeedbackResult { get; set; } = null!;
+
+        public Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackHistory);
+        }
+
+        public IReadOnlyList<TargetAssignmentFeedbackDto> FeedbackHistory { get; set; } = [];
     }
 }

@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;
@@ -29,8 +30,10 @@ public sealed class TargetAssignmentServiceTests : IDisposable
 
     private TargetAssignmentService Service(bool admin) => new(
         new TargetAssignmentRepository(_db),
+        new TargetAssignmentFeedbackRepository(_db),
         new Repository<EvaluationPeriod>(_db),
         new FakePermissions(admin),
+        new WeekdayWorkingDayCalendar(),
         new FixedTime());
 
     /// <summary>BRANCH > (DEPT, DEPT_OTHER). The manager and the member belong to DEPT.</summary>
@@ -367,12 +370,268 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             Service(admin: true).ListAsync(_admin, new TargetAssignmentQueryDto { Status = "NOPE" }));
     }
 
+    [Fact]
+    public async Task Allocate_RejectsARowWithBothOrNeitherOwner()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var both = new AllocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, EmployeeId = _member.Id, TargetValue = 1 }] };
+        var neither = new AllocateTargetDto { Allocations = [new() { TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, both));
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, neither));
+    }
+
+    [Fact]
+    public async Task Allocate_RejectsDuplicateDepartmentOrEmployeeRows()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dupDept = new AllocateTargetDto
+        {
+            Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 1 }, new() { DepartmentId = _deptOther.Id, TargetValue = 1 }],
+        };
+        var dupEmployee = new AllocateTargetDto
+        {
+            Allocations = [new() { EmployeeId = _member.Id, TargetValue = 1 }, new() { EmployeeId = _member.Id, TargetValue = 1 }],
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dupDept));
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dupEmployee));
+    }
+
+    [Fact]
+    public async Task Allocate_ToAnUnknownEmployee_IsNotFound()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = Guid.NewGuid(), TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<NotFoundException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Allocate_ToAnInactiveEmployee_IsRejected()
+    {
+        await SeedAsync();
+        _member.Status = EmployeeStatus.Inactive;
+        await _db.SaveChangesAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Allocate_ToAnEmployeeOutsideTheParentDepartmentTree_IsRejected()
+    {
+        await SeedAsync();
+        var outsider = Employee("OUT", _deptOther.Id);
+        _db.Employees.Add(outsider);
+        await _db.SaveChangesAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = outsider.Id, TargetValue = 1 }] };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Allocate_ToAValidActiveEmployeeInTheDepartmentTree_Succeeds()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }] };
+
+        var children = await Service(admin: true).AllocateAsync(_admin, parent.Id, dto);
+
+        Assert.Single(children);
+        Assert.Equal(_member.Id, children[0].EmployeeId);
+    }
+
+    [Fact]
+    public async Task Allocate_ToAnEmployeeWhoAlreadyHasAnActiveTarget_IsConflict()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await StoreEmployeeTargetAsync(_member);
+        var dto = new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }] };
+
+        await Assert.ThrowsAsync<ConflictException>(() => Service(admin: true).AllocateAsync(_admin, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Allocate_ToADepartmentTarget_DoesNotRequireEmployeeChecks()
+    {
+        await SeedAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        // parent.DepartmentId is set here, so an employee row would be allowed; this proves pure-department rows still pass.
+        var dto = new AllocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 1 }] };
+
+        var children = await Service(admin: true).AllocateAsync(_admin, parent.Id, dto);
+
+        Assert.Single(children);
+    }
+
+    [Fact]
+    public async Task Confirm_ByANonOwner_IsForbidden()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).ConfirmAsync(_manager, target.Id));
+    }
+
+    [Fact]
+    public async Task Confirm_ByTheOwner_Succeeds()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+
+        var feedback = await Service(admin: false).ConfirmAsync(memberAccountId, target.Id);
+
+        Assert.Equal("CONFIRM", feedback.Type);
+    }
+
+    [Fact]
+    public async Task Confirm_TwiceWithoutAnUpdate_IsConflict()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var service = Service(admin: false);
+        await service.ConfirmAsync(memberAccountId, target.Id);
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.ConfirmAsync(memberAccountId, target.Id));
+    }
+
+    [Fact]
+    public async Task Confirm_AfterTheTargetWasUpdated_IsAllowedAgain()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var service = Service(admin: false);
+        await service.ConfirmAsync(memberAccountId, target.Id);
+
+        target.UpdatedAt = Now.AddDays(1);
+        await _db.SaveChangesAsync();
+
+        var feedback = await service.ConfirmAsync(memberAccountId, target.Id);
+        Assert.Equal("CONFIRM", feedback.Type);
+    }
+
+    [Fact]
+    public async Task Comment_LongerThan500Characters_IsRejected()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var dto = new CreateTargetFeedbackCommentDto { Comment = new string('x', 501) };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: false).CommentAsync(memberAccountId, target.Id, dto));
+    }
+
+    [Fact]
+    public async Task Comment_ByTheOwner_Succeeds()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var dto = new CreateTargetFeedbackCommentDto { Comment = "Cần hỗ trợ thêm" };
+
+        var feedback = await Service(admin: false).CommentAsync(memberAccountId, target.Id, dto);
+
+        Assert.Equal("COMMENT", feedback.Type);
+        Assert.Equal("Cần hỗ trợ thêm", feedback.Comment);
+    }
+
+    [Fact]
+    public async Task Feedback_ReadByAPeerInTheSameDepartment_IsForbidden()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var peer = Employee("PEER", _dept.Id);
+        _db.Employees.Add(peer);
+        var peerAccountId = AddAccount(peer).Id;
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).GetFeedbackAsync(peerAccountId, target.Id));
+    }
+
+    [Fact]
+    public async Task Feedback_ReadByTheDepartmentManager_Succeeds()
+    {
+        await SeedAsync();
+        var target = await StoreEmployeeTargetAsync(_member);
+        var service = new TargetAssignmentService(
+            new TargetAssignmentRepository(_db),
+            new TargetAssignmentFeedbackRepository(_db),
+            new Repository<EvaluationPeriod>(_db),
+            new FakePermissions(admin: false, managerAccountId: _manager),
+            new WeekdayWorkingDayCalendar(),
+            new FixedTime());
+
+        var feedback = await service.GetFeedbackAsync(_manager, target.Id);
+
+        Assert.Empty(feedback);
+    }
+
+    [Fact]
+    public async Task Feedback_ReadByTheManagerOfAParentDepartment_Succeeds()
+    {
+        await SeedAsync();
+        var team = Department("T", DepartmentLevelType.Team, _dept.Id);
+        _db.Departments.Add(team);
+        var teamMember = Employee("TM", team.Id);
+        _db.Employees.Add(teamMember);
+        await _db.SaveChangesAsync();
+        var target = await StoreEmployeeTargetAsync(teamMember);
+        var service = new TargetAssignmentService(
+            new TargetAssignmentRepository(_db),
+            new TargetAssignmentFeedbackRepository(_db),
+            new Repository<EvaluationPeriod>(_db),
+            new FakePermissions(admin: false, managerAccountId: _manager),
+            new WeekdayWorkingDayCalendar(),
+            new FixedTime());
+
+        var feedback = await service.GetFeedbackAsync(_manager, target.Id);
+
+        Assert.Empty(feedback);
+    }
+
+    private async Task<TargetAssignment> StoreEmployeeTargetAsync(Employee owner)
+    {
+        var target = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = _kpiId,
+            EvaluationPeriodId = _periodId,
+            EmployeeId = owner.Id,
+            Version = 1,
+            TargetValue = 100,
+            Status = TargetAssignmentStatus.Active,
+            ApprovedAt = Now,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        };
+        _db.TargetAssignments.Add(target);
+        await _db.SaveChangesAsync();
+        return target;
+    }
+
     private sealed class FixedTime : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;
     }
 
-    private sealed class FakePermissions(bool admin) : IPermissionService
+    /// <summary>Grants target:manage scope All to everyone when <paramref name="admin"/>, scope Dept to <paramref name="managerAccountId"/>.</summary>
+    private sealed class FakePermissions(bool admin, Guid? managerAccountId = null) : IPermissionService
     {
         public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<UserPermissionsResponseDto?>(null);
@@ -381,7 +640,8 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             Task.FromResult<IReadOnlyList<UserPermissionDto>>([]);
 
         public Task<bool> HasPermissionAsync(Guid id, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
-            Task.FromResult(admin && resource == "target" && action == "manage" && requiredScope == "All");
+            Task.FromResult(resource == "target" && action == "manage" &&
+                ((admin && requiredScope == "All") || (id == managerAccountId && requiredScope == "Dept")));
 
         public Task InvalidateUserPermissionsAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
 

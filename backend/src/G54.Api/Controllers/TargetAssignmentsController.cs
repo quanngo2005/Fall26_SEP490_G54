@@ -60,6 +60,10 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    // GET /target-assignments/{id}/breakdown is served by MyTargetAssignmentsController: it is readable by
+    // both org-scoped (target:manage Dept) callers and the owning employee, which this class-level
+    // [HasPermission] attribute would otherwise block for the latter.
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<TargetAssignmentDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]

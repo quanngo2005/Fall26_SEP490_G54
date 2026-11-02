@@ -119,6 +119,36 @@ describe('EvaluationsComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(3);
   });
 
+  it('opens the open quarter that contains today instead of the latest month', () => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(2026, 10, 1));
+    try {
+      const month: EvaluationPeriodOption = {
+        ...period,
+        id: 'month-12',
+        code: '2026-12',
+        periodType: 'MONTH',
+        startDate: '2026-12-01',
+      };
+      const november: EvaluationPeriodOption = {
+        ...period,
+        id: 'month-11',
+        code: '2026-11',
+        periodType: 'MONTH',
+        startDate: '2026-11-01',
+        endDate: '2026-11-30',
+      };
+      const defaultPeriod = (
+        component as unknown as {
+          defaultPeriod(items: EvaluationPeriodOption[]): EvaluationPeriodOption | undefined;
+        }
+      ).defaultPeriod([month, november, period]);
+      expect(defaultPeriod?.id).toBe('period-1');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
   it('renders page title from localization', () => {
     const title = fixture.nativeElement.querySelector('h1.page-title')?.textContent?.trim();
     expect(title).toBe(TestBed.inject(I18nService).localization.evaluations.pageTitle);
