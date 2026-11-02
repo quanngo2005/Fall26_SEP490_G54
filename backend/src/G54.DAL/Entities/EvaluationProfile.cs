@@ -25,6 +25,9 @@ public partial class EvaluationProfile
 
     public EvaluationProfileStatus Status { get; set; }
 
+    /// <summary>Why the approver rejected the profile; set while <see cref="EvaluationProfileStatus.Rejected"/>, cleared on resubmission.</summary>
+    public string? RejectReason { get; set; }
+
     public virtual ICollection<EvaluationProfileItem> EvaluationProfileItems { get; set; } = new List<EvaluationProfileItem>();
 
     public virtual JobPosition JobPosition { get; set; } = null!;
