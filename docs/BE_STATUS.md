@@ -15,7 +15,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | 5 | Result (transaction / CIF code) | ⚠ | `ResultSubmissionsController` + `EvidenceController` (file evidence) | Submission should carry a transaction/CIF code, not evidence files |
 | 6 | Reconciliation with imported data | ❌ | — | No Matched / Not Matched / In Review; no auto-approve (BR-09) |
 | 7 | KPI Contribution ledger | ⚠ | `VerificationService` writes `WorkResultItem` → `ActualProgress` on **manual** approval | Must be driven by reconciliation; ledger must be immutable (reversal entries, BR-16) |
-| 8 | Performance Evaluation | 🟡 | `PerformanceEvaluationsController` (calculate), `PerformanceScoreFormula`, `EvaluationProfilesController` (Admin submits → Branch Manager `POST /{id}/approve` / `/reject`; permission `evaluation-profile:approve`, `docs/api/EVALUATION_PROFILE_CONTRACT.md`) | Product multipliers, quality ratio per period, caps (BR-40/41), Dept Manager personal KPI (BR-34) missing |
+| 8 | Performance Evaluation | 🟡 | `PerformanceEvaluationsController` (calculate), `PerformanceScoreFormula`, `EvaluationProfilesController` (Admin submits → Branch Manager `POST /{id}/approve` / `/reject`; permission `evaluation-profile:approve`, `docs/api/EVALUATION_PROFILE_CONTRACT.md`). Per-product multiplier (BR-48) done via `WorkType.ProductCode` + `WorkTypeKpi.Multiplier` | Quality ratio per period, caps (BR-40/41), Dept Manager personal KPI (BR-34) missing |
 | 9 | Ranking | 🟡 | `EvaluationController` calibration / approvals / finalize | Forced-distribution tiers, dept+position grouping, Publish → Lock snapshot to verify |
 | 10 | HR export | ❌ | — | No xlsx/PDF export of locked rankings |
 
@@ -29,7 +29,8 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | Sidebar configuration, My profile | ✅ | |
 | Excel import: employee, transaction, service rating | 🟡 | ClosedXML is referenced and the year-target import exists (`POST /target-assignments/import`, `TargetAllocationService`). Missing: employee, transaction and service-rating import. Blocks steps 6–7, BR-07, BR-17/18, BR-22 |
 | System parameters (e.g. BR-01 handover threshold) | ❌ | |
-| Product multipliers, quality ratio | ❌ | |
+| Product multipliers (BR-48) | ✅ | `WorkType.ProductCode` + `WorkTypeKpi.Multiplier`, applied in `VerifiedResultRecorder`. Matcher that enforces `ImportedTransaction.product == WorkType.ProductCode` not built (blocked by row 6 above) |
+| Quality ratio | ❌ | |
 | Risk events (QA) | 🟡 | `POST /risk-events`, `GET /risk-events/{id}`, `/confirm` (writes a negative `performance_contribution`), `/dismiss`, `/resolve` (docs/api/RISK_EVENT_CONTRACT.md). Missing: list/search API, evidence upload, `risk_event:*` permission seed for a QA role |
 | QA 5% random sampling (BR-32) | ❌ | |
 | Appeals, 2-level (Dept → Branch), withdraw | 🟡 | `AppealsController`: file (`POST /submissions/{id}/appeals`), `/review`, `/decision` (ACCEPT / ADJUST / REJECT), `/withdraw`, list and detail, score hold / deduction / dispute ledger (docs/api/APPEAL_CONTRACT.md). ACCEPT records the verified result through `VerifiedResultRecorder` and is blocked with 409 `PERIOD_LOCKED` when the target period is locked (BR-29). Missing: the explicit 2-level Dept → Branch escalation; the 48h window is still the old single-level rule (BR-31) |

@@ -2410,6 +2410,18 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
 
+                    b.Property<decimal>("MultiplierApplied")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(6, 4)
+                        .HasColumnType("numeric(6,4)")
+                        .HasDefaultValue(1.0m)
+                        .HasColumnName("multiplier_applied");
+
+                    b.Property<decimal>("RawValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("raw_value");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2441,6 +2453,10 @@ namespace G54.DAL.Migrations
                         {
                             t.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
 
+                            t.HasCheckConstraint("ck_work_result_item_multiplier_applied", "multiplier_applied > 0");
+
+                            t.HasCheckConstraint("ck_work_result_item_raw_value", "raw_value >= 0");
+
                             t.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                         });
                 });
@@ -2469,6 +2485,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("ProductCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("product_code");
+
                     b.Property<int>("Status")
                         .HasColumnType("record_status")
                         .HasColumnName("status");
@@ -2484,6 +2505,10 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "Code" }, "uq_work_type_code")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "ProductCode" }, "uq_work_type_product_code")
+                        .IsUnique()
+                        .HasFilter("product_code IS NOT NULL");
 
                     b.ToTable("work_type", (string)null);
                 });
@@ -2516,6 +2541,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("kpi_definition_id");
 
+                    b.Property<decimal>("Multiplier")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(6, 4)
+                        .HasColumnType("numeric(6,4)")
+                        .HasDefaultValue(1.0m)
+                        .HasColumnName("multiplier");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2537,6 +2569,8 @@ namespace G54.DAL.Migrations
                     b.ToTable("work_type_kpi", null, t =>
                         {
                             t.HasCheckConstraint("ck_work_type_kpi_dates", "effective_to IS NULL OR effective_to >= effective_from");
+
+                            t.HasCheckConstraint("ck_work_type_kpi_multiplier", "multiplier > 0 AND multiplier <= 10");
                         });
                 });
 

@@ -289,7 +289,7 @@
                   <input
                     class="input"
                     [value]="row.label"
-                    (input)="editRow('roles', row.key, { label: rowLabel($event) })"
+                    (input)="editRow(row.key, { label: rowLabel($event) })"
                     [placeholder]="localization.kpi.roleName"
                     [attr.aria-label]="localization.kpi.roleName"
                   />
@@ -299,20 +299,20 @@
                     min="0"
                     max="100"
                     [value]="row.value"
-                    (input)="editRow('roles', row.key, { value: rowValue($event) })"
+                    (input)="editRow(row.key, { value: rowValue($event) })"
                     [attr.aria-label]="localization.kpi.percentWeight"
                   />
                   <button
                     type="button"
                     class="button button-secondary"
-                    (click)="removeRow('roles', row.key)"
+                    (click)="removeRow(row.key)"
                     [attr.aria-label]="localization.kpi.removeRow"
                   >
                     ×
                   </button>
                 </div>
               }
-              <button type="button" class="button button-secondary" (click)="addRow('roles')">
+              <button type="button" class="button button-secondary" (click)="addRow()">
                 {{localization.kpi.addRole}}
               </button>
               @if (roleRows().length) {
@@ -322,39 +322,6 @@
                       : i18n.translate('kpi.weightError', { weight: roleTotal() })}}
                 </p>
               }
-
-              <h3 class="draft-subtitle">{{localization.kpi.depositMultipliers}}</h3>
-              @for (row of multiplierRows(); track row.key) {
-                <div class="draft-row">
-                  <input
-                    class="input"
-                    [value]="row.label"
-                    (input)="editRow('multipliers', row.key, { label: rowLabel($event) })"
-                    [placeholder]="localization.kpi.productName"
-                    [attr.aria-label]="localization.kpi.productName"
-                  />
-                  <input
-                    class="input mono"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    [value]="row.value"
-                    (input)="editRow('multipliers', row.key, { value: rowValue($event) })"
-                    [attr.aria-label]="localization.kpi.multiplierValue"
-                  />
-                  <button
-                    type="button"
-                    class="button button-secondary"
-                    (click)="removeRow('multipliers', row.key)"
-                    [attr.aria-label]="localization.kpi.removeRow"
-                  >
-                    ×
-                  </button>
-                </div>
-              }
-              <button type="button" class="button button-secondary" (click)="addRow('multipliers')">
-                {{localization.kpi.addMultiplier}}
-              </button>
             </div>
           } @else if (!loading()) {
             <div class="state-card">

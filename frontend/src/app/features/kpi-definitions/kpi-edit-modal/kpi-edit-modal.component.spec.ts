@@ -24,8 +24,6 @@ describe('KpiEditModalComponent', () => {
     status: 'ACTIVE',
     updatedAt: '2026-10-14T08:30:00+00:00',
     measurementType: 'Quantitative',
-    applyProductMultiplier: true,
-    depositMultipliers: [{ id: 'm-1', label: 'CASA', value: 1.2 }],
     roleWeights: [{ id: 'rw-1', role: 'Teller', weight: 100 }],
   };
 
@@ -51,30 +49,8 @@ describe('KpiEditModalComponent', () => {
     expect(component.unit()).toBe(mockKpi.unit);
     expect(component.groupId()).toBe(mockKpi.kpiGroupId);
     expect(component.measurementType()).toBe('Quantitative');
-    expect(component.applyMultiplier()).toBeTrue();
-    expect(component.multipliers().length).toBe(1);
     expect(component.roleWeights().length).toBe(1);
     expect(component.isWeightValid()).toBeTrue();
-  });
-
-  it('should handle product multiplier operations', () => {
-    component.addMultiplier();
-    expect(component.multipliers().length).toBe(2);
-
-    component.updateMultiplierLabel(1, 'Deposit');
-    expect(component.multipliers()[1].label).toBe('Deposit');
-
-    component.updateMultiplierValue(1, 1.5);
-    expect(component.multipliers()[1].value).toBe(1.5);
-
-    component.stepMultiplier(1, 1);
-    expect(component.multipliers()[1].value).toBe(1.6);
-
-    component.stepMultiplier(1, -1);
-    expect(component.multipliers()[1].value).toBe(1.5);
-
-    component.removeMultiplier(1);
-    expect(component.multipliers().length).toBe(1);
   });
 
   it('should handle role weights operations and validation', () => {

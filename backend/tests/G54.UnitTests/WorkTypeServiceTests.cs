@@ -6,6 +6,9 @@ using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using DataAnnotationsValidationContext = System.ComponentModel.DataAnnotations.ValidationContext;
+using DataAnnotationsValidationResult = System.ComponentModel.DataAnnotations.ValidationResult;
+using DataAnnotationsValidator = System.ComponentModel.DataAnnotations.Validator;
 
 namespace G54.UnitTests;
 
@@ -159,6 +162,189 @@ public sealed class WorkTypeServiceTests
 
             await Assert.ThrowsAsync<ConflictException>(() => service.CreateWorkTypeAsync(dto));
         }
+    }
+
+    [Fact]
+    public async Task CreateWorkTypeAsync_ProductCodeAndMultiplier_RoundTrip()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var group = new KpiGroup
+            {
+                Id = Guid.NewGuid(),
+                Code = "GRP-CARD",
+                Name = "Card group",
+                Status = KpiStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var kpi = new KpiDefinition
+            {
+                Id = Guid.NewGuid(),
+                KpiGroupId = group.Id,
+                Code = "THE_TD",
+                Name = "Thẻ tín dụng",
+                Unit = "thẻ",
+                AggregationType = KpiAggregationType.Sum,
+                Direction = KpiDirection.HigherBetter,
+                Status = KpiStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.KpiGroups.AddAsync(group);
+            await context.KpiDefinitions.AddAsync(kpi);
+            await context.SaveChangesAsync();
+
+            var dto = new CreateWorkTypeDto
+            {
+                Code = "THE_TD_PLATINUM",
+                Name = "Mở thẻ tín dụng Platinum",
+                ProductCode = "TD_PLATINUM",
+                Kpis =
+                [
+                    new WorkTypeKpiItemDto
+                    {
+                        KpiDefinitionId = kpi.Id,
+                        IsRequired = true,
+                        Multiplier = 1.5m,
+                        EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+                    }
+                ],
+            };
+
+            var created = await service.CreateWorkTypeAsync(dto);
+
+            Assert.Equal("TD_PLATINUM", created.ProductCode);
+            Assert.Equal(1.5m, created.Kpis[0].Multiplier);
+
+            var fetched = await service.GetWorkTypeByIdAsync(created.Id);
+            Assert.Equal("TD_PLATINUM", fetched!.ProductCode);
+            Assert.Equal(1.5m, fetched.Kpis[0].Multiplier);
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkTypeAsync_BlankProductCode_IsSavedAsNull()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var dto = new CreateWorkTypeDto
+            {
+                Code = "WT-NOPRODUCT",
+                Name = "No product",
+                ProductCode = "   ",
+            };
+
+            var created = await service.CreateWorkTypeAsync(dto);
+
+            Assert.Null(created.ProductCode);
+        }
+    }
+
+    [Fact]
+    public async Task CreateWorkTypeAsync_DuplicateProductCode_ThrowsConflictException()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var existing = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "THE_TD_GOLD",
+                Name = "Existing gold",
+                ProductCode = "TD_GOLD",
+                Status = RecordStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.WorkTypes.AddAsync(existing);
+            await context.SaveChangesAsync();
+
+            var dto = new CreateWorkTypeDto
+            {
+                Code = "THE_TD_GOLD_2",
+                Name = "Another gold work type",
+                ProductCode = "TD_GOLD",
+            };
+
+            await Assert.ThrowsAsync<ConflictException>(() => service.CreateWorkTypeAsync(dto));
+        }
+    }
+
+    [Fact]
+    public async Task UpdateWorkTypeAsync_DuplicateProductCodeOfAnotherWorkType_ThrowsConflictException()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var existing = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "THE_TD_GOLD",
+                Name = "Gold",
+                ProductCode = "TD_GOLD",
+                Status = RecordStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var other = new WorkType
+            {
+                Id = Guid.NewGuid(),
+                Code = "THE_TD_PLATINUM",
+                Name = "Platinum",
+                ProductCode = "TD_PLATINUM",
+                Status = RecordStatus.Active,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.WorkTypes.AddRangeAsync(existing, other);
+            await context.SaveChangesAsync();
+
+            var dto = new UpdateWorkTypeDto
+            {
+                Code = other.Code,
+                Name = other.Name,
+                ProductCode = "TD_GOLD", // already used by `existing`
+            };
+
+            await Assert.ThrowsAsync<ConflictException>(() => service.UpdateWorkTypeAsync(other.Id, dto));
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(10.0001)]
+    public void WorkTypeKpiItemDto_MultiplierOutOfRange_FailsValidation(double multiplier)
+    {
+        var dto = new WorkTypeKpiItemDto
+        {
+            KpiDefinitionId = Guid.NewGuid(),
+            Multiplier = (decimal)multiplier,
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+        };
+
+        var results = new List<DataAnnotationsValidationResult>();
+        var isValid = DataAnnotationsValidator.TryValidateObject(dto, new DataAnnotationsValidationContext(dto), results, validateAllProperties: true);
+
+        Assert.False(isValid);
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(WorkTypeKpiItemDto.Multiplier)));
+    }
+
+    [Theory]
+    [InlineData(0.0001)]
+    [InlineData(1)]
+    [InlineData(10)]
+    public void WorkTypeKpiItemDto_MultiplierWithinRange_PassesValidation(double multiplier)
+    {
+        var dto = new WorkTypeKpiItemDto
+        {
+            KpiDefinitionId = Guid.NewGuid(),
+            Multiplier = (decimal)multiplier,
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+        };
+
+        var results = new List<DataAnnotationsValidationResult>();
+        var isValid = DataAnnotationsValidator.TryValidateObject(dto, new DataAnnotationsValidationContext(dto), results, validateAllProperties: true);
+
+        Assert.True(isValid, string.Join("; ", results.Select(r => r.ErrorMessage)));
     }
 
     [Fact]

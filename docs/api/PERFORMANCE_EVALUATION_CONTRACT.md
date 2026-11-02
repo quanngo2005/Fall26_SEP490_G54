@@ -99,8 +99,11 @@ returns to `DRAFT`. Saving the evaluation form as a draft (`POST /evaluations/su
 the same calculation but does not demote an evaluation that is already `CALCULATED`: it stays `CALCULATED` while a
 total exists.
 
-Limits: there is no per-result or per-product multiplier (BR-32, BR-43 Task Multiplier) in the schema any more.
-Everything that cannot be scored counts as 0 at every level (a KPI without a target or progress, a qualitative group
+Limits: the per-product multiplier (BR-48 Task Multiplier) lives on `WorkTypeKpi.Multiplier` and is applied by
+`VerifiedResultRecorder` when a verified result is recorded; `ActualProgress`/`PerformanceContribution` already
+hold the weighted value, so this calculation does not re-apply any multiplier. There is still no separate
+per-evaluation or per-period multiplier (BR-32); to change a rate for a period, add a new `WorkTypeKpi` row with a
+new `EffectiveFrom`. Everything that cannot be scored counts as 0 at every level (a KPI without a target or progress, a qualitative group
 not yet scored); this rule awaits BA confirmation. Two calculations of the same existing
 evaluation at the same time can overwrite each other (the last one wins; the evaluation has no concurrency token). A
 unique index on (evaluation, anchoring progress row) for KPI rows stops two requests from inserting the same KPI row
