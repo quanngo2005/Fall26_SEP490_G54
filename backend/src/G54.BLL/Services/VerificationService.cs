@@ -54,7 +54,13 @@ public sealed class VerificationService(
             submission.SubmitterEmployee?.JobPosition?.Title ?? "Nhân viên",
             submission.SubmitterEmployee?.Department?.Name ?? "Phòng ban");
 
-        var primaryKpi = submission.Work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinition;
+        // Same in-effect mapping VerifiedResultRecorder will use on approval, so the dossier shows the KPI the
+        // approval would actually record.
+        var today = time.GetBusinessToday();
+        var primaryKpi = submission.Work.WorkType?.WorkTypeKpis
+            .Where(k => k.EffectiveFrom <= today && (k.EffectiveTo == null || k.EffectiveTo >= today))
+            .OrderByDescending(k => k.EffectiveFrom)
+            .FirstOrDefault()?.KpiDefinition;
         KpiItemDto? kpiItem = null;
         if (primaryKpi is not null)
         {

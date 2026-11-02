@@ -5,5 +5,6 @@ public sealed record WorkTypeKpiDetailDto(
     string KpiCode,
     string KpiName,
     bool IsRequired,
+    decimal Multiplier,
     DateOnly EffectiveFrom,
     DateOnly? EffectiveTo);

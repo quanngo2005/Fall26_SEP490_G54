@@ -1747,6 +1747,8 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                 table.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
+                table.HasCheckConstraint("ck_work_result_item_raw_value", "raw_value >= 0");
+                table.HasCheckConstraint("ck_work_result_item_multiplier_applied", "multiplier_applied > 0");
             });
 
             entity.HasIndex(e => e.ActualProgressId, "ix_work_result_item_progress");
@@ -1771,6 +1773,13 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Value)
                 .HasPrecision(18, 4)
                 .HasColumnName("value");
+            entity.Property(e => e.RawValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("raw_value");
+            entity.Property(e => e.MultiplierApplied)
+                .HasPrecision(6, 4)
+                .HasDefaultValue(1.0m)
+                .HasColumnName("multiplier_applied");
             entity.Property(e => e.VerifiedWorkResultId).HasColumnName("verified_work_result_id");
 
             entity.HasOne(d => d.ActualProgress).WithMany(p => p.WorkResultItems)
@@ -1796,6 +1805,10 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.Code, "uq_work_type_code").IsUnique();
 
+            entity.HasIndex(e => e.ProductCode, "uq_work_type_product_code")
+                .IsUnique()
+                .HasFilter("product_code IS NOT NULL");
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
@@ -1803,6 +1816,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("code");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ProductCode)
+                .HasMaxLength(50)
+                .HasColumnName("product_code");
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
@@ -1822,6 +1838,7 @@ public partial class AppDbContext : DbContext
             entity.ToTable("work_type_kpi", table =>
             {
                 table.HasCheckConstraint("ck_work_type_kpi_dates", "effective_to IS NULL OR effective_to >= effective_from");
+                table.HasCheckConstraint("ck_work_type_kpi_multiplier", "multiplier > 0 AND multiplier <= 10");
             });
 
             entity.HasIndex(e => new { e.WorkTypeId, e.KpiDefinitionId, e.EffectiveFrom }, "uq_work_type_kpi_effective").IsUnique();
@@ -1836,6 +1853,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.IsRequired)
                 .HasDefaultValue(false)
                 .HasColumnName("is_required");
+            entity.Property(e => e.Multiplier)
+                .HasPrecision(6, 4)
+                .HasDefaultValue(1.0m)
+                .HasColumnName("multiplier");
             entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")

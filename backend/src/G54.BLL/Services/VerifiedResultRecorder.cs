@@ -35,8 +35,11 @@ internal static class VerifiedResultRecorder
             throw new BusinessRuleException(ErrorCodes.KpiAlreadyContributed, statusCode: StatusCodes.Status409Conflict);
         }
 
-        var primaryKpiId = work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
-        (Guid EmployeeId, decimal Value)[] contributions = [];
+        var progressDate = time.GetBusinessToday();
+        var mapping = SelectInEffectMapping(work.WorkType, progressDate);
+        var primaryKpiId = mapping?.KpiDefinitionId;
+        var multiplier = mapping?.Multiplier ?? 1m;
+        (Guid EmployeeId, decimal RawValue)[] contributions = [];
         var targets = new Dictionary<Guid, TargetAssignment>();
         if (primaryKpiId.HasValue && verifiedValue.HasValue)
         {
@@ -51,7 +54,6 @@ internal static class VerifiedResultRecorder
                 : SplitHandoverContributions(handover, verifiedValue.Value);
 
             // Resolve every recipient's target before writing anything, so one missing target rejects the whole approval.
-            var progressDate = time.GetBusinessToday();
             foreach (var (employeeId, _) in contributions)
             {
                 var target = await FindActiveTargetAsync(db, primaryKpiId.Value, employeeId, progressDate, cancellationToken)
@@ -70,13 +72,25 @@ internal static class VerifiedResultRecorder
         };
         db.VerifiedWorkResults.Add(verifiedResult);
 
-        foreach (var (employeeId, value) in contributions)
+        foreach (var (employeeId, rawValue) in contributions)
         {
-            await AddResultItemAsync(db, time, verifiedResult.Id, targets[employeeId], employeeId, value, now, cancellationToken);
+            await AddResultItemAsync(db, time, verifiedResult.Id, targets[employeeId], employeeId, rawValue, multiplier, now, cancellationToken);
         }
     }
 
-    private static (Guid EmployeeId, decimal Value)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
+    /// <summary>
+    /// The WorkTypeKpi mapping in effect on <paramref name="date"/>
+    /// (<c>EffectiveFrom &lt;= date &amp;&amp; (EffectiveTo == null || EffectiveTo &gt;= date)</c>), latest
+    /// <c>EffectiveFrom</c> first. <c>null</c> when the work type has no mapping in effect (e.g. expired or not
+    /// started), in which case the approval records no KPI contribution.
+    /// </summary>
+    private static WorkTypeKpi? SelectInEffectMapping(WorkType? workType, DateOnly date) =>
+        workType?.WorkTypeKpis
+            .Where(k => k.EffectiveFrom <= date && (k.EffectiveTo == null || k.EffectiveTo >= date))
+            .OrderByDescending(k => k.EffectiveFrom)
+            .FirstOrDefault();
+
+    private static (Guid EmployeeId, decimal RawValue)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
     {
         var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints, handover.ReferrerSharePercent);
         return
@@ -125,11 +139,13 @@ internal static class VerifiedResultRecorder
         Guid verifiedWorkResultId,
         TargetAssignment target,
         Guid employeeId,
-        decimal value,
+        decimal rawValue,
+        decimal multiplier,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var progress = await AddToProgressAsync(db, target, time.GetBusinessToday(), value, now, cancellationToken);
+        var weightedValue = Math.Round(rawValue * multiplier, 4, MidpointRounding.ToEven);
+        var progress = await AddToProgressAsync(db, target, time.GetBusinessToday(), weightedValue, now, cancellationToken);
 
         db.WorkResultItems.Add(new WorkResultItem
         {
@@ -137,7 +153,9 @@ internal static class VerifiedResultRecorder
             VerifiedWorkResultId = verifiedWorkResultId,
             ActualProgressId = progress.Id,
             EmployeeId = employeeId,
-            Value = value,
+            RawValue = rawValue,
+            MultiplierApplied = multiplier,
+            Value = weightedValue,
             UpdatedAt = now,
         });
     }

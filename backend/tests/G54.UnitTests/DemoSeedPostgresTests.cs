@@ -288,11 +288,11 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^1]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^2]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^3]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^4]);
-        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^5]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^1]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^2]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^3]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^4]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^5]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

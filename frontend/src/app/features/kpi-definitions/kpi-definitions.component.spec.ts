@@ -142,7 +142,7 @@ describe('KpiDefinitionsComponent', () => {
     );
   });
 
-  it('labels role weights and multipliers as unsaved drafts and never sends them', async () => {
+  it('labels role weights as unsaved drafts and never sends them', async () => {
     const fixture = await create();
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('.draft-panel .status-badge')?.textContent).toContain('Chưa lưu');

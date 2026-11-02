@@ -40,7 +40,10 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, 
  ('5eed0000-0000-0000-0005-000000000003', '5eed0000-0000-0000-0003-000000000001', 'DU_NO',     'Giải ngân tín dụng',         'Dư nợ giải ngân mới',            'SUM(giải ngân)',                 'tỷ VND',     'SUM',   'HIGHER_BETTER', 150),
  ('5eed0000-0000-0000-0005-000000000004', '5eed0000-0000-0000-0003-000000000002', 'CSAT',      'Điểm hài lòng khách hàng',   'Điểm khảo sát CSAT (1-5)',       'AVG(điểm khảo sát)',             'điểm',       'AVG',   'HIGHER_BETTER', 100),
  ('5eed0000-0000-0000-0005-000000000005', '5eed0000-0000-0000-0003-000000000002', 'TY_LE_LOI', 'Tỷ lệ lỗi giao dịch',        'Giao dịch lỗi / tổng giao dịch', 'giao dịch lỗi / tổng giao dịch', '%',          'RATIO', 'LOWER_BETTER',  120),
- ('5eed0000-0000-0000-0005-000000000006', '5eed0000-0000-0000-0003-000000000003', 'TUAN_THU',  'Tỷ lệ hồ sơ đúng quy trình', 'Hồ sơ đạt / tổng hồ sơ',         'hồ sơ đạt / tổng hồ sơ',         '%',          'RATIO', 'HIGHER_BETTER', 100)
+ ('5eed0000-0000-0000-0005-000000000006', '5eed0000-0000-0000-0003-000000000003', 'TUAN_THU',  'Tỷ lệ hồ sơ đúng quy trình', 'Hồ sơ đạt / tổng hồ sơ',         'hồ sơ đạt / tổng hồ sơ',         '%',          'RATIO', 'HIGHER_BETTER', 100),
+ -- BR-48 Task Multiplier: one KPI shared by every card tier; the tier's weight comes from
+ -- work_type_kpi.multiplier below, not from a separate KPI per tier.
+ ('5eed0000-0000-0000-0005-000000000007', '5eed0000-0000-0000-0003-000000000001', 'THE_TD',    'Thẻ tín dụng',               'Số thẻ tín dụng mở mới (quy đổi theo hạng thẻ)', 'SUM(thẻ mở mới x hệ số hạng thẻ)', 'thẻ', 'SUM', 'HIGHER_BETTER', 150)
 ON CONFLICT DO NOTHING;
 
 -- Only two job positions; managers hold one of them and get the MANAGER role.
@@ -203,29 +206,39 @@ ON CONFLICT DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- Work type catalog
 -- ---------------------------------------------------------------------------
-INSERT INTO work_type (id, code, name, description) VALUES
- ('5eed0000-0000-0000-000c-000000000001', 'MO_TAI_KHOAN', 'Mở tài khoản khách hàng', NULL),
- ('5eed0000-0000-0000-000c-000000000002', 'HUY_DONG',     'Huy động tiền gửi',       NULL),
- ('5eed0000-0000-0000-000c-000000000003', 'GIAI_NGAN',    'Giải ngân khoản vay',     NULL),
- ('5eed0000-0000-0000-000c-000000000004', 'GIAO_DICH',    'Giao dịch tại quầy',      NULL)
+INSERT INTO work_type (id, code, name, description, product_code) VALUES
+ ('5eed0000-0000-0000-000c-000000000001', 'MO_TAI_KHOAN',    'Mở tài khoản khách hàng', NULL, NULL),
+ ('5eed0000-0000-0000-000c-000000000002', 'HUY_DONG',        'Huy động tiền gửi',       NULL, NULL),
+ ('5eed0000-0000-0000-000c-000000000003', 'GIAI_NGAN',       'Giải ngân khoản vay',     NULL, NULL),
+ ('5eed0000-0000-0000-000c-000000000004', 'GIAO_DICH',       'Giao dịch tại quầy',      NULL, NULL),
+ -- BR-48 Task Multiplier: one work type per card tier, each carrying the product code the future
+ -- transaction matcher (BR-09) will require to match, and its own multiplier on the KPI mapping below.
+ ('5eed0000-0000-0000-000c-000000000005', 'THE_TD_CLASSIC',  'Mở thẻ tín dụng Classic',  'Thẻ tín dụng hạng Classic',  'TD_CLASSIC'),
+ ('5eed0000-0000-0000-000c-000000000006', 'THE_TD_GOLD',     'Mở thẻ tín dụng Gold',     'Thẻ tín dụng hạng Gold',     'TD_GOLD'),
+ ('5eed0000-0000-0000-000c-000000000007', 'THE_TD_PLATINUM', 'Mở thẻ tín dụng Platinum', 'Thẻ tín dụng hạng Platinum', 'TD_PLATINUM')
 ON CONFLICT DO NOTHING;
 
 -- Fixed ids are required: the overlap trigger excludes rows with the same id.
-INSERT INTO work_type_kpi (id, work_type_id, kpi_definition_id, is_required, effective_from) VALUES
- ('5eed0000-0000-0000-000d-000000000001', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0005-000000000002', TRUE,  '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000002', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0005-000000000006', FALSE, '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000003', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0005-000000000001', TRUE,  '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000004', '5eed0000-0000-0000-000c-000000000003', '5eed0000-0000-0000-0005-000000000003', TRUE,  '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000005', '5eed0000-0000-0000-000c-000000000003', '5eed0000-0000-0000-0005-000000000006', FALSE, '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000006', '5eed0000-0000-0000-000c-000000000004', '5eed0000-0000-0000-0005-000000000004', TRUE,  '2026-01-01'),
- ('5eed0000-0000-0000-000d-000000000007', '5eed0000-0000-0000-000c-000000000004', '5eed0000-0000-0000-0005-000000000005', TRUE,  '2026-01-01')
+INSERT INTO work_type_kpi (id, work_type_id, kpi_definition_id, is_required, multiplier, effective_from) VALUES
+ ('5eed0000-0000-0000-000d-000000000001', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0005-000000000002', TRUE,  1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000002', '5eed0000-0000-0000-000c-000000000001', '5eed0000-0000-0000-0005-000000000006', FALSE, 1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000003', '5eed0000-0000-0000-000c-000000000002', '5eed0000-0000-0000-0005-000000000001', TRUE,  1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000004', '5eed0000-0000-0000-000c-000000000003', '5eed0000-0000-0000-0005-000000000003', TRUE,  1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000005', '5eed0000-0000-0000-000c-000000000003', '5eed0000-0000-0000-0005-000000000006', FALSE, 1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000006', '5eed0000-0000-0000-000c-000000000004', '5eed0000-0000-0000-0005-000000000004', TRUE,  1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000007', '5eed0000-0000-0000-000c-000000000004', '5eed0000-0000-0000-0005-000000000005', TRUE,  1.0, '2026-01-01'),
+ -- Classic / Gold / Platinum: multiplier 1.0 / 1.2 / 1.5 on the same KPI "Thẻ tín dụng" (THE_TD).
+ ('5eed0000-0000-0000-000d-000000000008', '5eed0000-0000-0000-000c-000000000005', '5eed0000-0000-0000-0005-000000000007', TRUE,  1.0, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-000000000009', '5eed0000-0000-0000-000c-000000000006', '5eed0000-0000-0000-0005-000000000007', TRUE,  1.2, '2026-01-01'),
+ ('5eed0000-0000-0000-000d-00000000000a', '5eed0000-0000-0000-000c-000000000007', '5eed0000-0000-0000-0005-000000000007', TRUE,  1.5, '2026-01-01')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO job_position_work_type (job_position_id, work_type_id)
 SELECT jp.id, wt.id
 FROM (VALUES
     ('SALES', 'MO_TAI_KHOAN'), ('SALES', 'HUY_DONG'), ('SALES', 'GIAI_NGAN'),
-    ('TELLER', 'MO_TAI_KHOAN'), ('TELLER', 'GIAO_DICH')
+    ('TELLER', 'MO_TAI_KHOAN'), ('TELLER', 'GIAO_DICH'),
+    ('SALES', 'THE_TD_CLASSIC'), ('SALES', 'THE_TD_GOLD'), ('SALES', 'THE_TD_PLATINUM')
 ) AS m(position_code, work_type_code)
 JOIN job_position jp ON jp.code = m.position_code
 JOIN work_type wt ON wt.code = m.work_type_code

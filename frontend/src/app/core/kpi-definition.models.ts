@@ -16,12 +16,6 @@ export type KpiStatus = (typeof KPI_STATUSES)[number];
 
 export type KpiMeasurementType = 'Quantitative' | 'Qualitative';
 
-export interface MultiplierItem {
-  id?: string;
-  label: string;
-  value: number;
-}
-
 export interface RoleWeightItem {
   id?: string;
   role: string;
@@ -43,8 +37,6 @@ export interface KpiDefinition {
   status: KpiStatus;
   updatedAt: string;
   measurementType?: KpiMeasurementType;
-  applyProductMultiplier?: boolean;
-  depositMultipliers?: MultiplierItem[];
   roleWeights?: RoleWeightItem[];
   version?: string;
   effectiveDate?: string;

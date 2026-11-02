@@ -13,6 +13,8 @@ public partial class WorkTypeKpi
 
     public bool IsRequired { get; set; }
 
+    public decimal Multiplier { get; set; } = 1m;
+
     public DateOnly EffectiveFrom { get; set; }
 
     public DateOnly? EffectiveTo { get; set; }
