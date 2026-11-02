@@ -134,7 +134,9 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             .Select(grant => grant.Replace("=Department", "=Branch", StringComparison.Ordinal).Replace("=Dept", "=Branch", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToList();
-        Assert.Equal(widened, branch);
+        // Approving evaluation profiles is the Branch Manager's own permission, not a copy of the manager's.
+        Assert.Equal(widened, branch.Where(grant => !grant.StartsWith("EVALUATION_PROFILE_APPROVE=", StringComparison.Ordinal)));
+        Assert.Contains("EVALUATION_PROFILE_APPROVE=All", branch);
         Assert.Contains("WORK_READ=Branch", branch);
         Assert.Contains("KPI_READ=All", branch); // wider scopes are kept
         Assert.Contains("HANDOVER_CREATE=Own", branch); // narrower scopes are kept
@@ -286,11 +288,11 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^1]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^2]);
-        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^3]);
-        Assert.Equal("20261028155338_AddWorkTargetValue", migrations[^4]);
-        Assert.Equal("20261028090000_SeedJobPositionManageAccess", migrations[^5]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^1]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^2]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^3]);
+        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^4]);
+        Assert.Equal("20261028155338_AddWorkTargetValue", migrations[^5]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>
