@@ -180,7 +180,12 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'TARGET_MANAGE',
   },
   { id: 'branchWork', icon: 'branchWork' },
-  { id: 'branchPerformance', icon: 'branchPerformance' },
+  {
+    id: 'branchPerformance',
+    icon: 'branchPerformance',
+    route: '/branch-performance/evaluations',
+    permission: 'EVALUATION_FINALIZE',
+  },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
   { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
   { id: 'escalatedCases', icon: 'escalatedCases' },

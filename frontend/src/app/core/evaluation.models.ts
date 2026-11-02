@@ -171,3 +171,53 @@ export interface EvaluationResult {
   calculatedAt: string;
   message: string;
 }
+
+export type EvaluationPeriodDisplayStatus =
+  'IN_PROGRESS' | 'EVALUATING' | 'IN_REVIEW' | 'PUBLISHED' | 'LOCKED';
+
+export interface AppealWindowInfo {
+  startDate: string | null;
+  endDate: string | null;
+  isExpired: boolean;
+  isClosed: boolean;
+}
+
+export interface BranchEvaluationPeriodItem {
+  id: string;
+  code: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  periodType: string;
+  status: EvaluationPeriodStatus;
+  displayStatus: EvaluationPeriodDisplayStatus;
+  qualityRatio: number | null;
+  submittedDepartmentCount: number;
+  approvedDepartmentCount: number;
+  totalDepartmentCount: number;
+  appealWindow: AppealWindowInfo | null;
+  canOpen: boolean;
+  canLock: boolean;
+  canViewHistory: boolean;
+}
+
+export interface BranchEvaluationPeriodsOverview {
+  branchName: string;
+  branchCode: string;
+  availableYears: number[];
+  periods: BranchEvaluationPeriodItem[];
+}
+
+export interface FinalizePeriodRequest {
+  periodId: string;
+  signatureToken?: string | null;
+  approvalComments?: string | null;
+}
+
+export interface FinalizePeriodResult {
+  periodId: string;
+  periodStatus: string;
+  finalizedAt: string;
+  totalEvaluationsFinalized: number;
+  message: string;
+}
