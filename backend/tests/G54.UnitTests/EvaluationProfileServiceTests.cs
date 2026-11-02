@@ -1133,6 +1133,72 @@ public sealed class EvaluationProfileServiceTests
         }
     }
 
+    private static async Task SetKpiStatusAsync(AppDbContext db, Kpi kpi, KpiStatus status)
+    {
+        var definition = await db.KpiDefinitions.SingleAsync(k => k.Id == kpi.Id);
+        definition.Status = status;
+        await db.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData(KpiStatus.Draft)]
+    [InlineData(KpiStatus.Inactive)]
+    [InlineData(KpiStatus.Archived)]
+    public async Task Create_KpiThatIsNotActive_IsAValidationError(KpiStatus status)
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var kpi = AddGroup(db, "KPI_X");
+            await SetKpiStatusAsync(db, kpi, status);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.CreateProfileAsync(CreateDto(position, [Item(kpi, 100)])));
+
+            Assert.Empty(db.EvaluationProfiles);
+        }
+    }
+
+    [Fact]
+    public async Task Update_NewKpiThatIsNotActive_IsAValidationError()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var kept = AddGroup(db, "KPI_A");
+            var inactive = AddGroup(db, "KPI_B");
+            var created = await service.CreateProfileAsync(CreateDto(position, [Item(kept, 100)]));
+            await SetKpiStatusAsync(db, inactive, KpiStatus.Inactive);
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.UpdateProfileAsync(created.Id, UpdateDto(created, [Item(kept, 60, 1), Item(inactive, 40, 2)])));
+
+            var stored = await service.GetProfileByIdAsync(created.Id);
+            Assert.Single(stored!.Items);
+        }
+    }
+
+    [Fact]
+    public async Task Update_KpiAlreadyInTheProfileThatWasDeactivated_IsStillAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "KPI_A");
+            var b = AddGroup(db, "KPI_B");
+            var created = await service.CreateProfileAsync(CreateDto(position, FullItems(a, b)));
+            await SetKpiStatusAsync(db, b, KpiStatus.Inactive);
+
+            var updated = await service.UpdateProfileAsync(created.Id, UpdateDto(created, name: "Renamed"));
+
+            Assert.Equal("Renamed", updated.Name);
+            Assert.Equal(2, updated.Items.Count);
+        }
+    }
+
     [Fact]
     public async Task Update_UnknownProfile_IsNotFound()
     {

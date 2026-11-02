@@ -5,26 +5,19 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
 /// <summary>
 /// Records the verified result and KPI contribution of an approved submission. Shared by the verification decision and
 /// by an ACCEPT appeal decision. ADJUST requests revision and does not record a verified result.
+/// A work with a KPI and a verified value is rejected (409 <c>KPI_TARGET_NOT_ASSIGNED</c>) when any recipient has no active target.
 /// </summary>
 internal static class VerifiedResultRecorder
 {
-    private static readonly Action<ILogger, Guid, Guid, Exception?> LogContributionSkipped =
-        LoggerMessage.Define<Guid, Guid>(
-            LogLevel.Warning,
-            new EventId(2, "ContributionSkippedNoActiveTarget"),
-            "KPI contribution skipped: EmployeeId={EmployeeId} has no active target for KpiDefinitionId={KpiDefinitionId}");
-
     /// <param name="work">The submission's work, with <c>WorkType.WorkTypeKpis</c> loaded.</param>
     public static async Task RecordAsync(
         AppDbContext db,
-        ILogger logger,
         TimeProvider time,
         Verification verification,
         Work work,
@@ -42,6 +35,31 @@ internal static class VerifiedResultRecorder
             throw new BusinessRuleException(ErrorCodes.KpiAlreadyContributed, statusCode: StatusCodes.Status409Conflict);
         }
 
+        var primaryKpiId = work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
+        (Guid EmployeeId, decimal Value)[] contributions = [];
+        var targets = new Dictionary<Guid, TargetAssignment>();
+        if (primaryKpiId.HasValue && verifiedValue.HasValue)
+        {
+            var handover = await db.TaskHandovers
+                .AsNoTracking()
+                .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
+                .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            contributions = handover is null
+                ? [(submitterEmployeeId, verifiedValue.Value)]
+                : SplitHandoverContributions(handover, verifiedValue.Value);
+
+            // Resolve every recipient's target before writing anything, so one missing target rejects the whole approval.
+            var progressDate = time.GetBusinessToday();
+            foreach (var (employeeId, _) in contributions)
+            {
+                var target = await FindActiveTargetAsync(db, primaryKpiId.Value, employeeId, progressDate, cancellationToken)
+                    ?? throw await TargetNotAssignedAsync(db, employeeId, cancellationToken);
+                targets[employeeId] = target;
+            }
+        }
+
         var verifiedResult = new VerifiedWorkResult
         {
             Id = Guid.NewGuid(),
@@ -52,25 +70,9 @@ internal static class VerifiedResultRecorder
         };
         db.VerifiedWorkResults.Add(verifiedResult);
 
-        var primaryKpiId = work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinitionId;
-        if (!primaryKpiId.HasValue || !verifiedValue.HasValue)
-        {
-            return;
-        }
-
-        var handover = await db.TaskHandovers
-            .AsNoTracking()
-            .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
-            .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        var contributions = handover is null
-            ? [(submitterEmployeeId, verifiedValue.Value)]
-            : SplitHandoverContributions(handover, verifiedValue.Value);
-
         foreach (var (employeeId, value) in contributions)
         {
-            await AddResultItemAsync(db, logger, time, verifiedResult.Id, primaryKpiId.Value, employeeId, value, now, cancellationToken);
+            await AddResultItemAsync(db, time, verifiedResult.Id, targets[employeeId], employeeId, value, now, cancellationToken);
         }
     }
 
@@ -84,32 +86,50 @@ internal static class VerifiedResultRecorder
         ];
     }
 
+    // A verified result item must feed an employee target's progress, so approval needs an active target for each recipient.
+    private static Task<TargetAssignment?> FindActiveTargetAsync(
+        AppDbContext db,
+        Guid kpiDefinitionId,
+        Guid employeeId,
+        DateOnly progressDate,
+        CancellationToken cancellationToken) =>
+        db.TargetAssignments
+            .Where(t => t.KpiDefinitionId == kpiDefinitionId
+                && t.EmployeeId == employeeId
+                && t.Status == TargetAssignmentStatus.Active
+                && t.EvaluationPeriod.StartDate <= progressDate
+                && t.EvaluationPeriod.EndDate >= progressDate)
+            .OrderBy(t => t.EvaluationPeriod.EndDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static async Task<BusinessRuleException> TargetNotAssignedAsync(
+        AppDbContext db,
+        Guid employeeId,
+        CancellationToken cancellationToken)
+    {
+        var employee = await db.Employees
+            .AsNoTracking()
+            .Where(e => e.Id == employeeId)
+            .Select(e => new { e.EmployeeCode, e.FullName })
+            .FirstOrDefaultAsync(cancellationToken);
+        var who = employee is null ? "Nhân sự nhận điểm" : $"Nhân sự {employee.FullName} ({employee.EmployeeCode})";
+        return new BusinessRuleException(
+            ErrorCodes.KpiTargetNotAssigned,
+            $"{who} chưa có chỉ tiêu (target) đang hiệu lực cho KPI của công việc này trong kỳ hiện tại nên chưa thể phê duyệt kết quả.",
+            StatusCodes.Status409Conflict);
+    }
+
     private static async Task AddResultItemAsync(
         AppDbContext db,
-        ILogger logger,
         TimeProvider time,
         Guid verifiedWorkResultId,
-        Guid kpiDefinitionId,
+        TargetAssignment target,
         Guid employeeId,
         decimal value,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var progress = await ResolveProgressAsync(
-            db,
-            kpiDefinitionId,
-            employeeId,
-            time.GetBusinessToday(),
-            value,
-            now,
-            cancellationToken);
-
-        // A verified result item must feed an employee target's progress; without an active target there is nothing to attribute it to.
-        if (progress is null)
-        {
-            LogContributionSkipped(logger, employeeId, kpiDefinitionId, null);
-            return;
-        }
+        var progress = await AddToProgressAsync(db, target, time.GetBusinessToday(), value, now, cancellationToken);
 
         db.WorkResultItems.Add(new WorkResultItem
         {
@@ -122,28 +142,14 @@ internal static class VerifiedResultRecorder
         });
     }
 
-    private static async Task<ActualProgress?> ResolveProgressAsync(
+    private static async Task<ActualProgress> AddToProgressAsync(
         AppDbContext db,
-        Guid kpiDefinitionId,
-        Guid employeeId,
+        TargetAssignment target,
         DateOnly progressDate,
         decimal value,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var target = await db.TargetAssignments
-            .Where(t => t.KpiDefinitionId == kpiDefinitionId
-                && t.EmployeeId == employeeId
-                && t.Status == TargetAssignmentStatus.Active
-                && t.EvaluationPeriod.StartDate <= progressDate
-                && t.EvaluationPeriod.EndDate >= progressDate)
-            .OrderBy(t => t.EvaluationPeriod.EndDate)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (target is null)
-        {
-            return null;
-        }
-
         var progress = db.ActualProgresses.Local
                 .FirstOrDefault(p => p.TargetAssignmentId == target.Id && p.ProgressDate == progressDate)
             ?? await db.ActualProgresses.FirstOrDefaultAsync(

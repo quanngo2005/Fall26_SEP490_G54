@@ -278,6 +278,8 @@ export class ReviewVerifyComponent extends LocalizedComponent {
         return 'review.lockedError';
       case 'VERIFICATION_INVALID_STATE':
         return 'review.invalidStateError';
+      case 'KPI_TARGET_NOT_ASSIGNED':
+        return 'review.targetNotAssignedError';
       case 'VALIDATION_ERROR':
         return 'review.validationError';
       case 'NOT_FOUND':

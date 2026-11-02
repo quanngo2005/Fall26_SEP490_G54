@@ -206,7 +206,7 @@ Body `CreateEvaluationProfile`; creates a `DRAFT` profile. `201` with a `Locatio
 | `effectiveFrom` | required, `YYYY-MM-DD` |
 | `effectiveTo` | optional, must be `>= effectiveFrom` |
 | `items[].name` | group name, required for a group, max 200, unique among siblings; absent for a KPI leaf |
-| `items[].kpiDefinitionId` | KPI of a leaf, must exist (404 `NOT_FOUND` otherwise), no duplicates in the profile; absent for a group |
+| `items[].kpiDefinitionId` | KPI of a leaf, must exist (404 `NOT_FOUND` otherwise) and be `ACTIVE` (400 `VALIDATION_ERROR` otherwise), no duplicates in the profile; absent for a group |
 | `items[].children` | children of a group (at most 3 levels in total); a leaf has none |
 | `items[].weightPercent` | `> 0` and `<= 100`, at most 4 decimal places, relative to the siblings (the totals are enforced on activation) |
 | `items[].displayOrder` | `>= 1`, unique among siblings (a group's children and the roots each form one level) |
@@ -240,6 +240,9 @@ that are no longer sent are removed with everything beneath them, and new nodes 
   that were already duplicated before the indexes existed were kept and renamed by the migration (the first keeps its
   name, the others get the start of their `id` appended in brackets). Stored siblings that still share a key through
   other means cannot be matched: 409 `CONFLICT`, and the duplicate must be fixed first.
+- The `ACTIVE` KPI rule applies only to KPIs that are new to the profile. A KPI already placed in the stored tree is
+  accepted even if it was deactivated since, so the profile can still be saved; an inactive KPI leaf is ignored when a
+  score is calculated and the remaining weights are normalised.
 - Same validation rules as create otherwise.
 
 ### `PATCH /evaluation-profiles/{id}/status`
@@ -285,7 +288,8 @@ Rules for `POST`, `PUT` and `DELETE`:
 - A profile that is **in use** is 409 `EVALUATION_PROFILE_IN_USE`; create a new version instead.
 - The total weight is not enforced by these endpoints (it can be below or above `100` while editing). It is
   enforced when the profile is activated, see the Status section.
-- `POST` with a KPI already in the profile is 409 `CONFLICT`. An unknown KPI or parent node is 404 `NOT_FOUND`. A parent
+- `POST` with a KPI already in the profile is 409 `CONFLICT`. An unknown KPI or parent node is 404 `NOT_FOUND`. A KPI
+  that is not `ACTIVE` is 400 `VALIDATION_ERROR`. A parent
   that is a KPI leaf, a root KPI leaf, or a tree deeper than 3 levels is 400 `VALIDATION_ERROR`. `PUT` or `DELETE`
   for a node that is not in the profile is 404 `NOT_FOUND`.
 - Invalid `weightPercent` or `displayOrder` is 400 `VALIDATION_ERROR` (same rules as create). A `displayOrder`
@@ -294,6 +298,11 @@ Rules for `POST`, `PUT` and `DELETE`:
 - Every successful change updates the profile's `updatedAt`.
 - Risk: two concurrent requests can leave the total weight temporarily different from `100` on a `DRAFT` or
   `INACTIVE` profile; this is safe because activation checks the total again.
+- Risk: the check that a `displayOrder` is unique among siblings runs in code before the insert and the database has
+  no index for it (unlike the group name). Two concurrent requests can therefore store the same `displayOrder` under one
+  parent. Only the display order of those siblings is affected: weights and scores do not depend on it. A unique index
+  was not added because it cannot be deferred, so a `PUT` that swaps the `displayOrder` of two siblings would fail with
+  409 `CONFLICT`.
 
 ## Errors
 

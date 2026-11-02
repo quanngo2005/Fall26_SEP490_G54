@@ -29,6 +29,10 @@ public partial class PerformanceContribution
 
     public decimal? AchievementPercentCapped { get; set; }
 
+    /// <summary>
+    /// Weight of the KPI leaf among its sibling nodes in the evaluation profile tree (the leaf's own weight percent),
+    /// not the weight of its group and not its share of the whole profile.
+    /// </summary>
     public decimal? WeightSnapshot { get; set; }
 
     public decimal? ComponentScore { get; set; }

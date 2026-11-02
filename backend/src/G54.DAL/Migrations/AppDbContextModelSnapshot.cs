@@ -1273,6 +1273,10 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex(new[] { "ActualProgressId" }, "ix_performance_contribution_progress");
 
+                    b.HasIndex(new[] { "PerformanceEvaluationId", "ActualProgressId" }, "uq_performance_contribution_kpi_progress")
+                        .IsUnique()
+                        .HasFilter("risk_event_id IS NULL AND actual_progress_id IS NOT NULL");
+
                     b.HasIndex(new[] { "RiskEventId" }, "uq_performance_contribution_risk_event")
                         .IsUnique();
 

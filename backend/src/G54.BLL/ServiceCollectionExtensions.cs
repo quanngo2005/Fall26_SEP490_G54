@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IJobPositionService, JobPositionService>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
+        services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();

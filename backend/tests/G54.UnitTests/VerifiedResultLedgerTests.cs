@@ -5,6 +5,7 @@ using G54.BLL.Dtos.Verification;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -41,11 +42,9 @@ public sealed class VerifiedResultLedgerTests
     }
 
     [Theory]
-    [InlineData(0, 10, true)] // starts today
-    [InlineData(-10, 0, true)] // ends today
-    [InlineData(1, 10, false)] // starts tomorrow
-    [InlineData(-10, -1, false)] // ended yesterday
-    public async Task Approve_UsesATargetOnlyWhileItsPeriodCoversTheBusinessToday(int startOffset, int endOffset, bool attributed)
+    [InlineData(0, 10)] // starts today
+    [InlineData(-10, 0)] // ends today
+    public async Task Approve_UsesATargetWhileItsPeriodCoversTheBusinessToday(int startOffset, int endOffset)
     {
         using var rig = await Rig.CreateAsync();
         var kpi = rig.AddWorkTypeKpi();
@@ -54,37 +53,106 @@ public sealed class VerifiedResultLedgerTests
 
         await rig.ApproveAsync(25m);
 
-        Assert.Equal(attributed ? 1 : 0, await rig.Db.WorkResultItems.CountAsync());
-        Assert.Equal(attributed ? 1 : 0, await rig.Db.ActualProgresses.CountAsync());
-        // The verification itself is never lost because there was no target to credit.
+        Assert.Equal(1, await rig.Db.WorkResultItems.CountAsync());
+        Assert.Equal(1, await rig.Db.ActualProgresses.CountAsync());
         Assert.Equal(1, await rig.Db.VerifiedWorkResults.CountAsync());
         Assert.Equal(SubmissionStatus.Approved, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
     }
 
-    [Fact]
-    public async Task Approve_IgnoresASupersededTarget()
+    [Theory]
+    [InlineData(1, 10)] // starts tomorrow
+    [InlineData(-10, -1)] // ended yesterday
+    public async Task Approve_RejectsWhenTheTargetPeriodDoesNotCoverTheBusinessToday(int startOffset, int endOffset)
     {
         using var rig = await Rig.CreateAsync();
         var kpi = rig.AddWorkTypeKpi();
-        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)), TargetAssignmentStatus.Superseded);
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(startOffset), BusinessToday.AddDays(endOffset)));
         await rig.SaveAsync();
 
-        await rig.ApproveAsync(25m);
-
-        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+        await rig.AssertApprovalRejectedForMissingTargetAsync(25m);
     }
 
     [Fact]
-    public async Task Approve_IgnoresATargetOfAnotherEmployee()
+    public async Task Approve_RejectsWhenThereIsNoTargetAtAll()
+    {
+        using var rig = await Rig.CreateAsync();
+        rig.AddWorkTypeKpi();
+        await rig.SaveAsync();
+
+        await rig.AssertApprovalRejectedForMissingTargetAsync(25m);
+    }
+
+    [Theory]
+    [InlineData(TargetAssignmentStatus.Superseded)]
+    [InlineData(TargetAssignmentStatus.Closed)]
+    [InlineData(TargetAssignmentStatus.Draft)]
+    public async Task Approve_RejectsWhenTheOnlyTargetIsNotActive(TargetAssignmentStatus status)
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)), status);
+        await rig.SaveAsync();
+
+        await rig.AssertApprovalRejectedForMissingTargetAsync(25m);
+    }
+
+    [Fact]
+    public async Task Approve_RejectsWhenTheOnlyTargetBelongsToAnotherEmployee()
     {
         using var rig = await Rig.CreateAsync();
         var kpi = rig.AddWorkTypeKpi();
         rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)), owner: rig.Checker);
         await rig.SaveAsync();
 
-        await rig.ApproveAsync(25m);
+        await rig.AssertApprovalRejectedForMissingTargetAsync(25m);
+    }
 
-        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+    [Fact]
+    public async Task Approve_RejectsWhenOnlyOneHandoverRecipientHasATarget()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5));
+        rig.AddTarget(kpi, period); // the maker (referrer) has a target, the checker (processor) does not
+        rig.AddAcceptedHandover(from: rig.Maker, to: rig.Checker, referrerSharePercent: 30m);
+        await rig.SaveAsync();
+
+        await rig.AssertApprovalRejectedForMissingTargetAsync(100m);
+    }
+
+    [Fact]
+    public async Task Approve_SplitsAcrossBothHandoverRecipientsWhenBothHaveATarget()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5));
+        rig.AddTarget(kpi, period);
+        rig.AddTarget(kpi, period, owner: rig.Checker);
+        rig.AddAcceptedHandover(from: rig.Maker, to: rig.Checker, referrerSharePercent: 30m);
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(100m);
+
+        var items = await rig.Db.WorkResultItems.ToListAsync();
+        Assert.Equal(30m, items.Single(i => i.EmployeeId == rig.Maker.Id).Value);
+        Assert.Equal(70m, items.Single(i => i.EmployeeId == rig.Checker.Id).Value);
+    }
+
+    [Fact]
+    public async Task Approve_StillCreditsATargetThatAlreadyReachedItsGoal()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        target.TargetValue = 10m;
+        await rig.SaveAsync();
+        await rig.ApproveAsync(10m);
+
+        var second = await rig.AddSecondWorkAsync();
+        await rig.ApproveAsync(5m, second);
+
+        Assert.Equal(15m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
+        Assert.Equal(2, await rig.Db.WorkResultItems.CountAsync());
     }
 
     // ----- Accumulation ---------------------------------------------------------------------
@@ -364,6 +432,40 @@ public sealed class VerifiedResultLedgerTests
             };
             Db.TargetAssignments.Add(target);
             return target;
+        }
+
+        public TaskHandover AddAcceptedHandover(Employee from, Employee to, decimal referrerSharePercent)
+        {
+            var handover = new TaskHandover
+            {
+                Id = Guid.NewGuid(),
+                WorkId = Work.Id,
+                FromEmployeeId = from.Id,
+                ToEmployeeId = to.Id,
+                Status = HandoverStatus.Accepted,
+                Reason = "Handover",
+                ReferrerSharePercent = referrerSharePercent,
+                HandoverAt = Now,
+                AcceptedAt = Now,
+                UpdatedAt = Now,
+            };
+            Db.TaskHandovers.Add(handover);
+            return handover;
+        }
+
+        /// <summary>Approving must fail with 409 KPI_TARGET_NOT_ASSIGNED and leave the submission, work and ledger untouched.</summary>
+        public async Task AssertApprovalRejectedForMissingTargetAsync(decimal value)
+        {
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => ApproveAsync(value));
+
+            Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
+            Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+            Assert.Empty(await Db.Verifications.ToListAsync());
+            Assert.Empty(await Db.VerifiedWorkResults.ToListAsync());
+            Assert.Empty(await Db.WorkResultItems.ToListAsync());
+            Assert.Empty(await Db.ActualProgresses.ToListAsync());
+            Assert.Equal(SubmissionStatus.Submitted, (await Db.ResultSubmissions.SingleAsync()).Status);
+            Assert.Equal(WorkStatus.Submitted, (await Db.Works.SingleAsync()).Status);
         }
 
         public async Task<ResultSubmission> AddSecondWorkAsync()
