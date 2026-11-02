@@ -241,6 +241,107 @@ describe('EvaluationFormComponent', () => {
     );
   });
 
+  describe('not applicable values', () => {
+    const emptyValue = () => TestBed.inject(I18nService).localization.evaluations.emptyValue;
+    const cellText = (selector: string, kpiName: string): string | undefined => {
+      const rows = fixture.nativeElement.querySelectorAll('tr.kpi-row') as NodeListOf<HTMLElement>;
+      const row = Array.from(rows).find((r) => r.textContent?.includes(kpiName));
+      return (row?.querySelector(selector) as HTMLElement | null)?.textContent?.trim();
+    };
+
+    it('shows N/A for a KPI without progress in the actual, achievement and score columns', async () => {
+      const noProgress = {
+        ...quantitativeGroup,
+        kpiItems: [
+          {
+            ...quantitativeGroup.kpiItems[1],
+            targetValue: 10,
+            actualValue: null,
+            achievementPercent: null,
+            componentScore: null,
+          },
+        ],
+      };
+      await create(buildForm({ criteriaGroups: [noProgress, qualitativeGroup] }));
+      expect(cellText('.td-actual', 'New customers')).toBe(emptyValue());
+      expect(cellText('.td-achieved', 'New customers')).toBe(emptyValue());
+      expect(cellText('.td-score', 'New customers')).toBe(emptyValue());
+    });
+
+    it('still shows a real zero as 0 and not as N/A', async () => {
+      const zero = {
+        ...quantitativeGroup,
+        kpiItems: [
+          {
+            ...quantitativeGroup.kpiItems[1],
+            targetValue: 10,
+            actualValue: 0,
+            achievementPercent: 0,
+            componentScore: 0,
+          },
+        ],
+      };
+      await create(buildForm({ criteriaGroups: [zero, qualitativeGroup] }));
+      expect(cellText('.td-achieved', 'New customers')).toContain('0');
+      expect(cellText('.td-achieved', 'New customers')).not.toBe(emptyValue());
+      expect(cellText('.td-score', 'New customers')).not.toBe(emptyValue());
+    });
+
+    it('shows N/A for a group score that cannot be determined', async () => {
+      await create(
+        buildForm({
+          criteriaGroups: [{ ...quantitativeGroup, groupScore: null }, qualitativeGroup],
+        }),
+      );
+      const cell = fixture.nativeElement.querySelector(
+        'tr.group-header-row .group-score-cell',
+      ) as HTMLElement;
+      expect(cell.textContent?.trim()).toBe(emptyValue());
+    });
+
+    it('shows N/A for the total, the weighted score and the tier when nothing can be scored', async () => {
+      await create(
+        buildForm({
+          summary: {
+            ...buildForm().summary,
+            totalScore: null,
+            weightedScore: null,
+            proposedTier: null,
+          },
+        }),
+      );
+      const highlight = fixture.nativeElement.querySelector(
+        '.metric-value.highlight',
+      ) as HTMLElement;
+      expect(highlight.textContent?.trim()).toBe(emptyValue());
+      const summaryCells = Array.from(
+        fixture.nativeElement.querySelectorAll(
+          'tr.summary-row .td-summary-value',
+        ) as NodeListOf<HTMLElement>,
+      ).map((cell) => cell.textContent?.trim());
+      expect(summaryCells).toEqual([emptyValue(), emptyValue()]);
+      expect(component.tierText()).toBe(emptyValue());
+    });
+
+    it('shows the real total when there is one', async () => {
+      await create();
+      const highlight = fixture.nativeElement.querySelector(
+        '.metric-value.highlight',
+      ) as HTMLElement;
+      expect(highlight.textContent).toContain('63');
+      expect(highlight.textContent?.trim()).not.toBe(emptyValue());
+    });
+
+    it('shows no score difference when the current total is not available', async () => {
+      await create(
+        buildForm({
+          previousPeriod: { periodCode: 'p', totalScore: 70, tier: 'B', scoreDifference: null },
+        }),
+      );
+      expect(component.comparisonText()).toBe(emptyValue());
+    });
+  });
+
   it('places the weight column between the KPI item and the target', async () => {
     await create();
     const labels = text();

@@ -50,7 +50,8 @@ public sealed class EvaluationFormTests
         return new EvaluationService(
             context,
             NullLogger<EvaluationService>.Instance,
-            new FakePermissionService(null, grants.ToArray()));
+            new FakePermissionService(null, grants.ToArray()),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
     }
 
     private static async Task<Scenario> SeedAsync(AppDbContext context)

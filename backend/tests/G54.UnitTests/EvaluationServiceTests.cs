@@ -37,7 +37,8 @@ public sealed class EvaluationServiceTests
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
             new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
             new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"));
-        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+        var service = new EvaluationService(
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
         return (context, service);
     }
 
@@ -570,7 +571,8 @@ public sealed class EvaluationServiceTests
         var permissions = new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
-        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+        var service = new EvaluationService(
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
         await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
@@ -1097,7 +1099,8 @@ public sealed class EvaluationServiceTests
         new(context, logger, new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
-            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")));
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
 
     [Fact]
     public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()

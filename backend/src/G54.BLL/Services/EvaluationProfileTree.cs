@@ -120,11 +120,20 @@ public static class EvaluationProfileTree
     }
 
     /// <summary>
-    /// Score of a node: a leaf takes <paramref name="leafScore"/>, a group the weighted mean of its children.
+    /// What a KPI leaf contributes to its group. An inactive KPI is not part of the profile, so it has no score and its
+    /// share goes to the others (null). An active KPI that could not be scored (no target or no progress) counts as 0
+    /// and keeps its share (awaiting BA confirmation). The one place this rule lives, for every level that scores a tree.
+    /// </summary>
+    public static decimal? ScoredLeaf(ProfileNode leaf, decimal? kpiScore) =>
+        leaf.Kpi is { Status: KpiStatus.Active } ? kpiScore ?? 0m : null;
+
+    /// <summary>
+    /// Score of a node: a leaf takes <paramref name="leafScore"/> through <see cref="ScoredLeaf"/>, a group the weighted
+    /// mean of its children. Only a group without any active KPI has no score.
     /// </summary>
     public static decimal? ScoreNode(ProfileNode node, Func<ProfileNode, decimal?> leafScore) =>
         node.IsLeaf
-            ? leafScore(node)
+            ? ScoredLeaf(node, leafScore(node))
             : WeightedMean(node.Children.Select(child => (child.Item.WeightPercent, ScoreNode(child, leafScore))));
 
     private static ProfileNode BuildNode(EvaluationProfileItem item, ILookup<Guid, EvaluationProfileItem> childrenOf) =>

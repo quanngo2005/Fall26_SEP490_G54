@@ -165,7 +165,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   readonly comparisonText = computed(() => {
     const previous = this.form()?.previousPeriod;
-    if (!previous) return this.localization.evaluations.emptyValue;
+    if (!previous || previous.scoreDifference === null)
+      return this.localization.evaluations.emptyValue;
     const key =
       previous.scoreDifference > 0
         ? 'comparisonHigher'
