@@ -51,6 +51,7 @@ Run these automatically, without waiting to be asked, before reporting the task 
 3. **Code review**: load the `code-review` skill (plus `security-review`), walk the `[manual]` items for the changed files, and report findings with `file:line`, severity, risk, and fix. Critical/High findings block completion. Fix the findings yourself, then rerun step 1-2.
 3a. **Manual test**: exercise the change for real, then fix what breaks. Backend: call the new/changed endpoints against the running API (success, validation, auth and not-found cases). Frontend: drive the changed UI in the running app. State exactly what was exercised.
 4. **If a PR exists**, check its CI after pushing (`gh run list --branch <branch>`; `gh run view <id> --log-failed` on failure) and fix any failing job the same way.
+4a. **Update status docs**: when a task changes what works, update `docs/BE_STATUS.md` (backend) and/or `docs/FE_STATUS.md` (frontend): status icon, what exists today, remaining gaps, and the "as of" date. Keep entries short and only claim what was verified.
 5. Report what passed, what was fixed, and anything not verified (e.g. no running API, UI not checked at all widths).
 
 If a script cannot run in your environment (missing PowerShell, execution policy, sandbox), say so, run its gates directly (frontend: `npx eslint .`, `npx prettier --list-different .`, `npm test -- --watch=false --code-coverage`, `npx ng build`; backend: `dotnet build`, `dotnet test`), and state that the report was not generated.

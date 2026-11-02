@@ -624,6 +624,27 @@ public sealed class TargetAssignmentServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task List_FeedbackAt_IsSetOnlyForAnsweredEmployeeTargets()
+    {
+        await SeedAsync();
+        var answered = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var service = Service(admin: true);
+        var untouched = (await service.ListAsync(_admin, new TargetAssignmentQueryDto())).Single(t => t.Id == answered.Id);
+        await service.ConfirmAsync(memberAccountId, answered.Id);
+
+        var listed = (await service.ListAsync(_admin, new TargetAssignmentQueryDto())).ToList();
+        var confirmed = listed.Single(t => t.Id == answered.Id);
+
+        Assert.Equal("NOT_VIEWED", untouched.FeedbackStatus);
+        Assert.Null(untouched.FeedbackAt);
+        Assert.Equal("CONFIRMED", confirmed.FeedbackStatus);
+        Assert.NotNull(confirmed.FeedbackAt);
+        Assert.All(listed.Where(t => t.EmployeeId is null), t => Assert.Null(t.FeedbackAt));
+    }
+
+    [Fact]
     public async Task Comment_LongerThan500Characters_IsRejected()
     {
         await SeedAsync();

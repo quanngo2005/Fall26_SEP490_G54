@@ -22,6 +22,7 @@ description: Use when reviewing G54 backend or frontend code, running codereview
 5. Fix every failed item, then rerun until the report ends with `## ALL CHECKS PASSED`.
 6. Walk the `[manual]` items and report findings with `file:line`, severity, risk, and fix. Fix them yourself and rerun the script.
 6a. Manually test the change against the running app/API (happy path plus invalid, auth and not-found cases), fix failures, and report what was exercised.
+6b. Check `docs/BE_STATUS.md` / `docs/FE_STATUS.md` were updated for the task; flag it if not.
 7. For frontend changes, review the rendered UI against `frontend/docs/DESIGN.md` at desktop, tablet, and mobile widths; check keyboard/focus states and record any intentional design deviations.
 
 ## Pass Criteria
