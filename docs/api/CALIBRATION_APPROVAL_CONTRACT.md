@@ -15,11 +15,11 @@ Following [API_CONVENTIONS.md](API_CONVENTIONS.md):
 
 | Method | Endpoint | Description | Role / Permission |
 | --- | --- | --- | --- |
-| `GET` | `/evaluations/calibration` | Get department calibration overview with ranked roster, Bell curve, and quota metrics | `MANAGER`, `ADMIN` |
-| `POST` | `/evaluations/calibration/submit` | Save draft or submit calibrated rankings to Executive with Tier A quota check | `MANAGER`, `ADMIN` |
-| `GET` | `/evaluations/approvals` | Get branch-wide evaluation approval overview and department comparative ratios | `ADMIN`, `MANAGER` |
-| `POST` | `/evaluations/approvals/{departmentId}/recalibrate` | Reject department calibration proposal and return for re-calibration | `ADMIN` |
-| `POST` | `/evaluations/approvals/finalize` | Executive approval and hard-lock of evaluation period | `ADMIN` |
+| `GET` | `/evaluations/calibration` | Get department calibration overview with ranked roster, Bell curve, and quota metrics | `evaluation:read` (Dept) |
+| `POST` | `/evaluations/calibration/submit` | Save draft or submit calibrated rankings to Executive with Tier A quota check | `evaluation:calibrate` (Dept) |
+| `GET` | `/evaluations/approvals` | Get branch-wide evaluation approval overview and department comparative ratios | `evaluation:read` (Branch) |
+| `POST` | `/evaluations/approvals/{departmentId}/recalibrate` | Reject department calibration proposal and return for re-calibration | `evaluation:finalize` (Branch) |
+| `POST` | `/evaluations/approvals/finalize` | Executive approval and hard-lock of evaluation period | `evaluation:finalize` (Branch) |
 
 ---
 

@@ -30,7 +30,6 @@ interface Notice {
 
 interface KpiDrafts {
   roles: DraftRow[];
-  multipliers: DraftRow[];
 }
 
 const PAGE_SIZE = 20;
@@ -77,7 +76,6 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
   protected readonly createOpen = signal(false);
   protected readonly editOpen = signal(false);
   protected readonly roleRows = signal<DraftRow[]>([]);
-  protected readonly multiplierRows = signal<DraftRow[]>([]);
 
   protected keyword = '';
   protected groupId = '';
@@ -165,7 +163,6 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
     this.form = kpi ? this.formOf(kpi) : this.emptyForm();
     const draft = kpi ? this.drafts.get(kpi.id) : undefined;
     this.roleRows.set(draft ? draft.roles.map((row) => ({ ...row })) : []);
-    this.multiplierRows.set(draft ? draft.multipliers.map((row) => ({ ...row })) : []);
   }
 
   protected isDirty(): boolean {
@@ -321,24 +318,20 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
     }
   }
 
-  protected addRow(target: 'roles' | 'multipliers'): void {
-    const row: DraftRow = { key: ++this.draftKey, label: '', value: target === 'roles' ? 0 : 1 };
-    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
-    rows.update((list) => [...list, row]);
+  /** Only role-weight drafts remain (deposit multipliers moved to WorkType.ProductCode, BR-48). */
+  protected addRow(): void {
+    const row: DraftRow = { key: ++this.draftKey, label: '', value: 0 };
+    this.roleRows.update((list) => [...list, row]);
   }
 
-  protected removeRow(target: 'roles' | 'multipliers', key: number): void {
-    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
-    rows.update((list) => list.filter((row) => row.key !== key));
+  protected removeRow(key: number): void {
+    this.roleRows.update((list) => list.filter((row) => row.key !== key));
   }
 
-  protected editRow(
-    target: 'roles' | 'multipliers',
-    key: number,
-    patch: Partial<Pick<DraftRow, 'label' | 'value'>>,
-  ): void {
-    const rows = target === 'roles' ? this.roleRows : this.multiplierRows;
-    rows.update((list) => list.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  protected editRow(key: number, patch: Partial<Pick<DraftRow, 'label' | 'value'>>): void {
+    this.roleRows.update((list) =>
+      list.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+    );
   }
 
   protected rowLabel(event: Event): string {
@@ -352,7 +345,7 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
   private stashDrafts(): void {
     const previous = this.selected();
     if (!previous) return;
-    this.drafts.set(previous.id, { roles: this.roleRows(), multipliers: this.multiplierRows() });
+    this.drafts.set(previous.id, { roles: this.roleRows() });
   }
 
   private show(kind: Notice['kind'], key: string, params?: Notice['params']): void {

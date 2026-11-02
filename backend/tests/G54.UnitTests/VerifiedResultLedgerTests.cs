@@ -193,6 +193,120 @@ public sealed class VerifiedResultLedgerTests
         Assert.Equal(0m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
     }
 
+    // ----- Multiplier (BR-48 Task Multiplier) -----------------------------------------------
+
+    [Fact]
+    public async Task Approve_AppliesTheMappingMultiplierToTheRawValueAndStoresBoth()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi(multiplier: 1.5m);
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(1m);
+
+        var item = await rig.Db.WorkResultItems.SingleAsync();
+        Assert.Equal(1m, item.RawValue);
+        Assert.Equal(1.5m, item.MultiplierApplied);
+        Assert.Equal(1.5m, item.Value);
+        Assert.Equal(1.5m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task Approve_SplitsTheHandoverOnTheRawValueThenAppliesTheMultiplierToEachShare()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi(multiplier: 1.5m);
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5));
+        rig.AddTarget(kpi, period);
+        rig.AddTarget(kpi, period, owner: rig.Checker);
+        rig.AddAcceptedHandover(from: rig.Maker, to: rig.Checker, referrerSharePercent: 30m);
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(1m);
+
+        var items = await rig.Db.WorkResultItems.ToListAsync();
+        var referrer = items.Single(i => i.EmployeeId == rig.Maker.Id);
+        var processor = items.Single(i => i.EmployeeId == rig.Checker.Id);
+        Assert.Equal(0.3m, referrer.RawValue);
+        Assert.Equal(0.45m, referrer.Value);
+        Assert.Equal(0.7m, processor.RawValue);
+        Assert.Equal(1.05m, processor.Value);
+        Assert.All(items, i => Assert.Equal(1.5m, i.MultiplierApplied));
+    }
+
+    [Fact]
+    public async Task Approve_UsesTheMappingInEffectTodayOverAnExpiredOne()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpiWithMapping(1.0m, BusinessToday.AddDays(-365), BusinessToday.AddDays(-1)); // expired yesterday
+        rig.AddMapping(kpi, 1.5m, BusinessToday, null); // in effect from today
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(1m);
+
+        var item = await rig.Db.WorkResultItems.SingleAsync();
+        Assert.Equal(1.5m, item.MultiplierApplied);
+        Assert.Equal(1.5m, item.Value);
+    }
+
+    [Fact]
+    public async Task Approve_UsesTheLatestEffectiveFromWhenMultipleMappingsAreInEffect()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpiWithMapping(1.0m, BusinessToday.AddDays(-365), null); // open-ended, older
+        rig.AddMapping(kpi, 1.2m, BusinessToday.AddDays(-30), null); // open-ended, more recent EffectiveFrom
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(1m);
+
+        Assert.Equal(1.2m, (await rig.Db.WorkResultItems.SingleAsync()).MultiplierApplied);
+    }
+
+    [Fact]
+    public async Task Approve_RecordsNoContributionWhenNoMappingIsInEffectToday()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpiWithMapping(1.5m, BusinessToday.AddDays(-365), BusinessToday.AddDays(-1)); // expired
+        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        var result = await rig.ApproveAsync(1m);
+
+        Assert.Equal("APPROVED", result.SubmissionStatus);
+        Assert.Equal(1, await rig.Db.VerifiedWorkResults.CountAsync());
+        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+        Assert.Empty(await rig.Db.ActualProgresses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Approve_EditingTheMultiplierAfterwardsDoesNotChangeAlreadyStoredItems()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi(multiplier: 1.5m);
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+        await rig.ApproveAsync(1m);
+
+        var firstItem = await rig.Db.WorkResultItems.SingleAsync();
+        Assert.Equal(1.5m, firstItem.Value);
+
+        // Admin changes the rate in place (same mapping row, new multiplier) for future approvals.
+        var mapping = await rig.Db.WorkTypeKpis.SingleAsync(k => k.KpiDefinitionId == kpi.Id);
+        mapping.Multiplier = 1.6m;
+        await rig.SaveAsync();
+
+        var second = await rig.AddSecondWorkAsync();
+        await rig.ApproveAsync(1m, second);
+
+        // The already-stored item keeps its old value; only the new approval uses the new rate.
+        var items = await rig.Db.WorkResultItems.OrderBy(i => i.Value).ToListAsync();
+        Assert.Equal([1.5m, 1.6m], items.Select(i => i.Value));
+        Assert.Equal(3.1m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == target.Id)).Value);
+    }
+
     // ----- Nothing to credit ----------------------------------------------------------------
 
     [Fact]
@@ -261,6 +375,60 @@ public sealed class VerifiedResultLedgerTests
         Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
         Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
         Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
+    }
+
+    // ----- a locked period never receives progress ------------------------------------------------
+
+    [Theory]
+    [InlineData(PeriodStatus.Locked)]
+    [InlineData(PeriodStatus.Closed)]
+    public async Task Approve_IntoALockedOrClosedPeriod_ThrowsPeriodLockedAndWritesNothing(PeriodStatus status)
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5), status));
+        await rig.SaveAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => rig.ApproveAsync(25m));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(await rig.Db.Verifications.ToListAsync());
+        Assert.Empty(await rig.Db.VerifiedWorkResults.ToListAsync());
+        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+        Assert.Empty(await rig.Db.ActualProgresses.Where(p => p.TargetAssignmentId == target.Id).ToListAsync());
+        Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
+        Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData(PeriodStatus.Open)]
+    [InlineData(PeriodStatus.InReview)]
+    public async Task Approve_IntoAnOpenOrInReviewPeriod_StillRecordsProgress(PeriodStatus status)
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5), status));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        Assert.Equal(25m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == target.Id)).Value);
+    }
+
+    [Fact]
+    public async Task Approve_WhenALockedPeriodIsOnlyOneOfSeveralCoveringTargets_UsesTheEarliestEndingOne()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        // The month ends first, so it is the one that receives the progress. A locked year does not block an open month.
+        rig.AddTarget(kpi, rig.AddPeriod("YEAR", BusinessToday.AddDays(-200), BusinessToday.AddDays(100), PeriodStatus.Locked));
+        var month = rig.AddTarget(kpi, rig.AddPeriod("MONTH", BusinessToday.AddDays(-10), BusinessToday.AddDays(10)));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        Assert.Equal(25m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == month.Id)).Value);
     }
 
     // ----- Fixture --------------------------------------------------------------------------
@@ -366,7 +534,38 @@ public sealed class VerifiedResultLedgerTests
                 CheckerAccount.Id,
                 new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = value });
 
-        public KpiDefinition AddWorkTypeKpi()
+        public KpiDefinition AddWorkTypeKpi(decimal multiplier = 1m)
+        {
+            var kpi = NewKpiDefinition();
+            AddMapping(kpi, multiplier, BusinessToday.AddDays(-365), null);
+            return kpi;
+        }
+
+        /// <summary>Adds another WorkTypeKpi mapping row for the same (new) KPI, with its own effective window and multiplier.</summary>
+        public KpiDefinition AddWorkTypeKpiWithMapping(decimal multiplier, DateOnly effectiveFrom, DateOnly? effectiveTo)
+        {
+            var kpi = NewKpiDefinition();
+            AddMapping(kpi, multiplier, effectiveFrom, effectiveTo);
+            return kpi;
+        }
+
+        /// <summary>Adds a second mapping row of <paramref name="kpi"/> on the same work type (BR-48: a new EffectiveFrom row for a rate change).</summary>
+        public void AddMapping(KpiDefinition kpi, decimal multiplier, DateOnly effectiveFrom, DateOnly? effectiveTo)
+        {
+            Db.WorkTypeKpis.Add(new WorkTypeKpi
+            {
+                Id = Guid.NewGuid(),
+                WorkTypeId = WorkType!.Id,
+                KpiDefinitionId = kpi.Id,
+                IsRequired = true,
+                Multiplier = multiplier,
+                EffectiveFrom = effectiveFrom,
+                EffectiveTo = effectiveTo,
+                UpdatedAt = Now,
+            });
+        }
+
+        private KpiDefinition NewKpiDefinition()
         {
             var group = new KpiGroup { Id = Guid.NewGuid(), Code = "G", Name = "Group", Status = KpiStatus.Active, UpdatedAt = Now };
             var kpi = new KpiDefinition
@@ -383,19 +582,10 @@ public sealed class VerifiedResultLedgerTests
             };
             Db.KpiGroups.Add(group);
             Db.KpiDefinitions.Add(kpi);
-            Db.WorkTypeKpis.Add(new WorkTypeKpi
-            {
-                Id = Guid.NewGuid(),
-                WorkTypeId = WorkType!.Id,
-                KpiDefinitionId = kpi.Id,
-                IsRequired = true,
-                EffectiveFrom = BusinessToday.AddDays(-365),
-                UpdatedAt = Now,
-            });
             return kpi;
         }
 
-        public EvaluationPeriod AddPeriod(string code, DateOnly start, DateOnly end)
+        public EvaluationPeriod AddPeriod(string code, DateOnly start, DateOnly end, PeriodStatus status = PeriodStatus.Open)
         {
             var period = new EvaluationPeriod
             {
@@ -405,7 +595,7 @@ public sealed class VerifiedResultLedgerTests
                 PeriodType = PeriodType.Month,
                 StartDate = start,
                 EndDate = end,
-                Status = PeriodStatus.Open,
+                Status = status,
                 UpdatedAt = Now,
             };
             Db.EvaluationPeriods.Add(period);

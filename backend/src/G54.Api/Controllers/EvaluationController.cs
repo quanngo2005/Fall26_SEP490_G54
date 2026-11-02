@@ -164,7 +164,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
-    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107, BR-29).
+    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107).
     /// </summary>
     [HttpPost("approvals/finalize")]
     [ProducesResponseType<ApiResponse<FinalizeResultDto>>(StatusCodes.Status200OK)]
@@ -177,6 +177,28 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         CancellationToken cancellationToken)
     {
         var result = await service.FinalizeAndLockPeriodAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets the list of evaluation periods for Branch Manager with progress, quality ratio and appeal window status (SCR-EVL-03 List).
+    /// </summary>
+    [HttpGet("branch-periods")]
+    [ProducesResponseType<ApiResponse<BranchEvaluationPeriodsOverviewDto>>(StatusCodes.Status200OK)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<BranchEvaluationPeriodsOverviewDto>>> GetBranchPeriods(
+        [FromQuery] int? year,
+        [FromQuery] string? periodType,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetBranchEvaluationPeriodsOverviewAsync(
+            year,
+            periodType,
+            status,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

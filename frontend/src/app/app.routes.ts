@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
+import { branchEvaluationGuard } from './core/branch-evaluation.guard';
 
 export const routes: Routes = [
   {
@@ -90,6 +91,15 @@ export const routes: Routes = [
     title: 'Đánh giá nhân viên',
     loadComponent: () =>
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
+  },
+  {
+    path: 'branch-performance/evaluations',
+    canActivate: [authGuard, branchEvaluationGuard],
+    title: 'Kỳ đánh giá chi nhánh',
+    loadComponent: () =>
+      import('./features/evaluations/branch-evaluation-list.component').then(
+        (m) => m.BranchEvaluationListComponent,
+      ),
   },
   {
     path: 'employees',

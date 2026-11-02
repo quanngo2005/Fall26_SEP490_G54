@@ -11,12 +11,9 @@ import {
   KpiDirection,
   KpiGroupOption,
   KpiMeasurementType,
-  MultiplierItem,
   RoleWeightItem,
 } from '../../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../../core/kpi-definition.service';
-
-const MULTIPLIER_STEP = 0.1;
 
 @Component({
   selector: 'app-kpi-edit-modal',
@@ -52,8 +49,6 @@ export class KpiEditModalComponent extends LocalizedComponent implements OnInit 
   readonly aggregationType = signal<KpiAggregationType>('SUM');
   readonly formula = signal<string>('');
   readonly maxAchievementPercent = signal<number | null>(null);
-  readonly applyMultiplier = signal<boolean>(false);
-  readonly multipliers = signal<MultiplierItem[]>([]);
   readonly roleWeights = signal<RoleWeightItem[]>([]);
 
   readonly saving = signal<boolean>(false);
@@ -86,31 +81,7 @@ export class KpiEditModalComponent extends LocalizedComponent implements OnInit 
     this.aggregationType.set(k.aggregationType);
     this.formula.set(k.formula ?? '');
     this.maxAchievementPercent.set(k.maxAchievementPercent);
-    this.applyMultiplier.set(k.applyProductMultiplier ?? (k.depositMultipliers?.length ?? 0) > 0);
-    this.multipliers.set((k.depositMultipliers ?? []).map((m) => ({ ...m })));
     this.roleWeights.set((k.roleWeights ?? []).map((r) => ({ ...r })));
-  }
-
-  // Product multipliers
-  addMultiplier(): void {
-    this.multipliers.set([...this.multipliers(), { id: 'm-' + Date.now(), label: '', value: 1.0 }]);
-  }
-
-  removeMultiplier(index: number): void {
-    this.multipliers.set(this.multipliers().filter((_, i) => i !== index));
-  }
-
-  updateMultiplierLabel(index: number, label: string): void {
-    this.multipliers.set(this.multipliers().map((m, i) => (i === index ? { ...m, label } : m)));
-  }
-
-  updateMultiplierValue(index: number, value: number): void {
-    const v = Math.max(0, Math.round((Number(value) || 0) * 10) / 10);
-    this.multipliers.set(this.multipliers().map((m, i) => (i === index ? { ...m, value: v } : m)));
-  }
-
-  stepMultiplier(index: number, delta: number): void {
-    this.updateMultiplierValue(index, this.multipliers()[index].value + delta * MULTIPLIER_STEP);
   }
 
   // Role weights
@@ -198,8 +169,6 @@ export class KpiEditModalComponent extends LocalizedComponent implements OnInit 
           ...res,
           kpiGroupName: this.groups().find((g) => g.id === this.groupId())?.name ?? k.kpiGroupName,
           measurementType: this.measurementType(),
-          applyProductMultiplier: this.applyMultiplier(),
-          depositMultipliers: this.applyMultiplier() ? [...this.multipliers()] : [],
           roleWeights: [...this.roleWeights()],
         });
       },

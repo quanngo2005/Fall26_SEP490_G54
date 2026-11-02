@@ -2,6 +2,7 @@ using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.DAL.Entities;
 using G54.DAL.Repositories;
@@ -39,6 +40,8 @@ public sealed class TargetAssignmentService(
             throw new ForbiddenException("Chỉ quản trị viên mới được giao target gốc cho chi nhánh.");
         }
 
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value));
+
         var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason);
         target.DepartmentId = dto.DepartmentId;
         await targetRepository.AddAsync(target);
@@ -50,6 +53,7 @@ public sealed class TargetAssignmentService(
     public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto)
     {
         var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
         var allocations = dto.Allocations!;
 
         var departmentIds = new List<Guid>();
@@ -165,12 +169,17 @@ public sealed class TargetAssignmentService(
         var allPeriods = await periodRepository.ListAsync();
         var periodMap = allPeriods.ToDictionary(p => p.Id);
 
+        // New rows are written under the parent period and into every requested period, so none of them may be locked.
+        PeriodLockGuard.EnsureWritable(periodMap.GetValueOrDefault(parent.EvaluationPeriodId));
+
         foreach (var periodId in periodIds)
         {
-            if (!periodMap.ContainsKey(periodId))
+            if (!periodMap.TryGetValue(periodId, out var targetPeriod))
             {
                 throw new NotFoundException("Kỳ đánh giá", periodId);
             }
+
+            PeriodLockGuard.EnsureWritable(targetPeriod);
 
             // Check if the period is a descendant of the parent period
             var current = periodId;

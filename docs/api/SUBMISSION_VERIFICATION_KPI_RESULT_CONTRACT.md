@@ -74,7 +74,13 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ```
 
 #### Ghi nhận KPI khi `APPROVED` (không đổi route hay DTO)
-Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loại công việc, hệ thống tạo `WorkResultItem` cho KPI đầu tiên của loại công việc đó, ghi vào target ACTIVE của từng nhân sự:
+Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loại công việc, hệ thống chọn bản ghi
+`WorkTypeKpi` **đang hiệu lực tại ngày hiện tại** (múi giờ nghiệp vụ): `EffectiveFrom <= hôm nay &&
+(EffectiveTo == null || EffectiveTo >= hôm nay)`, nếu có nhiều bản ghi khớp thì lấy `EffectiveFrom`
+lớn nhất. KPI và hệ số (`multiplier`, BR-48 Task Multiplier) đến từ bản ghi đó. Không có bản ghi nào
+đang hiệu lực (hết hạn hoặc chưa tới ngày bắt đầu) thì hành vi giữ như không có KPI: duyệt bình
+thường, không tạo `WorkResultItem`, không cộng tiến độ. Hệ thống tạo `WorkResultItem` cho KPI đó, ghi
+vào target ACTIVE của từng nhân sự:
 
 | Công việc có bàn giao `ACCEPTED`? | Người nhận điểm | Tỷ lệ |
 |---|---|---|
@@ -83,7 +89,12 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 | | Người nhận (`toEmployeeId`, người xử lý) | `100 - referrerSharePercent` (mặc định 70%) |
 
 - Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định cột 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
-- Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
+- Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue` (đây là phần **raw**, trước khi nhân hệ số).
+- Mỗi `WorkResultItem` lưu `rawValue` (phần raw của người nhận, sau khi chia bàn giao nếu có) và
+  `multiplierApplied` (hệ số của mapping đang hiệu lực tại thời điểm duyệt). `value = round(rawValue ×
+  multiplierApplied, 4, ToEven)` và chính `value` (đã nhân hệ số) được cộng vào `ActualProgress`. Đổi
+  hệ số sau đó (bản ghi mới hoặc sửa tại chỗ) không làm thay đổi các `WorkResultItem`/`ActualProgress`
+  đã ghi trước đó.
 - Nếu công việc có KPI và có `verifiedValue`, **mọi** nhân sự nhận điểm đều phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Thiếu target của bất kỳ ai thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
 - Công việc không có KPI trong loại công việc, hoặc duyệt không kèm `verifiedValue`, vẫn được duyệt bình thường và không ghi `WorkResultItem`.
 - Target đã đạt hoặc vượt chỉ tiêu mà vẫn `ACTIVE` thì vẫn nhận điểm; không có giới hạn trên (tỷ lệ hoàn thành bị chặn bởi `MaxAchievementPercent` của KPI khi tính điểm đánh giá).
@@ -109,7 +120,7 @@ Lưu trữ: thư mục `Storage:EvidencePath` (Docker: `/app/data/evidence`, vol
 | GET | `/works/{workId}/kpi-results` | — | 200 `KpiResultDto[]` |
 | GET | `/kpi-results` | `employeeId, kpiDefinitionId, evaluationPeriodId, status, pageIndex, pageSize` | 200 `KpiResultDto[]` + `pagination` |
 
-DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`).
+DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`). `value` là điểm đã nhân hệ số (những gì cộng vào `ActualProgress`); `rawValue` và `multiplierApplied` cho biết điểm gốc và hệ số đã dùng tại thời điểm duyệt, để truy xuất loại công việc → hệ số → điểm.
 
 ### 2.4 Alias deprecated (bị ẩn khỏi Swagger, xóa sau khi FE chuyển route)
 | Alias | Route chính tắc |
@@ -154,6 +165,7 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `EVIDENCE_LOCKED` |
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
 | Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `KPI_ALREADY_CONTRIBUTED` |
+| Duyệt `APPROVED` mà kỳ đánh giá của chỉ tiêu đang áp dụng đã `LOCKED` / `CLOSED` (xem `PERIOD_LOCK_CONTRACT.md`) | 409 | `PERIOD_LOCKED` |
 | Duyệt `APPROVED` có KPI và `verifiedValue` nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 
 ### 3.4 KPI Result

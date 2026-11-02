@@ -13,5 +13,8 @@ public sealed record UpdateWorkTypeDto
     [StringLength(2000)]
     public string? Description { get; init; }
 
+    [StringLength(50)]
+    public string? ProductCode { get; init; }
+
     public List<WorkTypeKpiItemDto> Kpis { get; init; } = [];
 }

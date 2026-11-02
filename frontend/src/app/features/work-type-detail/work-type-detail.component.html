@@ -74,6 +74,10 @@
             </p>
             <dl class="detail-list">
               <div>
+                <dt>{{localization.workType.productCode}}</dt>
+                <dd class="mono">{{data.productCode ?? localization.workType.notAvailable}}</dd>
+              </div>
+              <div>
                 <dt>{{localization.workType.createdAt}}</dt>
                 <dd class="mono">{{i18n.formatDate(data.createdAt, 'DD/MM/YYYY HH:mm')}}</dd>
               </div>
@@ -102,6 +106,7 @@
                   <th>{{localization.workType.kpiCode}}</th>
                   <th>{{localization.workType.kpiName}}</th>
                   <th>{{localization.workType.requirement}}</th>
+                  <th>{{localization.workType.multiplier}}</th>
                   <th>{{localization.workType.period}}</th>
                   <th>{{localization.workType.status}}</th>
                 </tr>
@@ -118,6 +123,7 @@
                           ? localization.workType.required
                           : localization.workType.optional}}</span>
                     </td>
+                    <td class="mono">×{{kpi.multiplier}}</td>
                     <td class="mono">
                       {{i18n.formatDate(kpi.effectiveFrom)}} –
                       {{kpi.effectiveTo
@@ -135,7 +141,7 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="5" class="empty-cell">{{localization.workType.noMappings}}</td>
+                    <td colspan="6" class="empty-cell">{{localization.workType.noMappings}}</td>
                   </tr>
                 }
               </tbody>

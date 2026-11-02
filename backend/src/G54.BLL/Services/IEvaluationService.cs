@@ -51,4 +51,11 @@ public interface IEvaluationService
         FinalizeEvaluationPeriodRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
+
+    Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+        int? year,
+        string? periodType,
+        string? status,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
 }
