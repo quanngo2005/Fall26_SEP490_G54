@@ -1,0 +1,13 @@
+.venv
+tests
+__pycache__
+.pytest_cache
+data
+*.wav
+*.mp3
+*.m4a
+*.amr
+*.flac
+*.ogg
+*.aac
+*.opus

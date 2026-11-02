@@ -750,3 +750,10 @@ Dự án đã được smoke test với:
 - pgAdmin trả về `200`.
 - Backend code review pass.
 - Frontend code review pass, `npm audit --omit=dev` không có vulnerability.
+
+
+## AI service (ai-service/)
+
+FastAPI microservice thực hiện chuẩn hóa âm thanh giao dịch (ffmpeg mono 16 kHz WAV) và phân tích hội thoại.
+Xem chi tiết hướng dẫn cài đặt, cấu hình biến môi trường và tài liệu API tại [ai-service/README.md](ai-service/README.md).
+File âm thanh và dữ liệu nhạy cảm không bao giờ được commit vào mã nguồn.
