@@ -25,9 +25,15 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             new EventId(1, "EvaluationProfileAudit"),
             "EvaluationProfile audit: Action={Action}, EntityId={EntityId}");
 
+    /// <summary>
+    /// Transitions open to the status endpoint. A pending profile leaves that state only through approve or reject,
+    /// so it is never activated by a plain status change.
+    /// </summary>
     private static readonly Dictionary<EvaluationProfileStatus, EvaluationProfileStatus[]> AllowedTransitions = new()
     {
-        [EvaluationProfileStatus.Draft] = [EvaluationProfileStatus.Active, EvaluationProfileStatus.Archived],
+        [EvaluationProfileStatus.Draft] = [EvaluationProfileStatus.PendingApproval, EvaluationProfileStatus.Archived],
+        [EvaluationProfileStatus.PendingApproval] = [EvaluationProfileStatus.Archived],
+        [EvaluationProfileStatus.Rejected] = [EvaluationProfileStatus.PendingApproval, EvaluationProfileStatus.Archived],
         [EvaluationProfileStatus.Active] = [EvaluationProfileStatus.Inactive, EvaluationProfileStatus.Archived],
         [EvaluationProfileStatus.Inactive] = [EvaluationProfileStatus.Active, EvaluationProfileStatus.Archived],
         [EvaluationProfileStatus.Archived] = [],
@@ -105,6 +111,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
+                p.RejectReason,
                 p.PerformanceEvaluations.Count != 0,
                 p.EvaluationProfileItems.Where(i => i.ParentItemId == null).Sum(i => i.WeightPercent),
                 p.UpdatedAt,
@@ -187,10 +194,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy hồ sơ đánh giá yêu cầu.");
 
-        if (profile.Status == EvaluationProfileStatus.Archived)
-        {
-            throw new ConflictException("Hồ sơ đánh giá đã lưu trữ (Archived) nên không thể chỉnh sửa.");
-        }
+        EnsureNotFrozen(profile);
 
         var positionChanged = profile.JobPositionId != dto.JobPositionId;
         var periodChanged = profile.EffectiveFrom != dto.EffectiveFrom || profile.EffectiveTo != dto.EffectiveTo;
@@ -269,12 +273,50 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
         else
         {
+            if (target == EvaluationProfileStatus.PendingApproval)
+            {
+                // The approver is handed a tree that can be activated as it stands.
+                EnsureHasItems(profile);
+                EnsureTreeIsComplete(profile.EvaluationProfileItems);
+                profile.RejectReason = null;
+            }
+
             profile.Status = target;
             profile.UpdatedAt = DateTimeOffset.UtcNow;
             await SaveChangesAsync(cancellationToken);
         }
 
         LogProfileAudit(logger, "CHANGE_EVALUATION_PROFILE_STATUS", id, null);
+    }
+
+    public async Task ApproveProfileAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var profile = await GetPendingProfileAsync(id, cancellationToken);
+
+        await ActivateAsync(profile, cancellationToken);
+
+        LogProfileAudit(logger, "APPROVE_EVALUATION_PROFILE", id, null);
+    }
+
+    public async Task RejectProfileAsync(
+        Guid id,
+        RejectEvaluationProfileDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var reason = dto.Reason?.Trim();
+        if (string.IsNullOrEmpty(reason) || reason.Length > 500)
+        {
+            throw new ValidationException("Lý do từ chối là bắt buộc và tối đa 500 ký tự.");
+        }
+
+        var profile = await GetPendingProfileAsync(id, cancellationToken);
+
+        profile.Status = EvaluationProfileStatus.Rejected;
+        profile.RejectReason = reason;
+        profile.UpdatedAt = DateTimeOffset.UtcNow;
+        await SaveChangesAsync(cancellationToken);
+
+        LogProfileAudit(logger, "REJECT_EVALUATION_PROFILE", id, null);
     }
 
     public async Task DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default)
@@ -454,10 +496,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         var profile = await db.EvaluationProfiles.SingleOrDefaultAsync(p => p.Id == profileId, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy hồ sơ đánh giá yêu cầu.");
 
-        if (profile.Status == EvaluationProfileStatus.Archived)
-        {
-            throw new ConflictException("Hồ sơ đánh giá đã lưu trữ (Archived) nên không thể chỉnh sửa.");
-        }
+        EnsureNotFrozen(profile);
 
         if (await db.PerformanceEvaluations.AnyAsync(e => e.EvaluationProfileId == profileId, cancellationToken))
         {
@@ -470,6 +509,36 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         {
             throw new ConflictException(
                 "Hồ sơ đánh giá đang hoạt động (Active) phải giữ trọng số hợp lệ nên chỉ được đổi toàn bộ cây trọng số qua cập nhật hồ sơ.");
+        }
+
+        return profile;
+    }
+
+    /// <summary>An archived profile is retired and a pending one is under review: the approver must see what was submitted.</summary>
+    private static void EnsureNotFrozen(EvaluationProfile profile)
+    {
+        if (profile.Status == EvaluationProfileStatus.Archived)
+        {
+            throw new ConflictException("Hồ sơ đánh giá đã lưu trữ (Archived) nên không thể chỉnh sửa.");
+        }
+
+        if (profile.Status == EvaluationProfileStatus.PendingApproval)
+        {
+            throw new ConflictException("Hồ sơ đánh giá đang chờ duyệt (Pending approval) nên không thể chỉnh sửa.");
+        }
+    }
+
+    private async Task<EvaluationProfile> GetPendingProfileAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var profile = await db.EvaluationProfiles
+            .Include(p => p.EvaluationProfileItems)
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy hồ sơ đánh giá yêu cầu.");
+
+        if (profile.Status != EvaluationProfileStatus.PendingApproval)
+        {
+            throw new ConflictException(
+                $"Chỉ hồ sơ đánh giá đang chờ duyệt mới có thể duyệt hoặc từ chối (hiện tại {profile.Status.ToEnumString()}).");
         }
 
         return profile;

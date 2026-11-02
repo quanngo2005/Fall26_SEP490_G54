@@ -36,6 +36,7 @@ public sealed class EvaluationProfilesControllerTests
         new DateOnly(2026, 7, 1),
         null,
         "ACTIVE",
+        null,
         false,
         100m,
         DateTimeOffset.UtcNow,
@@ -49,6 +50,8 @@ public sealed class EvaluationProfilesControllerTests
     [InlineData(nameof(EvaluationProfilesController.CreateProfile), typeof(HttpPostAttribute), null)]
     [InlineData(nameof(EvaluationProfilesController.UpdateProfile), typeof(HttpPutAttribute), "{id:guid}")]
     [InlineData(nameof(EvaluationProfilesController.ChangeProfileStatus), typeof(HttpPatchAttribute), "{id:guid}/status")]
+    [InlineData(nameof(EvaluationProfilesController.ApproveProfile), typeof(HttpPostAttribute), "{id:guid}/approve")]
+    [InlineData(nameof(EvaluationProfilesController.RejectProfile), typeof(HttpPostAttribute), "{id:guid}/reject")]
     [InlineData(nameof(EvaluationProfilesController.DeleteProfile), typeof(HttpDeleteAttribute), "{id:guid}")]
     [InlineData(nameof(EvaluationProfilesController.GetItems), typeof(HttpGetAttribute), "{id:guid}/items")]
     [InlineData(nameof(EvaluationProfilesController.AddItem), typeof(HttpPostAttribute), "{id:guid}/items")]
@@ -82,6 +85,17 @@ public sealed class EvaluationProfilesControllerTests
         Assert.Equal("kpi", permission.Resource);
         Assert.Equal(expectedAction, permission.Action);
         Assert.Equal("All", permission.Scope);
+    }
+
+    [Theory]
+    [InlineData(nameof(EvaluationProfilesController.ApproveProfile))]
+    [InlineData(nameof(EvaluationProfilesController.RejectProfile))]
+    public void ApproveAndReject_RequireTheApprovePermissionAtTheAllScope(string action)
+    {
+        var permission = Assert.Single(
+            typeof(EvaluationProfilesController).GetMethod(action)!.GetCustomAttributes<HasPermissionAttribute>());
+
+        Assert.Equal(("evaluation-profile", "approve", "All"), (permission.Resource, permission.Action, permission.Scope));
     }
 
     // ----- Behaviour ------------------------------------------------------------------------
@@ -200,6 +214,38 @@ public sealed class EvaluationProfilesControllerTests
     }
 
     [Fact]
+    public async Task ApproveProfile_PassesTheRouteIdAndReturnsAnEmptyEnvelope()
+    {
+        var id = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = CreateController(service);
+
+        var result = await controller.ApproveProfile(id, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, service.ApprovedId);
+        var envelope = Assert.IsType<ApiResponse>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Equal("trace-1", envelope.TraceId);
+    }
+
+    [Fact]
+    public async Task RejectProfile_PassesTheRouteIdAndReasonAndReturnsAnEmptyEnvelope()
+    {
+        var id = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = CreateController(service);
+        var dto = new RejectEvaluationProfileDto { Reason = "Trọng số chưa hợp lý" };
+
+        var result = await controller.RejectProfile(id, dto, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, service.RejectedId);
+        Assert.Same(dto, service.RejectDto);
+        Assert.True(Assert.IsType<ApiResponse>(ok.Value).Success);
+    }
+
+    [Fact]
     public async Task DeleteProfile_ArchivesThroughTheServiceAndReturns200()
     {
         var id = Guid.NewGuid();
@@ -306,6 +352,9 @@ public sealed class EvaluationProfilesControllerTests
         public UpdateEvaluationProfileDto? UpdateDto { get; private set; }
         public Guid? StatusId { get; private set; }
         public EvaluationProfileStatusDto? StatusDto { get; private set; }
+        public Guid? ApprovedId { get; private set; }
+        public Guid? RejectedId { get; private set; }
+        public RejectEvaluationProfileDto? RejectDto { get; private set; }
         public Guid? DeletedId { get; private set; }
         public Guid? ItemProfileId { get; private set; }
         public Guid? ItemId { get; private set; }
@@ -362,6 +411,22 @@ public sealed class EvaluationProfilesControllerTests
         {
             StatusId = id;
             StatusDto = dto;
+            return Task.CompletedTask;
+        }
+
+        public Task ApproveProfileAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            ApprovedId = id;
+            return Task.CompletedTask;
+        }
+
+        public Task RejectProfileAsync(
+            Guid id,
+            RejectEvaluationProfileDto dto,
+            CancellationToken cancellationToken = default)
+        {
+            RejectedId = id;
+            RejectDto = dto;
             return Task.CompletedTask;
         }
 
