@@ -1,6 +1,6 @@
 using G54.BLL.Dtos.TargetAssignment;
 
-namespace G54.BLL.Services;
+namespace G54.BLL.Common;
 
 /// <summary>
 /// Pure, unit-testable split of a period target value across working days, then aggregated to
@@ -22,11 +22,9 @@ public static class TargetBreakdownCalculator
             return [];
         }
 
-        var unit = isWholeNumber ? 1m : 0.0001m;
-        var roundedTotal = isWholeNumber ? Math.Round(targetValue, 0, MidpointRounding.AwayFromZero)
-                                          : Math.Round(targetValue, 4, MidpointRounding.AwayFromZero);
-        var totalUnits = (long)Math.Round(roundedTotal / unit, 0, MidpointRounding.AwayFromZero);
+        var (unit, totalUnits) = ToUnits(targetValue, isWholeNumber);
 
+        // Chia đều số đơn vị cho các ngày; phần dư (remainder) cộng thêm 1 đơn vị cho các ngày đầu.
         var dayCount = workingDays.Count;
         var baseUnitsPerDay = totalUnits / dayCount;
         var remainder = (int)(totalUnits % dayCount);
@@ -55,15 +53,17 @@ public static class TargetBreakdownCalculator
             return [];
         }
 
-        var unit = isWholeNumber ? 1m : 0.0001m;
-        var roundedTotal = Math.Round(targetValue, isWholeNumber ? 0 : 4, MidpointRounding.AwayFromZero);
-        var totalUnits = (long)Math.Round(roundedTotal / unit, 0, MidpointRounding.AwayFromZero);
+        var (unit, totalUnits) = ToUnits(targetValue, isWholeNumber);
+
+        // Gom ngày làm việc theo tháng (key = ngày 1 của tháng), sắp xếp tăng dần.
         var months = workingDays
             .GroupBy(d => new DateOnly(d.Year, d.Month, 1))
             .OrderBy(g => g.Key)
             .Select(g => g.OrderBy(d => d).ToList())
             .ToList();
 
+        // Mỗi tháng nhận phần đơn vị tỉ lệ với số ngày làm việc của tháng (chia nguyên, làm tròn xuống);
+        // phần lẻ còn lại (leftover) chia vòng từng đơn vị cho các tháng đầu để tổng kỳ không đổi.
         var monthUnits = months.Select(m => totalUnits * m.Count / workingDays.Count).ToArray();
         var leftover = totalUnits - monthUnits.Sum();
         for (var i = 0; leftover > 0; i = (i + 1) % months.Count, leftover--)
@@ -71,7 +71,21 @@ public static class TargetBreakdownCalculator
             monthUnits[i]++;
         }
 
+        // Mỗi tháng tiếp tục chia xuống từng ngày; monthUnits[i] * unit đã đúng bội số của unit nên không làm tròn lại.
         return [.. months.SelectMany((days, i) => SplitByDay(monthUnits[i] * unit, days, isWholeNumber))];
+    }
+
+    /// <summary>
+    /// Quy đổi target sang số nguyên "đơn vị nhỏ nhất" để chia không sai số thập phân.
+    /// Số nguyên (hợp đồng, khách hàng...): unit = 1, làm tròn target về 0 chữ số thập phân.
+    /// Số thập phân (VNĐ, %...): unit = 0.0001, làm tròn target về 4 chữ số thập phân.
+    /// Ví dụ 10.5 với unit 0.0001 → totalUnits = 105000; chia trên số nguyên rồi nhân lại unit.
+    /// </summary>
+    private static (decimal Unit, long TotalUnits) ToUnits(decimal targetValue, bool isWholeNumber)
+    {
+        var unit = isWholeNumber ? 1m : 0.0001m;
+        var roundedTotal = Math.Round(targetValue, isWholeNumber ? 0 : 4, MidpointRounding.AwayFromZero);
+        return (unit, (long)Math.Round(roundedTotal / unit, 0, MidpointRounding.AwayFromZero));
     }
 
     /// <summary>Aggregates a day split into MONTH, WEEK (ISO, Monday start) or DAY buckets.</summary>
@@ -83,6 +97,8 @@ public static class TargetBreakdownCalculator
             return [];
         }
 
+        // Chọn key gom nhóm theo granularity: DAY = chính ngày đó, WEEK = thứ Hai đầu tuần ISO,
+        // MONTH (mặc định) = ngày 1 của tháng. Key ép về object để 3 nhánh switch cùng kiểu trả về.
         IEnumerable<IGrouping<object, (DateOnly Day, decimal Value)>> groups = granularity switch
         {
             "DAY" => daySplit.GroupBy(d => (object)d.Day),

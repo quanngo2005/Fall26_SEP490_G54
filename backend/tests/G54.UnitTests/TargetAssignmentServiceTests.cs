@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;

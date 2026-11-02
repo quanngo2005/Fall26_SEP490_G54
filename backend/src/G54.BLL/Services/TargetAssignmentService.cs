@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -23,6 +24,8 @@ public sealed class TargetAssignmentService(
     /// Whole-number (integer) KPI units, e.g. "Hợp đồng", "Khách hàng". KpiDefinition has no explicit
     /// decimal-places field, so this is a documented assumption: any other unit (VNĐ, %, ...) is treated
     /// as decimal and rounded to 4 dp in the breakdown. See docs/api/TARGET_ASSIGNMENT_CONTRACT.md.
+    /// KpiDefinition.Unit là free-text do người dùng nhập, nên liệt kê cả dạng có dấu và không dấu
+    /// (so khớp không phân biệt hoa thường, sau Trim). Unit không có trong danh sách → coi là số thập phân.
     /// </summary>
     private static readonly HashSet<string> WholeNumberUnits = new(StringComparer.OrdinalIgnoreCase)
     {

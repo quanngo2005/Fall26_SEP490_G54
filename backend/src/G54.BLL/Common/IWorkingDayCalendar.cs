@@ -1,4 +1,4 @@
-namespace G54.BLL.Services;
+namespace G54.BLL.Common;
 
 /// <summary>
 /// Seam for working-day computation used by target breakdown. <see cref="WeekdayWorkingDayCalendar"/> is the
