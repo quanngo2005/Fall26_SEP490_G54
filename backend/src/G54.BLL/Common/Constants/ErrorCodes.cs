@@ -29,6 +29,7 @@ public static class ErrorCodes
     public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
     public const string MakerCannotBeChecker = "MAKER_CANNOT_BE_CHECKER";       // MSG10, BR-02
     public const string KpiAlreadyContributed = "KPI_ALREADY_CONTRIBUTED";      // MSG22, BR-08
+    public const string KpiTargetNotAssigned = "KPI_TARGET_NOT_ASSIGNED";
     public const string EvidenceLocked = "EVIDENCE_LOCKED";                     // MSG23, BR-13
     public const string MediaTimestampRequired = "MEDIA_TIMESTAMP_REQUIRED";    // MSG28, BR-19
 
@@ -97,6 +98,7 @@ public static class ErrorCodes
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
         [MakerCannotBeChecker] = ("Lỗi kiểm tra: Người thực hiện (Maker) không được phép tự phân công mình làm người phê duyệt (Checker).", "Validation Error: Maker cannot assign self as Checker/Approver for this task."),
         [KpiAlreadyContributed] = ("Lỗi Xung đột: Công việc ID đã đóng góp KPI vào hệ thống trước đó.", "Conflict Error: Task ID has already contributed KPI to the system."),
+        [KpiTargetNotAssigned] = ("Nhân sự nhận điểm chưa có chỉ tiêu (target) đang hiệu lực cho KPI của công việc này nên chưa thể phê duyệt kết quả.", "The recipient has no active target for this work's KPI, so the result cannot be approved."),
         [EvidenceLocked] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
         [MediaTimestampRequired] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),

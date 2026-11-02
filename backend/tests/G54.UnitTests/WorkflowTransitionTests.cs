@@ -433,6 +433,32 @@ public sealed class WorkflowTransitionTests
                 UpdatedAt = Now,
             });
 
+            // Approving a result with a verified value needs an active target for the assignee.
+            var period = new EvaluationPeriod
+            {
+                Id = Guid.NewGuid(),
+                Code = "P",
+                Name = "Period",
+                PeriodType = PeriodType.Month,
+                StartDate = Today.AddDays(-10),
+                EndDate = Today.AddDays(10),
+                Status = PeriodStatus.Open,
+                UpdatedAt = Now,
+            };
+            db.EvaluationPeriods.Add(period);
+            db.TargetAssignments.Add(new TargetAssignment
+            {
+                Id = Guid.NewGuid(),
+                KpiDefinitionId = kpi.Id,
+                EmployeeId = assignee.Id,
+                EvaluationPeriodId = period.Id,
+                Version = 1,
+                TargetValue = 100m,
+                Status = TargetAssignmentStatus.Active,
+                CreatedAt = Now,
+                UpdatedAt = Now,
+            });
+
             var work = new Work
             {
                 Id = Guid.NewGuid(),

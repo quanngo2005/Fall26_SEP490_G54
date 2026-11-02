@@ -295,6 +295,49 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Decide_AcceptWithVerifiedValueButNoActiveTarget_ThrowsConflictAndKeepsTheAppealOpen()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT", Name = "Work type", Status = RecordStatus.Active };
+        var kpi = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            Code = "KPI",
+            Name = "KPI",
+            Unit = "Điểm",
+            KpiGroupId = Guid.NewGuid(),
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
+            Status = KpiStatus.Active,
+        };
+        _db.WorkTypes.Add(workType);
+        _db.KpiDefinitions.Add(kpi);
+        _db.WorkTypeKpis.Add(new WorkTypeKpi
+        {
+            Id = Guid.NewGuid(),
+            WorkTypeId = workType.Id,
+            KpiDefinitionId = kpi.Id,
+            EffectiveFrom = new DateOnly(2026, 10, 1),
+        });
+        submission.Work.WorkTypeId = workType.Id;
+        await _db.SaveChangesAsync();
+        var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m }));
+
+        Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Equal(AppealStatus.Open, appeal.Status);
+        Assert.Equal(SubmissionStatus.Rejected, submission.Status);
+        Assert.Empty(await _db.VerifiedWorkResults.ToListAsync());
+        Assert.Empty(await _db.WorkResultItems.ToListAsync());
+    }
+
+    [Fact]
     public async Task Decide_OverlongNote_IsInvalid()
     {
         await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
