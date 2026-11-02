@@ -263,7 +263,7 @@ public sealed class VerifiedResultLedgerTests
         Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
     }
 
-    // ----- BR-29: a locked period never receives progress ----------------------------------------
+    // ----- a locked period never receives progress ------------------------------------------------
 
     [Theory]
     [InlineData(PeriodStatus.Locked)]

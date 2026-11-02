@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using ClosedXML.Excel;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
@@ -378,7 +379,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
 
         await EnsureDepartmentAccessAsync(userId, deptYearTarget.DepartmentId, ct);
 
-        // BR-29: confirming rewrites the quarter and month targets, so a locked year (or any locked quarter) is read-only.
+        // Confirming rewrites the quarter and month targets, so a locked year (or any locked quarter) is read-only.
         PeriodLockGuard.EnsureWritable(deptYearTarget.EvaluationPeriod);
 
         var branchYearTarget = await uow.TargetAssignments.GetWithContextAsync(deptYearTarget.ParentAssignmentId!.Value, ct);

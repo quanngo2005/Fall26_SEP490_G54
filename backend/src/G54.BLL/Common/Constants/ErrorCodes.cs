@@ -70,7 +70,7 @@ public static class ErrorCodes
     public const string EvaluationPeriodInvalidState = "EVALUATION_PERIOD_INVALID_STATE";
 
     // Locked evaluation periods (docs/api/PERIOD_LOCK_CONTRACT.md)
-    public const string PeriodLocked = "PERIOD_LOCKED";                                     // BR-29
+    public const string PeriodLocked = "PERIOD_LOCKED";
 
     // Risk events (docs/api/RISK_EVENT_CONTRACT.md)
     public const string RiskEventInvalidState = "RISK_EVENT_INVALID_STATE";
@@ -127,7 +127,7 @@ public static class ErrorCodes
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
-        [PeriodLocked] = ("Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI (BR-29).", "The evaluation period is locked, so KPI data cannot be changed or imported (BR-29)."),
+        [PeriodLocked] = ("Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI.", "The evaluation period is locked, so KPI data cannot be changed or imported."),
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
         [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),

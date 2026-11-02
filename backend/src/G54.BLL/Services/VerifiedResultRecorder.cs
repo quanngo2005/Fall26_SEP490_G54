@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Validation;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;

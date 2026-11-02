@@ -51,7 +51,7 @@ active period).
 
 Messages (`ErrorCodes.GetDefaultMessage`):
 
-- vi: `Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI (BR-29).`
-- en: `The evaluation period is locked, so KPI data cannot be changed or imported (BR-29).`
+- vi: `Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI.`
+- en: `The evaluation period is locked, so KPI data cannot be changed or imported.`
 
 Clients branch on `errorCode`, not on `message`.

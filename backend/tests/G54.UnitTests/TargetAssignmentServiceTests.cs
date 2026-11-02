@@ -337,7 +337,7 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).AllocateByPeriodAsync(_manager, parent.Id, dto));
     }
 
-    // ----- BR-29: a locked period rejects every write ---------------------------------------------
+    // ----- a locked period rejects every write ----------------------------------------------------
 
     private async Task LockPeriodAsync(Guid periodId, PeriodStatus status)
     {

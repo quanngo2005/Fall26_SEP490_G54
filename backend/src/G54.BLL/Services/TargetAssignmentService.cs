@@ -1,5 +1,6 @@
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.DAL.Entities;
 using G54.DAL.Repositories;
@@ -70,19 +71,17 @@ public sealed class TargetAssignmentService(
         var allPeriods = await periodRepository.ListAsync();
         var periodMap = allPeriods.ToDictionary(p => p.Id);
 
-        // BR-29: neither the parent period nor any target period may be locked.
+        // New rows are written under the parent period and into every requested period, so none of them may be locked.
         PeriodLockGuard.EnsureWritable(periodMap.GetValueOrDefault(parent.EvaluationPeriodId));
-        foreach (var lockedCandidateId in periodIds)
-        {
-            PeriodLockGuard.EnsureWritable(periodMap.GetValueOrDefault(lockedCandidateId));
-        }
 
         foreach (var periodId in periodIds)
         {
-            if (!periodMap.ContainsKey(periodId))
+            if (!periodMap.TryGetValue(periodId, out var targetPeriod))
             {
                 throw new NotFoundException("Kỳ đánh giá", periodId);
             }
+
+            PeriodLockGuard.EnsureWritable(targetPeriod);
 
             // Check if the period is a descendant of the parent period
             var current = periodId;

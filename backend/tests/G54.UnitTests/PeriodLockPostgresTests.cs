@@ -16,7 +16,7 @@ using Npgsql;
 namespace G54.UnitTests;
 
 /// <summary>
-/// BR-29 against the real schema: the guard must reject a locked period before anything is written, and the database
+/// Period lock against the real schema: the guard must reject a locked period before anything is written, and the database
 /// triggers, foreign keys and the serializable verification transaction must stay consistent afterwards.
 /// </summary>
 public sealed class PeriodLockPostgresTests : IAsyncLifetime
