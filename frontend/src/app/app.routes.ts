@@ -39,6 +39,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'target-overview',
+    canActivate: [authGuard],
+    title: 'Tổng quan mục tiêu',
+    loadComponent: () =>
+      import('./features/target-overview/target-overview.component').then(
+        (m) => m.TargetOverviewComponent,
+      ),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),

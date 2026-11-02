@@ -151,7 +151,7 @@ public sealed class TargetAssignmentService(
         await targetRepository.SaveChangesAsync();
 
         // A brand-new employee target has no feedback yet.
-        return [.. children.Select(c => ToDto(c, ComputeFeedbackStatus(c, null)))];
+        return [.. children.Select(c => ToDtoWithFeedback(c, null))];
     }
 
     public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
@@ -273,7 +273,7 @@ public sealed class TargetAssignmentService(
         var employeeOwnedIds = targets.Where(t => t.EmployeeId.HasValue).Select(t => t.Id).ToList();
         var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync(employeeOwnedIds);
 
-        return [.. targets.Select(t => ToDto(t, ComputeFeedbackStatus(t, latestFeedback.GetValueOrDefault(t.Id))))];
+        return [.. targets.Select(t => ToDtoWithFeedback(t, latestFeedback.GetValueOrDefault(t.Id)))];
     }
 
     public async Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId) =>
@@ -331,7 +331,7 @@ public sealed class TargetAssignmentService(
         var targets = await targetRepository.ListForEmployeeAsync(employee.Id, query.EvaluationPeriodId, query.KpiDefinitionId);
         var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync([.. targets.Select(t => t.Id)]);
 
-        return [.. targets.Select(t => ToDto(t, ComputeFeedbackStatus(t, latestFeedback.GetValueOrDefault(t.Id))))];
+        return [.. targets.Select(t => ToDtoWithFeedback(t, latestFeedback.GetValueOrDefault(t.Id)))];
     }
 
     public async Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId)
@@ -491,7 +491,17 @@ public sealed class TargetAssignmentService(
         };
     }
 
-    private static TargetAssignmentDto ToDto(TargetAssignment t, string? feedbackStatus = null) => new(
+    /// <summary>Employee-owned rows carry the feedback status and, once answered, when.</summary>
+    private static TargetAssignmentDto ToDtoWithFeedback(TargetAssignment t, TargetAssignmentFeedback? latest)
+    {
+        var status = ComputeFeedbackStatus(t, latest);
+        return ToDto(t, status, status is "CONFIRMED" or "COMMENTED" ? latest?.CreatedAt : null);
+    }
+
+    private static TargetAssignmentDto ToDto(
+        TargetAssignment t,
+        string? feedbackStatus = null,
+        DateTimeOffset? feedbackAt = null) => new(
         t.Id,
         t.KpiDefinitionId,
         t.EvaluationPeriodId,
@@ -507,5 +517,6 @@ public sealed class TargetAssignmentService(
         t.ChangeReason,
         t.CreatedAt,
         t.UpdatedAt,
-        feedbackStatus);
+        feedbackStatus,
+        feedbackAt);
 }

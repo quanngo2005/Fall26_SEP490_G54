@@ -321,7 +321,8 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
   "changeReason": "Q4 split",
   "createdAt": "2026-10-23T08:00:00+00:00",
   "updatedAt": "2026-10-23T08:00:00+00:00",
-  "feedbackStatus": null
+  "feedbackStatus": null,
+  "feedbackAt": null
 }
 ```
 
@@ -331,6 +332,7 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
 - `feedbackStatus`: `NOT_VIEWED | CONFIRMED | COMMENTED` for employee-owned rows (latest feedback wins; `CONFIRMED`
   only when that confirmation is newer than `updatedAt`), always `null` for department-owned rows. Populated by
   `GET /target-assignments` (so the DM grid can show per-row status) and `GET /target-assignments/mine`.
+- `feedbackAt`: ISO 8601 time of the latest feedback, set only when `feedbackStatus` is `CONFIRMED` or `COMMENTED`; `null` otherwise (`NOT_VIEWED`, a confirmation that predates the last update, and department-owned rows). Populated by the same endpoints as `feedbackStatus`.
 
 ## Errors
 
