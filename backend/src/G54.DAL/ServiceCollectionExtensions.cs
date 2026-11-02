@@ -1,8 +1,10 @@
+using G54.DAL.Auditing;
 using G54.DAL.Entities;
 using G54.DAL.Repositories;
 using G54.DAL.Uow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 
 namespace G54.DAL;
@@ -41,15 +43,24 @@ public static class ServiceCollectionExtensions
         var dataSource = dataSourceBuilder.Build();
 
         services.AddSingleton(dataSource);
+        // Default actor/request context for non-HTTP callers (DbMigrator, seeders). The API layer
+        // overrides this with HttpAuditContextProvider by registering it again after AddDataAccess.
+        services.AddScoped<IAuditContextProvider, NullAuditContextProvider>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddLogging();
+        services.AddScoped<AuditSaveChangesInterceptor>();
         // Bind this context to its own enum mappings. Authentication registers a
         // separate NpgsqlDataSource with different CLR enum types in the same DI container.
-        services.AddDbContext<AppDbContext>(options => options.UseNpgsql(dataSource));
+        services.AddDbContext<AppDbContext>((sp, options) => options
+            .UseNpgsql(dataSource)
+            .AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>()));
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IWorkRepository, WorkRepository>();
         services.AddScoped<ITargetAssignmentRepository, TargetAssignmentRepository>();
         services.AddScoped<ITargetAssignmentFeedbackRepository, TargetAssignmentFeedbackRepository>();
         services.AddScoped<IEvaluationPeriodRepository, EvaluationPeriodRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }

@@ -18,6 +18,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Appeal> Appeals { get; set; }
 
+    public virtual DbSet<AuditLog> AuditLogs { get; set; }
+
     public virtual DbSet<AuthAuditLog> AuthAuditLogs { get; set; }
 
     public virtual DbSet<BusinessCampaign> BusinessCampaigns { get; set; }
@@ -254,6 +256,38 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("appeal_status")
                 .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("audit_logs_pkey");
+
+            entity.ToTable("audit_logs");
+
+            entity.HasIndex(e => new { e.EntityName, e.EntityId }, "ix_audit_logs_entity");
+
+            entity.HasIndex(e => e.OccurredAt, "ix_audit_logs_occurred_at");
+
+            entity.HasIndex(e => e.ActorId, "ix_audit_logs_actor_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.EntityName).HasMaxLength(100).HasColumnName("entity_name");
+            entity.Property(e => e.EntityId).HasMaxLength(100).HasColumnName("entity_id");
+            entity.Property(e => e.Action).HasMaxLength(20).HasColumnName("action");
+            entity.Property(e => e.OldValues).HasColumnType("jsonb").HasColumnName("old_values");
+            entity.Property(e => e.NewValues).HasColumnType("jsonb").HasColumnName("new_values");
+            entity.Property(e => e.ChangedColumns).HasColumnType("jsonb").HasColumnName("changed_columns");
+            entity.Property(e => e.ActorId).HasColumnName("actor_id");
+            entity.Property(e => e.ActorName).HasMaxLength(200).HasColumnName("actor_name");
+            entity.Property(e => e.IpAddress).HasMaxLength(64).HasColumnName("ip_address");
+            entity.Property(e => e.UserAgent).HasMaxLength(512).HasColumnName("user_agent");
+            entity.Property(e => e.HttpMethod).HasMaxLength(10).HasColumnName("http_method");
+            entity.Property(e => e.RequestPath).HasMaxLength(512).HasColumnName("request_path");
+            entity.Property(e => e.TraceId).HasMaxLength(64).HasColumnName("trace_id");
+            entity.Property(e => e.OccurredAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("occurred_at");
+            // No FK to account: an audit entry must survive deletion of the actor's account.
         });
 
         modelBuilder.Entity<AuthAuditLog>(entity =>

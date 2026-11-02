@@ -64,6 +64,11 @@ $intentionallyOpen = @{
     "GET /sidebar-configurations"                          = "SidebarConfigurationService filters by the caller's roles"
     "GET /sidebar-configurations/current"                  = "SidebarConfigurationService filters by the caller's roles"
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
+    "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
+    "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
+    "POST /target-assignments/{id:guid}/feedback/confirm"  = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
+    "POST /target-assignments/{id:guid}/feedback/comments" = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
+    "GET /target-assignments/{id:guid}/feedback"           = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
     # Reference/catalog data used to fill forms, nothing sensitive (kpi:read is granted to every role)
     "GET /employees/departments"                           = "reference list"
     "GET /employees/job-positions"                         = "reference list"
