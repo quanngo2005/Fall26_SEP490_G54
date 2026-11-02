@@ -72,9 +72,10 @@ export interface EvaluationKpiItem {
   /** Share of the root group in percent; the active KPIs of a group add up to 100. */
   weightPercent: number;
   targetValue: number | null;
-  actualValue: number;
-  achievementPercent: number;
-  componentScore: number;
+  /** Null when the KPI has no progress in the period (not applicable, never 0). */
+  actualValue: number | null;
+  achievementPercent: number | null;
+  componentScore: number | null;
 }
 
 export interface EvaluationCriterionGroup {
@@ -83,7 +84,8 @@ export interface EvaluationCriterionGroup {
   groupCode: string;
   groupName: string;
   weightPercent: number;
-  groupScore: number;
+  /** Null when no KPI of the group can be scored. */
+  groupScore: number | null;
   kpiItems: EvaluationKpiItem[];
   qualitativeScore: number | null;
   qualitativeNotes: string | null;
@@ -100,14 +102,15 @@ export interface EvaluationRiskEvent {
   occurredAt: string;
 }
 
+/** The total, tier and weighted score are null when no group can be scored (not applicable, never 0). */
 export interface EvaluationCalculationSummary {
-  businessScore: number;
-  serviceQualityScore: number;
-  operationsScore: number;
+  businessScore: number | null;
+  serviceQualityScore: number | null;
+  operationsScore: number | null;
   totalRiskPenalty: number;
-  totalScore: number;
-  proposedTier: string;
-  weightedScore: number;
+  totalScore: number | null;
+  proposedTier: string | null;
+  weightedScore: number | null;
 }
 
 export interface PerformanceEvaluationState {
@@ -127,7 +130,8 @@ export interface PreviousPeriodSummary {
   periodCode: string;
   totalScore: number;
   tier: string;
-  scoreDifference: number;
+  /** Null when the current total is not available. */
+  scoreDifference: number | null;
 }
 
 export interface EvaluationFormModel {
@@ -165,10 +169,10 @@ export interface EvaluationResult {
   evaluationId: string;
   employeeId: string;
   periodId: string;
-  totalScore: number;
+  totalScore: number | null;
   status: PerformanceEvaluationStatus;
-  proposedTier: string;
-  calculatedAt: string;
+  proposedTier: string | null;
+  calculatedAt: string | null;
   message: string;
 }
 

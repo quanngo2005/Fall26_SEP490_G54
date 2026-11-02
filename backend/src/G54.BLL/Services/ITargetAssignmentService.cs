@@ -17,4 +17,19 @@ public interface ITargetAssignmentService
     Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query);
 
     Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId);
+
+    /// <summary>Working-day breakdown of a target's period, for DMs (via org scope) or the owning employee.</summary>
+    Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity);
+
+    /// <summary>The caller's own employee-owned target assignments, with feedbackStatus.</summary>
+    Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query);
+
+    /// <summary>Owner employee confirms the target. 403 if not the owner; 409 if already confirmed after the last update.</summary>
+    Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId);
+
+    /// <summary>Owner employee leaves a comment (<= 500 chars) on the target.</summary>
+    Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto);
+
+    /// <summary>Feedback history for a target, newest first. Owner employee or org-scoped caller only.</summary>
+    Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId);
 }

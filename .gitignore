@@ -79,3 +79,7 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
+/docs/diagrams
+# Added by code-review-graph
+.code-review-graph/
+/docs/uc

@@ -122,8 +122,9 @@ Field definitions:
 - `totalScore`: the stored `performance_evaluation.total_score`; `null` when not scored.
 - `groups`: one entry per root group of the **evaluation's own profile tree**, ordered by `displayOrder`;
   `evaluationProfileItemId` is the tree node, `weightPercent` its weight among the roots. `score` is the mean of the
-  scored parts of the group (KPI leaves and sub-groups) weighted by their weight among siblings and normalised over
-  the parts that have a score, `null` when there is none.
+  parts of the group (KPI leaves and sub-groups) weighted by their weight among siblings: an active KPI without a
+  calculated contribution counts as 0 and keeps its weight, the same rule as the calculation (awaiting BA
+  confirmation); an inactive KPI is left out. `null` when the group has no active KPI.
 - `kpis`: the KPIs of the group and its sub-groups that have a calculated contribution, ordered by `code` (ordinal). `targetValue` and
   `actualValue` are the snapshots stored by the calculation. `achievementPercentRaw`, `achievementPercentCapped` and
   `score` are the stored values. A KPI of a group that is not part of the profile is not listed.

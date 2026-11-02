@@ -91,4 +91,52 @@ public sealed record TargetAssignmentDto(
     DateTimeOffset? ApprovedAt,
     string? ChangeReason,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    /// <summary>NOT_VIEWED | CONFIRMED | COMMENTED for employee-owned rows; null for department-owned rows.</summary>
+    string? FeedbackStatus = null);
+
+/// <summary>Query parameters for GET /target-assignments/mine.</summary>
+public sealed class MyTargetAssignmentQueryDto
+{
+    public Guid? EvaluationPeriodId { get; set; }
+
+    public Guid? KpiDefinitionId { get; set; }
+}
+
+/// <summary>Query parameter for GET /target-assignments/{id}/breakdown.</summary>
+public sealed class TargetBreakdownQueryDto
+{
+    /// <summary>MONTH (default) | WEEK | DAY.</summary>
+    public string? Granularity { get; set; }
+}
+
+public sealed record TargetBreakdownItemDto(
+    DateOnly Start,
+    DateOnly End,
+    int WorkingDays,
+    decimal Value);
+
+public sealed record TargetAssignmentBreakdownDto(
+    Guid TargetAssignmentId,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    decimal TotalValue,
+    int WorkingDays,
+    string Granularity,
+    IReadOnlyList<TargetBreakdownItemDto> Items);
+
+/// <summary>Body for POST /target-assignments/{id}/feedback/comments.</summary>
+public sealed class CreateTargetFeedbackCommentDto
+{
+    [Required(ErrorMessage = "Nội dung góp ý là bắt buộc.")]
+    [StringLength(500, ErrorMessage = "Góp ý không vượt quá 500 ký tự.")]
+    public string? Comment { get; set; }
+}
+
+public sealed record TargetAssignmentFeedbackDto(
+    Guid Id,
+    Guid TargetAssignmentId,
+    Guid EmployeeId,
+    string Type,
+    string? Comment,
+    DateTimeOffset CreatedAt);

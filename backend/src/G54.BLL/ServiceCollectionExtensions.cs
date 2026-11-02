@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,9 +35,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IJobPositionService, JobPositionService>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
+        services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
+        services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();

@@ -40,6 +40,10 @@ public sealed record GaussianDistributionDto(
     decimal TargetTierCPercent,
     decimal TargetTierDPercent);
 
+/// <summary>
+/// One employee of the calibration roster. The scores, the rank and the tiers are null when the score cannot be
+/// determined (no evaluation profile, or a profile without a root group): such an employee is not ranked and has no tier.
+/// </summary>
 public sealed record CalibrationEmployeeRowDto(
     Guid EmployeeId,
     string EmployeeCode,
@@ -48,14 +52,14 @@ public sealed record CalibrationEmployeeRowDto(
     string JobPositionTitle,
     Guid DepartmentId,
     string DepartmentName,
-    decimal BusinessScore,
-    decimal ServiceQualityScore,
-    decimal OperationsScore,
-    decimal QualitativeScore,
-    decimal TotalScore,
-    int Rank,
-    string ProposedTier,
-    string CalibratedTier,
+    decimal? BusinessScore,
+    decimal? ServiceQualityScore,
+    decimal? OperationsScore,
+    decimal? QualitativeScore,
+    decimal? TotalScore,
+    int? Rank,
+    string? ProposedTier,
+    string? CalibratedTier,
     bool IsAdjusted,
     string? AdjustmentReason,
     bool CoachingFlag,
