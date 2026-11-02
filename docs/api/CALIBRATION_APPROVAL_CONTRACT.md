@@ -172,6 +172,8 @@ Save draft or submit department calibration proposal to Executive.
 - `notes` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is saved): the column that stores it also holds system markers.
 - If `isDraft == true`:
   - Saves adjustments without transitioning status to `IN_REVIEW`.
+- When the save loses a race with another request (the evaluation of an employee created twice, or a row changed or
+  removed meanwhile) the response is 409 `CONFLICT` and nothing is saved; reload the roster and try again.
 
 #### 200 OK Response
 ```json

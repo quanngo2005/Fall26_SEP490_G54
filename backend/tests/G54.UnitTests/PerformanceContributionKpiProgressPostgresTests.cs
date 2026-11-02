@@ -15,8 +15,8 @@ namespace G54.UnitTests;
 /// </summary>
 public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedDatabaseFixture fixture) : IClassFixture<DemoSeedDatabaseFixture>
 {
+    /// <summary>The migration just before the KPI-row index (<c>AddPerformanceContributionKpiProgressUniqueIndex</c>).</summary>
     private const string PreviousMigration = "20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex";
-    private const string Migration = "20261101164049_AddPerformanceContributionKpiProgressUniqueIndex";
 
     private static int _sequence;
 
@@ -265,7 +265,7 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
             }
             finally
             {
-                await db.GetService<IMigrator>().MigrateAsync(Migration);
+                await db.GetService<IMigrator>().MigrateAsync();
             }
 
             return 0;
@@ -291,7 +291,8 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
 
         await RunAsync(async db =>
         {
-            // The database is at the latest migration here, so this runs the Down of the migration under test.
+            // The database is at the latest migration here, so this runs the Down of the migration under test
+            // (and of the ones after it).
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             try
             {
@@ -305,7 +306,7 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
             finally
             {
                 // Leave the database at the latest migration for the tests that follow.
-                await db.GetService<IMigrator>().MigrateAsync(Migration);
+                await db.GetService<IMigrator>().MigrateAsync();
             }
 
             return 0;

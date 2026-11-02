@@ -384,16 +384,10 @@ public sealed partial class EvaluationService(
         evaluation.Comment = storedComment;
         await PerformanceEvaluationService.StageAsync(db, evaluation, scored, request.IsDraft, now, cancellationToken);
 
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
-        {
-            // Two reviewers saving the evaluation of the employee for this period at the same time.
-            throw new ConflictException(
-                "Đánh giá của nhân viên trong kỳ này vừa được lưu bởi một yêu cầu khác. Hãy tải lại biểu mẫu rồi thử lại.");
-        }
+        // Two reviewers saving the evaluation of the employee for this period at the same time.
+        await SaveEvaluationChangesAsync(
+            "Đánh giá của nhân viên trong kỳ này vừa được lưu bởi một yêu cầu khác. Hãy tải lại biểu mẫu rồi thử lại.",
+            cancellationToken);
 
         LogEvaluationSaved(logger, request.EmployeeId, request.PeriodId, evaluation.TotalScore, evaluation.Status.ToString(), null);
 
@@ -973,7 +967,9 @@ public sealed partial class EvaluationService(
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await SaveEvaluationChangesAsync(
+            "Bảng hiệu chuẩn của phòng ban vừa được lưu bởi một yêu cầu khác. Hãy tải lại bảng hiệu chuẩn rồi thử lại.",
+            cancellationToken);
 
         LogCalibrationSubmitted(logger, request.DepartmentId, request.PeriodId, adjustmentMap.Count, null);
 
@@ -1317,6 +1313,26 @@ public sealed partial class EvaluationService(
             now,
             evaluations.Count,
             "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.");
+    }
+
+    /// <summary>
+    /// Saves evaluations together with their KPI detail rows. A request that lost a race with another one (the same
+    /// evaluation or KPI row inserted twice, or a row changed or removed meanwhile) is a 409, not a server error.
+    /// </summary>
+    private async Task SaveEvaluationChangesAsync(string conflictMessage, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConflictException(conflictMessage);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            throw new ConflictException(conflictMessage);
+        }
     }
 
     /// <summary>

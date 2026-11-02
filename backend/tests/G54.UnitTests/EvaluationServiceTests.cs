@@ -1708,4 +1708,84 @@ public sealed class EvaluationServiceTests
 
         Assert.Equal(409, ex.StatusCode);
     }
+
+    // ----- A save that loses a race with another request is a 409, never a server error ---------
+
+    private sealed class FailingSaveInterceptor(Func<Exception> failure) : SaveChangesInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
+            Armed ? throw failure() : base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    public static TheoryData<string> SaveRaceFailures => new() { "unique", "concurrency" };
+
+    private static Exception SaveRaceFailure(string kind) => kind == "unique"
+        ? new DbUpdateException(
+            "duplicate key",
+            new Npgsql.PostgresException("duplicate key", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.UniqueViolation))
+        : new DbUpdateConcurrencyException("row changed or removed by another request");
+
+    /// <summary>
+    /// A service and a context that fails on save once armed, plus a second context on the same store (no interceptor) to
+    /// show that nothing was written.
+    /// </summary>
+    private static (AppDbContext Context, AppDbContext Check, EvaluationService Service, FailingSaveInterceptor Interceptor) CreateFailingSaveEnvironment(string kind)
+    {
+        var name = Guid.NewGuid().ToString();
+        var interceptor = new FailingSaveInterceptor(() => SaveRaceFailure(kind));
+        var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(name)
+            .AddInterceptors(interceptor)
+            .Options);
+        var check = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(name).Options);
+        DowngradeTestData.Seed(context);
+        var service = new EvaluationService(
+            context,
+            NullLogger<EvaluationService>.Instance,
+            new FakePermissionService(
+                null,
+                new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+                new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
+                new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE")),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+        return (context, check, service, interceptor);
+    }
+
+    [Theory]
+    [MemberData(nameof(SaveRaceFailures))]
+    public async Task SubmitEvaluationAsync_ThrowsConflict_WhenTheSaveLosesARaceWithAnotherRequest(string kind)
+    {
+        var (context, check, service, interceptor) = CreateFailingSaveEnvironment(kind);
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        interceptor.Armed = true;
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Nhận xét", IsDraft: true), manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(check.PerformanceEvaluations);
+        Assert.Empty(check.PerformanceContributions);
+    }
+
+    [Theory]
+    [MemberData(nameof(SaveRaceFailures))]
+    public async Task SubmitDepartmentCalibrationAsync_ThrowsConflict_WhenTheSaveLosesARaceWithAnotherRequest(string kind)
+    {
+        var (context, check, service, interceptor) = CreateFailingSaveEnvironment(kind);
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        interceptor.Armed = true;
+
+        // The employee has no evaluation yet, so the calibration creates one together with its KPI rows.
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitDepartmentCalibrationAsync(
+            new SubmitCalibrationRequestDto(
+                dept.Id, period.Id, [new CalibrationAdjustmentItemDto(staff.Id, "B", null, false)], IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(check.PerformanceEvaluations);
+        Assert.Empty(check.PerformanceContributions);
+    }
 }
