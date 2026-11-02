@@ -209,7 +209,7 @@ public sealed class VerificationService(
             if (dbDecision == VerificationDecision.Approved)
             {
                 await VerifiedResultRecorder.RecordAsync(
-                    db, logger, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
+                    db, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
             }
 
             // Insert the verification before APPROVED closes the submission in the database trigger.

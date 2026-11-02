@@ -5,6 +5,7 @@ using G54.BLL.Dtos.Verification;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -806,8 +807,41 @@ public sealed class VerificationServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task SubmitDecisionAsync_WhenAHandoverRecipientHasNoActiveTarget_ThrowsConflictAndWritesNothing(
+        bool referrerHasTarget,
+        bool processorHasTarget)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, maker, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
+            var processor = NewEmployee(context, maker, "EMP-CO1");
+            await context.SaveChangesAsync();
+            await SeedKpiWorldAsync(
+                context, work, maker, processor, referrerHasTarget: referrerHasTarget, processorHasTarget: processorHasTarget);
+            context.TaskHandovers.Add(NewHandover(
+                work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+                () => service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m)));
+
+            Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
+            Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+            Assert.Empty(await context.Verifications.ToListAsync());
+            Assert.Empty(await context.VerifiedWorkResults.ToListAsync());
+            Assert.Empty(await context.WorkResultItems.ToListAsync());
+            Assert.Empty(await context.ActualProgresses.ToListAsync());
+            Assert.Equal(SubmissionStatus.Submitted, (await context.ResultSubmissions.SingleAsync()).Status);
+        }
+    }
+
     [Fact]
-    public async Task SubmitDecisionAsync_WhenReferrerHasNoActiveTarget_OnlyProcessorReceivesItsShare()
+    public async Task SubmitDecisionAsync_WhenSubmitterHasNoActiveTarget_ThrowsConflictNamingTheEmployee()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -816,37 +850,12 @@ public sealed class VerificationServiceTests
             var processor = NewEmployee(context, maker, "EMP-CO1");
             await context.SaveChangesAsync();
             await SeedKpiWorldAsync(context, work, maker, processor, referrerHasTarget: false);
-            context.TaskHandovers.Add(NewHandover(
-                work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
-            await context.SaveChangesAsync();
 
-            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m));
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+                () => service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m)));
 
-            var item = await context.WorkResultItems.SingleAsync();
-            Assert.Equal(processor.Id, item.EmployeeId);
-            Assert.Equal(35m, item.Value);
-        }
-    }
-
-    [Fact]
-    public async Task SubmitDecisionAsync_WhenProcessorHasNoActiveTarget_OnlyReferrerReceivesItsShare()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            var (_, _, maker, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
-            var processor = NewEmployee(context, maker, "EMP-CO1");
-            await context.SaveChangesAsync();
-            await SeedKpiWorldAsync(context, work, maker, processor, processorHasTarget: false);
-            context.TaskHandovers.Add(NewHandover(
-                work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
-            await context.SaveChangesAsync();
-
-            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m));
-
-            var item = await context.WorkResultItems.SingleAsync();
-            Assert.Equal(maker.Id, item.EmployeeId);
-            Assert.Equal(15m, item.Value);
+            Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
+            Assert.Contains(maker.EmployeeCode, ex.Message);
         }
     }
 

@@ -217,6 +217,7 @@ File bằng chứng của khiếu nại tải qua `GET /evidence/{id}/download` 
 | Tự xử lý appeal/submission của mình | 422 | `MAKER_CANNOT_BE_CHECKER` |
 | Appeal/submission/work không còn hợp lệ hoặc xử lý đồng thời | 409 | `APPEAL_INVALID_STATE` |
 | Work đã được ghi nhận KPI | 409 | `KPI_ALREADY_CONTRIBUTED` |
+| `ACCEPT` kèm `verifiedValue` cho work có KPI nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại; khiếu nại giữ nguyên trạng thái, không ghi gì | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 | `review` / `score-deductions` / `score-dispute` / cấu hình: `points` hoặc `reason` không hợp lệ | 400 | `VALIDATION_ERROR` |
 | Giữ / trừ điểm ngoài phạm vi hoặc cho chính mình; người không phải người nộp phản hồi; không phải ADMIN khi đổi cấu hình | 403 | `FORBIDDEN` |
 | Không có điểm hiện tại để giữ / trừ, kỳ đã khóa khi hoàn điểm, khiếu nại chưa có `HOLD`, xử lý đồng thời | 409 | `CONFLICT` hoặc `APPEAL_INVALID_STATE` |
