@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Validation;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
@@ -56,6 +57,9 @@ internal static class VerifiedResultRecorder
             {
                 var target = await FindActiveTargetAsync(db, primaryKpiId.Value, employeeId, progressDate, cancellationToken)
                     ?? throw await TargetNotAssignedAsync(db, employeeId, cancellationToken);
+
+                // Progress is never added to a locked period. Reversal entries (BR-16) are not implemented yet.
+                PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
                 targets[employeeId] = target;
             }
         }
@@ -94,6 +98,7 @@ internal static class VerifiedResultRecorder
         DateOnly progressDate,
         CancellationToken cancellationToken) =>
         db.TargetAssignments
+            .Include(t => t.EvaluationPeriod)
             .Where(t => t.KpiDefinitionId == kpiDefinitionId
                 && t.EmployeeId == employeeId
                 && t.Status == TargetAssignmentStatus.Active

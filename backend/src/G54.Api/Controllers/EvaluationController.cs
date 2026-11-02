@@ -164,7 +164,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
-    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107, BR-29).
+    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107).
     /// </summary>
     [HttpPost("approvals/finalize")]
     [ProducesResponseType<ApiResponse<FinalizeResultDto>>(StatusCodes.Status200OK)]

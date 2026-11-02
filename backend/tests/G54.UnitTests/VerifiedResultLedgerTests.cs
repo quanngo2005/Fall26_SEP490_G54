@@ -263,6 +263,60 @@ public sealed class VerifiedResultLedgerTests
         Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
     }
 
+    // ----- a locked period never receives progress ------------------------------------------------
+
+    [Theory]
+    [InlineData(PeriodStatus.Locked)]
+    [InlineData(PeriodStatus.Closed)]
+    public async Task Approve_IntoALockedOrClosedPeriod_ThrowsPeriodLockedAndWritesNothing(PeriodStatus status)
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5), status));
+        await rig.SaveAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => rig.ApproveAsync(25m));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(await rig.Db.Verifications.ToListAsync());
+        Assert.Empty(await rig.Db.VerifiedWorkResults.ToListAsync());
+        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+        Assert.Empty(await rig.Db.ActualProgresses.Where(p => p.TargetAssignmentId == target.Id).ToListAsync());
+        Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
+        Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
+    }
+
+    [Theory]
+    [InlineData(PeriodStatus.Open)]
+    [InlineData(PeriodStatus.InReview)]
+    public async Task Approve_IntoAnOpenOrInReviewPeriod_StillRecordsProgress(PeriodStatus status)
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var target = rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5), status));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        Assert.Equal(25m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == target.Id)).Value);
+    }
+
+    [Fact]
+    public async Task Approve_WhenALockedPeriodIsOnlyOneOfSeveralCoveringTargets_UsesTheEarliestEndingOne()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        // The month ends first, so it is the one that receives the progress. A locked year does not block an open month.
+        rig.AddTarget(kpi, rig.AddPeriod("YEAR", BusinessToday.AddDays(-200), BusinessToday.AddDays(100), PeriodStatus.Locked));
+        var month = rig.AddTarget(kpi, rig.AddPeriod("MONTH", BusinessToday.AddDays(-10), BusinessToday.AddDays(10)));
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        Assert.Equal(25m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == month.Id)).Value);
+    }
+
     // ----- Fixture --------------------------------------------------------------------------
 
     private sealed class Rig : IDisposable
@@ -395,7 +449,7 @@ public sealed class VerifiedResultLedgerTests
             return kpi;
         }
 
-        public EvaluationPeriod AddPeriod(string code, DateOnly start, DateOnly end)
+        public EvaluationPeriod AddPeriod(string code, DateOnly start, DateOnly end, PeriodStatus status = PeriodStatus.Open)
         {
             var period = new EvaluationPeriod
             {
@@ -405,7 +459,7 @@ public sealed class VerifiedResultLedgerTests
                 PeriodType = PeriodType.Month,
                 StartDate = start,
                 EndDate = end,
-                Status = PeriodStatus.Open,
+                Status = status,
                 UpdatedAt = Now,
             };
             Db.EvaluationPeriods.Add(period);

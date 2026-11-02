@@ -190,6 +190,47 @@ public sealed class TargetAllocationServiceTests
         Assert.Equal(1000m, days.Sum(t => t.TargetValue));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confirm_WhenTheYearOrAQuarterIsLockedAfterAllocating_ThrowsPeriodLockedAndChangesNothing(bool lockYear)
+    {
+        var f = await CreateAsync();
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
+        await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var lockedId = lockYear ? f.YearPeriodId : f.Q1Id;
+        (await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == lockedId)).Status = PeriodStatus.Locked;
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid()));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(TargetAssignmentStatus.Draft, (await f.Db.TargetAssignments.SingleAsync(t => t.Id == deptYearTarget.Id)).Status);
+        Assert.Empty(await f.Db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(PeriodType.Month)]
+    [InlineData(PeriodType.Day)]
+    public async Task Confirm_WhenAGeneratedMonthOrDayIsLocked_ThrowsPeriodLockedAndChangesNothing(PeriodType lockedType)
+    {
+        var f = await CreateAsync();
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
+        await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        // The quarter and year stay open; only one generated child period is locked.
+        var child = await f.Db.EvaluationPeriods.Where(p => p.PeriodType == lockedType).OrderBy(p => p.StartDate).FirstAsync();
+        child.Status = PeriodStatus.Closed;
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid()));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(TargetAssignmentStatus.Draft, (await f.Db.TargetAssignments.SingleAsync(t => t.Id == deptYearTarget.Id)).Status);
+        Assert.Empty(await f.Db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month).ToListAsync());
+    }
+
     [Fact]
     public async Task Reallocate_AfterConfirm_SupersedesOldAndBumpsVersion()
     {

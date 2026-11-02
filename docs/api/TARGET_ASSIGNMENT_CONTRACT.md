@@ -340,5 +340,6 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
 | 401 | `UNAUTHORIZED` | missing or invalid token |
 | 403 | `FORBIDDEN` | missing `target:manage`, root target without scope `All`, target outside the caller's department; `departmentId` outside the caller's accessible scope in GET list |
 | 404 | `NOT_FOUND` | unknown assignment id; unknown `departmentId` in GET list; unknown `evaluationPeriodId` in period-allocations |
+| 409 | `PERIOD_LOCKED` | the target's period (create, split), the parent's period or any `evaluationPeriodId` in period-allocations has status `LOCKED` or `CLOSED` (see `PERIOD_LOCK_CONTRACT.md`) |
 | 409 | `CONFLICT` | allocation to a department or employee that already has an ACTIVE target for the same KPI and period; confirming a target already confirmed since its last change |
 | 500 | `INTERNAL_ERROR` | a database rule was violated (hierarchy, `SUM` total, value range, unknown KPI/period/department) |
