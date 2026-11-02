@@ -83,3 +83,6 @@ uploads/
 # Added by code-review-graph
 .code-review-graph/
 /docs/uc
+
+# Local MCP config (machine-specific paths)
+/.mcp.json
