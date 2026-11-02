@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using G54.Api.Auditing;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.Api.Health;
@@ -10,6 +11,7 @@ using G54.BLL;
 using G54.BLL.Common.Constants;
 using G54.BLL.Services;
 using G54.DAL;
+using G54.DAL.Auditing;
 using G54.DAL.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -52,6 +54,10 @@ builder.Services.AddBusinessLogic();
 builder.Services.Configure<G54.BLL.Common.SystemParametersOptions>(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName));
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
+// Overrides the NullAuditContextProvider registered by AddDataAccess: within the API, the actor/request
+// context for audit logging comes from the current HTTP request.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditContextProvider, HttpAuditContextProvider>();
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
 builder.Services.AddStackExchangeRedisCache(options => options.Configuration = redisConnection);
 builder.Services.AddSingleton<IAuthSessionStore, RedisAuthSessionStore>();

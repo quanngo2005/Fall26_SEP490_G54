@@ -27,6 +27,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(AppealsController), "")]
     [InlineData(typeof(HandoversController), "")]
     [InlineData(typeof(HelloController), "hello")]
+    [InlineData(typeof(AuditLogsController), "audit-logs")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)
     {
         var route = controller.GetCustomAttribute<RouteAttribute>();
@@ -43,6 +44,16 @@ public sealed class ApiRouteContractTests
         var patch = action.GetCustomAttribute<HttpPatchAttribute>();
         Assert.NotNull(patch);
         Assert.Equal("{id:guid}/status", patch.Template);
+    }
+
+    [Fact]
+    public void AuditLogsController_ExposesListAndDetailGetRoutes()
+    {
+        Assert.Null(
+            typeof(AuditLogsController).GetMethod(nameof(AuditLogsController.GetAuditLogs))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        Assert.Equal(
+            "{id:guid}",
+            typeof(AuditLogsController).GetMethod(nameof(AuditLogsController.GetAuditLog))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
     }
 
     /// <summary>
