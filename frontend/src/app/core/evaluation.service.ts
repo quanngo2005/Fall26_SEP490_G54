@@ -4,10 +4,13 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
+  BranchEvaluationPeriodsOverview,
   DepartmentEmployeeEvaluation,
   EvaluationFormModel,
   EvaluationPeriodOption,
   EvaluationResult,
+  FinalizePeriodRequest,
+  FinalizePeriodResult,
   SubmitEvaluationRequest,
 } from './evaluation.models';
 
@@ -19,6 +22,27 @@ export class EvaluationService {
   periods(): Observable<EvaluationPeriodOption[]> {
     return this.http
       .get<ApiResponse<EvaluationPeriodOption[]>>(`${this.url}/periods`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  branchPeriods(
+    year?: number | null,
+    periodType?: string | null,
+    status?: string | null,
+  ): Observable<BranchEvaluationPeriodsOverview> {
+    let params = new HttpParams();
+    if (year) params = params.set('year', year.toString());
+    if (periodType && periodType !== 'ALL') params = params.set('periodType', periodType);
+    if (status && status !== 'ALL') params = params.set('status', status);
+
+    return this.http
+      .get<ApiResponse<BranchEvaluationPeriodsOverview>>(`${this.url}/branch-periods`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  finalize(request: FinalizePeriodRequest): Observable<FinalizePeriodResult> {
+    return this.http
+      .post<ApiResponse<FinalizePeriodResult>>(`${this.url}/approvals/finalize`, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 

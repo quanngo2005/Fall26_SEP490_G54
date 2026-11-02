@@ -1,0 +1,409 @@
+<div class="branch-evaluation-shell">
+  <app-sidebar />
+
+  <div class="main-viewport">
+    <app-header [title]="localization.evaluations.branchPeriods.pageTitle" />
+
+    <main class="content-area">
+      <!-- Breadcrumb -->
+      <nav class="breadcrumb-nav" [attr.aria-label]="localization.evaluationForm.breadcrumbAria">
+        <span class="crumb">{{localization.evaluations.branchPeriods.breadcrumbHome}}</span>
+        <span class="crumb-separator">/</span>
+        <span class="crumb">{{localization.evaluations.branchPeriods.breadcrumbBranchPerformance}}</span>
+        <span class="crumb-separator">/</span>
+        <span class="crumb current" aria-current="page">{{localization.evaluations.branchPeriods.breadcrumbCurrent}}</span>
+      </nav>
+
+      <!-- Page Title & Subtitle -->
+      <header class="page-header">
+        <h1 class="page-title">
+          {{headerTitle()}}
+        </h1>
+        <p class="page-subtitle">{{localization.evaluations.branchPeriods.headerSubtitle}}</p>
+      </header>
+
+      <!-- Toast Notification -->
+      @if (toastMessage(); as toast) {
+        <div class="toast-banner" role="status" aria-live="polite">
+          <app-layout-icon name="check" class="toast-icon" />
+          <span>{{toast}}</span>
+        </div>
+      }
+
+      <!-- Filter Toolbar -->
+      <section class="filter-toolbar">
+        <div class="filter-group">
+          <label for="year-select" class="filter-label">{{localization.evaluations.branchPeriods.filterYear}}</label>
+          <select
+            id="year-select"
+            class="filter-select"
+            [ngModel]="selectedYear().toString()"
+            (ngModelChange)="onYearChange($event)"
+            [attr.aria-label]="localization.evaluations.branchPeriods.filterYear"
+          >
+            @for (y of availableYears(); track y) {
+              <option [value]="y">{{y}}</option>
+            }
+            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="type-select" class="filter-label">{{localization.evaluations.branchPeriods.filterPeriodType}}</label>
+          <select
+            id="type-select"
+            class="filter-select"
+            [ngModel]="selectedPeriodType()"
+            (ngModelChange)="onPeriodTypeChange($event)"
+            [attr.aria-label]="localization.evaluations.branchPeriods.filterPeriodType"
+          >
+            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
+            <option value="QUARTER">
+              {{localization.evaluations.branchPeriods.typeQuarter}}
+            </option>
+            <option value="YEAR">{{localization.evaluations.branchPeriods.typeYear}}</option>
+            <option value="MONTH">{{localization.evaluations.branchPeriods.typeMonth}}</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="status-select" class="filter-label">{{localization.evaluations.branchPeriods.filterStatus}}</label>
+          <select
+            id="status-select"
+            class="filter-select"
+            [ngModel]="selectedStatus()"
+            (ngModelChange)="onStatusChange($event)"
+            [attr.aria-label]="localization.evaluations.branchPeriods.filterStatus"
+          >
+            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
+            <option value="IN_PROGRESS">
+              {{localization.evaluations.branchPeriods.statusInProgress}}
+            </option>
+            <option value="EVALUATING">
+              {{localization.evaluations.branchPeriods.statusEvaluating}}
+            </option>
+            <option value="IN_REVIEW">
+              {{localization.evaluations.branchPeriods.statusInReview}}
+            </option>
+            <option value="PUBLISHED">
+              {{localization.evaluations.branchPeriods.statusPublished}}
+            </option>
+            <option value="LOCKED">
+              {{localization.evaluations.branchPeriods.statusLocked}}
+            </option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Table Section -->
+      <section class="table-card">
+        @if (loading()) {
+          <div class="state-container loading-state">
+            <div class="spinner" aria-hidden="true"></div>
+            <p>{{localization.evaluations.branchPeriods.loading}}</p>
+          </div>
+        } @else if (errorMessage(); as error) {
+          <div class="state-container error-state">
+            <p class="error-msg">{{error}}</p>
+            <button type="button" class="btn btn-secondary" (click)="loadData()">
+              {{localization.evaluations.branchPeriods.retry}}
+            </button>
+          </div>
+        } @else if (periods().length === 0) {
+          <div class="state-container empty-state">
+            <p>{{localization.evaluations.branchPeriods.emptyList}}</p>
+          </div>
+        } @else {
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="th-period">
+                    {{localization.evaluations.branchPeriods.colPeriod}}
+                  </th>
+                  <th scope="col" class="th-time">
+                    {{localization.evaluations.branchPeriods.colTime}}
+                  </th>
+                  <th scope="col" class="th-ratio">
+                    {{localization.evaluations.branchPeriods.colQualityRatio}}
+                  </th>
+                  <th scope="col" class="th-submitted">
+                    {{localization.evaluations.branchPeriods.colSubmitted}}
+                  </th>
+                  <th scope="col" class="th-approved">
+                    {{localization.evaluations.branchPeriods.colApproved}}
+                  </th>
+                  <th scope="col" class="th-appeal">
+                    {{localization.evaluations.branchPeriods.colAppealWindow}}
+                  </th>
+                  <th scope="col" class="th-status">
+                    {{localization.evaluations.branchPeriods.colStatus}}
+                  </th>
+                  <th scope="col" class="th-actions">
+                    {{localization.evaluations.branchPeriods.colAction}}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (period of periods(); track period.id) {
+                  <tr class="table-row" [class.is-locked]="period.displayStatus === 'LOCKED'">
+                    <!-- KỲ -->
+                    <td class="cell-period">
+                      <span class="period-name">{{period.name}}</span>
+                    </td>
+
+                    <!-- THỜI GIAN -->
+                    <td class="cell-time">
+                      <span>{{period.startDate | appDate}} – {{period.endDate | appDate}}</span>
+                    </td>
+
+                    <!-- Q. RATIO -->
+                    <td class="cell-ratio">
+                      <span>{{period.qualityRatio === null
+                          ? localization.evaluations.branchPeriods.notAvailable
+                          : (period.qualityRatio | appNumber: 1)}}</span>
+                    </td>
+
+                    <!-- ĐÃ GỬI -->
+                    <td class="cell-submitted">
+                      @if (period.submittedDepartmentCount > 0) {
+                        <span
+                          >{{period.submittedDepartmentCount}}/{{period.totalDepartmentCount}}</span
+                        >
+                      } @else {
+                        <span class="dash-text">{{localization.evaluations.branchPeriods.notAvailable}}</span>
+                      }
+                    </td>
+
+                    <!-- ĐÃ DUYỆT -->
+                    <td class="cell-approved">
+                      @if (period.submittedDepartmentCount > 0) {
+                        <span
+                          [class.warn-alert]="
+                            period.approvedDepartmentCount < period.submittedDepartmentCount
+                          "
+                          [class.success-alert]="
+                            period.approvedDepartmentCount >= period.submittedDepartmentCount &&
+                            period.approvedDepartmentCount > 0
+                          "
+                        >
+                          {{period.approvedDepartmentCount}}/{{period.totalDepartmentCount}}
+                        </span>
+                      } @else {
+                        <span class="dash-text">{{localization.evaluations.branchPeriods.notAvailable}}</span>
+                      }
+                    </td>
+
+                    <!-- CỬA SỔ KHÁNG NGHỊ -->
+                    <td class="cell-appeal">
+                      @if (period.appealWindow; as appeal) {
+                        @if (appeal.isClosed) {
+                          <span class="appeal-closed">{{localization.evaluations.branchPeriods.appealClosed}}</span>
+                        } @else if (appeal.startDate && appeal.endDate) {
+                          <span class="appeal-range">
+                            {{appeal.startDate | appDate}} –
+                            {{appeal.endDate | appDate}}
+                            @if (appeal.isExpired) {
+                              <span class="appeal-expired">{{localization.evaluations.branchPeriods.appealExpiredSuffix}}</span>
+                            }
+                          </span>
+                        } @else {
+                          <span class="dash-text">{{localization.evaluations.branchPeriods.notAvailable}}</span>
+                        }
+                      } @else {
+                        <span class="dash-text">{{localization.evaluations.branchPeriods.notAvailable}}</span>
+                      }
+                    </td>
+
+                    <!-- TRẠNG THÁI -->
+                    <td class="cell-status">
+                      @switch (period.displayStatus) {
+                        @case ('IN_REVIEW') {
+                          <span class="status-badge badge-in-review">
+                            {{localization.evaluations.branchPeriods.statusInReview}}
+                          </span>
+                        }
+                        @case ('PUBLISHED') {
+                          <span class="status-badge badge-published">
+                            {{localization.evaluations.branchPeriods.statusPublished}}
+                          </span>
+                        }
+                        @case ('LOCKED') {
+                          <span class="status-badge badge-locked">
+                            <app-layout-icon name="lock" class="badge-icon" />
+                            {{localization.evaluations.branchPeriods.statusLocked}}
+                          </span>
+                        }
+                        @default {
+                          <span class="status-badge badge-in-progress">
+                            {{localization.evaluations.branchPeriods.statusInProgress}}
+                          </span>
+                        }
+                      }
+                    </td>
+
+                    <!-- HÀNH ĐỘNG -->
+                    <td class="cell-actions">
+                      @if (period.canOpen) {
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm"
+                          (click)="openPeriod(period)"
+                        >
+                          {{localization.evaluations.branchPeriods.actionOpen}}
+                        </button>
+                      } @else if (period.canLock) {
+                        <button
+                          type="button"
+                          class="btn btn-outline btn-sm btn-lock"
+                          (click)="openLockModal(period)"
+                        >
+                          <app-layout-icon name="lock" class="btn-icon" />
+                          {{localization.evaluations.branchPeriods.actionLock}}
+                        </button>
+                      } @else if (period.canViewHistory) {
+                        <button
+                          type="button"
+                          class="btn btn-link btn-sm"
+                          (click)="viewHistory(period)"
+                        >
+                          {{localization.evaluations.branchPeriods.actionView}}
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <!-- Lifecycle Guide Card (Vòng đời kỳ) -->
+      <section class="lifecycle-card">
+        <h2 class="lifecycle-title">{{localization.evaluations.branchPeriods.lifecycleTitle}}</h2>
+        <div class="stepper-track">
+          <div class="stepper-item">
+            <span class="step-box">{{localization.evaluations.branchPeriods.lifecycleStep1}}</span>
+          </div>
+          <span class="step-arrow" aria-hidden="true">›</span>
+
+          <div class="stepper-item">
+            <span class="step-box">{{localization.evaluations.branchPeriods.lifecycleStep2}}</span>
+          </div>
+          <span class="step-arrow" aria-hidden="true">›</span>
+
+          <div class="stepper-item active-step">
+            <span class="step-box highlight">{{localization.evaluations.branchPeriods.lifecycleStep3}}</span>
+          </div>
+          <span class="step-arrow" aria-hidden="true">›</span>
+
+          <div class="stepper-item">
+            <span class="step-box">{{localization.evaluations.branchPeriods.lifecycleStep4}}</span>
+          </div>
+          <span class="step-arrow" aria-hidden="true">›</span>
+
+          <div class="stepper-item">
+            <span class="step-box">{{localization.evaluations.branchPeriods.lifecycleStep5}}</span>
+          </div>
+        </div>
+        <p class="lifecycle-note">{{localization.evaluations.branchPeriods.qualityRatioNote}}</p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Modal Khóa Kỳ (SCR-EVL-03-M1) -->
+@if (isLockModalOpen()) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeLockModal()"
+    (keydown.escape)="closeLockModal()"
+  >
+    <div
+      class="modal-dialog"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      [attr.aria-label]="localization.evaluations.branchPeriods.lockModalTitle"
+    >
+      <header class="modal-header">
+        <h3 class="modal-title">{{localization.evaluations.branchPeriods.lockModalTitle}}</h3>
+        <button
+          type="button"
+          class="btn-close"
+          (click)="closeLockModal()"
+          [attr.aria-label]="localization.common.close"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="warning-callout">
+          <app-layout-icon name="warning" class="callout-icon" />
+          <p class="warning-text">{{localization.evaluations.branchPeriods.lockModalWarning}}</p>
+        </div>
+
+        <div class="modal-field">
+          <span class="field-label">{{localization.evaluations.branchPeriods.lockModalPeriod}}</span>
+          <span class="field-value font-bold"
+            >{{periodToLock()?.name}} ({{periodToLock()?.code}})</span
+          >
+        </div>
+
+        <div class="modal-field">
+          <label for="lock-signature-token" class="field-label">{{localization.evaluations.branchPeriods.lockModalTokenLabel}}</label>
+          <input
+            id="lock-signature-token"
+            type="password"
+            class="modal-input"
+            [placeholder]="localization.evaluations.branchPeriods.lockModalTokenPlaceholder"
+            [ngModel]="lockSignatureToken()"
+            (ngModelChange)="lockSignatureToken.set($event)"
+          />
+        </div>
+
+        <div class="modal-field">
+          <label for="lock-approval-comments" class="field-label">{{localization.evaluations.branchPeriods.lockModalCommentsLabel}}</label>
+          <textarea
+            id="lock-approval-comments"
+            rows="3"
+            class="modal-textarea"
+            [placeholder]="localization.evaluations.branchPeriods.lockModalCommentsPlaceholder"
+            [ngModel]="lockApprovalComments()"
+            (ngModelChange)="lockApprovalComments.set($event)"
+          ></textarea>
+        </div>
+
+        @if (lockError(); as error) {
+          <div class="modal-error-alert" role="alert">
+            {{error}}
+          </div>
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="closeLockModal()"
+          [disabled]="isLocking()"
+        >
+          {{localization.evaluations.branchPeriods.lockModalCancel}}
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          (click)="confirmLockPeriod()"
+          [disabled]="isLocking()"
+        >
+          {{localization.evaluations.branchPeriods.lockModalConfirm}}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

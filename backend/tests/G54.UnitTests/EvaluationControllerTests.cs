@@ -143,6 +143,21 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetBranchPeriods_ForwardsQueryFiltersWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+
+        var result = await controller.GetBranchPeriods(2026, "QUARTER", "IN_REVIEW", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((2026, "QUARTER", "IN_REVIEW", UserId), service.LastBranchPeriodsRequest);
+        var data = Assert.IsType<ApiResponse<BranchEvaluationPeriodsOverviewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("Chi nhánh kiểm thử", data.BranchName);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -258,6 +273,19 @@ public sealed class EvaluationControllerTests
             LastFinalize = request;
             LastFinalizeUserId = currentUserId;
             return Task.FromResult(FinalizeResult);
+        }
+
+        public (int? Year, string? PeriodType, string? Status, Guid UserId) LastBranchPeriodsRequest { get; private set; }
+
+        public Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+            int? year,
+            string? periodType,
+            string? status,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastBranchPeriodsRequest = (year, periodType, status, currentUserId);
+            return Task.FromResult(new BranchEvaluationPeriodsOverviewDto("Chi nhánh kiểm thử", "BR-TEST", [2026], []));
         }
     }
 }

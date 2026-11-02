@@ -156,3 +156,33 @@ public sealed record FinalizeResultDto(
     DateTimeOffset FinalizedAt,
     int TotalEvaluationsFinalized,
     string Message);
+
+public sealed record AppealWindowDto(
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    bool IsExpired,
+    bool IsClosed);
+
+public sealed record BranchEvaluationPeriodSummaryDto(
+    Guid Id,
+    string Code,
+    string Name,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string PeriodType,
+    string Status,
+    string DisplayStatus,
+    decimal? QualityRatio,
+    int SubmittedDepartmentCount,
+    int ApprovedDepartmentCount,
+    int TotalDepartmentCount,
+    AppealWindowDto? AppealWindow,
+    bool CanOpen,
+    bool CanLock,
+    bool CanViewHistory);
+
+public sealed record BranchEvaluationPeriodsOverviewDto(
+    string BranchName,
+    string BranchCode,
+    List<int> AvailableYears,
+    List<BranchEvaluationPeriodSummaryDto> Periods);

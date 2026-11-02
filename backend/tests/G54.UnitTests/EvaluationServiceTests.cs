@@ -1310,6 +1310,172 @@ public sealed class EvaluationServiceTests
         Assert.Contains("APPROVAL_COMMENTS: Phê duyệt", stored);
     }
 
+    private static async Task<Department> AttachBranchAsync(AppDbContext context, Department dept)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var branch = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "BR-TEST",
+            Name = "Chi nhánh kiểm thử",
+            LevelType = DepartmentLevelType.Branch,
+            Status = RecordStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Departments.AddAsync(branch);
+        var tracked = await context.Departments.SingleAsync(d => d.Id == dept.Id);
+        tracked.ParentDepartmentId = branch.Id;
+        await context.SaveChangesAsync();
+        return branch;
+    }
+
+    private static async Task AddEvaluationAsync(
+        AppDbContext context, Employee employee, EvaluationPeriod period, PerformanceEvaluationStatus status)
+    {
+        await context.PerformanceEvaluations.AddAsync(new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.First().Id,
+            TotalScore = 80m,
+            Status = status,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ReturnsRealBranchAndCountsWithoutInventedFields()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var branch = await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.InReview);
+
+        var overview = await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id);
+
+        Assert.Equal(branch.Name, overview.BranchName);
+        Assert.Equal(branch.Code, overview.BranchCode);
+        var row = Assert.Single(overview.Periods);
+        Assert.Equal("MONTH", row.PeriodType);
+        Assert.Equal("OPEN", row.Status);
+        Assert.Equal("IN_REVIEW", row.DisplayStatus);
+        Assert.Equal(1, row.TotalDepartmentCount);
+        Assert.Equal(1, row.SubmittedDepartmentCount);
+        Assert.Equal(0, row.ApprovedDepartmentCount);
+        Assert.Null(row.QualityRatio);
+        Assert.Null(row.AppealWindow);
+        Assert.True(row.CanOpen);
+        Assert.False(row.CanLock);
+        Assert.False(row.CanViewHistory);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ThrowsNotFound_WhenNoBranchExists()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id));
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_AllApproved_IsPublishedAndLockable()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.Approved);
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "published", manager.Id)).Periods);
+
+        Assert.Equal("PUBLISHED", row.DisplayStatus);
+        Assert.Equal(1, row.ApprovedDepartmentCount);
+        Assert.True(row.CanLock);
+        Assert.False(row.CanOpen);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_DisputedEvaluation_BlocksLocking()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.Disputed);
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id)).Periods);
+
+        Assert.False(row.CanLock);
+        Assert.NotEqual("PUBLISHED", row.DisplayStatus);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_LockedPeriod_CountsFromDataNotFromTotals()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        var tracked = await context.EvaluationPeriods.SingleAsync(p => p.Id == period.Id);
+        tracked.Status = PeriodStatus.Locked;
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id)).Periods);
+
+        Assert.Equal("LOCKED", row.DisplayStatus);
+        Assert.Equal(0, row.SubmittedDepartmentCount);
+        Assert.Equal(0, row.ApprovedDepartmentCount);
+        Assert.Equal(1, row.TotalDepartmentCount);
+        Assert.Null(row.AppealWindow);
+        Assert.True(row.CanViewHistory);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_FiltersByYearTypeAndStatus()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        var now = DateTimeOffset.UtcNow;
+        await context.EvaluationPeriods.AddAsync(new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2025-H2",
+            Name = "Nửa năm 2/2025",
+            PeriodType = PeriodType.HalfYear,
+            StartDate = new DateOnly(2025, 7, 1),
+            EndDate = new DateOnly(2025, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        });
+        await context.SaveChangesAsync();
+
+        var byYear = await service.GetBranchEvaluationPeriodsOverviewAsync(2025, null, null, manager.Id);
+        var byType = await service.GetBranchEvaluationPeriodsOverviewAsync(null, "half_year", null, manager.Id);
+        var byStatus = await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "LOCKED", manager.Id);
+
+        Assert.Equal([2026, 2025], byYear.AvailableYears);
+        Assert.Equal("HALF_YEAR", Assert.Single(byYear.Periods).PeriodType);
+        Assert.Equal("2025-H2", Assert.Single(byType.Periods).Code);
+        Assert.Empty(byStatus.Periods);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ThrowsValidation_ForUnknownFilters()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, "FORTNIGHT", null, manager.Id));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "BOGUS", manager.Id));
+    }
+
     // ----- Qualitative group: a score is accepted only for a group without an active KPI -----------
 
     [Fact]

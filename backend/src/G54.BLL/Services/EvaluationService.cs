@@ -1315,6 +1315,193 @@ public sealed partial class EvaluationService(
             "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.");
     }
 
+    private static readonly string[] BranchPeriodDisplayStatuses =
+        ["IN_PROGRESS", "EVALUATING", "IN_REVIEW", "PUBLISHED", "LOCKED"];
+
+    public async Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+        int? year,
+        string? periodType,
+        string? status,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+
+        var typeFilter = string.Equals(periodType?.Trim(), "ALL", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : EnumApiFormat.ParseEnum<PeriodType>(periodType, "periodType");
+
+        string? displayStatusFilter = null;
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status.Trim(), "ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            displayStatusFilter = BranchPeriodDisplayStatuses
+                .FirstOrDefault(s => string.Equals(s, status.Trim(), StringComparison.OrdinalIgnoreCase))
+                ?? throw new ValidationException($"Giá trị '{status}' không hợp lệ cho tham số 'status'.");
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var granted = await permissions.GetEffectivePermissionsAsync(currentUserId, cancellationToken);
+        var inScope = AccessScope.DepartmentsInScope(
+            AccessScope.LevelFor(granted, "evaluation", "read"), reviewer.DepartmentId, hierarchy);
+
+        DepartmentNode? branch = null;
+        if (hierarchy.Nodes.ContainsKey(reviewer.DepartmentId)
+            && hierarchy.Nodes[hierarchy.BranchRoot(reviewer.DepartmentId)] is { Level: DepartmentLevelType.Branch } ownBranch)
+        {
+            branch = ownBranch;
+        }
+
+        branch ??= hierarchy.Nodes.Values
+            .Where(n => n.Level == DepartmentLevelType.Branch && n.Status == RecordStatus.Active)
+            .OrderBy(n => n.Name)
+            .FirstOrDefault()
+            ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        var branchDepartmentIds = hierarchy.Subtree(branch.Id).ToHashSet();
+        var departments = hierarchy.Nodes.Values
+            .Where(n => n.Level == DepartmentLevelType.Department
+                && n.Status == RecordStatus.Active
+                && branchDepartmentIds.Contains(n.Id)
+                && (inScope is null || inScope.Contains(n.Id)))
+            .OrderBy(n => n.Name)
+            .ToList();
+
+        var totalDepts = departments.Count;
+        var deptIds = departments.Select(d => d.Id).ToList();
+
+        var query = db.EvaluationPeriods
+            .AsNoTracking()
+            .Where(p => p.PeriodType != PeriodType.Day);
+
+        var periodBounds = await query
+            .Select(p => new { p.StartDate, p.EndDate })
+            .ToListAsync(cancellationToken);
+        var availableYears = periodBounds
+            .SelectMany(p => new[] { p.StartDate.Year, p.EndDate.Year })
+            .Distinct()
+            .OrderByDescending(y => y)
+            .ToList();
+
+        if (year.HasValue)
+        {
+            query = query.Where(p => p.StartDate.Year == year.Value || p.EndDate.Year == year.Value);
+        }
+
+        if (typeFilter.HasValue)
+        {
+            query = query.Where(p => p.PeriodType == typeFilter.Value);
+        }
+
+        var periods = await query
+            .OrderByDescending(p => p.StartDate)
+            .ToListAsync(cancellationToken);
+
+        var periodIds = periods.Select(p => p.Id).ToList();
+
+        var deptEmployees = await db.Employees
+            .AsNoTracking()
+            .Where(e => deptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .Select(e => new { e.Id, e.DepartmentId })
+            .ToListAsync(cancellationToken);
+
+        var empIds = deptEmployees.Select(e => e.Id).ToList();
+        var empDeptMap = deptEmployees.ToDictionary(e => e.Id, e => e.DepartmentId);
+
+        var evaluations = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Where(pe => periodIds.Contains(pe.EvaluationPeriodId) && empIds.Contains(pe.EmployeeId))
+            .Select(pe => new { pe.EvaluationPeriodId, pe.EmployeeId, pe.Status })
+            .ToListAsync(cancellationToken);
+
+        var evalsByPeriod = evaluations
+            .GroupBy(pe => pe.EvaluationPeriodId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var resultList = new List<BranchEvaluationPeriodSummaryDto>();
+
+        foreach (var p in periods)
+        {
+            evalsByPeriod.TryGetValue(p.Id, out var periodEvals);
+            periodEvals ??= [];
+
+            var evalsByDept = periodEvals
+                .GroupBy(e => empDeptMap[e.EmployeeId])
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var submittedDepts = 0;
+            var approvedDepts = 0;
+            foreach (var dept in departments)
+            {
+                if (!evalsByDept.TryGetValue(dept.Id, out var dEvals) || dEvals.Count == 0)
+                {
+                    continue;
+                }
+
+                if (dEvals.Any(e => e.Status is PerformanceEvaluationStatus.InReview
+                    or PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+                {
+                    submittedDepts++;
+                }
+
+                if (dEvals.All(e => e.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+                {
+                    approvedDepts++;
+                }
+            }
+
+            var isLocked = p.Status is PeriodStatus.Locked or PeriodStatus.Closed;
+            var hasDispute = periodEvals.Any(e => e.Status == PerformanceEvaluationStatus.Disputed);
+            var readyToLock = !isLocked && !hasDispute && totalDepts > 0 && approvedDepts == totalDepts;
+
+            string displayStatus;
+            if (isLocked)
+            {
+                displayStatus = "LOCKED";
+            }
+            else if (readyToLock)
+            {
+                displayStatus = "PUBLISHED";
+            }
+            else if (submittedDepts > 0 || p.Status == PeriodStatus.InReview)
+            {
+                displayStatus = "IN_REVIEW";
+            }
+            else if (periodEvals.Count > 0)
+            {
+                displayStatus = "EVALUATING";
+            }
+            else
+            {
+                displayStatus = "IN_PROGRESS";
+            }
+
+            if (displayStatusFilter is not null && displayStatus != displayStatusFilter)
+            {
+                continue;
+            }
+
+            resultList.Add(new BranchEvaluationPeriodSummaryDto(
+                p.Id,
+                p.Code,
+                p.Name,
+                p.StartDate,
+                p.EndDate,
+                p.PeriodType.ToEnumString(),
+                p.Status.ToEnumString(),
+                displayStatus,
+                QualityRatio: null,
+                submittedDepts,
+                approvedDepts,
+                totalDepts,
+                AppealWindow: null,
+                CanOpen: displayStatus == "IN_REVIEW",
+                CanLock: readyToLock,
+                CanViewHistory: isLocked));
+        }
+
+        return new BranchEvaluationPeriodsOverviewDto(branch.Name, branch.Code, availableYears, resultList);
+    }
+
     /// <summary>
     /// Saves evaluations together with their KPI detail rows. A request that lost a race with another one (the same
     /// evaluation or KPI row inserted twice, or a row changed or removed meanwhile) is a 409, not a server error.
