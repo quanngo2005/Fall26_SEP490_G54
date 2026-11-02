@@ -23,7 +23,11 @@ public sealed class EvaluationScopeTests
     private static EvaluationService CreateService(AppDbContext context, params UserPermissionDto[] grants)
     {
         DowngradeTestData.Seed(context);
-        return new(context, NullLogger<EvaluationService>.Instance, new FakePermissionService(null, grants));
+        return new(
+            context,
+            NullLogger<EvaluationService>.Instance,
+            new FakePermissionService(null, grants),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
     }
 
     private static UserPermissionDto Grant(string action, string scope) => new("evaluation", action, scope, "EVALUATION_" + action.ToUpperInvariant());

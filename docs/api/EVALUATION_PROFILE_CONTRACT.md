@@ -11,9 +11,11 @@ calculating performance scores; this contract only manages them.
 | --- | --- |
 | `GET` endpoints | `[Authorize]` + permission `kpi:read`, scope `All` |
 | `POST`, `PUT`, `PATCH /{id}/status`, `DELETE` | permission `kpi:manage`, scope `All` |
+| `POST /{id}/approve`, `POST /{id}/reject` | permission `evaluation-profile:approve`, scope `All` |
 
 ADMIN passes every permission policy. The seed grants `kpi:manage` to ADMIN only, so in practice only ADMIN
-can write. 401 when unauthenticated, 403 when the permission is missing.
+can write; `evaluation-profile:approve` is granted to BRANCH_MANAGER (the Admin writes, the Branch Manager approves).
+401 when unauthenticated, 403 when the permission is missing.
 
 ## Lookups (existing endpoints, not duplicated)
 
@@ -41,7 +43,7 @@ can write. 401 when unauthenticated, 403 when the permission is missing.
 
 ## Status
 
-`status` is one of `DRAFT | ACTIVE | INACTIVE | ARCHIVED` (UPPER_SNAKE, the PostgreSQL enum names).
+`status` is one of `DRAFT | PENDING_APPROVAL | REJECTED | ACTIVE | INACTIVE | ARCHIVED` (UPPER_SNAKE, the PostgreSQL enum names).
 Responses use `EnumApiFormat.ToEnumString()`; the `status` query filter and the PATCH body are parsed with
 `EnumApiFormat.ParseEnum()` (case-insensitive). An unknown value or an ordinal is 400 `VALIDATION_ERROR`.
 
@@ -51,15 +53,24 @@ Allowed transitions (`PATCH /{id}/status`):
 
 | From | To |
 | --- | --- |
-| `DRAFT` | `ACTIVE`, `ARCHIVED` |
+| `DRAFT` | `PENDING_APPROVAL`, `ARCHIVED` |
+| `PENDING_APPROVAL` | `ARCHIVED` (leaves otherwise only through approve / reject, below) |
+| `REJECTED` | `PENDING_APPROVAL`, `ARCHIVED` |
 | `ACTIVE` | `INACTIVE`, `ARCHIVED` |
 | `INACTIVE` | `ACTIVE`, `ARCHIVED` |
 | `ARCHIVED` | none (409 `CONFLICT`) |
 
-Any other transition, including a transition to `DRAFT`, is 409 `CONFLICT`. Setting the current status again
-is a no-op and returns 200.
+Any other transition, including a transition to `DRAFT` and `DRAFT / PENDING_APPROVAL / REJECTED -> ACTIVE`, is
+409 `CONFLICT`. Setting the current status again is a no-op and returns 200.
 
-Activation (`-> ACTIVE`) requires:
+Approval flow: the Admin submits a `DRAFT` or `REJECTED` profile with `PATCH /{id}/status` (`PENDING_APPROVAL`), then a
+Branch Manager calls `POST /{id}/approve` (-> `ACTIVE`) or `POST /{id}/reject` (-> `REJECTED`, with a reason). Submitting
+needs the same complete tree as activation (at least one item, every sibling level totalling exactly `100`), otherwise
+400 `VALIDATION_ERROR`, and clears any earlier `rejectReason`. A `PENDING_APPROVAL` profile cannot be edited (`PUT`,
+item endpoints: 409 `CONFLICT`) so the approver sees what was submitted; a `REJECTED` profile can be edited and
+resubmitted. Only a previously approved profile (`INACTIVE`) is reactivated directly.
+
+Activation (`-> ACTIVE`, by approval or from `INACTIVE`) requires:
 
 1. At least one item; the weights of the roots add up to exactly `100`, and so do the children of every group; every
    group has at least one child. Otherwise 400 `VALIDATION_ERROR`.
@@ -125,6 +136,7 @@ Query: `keyword` (case-sensitive substring of code or name, like `GET /work-type
   "effectiveFrom": "2026-07-01",
   "effectiveTo": null,
   "status": "ACTIVE",
+  "rejectReason": null,
   "isInUse": false,
   "totalWeightPercent": 100.0,
   "updatedAt": "2026-10-23T07:00:00+00:00",
@@ -156,7 +168,7 @@ Query: `keyword` (case-sensitive substring of code or name, like `GET /work-type
 }
 ```
 
-`description` and `effectiveTo` are nullable. `items` are the root nodes ordered by `displayOrder`; every node carries its `children`, ordered the same way.
+`description`, `effectiveTo` and `rejectReason` are nullable (`rejectReason` is set only while the status is `REJECTED`). `items` are the root nodes ordered by `displayOrder`; every node carries its `children`, ordered the same way.
 `totalWeightPercent` is the total of the roots.
 
 ### `POST /evaluation-profiles`
@@ -194,7 +206,7 @@ Body `CreateEvaluationProfile`; creates a `DRAFT` profile. `201` with a `Locatio
 | `effectiveFrom` | required, `YYYY-MM-DD` |
 | `effectiveTo` | optional, must be `>= effectiveFrom` |
 | `items[].name` | group name, required for a group, max 200, unique among siblings; absent for a KPI leaf |
-| `items[].kpiDefinitionId` | KPI of a leaf, must exist (404 `NOT_FOUND` otherwise), no duplicates in the profile; absent for a group |
+| `items[].kpiDefinitionId` | KPI of a leaf, must exist (404 `NOT_FOUND` otherwise) and be `ACTIVE` (400 `VALIDATION_ERROR` otherwise), no duplicates in the profile; absent for a group |
 | `items[].children` | children of a group (at most 3 levels in total); a leaf has none |
 | `items[].weightPercent` | `> 0` and `<= 100`, at most 4 decimal places, relative to the siblings (the totals are enforced on activation) |
 | `items[].displayOrder` | `>= 1`, unique among siblings (a group's children and the roots each form one level) |
@@ -210,7 +222,7 @@ Body `UpdateEvaluationProfile`: same fields as create without `code` (code and v
 KPI of a leaf, the name of a group, case-insensitive): matches are updated in place and keep their `id`, nodes
 that are no longer sent are removed with everything beneath them, and new nodes get a new `id`. `data`: `EvaluationProfile`.
 
-- `ARCHIVED` profile: 409 `CONFLICT`.
+- `ARCHIVED` or `PENDING_APPROVAL` profile: 409 `CONFLICT`.
 - Profile **in use**: only `name`, `description` and `effectiveTo` may differ. A body whose `jobPositionId`,
   `effectiveFrom` or items differ from the stored profile is 409 `EVALUATION_PROFILE_IN_USE`; create a new
   version instead. Sending the unchanged values is accepted.
@@ -228,11 +240,28 @@ that are no longer sent are removed with everything beneath them, and new nodes 
   that were already duplicated before the indexes existed were kept and renamed by the migration (the first keeps its
   name, the others get the start of their `id` appended in brackets). Stored siblings that still share a key through
   other means cannot be matched: 409 `CONFLICT`, and the duplicate must be fixed first.
+- The `ACTIVE` KPI rule applies only to KPIs that are new to the profile. A KPI already placed in the stored tree is
+  accepted even if it was deactivated since, so the profile can still be saved; an inactive KPI leaf is ignored when a
+  score is calculated and the remaining weights are normalised.
 - Same validation rules as create otherwise.
 
 ### `PATCH /evaluation-profiles/{id}/status`
 
 Body `{ "status": "ACTIVE" }`. See the Status section. `data` is empty; 200 `ApiResponse` with a message.
+
+### `POST /evaluation-profiles/{id}/approve`
+
+No body. Activates a `PENDING_APPROVAL` profile with the activation rules and side effects of the Status section (the
+`ACTIVE` version of the same `code` becomes `INACTIVE` in the same transaction). 200 `ApiResponse` with a message and
+no data. 404 `NOT_FOUND` for an unknown id; 409 `CONFLICT` when the profile is not `PENDING_APPROVAL` or its period
+overlaps another `ACTIVE` profile of the job position; 400 `VALIDATION_ERROR` when the stored tree or the job position
+no longer qualifies (the profile stays `PENDING_APPROVAL`).
+
+### `POST /evaluation-profiles/{id}/reject`
+
+Body `{ "reason": "..." }`: required, trimmed, max 500 characters (400 `VALIDATION_ERROR` otherwise). Moves a
+`PENDING_APPROVAL` profile to `REJECTED` and stores the reason as `rejectReason`. 200 `ApiResponse` with a message and
+no data. 404 `NOT_FOUND` for an unknown id; 409 `CONFLICT` when the profile is not `PENDING_APPROVAL`.
 
 ### `DELETE /evaluation-profiles/{id}`
 
@@ -253,13 +282,14 @@ Manage one node (group or KPI leaf + weight) at a time. The node is identified b
 
 Rules for `POST`, `PUT` and `DELETE`:
 
-- Only a `DRAFT` or `INACTIVE` profile can be changed item by item. An `ACTIVE` profile is 409 `CONFLICT`: it must
-  keep the total weight at exactly `100`, so change its whole item list with `PUT /evaluation-profiles/{id}`.
-  An `ARCHIVED` profile is 409 `CONFLICT`.
+- Only a `DRAFT`, `REJECTED` or `INACTIVE` profile can be changed item by item. An `ACTIVE` profile is 409 `CONFLICT`: it
+  must keep the total weight at exactly `100`, so change its whole item list with `PUT /evaluation-profiles/{id}`.
+  An `ARCHIVED` or `PENDING_APPROVAL` profile is 409 `CONFLICT`.
 - A profile that is **in use** is 409 `EVALUATION_PROFILE_IN_USE`; create a new version instead.
 - The total weight is not enforced by these endpoints (it can be below or above `100` while editing). It is
   enforced when the profile is activated, see the Status section.
-- `POST` with a KPI already in the profile is 409 `CONFLICT`. An unknown KPI or parent node is 404 `NOT_FOUND`. A parent
+- `POST` with a KPI already in the profile is 409 `CONFLICT`. An unknown KPI or parent node is 404 `NOT_FOUND`. A KPI
+  that is not `ACTIVE` is 400 `VALIDATION_ERROR`. A parent
   that is a KPI leaf, a root KPI leaf, or a tree deeper than 3 levels is 400 `VALIDATION_ERROR`. `PUT` or `DELETE`
   for a node that is not in the profile is 404 `NOT_FOUND`.
 - Invalid `weightPercent` or `displayOrder` is 400 `VALIDATION_ERROR` (same rules as create). A `displayOrder`
@@ -268,6 +298,11 @@ Rules for `POST`, `PUT` and `DELETE`:
 - Every successful change updates the profile's `updatedAt`.
 - Risk: two concurrent requests can leave the total weight temporarily different from `100` on a `DRAFT` or
   `INACTIVE` profile; this is safe because activation checks the total again.
+- Risk: the check that a `displayOrder` is unique among siblings runs in code before the insert and the database has
+  no index for it (unlike the group name). Two concurrent requests can therefore store the same `displayOrder` under one
+  parent. Only the display order of those siblings is affected: weights and scores do not depend on it. A unique index
+  was not added because it cannot be deferred, so a `PUT` that swaps the `displayOrder` of two siblings would fail with
+  409 `CONFLICT`.
 
 ## Errors
 

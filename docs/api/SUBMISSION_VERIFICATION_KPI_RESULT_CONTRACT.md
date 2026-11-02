@@ -84,7 +84,9 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 
 - Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định cột 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
 - Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
-- Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
+- Nếu công việc có KPI và có `verifiedValue`, **mọi** nhân sự nhận điểm đều phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Thiếu target của bất kỳ ai thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
+- Công việc không có KPI trong loại công việc, hoặc duyệt không kèm `verifiedValue`, vẫn được duyệt bình thường và không ghi `WorkResultItem`.
+- Target đã đạt hoặc vượt chỉ tiêu mà vẫn `ACTIVE` thì vẫn nhận điểm; không có giới hạn trên (tỷ lệ hoàn thành bị chặn bởi `MaxAchievementPercent` của KPI khi tính điểm đánh giá).
 - Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `KPI_ALREADY_CONTRIBUTED` và không ghi nhận gì thêm.
 
 ### 2.2.1 Evidence (file bằng chứng)
@@ -152,7 +154,8 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `EVIDENCE_LOCKED` |
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
 | Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `KPI_ALREADY_CONTRIBUTED` |
-| Duyệt `APPROVED` mà kỳ đánh giá của chỉ tiêu đang áp dụng đã `LOCKED` / `CLOSED` (BR-29, xem `PERIOD_LOCK_CONTRACT.md`) | 409 | `PERIOD_LOCKED` |
+| Duyệt `APPROVED` mà kỳ đánh giá của chỉ tiêu đang áp dụng đã `LOCKED` / `CLOSED` (xem `PERIOD_LOCK_CONTRACT.md`) | 409 | `PERIOD_LOCKED` |
+| Duyệt `APPROVED` có KPI và `verifiedValue` nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 
 ### 3.4 KPI Result
 | Tình huống | HTTP | errorCode |
@@ -174,4 +177,4 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 Các trường status khác (`SubmissionDetailDto.status`, `SubmissionContextDto.workStatus`, `aggregationType`, `direction`, `VerificationDossierDto.status`) trả đúng giá trị `PgName`: `SUBMITTED`, `UNDER_REVIEW`, `WITHDRAWN`, `IN_PROGRESS`, `HIGHER_BETTER`…
 
 ## 5. Mã lỗi
-Định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.cs` (message VI/EN qua `ErrorCodes.GetDefaultMessage`). Mã mới trong GB-252: `SUBMISSION_INVALID_STATE`, `VERIFICATION_INVALID_STATE`, `KPI_RESULT_NOT_FOUND`.
+Định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.cs` (message VI/EN qua `ErrorCodes.GetDefaultMessage`). Mã mới trong GB-252: `SUBMISSION_INVALID_STATE`, `VERIFICATION_INVALID_STATE`, `KPI_RESULT_NOT_FOUND`. Mã bổ sung sau đó: `KPI_TARGET_NOT_ASSIGNED`.

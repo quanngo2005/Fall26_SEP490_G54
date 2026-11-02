@@ -125,7 +125,7 @@ public sealed partial class AppealService(
                 if (decision == "ACCEPT")
                 {
                     await VerifiedResultRecorder.RecordAsync(
-                        db, logger, time, verification, submission.Work, submission.SubmitterEmployeeId, request.VerifiedValue, now, cancellationToken);
+                        db, time, verification, submission.Work, submission.SubmitterEmployeeId, request.VerifiedValue, now, cancellationToken);
                 }
 
                 db.Verifications.Add(verification);

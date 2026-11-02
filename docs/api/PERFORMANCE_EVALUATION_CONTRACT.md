@@ -30,6 +30,11 @@ Path: `id` — `performance_evaluation.id` (GUID). No request body.
 Recalculation is allowed: calling the endpoint again refreshes the same contribution rows
 (no duplicates) and never creates a second evaluation.
 
+The same calculation also runs when the evaluation form is saved (`POST /evaluations/submit`, see
+`EVALUATION_CONTRACT.md`): the form saves the evaluation and these KPI rows in one transaction, checking only
+`evaluation:submit` over the employee's department, so the form, the save and this endpoint score the same data
+identically. The permission check of this endpoint applies only to calls made through it.
+
 ### Processing
 
 1. Load the evaluation, its period and the employee; check scope and state.
@@ -50,6 +55,9 @@ Recalculation is allowed: calling the endpoint again refreshes the same contribu
    computed on every calculation and are not stored. Contributions linked to a risk event are left untouched.
 6. Score through `IPerformanceScoreFormula` (KPI → group → total) and round every score to 4 decimals with
    banker's rounding (`MidpointRounding.ToEven`).
+7. A root group that owns no active KPI is scored by the reviewer: it takes the qualitative score saved with the
+   evaluation (the form save stores it in the comment), and counts as 0 until one is saved (awaiting BA confirmation).
+   Groups with an active KPI are scored from their KPIs only.
 
 ### Score formula
 
@@ -66,24 +74,37 @@ For one KPI, with `target` and the weighted `actual` from step 4 (for a `RATIO` 
 - `achievementPercentCapped` is the raw value limited by the KPI's `maxAchievementPercent` when it is set,
   otherwise it equals the raw value. It is never above the raw value.
 - The KPI's `componentScore` is `achievementPercentCapped`.
-- A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`).
+- A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`, shown as N/A).
 - The profile is a tree: root nodes are groups, a group has KPI leaves and/or sub-groups (at most 3 levels), and the
   `weightPercent` of a node is relative to its siblings (siblings add up to 100 on an `ACTIVE` profile).
-- A group's score is the mean of the scores of its scored parts (KPI leaves and sub-groups) weighted by
-  `weightPercent` and normalised over the parts that have a score:
-  `Σ(score × weight) / Σ(weight of scored parts)`. A leaf without a target or data, or an inactive KPI, leaves its
-  share to its siblings instead of counting as 0; a group without a scored part has none.
-- `totalScore` is the sum over scored root groups of `group score × weightPercent / 100`. Groups without a score
-  add nothing. With no scored group the total is `null`.
+- An **active** KPI that cannot be scored (no target, no progress, target 0, or a `RATIO` without a denominator)
+  **counts as 0 and keeps its weight** in its group (awaiting BA confirmation); its detail row is still not stored and
+  it is shown as N/A. An **inactive** KPI is not part of the profile: it has no score and leaves its share to its
+  siblings.
+- A group's score is the mean of the scores of its parts (KPI leaves and sub-groups) weighted by `weightPercent`
+  and normalised over the parts that have a score: `Σ(score × weight) / Σ(weight of parts with a score)`. Because
+  an active KPI always has a score (0 when it cannot be scored), only a group without any active KPI has none.
+- `totalScore` is the sum over root groups of `group score × weightPercent / 100` (the weighted score), minus the
+  risk penalty (never below 0), plus the appeal adjustments of the period (`score_entry`). Every root group has a score
+  (a KPI group scores 0 when none of its KPIs can be scored, a qualitative group the reviewer has not scored counts as 0,
+  the same rule as above), so the total is `null` only when the profile has no root group.
+- The risk penalty is the sum of the penalty of every risk event of the employee inside the period that was not
+  dismissed, by severity (`EvaluationService.MapRiskPenalty`, shared with the risk workflow).
 - Every score is rounded to 4 decimals with banker's rounding (`MidpointRounding.ToEven`).
 
 With a total the evaluation becomes `CALCULATED` with `calculatedAt` set; without one it keeps
 `totalScore = null`, `calculatedAt = null` and `status = DRAFT`. The stored score always reflects the latest
 calculation: when a recalculation cannot determine a total, a previous score is cleared and the status
-returns to `DRAFT`.
+returns to `DRAFT`. Saving the evaluation form as a draft (`POST /evaluations/submit` with `isDraft = true`) runs
+the same calculation but does not demote an evaluation that is already `CALCULATED`: it stays `CALCULATED` while a
+total exists.
 
 Limits: there is no per-result or per-product multiplier (BR-32, BR-43 Task Multiplier) in the schema any more.
-Risk-event penalties are not part of this calculation.
+Everything that cannot be scored counts as 0 at every level (a KPI without a target or progress, a qualitative group
+not yet scored); this rule awaits BA confirmation. Two calculations of the same existing
+evaluation at the same time can overwrite each other (the last one wins; the evaluation has no concurrency token). A
+unique index on (evaluation, anchoring progress row) for KPI rows stops two requests from inserting the same KPI row
+(409 `CONFLICT`); it cannot stop them when the progress changes between the two requests.
 
 ### Success — 200
 

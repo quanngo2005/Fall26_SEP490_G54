@@ -576,6 +576,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
+            entity.Property(e => e.RejectReason)
+                .HasMaxLength(500)
+                .HasColumnName("reject_reason");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -920,6 +923,12 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => e.PerformanceEvaluationId, "ix_performance_contribution_evaluation");
 
             entity.HasIndex(e => e.RiskEventId, "uq_performance_contribution_risk_event").IsUnique();
+
+            // One KPI row per anchoring progress row within an evaluation: two requests saving the same evaluation
+            // at once cannot both insert the KPI row (the KPI is identified through its progress).
+            entity.HasIndex(e => new { e.PerformanceEvaluationId, e.ActualProgressId }, "uq_performance_contribution_kpi_progress")
+                .IsUnique()
+                .HasFilter("risk_event_id IS NULL AND actual_progress_id IS NOT NULL");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")

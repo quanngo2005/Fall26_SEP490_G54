@@ -26,7 +26,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "business_objective_status", new[] { "DRAFT", "ACTIVE", "CLOSED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "department_level_type", new[] { "BRANCH", "DEPARTMENT", "TEAM" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
@@ -734,6 +734,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reject_reason");
+
                     b.Property<int>("Status")
                         .HasColumnType("evaluation_profile_status")
                         .HasColumnName("status");
@@ -1266,6 +1271,10 @@ namespace G54.DAL.Migrations
                     b.HasIndex(new[] { "PerformanceEvaluationId" }, "ix_performance_contribution_evaluation");
 
                     b.HasIndex(new[] { "ActualProgressId" }, "ix_performance_contribution_progress");
+
+                    b.HasIndex(new[] { "PerformanceEvaluationId", "ActualProgressId" }, "uq_performance_contribution_kpi_progress")
+                        .IsUnique()
+                        .HasFilter("risk_event_id IS NULL AND actual_progress_id IS NOT NULL");
 
                     b.HasIndex(new[] { "RiskEventId" }, "uq_performance_contribution_risk_event")
                         .IsUnique();

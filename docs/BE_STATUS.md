@@ -15,7 +15,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | 5 | Result (transaction / CIF code) | ⚠ | `ResultSubmissionsController` + `EvidenceController` (file evidence) | Submission should carry a transaction/CIF code, not evidence files |
 | 6 | Reconciliation with imported data | ❌ | — | No Matched / Not Matched / In Review; no auto-approve (BR-09) |
 | 7 | KPI Contribution ledger | ⚠ | `VerificationService` writes `WorkResultItem` → `ActualProgress` on **manual** approval | Must be driven by reconciliation; ledger must be immutable (reversal entries, BR-16) |
-| 8 | Performance Evaluation | 🟡 | `PerformanceEvaluationsController` (calculate), `PerformanceScoreFormula`, `EvaluationProfilesController` | Product multipliers, quality ratio per period, caps (BR-40/41), Dept Manager personal KPI (BR-34) missing |
+| 8 | Performance Evaluation | 🟡 | `PerformanceEvaluationsController` (calculate), `PerformanceScoreFormula`, `EvaluationProfilesController` (Admin submits → Branch Manager `POST /{id}/approve` / `/reject`; permission `evaluation-profile:approve`, `docs/api/EVALUATION_PROFILE_CONTRACT.md`) | Product multipliers, quality ratio per period, caps (BR-40/41), Dept Manager personal KPI (BR-34) missing |
 | 9 | Ranking | 🟡 | `EvaluationController` calibration / approvals / finalize | Forced-distribution tiers, dept+position grouping, Publish → Lock snapshot to verify |
 | 10 | HR export | ❌ | — | No xlsx/PDF export of locked rankings |
 
@@ -42,7 +42,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 2. **Handover approval** – `HandoverStatus` has `PENDING / ACCEPTED / REJECTED`. New rule: no approval, no SLA (BR-21 deleted).
 3. **Manual verification** – `VerificationController` / `review-verify` approve every result. New rule: only work outside the WorkType list is approved manually (SCR-REV-04).
 4. **Submission states** – `SubmissionStatus` / `VerificationDecision` lack `MATCHED / NOT_MATCHED / IN_REVIEW`.
-5. **Idempotency (BR-08)** – `VerificationService.cs:210` checks for existing `WorkResultItems`; skipped contributions (no active target) and concurrent approvals bypass it. Add a unique constraint per Work.
+5. **Idempotency (BR-08)** – `VerificationService.cs:210` checks for existing `WorkResultItems`; concurrent approvals can still bypass it. Add a unique constraint per Work. A missing active target no longer skips the contribution: approval is rejected with 409 `KPI_TARGET_NOT_ASSIGNED` (`VerifiedResultRecorder`).
 
 ## 4. Suggested order
 
