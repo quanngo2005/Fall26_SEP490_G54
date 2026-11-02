@@ -32,6 +32,9 @@ public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
     /// <summary>Gets a target assignment with its owning employee included (if any). No tracking; null if not found.</summary>
     Task<TargetAssignment?> GetWithOwnerAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>Gets a target assignment with Employee, EvaluationPeriod and KpiDefinition included. No tracking; null if not found.</summary>
+    Task<TargetAssignment?> GetWithOwnerAndContextAsync(Guid id, CancellationToken ct = default);
+
     /// <summary>
     /// Lists target assignments matching optional filters, sorted by evaluationPeriodId, then parentAssignmentId (null first), then createdAt.
     /// </summary>
@@ -50,6 +53,27 @@ public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
     Task<Guid?> GetAccountDepartmentIdAsync(Guid accountId, CancellationToken ct = default);
 
     Task<bool> DepartmentExistsAsync(Guid departmentId, CancellationToken ct = default);
+
+    /// <summary>ACTIVE targets of the KPI and period already owned by any of the given departments or employees. No tracking.</summary>
+    Task<IReadOnlyList<TargetAssignment>> GetActiveOwnerTargetsAsync(
+        Guid kpiId,
+        Guid periodId,
+        IReadOnlyCollection<Guid> departmentIds,
+        IReadOnlyCollection<Guid> employeeIds,
+        CancellationToken ct = default);
+
+    /// <summary>Minimal employee rows (Id, DepartmentId, Status) for the given ids. No tracking.</summary>
+    Task<IReadOnlyList<Employee>> GetEmployeesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>The employee owned by the account; null if the account has none.</summary>
+    Task<Employee?> GetAccountEmployeeAsync(Guid accountId, CancellationToken ct = default);
+
+    /// <summary>Lists ACTIVE target assignments owned directly by an employee, optionally filtered. No tracking.</summary>
+    Task<IReadOnlyList<TargetAssignment>> ListForEmployeeAsync(
+        Guid employeeId,
+        Guid? evaluationPeriodId,
+        Guid? kpiDefinitionId,
+        CancellationToken ct = default);
 
     Task SaveChangesAsync(CancellationToken ct = default);
 }

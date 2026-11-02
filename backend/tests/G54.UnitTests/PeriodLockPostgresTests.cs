@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
@@ -60,6 +61,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
             .EnableServiceProviderCaching(false).Options);
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IPermissionService, AllPermissions>();
+        services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped(provider => new VerificationService(

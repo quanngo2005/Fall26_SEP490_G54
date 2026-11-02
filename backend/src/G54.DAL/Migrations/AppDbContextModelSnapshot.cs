@@ -39,6 +39,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "risk_event_severity", new[] { "LOW", "MEDIUM", "HIGH", "CRITICAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "risk_event_status", new[] { "OPEN", "CONFIRMED", "DISMISSED", "RESOLVED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "submission_status", new[] { "DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "WITHDRAWN" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "target_assignment_feedback_type", new[] { "CONFIRM", "COMMENT" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "target_assignment_status", new[] { "DRAFT", "ACTIVE", "SUPERSEDED", "CLOSED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "target_split_dimension", new[] { "ORG", "PERIOD" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "verification_decision", new[] { "PENDING", "APPROVED", "REJECTED", "NEED_MORE_INFO" });
@@ -2006,6 +2007,50 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.TargetAssignmentFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("TargetAssignmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_assignment_id");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("target_assignment_feedback_type")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("target_assignment_feedback_pkey");
+
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_target_assignment_feedback_employee");
+
+                    b.HasIndex(new[] { "TargetAssignmentId" }, "ix_target_assignment_feedback_target");
+
+                    b.ToTable("target_assignment_feedback", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.TaskHandover", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3068,6 +3113,27 @@ namespace G54.DAL.Migrations
                     b.Navigation("KpiDefinition");
 
                     b.Navigation("ParentAssignment");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TargetAssignmentFeedback", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_target_assignment_feedback_employee");
+
+                    b.HasOne("G54.DAL.Entities.TargetAssignment", "TargetAssignment")
+                        .WithMany()
+                        .HasForeignKey("TargetAssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_target_assignment_feedback_target");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("TargetAssignment");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TaskHandover", b =>

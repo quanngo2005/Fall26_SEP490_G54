@@ -186,6 +186,34 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         Assert.Equal(["BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept", "MANAGER=Dept"], holders);
     }
 
+    /// <summary>SCR-STRAT-05 needs every feedback state on the Q4 HDV employee targets, and the demo employee needs a target.</summary>
+    [PostgresFact]
+    public async Task EmployeeTargetFeedbackCoversConfirmedCommentedAndNotViewed()
+    {
+        // The rollback test in this class can drop and recreate target_assignment_feedback empty; reseed (idempotent).
+        await using (var scope = fixture.Provider!.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");
+        }
+
+        var states = await QueryAsync("""
+            SELECT e.employee_code || '=' || COALESCE(f.type::text, 'NOT_VIEWED')
+            FROM target_assignment ta
+            JOIN employee e ON e.id = ta.employee_id
+            JOIN kpi_definition k ON k.id = ta.kpi_definition_id AND k.code = 'HDV'
+            LEFT JOIN target_assignment_feedback f ON f.target_assignment_id = ta.id
+            WHERE ta.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND ta.status = 'ACTIVE'
+            ORDER BY e.employee_code
+            """);
+
+        Assert.Equal(["NV004=CONFIRM", "NV005=COMMENT", "NV006=NOT_VIEWED", "NV007=NOT_VIEWED"], states);
+        Assert.Equal(["NV012=COMMENT"], await QueryAsync("""
+            SELECT e.employee_code || '=' || f.type::text
+            FROM target_assignment_feedback f JOIN employee e ON e.id = f.employee_id
+            WHERE f.target_assignment_id = '5eed0000-0000-0000-0015-00000000000f'
+            """));
+    }
+
     [PostgresFact]
     public async Task SeedingAgainIsIdempotentAndRemovesRolesThatAnEarlierSeedAddedByMistake()
     {
@@ -262,9 +290,9 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
 
         Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^1]);
         Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^2]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^3]);
-        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^4]);
-        Assert.Equal("20261028155338_AddWorkTargetValue", migrations[^5]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^3]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^4]);
+        Assert.Equal("20261029042206_RestructureEvaluationProfileItemTree", migrations[^5]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>
