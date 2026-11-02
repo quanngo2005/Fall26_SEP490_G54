@@ -22,6 +22,12 @@ public interface IEvaluationProfileService
 
     Task ChangeStatusAsync(Guid id, EvaluationProfileStatusDto dto, CancellationToken cancellationToken = default);
 
+    /// <summary>Activates a PENDING_APPROVAL profile, retiring the ACTIVE version of the same code.</summary>
+    Task ApproveProfileAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Sends a PENDING_APPROVAL profile back as REJECTED with the approver's reason.</summary>
+    Task RejectProfileAsync(Guid id, RejectEvaluationProfileDto dto, CancellationToken cancellationToken = default);
+
     Task DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>The root nodes of the profile's tree, each with its children. Returns null when the profile does not exist.</summary>
