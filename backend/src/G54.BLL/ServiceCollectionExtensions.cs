@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IJobPositionService, JobPositionService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
