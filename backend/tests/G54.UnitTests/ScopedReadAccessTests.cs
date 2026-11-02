@@ -229,10 +229,21 @@ public sealed class ScopedReadAccessTests
         EstimatedHours: 2m,
         Description: null);
 
-    private static async Task<WorkType> SeedWorkTypeAsync(AppDbContext db)
+    private static async Task<WorkType> SeedWorkTypeAsync(AppDbContext db, params Guid[] positionIds)
     {
         var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-SCOPE", Name = "Scope test", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
         db.WorkTypes.Add(workType);
+        foreach (var positionId in positionIds)
+        {
+            db.JobPositionWorkTypes.Add(new JobPositionWorkType
+            {
+                Id = Guid.NewGuid(),
+                JobPositionId = positionId,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+
         await db.SaveChangesAsync();
         return workType;
     }
@@ -242,7 +253,7 @@ public sealed class ScopedReadAccessTests
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
-        var workType = await SeedWorkTypeAsync(db);
+        var workType = await SeedWorkTypeAsync(db, world.Self.JobPositionId);
         var service = WorkServiceFor(db, new FakePermissionService(null, FakePermissionService.WorkCreate("Dept")));
 
         var result = await service.CreateWorkAsync(CreateRequest(workType.Id, world.Colleague.Id), world.SelfAccount.Id);
@@ -255,7 +266,7 @@ public sealed class ScopedReadAccessTests
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
-        var workType = await SeedWorkTypeAsync(db);
+        var workType = await SeedWorkTypeAsync(db, world.Self.JobPositionId);
         var service = WorkServiceFor(db, new FakePermissionService(null, FakePermissionService.WorkCreate("Dept")));
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
@@ -267,7 +278,7 @@ public sealed class ScopedReadAccessTests
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
-        var workType = await SeedWorkTypeAsync(db);
+        var workType = await SeedWorkTypeAsync(db, world.Self.JobPositionId);
         var service = WorkServiceFor(db, new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
 
         var result = await service.CreateWorkAsync(CreateRequest(workType.Id, world.Outsider.Id), world.SelfAccount.Id);
@@ -280,7 +291,7 @@ public sealed class ScopedReadAccessTests
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
-        var workType = await SeedWorkTypeAsync(db);
+        var workType = await SeedWorkTypeAsync(db, world.Self.JobPositionId);
         var service = WorkServiceFor(db, new FakePermissionService("All"));
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>

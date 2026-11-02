@@ -18,8 +18,8 @@ namespace G54.UnitTests;
 /// </summary>
 public sealed class EvaluationProfileItemNamePostgresTests(DemoSeedDatabaseFixture fixture) : IClassFixture<DemoSeedDatabaseFixture>
 {
+    /// <summary>The migration just before the unique indexes (<c>AddEvaluationProfileItemGroupNameUniqueIndex</c>).</summary>
     private const string PreviousMigration = "20261029042206_RestructureEvaluationProfileItemTree";
-    private const string Migration = "20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex";
 
     private static int _sequence;
 
@@ -194,7 +194,7 @@ public sealed class EvaluationProfileItemNamePostgresTests(DemoSeedDatabaseFixtu
             }
             finally
             {
-                await db.GetService<IMigrator>().MigrateAsync(Migration);
+                await db.GetService<IMigrator>().MigrateAsync();
             }
 
             return 0;
@@ -220,7 +220,8 @@ public sealed class EvaluationProfileItemNamePostgresTests(DemoSeedDatabaseFixtu
 
         await RunAsync(async db =>
         {
-            // The database is at the latest migration here, so this runs the Down of the migration under test.
+            // The database is at the latest migration here, so this runs the Down of the migration under test
+            // (and of the ones after it).
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             try
             {
@@ -233,7 +234,7 @@ public sealed class EvaluationProfileItemNamePostgresTests(DemoSeedDatabaseFixtu
             finally
             {
                 // Leave the database at the latest migration for the tests that follow.
-                await db.GetService<IMigrator>().MigrateAsync(Migration);
+                await db.GetService<IMigrator>().MigrateAsync();
             }
 
             return 0;

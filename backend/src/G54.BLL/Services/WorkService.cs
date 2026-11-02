@@ -64,6 +64,15 @@ public sealed partial class WorkService(
             throw new ValidationException("Nhân viên được phân công không tồn tại hoặc không ở trạng thái hoạt động.");
         }
 
+        // The work type must be one of the types assigned to the assignee's job position (job_position_work_type).
+        var typeAllowedForPosition = await unitOfWork.Repository<JobPositionWorkType>().AnyAsync(
+            link => link.JobPositionId == assignee.JobPositionId && link.WorkTypeId == workType.Id,
+            cancellationToken);
+        if (!typeAllowedForPosition)
+        {
+            throw new ValidationException("Loại công việc không hợp lệ với chức danh của nhân viên được phân công.");
+        }
+
         BusinessCampaign? campaign = null;
         if (request.BusinessCampaignId.HasValue)
         {
