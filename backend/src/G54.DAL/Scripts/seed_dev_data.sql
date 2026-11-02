@@ -49,6 +49,15 @@ INSERT INTO job_position (id, code, title, description) VALUES
  ('5eed0000-0000-0000-0006-000000000002', 'TELLER', 'Giao dịch viên',         'Giao dịch tại quầy')
 ON CONFLICT DO NOTHING;
 
+-- Data Import (02_Nhan_su_To_chuc.xlsx, docs/api/DATA_IMPORT_CONTRACT.md): the other 5 positions the template offers.
+INSERT INTO job_position (id, code, title, description) VALUES
+ ('5eed0000-0000-0000-0006-000000000003', 'DEPT_MANAGER',   'Trưởng phòng',          'Quản lý phòng ban'),
+ ('5eed0000-0000-0000-0006-000000000004', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',    'Quản lý chi nhánh'),
+ ('5eed0000-0000-0000-0006-000000000005', 'QA',              'Kiểm soát chất lượng', 'Kiểm soát chất lượng dịch vụ'),
+ ('5eed0000-0000-0000-0006-000000000006', 'HR_OFFICER',      'Chuyên viên nhân sự',  'Quản lý nhân sự'),
+ ('5eed0000-0000-0000-0006-000000000007', 'SYS_ADMIN',       'Quản trị hệ thống',    'Quản trị hệ thống')
+ON CONFLICT DO NOTHING;
+
 -- ---------------------------------------------------------------------------
 -- Evaluation profiles, one per position (ACTIVE profiles must total 100% - checked at commit)
 -- ---------------------------------------------------------------------------
@@ -114,7 +123,8 @@ INSERT INTO role (id, code, name, description) VALUES
  ('5eed0000-0000-0000-0008-000000000004', 'EMPLOYEE', 'Nhân viên',     'Thực hiện và nộp kết quả công việc'),
  ('5eed0000-0000-0000-0008-000000000005', 'SYSTEM_ADMIN',   'System Administrator', 'Quản trị hệ thống'),
  ('5eed0000-0000-0000-0008-000000000006', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',   'Quản lý chi nhánh và các phòng ban trực thuộc'),
- ('5eed0000-0000-0000-0008-000000000007', 'DEPT_MANAGER',   'Trưởng phòng',         'Quản lý phòng ban của mình')
+ ('5eed0000-0000-0000-0008-000000000007', 'DEPT_MANAGER',   'Trưởng phòng',         'Quản lý phòng ban của mình'),
+ ('5eed0000-0000-0000-0008-000000000008', 'HR_OFFICER',     'Chuyên viên nhân sự',  'Quản lý hồ sơ nhân sự và tổ chức')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO permission (id, code, name, resource, action) VALUES
@@ -141,7 +151,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000015', 'ORGANIZATION_READ',    'Xem tổ chức (phòng ban, vị trí công việc)', 'organization', 'read'),
  ('5eed0000-0000-0000-0009-000000000016', 'JOB_POSITION_MANAGE', 'Quản lý loại công việc của vị trí công việc', 'job-position', 'manage'),
  ('5eed0000-0000-0000-0009-000000000017', 'EVALUATION_PROFILE_APPROVE', 'Duyệt hoặc từ chối hồ sơ đánh giá', 'evaluation-profile', 'approve'),
- ('5eed0000-0000-0000-0009-000000000018', 'AUDIT_LOG_VIEW',      'Xem nhật ký audit',    'audit_log',    'view')
+ ('5eed0000-0000-0000-0009-000000000018', 'AUDIT_LOG_VIEW',      'Xem nhật ký audit',    'audit_log',    'view'),
+ ('5eed0000-0000-0000-0009-000000000019', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -169,7 +180,9 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'JOB_POSITION_MANAGE', 'Branch'), ('DEPT_MANAGER', 'JOB_POSITION_MANAGE', 'Dept'), ('MANAGER', 'JOB_POSITION_MANAGE', 'Dept'),
     -- Admin writes evaluation profiles; the Branch Manager approves them (docs/BPMS_AI_Agent_Context.md).
     ('BRANCH_MANAGER', 'EVALUATION_PROFILE_APPROVE', 'All'),
-    ('ADMIN', 'AUDIT_LOG_VIEW', 'All')
+    ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
+    -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
+    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code

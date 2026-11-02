@@ -15,6 +15,7 @@ public enum EmployeeStatus
     [PgName("INACTIVE")] Inactive,
     [PgName("ON_LEAVE")] OnLeave,
     [PgName("TERMINATED")] Terminated,
+    [PgName("PENDING_RESIGNATION")] PendingResignation,
 }
 
 public enum RecordStatus

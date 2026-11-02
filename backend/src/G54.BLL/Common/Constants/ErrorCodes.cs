@@ -81,6 +81,26 @@ public static class ErrorCodes
     public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
     public const string TargetInvalidState = "TARGET_INVALID_STATE";
 
+    // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
+    public const string DataImportTypeNotFound = "DATA_IMPORT_TYPE_NOT_FOUND";
+    public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
+    public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
+    public const string DataImportInvalidCode = "DATA_IMPORT_INVALID_CODE";
+    public const string DataImportInvalidEmail = "DATA_IMPORT_INVALID_EMAIL";
+    public const string DataImportInvalidPosition = "DATA_IMPORT_INVALID_POSITION";
+    public const string DataImportInvalidStatus = "DATA_IMPORT_INVALID_STATUS";
+    public const string DataImportInvalidDate = "DATA_IMPORT_INVALID_DATE";
+    public const string DataImportDuplicateCode = "DATA_IMPORT_DUPLICATE_CODE";
+    public const string DataImportDuplicateEmail = "DATA_IMPORT_DUPLICATE_EMAIL";
+    public const string DataImportEmailInUse = "DATA_IMPORT_EMAIL_IN_USE";
+    public const string DataImportManagerNotFound = "DATA_IMPORT_MANAGER_NOT_FOUND";
+    public const string DataImportManagerSelf = "DATA_IMPORT_MANAGER_SELF";
+    public const string DataImportManagerCycle = "DATA_IMPORT_MANAGER_CYCLE";
+    public const string DataImportBranchHasParent = "DATA_IMPORT_BRANCH_HAS_PARENT";
+    public const string DataImportOrgMismatch = "DATA_IMPORT_ORG_MISMATCH";
+    public const string DataImportOrgLevelMismatch = "DATA_IMPORT_ORG_LEVEL_MISMATCH";
+    public const string DataImportMaxLengthExceeded = "DATA_IMPORT_MAX_LENGTH_EXCEEDED";
+
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
         [ValidationError] = ("Dữ liệu đầu vào không hợp lệ.", "Input validation failed."),
@@ -122,6 +142,24 @@ public static class ErrorCodes
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [DataImportTypeNotFound] = ("Loại import không tồn tại.", "Import type not found."),
+        [ImportTemplateInvalid] = ("File không đúng mẫu quy định.", "The file does not match the required template."),
+        [DataImportHasErrors] = ("File còn dòng lỗi, không thể xác nhận import.", "The file still has invalid rows and cannot be committed."),
+        [DataImportInvalidCode] = ("Mã không hợp lệ.", "Invalid code."),
+        [DataImportInvalidEmail] = ("Email không hợp lệ.", "Invalid email."),
+        [DataImportInvalidPosition] = ("Vị trí không hợp lệ.", "Invalid position."),
+        [DataImportInvalidStatus] = ("Trạng thái không hợp lệ.", "Invalid status."),
+        [DataImportInvalidDate] = ("Ngày vào làm không hợp lệ.", "Invalid hire date."),
+        [DataImportDuplicateCode] = ("Mã nhân viên trùng lặp trong file.", "Duplicate employee code in the file."),
+        [DataImportDuplicateEmail] = ("Email trùng lặp trong file.", "Duplicate email in the file."),
+        [DataImportEmailInUse] = ("Email đã được dùng bởi nhân viên khác.", "The email is already used by another employee."),
+        [DataImportManagerNotFound] = ("Mã quản lý trực tiếp không tồn tại.", "Direct manager code not found."),
+        [DataImportManagerSelf] = ("Nhân viên không thể tự quản lý mình.", "An employee cannot manage themselves."),
+        [DataImportManagerCycle] = ("Cấu trúc quản lý bị vòng lặp.", "The manager hierarchy forms a cycle."),
+        [DataImportBranchHasParent] = ("Chi nhánh không được có đơn vị cha.", "A branch cannot have a parent unit."),
+        [DataImportOrgMismatch] = ("Thông tin đơn vị không nhất quán giữa các dòng.", "Unit information is inconsistent across rows."),
+        [DataImportOrgLevelMismatch] = ("Mã đơn vị đã tồn tại với cấp khác.", "The unit code already exists with a different level."),
+        [DataImportMaxLengthExceeded] = ("Giá trị vượt quá độ dài cho phép.", "Value exceeds the allowed length."),
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),

@@ -169,6 +169,14 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
             ON CONFLICT (code) DO NOTHING
             """);
         await ReapplyAsync();
+        // This test only needs the roles/permissions SeedOrganizationReadAccess left behind (ReapplyAsync
+        // stays pinned at that old migration); PermissionService queries the full current Employee model
+        // (e.g. hire_date), so bring the schema the rest of the way to latest before using it.
+        await using (var latestScope = _provider.CreateAsyncScope())
+        {
+            await latestScope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        }
+
         var accounts = new Dictionary<string, Guid>();
         foreach (var role in new[] { "SYSTEM_ADMIN", "ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "MANAGER", "EMPLOYEE" })
         {
