@@ -4,7 +4,7 @@ public sealed record KpiFilterDto
 {
     public string? Keyword { get; init; }
 
-    /// <summary>UPPER_SNAKE status filter (DRAFT, ACTIVE, INACTIVE, ARCHIVED); unknown value is 400.</summary>
+    /// <summary>UPPER_SNAKE status filter (DRAFT, PENDING_APPROVAL, REJECTED, ACTIVE, INACTIVE, ARCHIVED); unknown value is 400.</summary>
     public string? Status { get; init; }
 
     public Guid? KpiGroupId { get; init; }

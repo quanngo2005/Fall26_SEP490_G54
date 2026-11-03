@@ -1,0 +1,140 @@
+@let wt = workType();
+@let t = localization.workTypes;
+<aside class="drawer" [attr.aria-label]="t.drawerTitle">
+  <header class="drawer-header">
+    <div>
+      <h2>{{wt.name}}</h2>
+      <p class="code-line">
+        <span class="screen-id">SCR-CFG-02-D1</span> · {{wt.code}}
+        @if (wt.productCode) {
+          · {{wt.productCode}}
+        }
+      </p>
+    </div>
+    <div class="header-actions">
+      <span class="status-pill" [class.is-active]="wt.status === 'ACTIVE'">
+        {{statusLabel(wt.status)}}
+      </span>
+      <button
+        type="button"
+        class="close-button"
+        [attr.aria-label]="localization.common.close"
+        (click)="closeDrawer.emit()"
+      >
+        ×
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-body">
+    <section>
+      <h3>{{t.sectionGeneral}}</h3>
+      <dl class="info-grid">
+        <div>
+          <dt>{{t.position}}</dt>
+          <dd>{{positionName() ?? t.notAvailable}}</dd>
+        </div>
+        <div>
+          <dt>{{t.resultUnit}}</dt>
+          <dd>{{resultUnit() ?? t.notAvailable}}</dd>
+        </div>
+        <div>
+          <dt>{{t.transactionCif}}</dt>
+          <dd>{{transactionCif() ?? t.notAvailable}}</dd>
+        </div>
+        <div>
+          <dt>{{t.productCode}}</dt>
+          <dd>{{wt.productCode ?? t.notAvailable}}</dd>
+        </div>
+      </dl>
+      @if (wt.description) {
+        <p class="description">{{wt.description}}</p>
+      }
+    </section>
+
+    <section>
+      <h3>{{t.sectionKpis}} ({{wt.kpis.length}})</h3>
+      @for (kpi of wt.kpis; track kpi.kpiDefinitionId) {
+        <div class="kpi-card">
+          <div>
+            <strong>{{kpi.kpiCode}}</strong> · {{kpi.kpiName}}
+            @if (kpi.isRequired) {
+              <span class="required-tag">{{t.kpiRequired}}</span>
+            }
+          </div>
+          <p class="kpi-meta">
+            {{t.kpiMultiplier}} ×{{kpi.multiplier}} ·
+            {{i18n.formatDate(kpi.effectiveFrom, 'DD/MM/YYYY')}} –
+            {{kpi.effectiveTo ? i18n.formatDate(kpi.effectiveTo, 'DD/MM/YYYY') : t.noEndDate}}
+          </p>
+        </div>
+      } @empty {
+        <p class="muted">{{t.noKpiMapped}}</p>
+      }
+    </section>
+
+    <section>
+      <h3>{{t.sectionUsage}}</h3>
+      <div class="usage-grid">
+        <div class="usage-card">
+          <span>{{t.usageOpen}}</span>
+          <strong>{{usage()?.open ?? t.notAvailable}}</strong>
+        </div>
+        <div class="usage-card">
+          <span>{{t.usageCompleted}}</span>
+          <strong>{{usage()?.completed ?? t.notAvailable}}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3>{{t.sectionHistory}}</h3>
+      <dl class="info-grid">
+        <div>
+          <dt>{{t.historyCreated}}</dt>
+          <dd>{{i18n.formatDate(wt.createdAt, 'DD/MM/YYYY HH:mm')}}</dd>
+        </div>
+      </dl>
+    </section>
+
+    @if (actionFailed()) {
+      <p class="action-error" role="alert">{{t.actionError}}</p>
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    @if (confirmingStatus()) {
+      <span class="confirm-text">
+        {{wt.status === 'ACTIVE' ? t.confirmDeactivate : t.confirmActivate}}
+      </span>
+      <button
+        type="button"
+        class="button button-secondary"
+        [disabled]="saving()"
+        (click)="confirmingStatus.set(false)"
+      >
+        {{t.cancel}}
+      </button>
+      <button
+        type="button"
+        class="button button-primary"
+        [disabled]="saving()"
+        (click)="confirmStatusChange()"
+      >
+        {{t.confirm}}
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="button danger-button"
+        [class.is-activate]="wt.status !== 'ACTIVE'"
+        (click)="confirmingStatus.set(true)"
+      >
+        {{wt.status === 'ACTIVE' ? t.deactivate : t.activate}}
+      </button>
+      <button type="button" class="button button-primary" disabled [title]="t.unavailable">
+        {{t.edit}}
+      </button>
+    }
+  </footer>
+</aside>

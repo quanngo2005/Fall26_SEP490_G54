@@ -10,6 +10,19 @@ export type WorkStatus =
   | 'Done'
   | 'Cancelled';
 
+/** Work still needing action; mirrors `WorkStatusGroups.Open` in the backend. */
+export const OPEN_WORK_STATUSES: readonly WorkStatus[] = [
+  'New',
+  'InProgress',
+  'HandedOver',
+  'Submitted',
+  'Rejected',
+  'Overdue',
+];
+
+/** Work verified or closed out; mirrors `WorkStatusGroups.Completed` in the backend. */
+export const COMPLETED_WORK_STATUSES: readonly WorkStatus[] = ['Done', 'Verified'];
+
 export type WorkPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 
 /** Mirrors `WorkListItemDto` returned by `GET /works`. Dates are date-only (`YYYY-MM-DD`) unless noted. */
