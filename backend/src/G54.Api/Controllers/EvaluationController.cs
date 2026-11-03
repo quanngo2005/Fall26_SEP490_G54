@@ -164,6 +164,49 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Executive approves the calibrated rankings of a department (SCR-EVL-03-D1).
+    /// </summary>
+    [HttpPost("approvals/{departmentId:guid}/approve")]
+    [ProducesResponseType<ApiResponse<DepartmentApprovalResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<DepartmentApprovalResultDto>>> ApproveDepartmentRanking(
+        [FromRoute] Guid departmentId,
+        [FromBody] ApproveDepartmentRankingRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ApproveDepartmentCalibrationAsync(
+            departmentId,
+            request,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Pre-close operational checklist before finalizing/locking an evaluation period (SCR-EVL-03-M1).
+    /// </summary>
+    [HttpGet("pre-close-check")]
+    [ProducesResponseType<ApiResponse<PreCloseCheckOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<PreCloseCheckOverviewDto>>> GetPreCloseCheck(
+        [FromQuery] Guid periodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPreCloseCheckAsync(
+            periodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
     /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107).
     /// </summary>
     [HttpPost("approvals/finalize")]

@@ -111,6 +111,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    canActivate: [authGuard, branchEvaluationGuard],
+    title: 'Phê duyệt xếp hạng phòng ban',
+    loadComponent: () =>
+      import('./features/evaluations/department-ranking-approval/department-ranking-approval.component').then(
+        (m) => m.DepartmentRankingApprovalComponent,
+      ),
+  },
+  {
     path: 'employees',
     canActivate: [authGuard],
     title: 'Nhân viên',

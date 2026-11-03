@@ -4,13 +4,20 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
+  ApproveDepartmentRankingRequest,
+  BranchApprovalOverview,
   BranchEvaluationPeriodsOverview,
+  CalibrationDecisionResult,
+  CalibrationOverview,
+  DepartmentApprovalResult,
   DepartmentEmployeeEvaluation,
   EvaluationFormModel,
   EvaluationPeriodOption,
   EvaluationResult,
   FinalizePeriodRequest,
   FinalizePeriodResult,
+  PreCloseCheckOverview,
+  RejectDepartmentRequest,
   SubmitEvaluationRequest,
 } from './evaluation.models';
 
@@ -43,6 +50,57 @@ export class EvaluationService {
   finalize(request: FinalizePeriodRequest): Observable<FinalizePeriodResult> {
     return this.http
       .post<ApiResponse<FinalizePeriodResult>>(`${this.url}/approvals/finalize`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getBranchApprovals(periodId: string): Observable<BranchApprovalOverview> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .get<ApiResponse<BranchApprovalOverview>>(`${this.url}/approvals`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getCalibration(
+    periodId: string,
+    departmentId?: string,
+    positionId?: string,
+  ): Observable<CalibrationOverview> {
+    let params = new HttpParams().set('periodId', periodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    if (positionId) params = params.set('positionId', positionId);
+    return this.http
+      .get<ApiResponse<CalibrationOverview>>(`${this.url}/calibration`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  approveDepartment(
+    departmentId: string,
+    request: ApproveDepartmentRankingRequest,
+  ): Observable<DepartmentApprovalResult> {
+    return this.http
+      .post<ApiResponse<DepartmentApprovalResult>>(
+        `${this.url}/approvals/${departmentId}/approve`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  rejectDepartment(
+    departmentId: string,
+    request: RejectDepartmentRequest,
+  ): Observable<CalibrationDecisionResult> {
+    return this.http
+      .post<ApiResponse<CalibrationDecisionResult>>(
+        `${this.url}/approvals/${departmentId}/recalibrate`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getPreCloseCheck(periodId: string): Observable<PreCloseCheckOverview> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .get<ApiResponse<PreCloseCheckOverview>>(`${this.url}/pre-close-check`, { params })
       .pipe(map((response) => this.unwrap(response)));
   }
 
