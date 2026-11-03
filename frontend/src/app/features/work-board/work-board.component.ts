@@ -23,7 +23,13 @@ import { JobPositionSummary } from '../../core/job-position.models';
 import { JobPositionService } from '../../core/job-position.service';
 import { WorkTypeDetail } from '../../core/work-type.models';
 import { WorkTypeService } from '../../core/work-type.service';
-import { WorkFilter, WorkListItem, WorkPriority, WorkStatus } from '../../core/work.models';
+import {
+  WorkDetail,
+  WorkFilter,
+  WorkListItem,
+  WorkPriority,
+  WorkStatus,
+} from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { NavigationService } from '../../shared/layout/navigation.service';
@@ -47,6 +53,7 @@ import {
   quickFilterColumns,
   timeLeftToday,
 } from './work-board.utils';
+import { AssignWorkDialogComponent } from './assign-work-dialog.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
 
 interface ColumnState {
@@ -104,6 +111,7 @@ const emptyColumn = (loading: boolean): ColumnState => ({
     HeaderComponent,
     SidebarComponent,
     WorkDetailDrawerComponent,
+    AssignWorkDialogComponent,
   ],
   templateUrl: './work-board.component.html',
   styleUrls: [
@@ -165,6 +173,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly quick = signal<QuickFilter | null>(null);
   protected readonly positionId = signal('');
   protected readonly selectedId = signal<string | null>(null);
+  protected readonly assignOpen = signal(false);
   protected readonly toast = signal<Toast | null>(null);
   protected readonly now = signal(new Date());
 
@@ -388,6 +397,22 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected toggleQuick(filter: QuickFilter): void {
     this.quick.update((current) => (current === filter ? null : filter));
     if (this.view() === 'list') this.reloadListFromFirstPage();
+  }
+
+  protected openAssign(): void {
+    if (this.isTeam()) this.assignOpen.set(true);
+  }
+
+  protected onAssigned(work: WorkDetail): void {
+    this.assignOpen.set(false);
+    this.showToast(
+      'success',
+      this.i18n.translate('work.assign.success', {
+        code: work.code,
+        name: work.assigneeEmployeeName ?? work.assigneeEmployeeCode ?? '',
+      }),
+    );
+    this.applyServerFilters();
   }
 
   protected retry(): void {
