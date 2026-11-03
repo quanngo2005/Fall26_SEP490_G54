@@ -15,3 +15,10 @@ public sealed record KpiRequestDto
     [Required]
     public string RequestNote { get; init; } = string.Empty;
 }
+
+public sealed record RejectKpiDto
+{
+    /// <summary>Why the KPI is sent back; required, the length limit is the column's.</summary>
+    [Required]
+    public string Reason { get; init; } = string.Empty;
+}

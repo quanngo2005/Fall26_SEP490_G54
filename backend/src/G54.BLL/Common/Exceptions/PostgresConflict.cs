@@ -26,7 +26,7 @@ internal static class PostgresConflict
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            if (current is PostgresException postgres && postgres.SqlState == sqlState)
+            if (current is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
                 return true;
             }
