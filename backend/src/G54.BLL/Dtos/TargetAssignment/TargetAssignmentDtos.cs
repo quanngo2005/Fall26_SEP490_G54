@@ -44,6 +44,19 @@ public sealed class TargetAllocationItemDto
     public decimal? TargetValue { get; set; }
 }
 
+/// <summary>Changes the values of the ACTIVE children of a target (each changed child becomes a new version) and may add owners.</summary>
+public sealed class ReallocateTargetDto
+{
+    /// <summary>Every owner already allocated, with its new value, plus any owner to be added.</summary>
+    [Required(ErrorMessage = "Danh sách phân bổ là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Danh sách phân bổ phải có ít nhất một đối tượng.")]
+    public List<TargetAllocationItemDto>? Allocations { get; set; }
+
+    [Required(ErrorMessage = "Lý do điều chỉnh là bắt buộc.")]
+    [StringLength(1000, ErrorMessage = "Lý do không vượt quá 1000 ký tự.")]
+    public string? ChangeReason { get; set; }
+}
+
 /// <summary>Splits a target across evaluation periods (e.g., year to quarters).</summary>
 public sealed class AllocateTargetByPeriodDto
 {

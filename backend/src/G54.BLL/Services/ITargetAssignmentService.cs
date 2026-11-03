@@ -10,6 +10,12 @@ public interface ITargetAssignmentService
     /// <summary>Creates every child of <paramref name="parentAssignmentId"/> ACTIVE in one transaction, split by organisation (ORG).</summary>
     Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto);
 
+    /// <summary>
+    /// Changes the values of the ACTIVE children of <paramref name="parentAssignmentId"/> in one transaction: every changed
+    /// child is SUPERSEDED and replaced by Version + 1 (so its feedback starts again); only changed children are re-issued, so unchanged ones keep their feedback; owners not yet allocated are added as new children. Returns the new versions.
+    /// </summary>
+    Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto);
+
     /// <summary>Creates every child of <paramref name="parentAssignmentId"/> ACTIVE in one transaction, split by period.</summary>
     Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto);
 

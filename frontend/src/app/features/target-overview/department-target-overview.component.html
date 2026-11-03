@@ -41,9 +41,13 @@
         }
       </select>
     </label>
-    <button type="button" class="button button-primary" disabled [title]="text.unavailable">
+    <a
+      class="button button-primary"
+      routerLink="/target-allocation"
+      [queryParams]="{ year: year(), quarter: quarter() }"
+    >
       {{text.allocateToEmployees}}
-    </button>
+    </a>
   </div>
 </div>
 
@@ -122,6 +126,7 @@
         }
       </h2>
       <div class="pill-group">
+        <span class="pill">{{feedbackRows().length}} {{text.employees}}</span>
         <span class="pill is-confirmed">{{counts().confirmed}} {{text.confirmedCount}}</span>
         <span class="pill is-commented">{{counts().commented}} {{text.commentedCount}}</span>
         <span class="pill">{{counts().notViewed}} {{text.notViewedCount}}</span>
@@ -177,6 +182,18 @@
         </thead>
         <tbody>
           @for (row of pageRows(); track row.employee.id) {
+            @if (teamStart(pageRows(), $index); as team) {
+              <tr class="team-row">
+                <td colspan="3">
+                  <strong>{{team.name}}</strong>
+                  <span class="team-tag">{{text.teamTag}}</span>
+                </td>
+                @for (cell of team.cells; track $index) {
+                  <td class="num"><app-target-cell [value]="cell" /></td>
+                }
+                <td></td>
+              </tr>
+            }
             <tr>
               <td class="mono code">{{row.employee.employeeCode}}</td>
               <td>{{row.employee.fullName}}</td>
@@ -197,9 +214,16 @@
                     }
                   </span>
                   @if (row.feedback === 'COMMENTED') {
-                    <button type="button" class="link-button" (click)="openComments(row)">
-                      {{text.view}} ›
-                    </button>
+                    @if (comments()[row.employee.id]; as comment) {
+                      <p class="comment-text" [attr.title]="comment">{{comment}}</p>
+                    }
+                    <a
+                      class="link-button"
+                      routerLink="/target-allocation"
+                      [queryParams]="{ year: year(), quarter: quarter() }"
+                    >
+                      {{text.adjust}} ›
+                    </a>
                   }
                 </div>
               </td>
@@ -212,9 +236,9 @@
         </tbody>
       </table>
     </div>
-    <div class="table-footer">
-      <span>{{range().from}}–{{range().to}} / {{range().total}} {{text.employees}}</span>
-      @if (totalPages() > 1) {
+    @if (totalPages() > 1) {
+      <div class="table-footer">
+        <span>{{range().from}}–{{range().to}} / {{range().total}} {{text.employees}}</span>
         <div class="pager">
           @for (number of pageNumbers(); track number) {
             <button
@@ -229,41 +253,7 @@
             </button>
           }
         </div>
-      }
-    </div>
-  </section>
-}
-
-@if (drawerRow(); as row) {
-  <button
-    type="button"
-    class="drawer-backdrop"
-    [attr.aria-label]="text.close"
-    (click)="closeComments()"
-  ></button>
-  <aside class="drawer" role="dialog" aria-modal="true" [attr.aria-label]="text.commentsTitle">
-    <header class="drawer-header">
-      <div>
-        <h2>{{text.commentsTitle}}</h2>
-        <p class="subtitle">{{row.employee.employeeCode}} · {{row.employee.fullName}}</p>
       </div>
-      <button type="button" class="button button-secondary" (click)="closeComments()">
-        {{text.close}}
-      </button>
-    </header>
-    <div class="drawer-body">
-      @if (drawerLoading()) {
-        <span class="spinner" aria-hidden="true"></span>
-      } @else {
-        @for (item of drawerComments(); track item.id) {
-          <article class="comment">
-            <p>{{item.comment}}</p>
-            <time [attr.datetime]="item.createdAt">{{item.createdAt | appDate}}</time>
-          </article>
-        } @empty {
-          <p class="subtitle">{{text.noComments}}</p>
-        }
-      }
-    </div>
-  </aside>
+    }
+  </section>
 }

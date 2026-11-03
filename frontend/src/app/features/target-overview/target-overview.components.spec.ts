@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { DepartmentService } from '../../core/department.service';
@@ -73,6 +74,7 @@ describe('target overview screens', () => {
     );
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: TargetAssignmentService, useValue: targetApi },
         { provide: EvaluationService, useValue: { periods: () => of(periods) } },
         { provide: KpiDefinitionService, useValue: { list: () => of(paged(kpis)) } },
@@ -140,14 +142,11 @@ describe('target overview screens', () => {
     expect(element.querySelector('.pill-group')?.textContent).toContain('1 chưa xem');
   });
 
-  it('department view opens the comments of an employee', async () => {
+  it('department view shows the latest comment of an employee in the table', async () => {
     const fixture = await render(DepartmentTargetOverviewComponent);
     const element = fixture.nativeElement as HTMLElement;
 
-    element.querySelector<HTMLButtonElement>('.link-button')?.click();
-    fixture.detectChanges();
-
     expect(targetApi.feedback).toHaveBeenCalledWith('ea');
-    expect(element.querySelector('.drawer')?.textContent).toContain('Chỉ tiêu quá cao');
+    expect(element.querySelector('.comment-text')?.textContent).toContain('Chỉ tiêu quá cao');
   });
 });

@@ -62,6 +62,13 @@ public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
         IReadOnlyCollection<Guid> employeeIds,
         CancellationToken ct = default);
 
+    /// <summary>Highest version of any status (superseded ones included) per owner id (department or employee) of the KPI and period. No tracking.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> GetLatestVersionsAsync(
+        Guid kpiId,
+        Guid periodId,
+        IReadOnlyCollection<Guid> ownerIds,
+        CancellationToken ct = default);
+
     /// <summary>Minimal employee rows (Id, DepartmentId, Status) for the given ids. No tracking.</summary>
     Task<IReadOnlyList<Employee>> GetEmployeesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 

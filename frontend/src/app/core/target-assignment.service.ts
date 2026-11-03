@@ -4,9 +4,12 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
+  TargetAllocationRequest,
   TargetAssignment,
   TargetAssignmentFeedback,
   TargetAssignmentFilter,
+  TargetBreakdown,
+  TargetReallocationRequest,
 } from './target-assignment.models';
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +34,37 @@ export class TargetAssignmentService {
       .get<ApiResponse<TargetAssignmentFeedback[]>>(
         `${this.url}/${encodeURIComponent(id)}/feedback`,
       )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Splits the target `{id}` over its children in one transaction (201). */
+  allocate(id: string, request: TargetAllocationRequest): Observable<TargetAssignment[]> {
+    return this.http
+      .post<ApiResponse<TargetAssignment[]>>(
+        `${this.url}/${encodeURIComponent(id)}/allocations`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Gives every changed owner a new version (the old one is superseded); returns the new versions. */
+  reallocate(id: string, request: TargetReallocationRequest): Observable<TargetAssignment[]> {
+    return this.http
+      .put<ApiResponse<TargetAssignment[]>>(
+        `${this.url}/${encodeURIComponent(id)}/allocations`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  breakdown(
+    id: string,
+    granularity: 'MONTH' | 'WEEK' | 'DAY' = 'MONTH',
+  ): Observable<TargetBreakdown> {
+    return this.http
+      .get<ApiResponse<TargetBreakdown>>(`${this.url}/${encodeURIComponent(id)}/breakdown`, {
+        params: { granularity },
+      })
       .pipe(map((response) => this.unwrap(response)));
   }
 
