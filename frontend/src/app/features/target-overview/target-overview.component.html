@@ -1,0 +1,13 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content">
+      @if (branchView) {
+        <app-branch-target-overview />
+      } @else {
+        <app-department-target-overview />
+      }
+    </main>
+  </div>
+</div>

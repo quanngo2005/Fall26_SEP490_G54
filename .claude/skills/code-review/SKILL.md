@@ -14,13 +14,15 @@ description: Use when reviewing G54 backend or frontend code, running codereview
 ## Workflow
 
 1. Read the matching standard file.
-2. Review changed code for correctness first, then security (load the `security-review` skill), then architecture and style.
+2. Review changed code for correctness first, then security (load the `security-review` skill), then architecture and style. Flag code that is not minimal or clean, and anything beyond the requested scope.
 3. Run the script:
    - `./scripts/codereview-backend.ps1`
    - `./scripts/codereview-frontend.ps1`
 4. Read the generated report. It groups results into Quality Gates, Security - Critical, Security - High, with a summary table.
 5. Fix every failed item, then rerun until the report ends with `## ALL CHECKS PASSED`.
-6. Walk the `[manual]` items and report findings with `file:line`, severity, risk, and fix.
+6. Walk the `[manual]` items and report findings with `file:line`, severity, risk, and fix. Fix them yourself and rerun the script.
+6a. Manually test the change against the running app/API (happy path plus invalid, auth and not-found cases), fix failures, and report what was exercised.
+6b. Check `docs/BE_STATUS.md` / `docs/FE_STATUS.md` were updated for the task; flag it if not.
 7. For frontend changes, review the rendered UI against `frontend/docs/DESIGN.md` at desktop, tablet, and mobile widths; check keyboard/focus states and record any intentional design deviations.
 
 ## Pass Criteria

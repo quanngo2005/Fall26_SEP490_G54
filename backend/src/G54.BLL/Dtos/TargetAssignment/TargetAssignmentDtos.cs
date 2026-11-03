@@ -93,7 +93,9 @@ public sealed record TargetAssignmentDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     /// <summary>NOT_VIEWED | CONFIRMED | COMMENTED for employee-owned rows; null for department-owned rows.</summary>
-    string? FeedbackStatus = null);
+    string? FeedbackStatus = null,
+    /// <summary>When the employee confirmed or commented; null unless <see cref="FeedbackStatus"/> is CONFIRMED or COMMENTED.</summary>
+    DateTimeOffset? FeedbackAt = null);
 
 /// <summary>Query parameters for GET /target-assignments/mine.</summary>
 public sealed class MyTargetAssignmentQueryDto
