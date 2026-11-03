@@ -12,7 +12,7 @@ Quality gate: `scripts/codereview-frontend.ps1` → **ALL CHECKS PASSED** (lint,
 | Home | `/home` | ✅ | |
 | Departments / job positions | `/departments`, `/job-positions`, `/department-performance` | ✅ | View-only (organization guard) |
 | Employees | `/employees`, `/employee-detail[/:code]` | ✅ | |
-| Work (employee) | `/my-work` | 🟡 | Board with start / complete actions; no accept/reject (not in scope), no progress update yet |
+| Work (employee / department manager) | `/my-work` | 🟡 | Board with start / complete actions; manager's "Giao việc" dialog (SCR-WRK-02) calls `POST /works`; no accept/reject (not in scope), no progress update yet |
 | Work types | `/work-type-detail[/:id]` | ✅ | |
 | Review & verify | `/review-verify[/:submissionId]` | ✅ | |
 | KPI definitions | `/kpi-definitions` | ✅ | |
@@ -25,6 +25,7 @@ Quality gate: `scripts/codereview-frontend.ps1` → **ALL CHECKS PASSED** (lint,
 
 - **Target overview:** "Xuất file", "Thiết lập mục tiêu năm" and "Phân bổ cho nhân viên" are disabled (target setup / allocation screens do not exist); no menu link yet (sidebar "Chỉ tiêu & chiến dịch" still opens `/campaigns`); the confirmation date now comes from `feedbackAt` (backend added, see `BE_STATUS.md`); "not applicable" (—) is inferred from data, not from KPI-position rules. Only checked against mock data, not a seeded database.
 - **Target allocation / assignment screens (SCR-STRAT-01/02/04/05):** missing.
+- **SCR-WRK-02:** no customer/CIF field (not in `POST /works`), work type list is not filtered by the assignee's position, the title is the work type name (the API needs one), and checklist items are sent but not stored by the server yet.
 - **Work:** progress update, workload and funnel views missing (backend task pending).
 - **Handover, appeals, risk events, notifications, personal KPI/performance, HR export:** no screens.
 - Backend counterparts and their gaps: see `BE_STATUS.md`.

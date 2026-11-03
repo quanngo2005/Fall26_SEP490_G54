@@ -77,3 +77,14 @@ export interface WorkStatusChange {
   /** Required when cancelling; at most 500 characters. */
   reason?: string;
 }
+
+/** `POST /works` body (`CreateWorkRequestDto`). Dates are `YYYY-MM-DD`. */
+export interface CreateWorkRequest {
+  title: string;
+  workTypeId: string;
+  assigneeEmployeeId: string;
+  priority: WorkPriority;
+  plannedEndDate: string;
+  /** The server does not store these yet (WORK_CONTRACT.md 3.1). */
+  checklistItems?: string[];
+}

@@ -1,0 +1,150 @@
+<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<form
+  class="dialog"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="assign-work-title"
+  novalidate
+  (ngSubmit)="submit()"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="assign-work-title">{{localization.work.assign.title}}</h2>
+      <p>{{localization.work.assign.subtitle}}</p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    <div class="field">
+      <label for="assign-assignee">{{localization.work.assign.assignee}} *</label>
+      <select
+        id="assign-assignee"
+        name="assignee"
+        class="select"
+        [class.is-invalid]="submitted() && !assigneeId"
+        [(ngModel)]="assigneeId"
+      >
+        <option value="">{{localization.work.assign.assigneePlaceholder}}</option>
+        @for (member of activeMembers(); track member.id) {
+          <option [value]="member.id">
+            {{member.fullName}} · {{member.jobPositionTitle}} ·
+            {{i18n.translate('work.assign.assigneeOpen', { count: member.openWorkCount })}}
+          </option>
+        }
+      </select>
+      @if (submitted() && !assigneeId) {
+        <span class="field-error" role="alert">{{localization.work.assign.required}}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label for="assign-type">{{localization.work.assign.workType}} *</label>
+      <select
+        id="assign-type"
+        name="workType"
+        class="select"
+        [class.is-invalid]="submitted() && !workTypeId"
+        [(ngModel)]="workTypeId"
+      >
+        <option value="">{{localization.work.assign.workTypePlaceholder}}</option>
+        @for (type of activeWorkTypes(); track type.id) {
+          <option [value]="type.id">{{type.name}}</option>
+        }
+      </select>
+      @if (submitted() && !workTypeId) {
+        <span class="field-error" role="alert">{{localization.work.assign.required}}</span>
+      }
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="assign-due">{{localization.work.assign.dueDate}} *</label>
+        <input
+          id="assign-due"
+          name="dueDate"
+          type="date"
+          class="input"
+          [class.is-invalid]="submitted() && (!dueDate || dueInPast)"
+          [min]="today"
+          [(ngModel)]="dueDate"
+        />
+        @if (submitted() && !dueDate) {
+          <span class="field-error" role="alert">{{localization.work.assign.required}}</span>
+        } @else if (dueInPast) {
+          <span class="field-error" role="alert">{{localization.work.assign.dueInPast}}</span>
+        }
+      </div>
+      <div class="field">
+        <label for="assign-priority">{{localization.work.assign.priority}}</label>
+        <select id="assign-priority" name="priority" class="select" [(ngModel)]="priority">
+          @for (level of priorities; track level) {
+            <option [value]="level">{{localization.work.priority[level]}}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">{{localization.work.assign.checklist}}</span>
+      @for (item of checklist(); track $index) {
+        <div class="checklist-row">
+          <input
+            type="text"
+            class="input"
+            maxlength="200"
+            [name]="'item' + $index"
+            [attr.aria-label]="i18n.translate('work.assign.checklistItem', { index: $index + 1 })"
+            [ngModel]="item"
+            (ngModelChange)="editItem($index, $event)"
+          />
+          <button
+            type="button"
+            class="dialog-close"
+            [attr.aria-label]="i18n.translate('work.assign.checklistRemove', { index: $index + 1 })"
+            (click)="removeItem($index)"
+          >
+            ×
+          </button>
+        </div>
+      }
+      <button
+        type="button"
+        class="button button-secondary add-item"
+        [disabled]="checklist().length >= maxItems"
+        (click)="addItem()"
+      >
+        {{localization.work.assign.checklistAdd}}
+      </button>
+    </div>
+
+    <div class="notice" role="note">
+      <strong>{{localization.work.assign.noticeTitle}}</strong>
+      <span>{{localization.work.assign.noticeBody}}</span>
+    </div>
+
+    @if (errorText(); as text) {
+      <p class="form-error" role="alert">{{text}}</p>
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{localization.work.assign.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{localization.work.assign.cancel}}
+      </button>
+      <button type="submit" class="button button-primary" [disabled]="saving()">
+        {{saving() ? localization.work.assign.submitting : localization.work.assign.submit}}
+      </button>
+    </div>
+  </footer>
+</form>
