@@ -489,11 +489,6 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("parent_objective_id");
 
-                    b.Property<decimal?>("PriorityWeight")
-                        .HasPrecision(8, 4)
-                        .HasColumnType("numeric(8,4)")
-                        .HasColumnName("priority_weight");
-
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -521,8 +516,6 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_business_objective_dates", "end_date >= start_date");
 
                             t.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
-
-                            t.HasCheckConstraint("ck_business_objective_priority_weight", "priority_weight IS NULL OR priority_weight >= 0");
                         });
                 });
 
@@ -1176,9 +1169,9 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("KpiGroupId");
 
-                    b.HasIndex(new[] { "RequestedBy" }, "ix_kpi_definition_requested_by");
+                    b.HasIndex("RequestedBy");
 
-                    b.HasIndex(new[] { "SubmittedBy" }, "ix_kpi_definition_submitted_by");
+                    b.HasIndex("SubmittedBy");
 
                     b.HasIndex(new[] { "Code" }, "uq_kpi_definition_code")
                         .IsUnique();

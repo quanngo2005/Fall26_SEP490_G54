@@ -105,11 +105,20 @@ status again is a no-op (200). Sending for approval records the caller as the ma
 `rejectReason`. A `PENDING_APPROVAL` KPI cannot be edited (`PUT`: 409 `CONFLICT`); a `REJECTED` one can be edited and resubmitted.
 
 `POST /{id}/approve` moves a `PENDING_APPROVAL` KPI to `ACTIVE`; `POST /{id}/reject` moves it to `REJECTED` and
-stores `reason` (required, limited to the length of its column). Any other status is 409 `CONFLICT`. The approver may
-be neither the employee who sent the KPI for approval nor the one who requested it: 422 `MAKER_CANNOT_BE_CHECKER`.
+stores `reason` (required, limited to the length of its column). Any other status is 409 `CONFLICT`. The approver must not
+be the employee who sent the KPI for approval (the maker): 422 `MAKER_CANNOT_BE_CHECKER`. The Branch Manager who requested
+the KPI only asked for it, so may approve or reject it once the System Admin has completed and submitted it (a branch with a
+single Branch Manager would otherwise never get the KPI approved).
 
-Known limit: editing a KPI that is already `ACTIVE` (`PUT`) takes effect at once and does not go through approval; "changed
-KPI" approval would need versioning and is not built.
+Known limits:
+
+- Editing a KPI that is already `ACTIVE` (`PUT`) takes effect at once and does not go through approval; "changed
+  KPI" approval would need versioning and is not built.
+- `GET` endpoints are `[Authorize]` only, so any signed-in user can read `rejectReason`, `requestNote` and `requestedBy`
+  (an employee id) of a KPI. Not restricted, to leave the permission of the existing reads unchanged.
+- `ADMIN` passes every permission policy, so an Admin other than the one who submitted a KPI can approve it.
+- `requested_by` and `submitted_by` are foreign keys without an index of their own (no query filters on them); the KPI table
+  is small.
 
 ## Not persisted (client-only drafts)
 

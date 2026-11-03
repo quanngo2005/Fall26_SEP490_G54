@@ -368,7 +368,6 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_business_objective_dates", "end_date >= start_date");
                 table.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
-                table.HasCheckConstraint("ck_business_objective_priority_weight", "priority_weight IS NULL OR priority_weight >= 0");
             });
 
             entity.HasIndex(e => e.Code, "uq_business_objective_code").IsUnique();
@@ -387,9 +386,6 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(255)
                 .HasColumnName("name");
             entity.Property(e => e.ParentObjectiveId).HasColumnName("parent_objective_id");
-            entity.Property(e => e.PriorityWeight)
-                .HasPrecision(8, 4)
-                .HasColumnName("priority_weight");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
@@ -810,10 +806,6 @@ public partial class AppDbContext : DbContext
             });
 
             entity.HasIndex(e => e.Code, "uq_kpi_definition_code").IsUnique();
-
-            entity.HasIndex(e => e.RequestedBy, "ix_kpi_definition_requested_by");
-
-            entity.HasIndex(e => e.SubmittedBy, "ix_kpi_definition_submitted_by");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")

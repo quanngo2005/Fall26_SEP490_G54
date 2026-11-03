@@ -50,7 +50,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chiá
 ## 3. Endpoint Specifications
 
 ### 3.0 GET `/business-objectives`
-`data`: array of business objectives (the shape, the permission and the visibility rules are in `BUSINESS_OBJECTIVE_CONTRACT.md`; it still contains `id`, `code`, `name`, `description`), without `CANCELLED` ones unless `status` is given, ordered by `code`. A Department Manager only sees objectives that have a target in the department subtree.
+`data`: array of business objectives (the shape, the permission and the visibility rules are in `BUSINESS_OBJECTIVE_CONTRACT.md`; it still contains `id`, `code`, `name`, `description`), without `CANCELLED` ones unless `status` is given, ordered by `code`.
 
 ---
 

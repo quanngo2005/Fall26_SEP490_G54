@@ -1,7 +1,7 @@
+using System.Linq.Expressions;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
-using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.BusinessObjective;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -12,13 +12,25 @@ namespace G54.BLL.Services;
 public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService permissions, TimeProvider time)
     : IBusinessObjectiveService
 {
+    private static readonly Expression<Func<BusinessObjective, BusinessObjectiveDto>> ToDtoExpression = o => new BusinessObjectiveDto(
+        o.Id,
+        o.ParentObjectiveId,
+        o.Code,
+        o.Name,
+        o.Description,
+        o.StartDate,
+        o.EndDate,
+        o.Status.ToEnumString(),
+        o.UpdatedAt);
+
+    private static readonly Func<BusinessObjective, BusinessObjectiveDto> ToDto = ToDtoExpression.Compile();
+
     private readonly record struct ObjectiveInput(
         string Code,
         string Name,
         string? Description,
         DateOnly StartDate,
-        DateOnly EndDate,
-        decimal? PriorityWeight);
+        DateOnly EndDate);
 
     public async Task<IReadOnlyList<BusinessObjectiveDto>> GetObjectivesAsync(
         Guid accountId,
@@ -26,16 +38,9 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
         CancellationToken cancellationToken = default)
     {
         var status = EnumApiFormat.ParseEnum<BusinessObjectiveStatus>(filter.Status, "status");
-        var departments = await ResolveVisibleDepartmentsAsync(accountId, cancellationToken);
+        await EnsureCanReadAsync(accountId, cancellationToken);
 
         var query = db.BusinessObjectives.AsNoTracking().AsQueryable();
-        if (departments is not null)
-        {
-            query = query.Where(o => o.TargetAssignments.Any(t =>
-                (t.DepartmentId != null && departments.Contains(t.DepartmentId.Value))
-                || (t.Employee != null && departments.Contains(t.Employee.DepartmentId))));
-        }
-
         if (status.HasValue)
         {
             var wanted = status.Value;
@@ -54,17 +59,7 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
 
         return await query
             .OrderBy(o => o.Code)
-            .Select(o => new BusinessObjectiveDto(
-                o.Id,
-                o.ParentObjectiveId,
-                o.Code,
-                o.Name,
-                o.Description,
-                o.StartDate,
-                o.EndDate,
-                o.PriorityWeight,
-                o.Status.ToEnumString(),
-                o.UpdatedAt))
+            .Select(ToDtoExpression)
             .ToListAsync(cancellationToken);
     }
 
@@ -73,22 +68,10 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var departments = await ResolveVisibleDepartmentsAsync(accountId, cancellationToken);
+        await EnsureCanReadAsync(accountId, cancellationToken);
         var objective = await db.BusinessObjectives.AsNoTracking()
             .SingleOrDefaultAsync(o => o.Id == id, cancellationToken)
             ?? throw new NotFoundException("Business Objective", id);
-
-        var targets = db.TargetAssignments.AsNoTracking().Where(t => t.BusinessObjectiveId == id);
-        if (departments is not null)
-        {
-            targets = targets.Where(t =>
-                (t.DepartmentId != null && departments.Contains(t.DepartmentId.Value))
-                || (t.Employee != null && departments.Contains(t.Employee.DepartmentId)));
-            if (!await targets.AnyAsync(cancellationToken))
-            {
-                throw new ForbiddenException();
-            }
-        }
 
         var kpis = await db.ObjectiveKpis.AsNoTracking()
             .Where(m => m.BusinessObjectiveId == id)
@@ -102,7 +85,7 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
 
         var usage = new BusinessObjectiveUsageDto(
             kpis.Count,
-            await targets.CountAsync(cancellationToken),
+            await db.TargetAssignments.CountAsync(t => t.BusinessObjectiveId == id, cancellationToken),
             await db.BusinessCampaigns.CountAsync(c => c.BusinessObjectiveId == id, cancellationToken),
             await db.BusinessObjectives.CountAsync(o => o.ParentObjectiveId == id, cancellationToken));
 
@@ -186,19 +169,6 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
     private static ConflictException InUse() =>
         new(ErrorCodes.GetDefaultMessage(ErrorCodes.BusinessObjectiveInUse), ErrorCodes.BusinessObjectiveInUse);
 
-    private static BusinessObjectiveDto ToDto(BusinessObjective o) =>
-        new(
-            o.Id,
-            o.ParentObjectiveId,
-            o.Code,
-            o.Name,
-            o.Description,
-            o.StartDate,
-            o.EndDate,
-            o.PriorityWeight,
-            o.Status.ToEnumString(),
-            o.UpdatedAt);
-
     private static void Apply(BusinessObjective objective, ObjectiveInput input)
     {
         objective.Code = input.Code;
@@ -206,13 +176,12 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
         objective.Description = input.Description;
         objective.StartDate = input.StartDate;
         objective.EndDate = input.EndDate;
-        objective.PriorityWeight = input.PriorityWeight;
     }
 
     private ObjectiveInput Validate(BusinessObjectiveSaveDto dto)
     {
-        var maxCode = db.MaxLength<BusinessObjective>(nameof(BusinessObjective.Code));
-        var maxName = db.MaxLength<BusinessObjective>(nameof(BusinessObjective.Name));
+        var maxCode = MaxLength(nameof(BusinessObjective.Code));
+        var maxName = MaxLength(nameof(BusinessObjective.Name));
 
         var code = dto.Code?.Trim() ?? string.Empty;
         var name = dto.Name?.Trim() ?? string.Empty;
@@ -232,22 +201,12 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
             throw new ValidationException("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu.");
         }
 
-        if (dto.PriorityWeight is { } weight)
-        {
-            var bound = db.DecimalUpperBound<BusinessObjective>(nameof(BusinessObjective.PriorityWeight));
-            if (weight < 0 || weight >= bound)
-            {
-                throw new ValidationException($"Trọng số ưu tiên phải lớn hơn hoặc bằng 0 và nhỏ hơn {bound}.");
-            }
-        }
-
         return new ObjectiveInput(
             code,
             name,
             string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
             startDate,
-            endDate,
-            dto.PriorityWeight);
+            endDate);
     }
 
     private async Task EnsureCodeUniqueAsync(string code, Guid? excludeId, CancellationToken cancellationToken)
@@ -300,30 +259,19 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
     }
 
     /// <summary>
-    /// Null when every objective is readable (Branch scope or wider: an objective belongs to the branch, not to one
-    /// department). For Dept scope, the departments of the caller's subtree: only objectives with a target there are readable.
+    /// An objective belongs to the branch, not to one department, so any scope from Dept up reads every objective;
+    /// below Dept (or without the permission) the caller is rejected.
     /// </summary>
-    private async Task<HashSet<Guid>?> ResolveVisibleDepartmentsAsync(Guid accountId, CancellationToken cancellationToken)
+    private async Task EnsureCanReadAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var granted = await permissions.GetEffectivePermissionsAsync(accountId, cancellationToken);
-        var level = AccessScope.LevelFor(granted, "objective", "read");
-        if (level < AccessScope.DeptLevel)
+        if (AccessScope.LevelFor(granted, "objective", "read") < AccessScope.DeptLevel)
         {
             throw new ForbiddenException();
         }
-
-        if (level >= AccessScope.BranchLevel)
-        {
-            return null;
-        }
-
-        var caller = await db.Accounts.AsNoTracking()
-            .Where(a => a.Id == accountId && !a.IsLocked && a.Employee.Status == EmployeeStatus.Active)
-            .Select(a => new { a.Employee.DepartmentId })
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new ForbiddenException();
-
-        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
-        return AccessScope.DepartmentsInScope(level, caller.DepartmentId, hierarchy) ?? [];
     }
+
+    private int MaxLength(string property) =>
+        db.Model.FindEntityType(typeof(BusinessObjective))?.FindProperty(property)?.GetMaxLength()
+            ?? throw new InvalidOperationException($"{nameof(BusinessObjective)}.{property} has no maximum length.");
 }

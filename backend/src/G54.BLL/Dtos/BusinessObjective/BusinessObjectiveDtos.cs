@@ -4,7 +4,6 @@ namespace G54.BLL.Dtos.BusinessObjective;
 
 /// <summary>
 /// `Status` is the UPPER_SNAKE value of <see cref="BusinessObjectiveStatus"/>: DRAFT, ACTIVE, CLOSED, CANCELLED.
-/// `PriorityWeight` is null until a Branch Manager sets it.
 /// </summary>
 public sealed record BusinessObjectiveDto(
     Guid Id,
@@ -14,7 +13,6 @@ public sealed record BusinessObjectiveDto(
     string? Description,
     DateOnly StartDate,
     DateOnly EndDate,
-    decimal? PriorityWeight,
     string Status,
     DateTimeOffset UpdatedAt);
 

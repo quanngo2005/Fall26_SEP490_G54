@@ -15,14 +15,6 @@ public partial class AddObjectiveWeightAndKpiRequestApproval : Migration
         migrationBuilder.Sql("ALTER TYPE kpi_status ADD VALUE IF NOT EXISTS 'PENDING_APPROVAL';");
         migrationBuilder.Sql("ALTER TYPE kpi_status ADD VALUE IF NOT EXISTS 'REJECTED';");
 
-        migrationBuilder.AddColumn<decimal>(
-            name: "priority_weight",
-            table: "business_objective",
-            type: "numeric(8,4)",
-            precision: 8,
-            scale: 4,
-            nullable: true);
-
         migrationBuilder.AddColumn<string>(
             name: "reject_reason",
             table: "kpi_definition",
@@ -50,19 +42,14 @@ public partial class AddObjectiveWeightAndKpiRequestApproval : Migration
             nullable: true);
 
         migrationBuilder.CreateIndex(
-            name: "ix_kpi_definition_requested_by",
+            name: "IX_kpi_definition_requested_by",
             table: "kpi_definition",
             column: "requested_by");
 
         migrationBuilder.CreateIndex(
-            name: "ix_kpi_definition_submitted_by",
+            name: "IX_kpi_definition_submitted_by",
             table: "kpi_definition",
             column: "submitted_by");
-
-        migrationBuilder.AddCheckConstraint(
-            name: "ck_business_objective_priority_weight",
-            table: "business_objective",
-            sql: "priority_weight IS NULL OR priority_weight >= 0");
 
         migrationBuilder.AddForeignKey(
             name: "fk_kpi_definition_requested_by",
@@ -128,16 +115,12 @@ public partial class AddObjectiveWeightAndKpiRequestApproval : Migration
             table: "kpi_definition");
 
         migrationBuilder.DropIndex(
-            name: "ix_kpi_definition_submitted_by",
+            name: "IX_kpi_definition_submitted_by",
             table: "kpi_definition");
 
         migrationBuilder.DropIndex(
-            name: "ix_kpi_definition_requested_by",
+            name: "IX_kpi_definition_requested_by",
             table: "kpi_definition");
-
-        migrationBuilder.DropCheckConstraint(
-            name: "ck_business_objective_priority_weight",
-            table: "business_objective");
 
         migrationBuilder.DropColumn(
             name: "submitted_by",
@@ -155,8 +138,5 @@ public partial class AddObjectiveWeightAndKpiRequestApproval : Migration
             name: "reject_reason",
             table: "kpi_definition");
 
-        migrationBuilder.DropColumn(
-            name: "priority_weight",
-            table: "business_objective");
     }
 }

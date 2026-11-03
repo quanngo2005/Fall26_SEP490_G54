@@ -294,7 +294,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261103092707_AddObjectiveWeightAndKpiRequestApproval", migrations[^1]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^1]);
         Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^2]);
         Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^3]);
         Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^4]);

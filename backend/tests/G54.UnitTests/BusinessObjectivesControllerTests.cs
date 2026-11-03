@@ -26,7 +26,7 @@ public sealed class BusinessObjectivesControllerTests
     };
 
     private static BusinessObjectiveDto Sample() => new(
-        Guid.NewGuid(), null, "OBJ-1", "Growth", null, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), null, "ACTIVE", DateTimeOffset.UtcNow);
+        Guid.NewGuid(), null, "OBJ-1", "Growth", null, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "ACTIVE", DateTimeOffset.UtcNow);
 
     [Theory]
     [InlineData(nameof(BusinessObjectivesController.GetObjectives), typeof(HttpGetAttribute), null)]

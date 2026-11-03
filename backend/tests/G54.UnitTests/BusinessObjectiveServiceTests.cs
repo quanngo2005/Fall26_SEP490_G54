@@ -11,8 +11,8 @@ using Xunit;
 namespace G54.UnitTests;
 
 /// <summary>
-/// Business objective CRUD and its read scope. World: Branch BR contains D1 (the caller's department) and D2.
-/// Objectives are readable by a Dept caller only through a target on D1 (or an employee of D1).
+/// Business objective CRUD and its read permission. World: Branch BR contains D1 (the caller's department) and D2.
+/// An objective belongs to the branch, so any read scope from Dept up reads every objective.
 /// </summary>
 public sealed class BusinessObjectiveServiceTests
 {
@@ -188,24 +188,23 @@ public sealed class BusinessObjectiveServiceTests
     }
 
     [Fact]
-    public async Task List_DeptScope_ReturnsOnlyObjectivesWithATargetInTheCallersSubtree()
+    public async Task List_DeptScope_ReadsEveryNonCancelledObjective_IncludingOnesWithoutATargetInTheCallersDepartment()
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
         var inDepartment = NewObjective("IN-DEPT");
-        var inEmployee = NewObjective("IN-EMP");
         var otherDepartment = NewObjective("OTHER-DEPT");
         var noTarget = NewObjective("NO-TARGET");
-        db.BusinessObjectives.AddRange(inDepartment, inEmployee, otherDepartment, noTarget);
+        var cancelled = NewObjective("CANCELLED", BusinessObjectiveStatus.Cancelled);
+        db.BusinessObjectives.AddRange(inDepartment, otherDepartment, noTarget, cancelled);
         db.TargetAssignments.AddRange(
             NewTarget(world, inDepartment, world.D1.Id),
-            NewTarget(world, inEmployee, null, world.Caller.Id),
             NewTarget(world, otherDepartment, world.D2.Id));
         await db.SaveChangesAsync();
 
         var list = await ServiceFor(db, Grant("Dept")).GetObjectivesAsync(world.CallerAccount.Id, new BusinessObjectiveFilterDto());
 
-        Assert.Equal(["IN-DEPT", "IN-EMP"], list.Select(o => o.Code).ToArray());
+        Assert.Equal(["IN-DEPT", "NO-TARGET", "OTHER-DEPT"], list.Select(o => o.Code).ToArray());
     }
 
     [Fact]
@@ -221,7 +220,7 @@ public sealed class BusinessObjectiveServiceTests
     }
 
     [Fact]
-    public async Task Detail_ReturnsKpisAndUsage_AndDeptScopeIsForbiddenWithoutATargetInScope()
+    public async Task Detail_ReturnsKpisAndUsage_ForBranchAndDeptScopeAlike()
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
@@ -236,25 +235,24 @@ public sealed class BusinessObjectiveServiceTests
 
         Assert.Equal(new BusinessObjectiveUsageDto(1, 1, 0, 1), branchView.Usage);
         Assert.Equal("KPI-1", Assert.Single(branchView.Kpis).KpiCode);
-        await Assert.ThrowsAsync<ForbiddenException>(
-            () => ServiceFor(db, Grant("Dept")).GetObjectiveAsync(world.CallerAccount.Id, objective.Id));
+        var deptView = await ServiceFor(db, Grant("Dept")).GetObjectiveAsync(world.CallerAccount.Id, objective.Id);
+        Assert.Equal(branchView.Usage, deptView.Usage);
         await Assert.ThrowsAsync<NotFoundException>(
             () => ServiceFor(db, Grant("Branch")).GetObjectiveAsync(world.CallerAccount.Id, Guid.NewGuid()));
     }
 
     [Fact]
-    public async Task Detail_DeptScope_CountsOnlyTheTargetsTheCallerMaySee()
+    public async Task Detail_WithoutReadPermissionOrBelowDept_IsForbidden()
     {
         using var db = CreateDb();
         var world = await CreateWorldAsync(db);
         var objective = NewObjective("OBJ");
         db.BusinessObjectives.Add(objective);
-        db.TargetAssignments.AddRange(NewTarget(world, objective, world.D1.Id), NewTarget(world, objective, world.D2.Id));
         await db.SaveChangesAsync();
 
-        var view = await ServiceFor(db, Grant("Dept")).GetObjectiveAsync(world.CallerAccount.Id, objective.Id);
-
-        Assert.Equal(1, view.Usage.TargetCount);
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceFor(db).GetObjectiveAsync(world.CallerAccount.Id, objective.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => ServiceFor(db, Grant("Own")).GetObjectiveAsync(world.CallerAccount.Id, objective.Id));
     }
 
     // ---- create ---------------------------------------------------------------------------------------
@@ -263,14 +261,13 @@ public sealed class BusinessObjectiveServiceTests
     public async Task Create_TrimsAndStoresTheObjectiveAsActive()
     {
         using var db = CreateDb();
-        var dto = Save() with { Code = "  OBJ-1  ", Name = "  Growth ", Description = "  ", PriorityWeight = 12.5m };
+        var dto = Save() with { Code = "  OBJ-1  ", Name = "  Growth ", Description = "  " };
 
         var created = await ServiceFor(db).CreateObjectiveAsync(dto);
 
         Assert.Equal("OBJ-1", created.Code);
         Assert.Equal("Growth", created.Name);
         Assert.Null(created.Description);
-        Assert.Equal(12.5m, created.PriorityWeight);
         Assert.Equal("ACTIVE", created.Status);
         Assert.Equal(Now, created.UpdatedAt);
         Assert.Single(db.BusinessObjectives);
@@ -305,8 +302,6 @@ public sealed class BusinessObjectiveServiceTests
             Save() with { StartDate = null },
             Save() with { EndDate = null },
             Save() with { StartDate = new DateOnly(2026, 6, 2), EndDate = new DateOnly(2026, 6, 1) },
-            Save() with { PriorityWeight = -0.0001m },
-            Save() with { PriorityWeight = 1_000_000m },
         };
         foreach (var dto in invalid)
         {
@@ -369,10 +364,9 @@ public sealed class BusinessObjectiveServiceTests
 
         var updated = await ServiceFor(db).UpdateObjectiveAsync(
             objective.Id,
-            Save("OBJ-1") with { Name = "Renamed", PriorityWeight = 3m });
+            Save("OBJ-1") with { Name = "Renamed" });
 
         Assert.Equal("Renamed", updated.Name);
-        Assert.Equal(3m, updated.PriorityWeight);
         Assert.Equal("DRAFT", updated.Status);
     }
 

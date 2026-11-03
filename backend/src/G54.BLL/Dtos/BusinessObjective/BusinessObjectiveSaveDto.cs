@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace G54.BLL.Dtos.BusinessObjective;
 
 /// <summary>
-/// Full replacement for PUT. Length limits and the range of <see cref="PriorityWeight"/> follow the database columns
-/// and are checked in the service; the range and the total across objectives are still awaiting confirmation.
+/// Full replacement for PUT. Length limits follow the database columns and are checked in the service.
 /// </summary>
 public sealed record BusinessObjectiveSaveDto
 {
@@ -23,6 +22,4 @@ public sealed record BusinessObjectiveSaveDto
 
     [Required]
     public DateOnly? EndDate { get; init; }
-
-    public decimal? PriorityWeight { get; init; }
 }

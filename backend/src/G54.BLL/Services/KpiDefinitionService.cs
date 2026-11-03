@@ -3,7 +3,6 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
-using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.KpiDefinition;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -122,7 +121,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
     {
         var requesterId = await ResolveEmployeeIdAsync(accountId, cancellationToken);
 
-        var maxNote = db.MaxLength<KpiDefinition>(nameof(KpiDefinition.RequestNote));
+        var maxNote = MaxLength(nameof(KpiDefinition.RequestNote));
         var note = dto.RequestNote?.Trim() ?? string.Empty;
         if (dto.Kpi is null || note.Length == 0 || note.Length > maxNote)
         {
@@ -217,7 +216,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         RejectKpiDto dto,
         CancellationToken cancellationToken = default)
     {
-        var maxReason = db.MaxLength<KpiDefinition>(nameof(KpiDefinition.RejectReason));
+        var maxReason = MaxLength(nameof(KpiDefinition.RejectReason));
         var reason = dto.Reason?.Trim();
         if (string.IsNullOrEmpty(reason) || reason.Length > maxReason)
         {
@@ -282,16 +281,23 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         return kpi;
     }
 
-    /// <summary>The approver must be neither the one who sent the KPI for approval nor the one who requested it.</summary>
+    /// <summary>
+    /// The approver must not be the one who sent the KPI for approval (the maker). The Branch Manager who requested the
+    /// KPI only asked for it, so may approve it once the System Admin has completed and submitted it.
+    /// </summary>
     private static void EnsureApproverIsNotMaker(KpiDefinition kpi, Guid approverId)
     {
-        if (kpi.SubmittedBy == approverId || kpi.RequestedBy == approverId)
+        if (kpi.SubmittedBy == approverId)
         {
             throw new BusinessRuleException(
                 ErrorCodes.MakerCannotBeChecker,
                 statusCode: StatusCodes.Status422UnprocessableEntity);
         }
     }
+
+    private int MaxLength(string property) =>
+        db.Model.FindEntityType(typeof(KpiDefinition))?.FindProperty(property)?.GetMaxLength()
+            ?? throw new InvalidOperationException($"{nameof(KpiDefinition)}.{property} has no maximum length.");
 
     private async Task<Guid> ResolveEmployeeIdAsync(Guid accountId, CancellationToken cancellationToken)
     {

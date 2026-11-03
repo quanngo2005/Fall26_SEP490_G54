@@ -368,7 +368,7 @@ public sealed class KpiApprovalServiceTests
     }
 
     [Fact]
-    public async Task Approve_ByTheManagerWhoRequestedTheKpi_IsMakerCannotBeChecker_ButAnotherManagerCan()
+    public async Task Approve_ByTheManagerWhoRequestedTheKpi_Succeeds_OnceTheAdminSubmittedIt()
     {
         var env = await CreateEnvAsync();
         using var db = env.Db;
@@ -376,10 +376,29 @@ public sealed class KpiApprovalServiceTests
         await env.Service.UpdateKpiAsync(requested.Id, Kpi(env) with { Name = "Completed by the admin" });
         await Move(env, env.Admin, requested.Id, "PENDING_APPROVAL");
 
-        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => env.Service.ApproveKpiAsync(env.Manager.Id, requested.Id));
+        await env.Service.ApproveKpiAsync(env.Manager.Id, requested.Id);
+
+        var stored = await db.KpiDefinitions.SingleAsync();
+        Assert.Equal(KpiStatus.Active, stored.Status);
+        Assert.Equal(env.Manager.EmployeeId, stored.RequestedBy);
+        Assert.Equal(env.Admin.EmployeeId, stored.SubmittedBy);
+    }
+
+    [Fact]
+    public async Task ApproveAndReject_ByTheEmployeeWhoRequestedAndThenSubmittedIt_IsMakerCannotBeChecker()
+    {
+        var env = await CreateEnvAsync();
+        using var db = env.Db;
+        var requested = await env.Service.RequestKpiAsync(env.Manager.Id, new KpiRequestDto { Kpi = Kpi(env), RequestNote = "why" });
+        await Move(env, env.Manager, requested.Id, "PENDING_APPROVAL");
+
+        var approve = await Assert.ThrowsAsync<BusinessRuleException>(() => env.Service.ApproveKpiAsync(env.Manager.Id, requested.Id));
+        var reject = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => env.Service.RejectKpiAsync(env.Manager.Id, requested.Id, new RejectKpiDto { Reason = "no" }));
         await env.Service.ApproveKpiAsync(env.OtherManager.Id, requested.Id);
 
-        Assert.Equal(ErrorCodes.MakerCannotBeChecker, error.ErrorCode);
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, approve.ErrorCode);
+        Assert.Equal(ErrorCodes.MakerCannotBeChecker, reject.ErrorCode);
         Assert.Equal("ACTIVE", (await env.Service.GetKpiByIdAsync(requested.Id))!.Status);
     }
 
