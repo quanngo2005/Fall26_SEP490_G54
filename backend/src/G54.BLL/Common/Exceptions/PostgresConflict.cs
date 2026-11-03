@@ -18,11 +18,15 @@ internal static class PostgresConflict
         return false;
     }
 
-    public static bool IsUniqueViolation(Exception exception)
+    public static bool IsUniqueViolation(Exception exception) => HasSqlState(exception, PostgresErrorCodes.UniqueViolation);
+
+    public static bool IsForeignKeyViolation(Exception exception) => HasSqlState(exception, PostgresErrorCodes.ForeignKeyViolation);
+
+    private static bool HasSqlState(Exception exception, string sqlState)
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            if (current is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            if (current is PostgresException postgres && postgres.SqlState == sqlState)
             {
                 return true;
             }

@@ -16,6 +16,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(MeController), "me")]
     [InlineData(typeof(KpiDefinitionController), "kpi-definitions")]
     [InlineData(typeof(KpiMappingController), "business-objectives/{objectiveId:guid}/kpis")]
+    [InlineData(typeof(BusinessObjectivesController), "business-objectives")]
     [InlineData(typeof(VerificationController), "verifications")]
     [InlineData(typeof(EvaluationController), "evaluations")]
     [InlineData(typeof(CampaignController), "campaigns")]

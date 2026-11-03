@@ -62,6 +62,9 @@ public static class ErrorCodes
     // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
     public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
 
+    // Business objectives (docs/api/BUSINESS_OBJECTIVE_CONTRACT.md)
+    public const string BusinessObjectiveInUse = "BUSINESS_OBJECTIVE_IN_USE";
+
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
     public const string EvaluationDisputePending = "EVALUATION_DISPUTE_PENDING";           // BR-31
@@ -119,6 +122,7 @@ public static class ErrorCodes
         [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
         [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
+        [BusinessObjectiveInUse] = ("Mục tiêu kinh doanh đã được dùng bởi chiến dịch, chỉ tiêu, KPI hoặc mục tiêu con nên không thể xóa.", "The business objective is used by campaigns, targets, KPIs or child objectives and cannot be deleted."),
         [TargetDepartmentSumBelow] = ("Tổng chỉ tiêu năm của các phòng ban phải lớn hơn hoặc bằng chỉ tiêu năm của chi nhánh.", "Department year targets must add up to at least the branch year target."),
         [TargetQuarterSumBelow] = ("Tổng chỉ tiêu các quý phải lớn hơn hoặc bằng chỉ tiêu năm của phòng ban.", "Quarter targets must add up to at least the department year target."),
         [TargetPeriodNotOpen] = ("Kỳ đánh giá không ở trạng thái mở nên không thể giao chỉ tiêu.", "The evaluation period is not open for target allocation."),

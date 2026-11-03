@@ -1,15 +1,51 @@
+using System.Linq.Expressions;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.KpiDefinition;
 using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
 public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionService
 {
+    /// <summary>
+    /// Transitions open to the status endpoint. A pending KPI leaves that state only through approve or reject, so it
+    /// is never activated by a plain status change.
+    /// </summary>
+    private static readonly Dictionary<KpiStatus, KpiStatus[]> AllowedTransitions = new()
+    {
+        [KpiStatus.Draft] = [KpiStatus.PendingApproval, KpiStatus.Archived],
+        [KpiStatus.PendingApproval] = [KpiStatus.Archived],
+        [KpiStatus.Rejected] = [KpiStatus.PendingApproval, KpiStatus.Archived],
+        [KpiStatus.Active] = [KpiStatus.Inactive, KpiStatus.Archived],
+        [KpiStatus.Inactive] = [KpiStatus.Active, KpiStatus.Archived],
+        [KpiStatus.Archived] = [],
+    };
+
+    private static readonly Expression<Func<KpiDefinition, KpiDefinitionDto>> ToDto = kpi => new KpiDefinitionDto(
+        kpi.Id,
+        kpi.KpiGroupId,
+        kpi.KpiGroup.Name,
+        kpi.Code,
+        kpi.Name,
+        kpi.Description,
+        kpi.Formula,
+        kpi.Unit,
+        kpi.AggregationType.ToEnumString(),
+        kpi.Direction.ToEnumString(),
+        kpi.MaxAchievementPercent,
+        kpi.Status.ToEnumString(),
+        kpi.UpdatedAt,
+        kpi.RejectReason,
+        kpi.RequestNote,
+        kpi.RequestedBy);
+
     public async Task<PagedResult<KpiDefinitionDto>> GetKpisAsync(
         KpiFilterDto filter,
         CancellationToken cancellationToken = default)
@@ -49,20 +85,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             .OrderBy(kpi => kpi.Code)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(kpi => new KpiDefinitionDto(
-                kpi.Id,
-                kpi.KpiGroupId,
-                kpi.KpiGroup.Name,
-                kpi.Code,
-                kpi.Name,
-                kpi.Description,
-                kpi.Formula,
-                kpi.Unit,
-                kpi.AggregationType.ToEnumString(),
-                kpi.Direction.ToEnumString(),
-                kpi.MaxAchievementPercent,
-                kpi.Status.ToEnumString(),
-                kpi.UpdatedAt))
+            .Select(ToDto)
             .ToListAsync(cancellationToken);
 
         return new PagedResult<KpiDefinitionDto>(items, totalCount, page, pageSize);
@@ -73,20 +96,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         return await db.KpiDefinitions
             .AsNoTracking()
             .Where(kpi => kpi.Id == id)
-            .Select(kpi => new KpiDefinitionDto(
-                kpi.Id,
-                kpi.KpiGroupId,
-                kpi.KpiGroup.Name,
-                kpi.Code,
-                kpi.Name,
-                kpi.Description,
-                kpi.Formula,
-                kpi.Unit,
-                kpi.AggregationType.ToEnumString(),
-                kpi.Direction.ToEnumString(),
-                kpi.MaxAchievementPercent,
-                kpi.Status.ToEnumString(),
-                kpi.UpdatedAt))
+            .Select(ToDto)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -100,9 +110,135 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<KpiDefinitionDto> CreateKpiAsync(
+    public Task<KpiDefinitionDto> CreateKpiAsync(
+        KpiDefinitionSaveDto dto,
+        CancellationToken cancellationToken = default) =>
+        CreateDraftAsync(dto, null, null, cancellationToken);
+
+    public async Task<KpiDefinitionDto> RequestKpiAsync(
+        Guid accountId,
+        KpiRequestDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var requesterId = await ResolveEmployeeIdAsync(accountId, cancellationToken);
+
+        var maxNote = db.MaxLength<KpiDefinition>(nameof(KpiDefinition.RequestNote));
+        var note = dto.RequestNote?.Trim() ?? string.Empty;
+        if (dto.Kpi is null || note.Length == 0 || note.Length > maxNote)
+        {
+            throw new ValidationException($"Thông tin KPI và lý do yêu cầu là bắt buộc; lý do tối đa {maxNote} ký tự.");
+        }
+
+        return await CreateDraftAsync(dto.Kpi, requesterId, note, cancellationToken);
+    }
+
+    public async Task<KpiDefinitionDto> UpdateKpiAsync(
+        Guid id,
         KpiDefinitionSaveDto dto,
         CancellationToken cancellationToken = default)
+    {
+        var (aggregationType, direction) = Validate(dto);
+        var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new NotFoundException("KPI Definition", id);
+
+        if (kpi.Status == KpiStatus.PendingApproval)
+        {
+            // The approver must see what was submitted.
+            throw new ConflictException("KPI đang chờ duyệt (Pending approval) nên không thể chỉnh sửa.");
+        }
+
+        var code = dto.Code.Trim();
+        await EnsureCodeUniqueAsync(code, id, cancellationToken);
+        await EnsureGroupExistsAsync(dto.KpiGroupId, cancellationToken);
+
+        kpi.KpiGroupId = dto.KpiGroupId;
+        kpi.Code = code;
+        kpi.Name = dto.Name.Trim();
+        kpi.Description = NormalizeOptional(dto.Description);
+        kpi.Formula = NormalizeOptional(dto.Formula);
+        kpi.Unit = dto.Unit.Trim();
+        kpi.AggregationType = aggregationType;
+        kpi.Direction = direction;
+        kpi.MaxAchievementPercent = dto.MaxAchievementPercent;
+        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await SaveAsync(code, cancellationToken);
+        return await GetRequiredKpiAsync(id, cancellationToken);
+    }
+
+    public async Task ChangeStatusAsync(
+        Guid accountId,
+        Guid id,
+        KpiStatusDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var target = EnumApiFormat.ParseRequiredEnum<KpiStatus>(dto.Status, "status");
+
+        var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new NotFoundException("KPI Definition", id);
+
+        if (kpi.Status == target)
+        {
+            return;
+        }
+
+        if (!AllowedTransitions[kpi.Status].Contains(target))
+        {
+            throw new ConflictException(
+                $"Không thể chuyển KPI từ {kpi.Status.ToEnumString()} sang {target.ToEnumString()}.");
+        }
+
+        if (target == KpiStatus.PendingApproval)
+        {
+            kpi.SubmittedBy = await ResolveEmployeeIdAsync(accountId, cancellationToken);
+            kpi.RejectReason = null;
+        }
+
+        kpi.Status = target;
+        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ApproveKpiAsync(Guid accountId, Guid id, CancellationToken cancellationToken = default)
+    {
+        var approverId = await ResolveEmployeeIdAsync(accountId, cancellationToken);
+        var kpi = await GetPendingKpiAsync(id, cancellationToken);
+        EnsureApproverIsNotMaker(kpi, approverId);
+
+        kpi.Status = KpiStatus.Active;
+        kpi.RejectReason = null;
+        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RejectKpiAsync(
+        Guid accountId,
+        Guid id,
+        RejectKpiDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var maxReason = db.MaxLength<KpiDefinition>(nameof(KpiDefinition.RejectReason));
+        var reason = dto.Reason?.Trim();
+        if (string.IsNullOrEmpty(reason) || reason.Length > maxReason)
+        {
+            throw new ValidationException($"Lý do từ chối là bắt buộc và tối đa {maxReason} ký tự.");
+        }
+
+        var approverId = await ResolveEmployeeIdAsync(accountId, cancellationToken);
+        var kpi = await GetPendingKpiAsync(id, cancellationToken);
+        EnsureApproverIsNotMaker(kpi, approverId);
+
+        kpi.Status = KpiStatus.Rejected;
+        kpi.RejectReason = reason;
+        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<KpiDefinitionDto> CreateDraftAsync(
+        KpiDefinitionSaveDto dto,
+        Guid? requestedBy,
+        string? requestNote,
+        CancellationToken cancellationToken)
     {
         var (aggregationType, direction) = Validate(dto);
         var code = dto.Code.Trim();
@@ -122,55 +258,49 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             Direction = direction,
             MaxAchievementPercent = dto.MaxAchievementPercent,
             Status = KpiStatus.Draft,
+            RequestedBy = requestedBy,
+            RequestNote = requestNote,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         db.KpiDefinitions.Add(kpi);
-        await db.SaveChangesAsync(cancellationToken);
+        await SaveAsync(code, cancellationToken);
         return await GetRequiredKpiAsync(kpi.Id, cancellationToken);
     }
 
-    public async Task<KpiDefinitionDto> UpdateKpiAsync(
-        Guid id,
-        KpiDefinitionSaveDto dto,
-        CancellationToken cancellationToken = default)
+    private async Task<KpiDefinition> GetPendingKpiAsync(Guid id, CancellationToken cancellationToken)
     {
-        var (aggregationType, direction) = Validate(dto);
         var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new NotFoundException("KPI Definition", id);
 
-        var code = dto.Code.Trim();
-        await EnsureCodeUniqueAsync(code, id, cancellationToken);
-        await EnsureGroupExistsAsync(dto.KpiGroupId, cancellationToken);
+        if (kpi.Status != KpiStatus.PendingApproval)
+        {
+            throw new ConflictException(
+                $"Chỉ KPI đang chờ duyệt mới có thể duyệt hoặc từ chối (hiện tại {kpi.Status.ToEnumString()}).");
+        }
 
-        kpi.KpiGroupId = dto.KpiGroupId;
-        kpi.Code = code;
-        kpi.Name = dto.Name.Trim();
-        kpi.Description = NormalizeOptional(dto.Description);
-        kpi.Formula = NormalizeOptional(dto.Formula);
-        kpi.Unit = dto.Unit.Trim();
-        kpi.AggregationType = aggregationType;
-        kpi.Direction = direction;
-        kpi.MaxAchievementPercent = dto.MaxAchievementPercent;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await db.SaveChangesAsync(cancellationToken);
-        return await GetRequiredKpiAsync(id, cancellationToken);
+        return kpi;
     }
 
-    public async Task ChangeStatusAsync(
-        Guid id,
-        KpiStatusDto dto,
-        CancellationToken cancellationToken = default)
+    /// <summary>The approver must be neither the one who sent the KPI for approval nor the one who requested it.</summary>
+    private static void EnsureApproverIsNotMaker(KpiDefinition kpi, Guid approverId)
     {
-        var status = EnumApiFormat.ParseRequiredEnum<KpiStatus>(dto.Status, "status");
+        if (kpi.SubmittedBy == approverId || kpi.RequestedBy == approverId)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.MakerCannotBeChecker,
+                statusCode: StatusCodes.Status422UnprocessableEntity);
+        }
+    }
 
-        var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
-            ?? throw new NotFoundException("KPI Definition", id);
+    private async Task<Guid> ResolveEmployeeIdAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var employeeId = await db.Accounts.AsNoTracking()
+            .Where(a => a.Id == accountId && !a.IsLocked && a.Employee.Status == EmployeeStatus.Active)
+            .Select(a => (Guid?)a.EmployeeId)
+            .SingleOrDefaultAsync(cancellationToken);
 
-        kpi.Status = status;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        return employeeId ?? throw new ForbiddenException();
     }
 
     private async Task EnsureCodeUniqueAsync(string code, Guid? excludeId, CancellationToken cancellationToken)
@@ -179,6 +309,18 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             kpi => kpi.Code == code && (!excludeId.HasValue || kpi.Id != excludeId.Value),
             cancellationToken);
         if (exists)
+        {
+            throw new ConflictException($"Mã KPI '{code}' đã tồn tại.");
+        }
+    }
+
+    private async Task SaveAsync(string code, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
         {
             throw new ConflictException($"Mã KPI '{code}' đã tồn tại.");
         }

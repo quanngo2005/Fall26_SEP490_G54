@@ -30,7 +30,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_history_action", new[] { "CALCULATED", "STATUS_CHANGED", "APPROVED", "DISPUTED", "DISPUTE_WITHDRAWN", "APPEAL_RESOLVED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_status", new[] { "DRAFT", "CALCULATED", "IN_REVIEW", "APPROVED", "DISPUTED", "FINAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_status", new[] { "OPEN", "IN_REVIEW", "LOCKED", "CLOSED" });
@@ -489,6 +489,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("parent_objective_id");
 
+                    b.Property<decimal?>("PriorityWeight")
+                        .HasPrecision(8, 4)
+                        .HasColumnType("numeric(8,4)")
+                        .HasColumnName("priority_weight");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -516,6 +521,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_business_objective_dates", "end_date >= start_date");
 
                             t.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
+
+                            t.HasCheckConstraint("ck_business_objective_priority_weight", "priority_weight IS NULL OR priority_weight >= 0");
                         });
                 });
 
@@ -1130,9 +1137,27 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reject_reason");
+
+                    b.Property<string>("RequestNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("request_note");
+
+                    b.Property<Guid?>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
                     b.Property<int>("Status")
                         .HasColumnType("kpi_status")
                         .HasColumnName("status");
+
+                    b.Property<Guid?>("SubmittedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -1150,6 +1175,10 @@ namespace G54.DAL.Migrations
                         .HasName("kpi_definition_pkey");
 
                     b.HasIndex("KpiGroupId");
+
+                    b.HasIndex(new[] { "RequestedBy" }, "ix_kpi_definition_requested_by");
+
+                    b.HasIndex(new[] { "SubmittedBy" }, "ix_kpi_definition_submitted_by");
 
                     b.HasIndex(new[] { "Code" }, "uq_kpi_definition_code")
                         .IsUnique();
@@ -2932,6 +2961,18 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_kpi_definition_group");
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedBy")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_kpi_definition_requested_by");
+
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedBy")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_kpi_definition_submitted_by");
 
                     b.Navigation("KpiGroup");
                 });

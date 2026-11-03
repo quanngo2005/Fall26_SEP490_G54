@@ -444,6 +444,23 @@ public sealed class ScopedReadAccessTests
     }
 
     [Theory]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.GetObjectives), "objective", "read", "Dept")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.GetObjective), "objective", "read", "Dept")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.CreateObjective), "objective", "manage", "All")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.UpdateObjective), "objective", "manage", "All")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.DeleteObjective), "objective", "manage", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.RequestKpi), "kpi", "request", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.ApproveKpi), "kpi", "approve", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.RejectKpi), "kpi", "approve", "All")]
+    public void ObjectiveAndKpiApprovalEndpoints_RequireTheirOwnPermission(
+        Type controller, string method, string resource, string action, string scope)
+    {
+        var attribute = PermissionOf(controller, method);
+
+        Assert.Equal((resource, action, scope), (attribute.Resource, attribute.Action, attribute.Scope));
+    }
+
+    [Theory]
     [InlineData(nameof(EmployeeController.GetEmployees))]
     [InlineData(nameof(EmployeeController.GetEmployeeByCode))]
     [InlineData(nameof(EmployeeController.GetEmployeeById))]

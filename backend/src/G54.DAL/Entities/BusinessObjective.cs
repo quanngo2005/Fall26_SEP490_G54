@@ -19,6 +19,9 @@ public partial class BusinessObjective
 
     public DateOnly EndDate { get; set; }
 
+    /// <summary>Relative priority of the objective for its period; null until set. Range and total across objectives: awaiting confirmation.</summary>
+    public decimal? PriorityWeight { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public BusinessObjectiveStatus Status { get; set; }

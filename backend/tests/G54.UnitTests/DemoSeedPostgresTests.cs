@@ -134,9 +134,15 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             .Select(grant => grant.Replace("=Department", "=Branch", StringComparison.Ordinal).Replace("=Dept", "=Branch", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToList();
-        // Approving evaluation profiles is the Branch Manager's own permission, not a copy of the manager's.
-        Assert.Equal(widened, branch.Where(grant => !grant.StartsWith("EVALUATION_PROFILE_APPROVE=", StringComparison.Ordinal)));
+        // Approving evaluation profiles, and owning objectives and KPI requests / approvals, are the Branch Manager's own
+        // permissions, not copies of the manager's. Reading objectives is the manager's own grant, widened like the others.
+        string[] ownGrants = ["EVALUATION_PROFILE_APPROVE=", "OBJECTIVE_MANAGE=", "KPI_REQUEST=", "KPI_APPROVE="];
+        Assert.Equal(widened, branch.Where(grant => !ownGrants.Any(own => grant.StartsWith(own, StringComparison.Ordinal))));
         Assert.Contains("EVALUATION_PROFILE_APPROVE=All", branch);
+        Assert.Contains("OBJECTIVE_MANAGE=All", branch);
+        Assert.Contains("KPI_REQUEST=All", branch);
+        Assert.Contains("KPI_APPROVE=All", branch);
+        Assert.Contains("OBJECTIVE_READ=Branch", branch);
         Assert.Contains("WORK_READ=Branch", branch);
         Assert.Contains("KPI_READ=All", branch); // wider scopes are kept
         Assert.Contains("HANDOVER_CREATE=Own", branch); // narrower scopes are kept
@@ -288,12 +294,13 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^1]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^2]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^3]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^4]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^5]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^6]);
+        Assert.Equal("20261103092707_AddObjectiveWeightAndKpiRequestApproval", migrations[^1]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^2]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^3]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^4]);
+        Assert.Equal("20261101144049_AddAuditLogs", migrations[^5]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^6]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^7]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

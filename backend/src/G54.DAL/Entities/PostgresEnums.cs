@@ -47,6 +47,8 @@ public enum KpiStatus
     [PgName("ACTIVE")] Active,
     [PgName("INACTIVE")] Inactive,
     [PgName("ARCHIVED")] Archived,
+    [PgName("PENDING_APPROVAL")] PendingApproval,
+    [PgName("REJECTED")] Rejected,
 }
 
 public enum KpiAggregationType
