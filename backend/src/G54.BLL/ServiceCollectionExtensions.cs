@@ -1,9 +1,6 @@
 using G54.BLL.Common;
-using G54.BLL.Common.Import.Pipeline;
 using G54.BLL.Common.Import.Reading;
-using G54.BLL.Common.Import.Session;
 using G54.BLL.Services;
-using G54.BLL.Services.Import.EmployeeOrganization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -54,10 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<HandoverEscalationBackgroundService>();
 
         services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
-        services.AddScoped<IImportSessionStore, DistributedCacheImportSessionStore>();
-        services.AddScoped<EmployeeOrgCommitter>();
-        services.AddScoped<IImportDefinition, EmployeeOrgImportDefinition>();
-        services.AddScoped<IDataImportService, DataImportService>();
+        services.AddScoped<IEmployeeImportService, EmployeeImportService>();
         return services;
     }
 }

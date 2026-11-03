@@ -10,7 +10,4 @@ public sealed class SystemParametersOptions
 
     /// <summary>Max data rows accepted by a data-import upload (docs/api/DATA_IMPORT_CONTRACT.md).</summary>
     public int ImportMaxRows { get; set; } = 5000;
-
-    /// <summary>TTL, in minutes, of a data-import preview session kept in Redis.</summary>
-    public int ImportPreviewTtlMinutes { get; set; } = 30;
 }

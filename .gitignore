@@ -86,3 +86,5 @@ uploads/
 
 # Local MCP config (machine-specific paths)
 /.mcp.json
+/docs/excels
+/docs/design
