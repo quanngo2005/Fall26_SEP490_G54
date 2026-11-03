@@ -56,11 +56,8 @@ public sealed class VerificationService(
 
         // Same in-effect mapping VerifiedResultRecorder will use on approval, so the dossier shows the KPI the
         // approval would actually record.
-        var today = time.GetBusinessToday();
-        var primaryKpi = submission.Work.WorkType?.WorkTypeKpis
-            .Where(k => k.EffectiveFrom <= today && (k.EffectiveTo == null || k.EffectiveTo >= today))
-            .OrderByDescending(k => k.EffectiveFrom)
-            .FirstOrDefault()?.KpiDefinition;
+        var primaryKpi = VerifiedResultRecorder
+            .SelectInEffectMapping(submission.Work.WorkType, time.GetBusinessToday())?.KpiDefinition;
         KpiItemDto? kpiItem = null;
         if (primaryKpi is not null)
         {

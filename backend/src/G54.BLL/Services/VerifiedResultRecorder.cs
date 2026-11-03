@@ -84,14 +84,17 @@ internal static class VerifiedResultRecorder
 
     /// <summary>
     /// The WorkTypeKpi mapping in effect on <paramref name="date"/>
-    /// (<c>EffectiveFrom &lt;= date &amp;&amp; (EffectiveTo == null || EffectiveTo &gt;= date)</c>), latest
-    /// <c>EffectiveFrom</c> first. <c>null</c> when the work type has no mapping in effect (e.g. expired or not
-    /// started), in which case the approval records no KPI contribution.
+    /// (<c>EffectiveFrom &lt;= date &amp;&amp; (EffectiveTo == null || EffectiveTo &gt;= date)</c>): a required KPI first,
+    /// then latest <c>EffectiveFrom</c>, then <c>Id</c> so the pick never depends on the order the database returns
+    /// the mappings in. <c>null</c> when the work type has no mapping in effect (e.g. expired or not started), in
+    /// which case the approval records no KPI contribution.
     /// </summary>
-    private static WorkTypeKpi? SelectInEffectMapping(WorkType? workType, DateOnly date) =>
+    internal static WorkTypeKpi? SelectInEffectMapping(WorkType? workType, DateOnly date) =>
         workType?.WorkTypeKpis
             .Where(k => k.EffectiveFrom <= date && (k.EffectiveTo == null || k.EffectiveTo >= date))
-            .OrderByDescending(k => k.EffectiveFrom)
+            .OrderByDescending(k => k.IsRequired)
+            .ThenByDescending(k => k.EffectiveFrom)
+            .ThenBy(k => k.Id)
             .FirstOrDefault();
 
     private static (Guid EmployeeId, decimal RawValue)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)

@@ -266,6 +266,33 @@ public sealed class VerifiedResultLedgerTests
     }
 
     [Fact]
+    public async Task Approve_CreditsTheRequiredKpiEvenWhenAnOptionalOneIsMoreRecent()
+    {
+        using var rig = await Rig.CreateAsync();
+        var optional = rig.AddWorkTypeKpi(isRequired: false, effectiveFromDaysAgo: 1);
+        var required = rig.AddWorkTypeKpi(effectiveFromDaysAgo: 365);
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5));
+        rig.AddTarget(optional, period);
+        var requiredTarget = rig.AddTarget(required, period);
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(1m);
+
+        Assert.Equal(requiredTarget.Id, (await rig.Db.ActualProgresses.SingleAsync()).TargetAssignmentId);
+    }
+
+    [Fact]
+    public void SelectInEffectMapping_BreaksATieByIdWhateverTheOrderOfTheMappings()
+    {
+        var from = BusinessToday.AddDays(-1);
+        var low = new WorkTypeKpi { Id = new Guid("00000000-0000-0000-0000-000000000001"), IsRequired = true, EffectiveFrom = from };
+        var high = new WorkTypeKpi { Id = new Guid("00000000-0000-0000-0000-000000000002"), IsRequired = true, EffectiveFrom = from };
+
+        Assert.Same(low, VerifiedResultRecorder.SelectInEffectMapping(new WorkType { WorkTypeKpis = [high, low] }, BusinessToday));
+        Assert.Same(low, VerifiedResultRecorder.SelectInEffectMapping(new WorkType { WorkTypeKpis = [low, high] }, BusinessToday));
+    }
+
+    [Fact]
     public async Task Approve_RecordsNoContributionWhenNoMappingIsInEffectToday()
     {
         using var rig = await Rig.CreateAsync();
@@ -534,10 +561,10 @@ public sealed class VerifiedResultLedgerTests
                 CheckerAccount.Id,
                 new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = value });
 
-        public KpiDefinition AddWorkTypeKpi(decimal multiplier = 1m)
+        public KpiDefinition AddWorkTypeKpi(decimal multiplier = 1m, bool isRequired = true, int effectiveFromDaysAgo = 365)
         {
             var kpi = NewKpiDefinition();
-            AddMapping(kpi, multiplier, BusinessToday.AddDays(-365), null);
+            AddMapping(kpi, multiplier, BusinessToday.AddDays(-effectiveFromDaysAgo), null, isRequired);
             return kpi;
         }
 
@@ -550,14 +577,14 @@ public sealed class VerifiedResultLedgerTests
         }
 
         /// <summary>Adds a second mapping row of <paramref name="kpi"/> on the same work type (BR-48: a new EffectiveFrom row for a rate change).</summary>
-        public void AddMapping(KpiDefinition kpi, decimal multiplier, DateOnly effectiveFrom, DateOnly? effectiveTo)
+        public void AddMapping(KpiDefinition kpi, decimal multiplier, DateOnly effectiveFrom, DateOnly? effectiveTo, bool isRequired = true)
         {
             Db.WorkTypeKpis.Add(new WorkTypeKpi
             {
                 Id = Guid.NewGuid(),
                 WorkTypeId = WorkType!.Id,
                 KpiDefinitionId = kpi.Id,
-                IsRequired = true,
+                IsRequired = isRequired,
                 Multiplier = multiplier,
                 EffectiveFrom = effectiveFrom,
                 EffectiveTo = effectiveTo,
