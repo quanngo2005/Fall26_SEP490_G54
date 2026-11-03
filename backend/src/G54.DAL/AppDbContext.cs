@@ -822,6 +822,14 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
                 .HasColumnName("name");
+            entity.Property(e => e.RejectReason)
+                .HasMaxLength(500)
+                .HasColumnName("reject_reason");
+            entity.Property(e => e.RequestNote)
+                .HasMaxLength(500)
+                .HasColumnName("request_note");
+            entity.Property(e => e.RequestedBy).HasColumnName("requested_by");
+            entity.Property(e => e.SubmittedBy).HasColumnName("submitted_by");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
                 .HasColumnName("unit");
@@ -833,6 +841,16 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.KpiGroupId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_kpi_definition_group");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.RequestedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_kpi_definition_requested_by");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.SubmittedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_kpi_definition_submitted_by");
 
             entity.Property(e => e.AggregationType)
                 .HasColumnType("kpi_aggregation_type")

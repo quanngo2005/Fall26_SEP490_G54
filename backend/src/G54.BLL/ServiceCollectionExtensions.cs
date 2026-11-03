@@ -17,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkService, WorkService>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
         services.AddScoped<IKpiMappingService, KpiMappingService>();
+        services.AddScoped<IBusinessObjectiveService, BusinessObjectiveService>();
         services.AddScoped<IWorkTypeService, WorkTypeService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
