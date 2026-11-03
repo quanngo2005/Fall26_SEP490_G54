@@ -4,7 +4,12 @@ import { map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
-import { JobPositionDetail, JobPositionFilter, JobPositionSummary } from './job-position.models';
+import {
+  JobPositionDetail,
+  JobPositionFilter,
+  JobPositionSummary,
+  JobPositionWorkType,
+} from './job-position.models';
 
 @Injectable({ providedIn: 'root' })
 export class JobPositionService {
@@ -20,6 +25,12 @@ export class JobPositionService {
   detail(id: string) {
     return this.http
       .get<ApiResponse<JobPositionDetail>>(`${this.url}/${encodeURIComponent(id)}`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  workTypes(id: string) {
+    return this.http
+      .get<ApiResponse<JobPositionWorkType[]>>(`${this.url}/${encodeURIComponent(id)}/work-types`)
       .pipe(map((response) => this.unwrap(response)));
   }
 

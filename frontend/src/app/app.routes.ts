@@ -134,6 +134,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'work-types',
+    canActivate: [authGuard, adminGuard],
+    title: 'Work Types',
+    loadComponent: () =>
+      import('./features/work-types/work-type-list.component').then((m) => m.WorkTypeListComponent),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>
