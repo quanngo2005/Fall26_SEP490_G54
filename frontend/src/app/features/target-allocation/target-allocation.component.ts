@@ -449,7 +449,9 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
           this.notice.set({ kind: 'success', text: this.localization.targetAllocation.saved });
         },
         error: () => {
+          // The department level may already be saved when the team level fails, so show what is stored.
           this.saving.set(false);
+          this.selectPeriod(this.periodId());
           this.notice.set({ kind: 'error', text: this.localization.targetAllocation.saveFailed });
         },
       });
