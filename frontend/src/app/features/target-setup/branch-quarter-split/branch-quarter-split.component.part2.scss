@@ -1,0 +1,125 @@
+/* Toolbar, status badge and feedback banners of the quarter split screen. */
+.quarter-split {
+  display: block;
+}
+
+.quarter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.quarter-heading {
+  min-width: 0;
+}
+.quarter-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.quarter-title-line h2 {
+  margin: 0;
+  color: #0f172a;
+  font:
+    600 20px Manrope,
+    sans-serif;
+}
+.quarter-status {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font:
+    600 12px Inter,
+    sans-serif;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.quarter-meta {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 12px;
+}
+.quarter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.quarter-button {
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #8494a9;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font:
+    500 13px Inter,
+    sans-serif;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+.quarter-button:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.quarter-button:focus-visible,
+.allocate-button:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+.quarter-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.quarter-button.is-primary {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+.quarter-button.is-primary:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.quarter-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 500;
+}
+.quarter-toast .toast-icon {
+  width: 18px;
+  height: 18px;
+  color: #10b981;
+}
+.quarter-save-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+  .quarter-toolbar {
+    flex-direction: column;
+  }
+}

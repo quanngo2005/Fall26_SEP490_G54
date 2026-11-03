@@ -1,0 +1,195 @@
+/* Quarter split grid (SCR-STRAT-04 step 2, Figma 2928:2736). */
+.quarter-card {
+  border: 0.8px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.quarter-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+}
+.quarter-table th {
+  height: 40px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #cbd5e1;
+  background: #eef2f6;
+  color: #334155;
+  font:
+    600 12px Inter,
+    sans-serif;
+  letter-spacing: 0.48px;
+  padding: 0 12px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.quarter-table th.num {
+  text-align: right;
+}
+.quarter-table .kpi-col {
+  min-width: 220px;
+}
+.quarter-table .unit-col {
+  min-width: 80px;
+}
+.quarter-table .action-col {
+  width: 120px;
+}
+.quarter-table td {
+  height: 48px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #eef2f6;
+  color: #0f172a;
+  font-size: 13px;
+  padding: 0 12px;
+  vertical-align: middle;
+}
+.quarter-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.quarter-table td.num {
+  text-align: right;
+}
+.kpi-cell {
+  font-weight: 500;
+}
+.unit-cell {
+  color: #475569;
+  white-space: nowrap;
+}
+.year-cell {
+  white-space: nowrap;
+}
+.year-lock {
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  color: #94a3b8;
+  vertical-align: middle;
+}
+.quarter-cell {
+  width: 120px;
+}
+.quarter-static {
+  color: #475569;
+}
+.quarter-input {
+  width: 100%;
+  min-width: 96px;
+  height: 30px;
+  box-sizing: border-box;
+  border: 1px solid #8494a9;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  font:
+    400 13px Inter,
+    sans-serif;
+  padding: 0 8px;
+  text-align: right;
+}
+.quarter-input:hover:not(:disabled) {
+  border-color: #64748b;
+}
+.quarter-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+  outline: none;
+}
+.quarter-input.is-locked {
+  border: 1px dashed #8494a9;
+  background: #eef2f6;
+  color: #475569;
+  cursor: not-allowed;
+}
+.quarter-input.is-edited-error {
+  border: 1.6px solid #b91c1c;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.total-cell {
+  white-space: nowrap;
+  font-weight: 600;
+}
+.total-cell.is-matched {
+  color: #047857;
+}
+.total-cell.is-mismatch {
+  color: #b91c1c;
+}
+.ratio-cell {
+  color: #94a3b8;
+  font-size: 13px;
+}
+.row-action {
+  text-align: right;
+}
+.allocate-button {
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  font:
+    600 13px Inter,
+    sans-serif;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+.allocate-button:hover:not(:disabled) {
+  background: #dbeafe;
+}
+.allocate-button:disabled {
+  border-color: #cbd5e1;
+  background: #eef2f6;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+.empty-cell {
+  color: #64748b;
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.quarter-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.banner-line {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.banner-footer {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+.quarter-help {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

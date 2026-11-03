@@ -53,4 +53,119 @@ describe('TargetAssignmentService', () => {
 
     expect(failed).toBeTrue();
   });
+
+  it('uploads the file to the preview endpoint with branchId and year', () => {
+    const file = new File(['x'], 'kpi.xlsx');
+    let result: unknown;
+    service.importPreview('b1', 2026, file).subscribe((preview) => (result = preview));
+
+    const request = http.expectOne((r) => r.url === `${url}/import/preview` && r.method === 'POST');
+    expect(request.request.params.get('branchId')).toBe('b1');
+    expect(request.request.params.get('year')).toBe('2026');
+    expect(request.request.body instanceof FormData).toBeTrue();
+    request.flush({ success: true, status: 200, data: { fileName: 'kpi.xlsx' } });
+
+    expect(result).toEqual({ fileName: 'kpi.xlsx' } as never);
+  });
+
+  it('re-uploads the file to the commit endpoint with branchId and year', () => {
+    const file = new File(['x'], 'kpi.xlsx');
+    let result: unknown;
+    service.importCommit('b1', 2026, file).subscribe((commitResult) => (result = commitResult));
+
+    const request = http.expectOne((r) => r.url === `${url}/import/commit` && r.method === 'POST');
+    expect(request.request.params.get('branchId')).toBe('b1');
+    expect(request.request.params.get('year')).toBe('2026');
+    expect(request.request.body instanceof FormData).toBeTrue();
+    request.flush({ success: true, status: 201, data: { committed: 5, skipped: 1 } });
+
+    expect(result).toEqual({ committed: 5, skipped: 1 } as never);
+  });
+
+  it('downloads the template for a given year', () => {
+    service.downloadTemplate(2026).subscribe();
+
+    const request = http.expectOne(
+      (r) => r.url === `${url}/import/template` && r.params.get('year') === '2026',
+    );
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob());
+  });
+
+  it('reads the import setup state for a branch and year', () => {
+    let result: unknown;
+    service.getSetup('b1', 2026).subscribe((setup) => (result = setup));
+
+    const request = http.expectOne((r) => r.url === `${url}/setup`);
+    expect(request.request.params.get('branchId')).toBe('b1');
+    expect(request.request.params.get('year')).toBe('2026');
+    request.flush({ success: true, status: 200, data: { hasBranchYear: false, step: 'IMPORT' } });
+
+    expect(result).toEqual({ hasBranchYear: false, step: 'IMPORT' } as never);
+  });
+
+  it('reads the quarter split of a branch year', () => {
+    let result: unknown;
+    service.getQuarterSplit('by1').subscribe((split) => (result = split));
+
+    const request = http.expectOne(
+      (r) => r.url === `${url}/by1/quarter-split` && r.method === 'GET',
+    );
+    request.flush({ success: true, status: 200, data: { branchYearId: 'by1', year: 2026 } });
+
+    expect(result).toEqual({ branchYearId: 'by1', year: 2026 } as never);
+  });
+
+  it('saves the quarter split of a branch year', () => {
+    const body = { rows: [{ kpiId: 'k1', q1: 1, q2: 2, q3: 3, q4: 4 }] };
+    let result: unknown;
+    service.saveQuarterSplit('by1', body).subscribe((split) => (result = split));
+
+    const request = http.expectOne(
+      (r) => r.url === `${url}/by1/quarter-split` && r.method === 'PUT',
+    );
+    expect(request.request.body).toEqual(body);
+    request.flush({ success: true, status: 200, data: { branchYearId: 'by1' } });
+
+    expect(result).toEqual({ branchYearId: 'by1' } as never);
+  });
+
+  it('reads the allocation of one KPI', () => {
+    let result: unknown;
+    service.getKpiAllocation('by1', 'k1').subscribe((allocation) => (result = allocation));
+
+    const request = http.expectOne(
+      (r) => r.url === `${url}/by1/kpis/k1/allocation` && r.method === 'GET',
+    );
+    request.flush({ success: true, status: 200, data: { kpiId: 'k1' } });
+
+    expect(result).toEqual({ kpiId: 'k1' } as never);
+  });
+
+  it('saves the allocation of one KPI', () => {
+    const body = {
+      departments: [{ departmentId: 'd1', year: 10, q1: 1, q2: 2, q3: 3, q4: 4 }],
+    };
+    let result: unknown;
+    service.saveKpiAllocation('by1', 'k1', body).subscribe((allocation) => (result = allocation));
+
+    const request = http.expectOne(
+      (r) => r.url === `${url}/by1/kpis/k1/allocation` && r.method === 'PUT',
+    );
+    expect(request.request.body).toEqual(body);
+    request.flush({ success: true, status: 200, data: { kpiId: 'k1' } });
+
+    expect(result).toEqual({ kpiId: 'k1' } as never);
+  });
+
+  it('publishes a branch year without a body', () => {
+    let result: unknown;
+    service.publish('by1').subscribe((published) => (result = published));
+
+    const request = http.expectOne((r) => r.url === `${url}/by1/publish` && r.method === 'POST');
+    expect(request.request.body).toBeNull();
+    request.flush({ success: true, status: 200, data: { branchYearCount: 1 } });
+
+    expect(result).toEqual({ branchYearCount: 1 } as never);
+  });
 });

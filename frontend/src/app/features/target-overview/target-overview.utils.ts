@@ -133,6 +133,21 @@ function cellOf(values: KpiValues | undefined, kpiId: string): TargetCell {
   return values?.get(kpiId) ?? 'NONE';
 }
 
+/** A department and every team beneath it. */
+function subtreeIds(departments: readonly DepartmentSummary[], rootId: string): Set<string> {
+  const ids = new Set([rootId]);
+  let size = 0;
+  while (ids.size !== size) {
+    size = ids.size;
+    for (const department of departments) {
+      if (department.parentDepartmentId && ids.has(department.parentDepartmentId)) {
+        ids.add(department.id);
+      }
+    }
+  }
+  return ids;
+}
+
 export function buildBranchTable(input: BranchTableInput): BranchTable {
   const branch = input.departments.find((d) => d.levelType === 'BRANCH');
   const deptValues = valuesByOwner(input.assignments, 'departmentId');
@@ -144,8 +159,9 @@ export function buildBranchTable(input: BranchTableInput): BranchTable {
     .filter((d) => !input.departmentId || d.id === input.departmentId)
     .map((department): BranchDepartmentRow => {
       const values = deptValues.get(department.id);
+      const scope = subtreeIds(input.departments, department.id);
       const everyone = input.employees.filter(
-        (e) => e.departmentId === department.id && e.status === 'ACTIVE',
+        (e) => scope.has(e.departmentId) && e.status === 'ACTIVE',
       );
       const deptMatches = !query || includesText(department.name, query);
       const members = everyone

@@ -1,0 +1,235 @@
+@let text = localization.importBranchTargetModal;
+<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+  <div
+    class="modal-dialog import-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="import-target-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <div>
+        <h2 id="import-target-title">{{text.title}}</h2>
+        <ol class="import-steps">
+          <li
+            [class.is-active]="step() === 'CHOOSE_FILE'"
+            [class.is-done]="step() !== 'CHOOSE_FILE'"
+          >
+            {{text.stepChooseFile}}
+          </li>
+          <li [class.is-active]="step() === 'PREVIEW'" [class.is-done]="step() === 'RESULT'">
+            {{text.stepPreview}}
+          </li>
+          <li [class.is-active]="step() === 'RESULT'">{{text.stepResult}}</li>
+        </ol>
+      </div>
+      <button type="button" class="modal-close" [attr.aria-label]="text.close" (click)="close()">
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (loadError()) {
+        <div class="notice is-error" role="alert">
+          <span>{{loadError()}}</span>
+        </div>
+      }
+
+      @switch (step()) {
+        @case ('CHOOSE_FILE') {
+          <div class="file-picker">
+            <div class="field">
+              <label for="import-year">{{text.yearLabel}}</label>
+              <input id="import-year" class="input" type="text" [value]="year" disabled />
+            </div>
+
+            <div class="field">
+              <label for="import-file">{{text.chooseFileAria}}</label>
+              <input
+                #fileInput
+                id="import-file"
+                class="visually-hidden"
+                type="file"
+                accept=".xlsx"
+                (change)="onFileChosen($event)"
+              />
+              <div class="file-drop">
+                @if (file(); as chosen) {
+                  <span class="file-name">{{chosen.name}}</span>
+                  <span class="file-meta">{{chosen.size / 1024 | appNumber: 0}} KB</span>
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    (click)="removeFile(fileInput)"
+                  >
+                    {{text.removeFile}}
+                  </button>
+                } @else {
+                  <span class="file-meta">{{text.noFileChosen}}</span>
+                  <button type="button" class="button button-secondary" (click)="fileInput.click()">
+                    {{text.browseButton}}
+                  </button>
+                }
+              </div>
+              <p class="field-hint">{{text.chooseFileHint}}</p>
+            </div>
+
+            @if (fileError()) {
+              <div class="notice is-error" role="alert">
+                <span>{{fileError()}}</span>
+              </div>
+            }
+
+            <button type="button" class="link-button" (click)="downloadTemplate()">
+              {{text.downloadTemplate}}
+            </button>
+          </div>
+        }
+
+        @case ('PREVIEW') {
+          @if (preview(); as data) {
+            @if (data.summary.update > 0) {
+              <div class="notice is-warning" role="status">
+                <span>{{text.replaceWarning}}</span>
+              </div>
+            }
+
+            <div class="import-summary">
+              <span class="badge">{{text.summaryTotal}}: {{data.summary.total}}</span>
+              <span class="badge is-success"
+                >{{text.summaryValid}}: {{data.summary.valid}}</span
+              >
+              <span class="badge" [class.is-error]="data.summary.invalid > 0">
+                {{text.summaryInvalid}}: {{data.summary.invalid}}
+              </span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="import-preview-table">
+                <thead>
+                  <tr>
+                    <th class="num">{{text.colRow}}</th>
+                    <th>{{text.colCode}}</th>
+                    <th>{{text.colName}}</th>
+                    <th>{{text.colUnit}}</th>
+                    <th class="num">{{text.colPreviousYear}}</th>
+                    <th class="num">{{text.colYear}}</th>
+                    <th class="num">{{text.colDeltaPercent}}</th>
+                    <th>{{text.colAction}}</th>
+                    <th>{{text.colCheck}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of data.rows; track row.rowNumber) {
+                    <tr [class.row-invalid]="row.action === 'INVALID'">
+                      <td class="num">{{row.rowNumber}}</td>
+                      <td class="mono">{{row.kpiCode}}</td>
+                      <td>{{row.kpiName}}</td>
+                      <td>{{row.unit}}</td>
+                      @for (value of [row.previousYearValue, row.value]; track $index) {
+                        <td class="num">
+                          @if (value === null) {
+                            —
+                          } @else if (row.unit === '%') {
+                            {{value * 100 | appNumber: 2}}%
+                          } @else {
+                            {{value | appNumber}}
+                          }
+                        </td>
+                      }
+                      <td class="num">
+                        @if (row.deltaPercent !== null) {
+                          {{row.deltaPercent * 100 | appNumber: 1}}%
+                        } @else {
+                          —
+                        }
+                      </td>
+                      <td>
+                        <span class="badge" [class]="actionClass(row.action)">
+                          {{actionLabel(row.action)}}
+                        </span>
+                      </td>
+                      <td>
+                        @for (error of row.errors; track error.code) {
+                          <p class="check-error">{{errorMessage(error.code)}}</p>
+                        }
+                        @for (warning of row.warnings; track warning.code) {
+                          <p class="check-warning">{{errorMessage(warning.code)}}</p>
+                        }
+                        @if (row.errors.length === 0 && row.warnings.length === 0) {
+                          <span class="check-ok" [attr.aria-label]="text.checkOk">✓</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (data.kpisNotInFile.length > 0) {
+              <details class="kpis-not-in-file">
+                <summary>{{text.kpisNotInFileTitle}} ({{data.kpisNotInFile.length}})</summary>
+                <ul>
+                  @for (kpi of data.kpisNotInFile; track kpi.kpiCode) {
+                    <li>{{kpi.kpiCode}} · {{kpi.kpiName}}</li>
+                  }
+                </ul>
+              </details>
+            }
+          }
+        }
+
+        @case ('RESULT') {
+          @if (result(); as data) {
+            <div class="notice" role="status">
+              <span>{{resultSummaryText(data)}}</span>
+            </div>
+            @if (data.needsReview) {
+              <div class="notice is-warning" role="status">
+                <span>{{text.needsReviewWarning}}</span>
+              </div>
+            }
+          }
+        }
+      }
+    </div>
+
+    <div class="modal-footer">
+      @switch (step()) {
+        @case ('CHOOSE_FILE') {
+          <button type="button" class="button button-secondary" (click)="close()">
+            {{text.cancel}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!file() || loading()"
+            (click)="submitPreview()"
+          >
+            {{loading() ? text.uploading : text.next}}
+          </button>
+        }
+        @case ('PREVIEW') {
+          <button type="button" class="button button-secondary" (click)="backToChooseFile()">
+            {{text.back}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!preview() || preview()!.summary.valid === 0 || loading()"
+            (click)="commit()"
+          >
+            {{loading() ? text.committing : commitButtonText(preview()?.summary.valid ?? 0)}}
+          </button>
+        }
+        @case ('RESULT') {
+          <button type="button" class="button button-primary" (click)="close()">
+            {{text.done}}
+          </button>
+        }
+      }
+    </div>
+  </div>
+</div>

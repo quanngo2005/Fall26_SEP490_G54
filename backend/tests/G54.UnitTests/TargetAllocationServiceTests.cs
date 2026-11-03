@@ -361,8 +361,6 @@ public sealed class TargetAllocationServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, outsider));
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid()));
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.ImportYearTargetsAsync(f.BranchId, 2026, Stream.Null, outsider));
     }
 
     private sealed class AllocationPermissions(bool admin) : IPermissionService

@@ -29,6 +29,7 @@ export type MenuKey =
   | 'reviewVerify'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
+  | 'targetAllocation'
   | 'branchWork'
   | 'branchPerformance'
   | 'departmentPerformance'
@@ -96,6 +97,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'reviewVerify',
     'teamPerformance',
     'targetsAndCampaigns',
+    'targetAllocation',
     'reportsComplaints',
     'notifications',
     'myProfile',
@@ -110,6 +112,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchPerformance',
     'departmentPerformance',
     'targetsAndCampaigns',
+    'targetAllocation',
     'reportsComplaints',
     'notifications',
     'myProfile',
@@ -179,6 +182,12 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/campaigns',
     permission: 'TARGET_MANAGE',
   },
+  {
+    id: 'targetAllocation',
+    icon: 'targetAllocation',
+    route: '/target-overview',
+    permission: 'TARGET_MANAGE',
+  },
   { id: 'branchWork', icon: 'branchWork' },
   {
     id: 'branchPerformance',
@@ -240,6 +249,7 @@ export class NavigationService {
     '/review-verify',
     '/kpi-definitions',
     '/campaigns',
+    '/target-overview',
     '/sidebar-settings',
     '/roles',
     '/user-accounts',

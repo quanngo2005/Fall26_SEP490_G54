@@ -1,0 +1,152 @@
+/* Stepper pills (SCR-STRAT-04). The palette matches the DESIGN.md success/info/neutral tokens. */
+.wizard-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.wizard-step {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 15px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font:
+    400 13px Inter,
+    sans-serif;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+.wizard-step:disabled {
+  cursor: not-allowed;
+}
+.wizard-step:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+.wizard-step.is-done {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 500;
+}
+.wizard-step.is-current {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+.wizard-arrow {
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Step body: the quarter split (2), department allocation (3) or the publish panel (4). */
+.wizard-body {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 5%),
+    0 1px 2px -1px rgb(15 23 42 / 3%);
+  padding: 20px;
+}
+.wizard-body h2 {
+  margin: 0;
+}
+
+/* Step 4: publish summary and confirmation. */
+.publish-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+}
+.publish-summary,
+.publish-note {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+}
+.publish-note {
+  color: #475569;
+  font-size: 12px;
+}
+.publish-done {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 600;
+}
+.publish-blockers,
+.publish-error {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+}
+.publish-blockers-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.publish-blockers ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 23 42 / 45%);
+}
+.confirm-dialog {
+  width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 40px rgb(15 23 42 / 20%);
+  padding: 20px;
+}
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 18px;
+}
+.confirm-dialog p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

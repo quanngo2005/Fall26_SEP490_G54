@@ -46,6 +46,47 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, 
  ('5eed0000-0000-0000-0005-000000000007', '5eed0000-0000-0000-0003-000000000001', 'THE_TD',    'Thẻ tín dụng',               'Số thẻ tín dụng mở mới (quy đổi theo hạng thẻ)', 'SUM(thẻ mở mới x hệ số hạng thẻ)', 'thẻ', 'SUM', 'HIGHER_BETTER', 150)
 ON CONFLICT DO NOTHING;
 
+-- Year Target Import (docs/design/BRANCH_YEAR_KPI_IMPORT_DESIGN.md, D2/D3): the 28 KPI_* codes used by
+-- docs/excels/KPI_Chi_nhanh_2025_chuan_hoa.xlsx, grouped as in its "Bảng đối chiếu mã" sheet.
+-- Monetary KPIs are stored in VND (the file's "tỷ VND" column is converted x10^9 on import, G9).
+-- Tổng hợp COUNT -> SUM and LAST -> NO_AGGREGATION (D3; KpiAggregationType has no COUNT/LAST).
+INSERT INTO kpi_group (id, code, name, description) VALUES
+ ('5eed0000-0000-0000-0003-00000000000a', 'SALES',            'Kinh doanh & huy động',  'Tài chính, huy động, khách hàng, sản phẩm (nhóm A-D của file KPI năm)'),
+ ('5eed0000-0000-0000-0003-00000000000b', 'SERVICE_QUALITY',  'Chất lượng dịch vụ',     'Hài lòng khách hàng, thời gian phục vụ, khiếu nại (nhóm E)'),
+ ('5eed0000-0000-0000-0003-00000000000c', 'OPERATIONS',       'Vận hành & tuân thủ',    'Giao dịch, bàn giao, rủi ro, đào tạo (nhóm F)')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, unit, aggregation_type, direction) VALUES
+ ('5eed0000-0000-0000-0005-000000000101', '5eed0000-0000-0000-0003-00000000000a', 'KPI_NFI',           'Thu nhập thuần từ dịch vụ (NFI)',        'Tổng phí dịch vụ thu được trong kỳ (từ file giao dịch)', 'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000102', '5eed0000-0000-0000-0003-00000000000a', 'KPI_FEE_CARD',      'Thu phí dịch vụ thẻ',                    'Phí phát hành, thường niên, giao dịch thẻ',              'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000103', '5eed0000-0000-0000-0003-00000000000a', 'KPI_FEE_EBANK',     'Thu phí eBanking & chuyển tiền',         'Phí chuyển tiền, SMS, gói tài khoản số',                 'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000104', '5eed0000-0000-0000-0003-00000000000a', 'KPI_INSURANCE',     'Thu phí bảo hiểm (bancassurance)',       'Hoa hồng hợp đồng bảo hiểm đã xác minh',                 'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000105', '5eed0000-0000-0000-0003-00000000000a', 'KPI_DEP_NET',       'Huy động tăng ròng',                     'Số dư huy động cuối kỳ - đầu kỳ',                        'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000106', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CASA',          'CASA tăng ròng',                         'Số dư tiền gửi không kỳ hạn cuối kỳ - đầu kỳ',           'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000107', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CASA_RATIO',    'Tỷ lệ CASA / tổng huy động',             'Số dư CASA / tổng huy động, cuối kỳ',                    '%',      'AVG',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000108', '5eed0000-0000-0000-0003-00000000000a', 'KPI_TERM_DEP',      'Tiền gửi có kỳ hạn mở mới',              'Tổng giá trị sổ tiết kiệm/HĐTG mở mới',                  'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000109', '5eed0000-0000-0000-0003-00000000000a', 'KPI_ACC_OPEN',      'Số tài khoản thanh toán mở mới',         'Tài khoản mở mới có giao dịch phát sinh trong 30 ngày',  'TK',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010a', '5eed0000-0000-0000-0003-00000000000a', 'KPI_NEW_CUST',      'Khách hàng mới',                         'KH cá nhân mới có mã CIF mở trong kỳ',                   'KH',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010b', '5eed0000-0000-0000-0003-00000000000a', 'KPI_REFERRAL',      'Khách hàng mới qua giới thiệu/bàn giao',  'Bàn giao Teller -> Sales thành công (BR-07)',           'KH',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010c', '5eed0000-0000-0000-0003-00000000000a', 'KPI_ACTIVE_CUST',   'Khách hàng hoạt động (active)',          'KH có >= 1 giao dịch trong 90 ngày, cuối kỳ',           'KH',     'NO_AGGREGATION', 'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010d', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CROSS_SELL',    'Số sản phẩm bình quân / KH',             'Tổng sản phẩm đang dùng / số KH active',                 'SP/KH',  'AVG',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010e', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CHURN',         'Tỷ lệ KH rời bỏ',                        'KH đóng toàn bộ tài khoản / KH đầu kỳ',                  '%',      'AVG',            'LOWER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000010f', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CARD_DEBIT',    'Thẻ ghi nợ phát hành',                   'Thẻ debit đã kích hoạt',                                 'thẻ',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000110', '5eed0000-0000-0000-0003-00000000000a', 'KPI_CARD_CREDIT',   'Thẻ tín dụng phát hành',                 'Thẻ credit đã kích hoạt (hệ số BR-33)',                  'thẻ',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000111', '5eed0000-0000-0000-0003-00000000000a', 'KPI_EBANK_ACTIVE',  'Kích hoạt eBanking',                     'KH đăng nhập eBanking lần đầu',                          'KH',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000112', '5eed0000-0000-0000-0003-00000000000a', 'KPI_INSURANCE_CNT', 'Hợp đồng bảo hiểm bán mới',              'HĐ bảo hiểm đã phát hành',                               'HĐ',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000113', '5eed0000-0000-0000-0003-00000000000a', 'KPI_AUTO_SAVING',   'Đăng ký dịch vụ sinh lời tự động',       'KH đăng ký tính năng sinh lời tự động',                  'KH',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000114', '5eed0000-0000-0000-0003-00000000000b', 'KPI_CSAT',          'Điểm hài lòng bình quân',                 'Bình quân điểm khảo sát sau giao dịch',                 'điểm/5', 'AVG',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000115', '5eed0000-0000-0000-0003-00000000000b', 'KPI_1STAR_RATE',    'Tỷ lệ đánh giá 1 sao',                   'Số đánh giá 1 sao / tổng đánh giá (BR-17)',              '%',      'AVG',            'LOWER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000116', '5eed0000-0000-0000-0003-00000000000b', 'KPI_SERVE_TIME',    'Thời gian phục vụ bình quân',            'Thời gian từ gọi số đến hoàn tất giao dịch',             'phút',   'AVG',            'LOWER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000117', '5eed0000-0000-0000-0003-00000000000b', 'KPI_COMPLAINT_SLA', 'Khiếu nại xử lý đúng hạn',               'Khiếu nại đóng trong SLA / tổng khiếu nại',              '%',      'AVG',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000118', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TXN_VOL',       'Số giao dịch tại quầy',                  'Giao dịch tất toán thành công tại quầy',                 'GD',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000119', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TXN_ERR_RATE',  'Tỷ lệ lỗi giao dịch',                    'GD phải điều chỉnh / tổng GD',                           '%',      'AVG',            'LOWER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000011a', '5eed0000-0000-0000-0003-00000000000c', 'KPI_HANDOVER_SLA',  'Bàn giao được chấp nhận đúng SLA',        'Bàn giao nhận trong 4h / tổng bàn giao (BR-21)',        '%',      'AVG',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000011b', '5eed0000-0000-0000-0003-00000000000c', 'KPI_RISK_SEVERE',   'Sự kiện rủi ro nghiêm trọng',             'RiskEvent mức nghiêm trọng do QA ghi nhận',              'vụ',     'SUM',            'LOWER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000011c', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TRAINING',      'Hoàn thành đào tạo bắt buộc',             'Nhân viên hoàn thành khoá AML/tuân thủ (BR-44)',         '%',      'AVG',            'HIGHER_BETTER')
+ON CONFLICT DO NOTHING;
+
 -- Only two job positions; managers hold one of them and get the MANAGER role.
 INSERT INTO job_position (id, code, title, description) VALUES
  ('5eed0000-0000-0000-0006-000000000001', 'SALES',  'Chuyên viên Kinh doanh', 'Bán hàng, phát triển khách hàng'),
@@ -97,6 +138,47 @@ ON CONFLICT DO NOTHING;
 UPDATE evaluation_profile SET status = 'ACTIVE'
 WHERE id IN ('5eed0000-0000-0000-0002-000000000001', '5eed0000-0000-0000-0002-000000000002')
   AND status = 'DRAFT';
+
+-- Year Target Import (BRANCH_YEAR_KPI_IMPORT_DESIGN.md, D11): a position's applicable KPIs come from its
+-- ACTIVE EvaluationProfile, used in phase 2 to find each department's headcount per KPI. These are separate,
+-- flat profiles (not the performance-evaluation profiles above) so they don't disturb their weight-100 tree;
+-- effective_from is offset by a day because (job_position_id, effective_from) is unique.
+-- Sales (file groups A-D) -> SALES; Service/Operations (file groups E-F) -> TELLER.
+INSERT INTO evaluation_profile (id, job_position_id, code, name, description, version, effective_from, status) VALUES
+ ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES-YEARKPI',  'Hồ sơ KPI năm - Kinh doanh', 'Liên kết KPI_* nhóm A-D cho Phân bổ chỉ tiêu năm (phase 2).',             1, '2026-06-01', 'ACTIVE'),
+ ('5eed0000-0000-0000-0002-000000000004', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER-YEARKPI', 'Hồ sơ KPI năm - Dịch vụ & Vận hành', 'Liên kết KPI_* nhóm E-F cho Phân bổ chỉ tiêu năm (phase 2).', 1, '2026-06-01', 'ACTIVE')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO evaluation_profile_item (id, evaluation_profile_id, parent_item_id, kpi_definition_id, name, weight_percent, display_order) VALUES
+ ('5eed0000-0000-0000-0004-000000000301', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000101', NULL, 5.2632, 1),
+ ('5eed0000-0000-0000-0004-000000000302', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000102', NULL, 5.2632, 2),
+ ('5eed0000-0000-0000-0004-000000000303', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000103', NULL, 5.2632, 3),
+ ('5eed0000-0000-0000-0004-000000000304', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000104', NULL, 5.2632, 4),
+ ('5eed0000-0000-0000-0004-000000000305', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000105', NULL, 5.2632, 5),
+ ('5eed0000-0000-0000-0004-000000000306', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000106', NULL, 5.2632, 6),
+ ('5eed0000-0000-0000-0004-000000000307', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000107', NULL, 5.2632, 7),
+ ('5eed0000-0000-0000-0004-000000000308', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000108', NULL, 5.2632, 8),
+ ('5eed0000-0000-0000-0004-000000000309', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000109', NULL, 5.2632, 9),
+ ('5eed0000-0000-0000-0004-00000000030a', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010a', NULL, 5.2632, 10),
+ ('5eed0000-0000-0000-0004-00000000030b', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010b', NULL, 5.2632, 11),
+ ('5eed0000-0000-0000-0004-00000000030c', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010c', NULL, 5.2632, 12),
+ ('5eed0000-0000-0000-0004-00000000030d', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010d', NULL, 5.2632, 13),
+ ('5eed0000-0000-0000-0004-00000000030e', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010e', NULL, 5.2632, 14),
+ ('5eed0000-0000-0000-0004-00000000030f', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010f', NULL, 5.2632, 15),
+ ('5eed0000-0000-0000-0004-000000000310', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000110', NULL, 5.2632, 16),
+ ('5eed0000-0000-0000-0004-000000000311', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000111', NULL, 5.2632, 17),
+ ('5eed0000-0000-0000-0004-000000000312', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000112', NULL, 5.2632, 18),
+ ('5eed0000-0000-0000-0004-000000000313', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000113', NULL, 5.2624, 19),
+ ('5eed0000-0000-0000-0004-000000000401', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000114', NULL, 11.1111, 1),
+ ('5eed0000-0000-0000-0004-000000000402', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000115', NULL, 11.1111, 2),
+ ('5eed0000-0000-0000-0004-000000000403', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000116', NULL, 11.1111, 3),
+ ('5eed0000-0000-0000-0004-000000000404', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000117', NULL, 11.1111, 4),
+ ('5eed0000-0000-0000-0004-000000000405', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000118', NULL, 11.1111, 5),
+ ('5eed0000-0000-0000-0004-000000000406', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000119', NULL, 11.1111, 6),
+ ('5eed0000-0000-0000-0004-000000000407', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011a', NULL, 11.1111, 7),
+ ('5eed0000-0000-0000-0004-000000000408', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011b', NULL, 11.1111, 8),
+ ('5eed0000-0000-0000-0004-000000000409', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011c', NULL, 11.1112, 9)
+ON CONFLICT DO NOTHING;
 
 -- NV001 giám đốc CN, NV002 trưởng phòng KD, NV003 trưởng phòng GD; managers first.
 INSERT INTO employee (id, employee_code, full_name, email, phone, department_id, job_position_id, manager_id) VALUES
@@ -430,6 +512,111 @@ FROM (VALUES
     ('000000000016', '000000000003',  50)
 ) AS t(row_no, dept_no, target_value)
 ORDER BY t.row_no
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Target allocation scenario 2026 (HDV, KH_MOI, DU_NO), stored the way SCR-STRAT-03/04 read it:
+--   branch year (DRAFT, still being set up) -> PERIOD branch quarters and ORG department years
+--   department year -> PERIOD department quarters -> ORG teams -> ORG employees
+-- Q1-Q2 are fully allocated, Q3 is half-way (department rows DRAFT, GD has no teams), Q4 is only allocated
+-- for the HDV chain above, so the wizard still has steps to run. Values are uneven on purpose.
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at)
+SELECT t.id,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       t.kpi_id, t.dept_id, t.emp_id, t.period_id, t.parent_id, t.split, t.target_value, t.status,
+       now(),
+       CASE WHEN t.status = 'ACTIVE' THEN now() END
+FROM (VALUES
+    ('5eed0000-0000-0000-0035-000000000001'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, NULL::uuid, NULL::target_split_dimension, 3500, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000011'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'PERIOD'::target_split_dimension, 750, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000012'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'PERIOD'::target_split_dimension, 800, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000013'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'PERIOD'::target_split_dimension, 950, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000021'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0015-000000000020'::uuid, 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000022'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0015-000000000020'::uuid, 'PERIOD'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000023'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0015-000000000020'::uuid, 'PERIOD'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000024'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000003'::uuid, '5eed0000-0000-0000-0015-000000000020'::uuid, 'PERIOD'::target_split_dimension, 140, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000031'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'ORG'::target_split_dimension, 2630, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000032'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'ORG'::target_split_dimension, 870, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000033'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, '5eed0000-0000-0000-0015-000000000010'::uuid, 'ORG'::target_split_dimension, 800, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000034'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, '5eed0000-0000-0000-0015-000000000010'::uuid, 'ORG'::target_split_dimension, 400, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000035'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, '5eed0000-0000-0000-0015-000000000020'::uuid, 'ORG'::target_split_dimension, 480, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000041'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000031'::uuid, 'PERIOD'::target_split_dimension, 520, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000042'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000031'::uuid, 'PERIOD'::target_split_dimension, 560, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000043'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000031'::uuid, 'PERIOD'::target_split_dimension, 650, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000044'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000032'::uuid, 'PERIOD'::target_split_dimension, 230, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000045'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000032'::uuid, 'PERIOD'::target_split_dimension, 240, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000046'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000032'::uuid, 'PERIOD'::target_split_dimension, 300, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000047'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000033'::uuid, 'PERIOD'::target_split_dimension, 200, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000048'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000034'::uuid, 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000049'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000033'::uuid, 'PERIOD'::target_split_dimension, 230, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000004a'::uuid, '5eed0000-0000-0000-0005-000000000003'::uuid, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000034'::uuid, 'PERIOD'::target_split_dimension, 120, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000004b'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000035'::uuid, 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000004c'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000035'::uuid, 'PERIOD'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000004d'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000035'::uuid, 'PERIOD'::target_split_dimension, 130, 'DRAFT'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000051'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000041'::uuid, 'ORG'::target_split_dimension, 270, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000080'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000051'::uuid, 'ORG'::target_split_dimension, 140, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000081'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000051'::uuid, 'ORG'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000052'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000041'::uuid, 'ORG'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000082'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000052'::uuid, 'ORG'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000083'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000052'::uuid, 'ORG'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000053'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000044'::uuid, 'ORG'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000084'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000053'::uuid, 'ORG'::target_split_dimension, 70, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000085'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000053'::uuid, 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000054'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000044'::uuid, 'ORG'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000086'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000054'::uuid, 'ORG'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000055'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000042'::uuid, 'ORG'::target_split_dimension, 300, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000087'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000055'::uuid, 'ORG'::target_split_dimension, 160, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000088'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000055'::uuid, 'ORG'::target_split_dimension, 140, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000056'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000042'::uuid, 'ORG'::target_split_dimension, 260, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000089'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000056'::uuid, 'ORG'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008a'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000056'::uuid, 'ORG'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000057'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000045'::uuid, 'ORG'::target_split_dimension, 140, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008b'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000057'::uuid, 'ORG'::target_split_dimension, 75, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008c'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000057'::uuid, 'ORG'::target_split_dimension, 65, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000058'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000045'::uuid, 'ORG'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008d'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-000000000058'::uuid, 'ORG'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000059'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000043'::uuid, 'ORG'::target_split_dimension, 340, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008e'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000059'::uuid, 'ORG'::target_split_dimension, 170, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000008f'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000059'::uuid, 'ORG'::target_split_dimension, 170, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000005a'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-000000000043'::uuid, 'ORG'::target_split_dimension, 310, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000090'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-00000000005a'::uuid, 'ORG'::target_split_dimension, 150, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000091'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '5eed0000-0000-0000-000f-00000000000a'::uuid, '5eed0000-0000-0000-0035-00000000005a'::uuid, 'ORG'::target_split_dimension, 160, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000005b'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000004b'::uuid, 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000092'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000005b'::uuid, 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000093'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000005b'::uuid, 'ORG'::target_split_dimension, 27, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000005c'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000004b'::uuid, 'ORG'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000094'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000005c'::uuid, 'ORG'::target_split_dimension, 22, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000095'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-00000000005c'::uuid, 'ORG'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000005d'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000004c'::uuid, 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000096'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000005d'::uuid, 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000097'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000005d'::uuid, 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-00000000005e'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000004c'::uuid, 'ORG'::target_split_dimension, 50, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000098'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000005e'::uuid, 'ORG'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status),
+    ('5eed0000-0000-0000-0035-000000000099'::uuid, '5eed0000-0000-0000-0005-000000000002'::uuid, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '5eed0000-0000-0000-000f-000000000009'::uuid, '5eed0000-0000-0000-0035-00000000005e'::uuid, 'ORG'::target_split_dimension, 24, 'ACTIVE'::target_assignment_status)
+) AS t(id, kpi_id, dept_id, emp_id, period_id, parent_id, split, target_value, status)
+ON CONFLICT DO NOTHING;
+
+-- The rows seeded earlier join the same tree: the HDV Q4 chain hangs under the HDV year, the DU_NO and KH_MOI
+-- years are drafts, and the DU_NO quarters and departments get uneven values.
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000001', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000001';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000031', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000002';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000032', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000003';
+UPDATE target_assignment SET status = 'DRAFT', approved_at = NULL WHERE id IN ('5eed0000-0000-0000-0015-000000000010', '5eed0000-0000-0000-0015-000000000020');
+UPDATE target_assignment SET target_value = v.value
+FROM (VALUES ('5eed0000-0000-0000-0015-000000000011'::uuid, 250), ('5eed0000-0000-0000-0015-000000000012'::uuid, 300), ('5eed0000-0000-0000-0015-000000000013'::uuid, 350), ('5eed0000-0000-0000-0015-000000000014'::uuid, 300)) AS v(id, value)
+WHERE target_assignment.id = v.id;
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 WHERE id = '5eed0000-0000-0000-0015-000000000015';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 WHERE id = '5eed0000-0000-0000-0015-000000000016';
+
+-- Employee feedback on the Q3 HDV targets: one confirmed, one commented.
+INSERT INTO target_assignment_feedback (id, target_assignment_id, employee_id, type, comment, created_at)
+SELECT f.id::uuid, ta.id, ta.employee_id, f.type::target_assignment_feedback_type, f.comment, now()
+FROM (VALUES
+    ('5eed0000-0000-0000-0036-000000000001', '5eed0000-0000-0000-0035-00000000008e', 'CONFIRM', NULL),
+    ('5eed0000-0000-0000-0036-000000000002', '5eed0000-0000-0000-0035-000000000090', 'COMMENT', 'Chỉ tiêu Q3 cao hơn Q2 gần 15%, đề nghị xem lại.')
+) AS f(id, target_id, type, comment)
+JOIN target_assignment ta ON ta.id = f.target_id::uuid
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------

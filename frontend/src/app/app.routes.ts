@@ -3,6 +3,7 @@ import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
+import { targetManageGuard } from './core/target-manage.guard';
 
 export const routes: Routes = [
   {
@@ -45,6 +46,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/target-overview/target-overview.component').then(
         (m) => m.TargetOverviewComponent,
+      ),
+  },
+  {
+    path: 'target-setup/:year',
+    canActivate: [authGuard, targetManageGuard],
+    title: 'Phân bổ mục tiêu',
+    loadComponent: () =>
+      import('./features/target-setup/target-setup-wizard.component').then(
+        (m) => m.TargetSetupWizardComponent,
       ),
   },
   {
