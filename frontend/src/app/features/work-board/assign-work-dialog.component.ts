@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
+import { A11yModule } from '@angular/cdk/a11y';
 import { FormsModule } from '@angular/forms';
 import { DepartmentMember } from '../../core/department.models';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -14,7 +15,7 @@ const MAX_CHECKLIST_ITEMS = 20;
 @Component({
   selector: 'app-assign-work-dialog',
   standalone: true,
-  imports: [FormsModule],
+  imports: [A11yModule, FormsModule],
   templateUrl: './assign-work-dialog.component.html',
   styleUrls: ['../../shared/ui/ui-controls.scss', './assign-work-dialog.component.scss'],
 })

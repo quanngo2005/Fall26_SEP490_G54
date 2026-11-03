@@ -56,6 +56,20 @@ public sealed class TargetAssignmentService(
         PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
         var allocations = dto.Allocations!;
 
+        await ValidateOwnersAsync(parent, allocations);
+
+        var children = await NewChildrenAsync(parent, allocations, dto.ChangeReason);
+
+        await targetRepository.AddRangeAsync(children);
+        await targetRepository.SaveChangesAsync();
+
+        // A brand-new employee target has no feedback yet.
+        return [.. children.Select(c => ToDtoWithFeedback(c, null))];
+    }
+
+    /// <summary>Checks who would receive a share of <paramref name="parent"/>: one owner per row, no repeats, employees and departments inside it, nobody already holding an active target.</summary>
+    private async Task ValidateOwnersAsync(TargetAssignment parent, IReadOnlyCollection<TargetAllocationItemDto> allocations)
+    {
         var departmentIds = new List<Guid>();
         var employeeIds = new List<Guid>();
         foreach (var item in allocations)
@@ -135,24 +149,92 @@ public sealed class TargetAssignmentService(
                 throw new ConflictException($"Phòng ban {taken[0].DepartmentId} đã có target đang áp dụng cho KPI và kỳ này.");
             }
         }
+    }
 
-        var children = allocations.Select(item =>
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto)
+    {
+        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
+
+        var current = (await targetRepository.GetCurrentChildrenAsync(parentAssignmentId))
+            .Where(child => child.Status == TargetAssignmentStatus.Active)
+            .ToDictionary(OwnerOf);
+        var owners = dto.Allocations!
+            .Select(item => item.EmployeeId.HasValue == item.DepartmentId.HasValue ? null : item.EmployeeId ?? item.DepartmentId)
+            .ToList();
+        if (owners.Contains(null) || owners.Distinct().Count() != owners.Count || !current.Keys.All(key => owners.Contains(key)))
         {
-            var child = NewTarget(parent.KpiDefinitionId, parent.EvaluationPeriodId, item.TargetValue!.Value, dto.ChangeReason);
+            throw new ValidationException("Danh sách điều chỉnh phải gồm mọi đối tượng đã được phân bổ, mỗi đối tượng một lần.");
+        }
+
+        var requested = dto.Allocations!.ToDictionary(item => (item.EmployeeId ?? item.DepartmentId)!.Value, item => item.TargetValue!.Value);
+        var added = dto.Allocations!.Where(item => !current.ContainsKey((item.EmployeeId ?? item.DepartmentId)!.Value)).ToList();
+        if (added.Count > 0)
+        {
+            await ValidateOwnersAsync(parent, added);
+        }
+
+        var now = time.GetUtcNow();
+        var replacements = new List<TargetAssignment>();
+        foreach (var (owner, child) in current)
+        {
+            var value = requested[owner];
+            if (value == child.TargetValue)
+            {
+                continue;
+            }
+
+            child.Status = TargetAssignmentStatus.Superseded;
+            child.UpdatedAt = now;
+            foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(child.Id))
+            {
+                descendant.Status = TargetAssignmentStatus.Superseded;
+                descendant.UpdatedAt = now;
+            }
+
+            var next = NewTarget(child.KpiDefinitionId, child.EvaluationPeriodId, value, dto.ChangeReason);
+            next.Version = child.Version + 1;
+            next.BusinessObjectiveId = child.BusinessObjectiveId;
+            next.ParentAssignmentId = child.ParentAssignmentId;
+            next.SplitDimension = child.SplitDimension;
+            next.DepartmentId = child.DepartmentId;
+            next.EmployeeId = child.EmployeeId;
+            replacements.Add(next);
+        }
+
+        replacements.AddRange(await NewChildrenAsync(parent, added, dto.ChangeReason));
+
+        await targetRepository.AddRangeAsync(replacements);
+        await targetRepository.SaveChangesAsync();
+
+        return [.. replacements.Select(next => ToDtoWithFeedback(next, null))];
+    }
+
+    /// <summary>
+    /// ACTIVE shares of <paramref name="parent"/> for departments or employees. An owner that held a share of this KPI and
+    /// period before (now superseded) gets the next version, as the database allows each version only once.
+    /// </summary>
+    private async Task<List<TargetAssignment>> NewChildrenAsync(
+        TargetAssignment parent,
+        IReadOnlyCollection<TargetAllocationItemDto> items,
+        string? reason)
+    {
+        var owners = items.Select(item => (item.EmployeeId ?? item.DepartmentId)!.Value).ToList();
+        var versions = await targetRepository.GetLatestVersionsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, owners);
+        return [.. items.Select(item =>
+        {
+            var child = NewTarget(parent.KpiDefinitionId, parent.EvaluationPeriodId, item.TargetValue!.Value, reason);
+            child.Version = versions.GetValueOrDefault((item.EmployeeId ?? item.DepartmentId)!.Value) + 1;
             child.BusinessObjectiveId = parent.BusinessObjectiveId;
             child.ParentAssignmentId = parent.Id;
             child.SplitDimension = TargetSplitDimension.Org;
             child.DepartmentId = item.DepartmentId;
             child.EmployeeId = item.EmployeeId;
             return child;
-        }).ToList();
-
-        await targetRepository.AddRangeAsync(children);
-        await targetRepository.SaveChangesAsync();
-
-        // A brand-new employee target has no feedback yet.
-        return [.. children.Select(c => ToDtoWithFeedback(c, null))];
+        })];
     }
+
+    private static Guid OwnerOf(TargetAssignment target) => (target.EmployeeId ?? target.DepartmentId)!.Value;
 
     public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
     {
@@ -286,8 +368,12 @@ public sealed class TargetAssignmentService(
 
         if (!await IsAdminAsync(accountId))
         {
+            // A manager owns the targets of their own department and of every department below it.
             var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId);
-            if (callerDepartmentId != (target.DepartmentId ?? target.Employee!.DepartmentId))
+            IReadOnlyList<Guid> scope = callerDepartmentId is null
+                ? []
+                : await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId.Value);
+            if (!scope.Contains(target.DepartmentId ?? target.Employee!.DepartmentId))
             {
                 throw new ForbiddenException("Bạn không có quyền với target của đơn vị này.");
             }

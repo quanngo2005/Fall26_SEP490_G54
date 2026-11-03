@@ -29,6 +29,7 @@ export type MenuKey =
   | 'reviewVerify'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
+  | 'targetOverview'
   | 'branchWork'
   | 'branchPerformance'
   | 'departmentPerformance'
@@ -95,6 +96,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'handoverDelegation',
     'reviewVerify',
     'teamPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
     'reportsComplaints',
     'notifications',
@@ -109,6 +111,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'reviewVerify',
     'branchPerformance',
     'departmentPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
     'reportsComplaints',
     'notifications',
@@ -174,6 +177,12 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'VERIFICATION_DECIDE',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
+  {
+    id: 'targetOverview',
+    icon: 'targetsAndCampaigns',
+    route: '/target-overview',
+    permission: 'TARGET_MANAGE',
+  },
   {
     id: 'targetsAndCampaigns',
     icon: 'targetsAndCampaigns',

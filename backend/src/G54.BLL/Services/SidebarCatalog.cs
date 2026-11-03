@@ -9,8 +9,8 @@ public static class SidebarCatalog
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "reportsComplaints", "notifications", "myProfile"],
-        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "teamPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
-        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
+        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "teamPerformance", "targetOverview", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
+        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "reportsComplaints", "notifications", "myProfile"],
         ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "reportsComplaints", "notifications", "myProfile"],
         ["qa"] = ["overview", "verificationQueue", "reportsComplaints", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
         ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "systemConfiguration", "systemAudit", "myProfile"],
@@ -20,7 +20,7 @@ public static class SidebarCatalog
     {
         "overview", "myWork", "mySubmissions", "myPerformance", "notifications", "myProfile", "employees", "organization",
         "departments", "jobPositions", "reportingLines", "employeeData", "reportsComplaints", "teamWork", "handoverDelegation",
-        "reviewVerify", "teamPerformance", "targetsAndCampaigns", "branchWork", "branchPerformance", "departmentPerformance",
+        "reviewVerify", "teamPerformance", "targetsAndCampaigns", "targetOverview", "branchWork", "branchPerformance", "departmentPerformance",
         "reportingStructure", "verificationQueue", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "accounts",
         "rolesPermissions", "accessPolicies", "systemConfiguration", "systemAudit", "tasks", "personalKpis", "review", "positions",
         "kpiDefinitions", "workTypes", "targets", "reports", "audit", "users", "settings",

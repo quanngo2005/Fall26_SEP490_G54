@@ -1,7 +1,7 @@
 # Target assignment (Branch / Department / Employee)
 
 Status: backend implemented (`POST /target-assignments`, `POST /target-assignments/{id}/allocations`,
-`GET /target-assignments/{id}`, `POST /target-assignments/{id}/period-allocations`,
+`GET /target-assignments/{id}`, `PUT /target-assignments/{id}/allocations`, `POST /target-assignments/{id}/period-allocations`,
 `GET /target-assignments`, `GET /target-assignments/{id}/breakdown`, `GET /target-assignments/mine`,
 `POST /target-assignments/{id}/feedback/confirm`, `POST /target-assignments/{id}/feedback/comments`,
 `GET /target-assignments/{id}/feedback`). Frontend client: **planned, not implemented**. Routes use the backend
@@ -43,8 +43,8 @@ has scope `Department`. Beyond that, the BLL checks:
 | Operation | Required |
 | --- | --- |
 | Create a **root** target | `target:manage` with scope `All` (admin) |
-| Split a target | admin, or the caller's department is the parent target's owning department |
-| Read one target | admin, or the caller's department owns the target (for an employee target: the employee's department) |
+| Split a target | admin, or the caller's department is the parent target's owning department **or one of its parents** (a department manager can split the targets of the teams below, e.g. the team's employees) |
+| Read one target | admin, or the owning department (for an employee target: the employee's department) is the caller's department or one below it |
 | Allocate to employees (row has `employeeId`) | additionally: every employee exists, is `ACTIVE`, and is inside the parent target's department tree (see "Allocation validation") |
 | `GET /target-assignments/{id}/breakdown` | admin; a caller with `target:manage` (scope `Dept`) whose department is the owning department or one of its parents (e.g. a DM over a team); **or** the caller is the target's owning employee. Other employees of the same department get 403 (they must not see colleagues' targets) |
 | `GET /target-assignments/mine`, `POST .../feedback/confirm`, `POST .../feedback/comments` | any authenticated account with an employee record; the target must be owned by that employee (403 otherwise) |
@@ -73,7 +73,7 @@ unchanged from the existing behavior).
 ## Common rules
 
 - Targets are created **ACTIVE** at once (no draft/approval step): `version = 1`, `assignedAt = approvedAt = now`.
-- Changing a value is a later "new version" endpoint (not part of this revision, nor are closing).
+- Changing a value goes through `PUT /target-assignments/{id}/allocations` (new version); closing is not part of this revision.
 
 ## `POST /target-assignments` (root target)
 
@@ -122,7 +122,7 @@ Splits the target `{id}` by creating **every child in one transaction** (all or 
 }
 ```
 
-Children keep the parent's KPI and period, get `splitDimension = ORG` and inherit `businessObjectiveId`. For a `SUM`
+Children keep the parent's KPI and period, get `splitDimension = ORG` and inherit `businessObjectiveId`. An owner that already held a share of the same KPI and period (now superseded) gets the next `version`, since the database allows each version once per owner. For a `SUM`
 KPI the database requires the children to total the parent's `targetValue` exactly (checked when the transaction
 commits). The database accepts any descendant department or an employee inside the parent's organisation; the frontend
 offers only the level directly below (branch to departments, department to teams and employees, team to employees).
@@ -130,6 +130,37 @@ offers only the level directly below (branch to departments, department to teams
 ## `GET /target-assignments/{id}`
 
 `id` is the assignment id (GUID). `data`: `TargetAssignment`, 200.
+
+## `PUT /target-assignments/{id}/allocations` (adjust a split)
+
+Changes the values of the children that `POST .../allocations` created, for example after an employee's comment. Returns
+**200**, `data`: `TargetAssignment[]` holding only the **new versions**, in request order.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `allocations` | array | required; must list **every** owner (department / employee) that already has an ACTIVE child of `{id}`, each once, with its new `targetValue`; owners not yet allocated may be added and are validated like in the split |
+| `allocations[].departmentId` / `employeeId` | GUID or null | exactly one per row, as in the split |
+| `changeReason` | string | **required**, at most 1000 characters |
+
+- A child whose value is unchanged is left alone and keeps its feedback (an employee who confirmed stays confirmed). Every changed child becomes `SUPERSEDED` and is replaced by an ACTIVE row with
+  `Version + 1` and the new `changeReason` (R4); all of it happens in one transaction.
+- A changed child that was itself split (a team whose employees already have shares) takes its ACTIVE descendants with it: they are superseded too and must be split again under the new version.
+- The new row has no feedback yet, so an employee-owned row comes back with `feedbackStatus = NOT_VIEWED` and the employee
+  confirms or comments again. Feedback on the superseded version stays under its own id.
+- Authorization and period lock are the same as for the split (the caller's department owns `{id}`; `PERIOD_LOCKED` otherwise).
+- 400 `VALIDATION_ERROR` when an allocated owner is left out, a row has both or neither owner, an owner repeats, or
+  `changeReason` is missing. As for the split, a `SUM` KPI must still total the parent: the database enforces it (500 on a
+  violation) and the frontend validates it first.
+
+```json
+{
+  "allocations": [
+    { "employeeId": "5eed0000-0000-0000-0007-000000000004", "targetValue": 350000 },
+    { "employeeId": "5eed0000-0000-0000-0007-000000000005", "targetValue": 250000 }
+  ],
+  "changeReason": "Adjusted after the employee's comment"
+}
+```
 
 ## `POST /target-assignments/{id}/period-allocations` (split by period)
 
