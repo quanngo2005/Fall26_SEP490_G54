@@ -4,7 +4,13 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
-import { WorkDetail, WorkFilter, WorkListItem, WorkStatusChange } from './work.models';
+import {
+  CreateWorkRequest,
+  WorkDetail,
+  WorkFilter,
+  WorkListItem,
+  WorkStatusChange,
+} from './work.models';
 
 @Injectable({ providedIn: 'root' })
 export class WorkService {
@@ -20,6 +26,12 @@ export class WorkService {
   detail(id: string): Observable<WorkDetail> {
     return this.http
       .get<ApiResponse<WorkDetail>>(`${this.url}/${encodeURIComponent(id)}`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  create(request: CreateWorkRequest): Observable<WorkDetail> {
+    return this.http
+      .post<ApiResponse<WorkDetail>>(this.url, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 

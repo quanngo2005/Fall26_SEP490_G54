@@ -102,6 +102,24 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Empty(saved.Routes!);
     }
 
+    [Fact]
+    public async Task TheAdminMenuOffersWorkTypesAndAcceptsItsListRoute()
+    {
+        await using var db = CreateContext();
+        var admin = await AddAccountAsync(db, "ADMIN");
+        var service = new SidebarConfigurationService(db);
+
+        var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
+        Assert.Contains("workTypes", defaults.ItemIds);
+
+        var saved = await service.SaveAsync(admin, "admin", new SaveSidebarConfigurationDto
+        {
+            ItemIds = ["overview", "workTypes", "systemConfiguration"],
+            Routes = new() { ["workTypes"] = "/work-types" },
+        }, CancellationToken.None);
+        Assert.Equal("/work-types", saved.Routes!["workTypes"]);
+    }
+
     [Theory]
     [InlineData("employee", "myProfile", "https://example.test")]
     [InlineData("employee", "myProfile", "//example.test")]

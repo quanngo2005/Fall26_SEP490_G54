@@ -1,22 +1,45 @@
 # Work type detail
 
-Status: backend implemented (read endpoints used by the frontend). Typed client:
-`frontend/src/app/core/work-type.service.ts`. Routes use the backend origin, no API prefix; all
-responses use `ApiResponse<T>`. Write endpoints (`POST`, `PUT`, `PATCH /{id}/status`, `DELETE`) and
-the `/work-types/kpis`, `/work-types/workflows` lookups exist on the backend but are **not used** by
-the work type detail page.
+Status: backend implemented. Typed client: `frontend/src/app/core/work-type.service.ts`. Routes use the
+backend origin, no API prefix; all responses use `ApiResponse<T>`.
+
+Frontend screens using this contract:
+
+- `/work-type-detail[/:id]`: read-only detail (uses `GET /work-types`, `GET /work-types/{id}`).
+- `/work-types` (SCR-CFG-02, admin route guard): list and detail drawer, opened from the admin sidebar
+  item `workTypes` (see `SIDEBAR_CONFIGURATION_CONTRACT.md`; `/work-types` is in the route allowlist).
+  Uses `GET /work-types`,
+  `GET /work-types/kpis` (KPI filter and result unit), `PATCH /work-types/{id}/status`
+  (activate / deactivate), `GET /job-positions` and `GET /job-positions/{id}/work-types`
+  (job position tabs and badges, see `JOB_POSITION_CONTRACT.md`), and `GET /works?workTypeId=&status=`
+  (open / completed work counts, see `WORK_CONTRACT.md`).
+
+`POST`, `PUT` and `DELETE` exist on the backend but no screen calls them yet: the "Create WorkType" and
+"Edit" buttons are disabled until those screens exist.
 
 ## Authorization
 
-`[Authorize]` only (any authenticated account).
+| Endpoint | Permission |
+|---|---|
+| `GET /work-types`, `GET /work-types/{id}`, `GET /work-types/kpis` (also `GET /kpis`) | `[Authorize]` only (any authenticated account) |
+| `POST /work-types`, `PUT /work-types/{id}`, `PATCH /work-types/{id}/status`, `DELETE /work-types/{id}` | `work-type:manage`, scope `All` |
+
+`work-type:manage` is held through the `ADMIN` role's wildcard `FULL_ACCESS`. `SYSTEM_ADMIN` is accepted by
+the `/work-types` route guard but has **no** `work-type:manage` grant, so activating or deactivating a work
+type as `SYSTEM_ADMIN` returns 403 `FORBIDDEN` and the drawer shows the action error. Granting the permission
+to `SYSTEM_ADMIN` (a seed / migration change) or narrowing the route guard is an open decision.
 
 ## Endpoints
 
 ### `GET /work-types`
 
 Query: `keyword`, `status`, `workflowDefinitionId`, `page` (default 1), `pageSize` (default 20,
-clamped 1..100). `data`: `PagedResult<WorkTypeDetail>`. The page loads up to 100 items to fill the
-work type picker.
+clamped 1..100). `data`: `PagedResult<WorkTypeDetail>`. The list screens load up to 100 items and filter,
+search and page in the browser.
+
+### `GET /work-types/kpis`
+
+`data`: array of `{ id, code, name, unit }` (KPI options with their result unit).
 
 ### `GET /work-types/{id}`
 
@@ -52,6 +75,12 @@ product code = not matched to any product). Date-only values are `YYYY-MM-DD`. T
 shown in the UI (current / upcoming / expired) is derived from `effectiveFrom`/`effectiveTo` against
 today's date in Vietnam (UTC+7); it is not a wire field.
 
+### `PATCH /work-types/{id}/status`
+
+Body `{ "status": "ACTIVE" | "INACTIVE" | "ARCHIVED" }`. 200 `ApiResponse` (the client only checks
+`success`). 403 without `work-type:manage`, 400 `VALIDATION_ERROR` for a blank or unknown value (see
+"Enum API format").
+
 ### Product code (BR-48 Task Multiplier)
 
 `productCode` (max 50 chars, trimmed, blank saved as `null`) identifies the product this work type
@@ -78,7 +107,18 @@ blank value on the PATCH, an unknown value, or an ordinal such as `1` is 400 `VA
 Ordinals (which used to start at 1) are no longer accepted. The client reads the string as-is, with no
 adapter.
 
-## Not available (not shown)
+## Derived and not available values
 
-Linked job positions, campaigns, work usage totals and any "certified/ready" configuration status
-have no endpoint or field, so the page does not render them.
+The screens show these values without a work type field:
+
+- **Job position:** from `GET /job-positions/{id}/work-types`; "N/A" when no active position maps the work
+  type. It is never guessed from the work type code.
+- **Result unit:** the `unit` of the work type's first KPI in `GET /work-types/kpis`.
+- **Transaction / CIF code:** "Required" when the work type has a `productCode` or a required KPI, otherwise
+  "None". This is a display rule, not a backend field.
+- **Open / completed works:** `totalCount` of `GET /works?workTypeId=&status=` (the work status groups mirror
+  `WorkStatusGroups.Open` / `Completed`). It is limited by the caller's `work:read` scope, so a caller whose
+  scope is below `All` sees counts for the works they can read only. "N/A" when the request fails.
+- **Created by / last modified:** no endpoint or field. The list shows `createdAt` only (labelled "Created"),
+  and the drawer history shows the creation time only.
+- A "certified/ready" configuration status has no endpoint or field and is not rendered.
