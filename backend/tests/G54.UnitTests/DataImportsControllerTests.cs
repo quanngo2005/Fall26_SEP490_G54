@@ -15,43 +15,18 @@ public sealed class DataImportsControllerTests
 {
     private static readonly Guid AccountId = Guid.NewGuid();
 
-    private sealed class RecordingService : IDataImportService
+    private sealed class RecordingService : IEmployeeImportService
     {
-        public Guid? PreviewUserId { get; private set; }
-        public Guid? CommitUserId { get; private set; }
-        public Guid? CancelUserId { get; private set; }
+        public byte[] GetTemplate() => [1, 2, 3];
 
-        public byte[] GetTemplate(string type) => [1, 2, 3];
+        public Task<ImportPreviewDto> PreviewAsync(string fileName, Stream file, CancellationToken cancellationToken) =>
+            Task.FromResult(new ImportPreviewDto(fileName, new ImportSummaryDto(0, 0, 0, 0, 0), []));
 
-        public Task<ImportPreviewDto> PreviewAsync(string type, string fileName, Stream file, Guid userId, CancellationToken cancellationToken)
-        {
-            PreviewUserId = userId;
-            return Task.FromResult(new ImportPreviewDto(
-                Guid.NewGuid(), type, fileName, DateTimeOffset.UtcNow.AddMinutes(30),
-                new ImportSummaryDto(0, 0, 0, 0, 0, 0), [],
-                new PagedResult<ImportPreviewRowDto>([], 0, 1, 20)));
-        }
-
-        public Task<ImportPreviewDto> GetPreviewAsync(Guid importId, ImportPreviewQueryDto query, Guid userId, CancellationToken cancellationToken) =>
-            Task.FromResult(new ImportPreviewDto(
-                importId, "employee-organization", "file.xlsx", DateTimeOffset.UtcNow.AddMinutes(30),
-                new ImportSummaryDto(0, 0, 0, 0, 0, 0), [],
-                new PagedResult<ImportPreviewRowDto>([], 0, 1, 20)));
-
-        public Task<ImportCommitResultDto> CommitAsync(Guid importId, Guid userId, CancellationToken cancellationToken)
-        {
-            CommitUserId = userId;
-            return Task.FromResult(new ImportCommitResultDto(1, 0, 0, [new ImportNewAccountDto("NV001", "nv001@bank.local", "Temp#1")]));
-        }
-
-        public Task CancelAsync(Guid importId, Guid userId, CancellationToken cancellationToken)
-        {
-            CancelUserId = userId;
-            return Task.CompletedTask;
-        }
+        public Task<ImportCommitResultDto> CommitAsync(Stream file, CancellationToken cancellationToken) =>
+            Task.FromResult(new ImportCommitResultDto(1, 0, [new ImportNewAccountDto("NV001", "nv001@bank.local", "Temp#1")]));
     }
 
-    private static DataImportsController ControllerFor(IDataImportService service) => new(
+    private static DataImportsController ControllerFor(IEmployeeImportService service) => new(
         service, Options.Create(new SystemParametersOptions { ImportMaxFileMb = 5 }))
     {
         ControllerContext = new ControllerContext
@@ -73,16 +48,13 @@ public sealed class DataImportsControllerTests
     }
 
     [Fact]
-    public async Task Preview_ValidXlsx_Returns201WithUserId()
+    public async Task Preview_ValidXlsx_Returns200()
     {
-        var service = new RecordingService();
-        var controller = ControllerFor(service);
+        var controller = ControllerFor(new RecordingService());
 
-        var result = await controller.Preview("employee-organization", MakeXlsxFile(), CancellationToken.None);
+        var result = await controller.Preview(MakeXlsxFile(), CancellationToken.None);
 
-        var created = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
-        Assert.Equal(AccountId, service.PreviewUserId);
+        Assert.IsType<OkObjectResult>(result);
     }
 
     [Fact]
@@ -91,9 +63,9 @@ public sealed class DataImportsControllerTests
         var controller = ControllerFor(new RecordingService());
         var file = MakeXlsxFile("import.txt");
 
-        var result = await controller.Preview("employee-organization", file, CancellationToken.None);
+        var result = await controller.Preview(file, CancellationToken.None);
 
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.IsType<ApiResponse>(badRequest.Value);
         Assert.Equal(StatusCodes.Status400BadRequest, badRequest.StatusCode);
     }
@@ -105,9 +77,9 @@ public sealed class DataImportsControllerTests
         var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a real xlsx"));
         var file = new FormFile(stream, 0, stream.Length, "file", "import.xlsx");
 
-        var result = await controller.Preview("employee-organization", file, CancellationToken.None);
+        var result = await controller.Preview(file, CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
@@ -115,9 +87,9 @@ public sealed class DataImportsControllerTests
     {
         var controller = ControllerFor(new RecordingService());
 
-        var result = await controller.Preview("employee-organization", null, CancellationToken.None);
+        var result = await controller.Preview(null, CancellationToken.None);
 
-        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
@@ -125,19 +97,9 @@ public sealed class DataImportsControllerTests
     {
         var controller = ControllerFor(new RecordingService());
 
-        var result = await controller.Commit(Guid.NewGuid(), CancellationToken.None);
+        var result = await controller.Commit(MakeXlsxFile(), CancellationToken.None);
 
-        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.IsType<OkObjectResult>(result);
         Assert.Equal("no-store", controller.ControllerContext.HttpContext.Response.Headers.CacheControl.ToString());
-    }
-
-    [Fact]
-    public async Task Cancel_ReturnsNoContent()
-    {
-        var controller = ControllerFor(new RecordingService());
-
-        var result = await controller.Cancel(Guid.NewGuid(), CancellationToken.None);
-
-        Assert.IsType<NoContentResult>(result);
     }
 }

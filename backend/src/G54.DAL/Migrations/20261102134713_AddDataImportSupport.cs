@@ -32,22 +32,26 @@ public partial class AddDataImportSupport : Migration
                 (gen_random_uuid(), 'QA',              'Kiểm soát chất lượng', 'Kiểm soát chất lượng dịch vụ'),
                 (gen_random_uuid(), 'HR_OFFICER',      'Chuyên viên nhân sự',  'Quản lý nhân sự'),
                 (gen_random_uuid(), 'SYS_ADMIN',       'Quản trị hệ thống',    'Quản trị hệ thống')
-            ON CONFLICT (code) DO NOTHING;
+            ON CONFLICT (code) DO UPDATE
+            SET title = EXCLUDED.title, description = EXCLUDED.description;
 
             INSERT INTO role (id, code, name, description)
             VALUES (gen_random_uuid(), 'HR_OFFICER', 'Chuyên viên nhân sự', 'Quản lý hồ sơ nhân sự và tổ chức')
-            ON CONFLICT (code) DO NOTHING;
+            ON CONFLICT (code) DO UPDATE
+            SET name = EXCLUDED.name, description = EXCLUDED.description;
 
             INSERT INTO permission (id, code, name, resource, action)
             VALUES (gen_random_uuid(), 'DATA_IMPORT', 'Import dữ liệu', 'data_import', 'import')
-            ON CONFLICT (code) DO NOTHING;
+            ON CONFLICT (code) DO UPDATE
+            SET name = EXCLUDED.name, resource = EXCLUDED.resource, action = EXCLUDED.action;
 
             INSERT INTO role_permission (role_id, permission_id, scope)
             SELECT r.id, p.id, 'All'
             FROM role r
             JOIN permission p ON p.code = 'DATA_IMPORT'
             WHERE r.code IN ('ADMIN', 'SYSTEM_ADMIN')
-            ON CONFLICT DO NOTHING;
+            ON CONFLICT (role_id, permission_id) DO UPDATE
+            SET scope = EXCLUDED.scope;
             """);
     }
 
