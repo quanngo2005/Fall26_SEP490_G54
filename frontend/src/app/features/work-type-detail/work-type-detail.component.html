@@ -11,19 +11,29 @@
           <p class="breadcrumb">{{localization.workType.breadcrumb}}</p>
           <p class="eyebrow">{{localization.workType.eyebrow}}</p>
         </div>
-        <div class="field department-picker">
-          <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
-          <select
-            id="work-type-select"
-            class="select"
-            [attr.aria-label]="localization.workType.selectWorkType"
-            [(ngModel)]="selectedId"
-            (ngModelChange)="changeWorkType()"
+        <div class="toolbar-actions">
+          <div class="field department-picker">
+            <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
+            <select
+              id="work-type-select"
+              class="select"
+              [attr.aria-label]="localization.workType.selectWorkType"
+              [(ngModel)]="selectedId"
+              (ngModelChange)="changeWorkType()"
+            >
+              @for (item of workTypes(); track item.id) {
+                <option [value]="item.id">{{item.code}} · {{item.name}}</option>
+              }
+            </select>
+          </div>
+          <button
+            type="button"
+            class="button button-primary"
+            disabled
+            [title]="localization.workTypes.unavailable"
           >
-            @for (item of workTypes(); track item.id) {
-              <option [value]="item.id">{{item.code}} · {{item.name}}</option>
-            }
-          </select>
+            + {{localization.workTypes.create}}
+          </button>
         </div>
       </div>
       @if (loading() && !workType()) {

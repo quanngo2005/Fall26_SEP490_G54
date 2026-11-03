@@ -26,8 +26,16 @@ export interface WorkTypeDetail {
   kpis: WorkTypeKpiDetail[];
 }
 
+export interface KpiOption {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+}
+
 export interface WorkTypeFilter {
   keyword?: string;
+  status?: WorkTypeStatus;
   page?: number;
   pageSize?: number;
 }

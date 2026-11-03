@@ -4,7 +4,7 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
-import { WorkTypeDetail, WorkTypeFilter } from './work-type.models';
+import { KpiOption, WorkTypeDetail, WorkTypeFilter, WorkTypeStatus } from './work-type.models';
 
 @Injectable({ providedIn: 'root' })
 export class WorkTypeService {
@@ -17,10 +17,26 @@ export class WorkTypeService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  kpis(): Observable<KpiOption[]> {
+    return this.http
+      .get<ApiResponse<KpiOption[]>>(`${this.url}/kpis`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   detail(id: string): Observable<WorkTypeDetail> {
     return this.http
       .get<ApiResponse<WorkTypeDetail>>(`${this.url}/${encodeURIComponent(id)}`)
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  changeStatus(id: string, status: WorkTypeStatus): Observable<void> {
+    return this.http
+      .patch<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}/status`, { status })
+      .pipe(
+        map((response) => {
+          if (!response.success) throw new Error('Invalid work type response');
+        }),
+      );
   }
 
   private params(filter: WorkTypeFilter): HttpParams {
