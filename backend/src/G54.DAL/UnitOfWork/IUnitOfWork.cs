@@ -24,6 +24,7 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IEvaluationPeriodRepository EvaluationPeriods { get; }
     IRepository<ActualProgress> ActualProgresses { get; }
     IRepository<ImportBatch> ImportBatches { get; }
+    IRepository<WorkTransaction> WorkTransactions { get; }
     IRepository<ImportedTransaction> ImportedTransactions { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;

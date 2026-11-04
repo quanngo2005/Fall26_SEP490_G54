@@ -17,7 +17,8 @@ namespace G54.Api.Controllers;
 [HasPermission("transaction-import", "manage", PermissionScopes.All)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-public sealed class TransactionImportsController(ITransactionImportService service, IOptions<SystemParametersOptions> parameters) : ControllerBase
+public sealed class TransactionImportsController(
+    ITransactionImportService service, IWorkTransactionService workTransactions, IOptions<SystemParametersOptions> parameters) : ControllerBase
 {
     [HttpPost]
     [Consumes("multipart/form-data")]
@@ -39,6 +40,7 @@ public sealed class TransactionImportsController(ITransactionImportService servi
 
         await using var stream = file.OpenReadStream();
         var result = await service.ImportAsync(file.FileName, stream, User.GetRequiredUserId(), cancellationToken);
+        await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken);
         return Created($"/transaction-imports/{result.Id}", ApiResponse.Ok(result, SuccessMessages.Created, HttpContext.TraceIdentifier));
     }
 

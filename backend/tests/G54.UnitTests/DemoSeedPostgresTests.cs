@@ -294,15 +294,16 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261104153505_AddTransactionImport", migrations[^1]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^2]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^3]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^4]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^5]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^6]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^7]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^8]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^9]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^1]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^2]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^3]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^4]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^5]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^6]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^7]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^8]);
+        Assert.Equal("20261101144049_AddAuditLogs", migrations[^9]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^10]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>
@@ -323,6 +324,37 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
+    }
+
+    [PostgresFact]
+    public async Task ReconcileDemoDataIsSeededAndExistingWorkTypeKpisDefaultToCount()
+    {
+        // The rollback test in this class drops and recreates these tables empty; reseed (idempotent).
+        await using (var scope = fixture.Provider!.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");
+        }
+
+        var statuses = await QueryAsync("""
+            SELECT status || '/' || COALESCE(reason, '-') || '=' || count(*)
+            FROM work_transaction GROUP BY status, reason ORDER BY 1
+            """);
+        Assert.Equal(
+            ["IN_REVIEW/-=1", "MATCHED/-=2", "NOT_MATCHED/EMPLOYEE_MISMATCH=1", "NOT_MATCHED/PRODUCT_MISMATCH=1"],
+            statuses);
+
+        var sources = await QueryAsync("SELECT value_source || '=' || count(*) FROM work_type_kpi GROUP BY value_source");
+        Assert.Equal(["COUNT=10"], sources);
+
+        var credited = await QueryAsync("""
+            SELECT w.status || '/' || count(i.id)
+            FROM work w
+            JOIN work_transaction wt ON wt.work_id = w.id
+            JOIN verified_work_result vwr ON vwr.work_transaction_id = wt.id
+            JOIN work_result_item i ON i.verified_work_result_id = vwr.id
+            GROUP BY w.status
+            """);
+        Assert.Equal(["DONE/2"], credited);
     }
 
     private async Task<List<string>> QueryAsync(string sql)

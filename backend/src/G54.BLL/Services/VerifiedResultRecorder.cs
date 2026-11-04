@@ -32,7 +32,7 @@ internal static class VerifiedResultRecorder
     {
         // A work item (Task ID) may contribute KPI to the system only once.
         var alreadyContributed = await db.WorkResultItems.AnyAsync(
-            i => i.VerifiedWorkResult.Verification.ResultSubmission.WorkId == work.Id,
+            i => i.VerifiedWorkResult.Verification!.ResultSubmission.WorkId == work.Id,
             cancellationToken);
         if (alreadyContributed)
         {
@@ -92,6 +92,75 @@ internal static class VerifiedResultRecorder
         }
     }
 
+    /// <summary>
+    /// Credits every KPI mapped to the work type for one matched imported transaction (docs/api/WORK_TRANSACTION_CONTRACT.md).
+    /// COUNT mappings credit 1, AMOUNT mappings credit the file's amount. Throws before writing anything when a KPI cannot be credited.
+    /// </summary>
+    /// <param name="work">The work, with <c>WorkType.WorkTypeKpis.KpiDefinition</c> loaded.</param>
+    public static async Task RecordImportedAsync(
+        AppDbContext db,
+        WorkTransaction workTransaction,
+        Work work,
+        ImportedTransaction imported,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var progressDate = imported.TransactionDate;
+        var mappings = InEffectMappings(work.WorkType, progressDate)
+            .GroupBy(k => k.KpiDefinitionId)
+            .Select(g => g.OrderByDescending(k => k.EffectiveFrom).ThenBy(k => k.Id).First())
+            .ToList();
+        var handover = await db.TaskHandovers
+            .AsNoTracking()
+            .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
+            .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var lines = new List<ContributionLine>();
+        foreach (var mapping in mappings)
+        {
+            var aggregation = mapping.KpiDefinition.AggregationType;
+            if (aggregation == KpiAggregationType.NoAggregation)
+            {
+                throw new BusinessRuleException(ErrorCodes.KpiAggregationNotSupported, statusCode: StatusCodes.Status409Conflict);
+            }
+
+            var raw = mapping.ValueSource == KpiValueSource.Amount ? imported.Amount : 1m;
+            var denominator = aggregation switch
+            {
+                KpiAggregationType.Ratio => imported.Denominator is > 0m
+                    ? imported.Denominator
+                    : throw new ValidationException("KPI dạng tỷ lệ (RATIO) yêu cầu mẫu số (denominator) lớn hơn 0."),
+                KpiAggregationType.Avg => 1m,
+                _ => null,
+            };
+            (Guid EmployeeId, decimal RawValue)[] recipients = handover is null
+                ? [(work.AssigneeEmployeeId, raw)]
+                : SplitHandoverContributions(handover, raw);
+
+            foreach (var (employeeId, rawValue) in recipients)
+            {
+                var target = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, employeeId, progressDate, cancellationToken)
+                    ?? throw await TargetNotAssignedAsync(db, employeeId, cancellationToken);
+                PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
+                lines.Add(new ContributionLine(target, employeeId, rawValue, denominator, mapping.Multiplier));
+            }
+        }
+
+        var verifiedResult = new VerifiedWorkResult
+        {
+            Id = Guid.NewGuid(),
+            WorkTransactionId = workTransaction.Id,
+            VerifiedAt = now,
+            UpdatedAt = now,
+            Status = VerifiedResultStatus.Valid,
+        };
+        db.VerifiedWorkResults.Add(verifiedResult);
+        foreach (var line in lines)
+        {
+            await AddResultItemAsync(db, verifiedResult.Id, line, progressDate, now, cancellationToken);
+        }
+    }
     /// <summary>
     /// The WorkTypeKpi mapping in effect on <paramref name="date"/>
     /// (<c>EffectiveFrom &lt;= date &amp;&amp; (EffectiveTo == null || EffectiveTo &gt;= date)</c>): a required KPI first,

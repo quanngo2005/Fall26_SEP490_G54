@@ -42,6 +42,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ImportBatch> ImportBatches { get; set; }
 
+    public virtual DbSet<WorkTransaction> WorkTransactions { get; set; }
+
     public virtual DbSet<ImportedTransaction> ImportedTransactions { get; set; }
 
     public virtual DbSet<JobPosition> JobPositions { get; set; }
@@ -1701,6 +1703,10 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
             entity.Property(e => e.VerificationId).HasColumnName("verification_id");
+            entity.Property(e => e.WorkTransactionId).HasColumnName("work_transaction_id");
+            entity.HasIndex(e => e.WorkTransactionId, "uq_verified_work_result_work_transaction").IsUnique();
+            entity.HasOne(d => d.WorkTransaction).WithMany().HasForeignKey(d => d.WorkTransactionId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_verified_work_result_work_transaction");
             entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
 
             entity.HasOne(d => d.Verification).WithOne(p => p.VerifiedWorkResult)
@@ -1917,6 +1923,7 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValue(1.0m)
                 .HasColumnName("multiplier");
             entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.ValueSource).HasMaxLength(10).HasDefaultValue(KpiValueSource.Count).HasColumnName("value_source");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1968,6 +1975,27 @@ public partial class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_imported_transaction_batch");
             entity.HasOne(e => e.Employee).WithMany().HasForeignKey(e => e.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_imported_transaction_employee");
+        });
+
+        modelBuilder.Entity<WorkTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("work_transaction_pkey");
+            entity.ToTable("work_transaction", table => table.HasCheckConstraint("ck_work_transaction_status", "status IN ('IN_REVIEW','MATCHED','NOT_MATCHED')"));
+            entity.HasIndex(e => e.TransactionCode, "uq_work_transaction_code").IsUnique();
+            entity.HasIndex(e => e.WorkId, "ix_work_transaction_work");
+            entity.HasIndex(e => e.ImportedTransactionId, "uq_work_transaction_imported").IsUnique();
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.WorkId).HasColumnName("work_id");
+            entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.Status).HasMaxLength(20).HasColumnName("status");
+            entity.Property(e => e.Reason).HasMaxLength(100).HasColumnName("reason");
+            entity.Property(e => e.ImportedTransactionId).HasColumnName("imported_transaction_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne(e => e.Work).WithMany().HasForeignKey(e => e.WorkId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_work_transaction_work");
+            entity.HasOne(e => e.ImportedTransaction).WithMany().HasForeignKey(e => e.ImportedTransactionId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_work_transaction_imported");
         });
 
         OnModelCreatingPartial(modelBuilder);
