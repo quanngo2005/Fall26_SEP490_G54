@@ -46,6 +46,12 @@ public sealed partial class EvaluationService(
             new EventId(3, "CalibrationRejected"),
             "Department calibration rejected for Dept {DepartmentId} in Period {PeriodId}: Reason={Reason}");
 
+    private static readonly Action<ILogger, Guid, Guid, int, Exception?> LogCalibrationApproved =
+        LoggerMessage.Define<Guid, Guid, int>(
+            LogLevel.Information,
+            new EventId(5, "CalibrationApproved"),
+            "Department calibration approved for Dept {DepartmentId} in Period {PeriodId}: TotalApproved={TotalApproved}");
+
     private static readonly Action<ILogger, Guid, int, Exception?> LogPeriodFinalized =
         LoggerMessage.Define<Guid, int>(
             LogLevel.Information,
@@ -1241,6 +1247,252 @@ public sealed partial class EvaluationService(
             request.PeriodId,
             "REVISION_REQUIRED",
             "Đã trả hồ sơ hiệu chuẩn về Trưởng phòng để yêu cầu hiệu chuẩn lại kèm ý kiến chỉ đạo.");
+    }
+
+    public async Task<DepartmentApprovalResultDto> ApproveDepartmentCalibrationAsync(
+        Guid departmentId,
+        ApproveDepartmentRankingRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+
+        EnsureNoMarkerSyntax(request.Note, "Note");
+
+        var period = await db.EvaluationPeriods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == request.PeriodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", request.PeriodId);
+
+        if (period.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.Conflict,
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể phê duyệt kết quả xếp hạng.");
+        }
+
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, "finalize", reviewer, departmentId, cancellationToken);
+
+        var department = await db.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
+            ?? throw new NotFoundException("Phòng ban", departmentId);
+
+        var deptEmployeeIds = await db.Employees
+            .AsNoTracking()
+            .Where(e => e.DepartmentId == departmentId && e.Status == EmployeeStatus.Active)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken);
+
+        var evaluations = await db.PerformanceEvaluations
+            .Where(pe => pe.EvaluationPeriodId == request.PeriodId
+                && deptEmployeeIds.Contains(pe.EmployeeId))
+            .ToListAsync(cancellationToken);
+
+        if (evaluations.Count == 0)
+        {
+            throw new NotFoundException("Hồ sơ hiệu chuẩn của phòng ban", departmentId);
+        }
+
+        var disputedPending = evaluations.DisputedEmployeeIds().Count;
+        if (disputedPending > 0)
+        {
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
+                $"Còn {disputedPending} điểm đánh giá trong phòng ban đang tranh chấp (Disputed_Pending). Hãy xử lý khiếu nại trước khi phê duyệt.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var noteTrimmed = request.Note?.Trim();
+        var approvedCount = 0;
+
+        foreach (var pe in evaluations)
+        {
+            if (pe.Status is PerformanceEvaluationStatus.InReview or PerformanceEvaluationStatus.Calculated)
+            {
+                pe.Status = PerformanceEvaluationStatus.Approved;
+                if (!string.IsNullOrWhiteSpace(noteTrimmed))
+                {
+                    pe.Comment = SetStoredMarker(pe.Comment, ApprovalCommentsMarkerRegex(), "APPROVAL_COMMENTS", noteTrimmed);
+                }
+                pe.UpdatedAt = now;
+                approvedCount++;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        LogCalibrationApproved(logger, departmentId, request.PeriodId, approvedCount, null);
+
+        return new DepartmentApprovalResultDto(
+            departmentId,
+            request.PeriodId,
+            "APPROVED",
+            approvedCount,
+            "Đã phê duyệt kết quả xếp hạng phòng ban thành công.");
+    }
+
+    public async Task<PreCloseCheckOverviewDto> GetPreCloseCheckAsync(
+        Guid periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+
+        var period = await db.EvaluationPeriods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", periodId);
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var granted = await permissions.GetEffectivePermissionsAsync(currentUserId, cancellationToken);
+        var inScope = AccessScope.DepartmentsInScope(
+            AccessScope.LevelFor(granted, "evaluation", "read"), reviewer.DepartmentId, hierarchy);
+
+        var departments = await db.Departments
+            .AsNoTracking()
+            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
+            .Where(d => inScope == null || inScope.Contains(d.Id))
+            .ToListAsync(cancellationToken);
+
+        var deptIds = departments.Select(d => d.Id).ToList();
+
+        var employees = await db.Employees
+            .AsNoTracking()
+            .Where(e => deptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .ToListAsync(cancellationToken);
+        var empIds = employees.Select(e => e.Id).ToList();
+
+        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        // 1. Result submissions in review / un-reconciled
+        var inReviewCount = await db.ResultSubmissions
+            .AsNoTracking()
+            .Where(rs => empIds.Contains(rs.SubmitterEmployeeId)
+                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview)
+                && rs.SubmittedAt >= periodStart
+                && rs.SubmittedAt <= periodEnd)
+            .CountAsync(cancellationToken);
+
+        // 2. Ad-hoc work without WorkType pending manual verification
+        var manualWorkCount = await db.Works
+            .AsNoTracking()
+            .Where(w => empIds.Contains(w.AssigneeEmployeeId)
+                && w.WorkTypeId == null
+                && (w.Status == WorkStatus.Submitted || w.Status == WorkStatus.InProgress || w.Status == WorkStatus.New)
+                && ((w.PlannedStartDate != null && w.PlannedStartDate <= period.EndDate && (w.PlannedEndDate == null || w.PlannedEndDate >= period.StartDate))
+                    || (w.PlannedStartDate == null && w.PlannedEndDate == null)))
+            .CountAsync(cancellationToken);
+
+        // 3. Open disputes & appeals
+        var openAppealsCount = await db.Appeals
+            .AsNoTracking()
+            .Where(a => empIds.Contains(a.EmployeeId)
+                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview))
+            .CountAsync(cancellationToken);
+
+        var disputedEvaluationsCount = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Where(pe => pe.EvaluationPeriodId == periodId
+                && empIds.Contains(pe.EmployeeId)
+                && pe.Status == PerformanceEvaluationStatus.Disputed)
+            .CountAsync(cancellationToken);
+
+        var totalDisputesCount = Math.Max(openAppealsCount, disputedEvaluationsCount);
+
+        // 4. Departments not yet approved
+        var evaluations = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Where(pe => pe.EvaluationPeriodId == periodId && empIds.Contains(pe.EmployeeId))
+            .ToListAsync(cancellationToken);
+
+        var empDeptMap = employees.ToDictionary(e => e.Id, e => e.DepartmentId);
+        var evalByDept = evaluations
+            .GroupBy(pe => empDeptMap.GetValueOrDefault(pe.EmployeeId))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var unapprovedDepts = 0;
+        foreach (var dept in departments)
+        {
+            if (!evalByDept.TryGetValue(dept.Id, out var deptEvals) || deptEvals.Count == 0)
+            {
+                unapprovedDepts++;
+            }
+            else if (!deptEvals.All(pe => pe.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+            {
+                unapprovedDepts++;
+            }
+        }
+
+        // 5. Core Banking data import completeness up to period.EndDate
+        var maxProgressDate = await db.ActualProgresses
+            .AsNoTracking()
+            .Where(ap => ap.TargetAssignment.EvaluationPeriodId == periodId)
+            .MaxAsync(ap => (DateOnly?)ap.ProgressDate, cancellationToken);
+
+        var missingImportDays = 0;
+        if (maxProgressDate == null || maxProgressDate < period.EndDate)
+        {
+            missingImportDays = maxProgressDate == null
+                ? (period.EndDate.DayNumber - period.StartDate.DayNumber + 1)
+                : Math.Max(0, period.EndDate.DayNumber - maxProgressDate.Value.DayNumber);
+        }
+
+        var items = new List<PreCloseCheckItemDto>
+        {
+            new(
+                "IN_REVIEW_SUBMISSIONS",
+                "Kết quả In Review (chưa khớp giao dịch import)",
+                inReviewCount,
+                inReviewCount == 0,
+                "SCR-REV-03",
+                "/results/verify"),
+            new(
+                "MANUAL_WORK_ITEMS",
+                "Việc ngoài WorkType chờ duyệt tay",
+                manualWorkCount,
+                manualWorkCount == 0,
+                "SCR-REV-04",
+                "/works/unclassified-approvals"),
+            new(
+                "OPEN_DISPUTES",
+                "Dispute / kháng nghị còn mở",
+                totalDisputesCount,
+                totalDisputesCount == 0,
+                "SCR-APL-03",
+                "/appeals/resolution"),
+            new(
+                "UNAPPROVED_DEPARTMENTS",
+                "Phòng chưa được duyệt xếp hạng",
+                unapprovedDepts,
+                unapprovedDepts == 0,
+                "SCR-EVL-03-D1",
+                null),
+            new(
+                "CORE_BANKING_IMPORT",
+                $"File import Core Banking đã đủ tới {period.EndDate:dd/MM/yyyy}",
+                missingImportDays,
+                missingImportDays == 0,
+                null,
+                null)
+        };
+
+        var canPublish = items.All(i => i.IsPassed);
+        var totalUnresolved = items.Count(i => !i.IsPassed);
+
+        var deadline = period.EndDate.AddDays(12).ToDateTime(new TimeOnly(17, 0), DateTimeKind.Utc);
+
+        return new PreCloseCheckOverviewDto(
+            period.Id,
+            period.Code,
+            period.Name,
+            period.StartDate,
+            period.EndDate,
+            deadline,
+            canPublish,
+            totalUnresolved,
+            items);
     }
 
     public async Task<FinalizeResultDto> FinalizeAndLockPeriodAsync(
