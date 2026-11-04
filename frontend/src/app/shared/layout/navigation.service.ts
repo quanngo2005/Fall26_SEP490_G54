@@ -248,6 +248,7 @@ export class NavigationService {
     '/department-performance',
     '/employee-detail',
     '/work-types',
+    '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
     '/appeals',
