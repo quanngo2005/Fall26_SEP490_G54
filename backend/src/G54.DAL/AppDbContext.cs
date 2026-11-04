@@ -1926,6 +1926,7 @@ public partial class AppDbContext : DbContext
         });
 
         ConfigureScores(modelBuilder);
+        ConfigureNotifications(modelBuilder);
         OnModelCreatingPartial(modelBuilder);
     }
 

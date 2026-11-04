@@ -27,6 +27,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | Employee / Department (view-only) | 🟡 | `EmployeeController`, `DepartmentsController`; context says employee changes **only via import** — but `POST /employees`, `PUT /employees/{id}`, `PATCH /employees/{id}/status` and `DELETE /employees/{id}` still exist |
 | Performance dashboard | ✅ | Personal / Department / Branch + drill-down |
 | Sidebar configuration, My profile | ✅ | |
+| Notifications | ✅ | `NotificationsController` (`POST /notifications` announcement to a department, a branch or picked employees with an optional work / campaign link; own inbox, unread count, mark read / read all), automatic notifications for handover requests and decisions and for work that turns overdue, pushed live over SignalR (`/hubs/notifications`). Unit-tested, not yet driven over HTTP or by a SignalR client; no frontend. See `docs/api/NOTIFICATION_CONTRACT.md` |
 | Excel import: employee, transaction, service rating | 🟡 | ClosedXML is referenced and the year-target import exists (`POST /target-assignments/import`, `TargetAllocationService`). Missing: employee, transaction and service-rating import. Blocks steps 6–7, BR-07, BR-17/18, BR-22 |
 | System parameters (e.g. BR-01 handover threshold) | ❌ | |
 | Product multipliers (BR-48) | ✅ | `WorkType.ProductCode` + `WorkTypeKpi.Multiplier`, applied in `VerifiedResultRecorder`. Matcher that enforces `ImportedTransaction.product == WorkType.ProductCode` not built (blocked by row 6 above) |

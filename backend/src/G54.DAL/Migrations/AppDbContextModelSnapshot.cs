@@ -1234,6 +1234,77 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid>("RecipientEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_employee_id");
+
+                    b.Property<Guid?>("RelatedId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_id");
+
+                    b.Property<string>("RelatedType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("related_type");
+
+                    b.Property<Guid?>("SenderEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sender_employee_id");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientEmployeeId")
+                        .HasDatabaseName("ix_notification_unread")
+                        .HasFilter("read_at IS NULL");
+
+                    b.HasIndex("SenderEmployeeId");
+
+                    b.HasIndex("RecipientEmployeeId", "CreatedAt");
+
+                    b.ToTable("notification", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_related", "(related_type IS NULL) = (related_id IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ObjectiveKpi", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2979,6 +3050,22 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_kpi_group_parent");
 
                     b.Navigation("ParentKpiGroup");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.Notification", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientEmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.Employee", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ObjectiveKpi", b =>

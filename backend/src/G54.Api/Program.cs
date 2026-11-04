@@ -3,6 +3,7 @@ using G54.Api.Auditing;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.Api.Health;
+using G54.Api.Hubs;
 using G54.Api.Logging;
 using G54.Api.Middleware;
 using G54.Api.Services;
@@ -58,6 +59,8 @@ builder.Services.AddAuthenticationDataAccess(databaseConnection);
 // context for audit logging comes from the current HTTP request.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditContextProvider, HttpAuditContextProvider>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<INotificationPusher, SignalRNotificationPusher>();
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
 builder.Services.AddStackExchangeRedisCache(options => options.Configuration = redisConnection);
 builder.Services.AddSingleton<IAuthSessionStore, RedisAuthSessionStore>();
@@ -67,13 +70,25 @@ builder.Services.AddHealthChecks()
 builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:4200"])
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    .AllowCredentials()));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.MapInboundClaims = false;
     options.TokenValidationParameters = new JwtTokenProvider(builder.Configuration).CreateValidationParameters();
     options.Events = new JwtBearerEvents
     {
+        // Browsers cannot set headers on a WebSocket, so the SignalR client sends the token in the query string.
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments(NotificationHub.Path, StringComparison.Ordinal))
+            {
+                context.Token = token;
+            }
+
+            return Task.CompletedTask;
+        },
         OnTokenValidated = async context =>
         {
             var tokenType = context.Principal?.FindFirst("token_type")?.Value;
@@ -208,6 +223,7 @@ app.UseAuthorization();
 app.MapHealthChecks("/health", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 app.MapControllers();
+app.MapHub<NotificationHub>(NotificationHub.Path);
 app.Run();
 
 public partial class Program;

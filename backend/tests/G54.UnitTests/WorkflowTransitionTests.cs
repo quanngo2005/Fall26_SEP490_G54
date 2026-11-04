@@ -491,7 +491,8 @@ public sealed class WorkflowTransitionTests
             new UnitOfWork(Db),
             NullLogger<WorkService>.Instance,
             new FixedTime(Now),
-            new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
+            new FakePermissionService(null, FakePermissionService.WorkCreate("All")),
+            new RecordingNotifier());
 
         public ResultSubmissionService Submissions()
         {
