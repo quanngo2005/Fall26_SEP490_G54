@@ -59,11 +59,6 @@ public sealed partial class AppealService(
             throw new ValidationException("Ghi chú tối đa 2000 ký tự; yêu cầu bổ sung hoặc từ chối phải có lý do tối thiểu 10 ký tự.");
         }
 
-        if (request.VerifiedValue is < 0 || (decision != "ACCEPT" && request.VerifiedValue.HasValue))
-        {
-            throw new ValidationException("Sản lượng công nhận phải không âm và chỉ được gửi khi ACCEPT.");
-        }
-
         var caller = await ResolveCallerAsync(userId, cancellationToken);
         var visibility = await ResolveVisibilityAsync(caller, cancellationToken);
         // Serializable isolation prevents competing appeal decisions from both committing.
@@ -81,6 +76,7 @@ public sealed partial class AppealService(
                 .ThenInclude(s => s.Work)
                     .ThenInclude(w => w.WorkType)
                         .ThenInclude(wt => wt!.WorkTypeKpis)
+                            .ThenInclude(k => k.KpiDefinition)
             .FirstOrDefaultAsync(a => a.Id == appealId && a.ResultSubmissionId != null, cancellationToken)
             ?? throw new NotFoundException("Khiếu nại", appealId);
         var submission = appeal.ResultSubmission!;
@@ -125,7 +121,14 @@ public sealed partial class AppealService(
                 if (decision == "ACCEPT")
                 {
                     await VerifiedResultRecorder.RecordAsync(
-                        db, time, verification, submission.Work, submission.SubmitterEmployeeId, request.VerifiedValue, now, cancellationToken);
+                        db,
+                        time,
+                        verification,
+                        submission.Work,
+                        submission.SubmitterEmployeeId,
+                        ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics,
+                        now,
+                        cancellationToken);
                 }
 
                 db.Verifications.Add(verification);

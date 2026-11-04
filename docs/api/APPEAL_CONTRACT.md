@@ -70,12 +70,12 @@ Cùng phạm vi như danh sách. Ngoài phạm vi: 403. Không tồn tại: 404.
 Yêu cầu quyền `verification:decide` với scope `Dept / Branch / All` bao phủ phòng ban người nộp; ADMIN được xử lý. Không được xử lý appeal của mình hoặc submission do mình nộp (422 `MAKER_CANNOT_BE_CHECKER`).
 
 ```json
-{ "decision": "ADJUST", "note": "Bổ sung chứng từ đối soát có chữ ký xác nhận.", "verifiedValue": null }
+{ "decision": "ADJUST", "note": "Bổ sung chứng từ đối soát có chữ ký xác nhận." }
 ```
 
 - `decision`: bắt buộc `ACCEPT | ADJUST | REJECT`, không phân biệt hoa thường, trim khoảng trắng.
 - `note`: tối đa 2000 ký tự sau trim; bắt buộc 10–2000 ký tự với `ADJUST / REJECT`, tùy chọn với `ACCEPT`.
-- `verifiedValue`: decimal tùy chọn, không âm, chỉ được gửi với `ACCEPT`; cùng cách ghi nhận KPI như duyệt submission thông thường. Bỏ trống vẫn tạo verified result nhưng không cộng sản lượng KPI.
+- Không còn `verifiedValue`: khi `ACCEPT`, KPI được ghi nhận theo số liệu từng KPI nhân viên đã nộp lúc submit, cùng cách như duyệt submission thông thường (xem SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md).
 - Chỉ xử lý appeal `OPEN / UNDER_REVIEW`, gắn với submission `REJECTED` mới nhất của work đang `REJECTED`. Appeal đã kết thúc, submission đã đổi trạng thái hoặc có lần nộp mới: 409 `APPEAL_INVALID_STATE`.
 - `ACCEPT`: appeal `ACCEPTED`, submission `APPROVED`, work `VERIFIED`; thêm verification `APPROVED` và verified result, cộng KPI khi có sản lượng và target phù hợp.
 - `ADJUST`: appeal `ACCEPTED`, submission `UNDER_REVIEW`, work `IN_PROGRESS`; thêm verification `NEED_MORE_INFO` (API history: `REVISION_REQUIRED`) với yêu cầu bổ sung trong `note`. Chưa duyệt submission và chưa ghi nhận KPI. Nhân viên bổ sung/nộp lại theo luồng submission hiện có.
@@ -212,12 +212,12 @@ File bằng chứng của khiếu nại tải qua `GET /evidence/{id}/download` 
 | Đợt nộp không ở `REJECTED` khi nộp khiếu nại; rút khiếu nại không còn `OPEN` | 409 | `APPEAL_INVALID_STATE` |
 | Đợt nộp đã có khiếu nại `OPEN` / `UNDER_REVIEW` | 409 | `APPEAL_ALREADY_OPEN` |
 | Quá 48 giờ kể từ khi bị từ chối | 422 | `APPEAL_WINDOW_EXPIRED` |
-| Decision/note/verifiedValue không hợp lệ | 400 | `VALIDATION_ERROR` |
+| Decision/note không hợp lệ | 400 | `VALIDATION_ERROR` |
 | Không có quyền xử lý hoặc ngoài scope | 403 | `FORBIDDEN` |
 | Tự xử lý appeal/submission của mình | 422 | `MAKER_CANNOT_BE_CHECKER` |
 | Appeal/submission/work không còn hợp lệ hoặc xử lý đồng thời | 409 | `APPEAL_INVALID_STATE` |
 | Work đã được ghi nhận KPI | 409 | `KPI_ALREADY_CONTRIBUTED` |
-| `ACCEPT` kèm `verifiedValue` cho work có KPI nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại; khiếu nại giữ nguyên trạng thái, không ghi gì | 409 | `KPI_TARGET_NOT_ASSIGNED` |
+| `ACCEPT` cho work có KPI nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại; khiếu nại giữ nguyên trạng thái, không ghi gì | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 | `review` / `score-deductions` / `score-dispute` / cấu hình: `points` hoặc `reason` không hợp lệ | 400 | `VALIDATION_ERROR` |
 | Giữ / trừ điểm ngoài phạm vi hoặc cho chính mình; người không phải người nộp phản hồi; không phải ADMIN khi đổi cấu hình | 403 | `FORBIDDEN` |
 | Không có điểm hiện tại để giữ / trừ, kỳ đã khóa khi hoàn điểm, khiếu nại chưa có `HOLD`, xử lý đồng thời | 409 | `CONFLICT` hoặc `APPEAL_INVALID_STATE` |
@@ -233,7 +233,7 @@ Mã lỗi định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.
 
 - `AppealHttpTests` khởi động bản build API mới bằng Kestrel trên cổng loopback riêng, với PostgreSQL đã migrate và Redis thật. Dữ liệu test nằm trong database tạm, được xóa sau khi chạy.
 - Gọi HTTP: readiness, nộp appeal multipart (201 + Location), quyết định ACCEPT/ADJUST/REJECT, chi tiết và danh sách, lịch sử verification, duyệt tiếp submission sau ADJUST.
-- ACCEPT với `verifiedValue = 12.5` được kiểm tra trực tiếp: verified result, result item và actual progress lưu đúng 12.5 cho người nộp.
+- ACCEPT với số liệu nộp 12.5 được kiểm tra trực tiếp: verified result, result item và actual progress lưu đúng 12.5 cho người nộp.
 - Negative cases: không token 401; thiếu quyền hoặc ngoài phòng ban 403; decision/note/value sai 400; appeal không tồn tại 404; quyết định lặp 409; tài khoản khóa với JWT còn hiệu lực và permission đã cache 401.
 - Gọi rút và accept đồng thời: chỉ một request thành công, request còn lại 409; kiểm tra trạng thái appeal/submission trong PostgreSQL không mâu thuẫn.
 - JWT test được ký bằng khóa ngẫu nhiên của riêng API test; test này không kiểm tra màn hình FE hoặc thao tác đăng nhập bằng UI.

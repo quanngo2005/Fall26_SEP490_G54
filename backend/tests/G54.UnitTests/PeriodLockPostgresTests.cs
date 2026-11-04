@@ -336,7 +336,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
 
     // ----- verification: approved result into a locked period ----------------------------------------------
 
-    private async Task<Guid> SeedSubmittedWorkAsync(PeriodStatus periodStatus)
+    private async Task<Guid> SeedSubmittedWorkAsync(PeriodStatus periodStatus, decimal value = 10m)
     {
         await using var scope = _provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -393,6 +393,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
             WorkId = work.Id,
             SubmitterEmployeeId = _makerId,
             SubmissionNo = 1,
+            Comment = G54.BLL.Services.ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(_kpiId, value, null)]),
             Status = SubmissionStatus.Submitted,
             SubmittedAt = now,
             UpdatedAt = now,
@@ -402,16 +403,16 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         return submission.Id;
     }
 
-    private Task<VerificationDecisionResultDto> ApproveAsync(Guid submissionId, decimal value) =>
+    private Task<VerificationDecisionResultDto> ApproveAsync(Guid submissionId, decimal _) =>
         RunAsync(sp => sp.GetRequiredService<VerificationService>().SubmitDecisionAsync(
             submissionId,
             _checkerAccount,
-            new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = value }));
+            new SubmitVerificationDecisionDto { Decision = "APPROVED" }));
 
     [PostgresFact]
     public async Task Approve_IntoALockedPeriod_Throws409_RollsBackTheSerializableTransaction_AndStaysApprovableAfterReopening()
     {
-        var submissionId = await SeedSubmittedWorkAsync(PeriodStatus.Locked);
+        var submissionId = await SeedSubmittedWorkAsync(PeriodStatus.Locked, 25m);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => ApproveAsync(submissionId, 25m));
 

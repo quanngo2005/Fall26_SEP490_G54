@@ -13,8 +13,6 @@ public sealed record DecideAppealRequestDto
     public string? Decision { get; init; }
 
     public string? Note { get; init; }
-
-    public decimal? VerifiedValue { get; init; }
 }
 
 public sealed record AppealDecisionResultDto(
