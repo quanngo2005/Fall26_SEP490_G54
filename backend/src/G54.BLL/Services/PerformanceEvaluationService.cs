@@ -246,6 +246,7 @@ public sealed class PerformanceEvaluationService(
                         k.TargetValue!.Value,
                         k.TargetVersion!.Value,
                         k.ActualValue!.Value,
+                        k.WeightedActualValue,
                         k.ActualDenominator,
                         k.AchievementPercentRaw,
                         k.AchievementPercentCapped,
@@ -297,6 +298,7 @@ public sealed class PerformanceEvaluationService(
             contribution.TargetValueSnapshot = kpi.TargetValue;
             contribution.TargetVersionSnapshot = kpi.TargetVersion;
             contribution.ActualValue = kpi.ActualValue;
+            contribution.WeightedActualValue = kpi.WeightedActualValue;
             contribution.ActualDenominator = kpi.ActualDenominator;
             contribution.AchievementPercentRaw = kpi.AchievementPercentRaw;
             contribution.AchievementPercentCapped = kpi.AchievementPercentCapped;

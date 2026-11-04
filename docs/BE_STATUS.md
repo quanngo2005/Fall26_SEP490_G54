@@ -29,7 +29,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 | Sidebar configuration, My profile | ✅ | |
 | Excel import: employee, transaction, service rating | 🟡 | ClosedXML is referenced and the year-target import exists (`POST /target-assignments/import`, `TargetAllocationService`). Missing: employee, transaction and service-rating import. Blocks steps 6–7, BR-07, BR-17/18, BR-22 |
 | System parameters (e.g. BR-01 handover threshold) | ❌ | |
-| Product multipliers (BR-48) | ✅ | `WorkType.ProductCode` + `WorkTypeKpi.Multiplier`, applied in `VerifiedResultRecorder`. Matcher that enforces `ImportedTransaction.product == WorkType.ProductCode` not built (blocked by row 6 above) |
+| Product multipliers (BR-48) | ✅ | `WorkType.ProductCode` + `WorkTypeKpi.Multiplier`, snapshot on `WorkResultItem` by `VerifiedResultRecorder`. `ActualProgress` keeps the real amount (4/11/2026); the multiplier converts it to points only in `PerformanceScoreCalculator` for `SUM` KPIs (`performance_contribution.weighted_actual_value`, migration `AddContributionWeightedActual`, backfills old progress to raw). Unit-tested, not yet run over HTTP. Matcher that enforces `ImportedTransaction.product == WorkType.ProductCode` not built (blocked by row 6 above) |
 | Quality ratio | ❌ | |
 | Risk events (QA) | 🟡 | `POST /risk-events`, `GET /risk-events/{id}`, `/confirm` (writes a negative `performance_contribution`), `/dismiss`, `/resolve` (docs/api/RISK_EVENT_CONTRACT.md). Missing: list/search API, evidence upload, `risk_event:*` permission seed for a QA role |
 | QA 5% random sampling (BR-32) | ❌ | |

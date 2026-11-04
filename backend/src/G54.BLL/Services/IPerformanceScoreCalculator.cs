@@ -49,6 +49,7 @@ public sealed record ScoredKpi(
     decimal? TargetValue,
     int? TargetVersion,
     decimal? ActualValue,
+    decimal? WeightedActualValue,
     decimal? ActualDenominator,
     Guid? AnchorProgressId,
     decimal? AchievementPercentRaw,

@@ -209,7 +209,8 @@ public sealed class VerifiedResultLedgerTests
         Assert.Equal(1m, item.RawValue);
         Assert.Equal(1.5m, item.MultiplierApplied);
         Assert.Equal(1.5m, item.Value);
-        Assert.Equal(1.5m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
+        // The ledger holds the real amount; the multiplier is applied only when the KPI is scored.
+        Assert.Equal(1m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
     }
 
     [Fact]
@@ -331,7 +332,7 @@ public sealed class VerifiedResultLedgerTests
         // The already-stored item keeps its old value; only the new approval uses the new rate.
         var items = await rig.Db.WorkResultItems.OrderBy(i => i.Value).ToListAsync();
         Assert.Equal([1.5m, 1.6m], items.Select(i => i.Value));
-        Assert.Equal(3.1m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == target.Id)).Value);
+        Assert.Equal(2m, (await rig.Db.ActualProgresses.SingleAsync(p => p.TargetAssignmentId == target.Id)).Value);
     }
 
     // ----- Nothing to credit ----------------------------------------------------------------

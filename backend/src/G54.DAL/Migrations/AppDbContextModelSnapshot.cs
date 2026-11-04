@@ -1373,6 +1373,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("numeric(7,4)")
                         .HasColumnName("weight_snapshot");
 
+                    b.Property<decimal?>("WeightedActualValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("weighted_actual_value");
+
                     b.HasKey("Id")
                         .HasName("performance_contribution_pkey");
 
