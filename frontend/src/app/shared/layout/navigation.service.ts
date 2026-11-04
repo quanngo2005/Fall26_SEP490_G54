@@ -24,6 +24,7 @@ export type MenuKey =
   | 'reportingLines'
   | 'employeeData'
   | 'reportsComplaints'
+  | 'appeals'
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
@@ -85,6 +86,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'mySubmissions',
     'myPerformance',
     'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -97,6 +99,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'teamPerformance',
     'targetsAndCampaigns',
     'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -111,6 +114,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'departmentPerformance',
     'targetsAndCampaigns',
     'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -120,6 +124,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'organization',
     'employeeData',
     'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -127,6 +132,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'overview',
     'verificationQueue',
     'reportsComplaints',
+    'appeals',
     'escalatedCases',
     'auditReview',
     'riskEvents',
@@ -151,6 +157,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
   { id: 'myPerformance', icon: 'myPerformance' },
   { id: 'reportsComplaints', icon: 'reportsComplaints' },
+  { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
@@ -238,6 +245,7 @@ export class NavigationService {
     '/employee-detail',
     '/work-type-detail',
     '/review-verify',
+    '/appeals',
     '/kpi-definitions',
     '/campaigns',
     '/sidebar-settings',

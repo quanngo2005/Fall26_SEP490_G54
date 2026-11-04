@@ -1,0 +1,237 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      @if (notice()) {
+        <div class="alert-banner" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="alert-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="detail-container">
+        <!-- Breadcrumb -->
+        <nav class="breadcrumb-bar" [attr.aria-label]="localization.appeals.breadcrumbList">
+          <a class="breadcrumb-link" tabindex="0" (click)="goBack()" (keydown.enter)="goBack()">{{localization.appeals.managerTitle}}</a>
+          <span class="breadcrumb-sep">›</span>
+          <span class="breadcrumb-current">{{code()}}</span>
+        </nav>
+
+        @if (loading() && !appeal()) {
+          <p role="status">{{localization.appeals.loading}}</p>
+        } @else if (failed()) {
+          <div class="state-block" role="alert">
+            <p>{{notFound() ? localization.appeals.notFound : localization.appeals.loadError}}</p>
+            @if (!notFound()) {
+              <button type="button" class="btn-primary" (click)="retry()">
+                {{localization.appeals.retry}}
+              </button>
+            }
+          </div>
+        } @else if (appeal(); as a) {
+          <!-- Action Header Line -->
+          <div class="action-header">
+            <div class="header-left">
+              <h2 class="appeal-headline">{{code()}} · {{headline()}}</h2>
+              <span class="status-badge" [class]="'status-' + a.status.toLowerCase()">
+                {{localization.appeals.status[a.status]}}
+              </span>
+            </div>
+            <div class="header-right-actions">
+              <button
+                type="button"
+                class="btn-secondary"
+                disabled
+                [attr.title]="localization.appeals.escalateUnsupported"
+              >
+                {{localization.appeals.escalate}}
+              </button>
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="!canDecide()"
+                (click)="openDecision()"
+              >
+                {{localization.appeals.makeDecision}}
+              </button>
+            </div>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="cards-grid">
+            <!-- Card 1: Nhân viên nộp -->
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.appeals.submittedBy}}</span>
+                <span class="card-subtitle">{{a.filedAt | appDate: 'DD/MM/YYYY HH:mm'}}</span>
+              </div>
+              <div class="reconcile-table">
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.employee}}</span>
+                  <span class="row-val">{{a.employeeName}}</span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.employeeCode}}</span>
+                  <span class="row-val font-code highlight-agent">{{a.employeeCode}}</span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">
+                    {{a.type === 'SCORE'
+                        ? localization.appeals.period
+                        : localization.appeals.submission}}
+                  </span>
+                  <span class="row-val font-code">{{subject()}}</span>
+                </div>
+                @if (a.type === 'RESULT') {
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.work}}</span>
+                    <span class="row-val">
+                      {{a.workTitle ?? localization.appeals.notAvailable}}
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Card 2: Lý do và bằng chứng -->
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.appeals.reasonAndEvidence}}</span>
+              </div>
+              <div class="card-body">
+                <div class="reason-text-box">{{a.reason}}</div>
+
+                <div class="evidence-list">
+                  @for (file of a.evidences; track file.id) {
+                    <div class="evidence-item">
+                      <div class="file-info">
+                        <span class="file-name">{{file.fileName}}</span>
+                        <span class="file-size">· {{size(file.fileSize)}}</span>
+                      </div>
+                      <button type="button" class="preview-btn" (click)="preview(file)">
+                        {{localization.appeals.preview}}
+                      </button>
+                    </div>
+                  } @empty {
+                    <p>{{localization.appeals.noEvidence}}</p>
+                  }
+                </div>
+                @if (previewFailed()) {
+                  <p class="field-error" role="alert">{{localization.appeals.previewFailed}}</p>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Decision Modal -->
+      @if (showDecisionModal()) {
+        <div
+          class="modal-backdrop"
+          role="presentation"
+          (click)="closeDecision()"
+          (keydown.escape)="closeDecision()"
+        >
+          <div
+            class="modal-window"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appeal-decision-title"
+            tabindex="-1"
+            (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()"
+          >
+            <div class="modal-header">
+              <h3 id="appeal-decision-title">{{decisionTitle()}}</h3>
+              <button
+                type="button"
+                class="modal-close"
+                [attr.aria-label]="localization.common.close"
+                [disabled]="submitting()"
+                (click)="closeDecision()"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="modal-body">
+              <div class="decision-radios" role="radiogroup">
+                @for (option of decisions; track option) {
+                  <label class="radio-option">
+                    <input
+                      type="radio"
+                      name="decisionGroup"
+                      [value]="option"
+                      [checked]="decisionType() === option"
+                      (change)="selectDecision(option)"
+                    />
+                    <div>
+                      <strong>{{decisionLabel(option)}}</strong>
+                      <p>{{decisionHint(option)}}</p>
+                    </div>
+                  </label>
+                }
+              </div>
+
+              <div class="note-field">
+                <label for="decisionNote">{{localization.appeals.decisionNote}}</label>
+                <textarea
+                  id="decisionNote"
+                  rows="3"
+                  [ngModel]="decisionNote()"
+                  (ngModelChange)="decisionNote.set($event)"
+                  [placeholder]="localization.appeals.decisionNotePlaceholder"
+                ></textarea>
+                @if (showValidation() && !decisionType()) {
+                  <p class="field-error" role="alert">
+                    {{localization.appeals.errors.validation}}
+                  </p>
+                }
+                @if (showValidation() && !noteValid()) {
+                  <p class="field-error" role="alert">{{localization.appeals.noteRequired}}</p>
+                }
+              </div>
+
+              @if (unsupported()) {
+                <p class="field-error" role="alert">{{localization.appeals.scoreUnsupported}}</p>
+              }
+              @if (errorKey()) {
+                <p class="field-error" role="alert">{{errorText()}}</p>
+              }
+            </div>
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="submitting()"
+                (click)="closeDecision()"
+              >
+                {{localization.appeals.decisionCancel}}
+              </button>
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="submitting()"
+                (click)="confirmDecision()"
+              >
+                {{submitting()
+                    ? localization.appeals.decisionSaving
+                    : localization.appeals.decisionConfirm}}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+    </main>
+  </div>
+</div>

@@ -1932,9 +1932,9 @@ namespace G54.DAL.Migrations
 
                     b.ToTable("score_entry", null, t =>
                         {
-                            t.HasCheckConstraint("ck_score_entry_kind", "(kind IN ('HOLD', 'TASK_DEDUCTION') AND points < 0 AND reverses_entry_id IS NULL) OR (kind = 'REFUND' AND points > 0 AND reverses_entry_id IS NOT NULL)");
+                            t.HasCheckConstraint("ck_score_entry_kind", "(kind IN ('HOLD', 'TASK_DEDUCTION') AND points < 0 AND reverses_entry_id IS NULL) OR (kind = 'REFUND' AND points > 0 AND reverses_entry_id IS NOT NULL) OR (kind = 'ADJUSTMENT' AND points <> 0 AND reverses_entry_id IS NULL)");
 
-                            t.HasCheckConstraint("ck_score_entry_origin", "(kind = 'TASK_DEDUCTION' AND work_id IS NOT NULL AND appeal_id IS NULL) OR (kind IN ('HOLD', 'REFUND') AND appeal_id IS NOT NULL)");
+                            t.HasCheckConstraint("ck_score_entry_origin", "(kind = 'TASK_DEDUCTION' AND work_id IS NOT NULL AND appeal_id IS NULL) OR (kind IN ('HOLD', 'REFUND') AND appeal_id IS NOT NULL) OR (kind = 'ADJUSTMENT' AND appeal_id IS NOT NULL AND work_id IS NULL)");
                         });
                 });
 

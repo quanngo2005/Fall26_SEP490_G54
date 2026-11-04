@@ -82,6 +82,7 @@ $intentionallyOpen = @{
     "GET /work-types/{id:guid}"                            = "catalog read"
     # Ownership/scope enforced in the service (covered by unit tests)
     "POST /submissions/{submissionId:guid}/appeals"        = "AppealService: caller must be the submitter"
+    "POST /performance-evaluations/{evaluationId:guid}/appeals" = "AppealService: caller must be the evaluated employee"
     "POST /appeals/{id:guid}/withdraw"                     = "AppealService: caller must be the filer"
     "GET /appeals"                                         = "AppealService: scoped to own or department"
     "GET /appeals/{id:guid}/score-entries"                 = "AppealService: same own/department scope as the appeal detail"

@@ -3,6 +3,7 @@ import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
+import { appealQueueGuard, appealsHomeRedirect } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
   {
@@ -163,6 +164,36 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
+      ),
+  },
+  {
+    path: 'appeals',
+    pathMatch: 'full',
+    redirectTo: appealsHomeRedirect,
+  },
+  {
+    path: 'appeals/mine',
+    canActivate: [authGuard],
+    title: 'Kháng nghị của tôi',
+    loadComponent: () =>
+      import('./features/appeals/my-appeals.component').then((m) => m.MyAppealsComponent),
+  },
+  {
+    path: 'appeals/department',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Kháng nghị phòng ban',
+    loadComponent: () =>
+      import('./features/appeals/department-appeals.component').then(
+        (m) => m.DepartmentAppealsComponent,
+      ),
+  },
+  {
+    path: 'appeals/department/:id',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Chi tiết khiếu nại',
+    loadComponent: () =>
+      import('./features/appeals/department-appeal-detail.component').then(
+        (m) => m.DepartmentAppealDetailComponent,
       ),
   },
   {
