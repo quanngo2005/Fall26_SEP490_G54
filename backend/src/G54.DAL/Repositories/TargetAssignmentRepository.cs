@@ -213,6 +213,7 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
         CancellationToken ct = default)
     {
         var query = DbSet.AsNoTracking()
+            .Include(t => t.KpiDefinition)
             .Where(t => t.EmployeeId == employeeId && t.Status == TargetAssignmentStatus.Active);
 
         if (evaluationPeriodId.HasValue)

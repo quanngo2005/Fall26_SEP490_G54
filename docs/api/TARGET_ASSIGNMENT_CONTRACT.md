@@ -47,6 +47,7 @@ has scope `Department`. Beyond that, the BLL checks:
 | Read one target | admin, or the owning department (for an employee target: the employee's department) is the caller's department or one below it |
 | Allocate to employees (row has `employeeId`) | additionally: every employee exists, is `ACTIVE`, and is inside the parent target's department tree (see "Allocation validation") |
 | `GET /target-assignments/{id}/breakdown` | admin; a caller with `target:manage` (scope `Dept`) whose department is the owning department or one of its parents (e.g. a DM over a team); **or** the caller is the target's owning employee. Other employees of the same department get 403 (they must not see colleagues' targets) |
+| `GET /target-assignments/employees/{employeeId}/suggested-daily` | same as the breakdown, decided on the employee: admin; a `target:manage` (scope `Dept`) caller whose department is the employee's department or a parent of it; or the employee themselves |
 | `GET /target-assignments/mine`, `POST .../feedback/confirm`, `POST .../feedback/comments` | any authenticated account with an employee record; the target must be owned by that employee (403 otherwise) |
 | `GET /target-assignments/{id}/feedback` | same as breakdown: admin, a `target:manage` (Dept) caller of the owning department or a parent of it, or the owning employee |
 
@@ -265,17 +266,69 @@ when its `unit` (case-insensitive, Vietnamese or English) is one of: "Hợp đ�
 "VNĐ", "%") is treated as decimal, rounded to 4 dp. **This is an assumption**, not a confirmed business rule; if a
 dedicated KPI field is added later (e.g. `decimalPlaces` or `isWholeNumber`), switch to it instead.
 
-### Working days / holidays / leave (limitation — not built in this change)
+### Working days / holidays / leave
 
 Working days are computed as **Monday-Friday within the period only**, via `IWorkingDayCalendar`
-(`WeekdayWorkingDayCalendar`). **Public holidays and employee leave are NOT subtracted.** The Figma design
-(SCR-STRAT-05 "Nghỉ phép giữa kỳ — MSG25", SCR-STRAT-03-D1 "16 (phép 5)", "... đã trừ lễ, cuối tuần, phép", BR-30)
-expects both; until a holiday/leave calendar exists, breakdown values will run higher than the design's examples
-on months containing a holiday or approved leave. Future work (separate change): `public_holidays` (date, name,
-branch nullable) and `employee_leaves` (employee_id, from, to, status `APPROVED`) tables + migration; a
-`DbWorkingDayCalendar` replacing `WeekdayWorkingDayCalendar` behind the same `IWorkingDayCalendar` interface (no
-caller changes needed); the MSG25 rule (leave mid-period redistributes the not-yet-achieved remainder over the
-remaining working days, period total unchanged); and a `leaveDays` field in the breakdown response.
+(`WeekdayWorkingDayCalendar`). **Public holidays are NOT subtracted**, so a month with a holiday has more working
+days here than in a design that already removes them (Q4/2026 has 22 + 21 + 23 = 66 weekdays). Approved leave does
+**not** change a target or its split (BR-30, `docs/BPMS_AI_Agent_Context.md`): the earlier idea of redistributing the
+not-yet-achieved remainder over the remaining days (MSG25) and a `leaveDays` field is dropped, not planned.
+A holiday calendar, if added later, replaces `WeekdayWorkingDayCalendar` behind the same interface with no caller change.
+
+## `GET /target-assignments/employees/{employeeId}/suggested-daily` (planned per-month / per-week / per-day target)
+
+Read-only, **computed on the fly, not stored**. For one employee and one evaluation period it returns every `ACTIVE`
+target the employee owns in that period, each split exactly like `GET /target-assignments/{id}/breakdown` (same
+calculator, same working days, same whole-number rule), plus a per-day and per-week figure for display. It does **not**
+use actual progress: it is the plan, not what is left to do (SCR-STRAT-05 right panel, read only).
+
+| Parameter | Type | Rules |
+| --- | --- | --- |
+| `employeeId` (path) | GUID | 404 `NOT_FOUND` if the employee does not exist |
+| `evaluationPeriodId` (query) | GUID, required | missing or malformed is 400 `VALIDATION_ERROR`; 404 `NOT_FOUND` if the period does not exist |
+
+Authorization: same as the breakdown (admin; a caller with `target:manage` scope `Dept` whose department is the
+employee's department or one of its parents; or the employee themselves). Another employee of the same department,
+or a manager of another department, gets 403 `FORBIDDEN`. A `LOCKED` / `CLOSED` period is still readable.
+
+```json
+{
+  "employeeId": "5eed0000-0000-0000-0007-000000000004",
+  "evaluationPeriodId": "5eed0000-0000-0000-000f-000000000003",
+  "periodStart": "2026-10-01",
+  "periodEnd": "2026-12-31",
+  "workingDays": 66,
+  "items": [
+    {
+      "targetAssignmentId": "5eed0000-0000-0000-0015-000000000008",
+      "kpiDefinitionId": "5eed0000-0000-0000-0005-000000000001",
+      "kpiCode": "HDV",
+      "unit": "VNĐ",
+      "isWholeNumber": false,
+      "targetValue": 6600,
+      "plannedDaily": 100,
+      "plannedWeekly": 500,
+      "months": [
+        { "month": "2026-10", "workingDays": 22, "value": 2200, "daily": 100, "weekly": 500 },
+        { "month": "2026-11", "workingDays": 21, "value": 2100, "daily": 100, "weekly": 500 },
+        { "month": "2026-12", "workingDays": 23, "value": 2300, "daily": 100, "weekly": 500 }
+      ]
+    }
+  ]
+}
+```
+
+- `items` is sorted by `kpiCode`. It is `[]` (200, not 404) when the employee has no `ACTIVE` target in the period.
+  Only targets owned directly by the employee for exactly that period are returned: a quarter and its month rows are
+  different periods, so ask for the period you want to see.
+- `months[].value` is the same split as `GET .../breakdown?granularity=MONTH` (their sum is `targetValue`).
+- `daily` = `value / workingDays` and `weekly` = `daily x 5`, rounded to 4 decimal places. They are **display
+  figures**: the stored split is in whole units, so a whole-number KPI can show a fraction (for example 17 over 22 days).
+- `plannedDaily` = `targetValue / workingDays` of the whole period, `plannedWeekly` = `plannedDaily x 5`.
+- Only a `SUM` KPI where more is better is spread over the days. For any other KPI (`AVG`, `RATIO`, `NO_AGGREGATION`,
+  `LOWER_BETTER`, `ON_TARGET`) `plannedDaily` and `plannedWeekly` are `null` and `months` is `[]`; `targetValue` is still
+  returned, so the screen shows N/A instead of a made-up number.
+- Dates are `YYYY-MM-DD`; decimal values have at most 4 decimal places.
 
 ## `GET /target-assignments/mine` (employee's own targets)
 

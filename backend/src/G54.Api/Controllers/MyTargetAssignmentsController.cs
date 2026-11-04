@@ -42,6 +42,19 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    /// <summary>Planned per-month, per-week and per-day target of an employee's ACTIVE targets in one period.
+    /// Read-only, computed, not stored. Readable by the employee or anyone passing the service's org-scope check.</summary>
+    [HttpGet("employees/{employeeId:guid}/suggested-daily")]
+    [ProducesResponseType<ApiResponse<SuggestedDailyTargetDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<SuggestedDailyTargetDto>>> GetSuggestedDaily(
+        Guid employeeId, [FromQuery] SuggestedDailyTargetQueryDto query)
+    {
+        var result = await service.GetSuggestedDailyAsync(User.GetRequiredUserId(), employeeId, query.EvaluationPeriodId!.Value);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     /// <summary>Owner employee confirms the target (once per update).</summary>
     // Not "{id}/confirm": TargetAssignmentController already owns POST target-assignments/{deptYearId}/confirm.
     [HttpPost("{id:guid}/feedback/confirm")]

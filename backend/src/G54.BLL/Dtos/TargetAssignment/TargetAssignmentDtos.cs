@@ -140,6 +140,44 @@ public sealed record TargetAssignmentBreakdownDto(
     string Granularity,
     IReadOnlyList<TargetBreakdownItemDto> Items);
 
+/// <summary>Query parameters for GET /target-assignments/employees/{employeeId}/suggested-daily.</summary>
+public sealed class SuggestedDailyTargetQueryDto
+{
+    [Required(ErrorMessage = "Kỳ đánh giá là bắt buộc.")]
+    public Guid? EvaluationPeriodId { get; set; }
+}
+
+/// <summary>One calendar month of an employee target: its working days, value, and the per-day and per-week share.</summary>
+public sealed record SuggestedDailyMonthDto(
+    string Month,
+    int WorkingDays,
+    decimal Value,
+    decimal Daily,
+    decimal Weekly);
+
+/// <summary>
+/// One ACTIVE target of the employee. <c>PlannedDaily</c>, <c>PlannedWeekly</c> and <c>Months</c> are null/empty
+/// for a KPI whose aggregation is not SUM, because "the target split over the days" has no meaning for it.
+/// </summary>
+public sealed record SuggestedDailyTargetItemDto(
+    Guid TargetAssignmentId,
+    Guid KpiDefinitionId,
+    string KpiCode,
+    string Unit,
+    bool IsWholeNumber,
+    decimal TargetValue,
+    decimal? PlannedDaily,
+    decimal? PlannedWeekly,
+    IReadOnlyList<SuggestedDailyMonthDto> Months);
+
+public sealed record SuggestedDailyTargetDto(
+    Guid EmployeeId,
+    Guid EvaluationPeriodId,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    int WorkingDays,
+    IReadOnlyList<SuggestedDailyTargetItemDto> Items);
+
 /// <summary>Body for POST /target-assignments/{id}/feedback/comments.</summary>
 public sealed class CreateTargetFeedbackCommentDto
 {

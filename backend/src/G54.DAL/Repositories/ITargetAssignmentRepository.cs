@@ -75,7 +75,7 @@ public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
     /// <summary>The employee owned by the account; null if the account has none.</summary>
     Task<Employee?> GetAccountEmployeeAsync(Guid accountId, CancellationToken ct = default);
 
-    /// <summary>Lists ACTIVE target assignments owned directly by an employee, optionally filtered. No tracking.</summary>
+    /// <summary>Lists ACTIVE target assignments owned directly by an employee, optionally filtered, with their KPI included. No tracking.</summary>
     Task<IReadOnlyList<TargetAssignment>> ListForEmployeeAsync(
         Guid employeeId,
         Guid? evaluationPeriodId,
