@@ -1049,6 +1049,7 @@
           "new": "Mới",
           "inProgress": "Đang thực hiện",
           "submitted": "Đã nộp",
+          "verified": "Đã xác minh",
           "done": "Hoàn thành",
           "overdue": "Quá hạn"
         },
@@ -1161,6 +1162,33 @@
           "error": "Không giao được việc. Vui lòng thử lại.",
           "forbidden": "Bạn không có quyền giao việc này.",
           "invalid": "Thông tin giao việc không hợp lệ."
+        },
+        "handover": {
+          "title": "Chuyển giao công việc",
+          "subtitle": "Gửi yêu cầu chuyển việc cho đồng nghiệp cùng phòng. Người nhận chấp nhận hoặc từ chối.",
+          "work": "Việc cần chuyển",
+          "workPlaceholder": "Chọn việc",
+          "recipient": "Người nhận",
+          "recipientPlaceholder": "Chọn đồng nghiệp",
+          "reason": "Lý do",
+          "reasonPlaceholder": "Nêu lý do chuyển giao",
+          "amount": "Giá trị giao dịch (VND)",
+          "noticeTitle": "Cần người nhận chấp nhận",
+          "noticeBody": "Việc vẫn thuộc về bạn cho đến khi người nhận chấp nhận. Chỉ chuyển được việc ở cột Mới hoặc Đang thực hiện.",
+          "noWorks": "Bạn chưa có việc nào có thể chuyển giao.",
+          "cancel": "Hủy",
+          "submit": "Gửi yêu cầu",
+          "submitting": "Đang gửi…",
+          "required": "Trường này là bắt buộc.",
+          "amountInvalid": "Giá trị phải lớn hơn hoặc bằng 0.",
+          "success": "Đã gửi yêu cầu chuyển {code} cho {name}.",
+          "error": "Không gửi được yêu cầu chuyển giao. Vui lòng thử lại.",
+          "recipientsError": "Không tải được danh sách đồng nghiệp.",
+          "forbidden": "Bạn không có quyền chuyển giao việc này.",
+          "pending": "Việc này đang có yêu cầu chuyển giao chờ phản hồi.",
+          "invalidState": "Việc không còn ở trạng thái cho phép chuyển giao.",
+          "overLimit": "Giá trị vượt ngưỡng cho phép, cần quản lý xử lý.",
+          "invalid": "Thông tin chuyển giao không hợp lệ."
         }
       },
       "jobPositions": {
@@ -3040,6 +3068,7 @@
           "new": "New",
           "inProgress": "In progress",
           "submitted": "Submitted",
+          "verified": "Verified",
           "done": "Done",
           "overdue": "Overdue"
         },
@@ -3152,6 +3181,33 @@
           "error": "The work could not be assigned. Please try again.",
           "forbidden": "You are not allowed to assign this work.",
           "invalid": "The assignment details are not valid."
+        },
+        "handover": {
+          "title": "Hand over work",
+          "subtitle": "Send a handover request to a colleague in your department. They accept or reject it.",
+          "work": "Work to hand over",
+          "workPlaceholder": "Select a work",
+          "recipient": "Recipient",
+          "recipientPlaceholder": "Select a colleague",
+          "reason": "Reason",
+          "reasonPlaceholder": "Explain why you are handing it over",
+          "amount": "Transaction amount (VND)",
+          "noticeTitle": "The recipient must accept",
+          "noticeBody": "The work stays yours until the recipient accepts. Only works in New or In progress can be handed over.",
+          "noWorks": "You have no work that can be handed over.",
+          "cancel": "Cancel",
+          "submit": "Send request",
+          "submitting": "Sending…",
+          "required": "This field is required.",
+          "amountInvalid": "The amount must be zero or more.",
+          "success": "Handover of {code} to {name} requested.",
+          "error": "The handover request could not be sent. Please try again.",
+          "recipientsError": "The colleague list could not be loaded.",
+          "forbidden": "You are not allowed to hand over this work.",
+          "pending": "This work already has a handover request awaiting a reply.",
+          "invalidState": "The work is no longer in a state that allows a handover.",
+          "overLimit": "The amount is above the allowed limit and needs a manager.",
+          "invalid": "The handover details are not valid."
         }
       },
       "jobPositions": {

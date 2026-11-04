@@ -54,10 +54,17 @@ describe('work board helpers', () => {
     expect(columnKeyOf(BOARD_COLUMNS, 'Cancelled')).toBeNull();
   });
 
-  it('lists Verified work in the Done column on a manager board', () => {
-    expect(columnKeyOf(TEAM_COLUMNS, 'Verified')).toBe('done');
+  it('lists Verified work in its own column on a manager board', () => {
+    expect(columnKeyOf(TEAM_COLUMNS, 'Verified')).toBe('verified');
     expect(columnKeyOf(TEAM_COLUMNS, 'Submitted')).toBe('submitted');
-    expect(TEAM_COLUMNS.map((column) => column.key)).toEqual(BOARD_COLUMNS.map((c) => c.key));
+    expect(TEAM_COLUMNS.map((column) => column.key)).toEqual([
+      'new',
+      'inProgress',
+      'submitted',
+      'verified',
+      'done',
+      'overdue',
+    ]);
   });
 
   it('completes only a Verified work', () => {
