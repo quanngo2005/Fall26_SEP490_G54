@@ -420,7 +420,7 @@ public sealed class TargetAssignmentService(
         await EnsureCanViewAsync(accountId, employeeId, owner.DepartmentId);
 
         var workingDays = await workingDayCalendar.GetWorkingDaysAsync(employeeId, period.StartDate, period.EndDate);
-        var targets = await targetRepository.ListActiveWithKpiForEmployeeAsync(employeeId, evaluationPeriodId);
+        var targets = await targetRepository.ListForEmployeeAsync(employeeId, evaluationPeriodId, null);
 
         var items = targets
             .OrderBy(t => t.KpiDefinition.Code, StringComparer.Ordinal)
