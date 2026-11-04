@@ -92,9 +92,10 @@ vào target ACTIVE của từng nhân sự:
 - Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue` (đây là phần **raw**, trước khi nhân hệ số).
 - Mỗi `WorkResultItem` lưu `rawValue` (phần raw của người nhận, sau khi chia bàn giao nếu có) và
   `multiplierApplied` (hệ số của mapping đang hiệu lực tại thời điểm duyệt). `value = round(rawValue ×
-  multiplierApplied, 4, ToEven)` và chính `value` (đã nhân hệ số) được cộng vào `ActualProgress`. Đổi
-  hệ số sau đó (bản ghi mới hoặc sửa tại chỗ) không làm thay đổi các `WorkResultItem`/`ActualProgress`
-  đã ghi trước đó.
+  multiplierApplied, 4, ToEven)` là điểm quy đổi, chỉ lưu trên `WorkResultItem`. `ActualProgress` chỉ được
+  cộng `rawValue` (số thật, ví dụ 10 thẻ Platinum vẫn là 10); hệ số chỉ được dùng để quy đổi ra điểm khi chấm
+  KPI (`weightedActualValue`, xem `PERFORMANCE_EVALUATION_CONTRACT.md`). Đổi hệ số sau đó (bản ghi mới hoặc sửa
+  tại chỗ) không làm thay đổi các `WorkResultItem`/`ActualProgress` đã ghi trước đó.
 - Nếu công việc có KPI và có `verifiedValue`, **mọi** nhân sự nhận điểm đều phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Thiếu target của bất kỳ ai thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
 - Công việc không có KPI trong loại công việc, hoặc duyệt không kèm `verifiedValue`, vẫn được duyệt bình thường và không ghi `WorkResultItem`.
 - Target đã đạt hoặc vượt chỉ tiêu mà vẫn `ACTIVE` thì vẫn nhận điểm; không có giới hạn trên (tỷ lệ hoàn thành bị chặn bởi `MaxAchievementPercent` của KPI khi tính điểm đánh giá).
@@ -120,7 +121,7 @@ Lưu trữ: thư mục `Storage:EvidencePath` (Docker: `/app/data/evidence`, vol
 | GET | `/works/{workId}/kpi-results` | — | 200 `KpiResultDto[]` |
 | GET | `/kpi-results` | `employeeId, kpiDefinitionId, evaluationPeriodId, status, pageIndex, pageSize` | 200 `KpiResultDto[]` + `pagination` |
 
-DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`). `value` là điểm đã nhân hệ số (những gì cộng vào `ActualProgress`); `rawValue` và `multiplierApplied` cho biết điểm gốc và hệ số đã dùng tại thời điểm duyệt, để truy xuất loại công việc → hệ số → điểm.
+DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`). `value` là điểm đã nhân hệ số (không cộng vào `ActualProgress`, chỉ dùng khi chấm KPI); `rawValue` và `multiplierApplied` cho biết điểm gốc và hệ số đã dùng tại thời điểm duyệt, để truy xuất loại công việc → hệ số → điểm.
 
 ### 2.4 Alias deprecated (bị ẩn khỏi Swagger, xóa sau khi FE chuyển route)
 | Alias | Route chính tắc |

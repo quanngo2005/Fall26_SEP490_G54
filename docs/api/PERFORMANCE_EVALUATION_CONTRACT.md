@@ -48,8 +48,11 @@ identically. The permission check of this endpoint applies only to calls made th
    `SUM` = sum of values, `AVG` = average of values, `RATIO` = sum of values (`actualValue`) over
    sum of denominators (`actualDenominator`). The `AVG` actual is rounded to 4 decimals with banker's
    rounding. A KPI without data is not stored (`null` is N/A, never `0`).
-   The actual is the plain sum of the progress rows: `work_result_item.task_weight` no longer exists (removed by
-   migration `RestructureEvaluationProfileItemTree`), so no per-result multiplier is applied.
+   `actualValue` is the real amount (e.g. real card count): the plain aggregate of the progress rows, never multiplied.
+   For a `SUM` KPI the calculation also builds `weightedActualValue`: the sum of `work_result_item.value`
+   (real amount × the product multiplier approved with it, BR-48) of the `VALID` verified results behind those
+   rows. Progress rows without such items count at their own value. Other aggregations (`AVG`, `RATIO`) are not
+   multiplied: `weightedActualValue` equals `actualValue`.
 5. Write one `performance_contribution` per KPI leaf with a target and data (target, actual and the leaf's
    weight among its siblings as `weight_snapshot`), linked to the KPI's latest progress row through `actual_progress_id`. Group scores are
    computed on every calculation and are not stored. Contributions linked to a risk event are left untouched.
@@ -61,7 +64,7 @@ identically. The permission check of this endpoint applies only to calls made th
 
 ### Score formula
 
-For one KPI, with `target` and the weighted `actual` from step 4 (for a `RATIO` KPI the actual is
+For one KPI, with `target` and the `weightedActualValue` from step 4 as the actual (for a `RATIO` KPI the actual is
 `actualValue / actualDenominator`, multiplied by 100 when the unit is `%`):
 
 | `direction` | `achievementPercentRaw` |
@@ -100,8 +103,10 @@ the same calculation but does not demote an evaluation that is already `CALCULAT
 total exists.
 
 Limits: the per-product multiplier (BR-48 Task Multiplier) lives on `WorkTypeKpi.Multiplier` and is applied by
-`VerifiedResultRecorder` when a verified result is recorded; `ActualProgress`/`PerformanceContribution` already
-hold the weighted value, so this calculation does not re-apply any multiplier. There is still no separate
+`VerifiedResultRecorder` when a verified result is recorded, but only as a snapshot on `WorkResultItem`
+(`rawValue`, `multiplierApplied`, `value`). `ActualProgress` keeps the real amount; the multiplier converts it to
+points only in this calculation (`weightedActualValue`, stored in `performance_contribution.weighted_actual_value`).
+There is still no separate
 per-evaluation or per-period multiplier (BR-32); to change a rate for a period, add a new `WorkTypeKpi` row with a
 new `EffectiveFrom`. Everything that cannot be scored counts as 0 at every level (a KPI without a target or progress, a qualitative group
 not yet scored); this rule awaits BA confirmation. Two calculations of the same existing
