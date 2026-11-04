@@ -223,7 +223,7 @@ public sealed class NotificationService(
         }
 
         var relatedType = EnumApiFormat.ParseEnum<NotificationRelatedType>(request.RelatedType, "relatedType");
-        if (relatedType == NotificationRelatedType.Handover)
+        if (relatedType is not (null or NotificationRelatedType.Work or NotificationRelatedType.Campaign))
         {
             errors.Add("Chỉ được liên kết tới công việc hoặc chiến dịch.");
         }

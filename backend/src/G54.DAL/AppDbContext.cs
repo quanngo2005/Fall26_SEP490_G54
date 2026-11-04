@@ -1930,6 +1930,7 @@ public partial class AppDbContext : DbContext
 
         ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        ConfigureKpiCatalog(modelBuilder);
         OnModelCreatingPartial(modelBuilder);
     }
 

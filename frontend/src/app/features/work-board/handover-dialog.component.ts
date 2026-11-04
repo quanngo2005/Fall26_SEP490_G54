@@ -21,7 +21,7 @@ const ERROR_CODES = {
   standalone: true,
   imports: [A11yModule, FormsModule],
   templateUrl: './handover-dialog.component.html',
-  styleUrls: ['../../shared/ui/ui-controls.scss', './assign-work-dialog.component.scss'],
+  styleUrls: ['../../shared/ui/ui-controls.scss', '../../shared/ui/dialog.scss'],
 })
 export class HandoverDialogComponent extends LocalizedComponent {
   private readonly api = inject(HandoverService);

@@ -1097,11 +1097,32 @@ namespace G54.DAL.Migrations
                         .HasColumnType("kpi_aggregation_type")
                         .HasColumnName("aggregation_type");
 
+                    b.Property<decimal?>("BaselineValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("baseline_value");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
+
+                    b.Property<string>("CreditRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PROCESSOR")
+                        .HasColumnName("credit_role");
+
+                    b.Property<string>("DataSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("TRANSACTION")
+                        .HasColumnName("data_source");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
@@ -1110,6 +1131,14 @@ namespace G54.DAL.Migrations
                     b.Property<int>("Direction")
                         .HasColumnType("kpi_direction")
                         .HasColumnName("direction");
+
+                    b.Property<Guid?>("EffectiveFromPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("effective_from_period_id");
+
+                    b.Property<Guid?>("EffectiveToPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("effective_to_period_id");
 
                     b.Property<string>("Formula")
                         .HasColumnType("text")
@@ -1130,6 +1159,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("ProductName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_name");
+
                     b.Property<string>("RejectReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1147,6 +1181,10 @@ namespace G54.DAL.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("kpi_status")
                         .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
 
                     b.Property<Guid?>("SubmittedBy")
                         .HasColumnType("uuid")
@@ -1167,7 +1205,14 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("kpi_definition_pkey");
 
+                    b.HasIndex("EffectiveFromPeriodId");
+
+                    b.HasIndex("EffectiveToPeriodId");
+
                     b.HasIndex("KpiGroupId");
+
+                    b.HasIndex("ProductName")
+                        .HasDatabaseName("ix_kpi_definition_product");
 
                     b.HasIndex("RequestedBy");
 
@@ -2761,6 +2806,21 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("kpi_definition_job_position", b =>
+                {
+                    b.Property<Guid>("kpi_definition_id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("job_position_id")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("kpi_definition_id", "job_position_id");
+
+                    b.HasIndex("job_position_id");
+
+                    b.ToTable("kpi_definition_job_position");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
                 {
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
@@ -3024,6 +3084,18 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.KpiDefinition", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EffectiveFromPeriod")
+                        .WithMany()
+                        .HasForeignKey("EffectiveFromPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kpi_definition_effective_from");
+
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EffectiveToPeriod")
+                        .WithMany()
+                        .HasForeignKey("EffectiveToPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kpi_definition_effective_to");
+
                     b.HasOne("G54.DAL.Entities.KpiGroup", "KpiGroup")
                         .WithMany("KpiDefinitions")
                         .HasForeignKey("KpiGroupId")
@@ -3042,6 +3114,10 @@ namespace G54.DAL.Migrations
                         .HasForeignKey("SubmittedBy")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_kpi_definition_submitted_by");
+
+                    b.Navigation("EffectiveFromPeriod");
+
+                    b.Navigation("EffectiveToPeriod");
 
                     b.Navigation("KpiGroup");
                 });
@@ -3577,6 +3653,21 @@ namespace G54.DAL.Migrations
                     b.Navigation("KpiDefinition");
 
                     b.Navigation("WorkType");
+                });
+
+            modelBuilder.Entity("kpi_definition_job_position", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.JobPosition", null)
+                        .WithMany()
+                        .HasForeignKey("job_position_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.KpiDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("kpi_definition_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>

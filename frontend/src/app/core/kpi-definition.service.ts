@@ -9,6 +9,11 @@ import {
   KpiDefinitionSavePayload,
   KpiFilter,
   KpiGroupOption,
+  KpiHistoryEntry,
+  KpiRequestPayload,
+  KpiStatus,
+  KpiSummary,
+  KpiUsage,
 } from './kpi-definition.models';
 
 @Injectable({ providedIn: 'root' })
@@ -26,6 +31,57 @@ export class KpiDefinitionService {
     return this.http
       .get<ApiResponse<KpiGroupOption[]>>(`${this.url}/groups`)
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The code a new KPI with this name would get (its name without accents, numbered when taken). */
+  codeSuggestion(name: string): Observable<string> {
+    return this.http
+      .get<ApiResponse<{ code: string }>>(`${this.url}/code-suggestion`, { params: { name } })
+      .pipe(map((response) => this.unwrap(response).code));
+  }
+
+  summary(): Observable<KpiSummary> {
+    return this.http
+      .get<ApiResponse<KpiSummary>>(`${this.url}/summary`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  usage(id: string): Observable<KpiUsage> {
+    return this.http
+      .get<ApiResponse<KpiUsage>>(`${this.url}/${encodeURIComponent(id)}/usage`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  history(id: string): Observable<KpiHistoryEntry[]> {
+    return this.http
+      .get<ApiResponse<KpiHistoryEntry[]>>(`${this.url}/${encodeURIComponent(id)}/history`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Branch Manager: asks the System Admin for a KPI that is missing. */
+  request(payload: KpiRequestPayload): Observable<KpiDefinition> {
+    return this.http
+      .post<ApiResponse<KpiDefinition>>(`${this.url}/requests`, payload)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The allowed moves are in docs/api/KPI_DEFINITION_CONTRACT.md; sending for approval is `PENDING_APPROVAL`. */
+  changeStatus(id: string, status: KpiStatus): Observable<void> {
+    return this.http
+      .patch<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}/status`, { status })
+      .pipe(map(() => undefined));
+  }
+
+  approve(id: string): Observable<void> {
+    return this.http
+      .post<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}/approve`, null)
+      .pipe(map(() => undefined));
+  }
+
+  reject(id: string, reason: string): Observable<void> {
+    return this.http
+      .post<ApiResponse<unknown>>(`${this.url}/${encodeURIComponent(id)}/reject`, { reason })
+      .pipe(map(() => undefined));
   }
 
   create(payload: KpiDefinitionSavePayload): Observable<KpiDefinition> {

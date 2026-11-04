@@ -294,14 +294,14 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261104121610_AddNotifications", migrations[^1]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^2]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^3]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^4]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^5]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^6]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^7]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^8]);
+        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^1]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^2]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^3]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^4]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^5]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^6]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^7]);
+        Assert.Equal("20261101144049_AddAuditLogs", migrations[^8]);
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

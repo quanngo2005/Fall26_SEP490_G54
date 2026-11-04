@@ -11,8 +11,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionService
+public sealed partial class KpiDefinitionService(
+    AppDbContext db,
+    TimeProvider? timeProvider = null,
+    INotifier? notifier = null) : IKpiDefinitionService
 {
+    private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
+
     /// <summary>
     /// Transitions open to the status endpoint. A pending KPI leaves that state only through approve or reject, so it
     /// is never activated by a plain status change.
@@ -43,7 +48,21 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         kpi.UpdatedAt,
         kpi.RejectReason,
         kpi.RequestNote,
-        kpi.RequestedBy);
+        kpi.RequestedBy,
+        kpi.CreditRole.ToEnumString(),
+        kpi.DataSource.ToEnumString(),
+        kpi.ProductName,
+        kpi.BaselineValue,
+        kpi.JobPositions.OrderBy(position => position.Code)
+            .Select(position => new KpiJobPositionDto(position.Id, position.Code, position.Title))
+            .ToList(),
+        kpi.EffectiveFromPeriod == null
+            ? null
+            : new KpiPeriodRefDto(kpi.EffectiveFromPeriod.Id, kpi.EffectiveFromPeriod.Code, kpi.EffectiveFromPeriod.Name, kpi.EffectiveFromPeriod.StartDate, kpi.EffectiveFromPeriod.EndDate),
+        kpi.EffectiveToPeriod == null
+            ? null
+            : new KpiPeriodRefDto(kpi.EffectiveToPeriod.Id, kpi.EffectiveToPeriod.Code, kpi.EffectiveToPeriod.Name, kpi.EffectiveToPeriod.StartDate, kpi.EffectiveToPeriod.EndDate),
+        kpi.SubmittedAt);
 
     public async Task<PagedResult<KpiDefinitionDto>> GetKpisAsync(
         KpiFilterDto filter,
@@ -53,6 +72,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
         var status = EnumApiFormat.ParseEnum<KpiStatus>(filter.Status, "status");
         var aggregationType = EnumApiFormat.ParseEnum<KpiAggregationType>(filter.AggregationType, "aggregationType");
+        var creditRole = EnumApiFormat.ParseEnum<KpiCreditRole>(filter.CreditRole, "creditRole");
+        var dataSource = EnumApiFormat.ParseEnum<KpiDataSource>(filter.DataSource, "dataSource");
         var query = db.KpiDefinitions.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -79,9 +100,31 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             query = query.Where(kpi => kpi.AggregationType == aggregationType.Value);
         }
 
+        if (creditRole.HasValue)
+        {
+            query = query.Where(kpi => kpi.CreditRole == creditRole.Value);
+        }
+
+        if (dataSource.HasValue)
+        {
+            query = query.Where(kpi => kpi.DataSource == dataSource.Value);
+        }
+
+        if (filter.JobPositionId.HasValue)
+        {
+            query = query.Where(kpi => kpi.JobPositions.Any(position => position.Id == filter.JobPositionId.Value));
+        }
+
+        if (filter.EffectiveAtPeriodId.HasValue)
+        {
+            query = await FilterInForceAsync(query, filter.EffectiveAtPeriodId.Value, cancellationToken);
+        }
+
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(kpi => kpi.Code)
+            .OrderBy(kpi => kpi.ProductName == null)
+            .ThenBy(kpi => kpi.ProductName)
+            .ThenBy(kpi => kpi.Code)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(ToDto)
@@ -137,7 +180,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         CancellationToken cancellationToken = default)
     {
         var (aggregationType, direction) = Validate(dto);
-        var kpi = await db.KpiDefinitions.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+        var kpi = await db.KpiDefinitions.Include(item => item.JobPositions).SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
             ?? throw new NotFoundException("KPI Definition", id);
 
         if (kpi.Status == KpiStatus.PendingApproval)
@@ -149,6 +192,7 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, id, cancellationToken);
         await EnsureGroupExistsAsync(dto.KpiGroupId, cancellationToken);
+        var catalog = await ValidateCatalogAsync(dto, kpi, cancellationToken);
 
         kpi.KpiGroupId = dto.KpiGroupId;
         kpi.Code = code;
@@ -159,7 +203,8 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         kpi.AggregationType = aggregationType;
         kpi.Direction = direction;
         kpi.MaxAchievementPercent = dto.MaxAchievementPercent;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        ApplyCatalog(kpi, dto, catalog);
+        kpi.UpdatedAt = time.GetUtcNow();
 
         await SaveAsync(code, cancellationToken);
         return await GetRequiredKpiAsync(id, cancellationToken);
@@ -190,11 +235,12 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         if (target == KpiStatus.PendingApproval)
         {
             kpi.SubmittedBy = await ResolveEmployeeIdAsync(accountId, cancellationToken);
+            kpi.SubmittedAt = time.GetUtcNow();
             kpi.RejectReason = null;
         }
 
         kpi.Status = target;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        kpi.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -206,8 +252,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
 
         kpi.Status = KpiStatus.Active;
         kpi.RejectReason = null;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        kpi.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
+        await TellMakerAsync(kpi, approverId, approved: true, cancellationToken);
     }
 
     public async Task RejectKpiAsync(
@@ -229,8 +276,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
 
         kpi.Status = KpiStatus.Rejected;
         kpi.RejectReason = reason;
-        kpi.UpdatedAt = DateTimeOffset.UtcNow;
+        kpi.UpdatedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
+        await TellMakerAsync(kpi, approverId, approved: false, cancellationToken);
     }
 
     private async Task<KpiDefinitionDto> CreateDraftAsync(
@@ -239,10 +287,13 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
         string? requestNote,
         CancellationToken cancellationToken)
     {
-        var (aggregationType, direction) = Validate(dto);
-        var code = dto.Code.Trim();
+        var (aggregationType, direction) = Validate(dto, requireCode: false);
+        var code = string.IsNullOrWhiteSpace(dto.Code)
+            ? (await SuggestCodeAsync(dto.Name, cancellationToken)).Code
+            : dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, null, cancellationToken);
         await EnsureGroupExistsAsync(dto.KpiGroupId, cancellationToken);
+        var catalog = await ValidateCatalogAsync(dto, null, cancellationToken);
 
         var kpi = new KpiDefinition
         {
@@ -259,8 +310,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             Status = KpiStatus.Draft,
             RequestedBy = requestedBy,
             RequestNote = requestNote,
-            UpdatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = time.GetUtcNow(),
         };
+        ApplyCatalog(kpi, dto, catalog);
 
         db.KpiDefinitions.Add(kpi);
         await SaveAsync(code, cancellationToken);
@@ -346,9 +398,9 @@ public sealed class KpiDefinitionService(AppDbContext db) : IKpiDefinitionServic
             ?? throw new NotFoundException("KPI Definition", id);
     }
 
-    private static (KpiAggregationType AggregationType, KpiDirection Direction) Validate(KpiDefinitionSaveDto dto)
+    private static (KpiAggregationType AggregationType, KpiDirection Direction) Validate(KpiDefinitionSaveDto dto, bool requireCode = true)
     {
-        if (dto.KpiGroupId == Guid.Empty || string.IsNullOrWhiteSpace(dto.Code) || dto.Code.Trim().Length > 50 ||
+        if (dto.KpiGroupId == Guid.Empty || (requireCode && string.IsNullOrWhiteSpace(dto.Code)) || dto.Code.Trim().Length > 50 ||
             string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 255 ||
             string.IsNullOrWhiteSpace(dto.Unit) || dto.Unit.Trim().Length > 50)
         {
