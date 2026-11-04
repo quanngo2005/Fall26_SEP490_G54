@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { appealCode, appealErrorKey, appealSubject, openBlob, typeKey } from './appeal-display';
+import {
+  appealCode,
+  appealErrorKey,
+  appealSubject,
+  appealSubjectWithScore,
+  openBlob,
+  typeKey,
+} from './appeal-display';
 
 const failure = (status: number, errorCode?: string) =>
   new HttpErrorResponse({ status, error: errorCode ? { errorCode } : null });
@@ -48,6 +55,33 @@ describe('appeal display helpers', () => {
     expect(
       appealSubject({ type: 'SCORE', workCode: null, submissionNo: null, periodCode: null }),
     ).toBeNull();
+  });
+
+  it('adds the formatted score to a score appeal only when the score is known', () => {
+    const format = (score: number) => `<${score}>`;
+    const score = (evaluationScore: number | null, periodCode: string | null = '2026-Q2') => ({
+      type: 'SCORE' as const,
+      workCode: null,
+      submissionNo: null,
+      periodCode,
+      evaluationScore,
+    });
+    expect(appealSubjectWithScore(score(87.2), format)).toBe('2026-Q2 · <87.2>');
+    expect(appealSubjectWithScore(score(0), format)).toBe('2026-Q2 · <0>');
+    expect(appealSubjectWithScore(score(null), format)).toBe('2026-Q2');
+    expect(appealSubjectWithScore(score(87.2, null), format)).toBeNull();
+    expect(
+      appealSubjectWithScore(
+        {
+          type: 'RESULT',
+          workCode: 'WRK-1',
+          submissionNo: 2,
+          periodCode: null,
+          evaluationScore: 5,
+        },
+        format,
+      ),
+    ).toBe('WRK-1 · v2');
   });
 
   it('picks the label key of a kind', () => {

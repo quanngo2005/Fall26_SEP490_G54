@@ -22,6 +22,14 @@ export const appealQueueGuard: CanActivateFn = () =>
   canDecideAppeals(inject(AuthService).currentUser()?.permissions) ||
   inject(Router).parseUrl('/appeals/mine');
 
+/**
+ * Own appeals belong to employees; whoever can decide appeals works from the queue of the department instead.
+ * Compose after `authGuard`.
+ */
+export const ownAppealsGuard: CanActivateFn = () =>
+  !canDecideAppeals(inject(AuthService).currentUser()?.permissions) ||
+  inject(Router).parseUrl('/appeals/department');
+
 /** `/appeals`: managers land on the queue of their department, everybody else on their own appeals. */
 export const appealsHomeRedirect: RedirectFunction = () =>
   inject(Router).parseUrl(

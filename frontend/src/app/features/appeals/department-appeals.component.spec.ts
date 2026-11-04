@@ -35,6 +35,7 @@ const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   jobPositionTitle: 'Giao dịch viên',
   resolvedByEmployeeName: null,
   note: null,
+  evaluationScore: null,
   ...over,
 });
 const page = (items: AppealListItem[], totalCount = items.length) => ({
@@ -110,7 +111,40 @@ describe('DepartmentAppealsComponent', () => {
     const counts = Array.from(root.querySelectorAll('.tab-count')).map((e) =>
       e.textContent?.trim(),
     );
-    expect(counts).toEqual(['4', '9']);
+    expect(counts).toEqual(['4', 'N/A', '9']);
+  });
+
+  it('has no link that switches to the personal appeals', () => {
+    const fixture = open();
+    flushLookups();
+    flushList([item()]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.page-title-row a')).toBeNull();
+  });
+
+  it('keeps the escalated tab disabled with N/A because the API has no escalation', () => {
+    const fixture = open();
+    flushLookups();
+    flushList([item()]);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('.tab-btn'));
+    const escalated = tabs.find((tab) => tab.textContent?.includes('Đã chuyển lên GĐ'));
+    expect(escalated?.disabled).toBeTrue();
+    expect(escalated?.querySelector('.tab-count')?.textContent?.trim()).toBe('N/A');
+  });
+
+  it('shows the current score next to the period of a score appeal', () => {
+    const fixture = open();
+    flushLookups();
+    flushList([item({ evaluationScore: 87.2 }), item({ id: 'b-2', evaluationScore: null })]);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const subjects = Array.from(root.querySelectorAll<HTMLElement>('tbody td.col-subject')).map(
+      (cell) => cell.textContent?.trim(),
+    );
+    expect(subjects[0]).toContain('2026-Q2 · 87');
+    expect(subjects[1]).toBe('2026-Q2');
   });
 
   it('shows N/A for the due date because the API has no processing deadline', () => {

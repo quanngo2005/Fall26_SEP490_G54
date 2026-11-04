@@ -23,7 +23,6 @@ export type MenuKey =
   | 'jobPositions'
   | 'reportingLines'
   | 'employeeData'
-  | 'reportsComplaints'
   | 'appeals'
   | 'teamWork'
   | 'handoverDelegation'
@@ -85,7 +84,6 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myWork',
     'mySubmissions',
     'myPerformance',
-    'reportsComplaints',
     'appeals',
     'notifications',
     'myProfile',
@@ -98,7 +96,6 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'reviewVerify',
     'teamPerformance',
     'targetsAndCampaigns',
-    'reportsComplaints',
     'appeals',
     'notifications',
     'myProfile',
@@ -113,7 +110,6 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchPerformance',
     'departmentPerformance',
     'targetsAndCampaigns',
-    'reportsComplaints',
     'appeals',
     'notifications',
     'myProfile',
@@ -123,7 +119,6 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'employees',
     'organization',
     'employeeData',
-    'reportsComplaints',
     'appeals',
     'notifications',
     'myProfile',
@@ -131,7 +126,6 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   qa: [
     'overview',
     'verificationQueue',
-    'reportsComplaints',
     'appeals',
     'escalatedCases',
     'auditReview',
@@ -156,7 +150,6 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
   { id: 'myPerformance', icon: 'myPerformance' },
-  { id: 'reportsComplaints', icon: 'reportsComplaints' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },

@@ -3,7 +3,7 @@ import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
-import { appealQueueGuard, appealsHomeRedirect } from './core/appeal-queue.guard';
+import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
   {
@@ -173,7 +173,7 @@ export const routes: Routes = [
   },
   {
     path: 'appeals/mine',
-    canActivate: [authGuard],
+    canActivate: [authGuard, ownAppealsGuard],
     title: 'Kháng nghị của tôi',
     loadComponent: () =>
       import('./features/appeals/my-appeals.component').then((m) => m.MyAppealsComponent),

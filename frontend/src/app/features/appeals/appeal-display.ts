@@ -52,6 +52,20 @@ export function appealSubject(
   return item.submissionNo == null ? item.workCode : `${item.workCode} · v${item.submissionNo}`;
 }
 
+/** The subject of the appeal; a score appeal also shows the current score (formatted by the caller) when known. */
+export function appealSubjectWithScore(
+  item: Pick<
+    AppealListItem,
+    'type' | 'workCode' | 'submissionNo' | 'periodCode' | 'evaluationScore'
+  >,
+  formatScore: (score: number) => string,
+): string | null {
+  const subject = appealSubject(item);
+  return subject && item.type === 'SCORE' && item.evaluationScore != null
+    ? `${subject} · ${formatScore(item.evaluationScore)}`
+    : subject;
+}
+
 export const RESOLVED_STATUSES: readonly AppealStatus[] = ['ACCEPTED', 'REJECTED', 'WITHDRAWN'];
 export const OPEN_STATUSES: readonly AppealStatus[] = ['OPEN', 'UNDER_REVIEW'];
 

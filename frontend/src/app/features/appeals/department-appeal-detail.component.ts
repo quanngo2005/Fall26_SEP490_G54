@@ -1,10 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, EMPTY, finalize, map, Subject, switchMap, tap } from 'rxjs';
-import { AppealDetail, AppealEvidence } from '../../core/appeal.models';
+import { AppealDecision, AppealDetail, AppealEvidence } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -19,13 +19,19 @@ import {
   typeKey,
 } from './appeal-display';
 
-type DecisionChoice = 'ACCEPT' | 'ADJUST' | 'REJECT';
+/** The decisions the API accepts for each kind of appeal (docs/api/APPEAL_CONTRACT.md). */
+const RESULT_DECISIONS: readonly AppealDecision[] = ['ACCEPT', 'ADJUST', 'REJECT'];
+const SCORE_DECISIONS: readonly AppealDecision[] = ['ADJUST', 'UPHOLD'];
 
 @Component({
   selector: 'app-department-appeal-detail',
-  imports: [FormsModule, RouterModule, SidebarComponent, HeaderComponent, AppDatePipe],
+  imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe],
   templateUrl: './department-appeal-detail.component.html',
-  styleUrls: ['./appeals-shared.scss', './department-appeal-detail.component.scss'],
+  styleUrls: [
+    './appeals-shared.scss',
+    './department-appeal-detail.component.scss',
+    './appeal-decision-modal.scss',
+  ],
 })
 export class DepartmentAppealDetailComponent extends LocalizedComponent {
   private readonly api = inject(AppealService);
@@ -33,8 +39,6 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly load = new Subject<string>();
-
-  protected readonly decisions: readonly DecisionChoice[] = ['ACCEPT', 'ADJUST', 'REJECT'];
 
   protected readonly id = signal<string | null>(null);
   protected readonly appeal = signal<AppealDetail | null>(null);
@@ -44,11 +48,11 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   protected readonly previewFailed = signal(false);
 
   protected readonly showDecisionModal = signal(false);
-  protected readonly decisionType = signal<DecisionChoice | null>(null);
+  protected readonly decisionType = signal<AppealDecision | null>(null);
   protected readonly decisionNote = signal('');
+  protected readonly decisionPoints = signal<number | null>(null);
   protected readonly showValidation = signal(false);
   protected readonly submitting = signal(false);
-  protected readonly unsupported = signal(false);
   protected readonly errorKey = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
 
@@ -56,11 +60,22 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     const id = this.id();
     return id ? appealCode(id) : '';
   });
+  protected readonly decisions = computed<readonly AppealDecision[]>(() =>
+    this.appeal()?.type === 'SCORE' ? SCORE_DECISIONS : RESULT_DECISIONS,
+  );
   protected readonly canDecide = computed(() => {
     const appeal = this.appeal();
     return appeal !== null && OPEN_STATUSES.includes(appeal.status) && !this.submitting();
   });
   protected readonly noteValid = computed(() => this.decisionNote().trim().length > 0);
+  /** A score appeal adjusted with points needs a positive amount; every other decision sends none. */
+  protected readonly pointsNeeded = computed(
+    () => this.appeal()?.type === 'SCORE' && this.decisionType() === 'ADJUST',
+  );
+  protected readonly pointsValid = computed(() => {
+    const points = this.decisionPoints();
+    return !this.pointsNeeded() || (points !== null && points > 0);
+  });
 
   constructor() {
     super();
@@ -108,8 +123,8 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   protected openDecision(): void {
     this.decisionType.set(null);
     this.decisionNote.set('');
+    this.decisionPoints.set(null);
     this.showValidation.set(false);
-    this.unsupported.set(false);
     this.errorKey.set(null);
     this.showDecisionModal.set(true);
   }
@@ -118,9 +133,8 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     if (!this.submitting()) this.showDecisionModal.set(false);
   }
 
-  protected selectDecision(decision: DecisionChoice): void {
+  protected selectDecision(decision: AppealDecision): void {
     this.decisionType.set(decision);
-    this.unsupported.set(false);
     this.errorKey.set(null);
   }
 
@@ -128,21 +142,17 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     this.showValidation.set(true);
     const appeal = this.appeal();
     const decision = this.decisionType();
-    if (!appeal || !decision || !this.noteValid() || this.submitting()) return;
-
-    this.unsupported.set(false);
-    this.errorKey.set(null);
-    // A score appeal can only keep the score: the other decisions need the points the screen does not collect.
-    if (appeal.type === 'SCORE' && decision !== 'REJECT') {
-      this.unsupported.set(true);
+    if (!appeal || !decision || !this.noteValid() || !this.pointsValid() || this.submitting()) {
       return;
     }
 
+    this.errorKey.set(null);
     this.submitting.set(true);
     this.api
       .decide(appeal.id, {
-        decision: appeal.type === 'SCORE' ? 'UPHOLD' : decision,
+        decision,
         note: this.decisionNote().trim(),
+        ...(this.pointsNeeded() ? { points: this.decisionPoints() } : {}),
       })
       .pipe(
         finalize(() => this.submitting.set(false)),
@@ -187,31 +197,50 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     return (appeal && appealSubject(appeal)) ?? this.localization.appeals.notAvailable;
   }
 
+  protected scoreText(): string {
+    const score = this.appeal()?.evaluationScore;
+    return score == null ? this.localization.appeals.notAvailable : this.i18n.formatNumber(score);
+  }
+
+  protected referrerText(): string {
+    const appeal = this.appeal();
+    if (!appeal?.referrerEmployeeCode) return this.localization.appeals.notAvailable;
+    return appeal.referrerEmployeeName
+      ? `${appeal.referrerEmployeeCode} · ${appeal.referrerEmployeeName}`
+      : appeal.referrerEmployeeCode;
+  }
+
   protected decisionTitle(): string {
     return this.i18n.translate('appeals.decisionTitle', { kind: this.kindLabel() });
   }
 
-  protected decisionLabel(decision: DecisionChoice): string {
+  protected decisionLabel(decision: AppealDecision): string {
     const text = this.localization.appeals;
+    const score = this.appeal()?.type === 'SCORE';
     switch (decision) {
       case 'ACCEPT':
         return text.decisionAccept;
       case 'ADJUST':
-        return text.decisionAdjust;
+        return score ? text.decisionAdjustScore : text.decisionAdjust;
       case 'REJECT':
         return text.decisionReject;
+      case 'UPHOLD':
+        return text.decisionUphold;
     }
   }
 
-  protected decisionHint(decision: DecisionChoice): string {
+  protected decisionHint(decision: AppealDecision): string {
     const text = this.localization.appeals;
+    const score = this.appeal()?.type === 'SCORE';
     switch (decision) {
       case 'ACCEPT':
         return text.decisionAcceptHint;
       case 'ADJUST':
-        return text.decisionAdjustHint;
+        return score ? text.decisionAdjustScoreHint : text.decisionAdjustHint;
       case 'REJECT':
         return text.decisionRejectHint;
+      case 'UPHOLD':
+        return text.decisionUpholdHint;
     }
   }
 
@@ -222,5 +251,18 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   protected errorText(): string {
     const key = this.errorKey();
     return key ? this.i18n.translate(key) : '';
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected handleKeyboard(event: KeyboardEvent): void {
+    if (!this.showDecisionModal()) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeDecision();
+    } else if (event.key === 'Enter' && event.ctrlKey) {
+      event.preventDefault();
+      this.confirmDecision();
+    }
   }
 }

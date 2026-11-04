@@ -185,7 +185,7 @@ public sealed partial class AppealService(
 
         LogAppealDecided(logger, decision, appeal.Id, caller.Employee.Id, null);
         return new AppealDecisionResultDto(
-            MapDetail(appeal), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
+            await ReloadDetailAsync(appeal.Id, cancellationToken), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
     }
 
     /// <summary>The reason and attachment limits shared by both kinds of appeal; returns the trimmed reason.</summary>
@@ -399,7 +399,7 @@ public sealed partial class AppealService(
             LogScoreAppealWithdrawn(logger, appeal.Id, appeal.PerformanceEvaluationId!.Value, caller.Employee.Id, null);
         }
 
-        return MapDetail(appeal);
+        return await ReloadDetailAsync(appeal.Id, cancellationToken);
     }
 
     public async Task<PagedResult<AppealListItemDto>> GetAppealsAsync(
@@ -506,6 +506,7 @@ public sealed partial class AppealService(
                 a.Employee.JobPositionId,
                 ResolvedByEmployeeName = a.ResolvedByNavigation != null ? a.ResolvedByNavigation.FullName : null,
                 a.Note,
+                EvaluationScore = a.PerformanceEvaluation != null ? a.PerformanceEvaluation.TotalScore : null,
             })
             .ToListAsync(cancellationToken);
 
@@ -534,7 +535,8 @@ public sealed partial class AppealService(
                 r.PeriodCode,
                 positionTitles.GetValueOrDefault(r.JobPositionId),
                 r.ResolvedByEmployeeName,
-                r.Note))
+                r.Note,
+                r.EvaluationScore))
             .ToList();
 
         return new PagedResult<AppealListItemDto>(items, totalCount, page, pageSize);
@@ -648,14 +650,24 @@ public sealed partial class AppealService(
             .Include(a => a.ResolvedByNavigation)
             .Include(a => a.ResultSubmission!)
                 .ThenInclude(s => s.Work)
+                    .ThenInclude(w => w.WorkType)
+            .Include(a => a.ResultSubmission!)
+                .ThenInclude(s => s.Work)
+                    .ThenInclude(w => w.TaskHandovers.Where(h => h.Status == HandoverStatus.Accepted).OrderByDescending(h => h.HandoverAt).Take(1))
+                        .ThenInclude(h => h.FromEmployee)
             .Include(a => a.PerformanceEvaluation!)
                 .ThenInclude(e => e.EvaluationPeriod)
             .Include(a => a.Evidences)
             .FirstOrDefaultAsync(a => a.Id == appealId, cancellationToken);
 
+    /// <summary>The detail as the read endpoints shape it, loaded again after a change was saved.</summary>
+    private async Task<AppealDetailDto> ReloadDetailAsync(Guid appealId, CancellationToken cancellationToken)
+        => MapDetail((await LoadAppealAsync(appealId, cancellationToken))!);
+
     private static AppealDetailDto MapDetail(Appeal appeal)
     {
         var submission = appeal.ResultSubmission;
+        var referrer = submission?.Work.TaskHandovers.FirstOrDefault()?.FromEmployee;
         var evidences = appeal.Evidences
             .OrderBy(e => e.UploadedAt)
             .ThenBy(e => e.FileName, StringComparer.Ordinal)
@@ -690,7 +702,12 @@ public sealed partial class AppealService(
             TypeOf(appeal.PerformanceEvaluationId),
             appeal.ScoreDisputeReason,
             appeal.PerformanceEvaluationId,
-            appeal.PerformanceEvaluation?.EvaluationPeriod.Code);
+            appeal.PerformanceEvaluation?.EvaluationPeriod.Code,
+            submission?.SubmittedAt,
+            submission?.Work.WorkType?.Name,
+            referrer?.EmployeeCode,
+            referrer?.FullName,
+            appeal.PerformanceEvaluation?.TotalScore);
     }
 
     private async Task<Caller> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)

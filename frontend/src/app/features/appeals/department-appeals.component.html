@@ -8,9 +8,6 @@
       <div class="department-panel">
         <div class="page-title-row">
           <h1>{{localization.appeals.managerTitle}}</h1>
-          <a routerLink="/appeals/mine" class="view-switch-link">
-            {{localization.appeals.switchToMine}}
-          </a>
         </div>
 
         <!-- Filter Tabs -->
@@ -25,6 +22,10 @@
           >
             {{localization.appeals.needsAction}}
             <span class="tab-count">{{counts().needsAction}}</span>
+          </button>
+          <button type="button" role="tab" class="tab-btn" disabled aria-selected="false">
+            {{localization.appeals.tabEscalated}}
+            <span class="tab-count">{{localization.appeals.notAvailable}}</span>
           </button>
           <button
             type="button"
@@ -134,13 +135,13 @@
                     class="clickable-row"
                     tabindex="0"
                   >
-                    <td class="col-code cell-bold">{{code(item)}}</td>
+                    <td class="col-code cell-bold font-code">{{code(item)}}</td>
                     <td class="col-emp">{{item.employeeName}}</td>
                     <td class="col-pos">
                       {{item.jobPositionTitle ?? localization.appeals.notAvailable}}
                     </td>
                     <td class="col-kind">{{kindLabel(item.type)}}</td>
-                    <td class="col-subject cell-subject">{{subject(item)}}</td>
+                    <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
                     <td class="col-date">{{item.filedAt | appDate: 'DD/MM/YYYY'}}</td>
                     <td class="col-deadline">{{localization.appeals.notAvailable}}</td>
                     <td class="col-status">

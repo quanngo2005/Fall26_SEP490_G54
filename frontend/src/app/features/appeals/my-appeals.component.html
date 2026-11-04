@@ -37,9 +37,6 @@
         <div class="master-panel">
           <div class="page-title-row">
             <h1>{{localization.appeals.myTitle}}</h1>
-            <a routerLink="/appeals/department" class="view-switch-link">
-              {{localization.appeals.switchToDepartment}}
-            </a>
           </div>
 
           <!-- Filter Tabs -->
@@ -174,10 +171,10 @@
                       [class.muted-row]="item.status === 'WITHDRAWN'"
                       (click)="selectAppeal(item)"
                     >
-                      <td class="col-code cell-bold">{{code(item)}}</td>
+                      <td class="col-code cell-bold font-code">{{code(item)}}</td>
                       <td class="col-kind">{{kindLabel(item.type)}}</td>
                       @if (!selectedAppeal()) {
-                        <td class="col-subject cell-subject">{{subject(item)}}</td>
+                        <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
                       }
                       <td class="col-date">{{item.filedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
                       @if (!selectedAppeal()) {

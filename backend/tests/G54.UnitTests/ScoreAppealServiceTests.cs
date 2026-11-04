@@ -682,6 +682,37 @@ public sealed class ScoreAppealServiceTests : IDisposable
         Assert.Null(detail.SubmissionNo);
         Assert.Equal(score.Id, detail.PerformanceEvaluationId);
         Assert.Equal(score.EvaluationPeriod.Code, detail.PeriodCode);
+        Assert.Null(detail.SubmittedAt);
+        Assert.Null(detail.WorkTypeName);
+        Assert.Null(detail.ReferrerEmployeeCode);
+        Assert.Null(detail.ReferrerEmployeeName);
+    }
+
+    [Fact]
+    public async Task DetailAndList_OfAScoreAppeal_CarryTheCurrentScore()
+    {
+        var (manager, appeal, score) = await OpenScoreAppealAsync();
+        var employee = await _db.Employees.SingleAsync(e => e.Id == appeal.EmployeeId);
+        var service = ServiceAt(CalculatedAt.AddHours(2), ("verification", "decide", "Branch"));
+
+        var detail = await service.GetAppealByIdAsync(appeal.Id, employee.Id);
+        var listed = Assert.Single((await service.GetAppealsAsync(manager.Id, new AppealFilterDto())).Items);
+
+        Assert.Equal(score.TotalScore, detail.EvaluationScore);
+        Assert.Equal(score.TotalScore, listed.EvaluationScore);
+        Assert.NotNull(detail.EvaluationScore);
+    }
+
+    [Fact]
+    public async Task Decide_Adjust_ReturnsTheDetailWithTheScoreAfterTheAdjustment()
+    {
+        var (manager, appeal, _) = await OpenScoreAppealAsync();
+
+        var result = await ServiceAt(CalculatedAt.AddHours(5), ("verification", "decide", "Branch"))
+            .DecideAppealAsync(appeal.Id, manager.Id, Decision("ADJUST", "Điều chỉnh sau khi đối chiếu", 2.5m));
+
+        Assert.Equal((await _db.PerformanceEvaluations.SingleAsync()).TotalScore, result.Appeal.EvaluationScore);
+        Assert.Equal("ACCEPTED", result.Appeal.Status);
     }
 
     // ----- List filters ----------------------------------------------------------------------

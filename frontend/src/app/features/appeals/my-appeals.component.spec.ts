@@ -35,6 +35,7 @@ const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   jobPositionTitle: 'Giao dịch viên',
   resolvedByEmployeeName: null,
   note: null,
+  evaluationScore: null,
   ...over,
 });
 const page = (items: AppealListItem[], totalCount = items.length) => ({
@@ -144,12 +145,13 @@ describe('MyAppealsComponent', () => {
     for (const request of requests) request.flush(page([]));
   });
 
-  it('links to the department queue', () => {
+  it('has no link that switches to the department queue', () => {
     const fixture = open();
     flushInitial([]);
     fixture.detectChanges();
-    const link: HTMLAnchorElement = fixture.nativeElement.querySelector('.view-switch-link');
-    expect(link.getAttribute('href')).toBe('/appeals/department');
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('.page-title-row a')).toBeNull();
+    expect(root.querySelector('.page-title-row h1')?.textContent).toContain('Khiếu nại của tôi');
   });
 
   it('opens the drawer with the detail of the clicked appeal and withdraws only an open one', () => {

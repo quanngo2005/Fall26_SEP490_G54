@@ -7,6 +7,7 @@
 }
 
 .appeal-drawer {
+  font-family: Inter, sans-serif;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -31,8 +32,9 @@
 
   .appeal-title {
     margin: 0;
-    font-size: 16px;
-    font-weight: 700;
+    font:
+      700 16px Manrope,
+      sans-serif;
     color: #0f172a;
     line-height: 1.3;
   }
@@ -127,6 +129,12 @@
     font-size: 13px;
     font-weight: 500;
     color: #0f172a;
+
+    &.font-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 12.5px;
+    }
   }
 
   .badge-mismatch {
@@ -272,6 +280,11 @@
   .step-time {
     font-size: 12px;
     color: #64748b;
+
+    &.sla-deadline {
+      color: #dc2626;
+      font-weight: 600;
+    }
   }
 }
 

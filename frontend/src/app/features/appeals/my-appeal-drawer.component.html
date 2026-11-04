@@ -46,6 +46,14 @@
                 {{appeal().workTitle ?? localization.appeals.notAvailable}}
               </span>
             </div>
+            <div class="grid-item">
+              <span class="field-label">{{localization.appeals.transactionCode}}</span>
+              <span class="field-value font-code">{{localization.appeals.notAvailable}}</span>
+            </div>
+            <div class="grid-item">
+              <span class="field-label">{{localization.appeals.reconciliation}}</span>
+              <span class="field-value">{{localization.appeals.notAvailable}}</span>
+            </div>
           }
         </div>
       </section>
@@ -102,6 +110,9 @@
               </div>
               <div class="step-content">
                 <div class="step-title">{{localization.appeals.timelineWaiting}}</div>
+                <div class="step-time sla-deadline">
+                  {{localization.appeals.deadlineLabel}}: {{localization.appeals.notAvailable}}
+                </div>
               </div>
             } @else {
               <div class="step-marker active">

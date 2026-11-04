@@ -2,7 +2,12 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { routes } from '../app.routes';
-import { appealQueueGuard, appealsHomeRedirect, canDecideAppeals } from './appeal-queue.guard';
+import {
+  appealQueueGuard,
+  appealsHomeRedirect,
+  canDecideAppeals,
+  ownAppealsGuard,
+} from './appeal-queue.guard';
 import { AuthenticatedUser } from './auth.models';
 import { AuthService } from './auth.service';
 
@@ -15,6 +20,7 @@ describe('appeal queue guard', () => {
   const guard = () =>
     TestBed.runInInjectionContext(() => appealQueueGuard({} as never, {} as never));
   const home = () => TestBed.runInInjectionContext(() => appealsHomeRedirect({} as never));
+  const own = () => TestBed.runInInjectionContext(() => ownAppealsGuard({} as never, {} as never));
 
   beforeEach(() => {
     user.set(null);
@@ -37,6 +43,7 @@ describe('appeal queue guard', () => {
       as(permissions);
       expect(guard()).toBeTrue();
       expect(String(home())).toBe(router.parseUrl('/appeals/department').toString());
+      expect(String(own())).toBe(router.parseUrl('/appeals/department').toString());
     });
   }
 
@@ -45,6 +52,7 @@ describe('appeal queue guard', () => {
       as(permissions);
       expect(String(guard())).toBe(router.parseUrl('/appeals/mine').toString());
       expect(String(home())).toBe(router.parseUrl('/appeals/mine').toString());
+      expect(own()).toBeTrue();
     });
   }
 
@@ -58,5 +66,9 @@ describe('appeal queue guard', () => {
       expect(routes.find((r) => r.path === path)?.canActivate).toContain(appealQueueGuard);
     }
     expect(routes.find((r) => r.path === 'appeals')?.redirectTo).toBe(appealsHomeRedirect);
+  });
+
+  it('keeps the personal appeals for employees only', () => {
+    expect(routes.find((r) => r.path === 'appeals/mine')?.canActivate).toContain(ownAppealsGuard);
   });
 });

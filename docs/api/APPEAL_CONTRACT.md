@@ -217,11 +217,12 @@ Rủi ro đã biết: quy tắc "một khiếu nại đang xử lý trên mỗi 
   "periodCode": null,
   "jobPositionTitle": "Giao dịch viên",
   "resolvedByEmployeeName": null,
-  "note": null
+  "note": null,
+  "evaluationScore": null
 }
 ```
 
-Với `type = SCORE`: `resultSubmissionId`, `workId`, `workCode`, `workTitle`, `submissionNo` là `null`; `performanceEvaluationId` và `periodCode` (mã kỳ đánh giá) có giá trị. `jobPositionTitle` là chức danh của người khiếu nại; `resolvedByEmployeeName` và `note` là người xử lý và ghi chú xử lý, `null` cho đến khi khiếu nại được xử lý.
+Với `type = SCORE`: `resultSubmissionId`, `workId`, `workCode`, `workTitle`, `submissionNo` là `null`; `performanceEvaluationId`, `periodCode` (mã kỳ đánh giá) và `evaluationScore` (`totalScore` hiện tại của điểm bị khiếu nại, `null` nếu chưa có) có giá trị. `evaluationScore` luôn `null` với `RESULT`. `jobPositionTitle` là chức danh của người khiếu nại; `resolvedByEmployeeName` và `note` là người xử lý và ghi chú xử lý, `null` cho đến khi khiếu nại được xử lý.
 
 `AppealDetailDto` = các trường của `AppealListItemDto` cộng:
 ```json
@@ -231,6 +232,10 @@ Với `type = SCORE`: `resultSubmissionId`, `workId`, `workCode`, `workTitle`, `
   "note": "string | null",
   "resolvedByEmployeeId": "uuid | null",
   "resolvedByEmployeeName": "string | null",
+  "submittedAt": "2026-10-24T09:00:00+00:00 | null",
+  "workTypeName": "string | null",
+  "referrerEmployeeCode": "string | null",
+  "referrerEmployeeName": "string | null",
   "evidences": [
     {
       "id": "uuid",
@@ -243,6 +248,14 @@ Với `type = SCORE`: `resultSubmissionId`, `workId`, `workCode`, `workTitle`, `
   ]
 }
 ```
+
+Các trường chỉ có ở chi tiết, đều `null` với `SCORE` hoặc khi không có dữ liệu (FE hiển thị N/A):
+- `submittedAt`: thời điểm nộp của đợt nộp bị khiếu nại (`ResultSubmission.SubmittedAt`).
+- `workTypeName`: tên loại công việc (`WorkType.Name`) của công việc chứa đợt nộp; `null` khi công việc không có loại.
+- `referrerEmployeeCode` / `referrerEmployeeName`: nhân viên chuyển giao (`FromEmployee`) của lần bàn giao `ACCEPTED` mới nhất của công việc; `null` khi công việc chưa có bàn giao được chấp nhận.
+- `evaluationScore` cũng có trong chi tiết với `SCORE`.
+
+Chưa có dữ liệu ở backend nên API không trả: mã giao dịch, mã CIF, dữ liệu đối soát Core Banking, hạn xử lý khiếu nại, trạng thái chuyển cấp lên Giám đốc chi nhánh. FE hiển thị N/A cho các mục này đến khi backend bổ sung.
 
 File bằng chứng của khiếu nại tải qua `GET /evidence/{id}/download` và `/preview` (mục 2.2.1 contract Submission). Xem được: người nộp khiếu nại; người có `verification:decide` với phạm vi bao phủ phòng ban của người nộp khiếu nại; ADMIN.
 

@@ -107,7 +107,8 @@ public sealed record AppealListItemDto(
     string? PeriodCode = null,
     string? JobPositionTitle = null,
     string? ResolvedByEmployeeName = null,
-    string? Note = null);
+    string? Note = null,
+    decimal? EvaluationScore = null);
 
 public sealed record AppealEvidenceDto(
     Guid Id,
@@ -139,4 +140,9 @@ public sealed record AppealDetailDto(
     string Type,
     string? ScoreDisputeReason = null,
     Guid? PerformanceEvaluationId = null,
-    string? PeriodCode = null);
+    string? PeriodCode = null,
+    DateTimeOffset? SubmittedAt = null,
+    string? WorkTypeName = null,
+    string? ReferrerEmployeeCode = null,
+    string? ReferrerEmployeeName = null,
+    decimal? EvaluationScore = null);

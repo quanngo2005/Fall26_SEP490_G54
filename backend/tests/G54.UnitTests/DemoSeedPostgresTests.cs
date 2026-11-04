@@ -316,15 +316,47 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^1]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^2]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^3]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^4]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^5]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^6]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^7]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^8]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^9]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^1]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^2]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^3]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^4]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^5]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^6]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^7]);
+        Assert.Equal("20261101144049_AddAuditLogs", migrations[^8]);
+        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^9]);
+        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^10]);
+    }
+
+    [PostgresFact]
+    public async Task TheSidebarMigrationRemovesTheRetiredItemAndItsRouteAndKeepsTheRest()
+    {
+        await using var scope = fixture.Provider!.CreateAsyncScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<AppDbContext>().GetService<IMigrator>();
+        await migrator.MigrateAsync("20261104090000_GrantAppealDecisionToBranchManager");
+        await ExecuteAsync("""
+            DELETE FROM sidebar_configurations WHERE role IN ('sidebar-old', 'sidebar-clean');
+            INSERT INTO sidebar_configurations (id, role, item_ids, version, routes, created_at, is_deleted)
+            VALUES
+              (gen_random_uuid(), 'sidebar-old', ARRAY['overview','reportsComplaints','appeals'], 3,
+               '{"reportsComplaints": "/home", "appeals": "/appeals"}'::jsonb, now(), false),
+              (gen_random_uuid(), 'sidebar-clean', ARRAY['overview','appeals'], 5, '{"appeals": "/appeals"}'::jsonb, now(), false);
+            """);
+
+        await migrator.MigrateAsync();
+        await migrator.MigrateAsync();
+
+        Assert.Equal(["appeals,overview|3|appeals"], await QueryAsync("""
+            SELECT (SELECT string_agg(i, ',' ORDER BY i) FROM unnest(item_ids) i) || '|' || version || '|'
+                   || (SELECT string_agg(k, ',') FROM jsonb_object_keys(routes) k)
+            FROM sidebar_configurations WHERE role = 'sidebar-old'
+            """));
+        Assert.Equal(["appeals,overview|5|appeals"], await QueryAsync("""
+            SELECT (SELECT string_agg(i, ',' ORDER BY i) FROM unnest(item_ids) i) || '|' || version || '|'
+                   || (SELECT string_agg(k, ',') FROM jsonb_object_keys(routes) k)
+            FROM sidebar_configurations WHERE role = 'sidebar-clean'
+            """));
+        await ExecuteAsync("DELETE FROM sidebar_configurations WHERE role IN ('sidebar-old', 'sidebar-clean')");
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>

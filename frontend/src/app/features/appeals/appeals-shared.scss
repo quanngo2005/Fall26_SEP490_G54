@@ -1,51 +1,5 @@
 /* Shared Appeal Layout & Control Styles */
 
-.workspace-layout {
-  display: flex;
-  height: 100vh;
-  width: 100%;
-  overflow: hidden;
-  background: #eef2f6;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
-
-.workspace-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.workspace-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-  background: #eef2f6;
-}
-
-.alert-banner {
-  padding: 10px 16px;
-  background: #ecfdf5;
-  border-bottom: 1px solid #a7f3d0;
-  color: #065f46;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  .alert-close {
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-    font-size: 16px;
-    color: #065f46;
-  }
-}
-
 .appeal-page-container {
   flex: 1 1 auto;
   display: flex;
@@ -54,6 +8,7 @@
   height: 100%;
   overflow: hidden;
   background: #f8fafc;
+  font-family: Inter, sans-serif;
 }
 
 /* Master-Detail Container */
@@ -92,26 +47,29 @@
 .page-title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 2px;
 
   h1 {
     margin: 0;
-    font-size: 20px;
-    font-weight: 700;
     color: #0f172a;
+    font:
+      700 24px Manrope,
+      sans-serif;
+    letter-spacing: -0.01em;
   }
+}
 
-  .view-switch-link {
-    font-size: 13px;
-    color: #2563eb;
-    text-decoration: none;
-    font-weight: 500;
+/* Identifier and technical codes (DESIGN.md: --font-mono) and numerals (tabular-nums) */
+.font-code {
+  font-family: 'JetBrains Mono', monospace;
+}
 
-    &:hover {
-      text-decoration: underline;
-    }
-  }
+.tab-count,
+.footer-count,
+.page-box,
+.col-date,
+.col-deadline {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Status Badges */
@@ -154,6 +112,58 @@
     color: #64748b;
     border-color: #cbd5e1;
   }
+}
+
+.alert-banner {
+  padding: 10px 16px;
+  background: #ecfdf5;
+  border-bottom: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .alert-close {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    color: #065f46;
+  }
+
+  &.alert-error {
+    background: #fef2f2;
+    border-bottom-color: #fecaca;
+    color: #991b1b;
+
+    .alert-close {
+      color: #991b1b;
+    }
+  }
+}
+
+/* Loading, error and field-error states */
+.state-block {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.drawer-state {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.field-error {
+  margin: 4px 0 0;
+  color: #be123c;
+  font-size: 12px;
 }
 
 /* Tabs Bar */
@@ -353,6 +363,7 @@
     border-top: 1px solid #e2e8f0;
 
     .pagination .page-box {
+      cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -387,41 +398,4 @@
     color: #334155;
     line-height: 1.45;
   }
-}
-
-/* Loading, error and field-error states (not in the base layout) */
-.state-block {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  color: #475569;
-  font-size: 13px;
-}
-
-.drawer-state {
-  margin: 0;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.field-error {
-  margin: 4px 0 0;
-  color: #be123c;
-  font-size: 12px;
-}
-
-.alert-banner.alert-error {
-  background: #fef2f2;
-  border-bottom-color: #fecaca;
-  color: #991b1b;
-
-  .alert-close {
-    color: #991b1b;
-  }
-}
-
-.pagination .page-box {
-  cursor: pointer;
 }

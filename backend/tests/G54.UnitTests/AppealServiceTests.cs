@@ -1385,6 +1385,95 @@ public sealed class AppealServiceTests : IDisposable
         Assert.Equal($"/evidence/{evidence.Id}/preview", evidence.PreviewUrl);
     }
 
+    private async Task<Appeal> AppealWithHandoversAsync(Employee submitter, WorkType? workType, params (Employee From, HandoverStatus Status, int Hour)[] handovers)
+    {
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var work = await _db.Works.SingleAsync(w => w.Id == submission.WorkId);
+        if (workType is not null)
+        {
+            _db.WorkTypes.Add(workType);
+            work.WorkTypeId = workType.Id;
+        }
+
+        foreach (var (from, status, hour) in handovers)
+        {
+            _db.TaskHandovers.Add(new TaskHandover
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                FromEmployeeId = from.Id,
+                ToEmployeeId = submitter.Id,
+                Reason = "Referral",
+                Status = status,
+                HandoverAt = RejectedAt.AddHours(hour),
+                UpdatedAt = RejectedAt.AddHours(hour),
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        return appeal;
+    }
+
+    [Fact]
+    public async Task Detail_CarriesTheSubmissionTimeWorkTypeAndTheLatestAcceptedReferrer()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var firstReferrer = await AddEmployeeAsync("REF1", _salesId);
+        var lastReferrer = await AddEmployeeAsync("REF2", _salesId);
+        var pendingReferrer = await AddEmployeeAsync("REF3", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "CARD", Name = "Credit card", Status = RecordStatus.Active };
+        var appeal = await AppealWithHandoversAsync(
+            submitter,
+            workType,
+            (firstReferrer, HandoverStatus.Accepted, 1),
+            (lastReferrer, HandoverStatus.Accepted, 2),
+            (pendingReferrer, HandoverStatus.Pending, 3));
+
+        var result = await ServiceAt(RejectedAt.AddHours(6)).GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        var submission = await _db.ResultSubmissions.SingleAsync(s => s.Id == appeal.ResultSubmissionId);
+        Assert.Equal(submission.SubmittedAt, result.SubmittedAt);
+        Assert.Equal("Credit card", result.WorkTypeName);
+        Assert.Equal("REF2", result.ReferrerEmployeeCode);
+        Assert.Equal("Name REF2", result.ReferrerEmployeeName);
+        Assert.Null(result.EvaluationScore);
+    }
+
+    [Fact]
+    public async Task Detail_WithoutAWorkTypeOrAnAcceptedHandover_LeavesThoseFieldsEmpty()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var referrer = await AddEmployeeAsync("REF1", _salesId);
+        var appeal = await AppealWithHandoversAsync(
+            submitter, null, (referrer, HandoverStatus.Rejected, 1), (referrer, HandoverStatus.Cancelled, 2));
+
+        var result = await ServiceAt(RejectedAt.AddHours(6)).GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        Assert.NotNull(result.SubmittedAt);
+        Assert.Null(result.WorkTypeName);
+        Assert.Null(result.ReferrerEmployeeCode);
+        Assert.Null(result.ReferrerEmployeeName);
+    }
+
+    [Fact]
+    public async Task Withdraw_ReturnsTheSameDetailShapeAsTheReadEndpoint()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var referrer = await AddEmployeeAsync("REF1", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "CARD", Name = "Credit card", Status = RecordStatus.Active };
+        var appeal = await AppealWithHandoversAsync(submitter, workType, (referrer, HandoverStatus.Accepted, 1));
+        var service = ServiceAt(RejectedAt.AddHours(6));
+
+        var withdrawn = await service.WithdrawAppealAsync(appeal.Id, submitter.Id);
+        var read = await service.GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        Assert.Equal("WITHDRAWN", withdrawn.Status);
+        Assert.Equal(read.WorkTypeName, withdrawn.WorkTypeName);
+        Assert.Equal(read.ReferrerEmployeeCode, withdrawn.ReferrerEmployeeCode);
+        Assert.Equal(read.SubmittedAt, withdrawn.SubmittedAt);
+    }
+
     [Fact]
     public async Task Detail_ForAnUnresolvedAppeal_HasNoResolver()
     {

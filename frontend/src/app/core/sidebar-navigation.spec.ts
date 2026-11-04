@@ -119,9 +119,7 @@ describe('Configured sidebar navigation', () => {
     expect(navigation.routeOptions).toContain('/departments');
   });
   it('links the configured Appeals menu item to the appeals workspace', () => {
-    current.and.returnValue(
-      of([{ role: 'employee', itemIds: ['reportsComplaints', 'appeals'], version: 1 }]),
-    );
+    current.and.returnValue(of([{ role: 'employee', itemIds: ['appeals'], version: 1 }]));
     const navigation = TestBed.inject(NavigationService);
     TestBed.tick();
     expect(navigation.items().find((item) => item.id === 'appeals')?.route).toBe('/appeals');

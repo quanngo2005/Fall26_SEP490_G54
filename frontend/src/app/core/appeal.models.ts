@@ -26,6 +26,8 @@ export interface AppealListItem {
   jobPositionTitle: string | null;
   resolvedByEmployeeName: string | null;
   note: string | null;
+  /** Current score of a score appeal; null for a result appeal or when the score is not calculated. */
+  evaluationScore: number | null;
 }
 
 export interface AppealEvidence {
@@ -47,6 +49,11 @@ export interface AppealDetail extends Omit<
   resolvedByEmployeeName: string | null;
   evidences: AppealEvidence[];
   scoreDisputeReason: string | null;
+  /** Result appeal only; null when the work or the handover is unknown. */
+  submittedAt: string | null;
+  workTypeName: string | null;
+  referrerEmployeeCode: string | null;
+  referrerEmployeeName: string | null;
 }
 
 export interface AppealFilter {

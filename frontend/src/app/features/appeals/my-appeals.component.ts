@@ -2,7 +2,6 @@ import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { AppealDetail, AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
@@ -15,6 +14,7 @@ import {
   appealCode,
   appealErrorKey,
   appealSubject,
+  appealSubjectWithScore,
   OPEN_STATUSES,
   RESOLVED_STATUSES,
   typeKey,
@@ -35,7 +35,6 @@ const TAB_STATUSES: Readonly<Record<MineTab, readonly AppealStatus[]>> = {
   selector: 'app-my-appeals',
   imports: [
     FormsModule,
-    RouterModule,
     SidebarComponent,
     HeaderComponent,
     MyAppealDrawerComponent,
@@ -252,7 +251,10 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   }
 
   protected subject(item: AppealListItem): string {
-    return appealSubject(item) ?? this.localization.appeals.notAvailable;
+    return (
+      appealSubjectWithScore(item, (score) => this.i18n.formatNumber(score)) ??
+      this.localization.appeals.notAvailable
+    );
   }
 
   protected code(item: AppealListItem): string {

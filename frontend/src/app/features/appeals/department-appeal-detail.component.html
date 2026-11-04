@@ -39,12 +39,15 @@
             }
           </div>
         } @else if (appeal(); as a) {
-          <!-- Action Header Line -->
+          <!-- Action Header -->
           <div class="action-header">
             <div class="header-left">
               <h2 class="appeal-headline">{{code()}} · {{headline()}}</h2>
               <span class="status-badge" [class]="'status-' + a.status.toLowerCase()">
                 {{localization.appeals.status[a.status]}}
+              </span>
+              <span class="sla-tag">
+                {{localization.appeals.deadlineLabel}}: {{localization.appeals.notAvailable}}
               </span>
             </div>
             <div class="header-right-actions">
@@ -67,13 +70,18 @@
             </div>
           </div>
 
-          <!-- Cards Grid -->
+          <!-- Submitted data and Core Banking comparison -->
           <div class="cards-grid">
-            <!-- Card 1: Nhân viên nộp -->
             <div class="detail-card">
               <div class="card-header">
                 <span class="card-title">{{localization.appeals.submittedBy}}</span>
-                <span class="card-subtitle">{{a.filedAt | appDate: 'DD/MM/YYYY HH:mm'}}</span>
+                <span class="card-subtitle">
+                  @if (a.submittedAt) {
+                    {{a.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}
+                  } @else {
+                    {{localization.appeals.notAvailable}}
+                  }
+                </span>
               </div>
               <div class="reconcile-table">
                 <div class="reconcile-row">
@@ -99,11 +107,49 @@
                       {{a.workTitle ?? localization.appeals.notAvailable}}
                     </span>
                   </div>
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.transactionCode}}</span>
+                    <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
+                  </div>
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.cifCode}}</span>
+                    <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
+                  </div>
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.product}}</span>
+                    <span class="row-val">
+                      {{a.workTypeName ?? localization.appeals.notAvailable}}
+                    </span>
+                  </div>
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.referrer}}</span>
+                    <span class="row-val font-code">{{referrerText()}}</span>
+                  </div>
+                } @else {
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.appeals.currentScore}}</span>
+                    <span class="row-val">{{scoreText()}}</span>
+                  </div>
                 }
               </div>
             </div>
 
-            <!-- Card 2: Lý do và bằng chứng -->
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.appeals.coreBanking}}</span>
+                <span class="card-subtitle">{{localization.appeals.notAvailable}}</span>
+              </div>
+              <div class="reconcile-table">
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.reconciliation}}</span>
+                  <span class="row-val">{{localization.appeals.notAvailable}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reason, evidence and impact -->
+          <div class="cards-grid">
             <div class="detail-card">
               <div class="card-header">
                 <span class="card-title">{{localization.appeals.reasonAndEvidence}}</span>
@@ -129,6 +175,15 @@
                 @if (previewFailed()) {
                   <p class="field-error" role="alert">{{localization.appeals.previewFailed}}</p>
                 }
+              </div>
+            </div>
+
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.appeals.impactTitle}}</span>
+              </div>
+              <div class="card-body">
+                <p>{{localization.appeals.notAvailable}}</p>
               </div>
             </div>
           </div>
@@ -166,8 +221,8 @@
             </div>
             <div class="modal-body">
               <div class="decision-radios" role="radiogroup">
-                @for (option of decisions; track option) {
-                  <label class="radio-option">
+                @for (option of decisions(); track option) {
+                  <label class="radio-option" [class.radio-selected]="decisionType() === option">
                     <input
                       type="radio"
                       name="decisionGroup"
@@ -182,6 +237,29 @@
                   </label>
                 }
               </div>
+              @if (showValidation() && !decisionType()) {
+                <p class="field-error" role="alert">{{localization.appeals.errors.validation}}</p>
+              }
+
+              @if (pointsNeeded()) {
+                <div class="note-field">
+                  <label for="decisionPoints">{{localization.appeals.decisionPoints}}</label>
+                  <input
+                    id="decisionPoints"
+                    type="number"
+                    min="0"
+                    step="any"
+                    [ngModel]="decisionPoints()"
+                    (ngModelChange)="decisionPoints.set($event)"
+                    [class.field-invalid]="showValidation() && !pointsValid()"
+                  />
+                  @if (showValidation() && !pointsValid()) {
+                    <p class="field-error" role="alert">
+                      {{localization.appeals.pointsRequired}}
+                    </p>
+                  }
+                </div>
+              }
 
               <div class="note-field">
                 <label for="decisionNote">{{localization.appeals.decisionNote}}</label>
@@ -190,44 +268,40 @@
                   rows="3"
                   [ngModel]="decisionNote()"
                   (ngModelChange)="decisionNote.set($event)"
+                  [class.field-invalid]="showValidation() && !noteValid()"
                   [placeholder]="localization.appeals.decisionNotePlaceholder"
                 ></textarea>
-                @if (showValidation() && !decisionType()) {
-                  <p class="field-error" role="alert">
-                    {{localization.appeals.errors.validation}}
-                  </p>
-                }
                 @if (showValidation() && !noteValid()) {
                   <p class="field-error" role="alert">{{localization.appeals.noteRequired}}</p>
                 }
               </div>
 
-              @if (unsupported()) {
-                <p class="field-error" role="alert">{{localization.appeals.scoreUnsupported}}</p>
-              }
               @if (errorKey()) {
                 <p class="field-error" role="alert">{{errorText()}}</p>
               }
             </div>
             <div class="modal-footer">
-              <button
-                type="button"
-                class="btn-secondary"
-                [disabled]="submitting()"
-                (click)="closeDecision()"
-              >
-                {{localization.appeals.decisionCancel}}
-              </button>
-              <button
-                type="button"
-                class="btn-primary"
-                [disabled]="submitting()"
-                (click)="confirmDecision()"
-              >
-                {{submitting()
-                    ? localization.appeals.decisionSaving
-                    : localization.appeals.decisionConfirm}}
-              </button>
+              <span class="footer-hint">{{localization.appeals.decisionKeyboardHint}}</span>
+              <div class="footer-actions">
+                <button
+                  type="button"
+                  class="btn-secondary"
+                  [disabled]="submitting()"
+                  (click)="closeDecision()"
+                >
+                  {{localization.appeals.decisionCancel}}
+                </button>
+                <button
+                  type="button"
+                  class="btn-primary"
+                  [disabled]="submitting()"
+                  (click)="confirmDecision()"
+                >
+                  {{submitting()
+                      ? localization.appeals.decisionSaving
+                      : localization.appeals.decisionConfirm}}
+                </button>
+              </div>
             </div>
           </div>
         </div>

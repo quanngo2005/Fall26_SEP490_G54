@@ -34,6 +34,7 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
   type: 'RESULT',
   performanceEvaluationId: null,
   periodCode: null,
+  evaluationScore: null,
   reason: 'Giao dịch do tôi xử lý',
   note: null,
   resolvedByEmployeeId: null,
@@ -49,9 +50,39 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
     },
   ],
   scoreDisputeReason: null,
+  submittedAt: '2026-10-24T09:00:00+00:00',
+  workTypeName: 'Thẻ tín dụng',
+  referrerEmployeeCode: 'NV009',
+  referrerEmployeeName: 'Phạm Văn Giới',
   ...over,
 });
+const scoreDetail = (over: Partial<AppealDetail> = {}) =>
+  detail({
+    type: 'SCORE',
+    resultSubmissionId: null,
+    workId: null,
+    workCode: null,
+    workTitle: null,
+    submissionNo: null,
+    submittedAt: null,
+    workTypeName: null,
+    referrerEmployeeCode: null,
+    referrerEmployeeName: null,
+    performanceEvaluationId: 'pe1',
+    periodCode: '2026-Q2',
+    evaluationScore: 87.2,
+    ...over,
+  });
 const ok = (data: unknown) => ({ success: true, status: 200, data });
+const decided = (appeal: AppealDetail, decisionValue: string) =>
+  ok({
+    appeal,
+    decision: decisionValue,
+    submissionStatus: null,
+    workStatus: null,
+    verificationId: null,
+    scoreEntryId: null,
+  });
 
 describe('DepartmentAppealDetailComponent', () => {
   let http: HttpTestingController;
@@ -64,20 +95,44 @@ describe('DepartmentAppealDetailComponent', () => {
     fixture.detectChanges();
     return fixture;
   };
-  const decide = (fixture: ReturnType<typeof open>, value: string, note: string) => {
-    const root: HTMLElement = fixture.nativeElement;
-    root.querySelector<HTMLButtonElement>('.btn-primary')?.click();
+  const openModal = (fixture: ReturnType<typeof open>) => {
+    fixture.nativeElement.querySelector('.btn-primary')?.click();
     fixture.detectChanges();
-    const radio = root.querySelector<HTMLInputElement>(`input[type="radio"][value="${value}"]`);
-    radio?.click();
-    const textarea = root.querySelector<HTMLTextAreaElement>('#decisionNote');
-    if (textarea) {
-      textarea.value = note;
-      textarea.dispatchEvent(new Event('input'));
+  };
+  const type = (fixture: ReturnType<typeof open>, selector: string, value: string) => {
+    const field = fixture.nativeElement.querySelector(selector) as HTMLInputElement;
+    field.value = value;
+    field.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  };
+  const confirm = (fixture: ReturnType<typeof open>) => {
+    fixture.nativeElement.querySelector('.modal-footer .btn-primary')?.click();
+    fixture.detectChanges();
+  };
+  const decide = (
+    fixture: ReturnType<typeof open>,
+    value: string,
+    note: string,
+    points?: string,
+  ) => {
+    openModal(fixture);
+    fixture.nativeElement.querySelector(`input[type="radio"][value="${value}"]`)?.click();
+    fixture.detectChanges();
+    if (points !== undefined) type(fixture, '#decisionPoints', points);
+    type(fixture, '#decisionNote', note);
+    confirm(fixture);
+  };
+  const rowValues = (fixture: ReturnType<typeof open>) => {
+    const rows = new Map<string, string>();
+    for (const row of Array.from<HTMLElement>(
+      fixture.nativeElement.querySelectorAll('.reconcile-row'),
+    )) {
+      rows.set(
+        row.querySelector('.row-label')?.textContent?.trim() ?? '',
+        row.querySelector('.row-val')?.textContent?.trim() ?? '',
+      );
     }
-    fixture.detectChanges();
-    root.querySelector<HTMLButtonElement>('.modal-footer .btn-primary')?.click();
-    fixture.detectChanges();
+    return rows;
   };
 
   beforeEach(async () => {
@@ -113,6 +168,53 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(root.textContent).not.toContain('NV0261');
   });
 
+  it('shows the submission time, product and referrer of the API', () => {
+    const rows = rowValues(open());
+    expect(rows.get('Sản phẩm')).toBe('Thẻ tín dụng');
+    expect(rows.get('Mã giới thiệu')).toBe('NV009 · Phạm Văn Giới');
+    expect(rows.get('Bài nộp')).toBe('WRK-1 · v2');
+  });
+
+  it('shows the submission time in the card header', () => {
+    const subtitle = open().nativeElement.querySelector('.card-subtitle')?.textContent;
+    expect(subtitle).toMatch(/24\/10\/2026 \d{2}:\d{2}/);
+  });
+
+  it('shows N/A for the data the API does not have yet instead of sample values', () => {
+    const fixture = open(
+      detail({
+        submittedAt: null,
+        workTypeName: null,
+        referrerEmployeeCode: null,
+        referrerEmployeeName: null,
+      }),
+    );
+    const rows = rowValues(fixture);
+    for (const label of ['Mã giao dịch', 'Mã CIF', 'Sản phẩm', 'Mã giới thiệu', 'Đối soát']) {
+      expect(rows.get(label)).withContext(label).toBe('N/A');
+    }
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('.sla-tag')?.textContent).toContain('N/A');
+    expect(root.querySelector('.card-subtitle')?.textContent?.trim()).toBe('N/A');
+    expect(root.textContent).not.toContain('TX-20260715');
+    expect(root.textContent).not.toContain('IMP-');
+  });
+
+  it('shows only the code when the referrer has no name', () => {
+    const rows = rowValues(open(detail({ referrerEmployeeName: null })));
+    expect(rows.get('Mã giới thiệu')).toBe('NV009');
+  });
+
+  it('shows the current score of a score appeal instead of the submission rows', () => {
+    const rows = rowValues(open(scoreDetail()));
+    expect(rows.get('Kỳ đánh giá')).toBe('2026-Q2');
+    expect(rows.get('Điểm hiện tại')).toBe(TestBed.inject(I18nService).formatNumber(87.2));
+    expect(rows.has('Mã giao dịch')).toBeFalse();
+    expect(rowValues(open(scoreDetail({ evaluationScore: null }))).get('Điểm hiện tại')).toBe(
+      'N/A',
+    );
+  });
+
   it('does not request anything when the route has no id', () => {
     params.next(convertToParamMap({}));
     const fixture = TestBed.createComponent(DepartmentAppealDetailComponent);
@@ -142,22 +244,22 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Lê Thị Mai');
   });
 
-  it('sends a result appeal decision as chosen and shows the decided appeal', () => {
+  it('offers the three result decisions and sends the chosen one', () => {
     const fixture = open();
-    decide(fixture, 'ACCEPT', 'Chứng từ đối soát hợp lệ');
+    openModal(fixture);
+    const values = Array.from<HTMLInputElement>(
+      fixture.nativeElement.querySelectorAll('input[type="radio"]'),
+    ).map((radio) => radio.value);
+    expect(values).toEqual(['ACCEPT', 'ADJUST', 'REJECT']);
+    expect(fixture.nativeElement.querySelector('#decisionPoints')).toBeNull();
+
+    fixture.nativeElement.querySelector('input[value="ACCEPT"]').click();
+    type(fixture, '#decisionNote', ' Chứng từ đối soát hợp lệ ');
+    confirm(fixture);
     const request = http.expectOne(`${url}/decision`);
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ decision: 'ACCEPT', note: 'Chứng từ đối soát hợp lệ' });
-    request.flush(
-      ok({
-        appeal: detail({ status: 'ACCEPTED', note: 'Chứng từ đối soát hợp lệ' }),
-        decision: 'ACCEPT',
-        submissionStatus: 'APPROVED',
-        workStatus: 'VERIFIED',
-        verificationId: 'v1',
-        scoreEntryId: null,
-      }),
-    );
+    request.flush(decided(detail({ status: 'ACCEPTED' }), 'ACCEPT'));
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('.modal-window')).toBeNull();
@@ -165,44 +267,85 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(root.querySelector<HTMLButtonElement>('.btn-primary')?.disabled).toBeTrue();
   });
 
-  it('requires a decision and a note before calling the API', () => {
-    const fixture = open();
-    const root: HTMLElement = fixture.nativeElement;
-    root.querySelector<HTMLButtonElement>('.btn-primary')?.click();
-    fixture.detectChanges();
-    root.querySelector<HTMLButtonElement>('.modal-footer .btn-primary')?.click();
-    fixture.detectChanges();
-    http.expectNone(`${url}/decision`);
-    expect(root.textContent).toContain('Ý kiến xử lý là bắt buộc');
+  it('offers only adjust and keep for a score appeal', () => {
+    const fixture = open(scoreDetail());
+    openModal(fixture);
+    const values = Array.from<HTMLInputElement>(
+      fixture.nativeElement.querySelectorAll('input[type="radio"]'),
+    ).map((radio) => radio.value);
+    expect(values).toEqual(['ADJUST', 'UPHOLD']);
   });
 
-  it('sends rejecting a score appeal as keeping the score', () => {
-    const fixture = open(
-      detail({ type: 'SCORE', resultSubmissionId: null, workCode: null, periodCode: '2026-Q2' }),
-    );
-    decide(fixture, 'REJECT', 'Điểm đã đúng quy định');
-    const request = http.expectOne(`${url}/decision`);
-    expect(request.request.body).toEqual({ decision: 'UPHOLD', note: 'Điểm đã đúng quy định' });
-    request.flush(
-      ok({
-        appeal: detail({ type: 'SCORE', status: 'REJECTED' }),
-        decision: 'UPHOLD',
-        submissionStatus: null,
-        workStatus: null,
-        verificationId: null,
-        scoreEntryId: null,
-      }),
-    );
-  });
-
-  it('says a score decision is not supported yet instead of calling the API', () => {
-    const fixture = open(detail({ type: 'SCORE', resultSubmissionId: null, workCode: null }));
-    decide(fixture, 'ACCEPT', 'Gỡ sự kiện rủi ro');
+  it('sends the points with adjusting a score appeal and requires them to be positive', () => {
+    const fixture = open(scoreDetail());
+    decide(fixture, 'ADJUST', 'Điều chỉnh tăng điểm kinh doanh', '0');
     http.expectNone(`${url}/decision`);
     expect(fixture.nativeElement.querySelector('.modal-window').textContent).toContain(
-      'chưa được hỗ trợ',
+      'phải lớn hơn 0',
     );
+
+    type(fixture, '#decisionPoints', '2.5');
+    confirm(fixture);
+    const request = http.expectOne(`${url}/decision`);
+    expect(request.request.body).toEqual({
+      decision: 'ADJUST',
+      note: 'Điều chỉnh tăng điểm kinh doanh',
+      points: 2.5,
+    });
+    request.flush(decided(scoreDetail({ status: 'ACCEPTED' }), 'ADJUST'));
   });
+
+  it('sends keeping the score without points', () => {
+    const fixture = open(scoreDetail());
+    decide(fixture, 'UPHOLD', 'Điểm đã đúng quy định');
+    const request = http.expectOne(`${url}/decision`);
+    expect(request.request.body).toEqual({ decision: 'UPHOLD', note: 'Điểm đã đúng quy định' });
+    request.flush(decided(scoreDetail({ status: 'REJECTED' }), 'UPHOLD'));
+  });
+
+  it('does not send points with adjusting a result appeal', () => {
+    const fixture = open();
+    decide(fixture, 'ADJUST', 'Bổ sung chứng từ đối soát');
+    const request = http.expectOne(`${url}/decision`);
+    expect(request.request.body).toEqual({
+      decision: 'ADJUST',
+      note: 'Bổ sung chứng từ đối soát',
+    });
+    request.flush(decided(detail({ status: 'ACCEPTED' }), 'ADJUST'));
+  });
+
+  it('requires a decision and a note before calling the API', () => {
+    const fixture = open();
+    openModal(fixture);
+    confirm(fixture);
+    http.expectNone(`${url}/decision`);
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Ý kiến xử lý là bắt buộc');
+    expect(text).toContain('Dữ liệu không hợp lệ');
+  });
+
+  it('confirms with Ctrl+Enter and closes with Escape only while the window is open', () => {
+    const fixture = open();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }));
+    http.expectNone(`${url}/decision`);
+
+    openModal(fixture);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.modal-window')).toBeNull();
+
+    decideAndKeys(fixture);
+  });
+
+  const decideAndKeys = (fixture: ReturnType<typeof open>) => {
+    openModal(fixture);
+    fixture.nativeElement.querySelector('input[value="REJECT"]').click();
+    type(fixture, '#decisionNote', 'Giữ nguyên kết quả từ chối');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }));
+    const request = http.expectOne(`${url}/decision`);
+    expect(request.request.body.decision).toBe('REJECT');
+    request.flush(decided(detail({ status: 'REJECTED' }), 'REJECT'));
+  };
 
   it('shows the error code message of a failed decision and keeps the window open', () => {
     const fixture = open();
@@ -231,6 +374,19 @@ describe('DepartmentAppealDetailComponent', () => {
     const fixture = open();
     const buttons = fixture.nativeElement.querySelectorAll('.header-right-actions button');
     expect(buttons[0].disabled).toBeTrue();
+  });
+
+  it('switches language live', () => {
+    const fixture = open(scoreDetail());
+    TestBed.inject(I18nService).setLanguage('en');
+    fixture.detectChanges();
+    const rows = rowValues(fixture);
+    expect(rows.get('Current score')).toBe(TestBed.inject(I18nService).formatNumber(87.2));
+    expect(fixture.nativeElement.querySelector('.sla-tag').textContent).toContain('Due');
+    openModal(fixture);
+    expect(fixture.nativeElement.querySelector('.modal-footer').textContent).toContain(
+      'Ctrl+Enter: confirm',
+    );
   });
 
   it('fetches an evidence file as a blob and opens it', () => {

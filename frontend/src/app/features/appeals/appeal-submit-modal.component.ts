@@ -20,6 +20,7 @@ interface RejectedSubmission {
 /** Form of the "+ submit appeal" button: a result appeal about one of the caller's rejected submissions. */
 @Component({
   selector: 'app-appeal-submit-modal',
+  standalone: true,
   imports: [FormsModule],
   templateUrl: './appeal-submit-modal.component.html',
   styleUrls: [

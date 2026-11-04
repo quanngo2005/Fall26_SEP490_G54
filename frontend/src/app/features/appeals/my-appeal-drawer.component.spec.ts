@@ -27,6 +27,7 @@ const listItem = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   jobPositionTitle: null,
   resolvedByEmployeeName: null,
   note: null,
+  evaluationScore: null,
   ...over,
 });
 const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
@@ -46,6 +47,10 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
     },
   ],
   scoreDisputeReason: null,
+  submittedAt: null,
+  workTypeName: null,
+  referrerEmployeeCode: null,
+  referrerEmployeeName: null,
   ...over,
 });
 
@@ -114,6 +119,31 @@ describe('MyAppealDrawerComponent', () => {
     expect(root.querySelector('.reason-card')).toBeNull();
     root = open((host) => (host.failed = true)).nativeElement;
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('Không thể tải');
+  });
+
+  it('shows N/A for the data the API does not have yet instead of sample values', () => {
+    const root: HTMLElement = open().nativeElement;
+    const values = (label: string) =>
+      Array.from(root.querySelectorAll('.grid-item'))
+        .filter((item) => item.querySelector('.field-label')?.textContent?.trim() === label)
+        .map((item) => item.querySelector('.field-value')?.textContent?.trim());
+    expect(values('Mã giao dịch')).toEqual(['N/A']);
+    expect(values('Đối soát')).toEqual(['N/A']);
+    expect(root.querySelector('.sla-deadline')?.textContent).toContain('N/A');
+    expect(root.querySelector('.section-label + .evidence-list')).not.toBeNull();
+    expect(root.textContent).not.toContain('ĐÃ KHÓA');
+  });
+
+  it('shows the current score next to the period of a score appeal', () => {
+    const root: HTMLElement = open((host) => {
+      host.appeal = listItem({
+        type: 'SCORE',
+        periodCode: '2026-Q2',
+        workCode: null,
+        evaluationScore: 87.2,
+      });
+    }).nativeElement;
+    expect(root.textContent).toContain('2026-Q2 · 87');
   });
 
   it('names the period of a score appeal and omits the work', () => {

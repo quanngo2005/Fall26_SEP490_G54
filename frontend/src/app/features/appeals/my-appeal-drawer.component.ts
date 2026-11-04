@@ -5,10 +5,11 @@ import { AppealService } from '../../core/appeal.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { displayBytes } from '../../shared/ui/display';
 import { AppDatePipe } from '../../shared/pipes';
-import { appealCode, appealSubject, openBlob, typeKey } from './appeal-display';
+import { appealCode, appealSubjectWithScore, openBlob, typeKey } from './appeal-display';
 
 @Component({
   selector: 'app-my-appeal-drawer',
+  standalone: true,
   imports: [AppDatePipe],
   templateUrl: './my-appeal-drawer.component.html',
   styleUrls: ['./my-appeal-drawer.component.scss'],
@@ -53,7 +54,10 @@ export class MyAppealDrawerComponent extends LocalizedComponent {
   }
 
   protected subject(): string {
-    return appealSubject(this.appeal()) ?? this.localization.appeals.notAvailable;
+    return (
+      appealSubjectWithScore(this.appeal(), (score) => this.i18n.formatNumber(score)) ??
+      this.localization.appeals.notAvailable
+    );
   }
 
   protected subtitle(): string {

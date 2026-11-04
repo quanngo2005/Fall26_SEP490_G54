@@ -2,7 +2,7 @@ import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
@@ -16,6 +16,7 @@ import { AppDatePipe } from '../../shared/pipes';
 import {
   appealCode,
   appealSubject,
+  appealSubjectWithScore,
   OPEN_STATUSES,
   RESOLVED_STATUSES,
   typeKey,
@@ -31,14 +32,7 @@ const TAB_STATUSES: Readonly<Record<DepartmentTab, readonly AppealStatus[]>> = {
 
 @Component({
   selector: 'app-department-appeals',
-  imports: [
-    FormsModule,
-    RouterModule,
-    SidebarComponent,
-    HeaderComponent,
-    AppDatePipe,
-    UpperCasePipe,
-  ],
+  imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
   templateUrl: './department-appeals.component.html',
   styleUrls: ['./appeals-shared.scss', './department-appeals.component.scss'],
 })
@@ -186,7 +180,10 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
   }
 
   protected subject(item: AppealListItem): string {
-    return appealSubject(item) ?? this.localization.appeals.notAvailable;
+    return (
+      appealSubjectWithScore(item, (score) => this.i18n.formatNumber(score)) ??
+      this.localization.appeals.notAvailable
+    );
   }
 
   protected code(item: AppealListItem): string {
