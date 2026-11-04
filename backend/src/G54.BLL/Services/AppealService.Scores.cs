@@ -151,9 +151,9 @@ public sealed partial class AppealService
     private static string ValidateReason(string? value)
     {
         var reason = value?.Trim();
-        if (reason is null || reason.Length < 10 || reason.Length > MaxReasonLength)
+        if (reason is null || reason.Length < MinReasonLength || reason.Length > MaxReasonLength)
         {
-            throw new ValidationException("Lý do giữ hoặc trừ điểm phải có 10–2000 ký tự.");
+            throw new ValidationException($"Lý do hoặc ghi chú phải có {MinReasonLength}–{MaxReasonLength} ký tự.");
         }
 
         return reason;

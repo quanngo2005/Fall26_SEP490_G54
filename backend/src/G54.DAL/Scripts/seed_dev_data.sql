@@ -1129,3 +1129,30 @@ FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.
 JOIN performance_evaluation pe ON pe.id = c.evaluation_id
 JOIN score_entry hold ON hold.id = md5('evaluation-demo-hold-' || c.evaluation_id::text)::uuid
 WHERE c.period_code IN ('2026-11', '2026-12') ON CONFLICT DO NOTHING;
+
+-- Demo Employee (NV012) has one rejected submission that can still be appealed: rejected by the direct manager
+-- (NV011) inside the appeal window, with no appeal filed yet. The existing NV012 appeal samples above are filed or
+-- withdrawn and their submissions are not REJECTED, so none of them appears in the "submit appeal" form.
+INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, description, status)
+SELECT '5eed0000-0000-0000-0016-0000000000a1', wt.id, e.id, m.id,
+       'DEMO-REJECTED-NV012', 'Hồ sơ huy động tiền gửi bị từ chối (demo khiếu nại)',
+       'Dữ liệu mẫu để thử gửi khiếu nại kết quả bị từ chối.', 'REJECTED'
+FROM employee e JOIN employee m ON m.employee_code = 'NV011'
+JOIN work_type wt ON wt.code = 'HUY_DONG'
+WHERE e.employee_code = 'NV012'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO result_submission (id, work_id, submitter_employee_id, submission_no, submitted_at, status, comment)
+SELECT '5eed0000-0000-0000-0017-0000000000a1', '5eed0000-0000-0000-0016-0000000000a1', e.id, 1,
+       now() - interval '5 hours', 'REJECTED', 'Đã nộp đủ chứng từ huy động theo yêu cầu.'
+FROM employee e WHERE e.employee_code = 'NV012'
+  AND EXISTS (SELECT 1 FROM work w WHERE w.id = '5eed0000-0000-0000-0016-0000000000a1')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verification (id, result_submission_id, verifier_employee_id, round_no, decision, verified_at, comment)
+SELECT '5eed0000-0000-0000-0018-0000000000a1', '5eed0000-0000-0000-0017-0000000000a1', m.id, 1,
+       'REJECTED', now() - interval '2 hours', 'Thiếu chữ ký xác nhận trên chứng từ huy động.'
+FROM employee m WHERE m.employee_code = 'NV011'
+  AND EXISTS (SELECT 1 FROM result_submission s WHERE s.id = '5eed0000-0000-0000-0017-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM verification v WHERE v.result_submission_id = '5eed0000-0000-0000-0017-0000000000a1')
+ON CONFLICT DO NOTHING;
