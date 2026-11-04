@@ -1001,6 +1001,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ActualValue)
                 .HasPrecision(18, 4)
                 .HasColumnName("actual_value");
+            entity.Property(e => e.WeightedActualValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("weighted_actual_value");
             entity.Property(e => e.ComponentScore)
                 .HasPrecision(10, 4)
                 .HasColumnName("component_score");
@@ -1926,6 +1929,7 @@ public partial class AppDbContext : DbContext
         });
 
         ConfigureScores(modelBuilder);
+        ConfigureNotifications(modelBuilder);
         OnModelCreatingPartial(modelBuilder);
     }
 

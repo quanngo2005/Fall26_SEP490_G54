@@ -148,7 +148,9 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000019', 'OBJECTIVE_READ',      'Xem mục tiêu kinh doanh',     'objective', 'read'),
  ('5eed0000-0000-0000-0009-00000000001a', 'OBJECTIVE_MANAGE',    'Quản lý mục tiêu kinh doanh', 'objective', 'manage'),
  ('5eed0000-0000-0000-0009-00000000001b', 'KPI_REQUEST',         'Yêu cầu bổ sung KPI',         'kpi',       'request'),
- ('5eed0000-0000-0000-0009-00000000001c', 'KPI_APPROVE',         'Duyệt hoặc từ chối KPI',      'kpi',       'approve')
+ ('5eed0000-0000-0000-0009-00000000001c', 'KPI_APPROVE',         'Duyệt hoặc từ chối KPI',      'kpi',       'approve'),
+ ('5eed0000-0000-0000-0009-00000000001d', 'NOTIFICATION_READ',   'Xem thông báo của mình',      'notification', 'read'),
+ ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -179,7 +181,9 @@ FROM (VALUES
     -- The Branch Manager owns business objectives and approves KPIs; the Department Manager reads objectives of the department.
     ('MANAGER', 'OBJECTIVE_READ', 'Dept'), ('DEPT_MANAGER', 'OBJECTIVE_READ', 'Dept'), ('BRANCH_MANAGER', 'OBJECTIVE_READ', 'Branch'),
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
-    ('ADMIN', 'AUDIT_LOG_VIEW', 'All')
+    ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
+    ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
+    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
@@ -872,9 +876,9 @@ FROM seed_evaluation_metric m
 JOIN target_assignment t ON t.id = m.target_id
 ON CONFLICT DO NOTHING;
 
-INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, denominator)
+INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, raw_value, denominator)
 SELECT md5('evaluation-demo-item-' || m.progress_id::text)::uuid,
-       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.denominator
+       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.actual_value, m.denominator
 FROM seed_evaluation_metric m
 JOIN actual_progress ap ON ap.id = m.progress_id
 ON CONFLICT DO NOTHING;

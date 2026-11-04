@@ -29,6 +29,7 @@ export type MenuKey =
   | 'reviewVerify'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
+  | 'targetOverview'
   | 'branchWork'
   | 'branchPerformance'
   | 'departmentPerformance'
@@ -95,6 +96,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'handoverDelegation',
     'reviewVerify',
     'teamPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
     'appeals',
     'notifications',
@@ -109,6 +111,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'reviewVerify',
     'branchPerformance',
     'departmentPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
     'appeals',
     'notifications',
@@ -139,6 +142,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'accounts',
     'rolesPermissions',
     'accessPolicies',
+    'workTypes',
     'systemConfiguration',
     'systemAudit',
     'myProfile',
@@ -149,7 +153,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
@@ -173,6 +177,12 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'VERIFICATION_DECIDE',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
+  {
+    id: 'targetOverview',
+    icon: 'targetsAndCampaigns',
+    route: '/target-overview',
+    permission: 'TARGET_MANAGE',
+  },
   {
     id: 'targetsAndCampaigns',
     icon: 'targetsAndCampaigns',
@@ -213,7 +223,7 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/kpi-definitions',
     permission: 'KPI_MANAGE',
   },
-  { id: 'workTypes', icon: 'myWork', route: '/work-type-detail' },
+  { id: 'workTypes', icon: 'myWork', route: '/work-types' },
   { id: 'targets', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'reports', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
   { id: 'audit', icon: 'auditReview' },
@@ -233,9 +243,11 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/my-targets',
     '/departments',
     '/department-performance',
     '/employee-detail',
+    '/work-types',
     '/work-type-detail',
     '/review-verify',
     '/appeals',

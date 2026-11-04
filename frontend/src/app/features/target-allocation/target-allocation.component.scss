@@ -1,0 +1,304 @@
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+
+  h1 {
+    margin: 0 auto 0 0;
+  }
+}
+
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+  font:
+    500 13px Inter,
+    sans-serif;
+}
+
+.alloc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  button {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: #64748b;
+    cursor: pointer;
+    font:
+      500 13px Inter,
+      sans-serif;
+    padding: 8px 12px;
+  }
+
+  .is-active {
+    border-bottom-color: #2563eb;
+    color: #1d4ed8;
+  }
+}
+
+.alloc-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+
+  &.has-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  }
+}
+
+.alloc-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.alloc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font:
+    400 13px Inter,
+    sans-serif;
+
+  th,
+  td {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    color: #64748b;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  tbody th {
+    font-weight: 500;
+  }
+
+  tfoot th,
+  tfoot td {
+    background: #f8fafc;
+    font-weight: 600;
+  }
+
+  .num {
+    text-align: right;
+  }
+
+  .is-selected {
+    background: #eff6ff;
+  }
+
+  .is-bad {
+    color: #b91c1c;
+  }
+
+  .is-good {
+    color: #15803d;
+  }
+}
+
+.cell-input {
+  min-width: 130px;
+  text-align: right;
+
+  &.is-empty:not(:disabled) {
+    border-color: #fca5a5;
+    background: #fef2f2;
+  }
+}
+
+.link-button {
+  border: 0;
+  background: none;
+  color: #0f172a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  text-align: left;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font:
+    500 12px Inter,
+    sans-serif;
+  padding: 2px 8px;
+
+  &[data-status='CONFIRMED'] {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &[data-status='COMMENTED'] {
+    background: #ffedd5;
+    color: #9a3412;
+  }
+}
+
+.alloc-notice {
+  margin: 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  font:
+    400 13px Inter,
+    sans-serif;
+  padding: 10px 14px;
+
+  &.is-error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+}
+
+.alloc-hint {
+  margin: 0;
+  color: #64748b;
+  font:
+    400 12px Inter,
+    sans-serif;
+}
+
+.alloc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+
+  h2 {
+    margin: 0;
+    font:
+      600 16px Inter,
+      sans-serif;
+  }
+}
+
+.panel-close {
+  border: 0;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.panel-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #a5f3fc;
+  border-radius: 6px;
+  background: #ecfeff;
+  color: #155e75;
+  font:
+    400 12px Inter,
+    sans-serif;
+  padding: 10px 12px;
+}
+
+@media (max-width: 960px) {
+  .alloc-body.has-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.team-row th,
+.team-row td {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.member-row th {
+  padding-left: 32px;
+}
+
+.team-meta {
+  display: block;
+  color: #64748b;
+  font:
+    400 12px Inter,
+    sans-serif;
+  margin-top: 2px;
+}
+
+th .team-meta {
+  display: inline;
+  margin-left: 8px;
+}
+
+.adjust-reason {
+  max-width: 560px;
+  margin-bottom: 12px;
+}
+
+.team-total {
+  color: #475569;
+  font-weight: 600;
+}
+
+.cell-wrap {
+  position: relative;
+}
+
+.pin {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px;
+}

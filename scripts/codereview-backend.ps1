@@ -66,6 +66,7 @@ $intentionallyOpen = @{
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
     "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
     "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
+    "GET /target-assignments/employees/{employeeId:guid}/suggested-daily" = "TargetAssignmentService.GetSuggestedDailyAsync calls EnsureCanViewAsync: the employee or an org-scoped caller"
     "POST /target-assignments/{id:guid}/feedback/confirm"  = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "POST /target-assignments/{id:guid}/feedback/comments" = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "GET /target-assignments/{id:guid}/feedback"           = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"

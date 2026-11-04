@@ -155,6 +155,32 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
+    public async Task GetDossierAsync_ShowsTheRequiredKpiEvenWhenAnOptionalOneIsMoreRecent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, _, work, submission) = await SeedBasicSubmissionAsync(context);
+            var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-TWO", Name = "Two KPIs", Status = RecordStatus.Active };
+            var groupId = Guid.NewGuid();
+            var optional = new KpiDefinition { Id = Guid.NewGuid(), KpiGroupId = groupId, Code = "KPI-OPT", Name = "Optional", Unit = "u", Status = KpiStatus.Active };
+            var required = new KpiDefinition { Id = Guid.NewGuid(), KpiGroupId = groupId, Code = "KPI-REQ", Name = "Required", Unit = "u", Status = KpiStatus.Active };
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            context.WorkTypes.Add(workType);
+            context.KpiDefinitions.AddRange(optional, required);
+            context.WorkTypeKpis.AddRange(
+                new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = optional.Id, IsRequired = false, EffectiveFrom = today.AddDays(-2) },
+                new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = required.Id, IsRequired = true, EffectiveFrom = today.AddDays(-30) });
+            (await context.Works.FindAsync(work.Id))!.WorkTypeId = workType.Id;
+            await context.SaveChangesAsync();
+
+            var result = await service.GetDossierAsync(submission.Id, Guid.NewGuid());
+
+            Assert.Equal(required.Id, result.KpiItem!.KpiDefinitionId);
+        }
+    }
+
+    [Fact]
     public async Task GetDossierAsync_WhenSubmissionDoesNotExist_ThrowsNotFoundException()
     {
         var (context, service) = CreateTestEnvironment();

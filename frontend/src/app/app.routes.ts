@@ -49,6 +49,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'target-allocation',
+    canActivate: [authGuard],
+    title: 'Mục tiêu nhân viên',
+    loadComponent: () =>
+      import('./features/target-allocation/target-allocation.component').then(
+        (m) => m.TargetAllocationComponent,
+      ),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),
@@ -112,6 +121,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    canActivate: [authGuard, branchEvaluationGuard],
+    title: 'Phê duyệt xếp hạng phòng ban',
+    loadComponent: () =>
+      import('./features/evaluations/department-ranking-approval/department-ranking-approval.component').then(
+        (m) => m.DepartmentRankingApprovalComponent,
+      ),
+  },
+  {
     path: 'employees',
     canActivate: [authGuard],
     title: 'Nhân viên',
@@ -133,6 +151,13 @@ export const routes: Routes = [
       import('./features/employee-detail/employee-detail.component').then(
         (m) => m.EmployeeDetailComponent,
       ),
+  },
+  {
+    path: 'work-types',
+    canActivate: [authGuard, adminGuard],
+    title: 'Work Types',
+    loadComponent: () =>
+      import('./features/work-types/work-type-list.component').then((m) => m.WorkTypeListComponent),
   },
   {
     path: 'work-type-detail',
@@ -195,6 +220,13 @@ export const routes: Routes = [
       import('./features/appeals/department-appeal-detail.component').then(
         (m) => m.DepartmentAppealDetailComponent,
       ),
+  },
+  {
+    path: 'my-targets',
+    canActivate: [authGuard],
+    title: 'Mục tiêu của tôi',
+    loadComponent: () =>
+      import('./features/my-targets/my-targets.component').then((m) => m.MyTargetsComponent),
   },
   {
     path: 'my-work',

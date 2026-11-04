@@ -44,6 +44,19 @@ public sealed class TargetAllocationItemDto
     public decimal? TargetValue { get; set; }
 }
 
+/// <summary>Changes the values of the ACTIVE children of a target (each changed child becomes a new version) and may add owners.</summary>
+public sealed class ReallocateTargetDto
+{
+    /// <summary>Every owner already allocated, with its new value, plus any owner to be added.</summary>
+    [Required(ErrorMessage = "Danh sách phân bổ là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Danh sách phân bổ phải có ít nhất một đối tượng.")]
+    public List<TargetAllocationItemDto>? Allocations { get; set; }
+
+    [Required(ErrorMessage = "Lý do điều chỉnh là bắt buộc.")]
+    [StringLength(1000, ErrorMessage = "Lý do không vượt quá 1000 ký tự.")]
+    public string? ChangeReason { get; set; }
+}
+
 /// <summary>Splits a target across evaluation periods (e.g., year to quarters).</summary>
 public sealed class AllocateTargetByPeriodDto
 {
@@ -126,6 +139,44 @@ public sealed record TargetAssignmentBreakdownDto(
     int WorkingDays,
     string Granularity,
     IReadOnlyList<TargetBreakdownItemDto> Items);
+
+/// <summary>Query parameters for GET /target-assignments/employees/{employeeId}/suggested-daily.</summary>
+public sealed class SuggestedDailyTargetQueryDto
+{
+    [Required(ErrorMessage = "Kỳ đánh giá là bắt buộc.")]
+    public Guid? EvaluationPeriodId { get; set; }
+}
+
+/// <summary>One calendar month of an employee target: its working days, value, and the per-day and per-week share.</summary>
+public sealed record SuggestedDailyMonthDto(
+    string Month,
+    int WorkingDays,
+    decimal Value,
+    decimal Daily,
+    decimal Weekly);
+
+/// <summary>
+/// One ACTIVE target of the employee. <c>PlannedDaily</c>, <c>PlannedWeekly</c> and <c>Months</c> are null/empty
+/// for a KPI whose aggregation is not SUM, because "the target split over the days" has no meaning for it.
+/// </summary>
+public sealed record SuggestedDailyTargetItemDto(
+    Guid TargetAssignmentId,
+    Guid KpiDefinitionId,
+    string KpiCode,
+    string Unit,
+    bool IsWholeNumber,
+    decimal TargetValue,
+    decimal? PlannedDaily,
+    decimal? PlannedWeekly,
+    IReadOnlyList<SuggestedDailyMonthDto> Months);
+
+public sealed record SuggestedDailyTargetDto(
+    Guid EmployeeId,
+    Guid EvaluationPeriodId,
+    DateOnly PeriodStart,
+    DateOnly PeriodEnd,
+    int WorkingDays,
+    IReadOnlyList<SuggestedDailyTargetItemDto> Items);
 
 /// <summary>Body for POST /target-assignments/{id}/feedback/comments.</summary>
 public sealed class CreateTargetFeedbackCommentDto

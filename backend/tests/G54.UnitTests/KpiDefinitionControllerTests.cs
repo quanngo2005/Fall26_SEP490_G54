@@ -86,6 +86,81 @@ public sealed class KpiDefinitionControllerTests
         Assert.Same(dto, service.RejectDto);
     }
 
+    [Fact]
+    public async Task List_ReturnsThePageAndPassesTheFilter()
+    {
+        var service = new RecordingService();
+        var filter = new KpiFilterDto();
+
+        var result = await CreateController(service).GetKpis(filter, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.True(Assert.IsType<ApiResponse<PagedResult<KpiDefinitionDto>>>(ok.Value).Success);
+        Assert.Same(filter, service.Filter);
+    }
+
+    [Fact]
+    public async Task Groups_ReturnsTheGroupOptions()
+    {
+        var result = await CreateController(new RecordingService()).GetGroupOptions(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.True(Assert.IsType<ApiResponse<List<KpiGroupOptionDto>>>(ok.Value).Success);
+    }
+
+    [Fact]
+    public async Task Detail_ReturnsTheKpi()
+    {
+        var kpi = Sample();
+
+        var result = await CreateController(new RecordingService { Created = kpi }).GetKpiById(kpi.Id, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Same(kpi, Assert.IsType<ApiResponse<KpiDefinitionDto>>(ok.Value).Data);
+    }
+
+    [Fact]
+    public async Task Detail_OfAnUnknownKpi_Is404WithTheTraceId()
+    {
+        var result = await CreateController(new RecordingService { Missing = true }).GetKpiById(Guid.NewGuid(), CancellationToken.None);
+
+        var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse>(notFound.Value);
+        Assert.False(response.Success);
+        Assert.Equal(StatusCodes.Status404NotFound, response.Status);
+        Assert.Equal("trace-1", response.TraceId);
+    }
+
+    [Fact]
+    public async Task Create_Returns201WithALocationToTheDetail()
+    {
+        var created = Sample();
+        var service = new RecordingService { Created = created };
+        var dto = new KpiDefinitionSaveDto();
+
+        var result = await CreateController(service).CreateKpi(dto, CancellationToken.None);
+
+        var response = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(KpiDefinitionController.GetKpiById), response.ActionName);
+        Assert.Equal(created.Id, response.RouteValues!["id"]);
+        Assert.Same(dto, service.SaveDto);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsTheUpdatedKpiAndPassesTheIdAndBody()
+    {
+        var service = new RecordingService();
+        var id = Guid.NewGuid();
+        var dto = new KpiDefinitionSaveDto();
+
+        var result = await CreateController(service).UpdateKpi(id, dto, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.True(Assert.IsType<ApiResponse<KpiDefinitionDto>>(ok.Value).Success);
+        Assert.Equal((id, "update"), (service.Id, service.Called));
+        Assert.Same(dto, service.SaveDto);
+    }
+
     private sealed class RecordingService : IKpiDefinitionService
     {
         public KpiDefinitionDto Created { get; init; } = Sample();
@@ -100,17 +175,30 @@ public sealed class KpiDefinitionControllerTests
 
         public RejectKpiDto? RejectDto { get; private set; }
 
-        public Task<PagedResult<KpiDefinitionDto>> GetKpisAsync(KpiFilterDto filter, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PagedResult<KpiDefinitionDto>([], 0, 1, 20));
+        public KpiFilterDto? Filter { get; private set; }
+
+        public KpiDefinitionSaveDto? SaveDto { get; private set; }
+
+        /// <summary>When set, the detail lookup finds nothing.</summary>
+        public bool Missing { get; init; }
+
+        public Task<PagedResult<KpiDefinitionDto>> GetKpisAsync(KpiFilterDto filter, CancellationToken cancellationToken = default)
+        {
+            Filter = filter;
+            return Task.FromResult(new PagedResult<KpiDefinitionDto>([], 0, 1, 20));
+        }
 
         public Task<KpiDefinitionDto?> GetKpiByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult<KpiDefinitionDto?>(Created);
+            Task.FromResult<KpiDefinitionDto?>(Missing ? null : Created);
 
         public Task<List<KpiGroupOptionDto>> GetGroupOptionsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new List<KpiGroupOptionDto>());
 
-        public Task<KpiDefinitionDto> CreateKpiAsync(KpiDefinitionSaveDto dto, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Created);
+        public Task<KpiDefinitionDto> CreateKpiAsync(KpiDefinitionSaveDto dto, CancellationToken cancellationToken = default)
+        {
+            SaveDto = dto;
+            return Task.FromResult(Created);
+        }
 
         public Task<KpiDefinitionDto> RequestKpiAsync(Guid accountId, KpiRequestDto dto, CancellationToken cancellationToken = default)
         {
@@ -119,8 +207,11 @@ public sealed class KpiDefinitionControllerTests
             return Task.FromResult(Created);
         }
 
-        public Task<KpiDefinitionDto> UpdateKpiAsync(Guid id, KpiDefinitionSaveDto dto, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Created);
+        public Task<KpiDefinitionDto> UpdateKpiAsync(Guid id, KpiDefinitionSaveDto dto, CancellationToken cancellationToken = default)
+        {
+            (Id, Called, SaveDto) = (id, "update", dto);
+            return Task.FromResult(Created);
+        }
 
         public Task ChangeStatusAsync(Guid accountId, Guid id, KpiStatusDto dto, CancellationToken cancellationToken = default)
         {

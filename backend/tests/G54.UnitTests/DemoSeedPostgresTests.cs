@@ -316,16 +316,16 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^1]);
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^2]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^3]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^4]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^5]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^6]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^7]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^8]);
-        Assert.Equal("20261101042840_AddTargetAssignmentFeedback", migrations[^9]);
-        Assert.Equal("20261030174646_AddEvaluationProfileItemGroupNameUniqueIndex", migrations[^10]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^1]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^2]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^3]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^4]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^5]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^6]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^7]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^8]);
+        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^9]);
+        Assert.Equal("20261101144049_AddAuditLogs", migrations[^10]);
     }
 
     [PostgresFact]

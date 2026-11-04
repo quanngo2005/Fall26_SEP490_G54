@@ -1005,6 +1005,98 @@ public sealed class EvaluationProfileServiceTests
     }
 
     [Fact]
+    public async Task Reject_ReasonOfExactlyFiveHundredCharacters_IsAccepted()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateInStatusAsync(db, service, "PENDING_APPROVAL");
+            var reason = new string('x', 500);
+
+            await service.RejectProfileAsync(profile.Id, new RejectEvaluationProfileDto { Reason = reason });
+
+            var rejected = (await service.GetProfileByIdAsync(profile.Id))!;
+            Assert.Equal("REJECTED", rejected.Status);
+            Assert.Equal(reason, rejected.RejectReason);
+        }
+    }
+
+    [Fact]
+    public async Task Reject_NullReason_IsAValidationErrorAndStaysPending()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var profile = await CreateInStatusAsync(db, service, "PENDING_APPROVAL");
+
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.RejectProfileAsync(profile.Id, new RejectEvaluationProfileDto { Reason = null! }));
+
+            Assert.Equal("PENDING_APPROVAL", (await service.GetProfileByIdAsync(profile.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Reject_NewVersion_LeavesThePreviousActiveVersionActive()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var a = AddGroup(db, "A");
+            var b = AddGroup(db, "B");
+            var first = await CreateActiveAsync(service, position, a, b, from: Jan1);
+            var second = await service.CreateProfileAsync(CreateDto(position, FullItems(a, b), from: Jul1));
+            await service.ChangeStatusAsync(second.Id, Status("PENDING_APPROVAL"));
+
+            await service.RejectProfileAsync(second.Id, new RejectEvaluationProfileDto { Reason = "Sai trọng số" });
+
+            Assert.Equal("REJECTED", (await service.GetProfileByIdAsync(second.Id))!.Status);
+            Assert.Equal("ACTIVE", (await service.GetProfileByIdAsync(first.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Approve_JobPositionDeletedAfterSubmit_IsNotFoundAndStaysPending()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var created = await service.CreateProfileAsync(
+                CreateDto(position, FullItems(AddGroup(db, "A"), AddGroup(db, "B"))));
+            await service.ChangeStatusAsync(created.Id, Status("PENDING_APPROVAL"));
+            db.ChangeTracker.Clear();
+            db.JobPositions.Remove(new JobPosition { Id = position.Id });
+            await db.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<NotFoundException>(() => service.ApproveProfileAsync(created.Id));
+
+            var stored = await db.EvaluationProfiles.AsNoTracking().SingleAsync(p => p.Id == created.Id);
+            Assert.Equal(EvaluationProfileStatus.PendingApproval, stored.Status);
+        }
+    }
+
+    [Fact]
+    public async Task Approve_JobPositionInactiveAfterSubmit_IsAValidationErrorAndStaysPending()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var position = AddPosition(db);
+            var created = await service.CreateProfileAsync(
+                CreateDto(position, FullItems(AddGroup(db, "A"), AddGroup(db, "B"))));
+            await service.ChangeStatusAsync(created.Id, Status("PENDING_APPROVAL"));
+            position.Status = RecordStatus.Inactive;
+            await db.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.ApproveProfileAsync(created.Id));
+
+            Assert.Equal("PENDING_APPROVAL", (await service.GetProfileByIdAsync(created.Id))!.Status);
+        }
+    }
+
+    [Fact]
     public async Task Resubmit_RejectedProfile_ClearsTheReasonAndApprovalActivatesIt()
     {
         var (db, service) = CreateEnvironment();
@@ -1508,6 +1600,20 @@ public sealed class EvaluationProfileServiceTests
             var archived = (await service.GetProfileByIdAsync(created.Id))!;
             Assert.Equal("ARCHIVED", archived.Status);
             Assert.Equal(2, archived.Items.Count);
+        }
+    }
+
+    [Fact]
+    public async Task Delete_PendingProfile_ArchivesIt()
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var pending = await CreateInStatusAsync(db, service, "PENDING_APPROVAL");
+
+            await service.DeleteProfileAsync(pending.Id);
+
+            Assert.Equal("ARCHIVED", (await service.GetProfileByIdAsync(pending.Id))!.Status);
         }
     }
 

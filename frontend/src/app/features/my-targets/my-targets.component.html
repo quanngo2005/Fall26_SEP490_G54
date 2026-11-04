@@ -1,0 +1,318 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content my-targets" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">
+        {{localization.myTargets.breadcrumbRoot}}
+        @if (view(); as year) {
+          › {{i18n.translate('myTargets.yearTitle', { year: year.year })}}
+        }
+      </p>
+
+      @if (loading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.myTargets.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.myTargets.error}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{localization.myTargets.retry}}
+          </button>
+        </div>
+      } @else if (view(); as year) {
+        @let current = focus()!;
+        @let awaiting = pending();
+
+        <header class="page-head">
+          <div class="head-text">
+            <h1>
+              {{i18n.translate('myTargets.yearTitle', { year: year.year })}}
+              @if (awaiting) {
+                <span class="badge badge-warning">
+                  {{i18n.translate(
+                      changed() ? 'myTargets.badgeConfirmed' : 'myTargets.badgePending',
+                      { quarter: shortName(current) }
+                    )}}
+                </span>
+              } @else if (current.status === 'COMMENTED') {
+                <span class="badge badge-info">
+                  {{i18n.translate('myTargets.badgeCommented', { quarter: shortName(current) })}}
+                </span>
+              } @else if (current.status === 'CONFIRMED') {
+                <span class="badge badge-success">
+                  {{i18n.translate('myTargets.badgeConfirmed', { quarter: shortName(current) })}}
+                </span>
+              }
+            </h1>
+            <p class="subtitle num">
+              @if (awaiting && !changed()) {
+                {{assignedText(awaiting)}}
+              } @else if (lastConfirmedAt()) {
+                {{i18n.translate('myTargets.confirmedAt', { time: dateTime(lastConfirmedAt()) })}}
+              }
+            </p>
+          </div>
+
+          @if (awaiting && !changed()) {
+            <div class="head-actions">
+              <button
+                type="button"
+                id="my-targets-confirm"
+                class="button button-primary"
+                [disabled]="sending()"
+                (click)="confirm()"
+              >
+                {{i18n.translate('myTargets.confirmQuarter', { quarter: shortName(awaiting) })}}
+              </button>
+            </div>
+          } @else if (!awaiting && current.status !== 'ENDED') {
+            <p class="muted">{{localization.myTargets.doneHint}}</p>
+          }
+        </header>
+
+        @if (awaiting && !changed()) {
+          <p class="split-note">
+            <span class="badge badge-info">{{localization.myTargets.selfSplitBadge}}</span>
+            {{localization.myTargets.selfSplitNote}}
+          </p>
+        }
+
+        <div class="table-card">
+          <div class="table-wrap">
+            <table class="targets-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{localization.myTargets.colPeriod}}</th>
+                  <th scope="col" class="num-col">{{localization.myTargets.colWorkingDays}}</th>
+                  @for (kpi of year.kpis; track kpi.id) {
+                    <th scope="col" class="num-col">{{kpi.name}} ({{kpi.unit}})</th>
+                  }
+                  <th scope="col">{{localization.myTargets.colStatus}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (quarter of year.quarters; track quarter.periodId) {
+                  <tr class="quarter-row" [class.is-pending]="quarter.status === 'PENDING'">
+                    <th scope="row">
+                      <button
+                        type="button"
+                        class="toggle"
+                        [attr.aria-expanded]="expanded().has(quarter.periodId)"
+                        (click)="toggle(quarter.periodId)"
+                      >
+                        <span aria-hidden="true">{{expanded().has(quarter.periodId) ? '▾' : '▸'}}</span>
+                        {{quarter.name}}
+                      </button>
+                    </th>
+                    <td class="num num-col">{{number(quarter.workingDays)}}</td>
+                    @for (kpi of year.kpis; track kpi.id) {
+                      <td class="num num-col">{{value(quarter.values, kpi.id)}}</td>
+                    }
+                    <td>
+                      @switch (quarter.status) {
+                        @case ('ENDED') {
+                          <span class="muted">{{localization.myTargets.statusEnded}}</span>
+                        }
+                        @case ('PENDING') {
+                          <span class="chip chip-warning">{{localization.myTargets.statusPending}}</span>
+                        }
+                        @case ('CONFIRMED') {
+                          <span class="chip chip-success">{{localization.myTargets.statusConfirmed}}</span>
+                        }
+                        @case ('COMMENTED') {
+                          <span class="chip chip-info">{{localization.myTargets.statusCommented}}</span>
+                        }
+                      }
+                    </td>
+                  </tr>
+                  @if (expanded().has(quarter.periodId)) {
+                    @for (month of quarter.months; track month.key) {
+                      <tr class="month-row">
+                        <th scope="row">{{monthLabel(month)}}</th>
+                        <td class="num num-col">{{number(month.workingDays)}}</td>
+                        @for (kpi of year.kpis; track kpi.id) {
+                          <td class="num num-col">{{value(month.values, kpi.id)}}</td>
+                        }
+                        <td>
+                          @if (month.phase === 'CURRENT') {
+                            <span class="chip chip-success">{{localization.myTargets.phaseCurrent}}</span>
+                            <button
+                              type="button"
+                              class="link-button"
+                              (click)="openPanel(quarter, month)"
+                            >
+                              {{localization.myTargets.viewBreakdown}}
+                            </button>
+                          } @else if (month.phase === 'PLANNED') {
+                            <span class="muted">{{localization.myTargets.phasePlanned}}</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  }
+                }
+                <tr class="total-row">
+                  <th scope="row">
+                    {{i18n.translate('myTargets.yearTotal', { year: year.year })}}
+                  </th>
+                  <td class="num num-col">{{number(year.totalWorkingDays)}}</td>
+                  @for (kpi of year.kpis; track kpi.id) {
+                    <td class="num num-col">{{value(year.totalValues, kpi.id)}}</td>
+                  }
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @if (changed() && awaiting) {
+          <div class="banner banner-warning" role="status">
+            <div>
+              <strong>{{i18n.translate('myTargets.changedTitle', { quarter: shortName(awaiting) })}}</strong>
+              <span>{{localization.myTargets.changedHint}}</span>
+            </div>
+            <button
+              type="button"
+              id="my-targets-reconfirm"
+              class="button button-primary"
+              [disabled]="sending()"
+              (click)="confirm()"
+            >
+              {{localization.myTargets.reconfirm}}
+            </button>
+          </div>
+        }
+
+        @if (panel(); as slice) {
+          <section class="slice-panel" aria-live="polite">
+            <header>
+              <h2>
+                {{i18n.translate('myTargets.sliceTitle', { month: monthLabel(slice.month) })}}
+              </h2>
+              <div class="segmented" role="group">
+                <button
+                  type="button"
+                  [class.is-active]="slice.granularity === 'WEEK'"
+                  (click)="setGranularity('WEEK')"
+                >
+                  {{localization.myTargets.byWeek}}
+                </button>
+                <button
+                  type="button"
+                  [class.is-active]="slice.granularity === 'DAY'"
+                  (click)="setGranularity('DAY')"
+                >
+                  {{localization.myTargets.byDay}}
+                </button>
+              </div>
+              <button type="button" class="link-button" (click)="closePanel()">
+                {{localization.myTargets.hideBreakdown}}
+              </button>
+            </header>
+            @if (slice.loading) {
+              <p class="muted" role="status">{{localization.myTargets.loading}}</p>
+            } @else if (slice.failed) {
+              <p class="form-error" role="alert">{{localization.myTargets.sliceFailed}}</p>
+            } @else if (slice.slices.length === 0) {
+              <p class="muted">{{localization.myTargets.sliceEmpty}}</p>
+            } @else {
+              <table class="targets-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.myTargets.colPeriod}}</th>
+                    @for (kpi of year.kpis; track kpi.id) {
+                      <th scope="col" class="num-col">{{kpi.name}} ({{kpi.unit}})</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of slice.slices; track row.start) {
+                    <tr>
+                      <th scope="row" class="num">
+                        {{day(row.start)}}{{row.end !== row.start ? ' – ' + day(row.end) : ''}}
+                      </th>
+                      @for (kpi of year.kpis; track kpi.id) {
+                        <td class="num num-col">{{value(row.values, kpi.id)}}</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </section>
+        }
+
+        @if (awaiting) {
+          <section class="feedback-card">
+            <header>
+              <h2>{{localization.myTargets.feedbackTitle}}</h2>
+              <span class="muted">
+                {{comments().length === 0
+                    ? localization.myTargets.feedbackHistoryNone
+                    : i18n.translate('myTargets.feedbackHistory', { count: comments().length })}}
+              </span>
+            </header>
+            <div class="feedback-form">
+              <div class="feedback-field">
+                <textarea
+                  id="my-targets-comment"
+                  class="input"
+                  rows="2"
+                  [maxlength]="maxComment"
+                  [class.is-invalid]="commentError()"
+                  [placeholder]="localization.myTargets.feedbackPlaceholder"
+                  [attr.aria-label]="localization.myTargets.feedbackTitle"
+                  [(ngModel)]="comment"
+                ></textarea>
+                <span class="counter num">{{commentLength}} / {{maxComment}}</span>
+              </div>
+              <button
+                type="button"
+                id="my-targets-send"
+                class="button button-secondary"
+                [disabled]="sending()"
+                (click)="sendComment()"
+              >
+                {{localization.myTargets.sendFeedback}}
+              </button>
+            </div>
+            @if (commentError()) {
+              <p class="form-error" role="alert">{{localization.myTargets.commentRequired}}</p>
+            }
+            @if (comments().length > 0) {
+              <ul class="comment-list">
+                @for (entry of comments(); track entry.id) {
+                  <li>
+                    <span class="num muted">{{dateTime(entry.createdAt)}}</span>
+                    {{entry.comment}}
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
+      } @else {
+        <div class="state-card" role="status">
+          <p>{{localization.myTargets.empty}}</p>
+        </div>
+      }
+    </main>
+  </div>
+</div>
+
+@if (toast(); as t) {
+  <div
+    class="toast"
+    [class.toast-error]="t.kind === 'error'"
+    [attr.role]="t.kind === 'error' ? 'alert' : 'status'"
+  >
+    <span>{{t.text}}</span>
+    <button type="button" (click)="dismissToast()" [attr.aria-label]="localization.common.close">
+      ×
+    </button>
+  </div>
+}
