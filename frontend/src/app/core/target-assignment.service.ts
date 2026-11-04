@@ -9,6 +9,7 @@ import {
   TargetAssignmentFeedback,
   TargetAssignmentFilter,
   TargetBreakdown,
+  SuggestedDailyTarget,
   TargetReallocationRequest,
 } from './target-assignment.models';
 
@@ -26,6 +27,45 @@ export class TargetAssignmentService {
     }
     return this.http
       .get<ApiResponse<TargetAssignment[]>>(this.url, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The caller's own ACTIVE targets, each with `feedbackStatus`. */
+  mine(
+    filter: Pick<TargetAssignmentFilter, 'evaluationPeriodId' | 'kpiDefinitionId'> = {},
+  ): Observable<TargetAssignment[]> {
+    return this.http
+      .get<ApiResponse<TargetAssignment[]>>(`${this.url}/mine`, { params: { ...filter } })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The owning employee confirms the target (201); 409 when it is already confirmed since the last change. */
+  confirm(id: string): Observable<TargetAssignmentFeedback> {
+    return this.http
+      .post<ApiResponse<TargetAssignmentFeedback>>(
+        `${this.url}/${encodeURIComponent(id)}/feedback/confirm`,
+        null,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The owning employee comments on the target (1-500 characters). */
+  comment(id: string, comment: string): Observable<TargetAssignmentFeedback> {
+    return this.http
+      .post<ApiResponse<TargetAssignmentFeedback>>(
+        `${this.url}/${encodeURIComponent(id)}/feedback/comments`,
+        { comment },
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Planned split of an employee's targets in one period (read only). */
+  suggestedDaily(employeeId: string, evaluationPeriodId: string): Observable<SuggestedDailyTarget> {
+    return this.http
+      .get<ApiResponse<SuggestedDailyTarget>>(
+        `${this.url}/employees/${encodeURIComponent(employeeId)}/suggested-daily`,
+        { params: { evaluationPeriodId } },
+      )
       .pipe(map((response) => this.unwrap(response)));
   }
 

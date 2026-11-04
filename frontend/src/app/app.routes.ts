@@ -191,6 +191,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'my-targets',
+    canActivate: [authGuard],
+    title: 'Mục tiêu của tôi',
+    loadComponent: () =>
+      import('./features/my-targets/my-targets.component').then((m) => m.MyTargetsComponent),
+  },
+  {
     path: 'my-work',
     canActivate: [authGuard],
     title: 'Công việc',

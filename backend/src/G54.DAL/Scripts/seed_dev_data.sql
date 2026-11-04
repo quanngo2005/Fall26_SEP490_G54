@@ -877,9 +877,9 @@ FROM seed_evaluation_metric m
 JOIN target_assignment t ON t.id = m.target_id
 ON CONFLICT DO NOTHING;
 
-INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, denominator)
+INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, raw_value, denominator)
 SELECT md5('evaluation-demo-item-' || m.progress_id::text)::uuid,
-       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.denominator
+       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.actual_value, m.denominator
 FROM seed_evaluation_metric m
 JOIN actual_progress ap ON ap.id = m.progress_id
 ON CONFLICT DO NOTHING;
