@@ -150,7 +150,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000001b', 'KPI_REQUEST',         'Yêu cầu bổ sung KPI',         'kpi',       'request'),
  ('5eed0000-0000-0000-0009-00000000001c', 'KPI_APPROVE',         'Duyệt hoặc từ chối KPI',      'kpi',       'approve'),
  ('5eed0000-0000-0000-0009-00000000001d', 'NOTIFICATION_READ',   'Xem thông báo của mình',      'notification', 'read'),
- ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send')
+ ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send'),
+ ('5eed0000-0000-0000-0009-00000000001f', 'TRANSACTION_IMPORT_MANAGE', 'Import giao dịch Core Banking', 'transaction-import', 'manage')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -183,7 +184,7 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
     ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
     ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
-    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept')
+    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code

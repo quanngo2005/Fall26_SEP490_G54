@@ -87,6 +87,9 @@ public static class ErrorCodes
     public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
     public const string TargetInvalidState = "TARGET_INVALID_STATE";
 
+    // Transaction import (docs/api/TRANSACTION_IMPORT_CONTRACT.md)
+    public const string ImportInvalidFile = "IMPORT_INVALID_FILE";
+
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
         [ValidationError] = ("Dữ liệu đầu vào không hợp lệ.", "Input validation failed."),
@@ -129,6 +132,7 @@ public static class ErrorCodes
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [ImportInvalidFile] = ("Tệp nhập không đúng định dạng .xlsx hoặc thiếu cột bắt buộc.", "The import file is not a valid .xlsx or is missing a required column."),
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
         [PeriodLocked] = ("Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI.", "The evaluation period is locked, so KPI data cannot be changed or imported."),

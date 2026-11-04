@@ -40,6 +40,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Evidence> Evidences { get; set; }
 
+    public virtual DbSet<ImportBatch> ImportBatches { get; set; }
+
+    public virtual DbSet<ImportedTransaction> ImportedTransactions { get; set; }
+
     public virtual DbSet<JobPosition> JobPositions { get; set; }
 
     public virtual DbSet<JobPositionWorkType> JobPositionWorkTypes { get; set; }
@@ -1930,6 +1934,42 @@ public partial class AppDbContext : DbContext
 
         ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        modelBuilder.Entity<ImportBatch>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("import_batch_pkey");
+            entity.ToTable("import_batch");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FileName).HasMaxLength(255).HasColumnName("file_name");
+            entity.Property(e => e.TotalRows).HasColumnName("total_rows");
+            entity.Property(e => e.ImportedRows).HasColumnName("imported_rows");
+            entity.Property(e => e.DuplicateRows).HasColumnName("duplicate_rows");
+            entity.Property(e => e.ErrorRows).HasColumnName("error_rows");
+            entity.Property(e => e.ImportedBy).HasColumnName("imported_by");
+            entity.Property(e => e.ImportedAt).HasColumnName("imported_at");
+        });
+
+        modelBuilder.Entity<ImportedTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("imported_transaction_pkey");
+            entity.ToTable("imported_transaction");
+            entity.HasIndex(e => e.TransactionCode, "uq_imported_transaction_code").IsUnique();
+            entity.HasIndex(e => e.ImportBatchId, "ix_imported_transaction_batch");
+            entity.HasIndex(e => e.EmployeeId, "ix_imported_transaction_employee");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
+            entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.ProductCode).HasMaxLength(100).HasColumnName("product_code");
+            entity.Property(e => e.TransactionDate).HasColumnName("transaction_date");
+            entity.Property(e => e.Amount).HasPrecision(18, 4).HasColumnName("amount");
+            entity.Property(e => e.Denominator).HasPrecision(18, 4).HasColumnName("denominator");
+            entity.Property(e => e.ReferEmployeeCode).HasMaxLength(50).HasColumnName("refer_employee_code");
+            entity.HasOne(e => e.ImportBatch).WithMany(b => b.Transactions).HasForeignKey(e => e.ImportBatchId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_imported_transaction_batch");
+            entity.HasOne(e => e.Employee).WithMany().HasForeignKey(e => e.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_imported_transaction_employee");
+        });
+
         OnModelCreatingPartial(modelBuilder);
     }
 

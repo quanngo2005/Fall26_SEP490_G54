@@ -44,6 +44,8 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
         typeof(EvaluationPeriod), _ => new EvaluationPeriodRepository(dbContext));
 
     public IRepository<ActualProgress> ActualProgresses => Repository<ActualProgress>();
+    public IRepository<ImportBatch> ImportBatches => Repository<ImportBatch>();
+    public IRepository<ImportedTransaction> ImportedTransactions => Repository<ImportedTransaction>();
 
     public IRepository<TEntity> Repository<TEntity>() where TEntity : class
     {
