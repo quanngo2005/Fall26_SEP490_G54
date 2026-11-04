@@ -1,0 +1,190 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      <div class="department-panel">
+        <div class="page-title-row">
+          <h1>{{localization.appeals.managerTitle}}</h1>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="tabs-bar" role="tablist" [attr.aria-label]="localization.appeals.tabsAria">
+          <button
+            type="button"
+            role="tab"
+            class="tab-btn"
+            [class.active]="activeTab() === 'NEEDS_ACTION'"
+            [attr.aria-selected]="activeTab() === 'NEEDS_ACTION'"
+            (click)="setTab('NEEDS_ACTION')"
+          >
+            {{localization.appeals.needsAction}}
+            <span class="tab-count">{{counts().needsAction}}</span>
+          </button>
+          <button type="button" role="tab" class="tab-btn" disabled aria-selected="false">
+            {{localization.appeals.tabEscalated}}
+            <span class="tab-count">{{localization.appeals.notAvailable}}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab-btn"
+            [class.active]="activeTab() === 'RESOLVED'"
+            [attr.aria-selected]="activeTab() === 'RESOLVED'"
+            (click)="setTab('RESOLVED')"
+          >
+            {{localization.appeals.resolved}}
+            <span class="tab-count">{{counts().resolved}}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab-btn"
+            [class.active]="activeTab() === 'ALL'"
+            [attr.aria-selected]="activeTab() === 'ALL'"
+            (click)="setTab('ALL')"
+          >
+            {{localization.appeals.all}}
+          </button>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="toolbar">
+          <div class="filters-left">
+            <div class="search-input-wrap">
+              <span class="search-icon" aria-hidden="true">🔍</span>
+              <input
+                type="text"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="searchQuery.set($event)"
+                [attr.aria-label]="localization.appeals.searchManager"
+                [placeholder]="localization.appeals.searchManager"
+              />
+            </div>
+
+            <div class="select-dropdown">
+              <select
+                [ngModel]="typeFilter()"
+                (ngModelChange)="setType($event)"
+                [attr.aria-label]="localization.appeals.filterType"
+              >
+                <option value="ALL">{{localization.appeals.allTypes}}</option>
+                <option value="RESULT">{{localization.appeals.resultAppeal}}</option>
+                <option value="SCORE">{{localization.appeals.scoreAppeal}}</option>
+              </select>
+            </div>
+
+            <div class="select-dropdown period-select">
+              <select
+                [ngModel]="periodFilter()"
+                (ngModelChange)="setPeriod($event)"
+                [attr.aria-label]="localization.appeals.filterPeriod"
+              >
+                <option value="ALL">{{localization.appeals.allPeriods}}</option>
+                @for (period of periods(); track period.id) {
+                  <option [value]="period.id">{{period.code}}</option>
+                }
+              </select>
+            </div>
+
+            <div class="select-dropdown">
+              <select
+                [ngModel]="positionFilter()"
+                (ngModelChange)="setPosition($event)"
+                [attr.aria-label]="localization.appeals.filterPosition"
+              >
+                <option value="ALL">{{localization.appeals.allPositions}}</option>
+                @for (position of positions(); track position.id) {
+                  <option [value]="position.id">{{position.title}}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Department Table -->
+        <div class="table-container">
+          @if (failed()) {
+            <div class="state-block" role="alert">
+              <p>{{localization.appeals.loadError}}</p>
+              <button type="button" class="btn-primary-action" (click)="retry()">
+                {{localization.appeals.retry}}
+              </button>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="col-code">{{localization.appeals.code | uppercase}}</th>
+                  <th class="col-emp">{{localization.appeals.employee | uppercase}}</th>
+                  <th class="col-pos">{{localization.appeals.position | uppercase}}</th>
+                  <th class="col-kind">{{localization.appeals.type | uppercase}}</th>
+                  <th class="col-subject">{{localization.appeals.subject | uppercase}}</th>
+                  <th class="col-date">{{localization.appeals.filedAt | uppercase}}</th>
+                  <th class="col-deadline">{{localization.appeals.deadlineLabel | uppercase}}</th>
+                  <th class="col-status">{{localization.appeals.statusLabel | uppercase}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of filteredItems(); track item.id) {
+                  <tr
+                    (click)="viewDetail(item)"
+                    (keydown.enter)="viewDetail(item)"
+                    class="clickable-row"
+                    tabindex="0"
+                  >
+                    <td class="col-code cell-bold font-code">{{code(item)}}</td>
+                    <td class="col-emp">{{item.employeeName}}</td>
+                    <td class="col-pos">
+                      {{item.jobPositionTitle ?? localization.appeals.notAvailable}}
+                    </td>
+                    <td class="col-kind">{{kindLabel(item.type)}}</td>
+                    <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
+                    <td class="col-date">{{item.filedAt | appDate: 'DD/MM/YYYY'}}</td>
+                    <td class="col-deadline">{{localization.appeals.notAvailable}}</td>
+                    <td class="col-status">
+                      <span class="status-badge" [class]="'status-' + item.status.toLowerCase()">
+                        {{statusLabel(item.status)}}
+                      </span>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="8" class="empty-state">
+                      {{loading() ? localization.appeals.loading : localization.appeals.emptyQueue}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="table-footer">
+              <span class="footer-count">{{showingText()}}</span>
+              <div class="pagination">
+                @for (p of pages(); track p) {
+                  <button
+                    type="button"
+                    class="page-box"
+                    [class.active]="p === page()"
+                    [attr.aria-current]="p === page() ? 'page' : null"
+                    (click)="goToPage(p)"
+                  >
+                    {{p}}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Footer Callout Box -->
+        <div class="info-callout">
+          <h4 class="callout-title">{{localization.appeals.permissionTitle}}</h4>
+          <p class="callout-text">{{localization.appeals.permissionHint}}</p>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

@@ -53,6 +53,7 @@ public static class ErrorCodes
     public const string AppealInvalidState = "APPEAL_INVALID_STATE";
     public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
     public const string AppealWindowExpired = "APPEAL_WINDOW_EXPIRED";
+    public const string AppealScoreWindowExpired = "APPEAL_SCORE_WINDOW_EXPIRED";
 
     // Handover (docs/api/HANDOVER_CONTRACT.md)
     public const string HandoverAmountExceedsThreshold = "HANDOVER_AMOUNT_EXCEEDS_THRESHOLD";
@@ -126,6 +127,7 @@ public static class ErrorCodes
         [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
+        [AppealScoreWindowExpired] = ("Đã quá thời hạn khiếu nại điểm đánh giá.", "The window to appeal an evaluation score has expired."),
         [HandoverAmountExceedsThreshold] = ("Giá trị giao dịch vượt ngưỡng cho phép bàn giao (BR-01).", "The amount exceeds the allowed handover threshold (BR-01)."),
         [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
         [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),

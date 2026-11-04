@@ -523,7 +523,7 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Decide_MissingOrEvaluationAppeal_IsNotFound()
+    public async Task Decide_MissingAppeal_IsNotFound_AndAScoreAppealRejectsResultDecisions()
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var resolver = await AddEmployeeAsync("MANAGER", _salesId);
@@ -531,7 +531,8 @@ public sealed class AppealServiceTests : IDisposable
         var service = ServiceAt(RejectedAt, ("*", "*", "All"));
         await Assert.ThrowsAsync<NotFoundException>(() => service.DecideAppealAsync(
             Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
-        await Assert.ThrowsAsync<NotFoundException>(() => service.DecideAppealAsync(
+        // A score appeal is decided with ADJUST or UPHOLD only (see ScoreAppealServiceTests for the full flow).
+        await Assert.ThrowsAsync<ValidationException>(() => service.DecideAppealAsync(
             evaluationAppeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
     }
 
@@ -1102,14 +1103,21 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Withdraw_AnAppealAboutAnEvaluation_IsNotFound()
+    public async Task Withdraw_AnAppealAboutAnEvaluation_IsWithdrawnLikeAnyOther()
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Calculated);
         var appeal = await AddAppealAsync(submitter, null);
+        (await _db.Appeals.SingleAsync()).PerformanceEvaluationId = evaluation.Id;
+        evaluation.Status = PerformanceEvaluationStatus.Disputed;
+        evaluation.PreDisputeStatus = PerformanceEvaluationStatus.Calculated;
+        await _db.SaveChangesAsync();
 
-        await Assert.ThrowsAsync<NotFoundException>(() =>
-            ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(appeal.Id, submitter.Id));
-        Assert.Equal(AppealStatus.Open, (await _db.Appeals.SingleAsync()).Status);
+        var result = await ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(appeal.Id, submitter.Id);
+
+        Assert.Equal("WITHDRAWN", result.Status);
+        Assert.Equal("SCORE", result.Type);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, (await _db.PerformanceEvaluations.SingleAsync()).Status);
     }
 
     [Fact]
@@ -1249,14 +1257,20 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task List_NeverReturnsAppealsAboutAnEvaluation()
+    public async Task List_ReturnsBothKindsAndTypeFilterSeparatesThem()
     {
         var org = await SeedOrgAsync();
-        await AddAppealAsync(org.Seller, null);
+        var scoreAppeal = await AddAppealAsync(org.Seller, null);
+        var service = ServiceAt(RejectedAt.AddHours(5));
 
-        var result = await ServiceAt(RejectedAt.AddHours(5)).GetAppealsAsync(org.Seller.Id, new AppealFilterDto());
+        var both = await service.GetAppealsAsync(org.Seller.Id, new AppealFilterDto());
+        var results = await service.GetAppealsAsync(org.Seller.Id, new AppealFilterDto { Type = "RESULT" });
+        var scores = await service.GetAppealsAsync(org.Seller.Id, new AppealFilterDto { Type = "SCORE" });
 
-        Assert.Equal([org.SellerAppeal.Id], Ids(result));
+        Assert.Equal(2, both.TotalCount);
+        Assert.Equal([org.SellerAppeal.Id], Ids(results));
+        Assert.Equal([scoreAppeal.Id], Ids(scores));
+        Assert.Equal("SCORE", scores.Items[0].Type);
     }
 
     [Fact]
@@ -1371,6 +1385,95 @@ public sealed class AppealServiceTests : IDisposable
         Assert.Equal($"/evidence/{evidence.Id}/preview", evidence.PreviewUrl);
     }
 
+    private async Task<Appeal> AppealWithHandoversAsync(Employee submitter, WorkType? workType, params (Employee From, HandoverStatus Status, int Hour)[] handovers)
+    {
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var work = await _db.Works.SingleAsync(w => w.Id == submission.WorkId);
+        if (workType is not null)
+        {
+            _db.WorkTypes.Add(workType);
+            work.WorkTypeId = workType.Id;
+        }
+
+        foreach (var (from, status, hour) in handovers)
+        {
+            _db.TaskHandovers.Add(new TaskHandover
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                FromEmployeeId = from.Id,
+                ToEmployeeId = submitter.Id,
+                Reason = "Referral",
+                Status = status,
+                HandoverAt = RejectedAt.AddHours(hour),
+                UpdatedAt = RejectedAt.AddHours(hour),
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        return appeal;
+    }
+
+    [Fact]
+    public async Task Detail_CarriesTheSubmissionTimeWorkTypeAndTheLatestAcceptedReferrer()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var firstReferrer = await AddEmployeeAsync("REF1", _salesId);
+        var lastReferrer = await AddEmployeeAsync("REF2", _salesId);
+        var pendingReferrer = await AddEmployeeAsync("REF3", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "CARD", Name = "Credit card", Status = RecordStatus.Active };
+        var appeal = await AppealWithHandoversAsync(
+            submitter,
+            workType,
+            (firstReferrer, HandoverStatus.Accepted, 1),
+            (lastReferrer, HandoverStatus.Accepted, 2),
+            (pendingReferrer, HandoverStatus.Pending, 3));
+
+        var result = await ServiceAt(RejectedAt.AddHours(6)).GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        var submission = await _db.ResultSubmissions.SingleAsync(s => s.Id == appeal.ResultSubmissionId);
+        Assert.Equal(submission.SubmittedAt, result.SubmittedAt);
+        Assert.Equal("Credit card", result.WorkTypeName);
+        Assert.Equal("REF2", result.ReferrerEmployeeCode);
+        Assert.Equal("Name REF2", result.ReferrerEmployeeName);
+        Assert.Null(result.EvaluationScore);
+    }
+
+    [Fact]
+    public async Task Detail_WithoutAWorkTypeOrAnAcceptedHandover_LeavesThoseFieldsEmpty()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var referrer = await AddEmployeeAsync("REF1", _salesId);
+        var appeal = await AppealWithHandoversAsync(
+            submitter, null, (referrer, HandoverStatus.Rejected, 1), (referrer, HandoverStatus.Cancelled, 2));
+
+        var result = await ServiceAt(RejectedAt.AddHours(6)).GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        Assert.NotNull(result.SubmittedAt);
+        Assert.Null(result.WorkTypeName);
+        Assert.Null(result.ReferrerEmployeeCode);
+        Assert.Null(result.ReferrerEmployeeName);
+    }
+
+    [Fact]
+    public async Task Withdraw_ReturnsTheSameDetailShapeAsTheReadEndpoint()
+    {
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var referrer = await AddEmployeeAsync("REF1", _salesId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "CARD", Name = "Credit card", Status = RecordStatus.Active };
+        var appeal = await AppealWithHandoversAsync(submitter, workType, (referrer, HandoverStatus.Accepted, 1));
+        var service = ServiceAt(RejectedAt.AddHours(6));
+
+        var withdrawn = await service.WithdrawAppealAsync(appeal.Id, submitter.Id);
+        var read = await service.GetAppealByIdAsync(appeal.Id, submitter.Id);
+
+        Assert.Equal("WITHDRAWN", withdrawn.Status);
+        Assert.Equal(read.WorkTypeName, withdrawn.WorkTypeName);
+        Assert.Equal(read.ReferrerEmployeeCode, withdrawn.ReferrerEmployeeCode);
+        Assert.Equal(read.SubmittedAt, withdrawn.SubmittedAt);
+    }
+
     [Fact]
     public async Task Detail_ForAnUnresolvedAppeal_HasNoResolver()
     {
@@ -1420,14 +1523,16 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Detail_UnknownOrEvaluationAppeal_IsNotFound()
+    public async Task Detail_UnknownAppeal_IsNotFound_AndAScoreAppealIsReturnedAsTypeScore()
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var evaluationAppeal = await AddAppealAsync(submitter, null);
         var service = ServiceAt(RejectedAt.AddHours(6), ("*", "*", "All"));
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAppealByIdAsync(Guid.NewGuid(), submitter.Id));
-        await Assert.ThrowsAsync<NotFoundException>(() => service.GetAppealByIdAsync(evaluationAppeal.Id, submitter.Id));
+        var detail = await service.GetAppealByIdAsync(evaluationAppeal.Id, submitter.Id);
+        Assert.Equal("SCORE", detail.Type);
+        Assert.Null(detail.ResultSubmissionId);
     }
 
     // ----- BR-31: Disputed_Pending -----------------------------------------------------------

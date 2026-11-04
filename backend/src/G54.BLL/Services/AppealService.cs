@@ -24,6 +24,7 @@ public sealed partial class AppealService(
     IOptions<SystemParametersOptions> parameters) : IAppealService
 {
     private const int MaxReasonLength = 2000;
+    private const int MinReasonLength = 10;
     private const int MaxFileCount = 10;
     private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
@@ -48,18 +49,40 @@ public sealed partial class AppealService(
         ArgumentNullException.ThrowIfNull(request);
         var decision = request.Decision?.Trim().ToUpperInvariant();
         var note = request.Note?.Trim();
-        if (decision is not ("ACCEPT" or "ADJUST" or "REJECT"))
+        if (decision is not (AppealDecisions.Accept or AppealDecisions.Adjust or AppealDecisions.Reject or AppealDecisions.Uphold))
         {
-            throw new ValidationException("Quyết định khiếu nại chỉ được là ACCEPT, ADJUST hoặc REJECT.");
+            throw new ValidationException(
+                $"Quyết định khiếu nại chỉ được là {AppealDecisions.Accept}, {AppealDecisions.Adjust}, {AppealDecisions.Reject} hoặc {AppealDecisions.Uphold}.");
         }
 
         if (note?.Length > MaxReasonLength
-            || (decision is "ADJUST" or "REJECT" && (string.IsNullOrEmpty(note) || note.Length < 10)))
+            || (decision is AppealDecisions.Adjust or AppealDecisions.Reject or AppealDecisions.Uphold
+                && (string.IsNullOrEmpty(note) || note.Length < MinReasonLength)))
         {
-            throw new ValidationException("Ghi chú tối đa 2000 ký tự; yêu cầu bổ sung hoặc từ chối phải có lý do tối thiểu 10 ký tự.");
+            throw new ValidationException(
+                $"Ghi chú tối đa {MaxReasonLength} ký tự; yêu cầu bổ sung, từ chối hoặc giữ nguyên phải có lý do tối thiểu {MinReasonLength} ký tự.");
         }
 
+        if (request.VerifiedValue is < 0 || (decision != AppealDecisions.Accept && request.VerifiedValue.HasValue))
+        {
+            throw new ValidationException($"Sản lượng công nhận phải không âm và chỉ được gửi khi {AppealDecisions.Accept}.");
+        }
         var caller = await ResolveCallerAsync(userId, cancellationToken);
+        var isScoreAppeal = await db.Appeals.AsNoTracking()
+            .Where(a => a.Id == appealId)
+            .Select(a => (bool?)(a.PerformanceEvaluationId != null))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Khiếu nại", appealId);
+        if (isScoreAppeal == true)
+        {
+            return await DecideScoreAppealAsync(appealId, caller, decision, note, request.Points, cancellationToken);
+        }
+
+        if (decision == AppealDecisions.Uphold || request.Points.HasValue)
+        {
+            throw new ValidationException($"{AppealDecisions.Uphold} và số điểm chỉ áp dụng cho khiếu nại điểm đánh giá.");
+        }
+
         var visibility = await ResolveVisibilityAsync(caller, cancellationToken);
         // Serializable isolation prevents competing appeal decisions from both committing.
         await using var transaction = db.Database.IsRelational()
@@ -105,7 +128,7 @@ public sealed partial class AppealService(
         Verification? verification = null;
         try
         {
-            if (decision != "REJECT")
+            if (decision != AppealDecisions.Reject)
             {
                 verification = new Verification
                 {
@@ -113,12 +136,12 @@ public sealed partial class AppealService(
                     ResultSubmissionId = submission.Id,
                     VerifierEmployeeId = caller.Employee.Id,
                     RoundNo = submission.Verifications.Select(v => v.RoundNo).DefaultIfEmpty(0).Max() + 1,
-                    Decision = decision == "ACCEPT" ? VerificationDecision.Approved : VerificationDecision.NeedMoreInfo,
+                    Decision = decision == AppealDecisions.Accept ? VerificationDecision.Approved : VerificationDecision.NeedMoreInfo,
                     Comment = string.IsNullOrEmpty(note) ? null : note,
                     VerifiedAt = now,
                     UpdatedAt = now,
                 };
-                if (decision == "ACCEPT")
+                if (decision == AppealDecisions.Accept)
                 {
                     await VerifiedResultRecorder.RecordAsync(
                         db,
@@ -139,20 +162,20 @@ public sealed partial class AppealService(
                     await db.SaveChangesAsync(cancellationToken);
                 }
 
-                submission.Status = decision == "ACCEPT" ? SubmissionStatus.Approved : SubmissionStatus.UnderReview;
-                submission.Work.Status = decision == "ACCEPT" ? WorkStatus.Verified : WorkStatus.InProgress;
+                submission.Status = decision == AppealDecisions.Accept ? SubmissionStatus.Approved : SubmissionStatus.UnderReview;
+                submission.Work.Status = decision == AppealDecisions.Accept ? WorkStatus.Verified : WorkStatus.InProgress;
                 submission.UpdatedAt = now;
                 submission.Work.UpdatedAt = now;
             }
 
-            appeal.Status = decision == "REJECT" ? AppealStatus.Rejected : AppealStatus.Accepted;
+            appeal.Status = decision == AppealDecisions.Reject ? AppealStatus.Rejected : AppealStatus.Accepted;
             appeal.Note = string.IsNullOrEmpty(note) ? null : note;
             appeal.ResolvedBy = caller.Employee.Id;
             // Use a tracked resolver; attaching the no-tracking caller graph marks account/employee as modified.
             appeal.ResolvedByNavigation = await db.Employees.FindAsync([caller.Employee.Id], cancellationToken);
             appeal.DecidedAt = now;
             appeal.UpdatedAt = now;
-            if (decision == "ACCEPT")
+            if (decision == AppealDecisions.Accept)
             {
                 await AppealScoreLedger.RefundAsync(db, appeal.Id, caller.Employee.Id, time.GetBusinessToday(), now, cancellationToken);
             }
@@ -169,8 +192,33 @@ public sealed partial class AppealService(
 
         LogAppealDecided(logger, decision, appeal.Id, caller.Employee.Id, null);
         return new AppealDecisionResultDto(
-            MapDetail(appeal), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
+            await ReloadDetailAsync(appeal.Id, cancellationToken), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
     }
+
+    /// <summary>The reason and attachment limits shared by both kinds of appeal; returns the trimmed reason.</summary>
+    private static string ValidateAppealForm(CreateAppealRequestDto request)
+    {
+        var reason = request.Reason?.Trim();
+        if (string.IsNullOrEmpty(reason))
+        {
+            throw new ValidationException("Lý do khiếu nại là bắt buộc.");
+        }
+
+        if (reason.Length > MaxReasonLength)
+        {
+            throw new ValidationException($"Lý do khiếu nại tối đa {MaxReasonLength} ký tự.");
+        }
+
+        if (request.Files is { Count: > MaxFileCount })
+        {
+            throw new ValidationException($"Số lượng tệp đính kèm tối đa là {MaxFileCount} tệp.");
+        }
+
+        return reason;
+    }
+
+    private static string TypeOf(Guid? performanceEvaluationId) =>
+        performanceEvaluationId.HasValue ? AppealTypes.ScoreAppeal : AppealTypes.ResultAppeal;
 
     private static ConflictException InvalidDecisionState() =>
         new("Khiếu nại hoặc hồ sơ không còn ở trạng thái cho phép xử lý.", ErrorCodes.AppealInvalidState);
@@ -196,22 +244,7 @@ public sealed partial class AppealService(
         ArgumentNullException.ThrowIfNull(request);
 
         var caller = await ResolveCallerAsync(userId, cancellationToken);
-
-        var reason = request.Reason?.Trim();
-        if (string.IsNullOrEmpty(reason))
-        {
-            throw new ValidationException("Lý do khiếu nại là bắt buộc.");
-        }
-
-        if (reason.Length > MaxReasonLength)
-        {
-            throw new ValidationException($"Lý do khiếu nại tối đa {MaxReasonLength} ký tự.");
-        }
-
-        if (request.Files is { Count: > MaxFileCount })
-        {
-            throw new ValidationException($"Số lượng tệp đính kèm tối đa là {MaxFileCount} tệp.");
-        }
+        var reason = ValidateAppealForm(request);
 
         var submission = await db.ResultSubmissions.AsNoTracking()
             .Include(s => s.Verifications)
@@ -317,8 +350,10 @@ public sealed partial class AppealService(
             .Include(a => a.ResolvedByNavigation)
             .Include(a => a.ResultSubmission!)
                 .ThenInclude(s => s.Work)
+            .Include(a => a.PerformanceEvaluation!)
+                .ThenInclude(e => e.EvaluationPeriod)
             .Include(a => a.Evidences)
-            .FirstOrDefaultAsync(a => a.Id == appealId && a.ResultSubmissionId != null, cancellationToken)
+            .FirstOrDefaultAsync(a => a.Id == appealId, cancellationToken)
             ?? throw new NotFoundException("Khiếu nại", appealId);
 
         if (appeal.EmployeeId != caller.Employee.Id)
@@ -338,7 +373,17 @@ public sealed partial class AppealService(
         appeal.UpdatedAt = now;
 
         // BR-31: give the score back its previous status unless another appeal of the period is still in progress.
-        await ReleaseDisputedPendingAsync(appeal.Id, appeal.EmployeeId, appeal.ResultSubmission!.SubmittedAt, now, cancellationToken);
+        if (appeal.PerformanceEvaluation is { } scoreEvaluation)
+        {
+            await ReleaseScoreFreezeAsync(
+                appeal, scoreEvaluation, caller.Employee.Id, PerformanceEvaluationHistoryAction.DisputeWithdrawn, null,
+                scoreEvaluation.TotalScore, now, cancellationToken);
+        }
+        else
+        {
+            await ReleaseDisputedPendingAsync(appeal.Id, appeal.EmployeeId, appeal.ResultSubmission!.SubmittedAt, now, cancellationToken);
+        }
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -352,9 +397,16 @@ public sealed partial class AppealService(
             throw InvalidDecisionState();
         }
 
-        LogAppealWithdrawn(logger, appeal.Id, appeal.ResultSubmissionId!.Value, caller.Employee.Id, null);
+        if (appeal.ResultSubmissionId is { } submissionId)
+        {
+            LogAppealWithdrawn(logger, appeal.Id, submissionId, caller.Employee.Id, null);
+        }
+        else
+        {
+            LogScoreAppealWithdrawn(logger, appeal.Id, appeal.PerformanceEvaluationId!.Value, caller.Employee.Id, null);
+        }
 
-        return MapDetail(appeal);
+        return await ReloadDetailAsync(appeal.Id, cancellationToken);
     }
 
     public async Task<PagedResult<AppealListItemDto>> GetAppealsAsync(
@@ -365,21 +417,72 @@ public sealed partial class AppealService(
         ArgumentNullException.ThrowIfNull(filter);
 
         var caller = await ResolveCallerAsync(userId, cancellationToken);
-        var status = EnumApiFormat.ParseEnum<AppealStatus>(filter.Status, "status");
+        var statuses = (filter.Status ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => EnumApiFormat.ParseEnum<AppealStatus>(value, "status")!.Value)
+            .Distinct()
+            .ToList();
+        var type = filter.Type?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(type) && type is not (AppealTypes.ResultAppeal or AppealTypes.ScoreAppeal))
+        {
+            throw new ValidationException($"type chỉ được là {AppealTypes.ResultAppeal} hoặc {AppealTypes.ScoreAppeal}.");
+        }
+
+        var scope = filter.Scope?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(scope) && scope is not (AppealScopes.Mine or AppealScopes.Team))
+        {
+            throw new ValidationException($"scope chỉ được là {AppealScopes.Mine} hoặc {AppealScopes.Team}.");
+        }
+
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
 
         var visibility = await ResolveVisibilityAsync(caller, cancellationToken);
+        var ownId = caller.Employee.Id;
 
-        var query = db.Appeals.AsNoTracking().Where(a => a.ResultSubmissionId != null);
-        if (status.HasValue)
+        var query = db.Appeals.AsNoTracking();
+        if (statuses.Count > 0)
         {
-            query = query.Where(a => a.Status == status.Value);
+            query = query.Where(a => statuses.Contains(a.Status));
+        }
+
+        if (filter.JobPositionId is { } jobPositionId)
+        {
+            query = query.Where(a => a.Employee.JobPositionId == jobPositionId);
+        }
+
+        if (filter.PeriodId is { } periodId)
+        {
+            var period = await db.EvaluationPeriods.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+                ?? throw new NotFoundException("Kỳ đánh giá", periodId);
+            var from = StartOfBusinessDay(period.StartDate);
+            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
+            query = query.Where(a =>
+                (a.PerformanceEvaluation != null && a.PerformanceEvaluation.EvaluationPeriodId == periodId)
+                || (a.ResultSubmission != null && a.ResultSubmission.SubmittedAt >= from && a.ResultSubmission.SubmittedAt < to));
+        }
+
+        if (type == AppealTypes.ScoreAppeal)
+        {
+            query = query.Where(a => a.PerformanceEvaluationId != null);
+        }
+        else if (type == AppealTypes.ResultAppeal)
+        {
+            query = query.Where(a => a.PerformanceEvaluationId == null);
+        }
+
+        if (scope == AppealScopes.Mine)
+        {
+            query = query.Where(a => a.EmployeeId == ownId);
+        }
+        else if (scope == AppealScopes.Team)
+        {
+            query = query.Where(a => a.EmployeeId != ownId);
         }
 
         if (!visibility.SeesAll)
         {
-            var ownId = caller.Employee.Id;
             var departmentIds = visibility.DepartmentIds;
             query = query.Where(a => a.EmployeeId == ownId || departmentIds.Contains(a.Employee.DepartmentId));
         }
@@ -393,11 +496,11 @@ public sealed partial class AppealService(
             .Select(a => new
             {
                 a.Id,
-                ResultSubmissionId = a.ResultSubmissionId!.Value,
-                a.ResultSubmission!.WorkId,
-                WorkCode = a.ResultSubmission.Work.Code,
-                WorkTitle = a.ResultSubmission.Work.Title,
-                a.ResultSubmission.SubmissionNo,
+                a.ResultSubmissionId,
+                WorkId = a.ResultSubmission != null ? (Guid?)a.ResultSubmission.WorkId : null,
+                WorkCode = a.ResultSubmission != null ? a.ResultSubmission.Work.Code : null,
+                WorkTitle = a.ResultSubmission != null ? a.ResultSubmission.Work.Title : null,
+                SubmissionNo = a.ResultSubmission != null ? (int?)a.ResultSubmission.SubmissionNo : null,
                 a.EmployeeId,
                 a.Employee.EmployeeCode,
                 EmployeeName = a.Employee.FullName,
@@ -405,8 +508,19 @@ public sealed partial class AppealService(
                 a.FiledAt,
                 a.DecidedAt,
                 a.UpdatedAt,
+                a.PerformanceEvaluationId,
+                PeriodCode = a.PerformanceEvaluation != null ? a.PerformanceEvaluation.EvaluationPeriod.Code : null,
+                a.Employee.JobPositionId,
+                ResolvedByEmployeeName = a.ResolvedByNavigation != null ? a.ResolvedByNavigation.FullName : null,
+                a.Note,
+                EvaluationScore = a.PerformanceEvaluation != null ? a.PerformanceEvaluation.TotalScore : null,
             })
             .ToListAsync(cancellationToken);
+
+        var positionIds = rows.Select(r => r.JobPositionId).Distinct().ToList();
+        var positionTitles = await db.JobPositions.AsNoTracking()
+            .Where(p => positionIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.Title, cancellationToken);
 
         var items = rows
             .Select(r => new AppealListItemDto(
@@ -422,7 +536,14 @@ public sealed partial class AppealService(
                 r.Status.ToEnumString(),
                 r.FiledAt,
                 r.DecidedAt,
-                r.UpdatedAt))
+                r.UpdatedAt,
+                TypeOf(r.PerformanceEvaluationId),
+                r.PerformanceEvaluationId,
+                r.PeriodCode,
+                positionTitles.GetValueOrDefault(r.JobPositionId),
+                r.ResolvedByEmployeeName,
+                r.Note,
+                r.EvaluationScore))
             .ToList();
 
         return new PagedResult<AppealListItemDto>(items, totalCount, page, pageSize);
@@ -493,20 +614,7 @@ public sealed partial class AppealService(
         var evaluations = await LoadEvaluationsOfPeriodAsync(employeeId, submittedAt, cancellationToken);
         foreach (var evaluation in evaluations.Where(e => e.IsDisputedPending()))
         {
-            var period = evaluation.EvaluationPeriod;
-            var from = StartOfBusinessDay(period.StartDate);
-            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
-
-            var anotherInProgress = await db.Appeals
-                .Where(InProgress)
-                .AnyAsync(
-                    a => a.Id != appealId
-                        && a.EmployeeId == employeeId
-                        && a.ResultSubmissionId != null
-                        && a.ResultSubmission!.SubmittedAt >= from
-                        && a.ResultSubmission.SubmittedAt < to,
-                    cancellationToken);
-            if (anotherInProgress)
+            if (await AnotherAppealInProgressAsync(appealId, evaluation, cancellationToken))
             {
                 continue;
             }
@@ -549,12 +657,24 @@ public sealed partial class AppealService(
             .Include(a => a.ResolvedByNavigation)
             .Include(a => a.ResultSubmission!)
                 .ThenInclude(s => s.Work)
+                    .ThenInclude(w => w.WorkType)
+            .Include(a => a.ResultSubmission!)
+                .ThenInclude(s => s.Work)
+                    .ThenInclude(w => w.TaskHandovers.Where(h => h.Status == HandoverStatus.Accepted).OrderByDescending(h => h.HandoverAt).Take(1))
+                        .ThenInclude(h => h.FromEmployee)
+            .Include(a => a.PerformanceEvaluation!)
+                .ThenInclude(e => e.EvaluationPeriod)
             .Include(a => a.Evidences)
-            .FirstOrDefaultAsync(a => a.Id == appealId && a.ResultSubmissionId != null, cancellationToken);
+            .FirstOrDefaultAsync(a => a.Id == appealId, cancellationToken);
+
+    /// <summary>The detail as the read endpoints shape it, loaded again after a change was saved.</summary>
+    private async Task<AppealDetailDto> ReloadDetailAsync(Guid appealId, CancellationToken cancellationToken)
+        => MapDetail((await LoadAppealAsync(appealId, cancellationToken))!);
 
     private static AppealDetailDto MapDetail(Appeal appeal)
     {
-        var submission = appeal.ResultSubmission!;
+        var submission = appeal.ResultSubmission;
+        var referrer = submission?.Work.TaskHandovers.FirstOrDefault()?.FromEmployee;
         var evidences = appeal.Evidences
             .OrderBy(e => e.UploadedAt)
             .ThenBy(e => e.FileName, StringComparer.Ordinal)
@@ -569,11 +689,11 @@ public sealed partial class AppealService(
 
         return new AppealDetailDto(
             appeal.Id,
-            submission.Id,
-            submission.WorkId,
-            submission.Work.Code,
-            submission.Work.Title,
-            submission.SubmissionNo,
+            submission?.Id,
+            submission?.WorkId,
+            submission?.Work.Code,
+            submission?.Work.Title,
+            submission?.SubmissionNo,
             appeal.EmployeeId,
             appeal.Employee.EmployeeCode,
             appeal.Employee.FullName,
@@ -586,7 +706,15 @@ public sealed partial class AppealService(
             appeal.ResolvedBy,
             appeal.ResolvedByNavigation?.FullName,
             evidences,
-            appeal.ScoreDisputeReason);
+            TypeOf(appeal.PerformanceEvaluationId),
+            appeal.ScoreDisputeReason,
+            appeal.PerformanceEvaluationId,
+            appeal.PerformanceEvaluation?.EvaluationPeriod.Code,
+            submission?.SubmittedAt,
+            submission?.Work.WorkType?.Name,
+            referrer?.EmployeeCode,
+            referrer?.FullName,
+            appeal.PerformanceEvaluation?.TotalScore);
     }
 
     private async Task<Caller> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)
