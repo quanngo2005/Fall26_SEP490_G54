@@ -62,8 +62,8 @@
               type="button"
               id="work-transfer"
               class="button button-secondary"
-              disabled
-              [attr.title]="localization.work.comingSoon"
+              [disabled]="profileLoading()"
+              (click)="openHandover()"
             >
               {{localization.work.transfer}}
             </button>
@@ -522,6 +522,14 @@
 
 @if (selectedId(); as id) {
   <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" />
+}
+
+@if (handoverOpen()) {
+  <app-handover-dialog
+    [works]="handoverWorks()"
+    (closed)="handoverOpen.set(false)"
+    (requested)="onHandoverRequested($event)"
+  />
 }
 
 @if (assignOpen()) {

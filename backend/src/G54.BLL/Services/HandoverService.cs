@@ -309,6 +309,20 @@ public sealed partial class HandoverService(
         => caller.Account is not null
             && await permissions.HasPermissionAsync(caller.Account.Id, "handover", "set_share", PermissionScopes.Own, cancellationToken);
 
+    public async Task<IReadOnlyList<HandoverRecipientDto>> GetRecipientsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var caller = await ResolveCallerAsync(userId, cancellationToken);
+        return await db.Employees.AsNoTracking()
+            .Where(e => e.DepartmentId == caller.DepartmentId
+                && e.Id != caller.Id
+                && e.Status == EmployeeStatus.Active)
+            .OrderBy(e => e.FullName)
+            .Select(e => new HandoverRecipientDto(e.Id, e.EmployeeCode, e.FullName, e.JobPosition.Title))
+            .ToListAsync(cancellationToken);
+    }
+
     private async Task<Employee> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)
     {
         var employee = await db.Employees.AsNoTracking()

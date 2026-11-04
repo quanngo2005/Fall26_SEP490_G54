@@ -18,6 +18,7 @@ import { DepartmentMember } from '../../core/department.models';
 import { DepartmentService } from '../../core/department.service';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
+import { HandoverDetail } from '../../core/handover.models';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { JobPositionSummary } from '../../core/job-position.models';
 import { JobPositionService } from '../../core/job-position.service';
@@ -54,6 +55,7 @@ import {
   timeLeftToday,
 } from './work-board.utils';
 import { AssignWorkDialogComponent } from './assign-work-dialog.component';
+import { HandoverDialogComponent } from './handover-dialog.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
 
 interface ColumnState {
@@ -112,6 +114,7 @@ const emptyColumn = (loading: boolean): ColumnState => ({
     SidebarComponent,
     WorkDetailDrawerComponent,
     AssignWorkDialogComponent,
+    HandoverDialogComponent,
   ],
   templateUrl: './work-board.component.html',
   styleUrls: [
@@ -174,6 +177,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly positionId = signal('');
   protected readonly selectedId = signal<string | null>(null);
   protected readonly assignOpen = signal(false);
+  protected readonly handoverOpen = signal(false);
   protected readonly toast = signal<Toast | null>(null);
   protected readonly now = signal(new Date());
 
@@ -401,6 +405,30 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   protected openAssign(): void {
     if (this.isTeam()) this.assignOpen.set(true);
+  }
+
+  /** Works an employee can still hand over: their own, not yet submitted. */
+  protected readonly handoverWorks = computed(() => {
+    const columns = this.columns();
+    return [...(columns.new?.items ?? []), ...(columns.inProgress?.items ?? [])].filter((item) =>
+      ['New', 'InProgress'].includes(item.status),
+    );
+  });
+
+  protected openHandover(): void {
+    if (!this.isTeam()) this.handoverOpen.set(true);
+  }
+
+  protected onHandoverRequested(handover: HandoverDetail): void {
+    this.handoverOpen.set(false);
+    this.showToast(
+      'success',
+      this.i18n.translate('work.handover.success', {
+        code: handover.workCode,
+        name: handover.toEmployeeName,
+      }),
+    );
+    this.applyServerFilters();
   }
 
   protected onAssigned(work: WorkDetail): void {
