@@ -30,6 +30,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskEventService, RiskEventService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
+        services.AddScoped<INotifier, Notifier>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);

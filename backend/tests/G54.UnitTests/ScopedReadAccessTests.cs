@@ -160,7 +160,7 @@ public sealed class ScopedReadAccessTests
     // ---- work:read / work:create ------------------------------------------------------------------
 
     private static WorkService WorkServiceFor(AppDbContext db, FakePermissionService permissions) =>
-        new(new UnitOfWork(db), NullLogger<WorkService>.Instance, TimeProvider.System, permissions);
+        new(new UnitOfWork(db), NullLogger<WorkService>.Instance, TimeProvider.System, permissions, new RecordingNotifier());
 
     private static Work NewWork(string code, Guid assigneeId) => new()
     {

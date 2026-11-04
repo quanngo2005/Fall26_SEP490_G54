@@ -20,6 +20,7 @@ public sealed partial class HandoverService(
     AppDbContext db,
     IPermissionService permissions,
     IConfiguration configuration,
+    INotifier notifier,
     ILogger<HandoverService> logger,
     TimeProvider time) : IHandoverService
 {
@@ -156,10 +157,12 @@ public sealed partial class HandoverService(
         if (transfer)
         {
             LogHandoverDecided(logger, "TRANSFER", handover.Id, workId, from.Id, recipient.Id, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, from, recipient, caller.Id), cancellationToken);
         }
         else
         {
             LogHandoverRequested(logger, handover.Id, workId, from.Id, recipient.Id, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverRequested(handover, work, from, recipient), cancellationToken);
         }
 
         return Map(handover, work, from, recipient);
@@ -209,6 +212,7 @@ public sealed partial class HandoverService(
         await SaveDecisionAsync(cancellationToken);
 
         LogHandoverDecided(logger, accept ? "ACCEPT" : "REJECT", handover.Id, work.Id, handover.FromEmployeeId, handover.ToEmployeeId, null);
+        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, handover.FromEmployee, handover.ToEmployee, caller.Id), cancellationToken);
 
         return Map(handover, work, handover.FromEmployee, handover.ToEmployee);
     }
