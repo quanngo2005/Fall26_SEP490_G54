@@ -152,8 +152,9 @@ internal static class VerifiedResultRecorder
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // The ledger keeps the real amount; the multiplier only converts it to points when the KPI is scored.
         var weightedValue = Math.Round(rawValue * multiplier, 4, MidpointRounding.ToEven);
-        var progress = await AddToProgressAsync(db, target, time.GetBusinessToday(), weightedValue, now, cancellationToken);
+        var progress = await AddToProgressAsync(db, target, time.GetBusinessToday(), rawValue, now, cancellationToken);
 
         db.WorkResultItems.Add(new WorkResultItem
         {
