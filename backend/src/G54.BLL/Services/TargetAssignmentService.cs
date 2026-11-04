@@ -1,3 +1,4 @@
+using System.Globalization;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -409,6 +410,65 @@ public sealed class TargetAssignmentService(
             items);
     }
 
+    public async Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId)
+    {
+        var owner = (await targetRepository.GetEmployeesAsync([employeeId])).SingleOrDefault()
+            ?? throw new NotFoundException("Nhân viên", employeeId);
+        var period = await periodRepository.GetByIdAsync(evaluationPeriodId)
+            ?? throw new NotFoundException("Kỳ đánh giá", evaluationPeriodId);
+
+        await EnsureCanViewAsync(accountId, employeeId, owner.DepartmentId);
+
+        var workingDays = await workingDayCalendar.GetWorkingDaysAsync(employeeId, period.StartDate, period.EndDate);
+        var targets = await targetRepository.ListActiveWithKpiForEmployeeAsync(employeeId, evaluationPeriodId);
+
+        var items = targets
+            .OrderBy(t => t.KpiDefinition.Code, StringComparer.Ordinal)
+            .Select(t => ToSuggestedDailyItem(t, workingDays))
+            .ToList();
+
+        return new SuggestedDailyTargetDto(employeeId, evaluationPeriodId, period.StartDate, period.EndDate, workingDays.Count, items);
+    }
+
+    /// <summary>
+    /// Only a SUM KPI where more is better has a target that is "spread over the days"; every other KPI (average,
+    /// ratio, lower-is-better, on-target) keeps its target value and gets no per-day figures.
+    /// </summary>
+    private static SuggestedDailyTargetItemDto ToSuggestedDailyItem(TargetAssignment target, IReadOnlyList<DateOnly> workingDays)
+    {
+        var kpi = target.KpiDefinition;
+        var isWholeNumber = WholeNumberUnits.Contains(kpi.Unit.Trim());
+        var spreadable = kpi.AggregationType == KpiAggregationType.Sum
+            && kpi.Direction == KpiDirection.HigherBetter
+            && workingDays.Count > 0;
+        if (!spreadable)
+        {
+            return new SuggestedDailyTargetItemDto(
+                target.Id, kpi.Id, kpi.Code, kpi.Unit, isWholeNumber, target.TargetValue, null, null, []);
+        }
+
+        var daySplit = TargetBreakdownCalculator.SplitByMonthThenDay(target.TargetValue, workingDays, isWholeNumber);
+        var months = TargetBreakdownCalculator.Aggregate(daySplit, "MONTH")
+            .Select(ToSuggestedDailyMonth)
+            .ToList();
+        var daily = PerDay(target.TargetValue, workingDays.Count);
+
+        return new SuggestedDailyTargetItemDto(
+            target.Id, kpi.Id, kpi.Code, kpi.Unit, isWholeNumber, target.TargetValue, daily, PerWeek(daily), months);
+    }
+
+    private static SuggestedDailyMonthDto ToSuggestedDailyMonth(TargetBreakdownItemDto month)
+    {
+        var daily = PerDay(month.Value, month.WorkingDays);
+        return new SuggestedDailyMonthDto(month.Start.ToString("yyyy-MM", CultureInfo.InvariantCulture), month.WorkingDays, month.Value, daily, PerWeek(daily));
+    }
+
+    /// <summary>Display figure only (4 dp): the stored split is whole units, so an integer KPI may show a fraction here.</summary>
+    private static decimal PerDay(decimal value, int workingDays) =>
+        Math.Round(value / workingDays, 4, MidpointRounding.AwayFromZero);
+
+    private static decimal PerWeek(decimal daily) => daily * 5;
+
     public async Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
     {
         var employee = await targetRepository.GetAccountEmployeeAsync(accountId)
@@ -493,7 +553,10 @@ public sealed class TargetAssignmentService(
         return (target, employee);
     }
 
-    private async Task EnsureCanViewAsync(Guid accountId, TargetAssignment target)
+    private Task EnsureCanViewAsync(Guid accountId, TargetAssignment target) =>
+        EnsureCanViewAsync(accountId, target.EmployeeId, target.DepartmentId ?? target.Employee?.DepartmentId);
+
+    private async Task EnsureCanViewAsync(Guid accountId, Guid? ownerEmployeeId, Guid? ownerDepartmentId)
     {
         if (await IsAdminAsync(accountId))
         {
@@ -501,14 +564,13 @@ public sealed class TargetAssignmentService(
         }
 
         var employee = await targetRepository.GetAccountEmployeeAsync(accountId);
-        if (employee is not null && target.EmployeeId == employee.Id)
+        if (employee is not null && ownerEmployeeId == employee.Id)
         {
             return;
         }
 
         // Peers in the same department must not read each other's targets: the org path is for managers only.
         var isManager = await permissions.HasPermissionAsync(accountId, "target", "manage", PermissionScopes.Dept, default);
-        var ownerDepartmentId = target.DepartmentId ?? target.Employee?.DepartmentId;
         if (!isManager || employee is null || ownerDepartmentId is null ||
             !(await targetRepository.GetDescendantDepartmentIdsAsync(employee.DepartmentId)).Contains(ownerDepartmentId.Value))
         {

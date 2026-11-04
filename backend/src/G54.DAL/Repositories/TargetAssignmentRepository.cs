@@ -231,6 +231,17 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<TargetAssignment>> ListActiveWithKpiForEmployeeAsync(
+        Guid employeeId,
+        Guid evaluationPeriodId,
+        CancellationToken ct = default) =>
+        await DbSet.AsNoTracking()
+            .Include(t => t.KpiDefinition)
+            .Where(t => t.EmployeeId == employeeId
+                && t.EvaluationPeriodId == evaluationPeriodId
+                && t.Status == TargetAssignmentStatus.Active)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Guid>> GetDescendantDepartmentIdsAsync(Guid departmentId, CancellationToken ct = default)
     {
         var result = new List<Guid> { departmentId };

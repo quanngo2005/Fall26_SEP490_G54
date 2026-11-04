@@ -82,5 +82,11 @@ public interface ITargetAssignmentRepository : IRepository<TargetAssignment>
         Guid? kpiDefinitionId,
         CancellationToken ct = default);
 
+    /// <summary>ACTIVE target assignments owned directly by an employee in one period, with their KPI included. No tracking.</summary>
+    Task<IReadOnlyList<TargetAssignment>> ListActiveWithKpiForEmployeeAsync(
+        Guid employeeId,
+        Guid evaluationPeriodId,
+        CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken ct = default);
 }
