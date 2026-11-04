@@ -165,6 +165,8 @@ public sealed class TargetAssignmentsControllerTests
             return Task.FromResult(Children);
         }
 
+        public Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto) => throw new NotImplementedException();
+
         public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
         {
             CallerId = accountId;

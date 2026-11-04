@@ -34,3 +34,39 @@ export interface TargetAssignmentFeedback {
   comment: string | null;
   createdAt: string;
 }
+
+/** `POST /target-assignments/{id}/allocations`: exactly one of `departmentId` / `employeeId` per row. */
+export interface TargetAllocationRow {
+  departmentId?: string;
+  employeeId?: string;
+  targetValue: number;
+}
+
+export interface TargetAllocationRequest {
+  allocations: TargetAllocationRow[];
+  changeReason?: string;
+}
+
+/** `PUT /target-assignments/{id}/allocations`: the new value of every owner already allocated. */
+export interface TargetReallocationRequest {
+  allocations: TargetAllocationRow[];
+  changeReason: string;
+}
+
+/** One working-day bucket of `GET /target-assignments/{id}/breakdown`. */
+export interface TargetBreakdownItem {
+  start: string;
+  end: string;
+  workingDays: number;
+  value: number;
+}
+
+export interface TargetBreakdown {
+  targetAssignmentId: string;
+  periodStart: string;
+  periodEnd: string;
+  totalValue: number;
+  workingDays: number;
+  granularity: 'MONTH' | 'WEEK' | 'DAY';
+  items: TargetBreakdownItem[];
+}

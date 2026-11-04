@@ -53,4 +53,46 @@ describe('TargetAssignmentService', () => {
 
     expect(failed).toBeTrue();
   });
+
+  it('posts the allocations of a target and returns the created rows', () => {
+    let result: unknown;
+    service
+      .allocate('a 1', { allocations: [{ employeeId: 'e1', targetValue: 10 }] })
+      .subscribe((rows) => (result = rows));
+
+    const request = http.expectOne(`${url}/a%201/allocations`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ allocations: [{ employeeId: 'e1', targetValue: 10 }] });
+    request.flush({ success: true, status: 201, data: [{ id: 'x' }] });
+
+    expect(result).toEqual([{ id: 'x' }]);
+  });
+
+  it('loads the monthly breakdown of a target', () => {
+    let totalValue = 0;
+    service.breakdown('a1').subscribe((data) => (totalValue = data.totalValue));
+
+    const request = http.expectOne((r) => r.url === `${url}/a1/breakdown`);
+    expect(request.request.params.get('granularity')).toBe('MONTH');
+    request.flush({ success: true, status: 200, data: { totalValue: 6400 } });
+
+    expect(totalValue).toBe(6400);
+  });
+
+  it('puts the new values of a target and returns the new versions', () => {
+    let result: unknown;
+    service
+      .reallocate('a1', {
+        allocations: [{ employeeId: 'e1', targetValue: 20 }],
+        changeReason: 'Góp ý',
+      })
+      .subscribe((rows) => (result = rows));
+
+    const request = http.expectOne(`${url}/a1/allocations`);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body.changeReason).toBe('Góp ý');
+    request.flush({ success: true, status: 200, data: [{ id: 'v2' }] });
+
+    expect(result).toEqual([{ id: 'v2' }]);
+  });
 });

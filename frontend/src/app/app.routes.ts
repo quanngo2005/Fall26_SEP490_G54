@@ -48,6 +48,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'target-allocation',
+    canActivate: [authGuard],
+    title: 'Mục tiêu nhân viên',
+    loadComponent: () =>
+      import('./features/target-allocation/target-allocation.component').then(
+        (m) => m.TargetAllocationComponent,
+      ),
+  },
+  {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/login-page.component').then((module) => module.LoginPageComponent),

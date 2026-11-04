@@ -5,6 +5,8 @@
   aria-modal="true"
   aria-labelledby="assign-work-title"
   novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
   (ngSubmit)="submit()"
 >
   <header class="dialog-head">
