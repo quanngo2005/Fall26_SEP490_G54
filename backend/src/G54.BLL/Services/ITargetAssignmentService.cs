@@ -27,6 +27,12 @@ public interface ITargetAssignmentService
     /// <summary>Working-day breakdown of a target's period, for DMs (via org scope) or the owning employee.</summary>
     Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity);
 
+    /// <summary>
+    /// Planned per-month, per-week and per-day target of every ACTIVE target an employee owns in one period.
+    /// Admin, a manager over the employee's department, or the employee; computed, not stored.
+    /// </summary>
+    Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId);
+
     /// <summary>The caller's own employee-owned target assignments, with feedbackStatus.</summary>
     Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query);
 

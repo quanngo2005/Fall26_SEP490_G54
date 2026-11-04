@@ -194,6 +194,9 @@ public sealed class TargetAssignmentsControllerTests
             return Task.FromResult(BreakdownResult);
         }
 
+        public Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId) =>
+            throw new NotImplementedException();
+
         public TargetAssignmentBreakdownDto BreakdownResult { get; set; } = null!;
 
         public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
