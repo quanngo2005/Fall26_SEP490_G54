@@ -15,6 +15,7 @@ Quality gate: `scripts/codereview-frontend.ps1` → **ALL CHECKS PASSED** (lint,
 | Work (employee / department manager) | `/my-work` | 🟡 | Board with start / complete actions; manager's "Giao việc" dialog (SCR-WRK-02) calls `POST /works`; no accept/reject (not in scope), no progress update yet |
 | Work types | `/work-type-detail[/:id]` | ✅ | |
 | Work type list (SCR-CFG-02) | `/work-types` | 🟡 | Admin guard; reached from the admin sidebar item "Work types" (new admin default menu, saved configurations must add it in `/sidebar-settings`); list, job position tabs, filters, detail drawer and activate / deactivate wired to the real API; "Create" / "Edit" disabled (screens missing); `SYSTEM_ADMIN` opens it but gets 403 on activate / deactivate (see `WORK_TYPE_CONTRACT.md`) |
+| Evaluation profile list (SCR-CFG-01) | `/evaluation-profiles` | 🟡 | Organization guard (`ORGANIZATION_READ`: system admin, branch manager, department manager); list wired to `GET /evaluation-profiles`; no sidebar item and no link from SCR-ADM-01 or SCR-PRF-02/03 yet (open by URL); view-only, no create / edit / approve; not checked against a running API |
 | Review & verify | `/review-verify[/:submissionId]` | ✅ | |
 | KPI definitions | `/kpi-definitions` | ✅ | |
 | Campaigns | `/campaigns`, `/campaigns/:id` | ✅ | |

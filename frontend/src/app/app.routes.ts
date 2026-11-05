@@ -160,6 +160,15 @@ export const routes: Routes = [
       import('./features/work-types/work-type-list.component').then((m) => m.WorkTypeListComponent),
   },
   {
+    path: 'evaluation-profiles',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-list.component').then(
+        (m) => m.EvaluationProfileListComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>
