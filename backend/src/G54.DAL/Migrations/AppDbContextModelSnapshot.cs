@@ -49,6 +49,8 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("qa_item_code_seq");
+
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1826,6 +1828,12 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('qa_item_code_seq')");
+
                     b.Property<string>("Comment")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
@@ -1859,6 +1867,10 @@ namespace G54.DAL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_qa_sample_code_no");
+
                     b.HasIndex("ResultSubmissionId")
                         .IsUnique()
                         .HasDatabaseName("uq_qa_sample_submission");
@@ -1879,6 +1891,12 @@ namespace G54.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('qa_item_code_seq')");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1932,6 +1950,10 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quality_flag_code_no");
 
                     b.HasIndex("EmployeeId")
                         .HasDatabaseName("ix_quality_flag_employee");

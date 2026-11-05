@@ -30,6 +30,7 @@ const SCORE_DECISIONS: readonly AppealDecision[] = ['ADJUST', 'UPHOLD'];
   styleUrls: [
     './appeals-shared.scss',
     './department-appeal-detail.component.scss',
+    './appeal-evidence.scss',
     './appeal-decision-modal.scss',
   ],
 })

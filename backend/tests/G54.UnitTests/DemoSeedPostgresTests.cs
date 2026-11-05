@@ -317,18 +317,19 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
         Assert.Equal("20261105150000_FixInvalidateProgressUsesRawValue", migrations[^1]);
-        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^2]);
-        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^3]);
-        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^4]);
-        Assert.Equal("20261104153505_AddTransactionImport", migrations[^5]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^6]);
-        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^7]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^8]);
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^9]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^10]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^11]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^12]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^13]);
+        Assert.Equal("20261105094144_AddQaItemCode", migrations[^2]);
+        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^3]);
+        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^4]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^5]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^6]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^7]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^8]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^9]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^10]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^11]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^12]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^13]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^14]);
     }
 
     [PostgresFact]

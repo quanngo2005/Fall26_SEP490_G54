@@ -200,7 +200,13 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'EVALUATION_FINALIZE',
   },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
-  { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
+  {
+    id: 'verificationQueue',
+    icon: 'verificationQueue',
+    route: '/qa-queue',
+    // The QA queue (SCR-REV-06): quality flags and the 5% re-verification samples.
+    permission: 'QUALITY_FLAG_READ',
+  },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
   { id: 'riskEvents', icon: 'riskEvents' },

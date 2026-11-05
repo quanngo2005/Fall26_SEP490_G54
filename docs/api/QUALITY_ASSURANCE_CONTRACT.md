@@ -59,6 +59,20 @@ Migration tạo role `QA` (nếu chưa có) và cấp toàn bộ sáu quyền tr
 
 ## 5. Endpoint
 
+### GET /qa-queue
+
+Hàng đợi gộp cho màn SCR-REV-06: cờ chất lượng và mẫu 5% **chưa sinh cờ** (mẫu `FAILED` hiện qua cờ của nó). Quyền `quality_flag:read`.
+
+Query: `tab` (`PENDING` mặc định / `CONFIRMED` / `REJECTED`), `kind` (`FLAG` / `SAMPLE`), `departmentId` (gồm phòng con), `periodId` (mục tạo trong kỳ), `search` (mã `QA-0331` hoặc `331`, mã/tên công việc, mã/tên nhân viên), `page`, `pageSize` (tối đa 100).
+
+Tab: `PENDING` = cờ `OPEN` + mẫu `PENDING`; `CONFIRMED` = cờ `DISMISSED` + mẫu `PASSED`; `REJECTED` = cờ `REWORK_REQUESTED`. `PENDING` xếp theo hạn sớm nhất. Trả `{ items, totalCount, page, pageSize, counts: { pending, confirmed, rejected }, departments: [{ id, name }] }`; `counts` tính theo các bộ lọc khác nhưng không theo `tab`, `departments` là mọi phòng có mục QA (để bộ lọc phòng không cần quyền đọc phòng ban).
+
+Mỗi item: `kind`, `id`, `code` (`QA-0331`, số lấy từ một sequence chung cho cờ và mẫu), `source` (`RANDOM_SAMPLE` / `MANUAL_FLAG` / `SAMPLE_FAILED`), `resultSubmissionId`, `submissionNo`, `workId`, `workCode`, `workTitle`, `employeeId`, `employeeCode`, `employeeName`, `departmentName`, `tab`, `status`, `severity`, `createdAt`, `dueAt`. **Hạn** = lúc tạo + 5 ngày (`QaQueueService.ReviewDays`), chưa lưu riêng.
+
+### GET /qa-queue/{kind}/{id}
+
+`kind` = `FLAG` hoặc `SAMPLE`. Trả `{ item, reason, reworkComment, reviewedAt, reviewedByName, submissionComment, submittedAt, jobPositionTitle, evidences: [{ id, fileName, fileSize, mimeType }], transactions: [{ transactionCode, status, reason, importBatchFileName, productCode, amount, transactionDate }] }`. Tệp bằng chứng mở qua `GET /evidence/{id}/preview`; quyền `quality_flag:read` đủ để QA xem bằng chứng của kết quả đã duyệt (không cần `verification:decide`). `transactions` là mã giao dịch của công việc đối chiếu với file import (panel "Đối soát").
+
 ### POST /submissions/{submissionId}/quality-flags → 201
 
 ```json
@@ -107,7 +121,7 @@ Trả `{ "sample": QaSampleDto, "flag": QualityFlagDto | null }`.
 
 ## 7. Chưa làm / lưu ý
 
-- Chưa có frontend; chưa có sidebar item cho QA.
+- Frontend: màn hàng chờ và màn quyết định QA (`/qa-queue`, xem `FE_STATUS.md`). Phần còn thiếu: tự khóa màn sau 5 phút không thao tác (mockup), hạn xử lý theo kỳ, chuyển cấp (escalated).
 - Tỷ lệ 5% là hằng số, chưa đọc từ system parameter.
 - Hiện **mọi** công việc đều đi qua duyệt thủ công (API tạo work bắt buộc có WorkType, chưa có luồng work không thuộc WorkType), nên mẫu 5% bốc trên mọi lần duyệt thủ công. Khi `BE_STATUS.md` mục 3 được làm (chỉ work ngoài danh mục WorkType mới duyệt tay), mẫu sẽ tự chỉ còn rơi vào nhóm đó. Kết quả auto-match từ giao dịch import không bị bốc mẫu.
 - `actual_progress.value` là tổng số **thô** (`raw_value`) của các kết quả trong ngày; hệ số chỉ áp khi tính điểm (từ `work_result_item.value`). Migration `FixInvalidateProgressUsesRawValue` sửa trigger `invalidate_source_actual_progress` trừ `raw_value` (trước đó trừ giá trị đã nhân hệ số) và chỉ đánh dòng `INVALID` khi không còn kết quả `VALID` nào trỏ vào. Một ngày có nhiều hệ số khác nhau vẫn đúng. Duyệt mới vào dòng đã `INVALID` sẽ bật lại dòng đó.
