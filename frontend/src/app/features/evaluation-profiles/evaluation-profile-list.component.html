@@ -16,8 +16,9 @@
         <button
           type="button"
           class="button button-primary"
-          disabled
-          [title]="localization.evaluationProfiles.unavailable"
+          [disabled]="!canManage()"
+          [title]="canManage() ? '' : localization.evaluationProfiles.unavailable"
+          (click)="openForm(null)"
         >
           + {{localization.evaluationProfiles.create}}
         </button>
@@ -123,7 +124,13 @@
               </thead>
               <tbody>
                 @for (item of profiles(); track item.id) {
-                  <tr class="work-type-row" [class.is-inactive]="item.status === 'ARCHIVED'">
+                  <tr
+                    class="work-type-row"
+                    tabindex="0"
+                    [class.is-inactive]="item.status === 'ARCHIVED'"
+                    (click)="openDetail(item)"
+                    (keydown.enter)="openDetail(item)"
+                  >
                     <td class="col-code">{{item.name}}</td>
                     <td>
                       <span class="position-badge">{{item.jobPositionTitle}}</span>
@@ -153,11 +160,16 @@
                       {{i18n.formatDate(item.updatedAt, 'DD/MM/YYYY HH:mm')}}
                     </td>
                     <td class="col-action">
-                      <span class="row-action">
-                        {{isLocked(item)
+                      <button
+                        type="button"
+                        class="link-button row-action"
+                        (click)="$event.stopPropagation(); openRowAction(item)"
+                        (keydown.enter)="$event.stopPropagation()"
+                      >
+                        {{isViewOnly(item)
                             ? localization.common.view
                             : localization.evaluationProfiles.edit}}
-                      </span>
+                      </button>
                     </td>
                   </tr>
                 } @empty {
@@ -211,5 +223,12 @@
 
       <p class="footnote">{{localization.evaluationProfiles.footnote}}</p>
     </main>
+    @if (formOpen()) {
+      <app-evaluation-profile-form-dialog
+        [profileId]="formProfileId()"
+        (saved)="onSaved()"
+        (dismissed)="closeForm()"
+      />
+    }
   </div>
 </div>

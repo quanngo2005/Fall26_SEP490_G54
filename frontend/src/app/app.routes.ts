@@ -169,6 +169,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluation-profiles/:id',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
+        (m) => m.EvaluationProfileDetailComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>

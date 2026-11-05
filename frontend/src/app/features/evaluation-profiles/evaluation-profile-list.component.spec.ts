@@ -32,6 +32,7 @@ interface ListInternals {
   clearFilter(): void;
   periodLabel(item: EvaluationProfileListItem): string;
   isLocked(item: EvaluationProfileListItem): boolean;
+  isViewOnly(item: EvaluationProfileListItem): boolean;
   filteredProfiles(): EvaluationProfileListItem[];
   allProfiles(): EvaluationProfileListItem[];
   failed(): boolean;
@@ -107,6 +108,22 @@ describe('EvaluationProfileListComponent', () => {
     expect(component.isLocked(profile({ status: 'ARCHIVED', effectiveTo: null }))).toBeTrue();
     expect(component.isLocked(profile({ effectiveTo: '2020-01-01' }))).toBeTrue();
     expect(component.isLocked(profile({ effectiveTo: null }))).toBeFalse();
+  });
+
+  it('only lets an approved or locked profile be viewed, any other profile can be edited', () => {
+    const { component } = setup([]);
+
+    expect(component.isViewOnly(profile({ status: 'ACTIVE', effectiveTo: null }))).toBeTrue();
+    expect(component.isViewOnly(profile({ status: 'INACTIVE', effectiveTo: null }))).toBeTrue();
+    expect(component.isViewOnly(profile({ status: 'ARCHIVED', effectiveTo: null }))).toBeTrue();
+    expect(
+      component.isViewOnly(profile({ status: 'DRAFT', effectiveTo: '2020-01-01' })),
+    ).toBeTrue();
+    expect(component.isViewOnly(profile({ status: 'DRAFT', effectiveTo: null }))).toBeFalse();
+    expect(
+      component.isViewOnly(profile({ status: 'PENDING_APPROVAL', effectiveTo: null })),
+    ).toBeFalse();
+    expect(component.isViewOnly(profile({ status: 'REJECTED', effectiveTo: null }))).toBeFalse();
   });
 
   it('shows the failed state and no rows when the API call fails', () => {
