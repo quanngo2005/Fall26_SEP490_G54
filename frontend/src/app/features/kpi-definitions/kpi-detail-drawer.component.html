@@ -1,0 +1,207 @@
+@let t = localization.kpiCatalog;
+@let k = kpi();
+<div class="backdrop" (click)="close()" aria-hidden="true"></div>
+<aside
+  class="drawer"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="kpi-drawer-title"
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+>
+  <header class="drawer-head">
+    <div>
+      <h2 id="kpi-drawer-title">{{k.code}} · {{k.name}}</h2>
+      @if (k.submittedAt) {
+        <p class="num">{{submittedText()}}</p>
+      }
+    </div>
+    <div class="head-side">
+      <span class="chip" [attr.data-status]="k.status">{{statusLabel(k.status)}}</span>
+      @if (expiring()) {
+        <span class="chip" data-status="EXPIRING">{{t.expiringSoon}}</span>
+      }
+      <button
+        type="button"
+        class="drawer-close"
+        [attr.aria-label]="t.closeDrawer"
+        (click)="close()"
+      >
+        ×
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-body">
+    @if (k.status === 'REJECTED' && k.rejectReason) {
+      <p class="callout callout-danger" role="note">
+        <strong>{{t.rejectReasonLabel}}</strong> {{k.rejectReason}}
+      </p>
+    }
+    @if (k.requestNote) {
+      <p class="callout" role="note">
+        <strong>{{t.requestNoteLabel}}</strong> {{k.requestNote}}
+      </p>
+    }
+
+    <h3>{{t.sectionDefinition}}</h3>
+    <dl class="facts">
+      <div>
+        <dt>{{t.unitDirection}}</dt>
+        <dd>{{k.unit}} · {{localization.kpi[directionKey[k.direction]]}}</dd>
+      </div>
+      <div>
+        <dt>{{t.aggregation}}</dt>
+        <dd>{{localization.kpi[aggregationKey[k.aggregationType]]}}</dd>
+      </div>
+      <div>
+        <dt>{{t.dataSource}}</dt>
+        <dd>{{k.dataSource === 'TRANSACTION' ? t.sourceTransactionFull : t.sourceRatingFull}}</dd>
+      </div>
+      <div>
+        <dt>{{t.positions}}</dt>
+        <dd>
+          @for (position of k.jobPositions; track position.id; let last = $last) {
+            {{position.title}}{{last ? '' : ', '}}
+          } @empty {
+            {{localization.department.notAvailable}}
+          }
+        </dd>
+      </div>
+      <div>
+        <dt>{{t.effective}}</dt>
+        <dd>{{effectiveText()}}</dd>
+      </div>
+      <div>
+        <dt>{{t.ceilingBaseline}}</dt>
+        <dd class="num">
+          {{k.maxAchievementPercent === null ? '—' : k.maxAchievementPercent + '%'}} ·
+          {{k.baselineValue === null ? '—' : k.baselineValue}}
+        </dd>
+      </div>
+    </dl>
+    @if (k.formula) {
+      <p class="formula">{{k.formula}}</p>
+    }
+
+    @if (loading()) {
+      <p class="muted" role="status">{{t.loading}}</p>
+    } @else {
+      @if (usage(); as u) {
+        @if (k.productName && u.relatedItems.length > 0) {
+          <h3>
+            {{i18n.translate('kpiCatalog.sectionRelated', { product: k.productName.toUpperCase() })}}
+          </h3>
+          <table class="related">
+            <thead>
+              <tr>
+                <th scope="col">{{t.relatedItem}}</th>
+                <th scope="col">{{t.relatedPosition}}</th>
+                <th scope="col">{{t.relatedCredit}}</th>
+                <th scope="col">{{t.relatedRecordFrom}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of u.relatedItems; track item.id) {
+                <tr [class.is-current]="item.id === k.id">
+                  <th scope="row">{{item.code}}</th>
+                  <td>{{item.jobPositions.join(', ')}}</td>
+                  <td>
+                    <span class="chip" [attr.data-credit]="item.creditRole">
+                      {{item.creditRole === 'PROCESSOR' ? t.creditProcessor : t.creditReferrer}}
+                    </span>
+                  </td>
+                  <td>{{recordFrom(item)}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="muted">{{t.relatedNote}}</p>
+        }
+
+        <h3>{{t.sectionUsage}}</h3>
+        <dl class="facts">
+          <div>
+            <dt>{{t.usageObjectives}}</dt>
+            <dd>
+              @for (objective of u.objectives; track objective.id; let last = $last) {
+                {{objective.code}}{{last ? '' : ', '}}
+              } @empty {
+                {{t.usageNone}}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>{{t.usageAllocation}}</dt>
+            <dd>
+              @if (u.activeTargetCount > 0) {
+                {{i18n.translate('kpiCatalog.usageTargets', { count: u.activeTargetCount })}}
+              } @else if (k.status !== 'ACTIVE') {
+                {{t.usageNotYet}}
+              } @else {
+                {{t.usageNone}}
+              }
+            </dd>
+          </div>
+        </dl>
+      }
+
+      <h3>{{t.sectionHistory}}</h3>
+      <ol class="history">
+        @for (entry of history(); track $index) {
+          <li>
+            <span class="num">{{dateTime(entry.occurredAt)}}</span>
+            @if (entry.actorName) {
+              · {{entry.actorName}}
+            }
+            · {{entry.summary}}
+          </li>
+        } @empty {
+          <li class="muted">{{t.historyEmpty}}</li>
+        }
+      </ol>
+    }
+  </div>
+
+  <footer class="drawer-foot">
+    @if (mode() === 'approver' && k.status === 'PENDING_APPROVAL') {
+      <button
+        type="button"
+        id="kpi-drawer-reject"
+        class="button button-danger"
+        (click)="decide.emit('REJECT')"
+      >
+        {{t.reject}}
+      </button>
+      <button
+        type="button"
+        id="kpi-drawer-approve"
+        class="button button-primary"
+        (click)="decide.emit('APPROVE')"
+      >
+        {{t.approve}}
+      </button>
+    } @else if (mode() === 'admin') {
+      @if (actions().edit) {
+        <button
+          type="button"
+          id="kpi-drawer-edit"
+          class="button button-secondary"
+          (click)="edit.emit()"
+        >
+          {{t.actionEdit}}
+        </button>
+      }
+      @if (actions().submit) {
+        <button
+          type="button"
+          id="kpi-drawer-submit"
+          class="button button-primary"
+          (click)="submitForApproval.emit()"
+        >
+          {{t.actionSubmit}}
+        </button>
+      }
+    }
+  </footer>
+</aside>

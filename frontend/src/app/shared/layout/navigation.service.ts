@@ -60,7 +60,8 @@ export interface NavigationItem {
   id: MenuKey;
   icon: string;
   route?: string;
-  permission?: string;
+  /** One permission, or several of which any one is enough. */
+  permission?: string | readonly string[];
   children?: NavigationItem[];
 }
 
@@ -113,6 +114,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'departmentPerformance',
     'targetOverview',
     'targetsAndCampaigns',
+    'kpiDefinitions',
     'appeals',
     'notifications',
     'myProfile',
@@ -143,6 +145,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'rolesPermissions',
     'accessPolicies',
     'workTypes',
+    'kpiDefinitions',
     'systemConfiguration',
     'systemAudit',
     'myProfile',
@@ -221,7 +224,8 @@ const ITEMS: readonly NavigationItem[] = [
     id: 'kpiDefinitions',
     icon: 'reportsAnalytics',
     route: '/kpi-definitions',
-    permission: 'KPI_MANAGE',
+    // The System Admin maintains the catalog; the Branch Manager approves it.
+    permission: ['KPI_MANAGE', 'KPI_APPROVE'],
   },
   { id: 'workTypes', icon: 'myWork', route: '/work-types' },
   { id: 'targets', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
@@ -355,7 +359,7 @@ export class NavigationService {
     return this.buildItems(ids, routes).filter(
       (item) =>
         (item.id !== 'systemConfiguration' || this.isAdmin()) &&
-        (!item.permission || permissions.has(item.permission)),
+        (!item.permission || [item.permission].flat().some((code) => permissions.has(code))),
     );
   });
   readonly currentPageKey = computed((): MenuKey | null => {

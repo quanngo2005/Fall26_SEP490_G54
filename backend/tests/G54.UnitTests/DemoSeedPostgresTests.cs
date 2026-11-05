@@ -316,16 +316,17 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^1]);
-        Assert.Equal("20261104153505_AddTransactionImport", migrations[^2]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^3]);
-        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^4]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^5]);
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^6]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^7]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^8]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^9]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^10]);
+        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^1]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^2]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^3]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^4]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^5]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^6]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^7]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^8]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^9]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^10]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^11]);
     }
 
     [PostgresFact]

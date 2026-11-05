@@ -8,6 +8,18 @@ public interface IKpiDefinitionService
     Task<PagedResult<KpiDefinitionDto>> GetKpisAsync(KpiFilterDto filter, CancellationToken cancellationToken = default);
     Task<KpiDefinitionDto?> GetKpiByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<List<KpiGroupOptionDto>> GetGroupOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>The unused code a KPI with this name would get: its name without accents, and a number when that is taken.</summary>
+    Task<KpiCodeSuggestionDto> SuggestCodeAsync(string? name, CancellationToken cancellationToken = default);
+
+    /// <summary>How many KPIs are in each status, for the tabs of the KPI list.</summary>
+    Task<KpiSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Where a KPI is used (objectives, active targets) and the other KPIs of its product; null when it does not exist.</summary>
+    Task<KpiUsageDto?> GetUsageAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>The change history of a KPI, oldest first, taken from the audit log; null when the KPI does not exist.</summary>
+    Task<IReadOnlyList<KpiHistoryEntryDto>?> GetHistoryAsync(Guid id, CancellationToken cancellationToken = default);
     Task<KpiDefinitionDto> CreateKpiAsync(KpiDefinitionSaveDto dto, CancellationToken cancellationToken = default);
 
     /// <summary>A Branch Manager asks for a KPI missing from the catalog; it is created as DRAFT for the System Admin to complete.</summary>

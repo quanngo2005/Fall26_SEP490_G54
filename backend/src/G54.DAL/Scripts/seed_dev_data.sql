@@ -301,6 +301,62 @@ INSERT INTO objective_kpi (id, business_objective_id, kpi_definition_id) VALUES
  ('5eed0000-0000-0000-0011-000000000003', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000003')
 ON CONFLICT DO NOTHING;
 
+-- ---------------------------------------------------------------------------
+-- KPI catalog (SCR-STRAT-02): product, credit role, data source, applicable positions and validity of the
+-- KPIs above, plus a few more KPIs in other statuses (two waiting for the Branch Manager, a draft, an inactive one).
+-- The UPDATE only touches KPIs that have not been given catalog data yet, so re-running the seed keeps later edits.
+-- ---------------------------------------------------------------------------
+UPDATE kpi_definition k
+SET product_name = v.product, credit_role = v.role, data_source = v.source,
+    effective_from_period_id = p.id
+FROM (VALUES
+    ('HDV',       'Tiền gửi có kỳ hạn'::text, 'PROCESSOR', 'TRANSACTION'),
+    ('KH_MOI',    NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('DU_NO',     NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('THE_TD',    'Thẻ / E-banking'::text,    'PROCESSOR', 'TRANSACTION'),
+    ('CSAT',      NULL::text,                 'PROCESSOR', 'SERVICE_RATING'),
+    ('TY_LE_LOI', NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('TUAN_THU',  NULL::text,                 'PROCESSOR', 'TRANSACTION')
+) AS v(code, product, role, source)
+CROSS JOIN evaluation_period p
+WHERE p.code = '2026-Q1' AND k.code = v.code
+  AND k.product_name IS NULL AND k.effective_from_period_id IS NULL;
+
+INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, unit, aggregation_type, direction,
+                            status, credit_role, data_source, product_name, effective_from_period_id, submitted_at, request_note)
+SELECT v.id::uuid, '5eed0000-0000-0000-0003-000000000001', v.code, v.name, v.description, v.formula, v.unit,
+       v.aggregation::kpi_aggregation_type, 'HIGHER_BETTER', v.status::kpi_status, v.role, 'TRANSACTION', v.product,
+       p.id, v.submitted_at::timestamptz, NULL
+FROM (VALUES
+    ('5eed0000-0000-0000-0005-0000000000a1', 'HDV_GT',    'Huy động vốn - giới thiệu', 'Số dư tiền gửi do nhân viên giới thiệu', 'SUM(số dư mới) WHERE Refer ID = Nhân viên', 'VND',
+        'SUM',   'PENDING_APPROVAL', 'REFERRER', 'Tiền gửi có kỳ hạn', '2026-10-22 10:12:40+07'),
+    ('5eed0000-0000-0000-0005-0000000000a2', 'THE_GT',    'Mở thẻ - giới thiệu',       'Số thẻ do nhân viên giới thiệu',         'COUNT(*) WHERE Sản phẩm = Thẻ AND Refer ID = Nhân viên', 'HĐ',
+        'SUM',   'PENDING_APPROVAL', 'REFERRER', 'Thẻ / E-banking',    '2026-10-27 15:40:00+07'),
+    ('5eed0000-0000-0000-0005-0000000000a3', 'DU_NO_GT',  'Giải ngân - giới thiệu',    'Dư nợ giải ngân do nhân viên giới thiệu', 'SUM(giải ngân) WHERE Refer ID = Nhân viên',    'VND',
+        'SUM',   'DRAFT',            'REFERRER', NULL,                 NULL),
+    ('5eed0000-0000-0000-0005-0000000000a4', 'GN_CU',     'Giải ngân (cũ)',            'KPI giải ngân của năm trước',            'SUM(giải ngân)',                              'VND',
+        'SUM',   'INACTIVE',         'PROCESSOR', NULL,                NULL)
+) AS v(id, code, name, description, formula, unit, aggregation, status, role, product, submitted_at)
+CROSS JOIN evaluation_period p
+WHERE p.code = '2026-Q4'
+-- A demo KPI left over from before the catalog columns existed gets its catalog data; one that already has some is left alone.
+ON CONFLICT (id) DO UPDATE
+SET credit_role = EXCLUDED.credit_role, product_name = EXCLUDED.product_name,
+    effective_from_period_id = EXCLUDED.effective_from_period_id, submitted_at = EXCLUDED.submitted_at
+WHERE kpi_definition.effective_from_period_id IS NULL AND kpi_definition.product_name IS NULL;
+
+INSERT INTO kpi_definition_job_position (kpi_definition_id, job_position_id)
+SELECT k.id, jp.id
+FROM (VALUES
+    ('HDV', 'SALES'), ('HDV', 'TELLER'), ('KH_MOI', 'SALES'), ('DU_NO', 'SALES'),
+    ('THE_TD', 'SALES'), ('THE_TD', 'TELLER'), ('CSAT', 'SALES'), ('CSAT', 'TELLER'),
+    ('TY_LE_LOI', 'TELLER'), ('TUAN_THU', 'TELLER'), ('TUAN_THU', 'SALES'),
+    ('HDV_GT', 'TELLER'), ('THE_GT', 'TELLER'), ('DU_NO_GT', 'TELLER'), ('GN_CU', 'SALES')
+) AS m(kpi_code, position_code)
+JOIN kpi_definition k ON k.code = m.kpi_code
+JOIN job_position jp ON jp.code = m.position_code
+ON CONFLICT DO NOTHING;
+
 INSERT INTO business_campaign (id, business_objective_id, code, name, description, start_date, end_date, status) VALUES
  ('5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0010-000000000001', 'CMP-2026-Q4-HDV', 'Chiến dịch huy động tiền gửi Q4/2026', 'Đẩy mạnh huy động và mở mới khách hàng cuối năm', '2026-10-01', '2026-12-31', 'RUNNING')
 ON CONFLICT DO NOTHING;
