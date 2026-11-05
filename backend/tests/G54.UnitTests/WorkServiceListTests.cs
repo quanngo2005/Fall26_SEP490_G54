@@ -108,7 +108,7 @@ public sealed class WorkServiceListTests : IDisposable
     }
 
     private WorkService Service(string? scope) =>
-        new(new UnitOfWork(_db), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(scope));
+        new(new UnitOfWork(_db), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(scope), new RecordingNotifier());
 
     private static WorkFilterDto Filter(Action<WorkFilterDto>? change = null)
     {

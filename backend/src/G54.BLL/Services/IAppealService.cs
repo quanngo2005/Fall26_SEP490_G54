@@ -37,6 +37,23 @@ public interface IAppealService
         CreateAppealRequestDto request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Files an appeal against the caller's own calculated score (<c>CALCULATED</c> or <c>IN_REVIEW</c>, period not locked),
+    /// within the configured hours after the score was calculated. The score becomes <c>DISPUTED</c> until the appeal ends.
+    /// </summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.NotFoundException">No such evaluation.</exception>
+    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The evaluation belongs to someone else.</exception>
+    /// <exception cref="G54.BLL.Common.Exceptions.ConflictException">
+    /// Period locked (<c>PERIOD_LOCKED</c>), score not appealable or already decided (<c>APPEAL_INVALID_STATE</c>),
+    /// or an appeal is in progress (<c>APPEAL_ALREADY_OPEN</c>).
+    /// </exception>
+    /// <exception cref="G54.BLL.Common.Exceptions.BusinessRuleException">The window has passed (<c>APPEAL_SCORE_WINDOW_EXPIRED</c>).</exception>
+    Task<AppealDetailDto> CreateScoreAppealAsync(
+        Guid evaluationId,
+        Guid userId,
+        CreateAppealRequestDto request,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Withdraws an appeal that is still OPEN. Only the employee who filed it may withdraw.</summary>
     Task<AppealDetailDto> WithdrawAppealAsync(Guid appealId, Guid userId, CancellationToken cancellationToken = default);
 

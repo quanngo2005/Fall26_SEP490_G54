@@ -15,7 +15,8 @@ public sealed partial class WorkService(
     IUnitOfWork unitOfWork,
     ILogger<WorkService> logger,
     TimeProvider time,
-    IPermissionService permissions) : IWorkService
+    IPermissionService permissions,
+    INotifier notifier) : IWorkService
 {
     private const int MaxStatusReasonLength = 500;
 
@@ -238,9 +239,11 @@ public sealed partial class WorkService(
             .Where(w => WorkStatusGroups.OverdueEligible.Contains(w.Status)
                 && w.PlannedEndDate != null
                 && w.PlannedEndDate < today)
+            .Include(w => w.AssigneeEmployee)
             .ToListAsync(cancellationToken);
 
         var now = time.GetUtcNow();
+        var drafts = new List<NotificationDraft>();
         var marked = 0;
         foreach (var work in candidates)
         {
@@ -254,11 +257,13 @@ public sealed partial class WorkService(
             work.UpdatedAt = now;
             marked++;
             LogWorkStatusChanged(logger, work.Code, work.Id, fromStatus, nextStatus, null, null);
+            drafts.AddRange(AutomaticNotifications.WorkOverdue(work, work.AssigneeEmployee));
         }
 
         if (marked > 0)
         {
             await unitOfWork.SaveChangesAsync(cancellationToken);
+            await notifier.TryPublishAsync(drafts, cancellationToken);
         }
 
         return marked;

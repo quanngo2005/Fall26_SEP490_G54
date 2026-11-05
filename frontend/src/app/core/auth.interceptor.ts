@@ -9,7 +9,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const requestUrl = new URL(request.url, window.location.origin);
   const isApiRequest =
     requestUrl.origin === apiBase.origin &&
-    /^\/(auth|me|departments|employees|works|work-types|job-positions|workflows|kpis|kpi-definitions|kpi-results|business-objectives|submissions|verifications|verification|evidence|hello|sidebar-configurations|evaluations|campaigns|roles|user-accounts|system-parameters|appeals|handovers|evaluation-profiles|target-assignments|performance-dashboard|performance-evaluations|risk-events|evaluation-periods)(\/|$)/.test(
+    /^\/(auth|me|departments|employees|works|work-types|job-positions|workflows|kpis|kpi-definitions|kpi-results|business-objectives|submissions|verifications|verification|evidence|hello|sidebar-configurations|evaluations|campaigns|roles|user-accounts|system-parameters|appeals|handovers|evaluation-profiles|target-assignments|performance-dashboard|performance-evaluations|risk-events|evaluation-periods|qa-queue|qa-samples|quality-flags)(\/|$)/.test(
       requestUrl.pathname,
     );
   const isLoginRequest = requestUrl.pathname === '/auth/login';

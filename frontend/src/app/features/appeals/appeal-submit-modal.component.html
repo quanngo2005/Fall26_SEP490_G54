@@ -1,0 +1,109 @@
+<div class="modal-backdrop" role="presentation" (click)="dismiss()" (keydown.escape)="dismiss()">
+  <div
+    class="modal-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="appeal-submit-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="appeal-submit-title">{{localization.appeals.submitTitle}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        [attr.aria-label]="localization.common.close"
+        [disabled]="submitting()"
+        (click)="dismiss()"
+      >
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <p class="hint">{{localization.appeals.submitHint}}</p>
+
+      @if (loading()) {
+        <p role="status">{{localization.appeals.submitLoading}}</p>
+      } @else if (loadFailed()) {
+        <p class="field-error" role="alert">{{localization.appeals.loadError}}</p>
+      } @else {
+        <div class="form-grid">
+          <div class="field full">
+            <label for="appeal-submission">{{localization.appeals.submitSubmission}}</label>
+            <select
+              id="appeal-submission"
+              class="select"
+              [ngModel]="selectedId()"
+              (ngModelChange)="selectedId.set($event)"
+              [disabled]="options().length === 0"
+            >
+              @for (option of options(); track option.id) {
+                <option [value]="option.id">
+                  {{option.workCode}} · v{{option.submissionNo}} · {{option.workTitle}}
+                </option>
+              }
+            </select>
+            @if (options().length === 0) {
+              <p class="hint">{{localization.appeals.submitNoRejected}}</p>
+            }
+            @if (showValidation() && !selectedId()) {
+              <p class="field-error" role="alert">{{localization.appeals.errors.validation}}</p>
+            }
+          </div>
+
+          <div class="field full">
+            <label for="appeal-reason">{{localization.appeals.submitReason}}</label>
+            <textarea
+              id="appeal-reason"
+              class="textarea"
+              rows="4"
+              [ngModel]="reason()"
+              (ngModelChange)="reason.set($event)"
+              [placeholder]="localization.appeals.submitReasonPlaceholder"
+            ></textarea>
+            @if (showValidation() && !reason().trim()) {
+              <p class="field-error" role="alert">{{localization.appeals.errors.validation}}</p>
+            }
+          </div>
+
+          <div class="field full">
+            <label for="appeal-files">{{localization.appeals.submitFiles}}</label>
+            <input
+              id="appeal-files"
+              class="input"
+              type="file"
+              multiple
+              [attr.aria-label]="localization.appeals.submitChooseFiles"
+              (change)="onFiles($event)"
+            />
+          </div>
+        </div>
+      }
+
+      @if (errorKey()) {
+        <p class="field-error" role="alert">{{errorText()}}</p>
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button
+        type="button"
+        class="button button-secondary"
+        [disabled]="submitting()"
+        (click)="dismiss()"
+      >
+        {{localization.appeals.submitCancel}}
+      </button>
+      <button
+        type="button"
+        class="button button-primary"
+        [disabled]="submitting() || loading() || loadFailed() || options().length === 0"
+        (click)="submit()"
+      >
+        {{submitting() ? localization.appeals.submitting : localization.appeals.submitConfirm}}
+      </button>
+    </div>
+  </div>
+</div>

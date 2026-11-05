@@ -106,6 +106,23 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         ChangeReason = "Q4",
     };
 
+    /// <summary>Stores the Open period of <see cref="_periodId"/> (the repository joins it when listing children).</summary>
+    private async Task StorePeriodAsync()
+    {
+        _db.EvaluationPeriods.Add(new EvaluationPeriod
+        {
+            Id = _periodId,
+            Code = "Q4",
+            Name = "Q4",
+            PeriodType = PeriodType.Quarter,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
+    }
+
     private async Task<TargetAssignment> StoreDepartmentTargetAsync(Department owner)
     {
         var target = new TargetAssignment
@@ -210,6 +227,229 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         var children = await Service(admin: false).AllocateAsync(_manager, parent.Id, dto);
 
         Assert.Single(children);
+    }
+
+    [Fact]
+    public async Task Reallocate_SupersedesEveryChangedChildAndCreatesTheNextVersion()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var created = await Service(admin: false).AllocateAsync(
+            _manager,
+            parent.Id,
+            new AllocateTargetDto
+            {
+                Allocations =
+                [
+                    new() { DepartmentId = _deptOther.Id, TargetValue = 400 },
+                    new() { EmployeeId = _member.Id, TargetValue = 200 },
+                ],
+            });
+
+        var changed = await Service(admin: false).ReallocateAsync(
+            _manager,
+            parent.Id,
+            new ReallocateTargetDto
+            {
+                Allocations =
+                [
+                    new() { DepartmentId = _deptOther.Id, TargetValue = 400 },
+                    new() { EmployeeId = _member.Id, TargetValue = 200.5m },
+                ],
+                ChangeReason = "Góp ý của nhân viên",
+            });
+
+        var next = Assert.Single(changed);
+        Assert.Equal(_member.Id, next.EmployeeId);
+        Assert.Equal(2, next.Version);
+        Assert.Equal(200.5m, next.TargetValue);
+        Assert.Equal("ACTIVE", next.Status);
+        Assert.Equal("NOT_VIEWED", next.FeedbackStatus);
+        Assert.Equal(parent.Id, next.ParentAssignmentId);
+        Assert.Equal("Góp ý của nhân viên", next.ChangeReason);
+        Assert.Equal(TargetAssignmentStatus.Superseded, _db.TargetAssignments.Single(t => t.Id == created[1].Id).Status);
+        Assert.Equal(TargetAssignmentStatus.Active, _db.TargetAssignments.Single(t => t.Id == created[0].Id).Status);
+        Assert.Equal(4, _db.TargetAssignments.Count());
+    }
+
+    [Fact]
+    public async Task Reallocate_LeavesAnUnchangedDepartmentAlone()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 600 }] });
+
+        var changed = await Service(admin: true).ReallocateAsync(
+            _admin,
+            parent.Id,
+            new ReallocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 600 }], ChangeReason = "x" });
+
+        Assert.Empty(changed);
+        Assert.Equal(2, _db.TargetAssignments.Count());
+    }
+
+    [Fact]
+    public async Task Reallocate_KeepsAnUnchangedEmployeeAsItIs()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var created = await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }] });
+
+        var changed = await Service(admin: true).ReallocateAsync(
+            _admin,
+            parent.Id,
+            new ReallocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }], ChangeReason = "x" });
+
+        Assert.Empty(changed);
+        Assert.Equal(TargetAssignmentStatus.Active, _db.TargetAssignments.Single(t => t.Id == created[0].Id).Status);
+    }
+
+    [Fact]
+    public async Task Reallocate_WithOtherOwnersThanTheAllocatedOnes_IsRejected()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 600 }] });
+        var dto = new ReallocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 600 }], ChangeReason = "x" };
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).ReallocateAsync(_admin, parent.Id, dto));
+
+        Assert.Equal(2, _db.TargetAssignments.Count());
+    }
+
+    [Fact]
+    public async Task Reallocate_MayAddAnOwnerThatWasNotAllocatedYet()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { DepartmentId = _deptOther.Id, TargetValue = 600 }] });
+
+        var changed = await Service(admin: true).ReallocateAsync(
+            _admin,
+            parent.Id,
+            new ReallocateTargetDto
+            {
+                Allocations =
+                [
+                    new() { DepartmentId = _deptOther.Id, TargetValue = 400 },
+                    new() { EmployeeId = _member.Id, TargetValue = 200 },
+                ],
+                ChangeReason = "thêm nhân viên",
+            });
+
+        Assert.Equal(2, changed.Count);
+        Assert.Equal(2, changed.Single(t => t.DepartmentId == _deptOther.Id).Version);
+        var added = changed.Single(t => t.EmployeeId == _member.Id);
+        Assert.Equal(1, added.Version);
+        Assert.Equal(parent.Id, added.ParentAssignmentId);
+        Assert.Equal("ACTIVE", added.Status);
+    }
+
+    [Fact]
+    public async Task Reallocate_ByAManagerOfAnotherDepartment_IsForbidden()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_deptOther);
+        var dto = new ReallocateTargetDto { Allocations = [new() { EmployeeId = _member.Id, TargetValue = 1 }], ChangeReason = "x" };
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).ReallocateAsync(_manager, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Allocate_ByTheManagerOfAParentDepartment_ToTheEmployeesOfATeamBelow_Succeeds()
+    {
+        await SeedAsync();
+        var team = Department("T", DepartmentLevelType.Team, _dept.Id);
+        var teammate = Employee("TM", team.Id);
+        _db.Departments.Add(team);
+        _db.Employees.Add(teammate);
+        await _db.SaveChangesAsync();
+        var teamTarget = await StoreDepartmentTargetAsync(team);
+
+        var children = await Service(admin: false).AllocateAsync(
+            _manager,
+            teamTarget.Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = teammate.Id, TargetValue = 600 }] });
+
+        Assert.Single(children);
+    }
+
+    [Fact]
+    public async Task Reallocate_OfAChildWithItsOwnChildren_SupersedesThoseToo()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var team = Department("T", DepartmentLevelType.Team, _dept.Id);
+        var teammate = Employee("TM", team.Id);
+        _db.Departments.Add(team);
+        _db.Employees.Add(teammate);
+        await _db.SaveChangesAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var split = await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { DepartmentId = team.Id, TargetValue = 600 }] });
+        var members = await Service(admin: true).AllocateAsync(
+            _admin,
+            split[0].Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = teammate.Id, TargetValue = 600 }] });
+
+        await Service(admin: true).ReallocateAsync(
+            _admin,
+            parent.Id,
+            new ReallocateTargetDto { Allocations = [new() { DepartmentId = team.Id, TargetValue = 650 }], ChangeReason = "x" });
+
+        Assert.Equal(TargetAssignmentStatus.Superseded, _db.TargetAssignments.Single(t => t.Id == members[0].Id).Status);
+    }
+
+    [Fact]
+    public async Task Allocate_ToAnEmployeeWhoseEarlierShareWasSuperseded_UsesTheNextVersion()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var team = Department("T", DepartmentLevelType.Team, _dept.Id);
+        var teammate = Employee("TM", team.Id);
+        _db.Departments.Add(team);
+        _db.Employees.Add(teammate);
+        await _db.SaveChangesAsync();
+        var parent = await StoreDepartmentTargetAsync(_dept);
+        var split = await Service(admin: true).AllocateAsync(
+            _admin,
+            parent.Id,
+            new AllocateTargetDto { Allocations = [new() { DepartmentId = team.Id, TargetValue = 600 }] });
+        await Service(admin: true).AllocateAsync(
+            _admin,
+            split[0].Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = teammate.Id, TargetValue = 600 }] });
+        var resized = await Service(admin: true).ReallocateAsync(
+            _admin,
+            parent.Id,
+            new ReallocateTargetDto { Allocations = [new() { DepartmentId = team.Id, TargetValue = 650 }], ChangeReason = "x" });
+
+        var again = await Service(admin: true).AllocateAsync(
+            _admin,
+            resized[0].Id,
+            new AllocateTargetDto { Allocations = [new() { EmployeeId = teammate.Id, TargetValue = 650 }] });
+
+        Assert.Equal(2, again[0].Version);
     }
 
     [Fact]
@@ -621,6 +861,27 @@ public sealed class TargetAssignmentServiceTests : IDisposable
 
         var feedback = await service.ConfirmAsync(memberAccountId, target.Id);
         Assert.Equal("CONFIRM", feedback.Type);
+    }
+
+    [Fact]
+    public async Task List_FeedbackAt_IsSetOnlyForAnsweredEmployeeTargets()
+    {
+        await SeedAsync();
+        var answered = await StoreEmployeeTargetAsync(_member);
+        var memberAccountId = AddAccount(_member).Id;
+        await _db.SaveChangesAsync();
+        var service = Service(admin: true);
+        var untouched = (await service.ListAsync(_admin, new TargetAssignmentQueryDto())).Single(t => t.Id == answered.Id);
+        await service.ConfirmAsync(memberAccountId, answered.Id);
+
+        var listed = (await service.ListAsync(_admin, new TargetAssignmentQueryDto())).ToList();
+        var confirmed = listed.Single(t => t.Id == answered.Id);
+
+        Assert.Equal("NOT_VIEWED", untouched.FeedbackStatus);
+        Assert.Null(untouched.FeedbackAt);
+        Assert.Equal("CONFIRMED", confirmed.FeedbackStatus);
+        Assert.NotNull(confirmed.FeedbackAt);
+        Assert.All(listed.Where(t => t.EmployeeId is null), t => Assert.Null(t.FeedbackAt));
     }
 
     [Fact]

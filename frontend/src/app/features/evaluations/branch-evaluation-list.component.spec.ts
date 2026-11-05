@@ -281,17 +281,21 @@ describe('BranchEvaluationListComponent', () => {
   it('navigates to the period evaluations when clicking Open', () => {
     const period = mockOverview.periods[0];
     component.openPeriod(period);
-    expect(router.navigate).toHaveBeenCalledWith(['/evaluations'], {
-      queryParams: { periodId: period.id },
-    });
+    expect(router.navigate).toHaveBeenCalledWith([
+      '/branch-performance/evaluations',
+      period.id,
+      'approval',
+    ]);
   });
 
   it('navigates to the period evaluations when clicking View', () => {
     const period = mockOverview.periods[2];
     component.viewHistory(period);
-    expect(router.navigate).toHaveBeenCalledWith(['/evaluations'], {
-      queryParams: { periodId: period.id },
-    });
+    expect(router.navigate).toHaveBeenCalledWith([
+      '/branch-performance/evaluations',
+      period.id,
+      'approval',
+    ]);
   });
 
   it('opens and cancels the finalize lock modal', () => {

@@ -1,0 +1,97 @@
+<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<form
+  class="dialog dialog-narrow"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="kpi-decision-title"
+  novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (ngSubmit)="submit()"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="kpi-decision-title">
+        {{i18n.translate('kpiCatalog.decisionTitle', { code: kpi().code })}}
+      </h2>
+      <p>{{kpi().name}}</p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    <div class="field">
+      <span class="label" id="kpi-decision-label"
+        >{{localization.kpiCatalog.decisionLabel}} *</span
+      >
+      <div class="decision-switch">
+        <span class="side reject" [class.is-active]="decision === 'REJECT'">
+          {{localization.kpiCatalog.decisionReject}}
+        </span>
+        <button
+          type="button"
+          id="kpi-decision-switch"
+          class="switch"
+          role="switch"
+          aria-labelledby="kpi-decision-label"
+          [class.is-approve]="decision === 'APPROVE'"
+          [attr.aria-checked]="decision === 'APPROVE'"
+          (click)="toggle()"
+        >
+          <span class="knob"></span>
+        </button>
+        <span class="side approve" [class.is-active]="decision === 'APPROVE'">
+          {{localization.kpiCatalog.decisionApprove}}
+        </span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label" for="kpi-decision-reason">
+        {{localization.kpiCatalog.reasonLabel}}
+        @if (decision === 'REJECT') {
+          * · {{localization.kpiCatalog.reasonRequired}}
+        }
+      </label>
+      <textarea
+        id="kpi-decision-reason"
+        name="reason"
+        class="input"
+        rows="3"
+        maxlength="500"
+        [class.is-invalid]="submitted() && reasonMissing"
+        [placeholder]="localization.kpiCatalog.reasonPlaceholder"
+        [(ngModel)]="reason"
+      ></textarea>
+      @if (submitted() && reasonMissing) {
+        <span class="field-error" role="alert">{{localization.kpiCatalog.reasonError}}</span>
+      }
+    </div>
+
+    <div class="notice" role="note">{{localization.kpiCatalog.decisionInfo}}</div>
+
+    @if (errorText(); as text) {
+      <p class="form-error" role="alert">{{text}}</p>
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{localization.kpiCatalog.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{localization.kpiCatalog.cancel}}
+      </button>
+      <button type="submit" class="button button-primary" [disabled]="saving()">
+        {{saving() ? localization.kpiCatalog.saving : localization.kpiCatalog.confirm}}
+      </button>
+    </div>
+  </footer>
+</form>

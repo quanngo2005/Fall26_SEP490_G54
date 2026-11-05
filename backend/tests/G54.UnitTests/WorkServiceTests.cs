@@ -30,7 +30,7 @@ public sealed class WorkServiceTests
     {
         var context = CreateInMemoryDbContext();
         var uow = new UnitOfWork(context);
-        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
+        var service = new WorkService(uow, NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All")), new RecordingNotifier());
         return (context, uow, service);
     }
 
@@ -586,7 +586,7 @@ public sealed class WorkServiceTests
             context.Accounts.Add(account);
             await context.SaveChangesAsync();
 
-            var service = new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService("All"));
+            var service = new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService("All"), new RecordingNotifier());
             var controller = new WorksController(service)
             {
                 ControllerContext = new ControllerContext
@@ -619,7 +619,7 @@ public sealed class WorkServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var context = new AppDbContext(options);
-        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All"))));
+        return (context, new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null, FakePermissionService.WorkCreate("All")), new RecordingNotifier()));
     }
 
     private static async Task<(Employee Manager, Employee Assignee, Employee Stranger, Work Work)> SeedAsync(
@@ -694,6 +694,39 @@ public sealed class WorkServiceTests
             Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
             Assert.Equal(WorkStatus.Overdue, (await context.Works.FindAsync(work.Id))!.Status);
         }
+    }
+
+    [Fact]
+    public async Task MarkOverdueAsync_TellsTheAssigneeAndTheirManager_OnlyAboutWorkItJustMarked()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        using var context = new AppDbContext(options);
+        var notifier = new RecordingNotifier();
+        var service = new WorkService(new UnitOfWork(context), NullLogger<WorkService>.Instance, TimeProvider.System, new FakePermissionService(null), notifier);
+        var manager = NewEmployee("MGR");
+        var assignee = NewEmployee("EMP");
+        assignee.ManagerId = manager.Id;
+        var late = NewWork("W-LATE", assignee.Id, WorkStatus.InProgress, new DateOnly(2026, 10, 1));
+        var alreadyOverdue = NewWork("W-OVD", assignee.Id, WorkStatus.Overdue, new DateOnly(2026, 10, 1));
+        context.Employees.AddRange(manager, assignee);
+        context.Works.AddRange(late, alreadyOverdue);
+        await context.SaveChangesAsync();
+
+        await service.MarkOverdueAsync(OverdueToday);
+
+        Assert.Equal([assignee.Id, manager.Id], notifier.Drafts.Select(d => d.RecipientEmployeeId).ToArray());
+        Assert.All(notifier.Drafts, d =>
+        {
+            Assert.Equal(NotificationType.WorkOverdue, d.Type);
+            Assert.Equal(NotificationRelatedType.Work, d.RelatedType);
+            Assert.Equal(late.Id, d.RelatedId);
+            Assert.Contains("W-LATE", d.Body);
+            Assert.Contains("01/10/2026", d.Body);
+        });
+
+        notifier.Drafts.Clear();
+        await service.MarkOverdueAsync(OverdueToday);
+        Assert.Empty(notifier.Drafts);
     }
 
     [Fact]
@@ -1070,7 +1103,8 @@ public sealed class WorkServiceTests
             new UnitOfWork(context),
             NullLogger<WorkService>.Instance,
             new FixedTime(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture)),
-            new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
+            new FakePermissionService(null, FakePermissionService.WorkCreate("All")),
+            new RecordingNotifier());
 
         var workType = new WorkType
         {

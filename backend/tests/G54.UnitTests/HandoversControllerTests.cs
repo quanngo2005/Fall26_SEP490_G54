@@ -129,6 +129,29 @@ public sealed class HandoversControllerTests
         Assert.Equal(0, service.Calls);
     }
 
+    [Fact]
+    public async Task GetRecipients_IsAGetNeedingHandoverCreate_AndReturnsTheServiceList()
+    {
+        var method = typeof(HandoversController).GetMethod(nameof(HandoversController.GetRecipients))!;
+        Assert.Equal("handovers/recipients", method.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        var required = method.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.NotNull(required);
+        Assert.Equal("handover", required.Resource);
+        Assert.Equal("create", required.Action);
+        Assert.Equal("Own", required.Scope);
+
+        var userId = Guid.NewGuid();
+        var service = new RecordingService();
+        service.Recipients.Add(new HandoverRecipientDto(Guid.NewGuid(), "NV002", "Trần Thị B", "Giao dịch viên"));
+
+        var result = await ControllerFor(service, userId).GetRecipients(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(userId, service.UserId);
+        Assert.Equal(1, JsonDocument.Parse(JsonSerializer.Serialize(ok.Value, JsonOptions))
+            .RootElement.GetProperty("data").GetArrayLength());
+    }
+
     private static string? MessageOf(ObjectResult result)
     {
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(result.Value, JsonOptions));
@@ -190,6 +213,15 @@ public sealed class HandoversControllerTests
             Request = request;
             return Task.FromResult(Detail);
         }
+
+        public Task<IReadOnlyList<HandoverRecipientDto>> GetRecipientsAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult<IReadOnlyList<HandoverRecipientDto>>(Recipients);
+        }
+
+        public List<HandoverRecipientDto> Recipients { get; } = [];
 
         public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
             => Record("accept", handoverId, userId);

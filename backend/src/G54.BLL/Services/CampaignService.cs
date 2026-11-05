@@ -44,13 +44,6 @@ public sealed class CampaignService(
             new EventId(4, "BatchWorkGenerated"),
             "Batch work generated for Campaign {CampaignId}: Count={Count}, Rule={Rule}");
 
-    public async Task<IReadOnlyList<CampaignObjectiveDto>> GetObjectivesAsync(CancellationToken cancellationToken = default) =>
-        await db.BusinessObjectives.AsNoTracking()
-            .Where(o => o.Status != BusinessObjectiveStatus.Cancelled)
-            .OrderBy(o => o.Code)
-            .Select(o => new CampaignObjectiveDto(o.Id, o.Code, o.Name, o.Description))
-            .ToListAsync(cancellationToken);
-
     public async Task<CampaignListOverviewDto> GetCampaignsAsync(
         string? search,
         string? status,

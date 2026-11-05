@@ -225,3 +225,137 @@ export interface FinalizePeriodResult {
   totalEvaluationsFinalized: number;
   message: string;
 }
+
+export interface DepartmentApprovalSummary {
+  departmentId: string;
+  departmentCode: string;
+  departmentName: string;
+  managerName: string | null;
+  totalEmployees: number;
+  evaluatedEmployees: number;
+  status: string;
+  averageScore: number;
+  tierACount: number;
+  tierAPercent: number;
+  tierBCount: number;
+  tierCCount: number;
+  tierDCount: number;
+  isQuotaCompliant: boolean;
+  reviewerComment: string | null;
+  submittedAt: string | null;
+}
+
+export interface BranchApprovalOverview {
+  period: EvaluationPeriod;
+  totalEmployees: number;
+  totalEvaluated: number;
+  totalTierACount: number;
+  branchTierAPercent: number;
+  branchCapPercent: number;
+  isBranchCapCompliant: boolean;
+  canFinalize: boolean;
+  departments: DepartmentApprovalSummary[];
+  disputedPendingCount: number;
+}
+
+export interface CalibrationEmployeeRow {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  jobPositionId: string;
+  jobPositionTitle: string;
+  departmentId: string;
+  departmentName: string;
+  businessScore: number | null;
+  serviceQualityScore: number | null;
+  operationsScore: number | null;
+  qualitativeScore: number | null;
+  totalScore: number | null;
+  rank: number | null;
+  proposedTier: string | null;
+  calibratedTier: string | null;
+  isAdjusted: boolean;
+  adjustmentReason: string | null;
+  coachingFlag: boolean;
+  disciplinaryFlag: string | null;
+  evaluationStatus: string;
+  evaluationId: string | null;
+  calculatedAt: string | null;
+}
+
+export interface CalibrationQuota {
+  totalEmployees: number;
+  maxTierAQuota: number;
+  proposedTierACount: number;
+  calibratedTierACount: number;
+  calibratedTierAPercent: number;
+  calibratedTierBCount: number;
+  calibratedTierBPercent: number;
+  calibratedTierCCount: number;
+  calibratedTierCPercent: number;
+  calibratedTierDCount: number;
+  calibratedTierDPercent: number;
+  isCompliant: boolean;
+  complianceNote: string;
+}
+
+export interface CalibrationOverview {
+  department: {
+    id: string;
+    code: string;
+    name: string;
+    managerName: string | null;
+  };
+  period: EvaluationPeriod;
+  quota: CalibrationQuota;
+  rankedRoster: CalibrationEmployeeRow[];
+  canSubmit: boolean;
+  overallStatus: string | null;
+  disputedPendingCount: number;
+}
+
+export interface ApproveDepartmentRankingRequest {
+  periodId: string;
+  note?: string | null;
+}
+
+export interface DepartmentApprovalResult {
+  departmentId: string;
+  periodId: string;
+  status: string;
+  approvedEvaluationsCount: number;
+  message: string;
+}
+
+export interface RejectDepartmentRequest {
+  periodId: string;
+  reason: string;
+}
+
+export interface CalibrationDecisionResult {
+  departmentId: string;
+  periodId: string;
+  status: string;
+  message: string;
+}
+
+export interface PreCloseCheckItem {
+  code: string;
+  title: string;
+  remainingCount: number;
+  isPassed: boolean;
+  targetScreenCode?: string | null;
+  targetRoute?: string | null;
+}
+
+export interface PreCloseCheckOverview {
+  periodId: string;
+  periodCode: string;
+  periodName: string;
+  startDate: string;
+  endDate: string;
+  preCloseDeadline: string | null;
+  canPublish: boolean;
+  totalUnresolvedCount: number;
+  items: PreCloseCheckItem[];
+}

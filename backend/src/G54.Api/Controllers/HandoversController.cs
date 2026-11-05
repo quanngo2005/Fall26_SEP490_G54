@@ -18,6 +18,18 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class HandoversController(IHandoverService handoverService) : ControllerBase
 {
+    /// <summary>Colleagues of the caller's department that a work can be handed over to.</summary>
+    [HttpGet("handovers/recipients")]
+    [HasPermission("handover", "create", "Own")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<HandoverRecipientDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<HandoverRecipientDto>>>> GetRecipients(
+        CancellationToken cancellationToken)
+    {
+        var result = await handoverService.GetRecipientsAsync(User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("works/{workId:guid}/handovers")]
     [HasPermission("handover", "create", "Own")]
     [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status201Created)]

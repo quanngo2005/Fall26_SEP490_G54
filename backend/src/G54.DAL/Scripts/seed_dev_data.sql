@@ -127,7 +127,8 @@ INSERT INTO role (id, code, name, description) VALUES
  ('5eed0000-0000-0000-0008-000000000005', 'SYSTEM_ADMIN',   'System Administrator', 'Quản trị hệ thống'),
  ('5eed0000-0000-0000-0008-000000000006', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',   'Quản lý chi nhánh và các phòng ban trực thuộc'),
  ('5eed0000-0000-0000-0008-000000000007', 'DEPT_MANAGER',   'Trưởng phòng',         'Quản lý phòng ban của mình'),
- ('5eed0000-0000-0000-0008-000000000008', 'HR_OFFICER',     'Chuyên viên nhân sự',  'Quản lý hồ sơ nhân sự và tổ chức')
+ ('5eed0000-0000-0000-0008-000000000008', 'QA',             'Kiểm soát chất lượng', 'Gắn cờ chất lượng, yêu cầu làm lại và kiểm tra ngẫu nhiên 5% kết quả đã duyệt'),
+ ('5eed0000-0000-0000-0008-000000000009', 'HR_OFFICER',     'Chuyên viên nhân sự',  'Quản lý hồ sơ nhân sự và tổ chức')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO permission (id, code, name, resource, action) VALUES
@@ -155,7 +156,20 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000016', 'JOB_POSITION_MANAGE', 'Quản lý loại công việc của vị trí công việc', 'job-position', 'manage'),
  ('5eed0000-0000-0000-0009-000000000017', 'EVALUATION_PROFILE_APPROVE', 'Duyệt hoặc từ chối hồ sơ đánh giá', 'evaluation-profile', 'approve'),
  ('5eed0000-0000-0000-0009-000000000018', 'AUDIT_LOG_VIEW',      'Xem nhật ký audit',    'audit_log',    'view'),
- ('5eed0000-0000-0000-0009-000000000019', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import')
+ ('5eed0000-0000-0000-0009-000000000019', 'OBJECTIVE_READ',      'Xem mục tiêu kinh doanh',     'objective', 'read'),
+ ('5eed0000-0000-0000-0009-00000000001a', 'OBJECTIVE_MANAGE',    'Quản lý mục tiêu kinh doanh', 'objective', 'manage'),
+ ('5eed0000-0000-0000-0009-00000000001b', 'KPI_REQUEST',         'Yêu cầu bổ sung KPI',         'kpi',       'request'),
+ ('5eed0000-0000-0000-0009-00000000001c', 'KPI_APPROVE',         'Duyệt hoặc từ chối KPI',      'kpi',       'approve'),
+ ('5eed0000-0000-0000-0009-00000000001d', 'NOTIFICATION_READ',   'Xem thông báo của mình',      'notification', 'read'),
+ ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send'),
+ ('5eed0000-0000-0000-0009-00000000001f', 'TRANSACTION_IMPORT_MANAGE', 'Import giao dịch Core Banking', 'transaction-import', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000020', 'QUALITY_FLAG_CREATE', 'Gắn cờ chất lượng kết quả đã duyệt', 'quality_flag', 'create'),
+ ('5eed0000-0000-0000-0009-000000000021', 'QUALITY_FLAG_READ', 'Xem cờ chất lượng', 'quality_flag', 'read'),
+ ('5eed0000-0000-0000-0009-000000000022', 'QUALITY_FLAG_REWORK', 'Yêu cầu nhân viên làm lại', 'quality_flag', 'rework'),
+ ('5eed0000-0000-0000-0009-000000000023', 'QUALITY_FLAG_DISMISS', 'Bỏ qua cờ chất lượng', 'quality_flag', 'dismiss'),
+ ('5eed0000-0000-0000-0009-000000000024', 'QA_SAMPLE_READ', 'Xem mẫu kiểm tra QA 5%', 'qa_sample', 'read'),
+ ('5eed0000-0000-0000-0009-000000000025', 'QA_SAMPLE_DECIDE', 'Quyết định kết quả kiểm tra mẫu QA', 'qa_sample', 'decide'),
+ ('5eed0000-0000-0000-0009-000000000026', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -183,7 +197,14 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'JOB_POSITION_MANAGE', 'Branch'), ('DEPT_MANAGER', 'JOB_POSITION_MANAGE', 'Dept'), ('MANAGER', 'JOB_POSITION_MANAGE', 'Dept'),
     -- Admin writes evaluation profiles; the Branch Manager approves them (docs/BPMS_AI_Agent_Context.md).
     ('BRANCH_MANAGER', 'EVALUATION_PROFILE_APPROVE', 'All'),
+    -- The Branch Manager owns business objectives and approves KPIs; the Department Manager reads objectives of the department.
+    ('MANAGER', 'OBJECTIVE_READ', 'Dept'), ('DEPT_MANAGER', 'OBJECTIVE_READ', 'Dept'), ('BRANCH_MANAGER', 'OBJECTIVE_READ', 'Branch'),
+    ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
     ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
+    ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
+    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
+    ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
     ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All')
 ) AS m(role_code, permission_code, scope)
@@ -300,6 +321,62 @@ INSERT INTO objective_kpi (id, business_objective_id, kpi_definition_id) VALUES
  ('5eed0000-0000-0000-0011-000000000001', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000001'),
  ('5eed0000-0000-0000-0011-000000000002', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000002'),
  ('5eed0000-0000-0000-0011-000000000003', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000003')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- KPI catalog (SCR-STRAT-02): product, credit role, data source, applicable positions and validity of the
+-- KPIs above, plus a few more KPIs in other statuses (two waiting for the Branch Manager, a draft, an inactive one).
+-- The UPDATE only touches KPIs that have not been given catalog data yet, so re-running the seed keeps later edits.
+-- ---------------------------------------------------------------------------
+UPDATE kpi_definition k
+SET product_name = v.product, credit_role = v.role, data_source = v.source,
+    effective_from_period_id = p.id
+FROM (VALUES
+    ('HDV',       'Tiền gửi có kỳ hạn'::text, 'PROCESSOR', 'TRANSACTION'),
+    ('KH_MOI',    NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('DU_NO',     NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('THE_TD',    'Thẻ / E-banking'::text,    'PROCESSOR', 'TRANSACTION'),
+    ('CSAT',      NULL::text,                 'PROCESSOR', 'SERVICE_RATING'),
+    ('TY_LE_LOI', NULL::text,                 'PROCESSOR', 'TRANSACTION'),
+    ('TUAN_THU',  NULL::text,                 'PROCESSOR', 'TRANSACTION')
+) AS v(code, product, role, source)
+CROSS JOIN evaluation_period p
+WHERE p.code = '2026-Q1' AND k.code = v.code
+  AND k.product_name IS NULL AND k.effective_from_period_id IS NULL;
+
+INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, unit, aggregation_type, direction,
+                            status, credit_role, data_source, product_name, effective_from_period_id, submitted_at, request_note)
+SELECT v.id::uuid, '5eed0000-0000-0000-0003-000000000001', v.code, v.name, v.description, v.formula, v.unit,
+       v.aggregation::kpi_aggregation_type, 'HIGHER_BETTER', v.status::kpi_status, v.role, 'TRANSACTION', v.product,
+       p.id, v.submitted_at::timestamptz, NULL
+FROM (VALUES
+    ('5eed0000-0000-0000-0005-0000000000a1', 'HDV_GT',    'Huy động vốn - giới thiệu', 'Số dư tiền gửi do nhân viên giới thiệu', 'SUM(số dư mới) WHERE Refer ID = Nhân viên', 'VND',
+        'SUM',   'PENDING_APPROVAL', 'REFERRER', 'Tiền gửi có kỳ hạn', '2026-10-22 10:12:40+07'),
+    ('5eed0000-0000-0000-0005-0000000000a2', 'THE_GT',    'Mở thẻ - giới thiệu',       'Số thẻ do nhân viên giới thiệu',         'COUNT(*) WHERE Sản phẩm = Thẻ AND Refer ID = Nhân viên', 'HĐ',
+        'SUM',   'PENDING_APPROVAL', 'REFERRER', 'Thẻ / E-banking',    '2026-10-27 15:40:00+07'),
+    ('5eed0000-0000-0000-0005-0000000000a3', 'DU_NO_GT',  'Giải ngân - giới thiệu',    'Dư nợ giải ngân do nhân viên giới thiệu', 'SUM(giải ngân) WHERE Refer ID = Nhân viên',    'VND',
+        'SUM',   'DRAFT',            'REFERRER', NULL,                 NULL),
+    ('5eed0000-0000-0000-0005-0000000000a4', 'GN_CU',     'Giải ngân (cũ)',            'KPI giải ngân của năm trước',            'SUM(giải ngân)',                              'VND',
+        'SUM',   'INACTIVE',         'PROCESSOR', NULL,                NULL)
+) AS v(id, code, name, description, formula, unit, aggregation, status, role, product, submitted_at)
+CROSS JOIN evaluation_period p
+WHERE p.code = '2026-Q4'
+-- A demo KPI left over from before the catalog columns existed gets its catalog data; one that already has some is left alone.
+ON CONFLICT (id) DO UPDATE
+SET credit_role = EXCLUDED.credit_role, product_name = EXCLUDED.product_name,
+    effective_from_period_id = EXCLUDED.effective_from_period_id, submitted_at = EXCLUDED.submitted_at
+WHERE kpi_definition.effective_from_period_id IS NULL AND kpi_definition.product_name IS NULL;
+
+INSERT INTO kpi_definition_job_position (kpi_definition_id, job_position_id)
+SELECT k.id, jp.id
+FROM (VALUES
+    ('HDV', 'SALES'), ('HDV', 'TELLER'), ('KH_MOI', 'SALES'), ('DU_NO', 'SALES'),
+    ('THE_TD', 'SALES'), ('THE_TD', 'TELLER'), ('CSAT', 'SALES'), ('CSAT', 'TELLER'),
+    ('TY_LE_LOI', 'TELLER'), ('TUAN_THU', 'TELLER'), ('TUAN_THU', 'SALES'),
+    ('HDV_GT', 'TELLER'), ('THE_GT', 'TELLER'), ('DU_NO_GT', 'TELLER'), ('GN_CU', 'SALES')
+) AS m(kpi_code, position_code)
+JOIN kpi_definition k ON k.code = m.kpi_code
+JOIN job_position jp ON jp.code = m.position_code
 ON CONFLICT DO NOTHING;
 
 INSERT INTO business_campaign (id, business_objective_id, code, name, description, start_date, end_date, status) VALUES
@@ -878,9 +955,9 @@ FROM seed_evaluation_metric m
 JOIN target_assignment t ON t.id = m.target_id
 ON CONFLICT DO NOTHING;
 
-INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, denominator)
+INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, raw_value, denominator)
 SELECT md5('evaluation-demo-item-' || m.progress_id::text)::uuid,
-       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.denominator
+       m.result_id, m.progress_id, m.employee_id, m.actual_value, m.actual_value, m.denominator
 FROM seed_evaluation_metric m
 JOIN actual_progress ap ON ap.id = m.progress_id
 ON CONFLICT DO NOTHING;
@@ -1131,3 +1208,108 @@ FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.
 JOIN performance_evaluation pe ON pe.id = c.evaluation_id
 JOIN score_entry hold ON hold.id = md5('evaluation-demo-hold-' || c.evaluation_id::text)::uuid
 WHERE c.period_code IN ('2026-11', '2026-12') ON CONFLICT DO NOTHING;
+
+-- Demo Employee (NV012) has one rejected submission that can still be appealed: rejected by the direct manager
+-- (NV011) inside the appeal window, with no appeal filed yet. The existing NV012 appeal samples above are filed or
+-- withdrawn and their submissions are not REJECTED, so none of them appears in the "submit appeal" form.
+INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, description, status)
+SELECT '5eed0000-0000-0000-0016-0000000000a1', wt.id, e.id, m.id,
+       'DEMO-REJECTED-NV012', 'Hồ sơ huy động tiền gửi bị từ chối (demo khiếu nại)',
+       'Dữ liệu mẫu để thử gửi khiếu nại kết quả bị từ chối.', 'REJECTED'
+FROM employee e JOIN employee m ON m.employee_code = 'NV011'
+JOIN work_type wt ON wt.code = 'HUY_DONG'
+WHERE e.employee_code = 'NV012'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO result_submission (id, work_id, submitter_employee_id, submission_no, submitted_at, status, comment)
+SELECT '5eed0000-0000-0000-0017-0000000000a1', '5eed0000-0000-0000-0016-0000000000a1', e.id, 1,
+       now() - interval '5 hours', 'REJECTED', 'Đã nộp đủ chứng từ huy động theo yêu cầu.'
+FROM employee e WHERE e.employee_code = 'NV012'
+  AND EXISTS (SELECT 1 FROM work w WHERE w.id = '5eed0000-0000-0000-0016-0000000000a1')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verification (id, result_submission_id, verifier_employee_id, round_no, decision, verified_at, comment)
+SELECT '5eed0000-0000-0000-0018-0000000000a1', '5eed0000-0000-0000-0017-0000000000a1', m.id, 1,
+       'REJECTED', now() - interval '2 hours', 'Thiếu chữ ký xác nhận trên chứng từ huy động.'
+FROM employee m WHERE m.employee_code = 'NV011'
+  AND EXISTS (SELECT 1 FROM result_submission s WHERE s.id = '5eed0000-0000-0000-0017-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM verification v WHERE v.result_submission_id = '5eed0000-0000-0000-0017-0000000000a1')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- Transaction reconcile demo (docs/api/WORK_TRANSACTION_CONTRACT.md)
+-- work_type_kpi.value_source defaults to COUNT, so existing and seeded mappings credit 1 per transaction.
+-- NV004 holds one DONE work (2 matched codes, KPI credited), one SUBMITTED work with mismatching codes and
+-- one SUBMITTED work whose code is not in any import yet.
+-- ============================================================================
+INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, target_value, version, status, created_at, assigned_at, approved_at)
+SELECT '5eed0000-0000-0000-0047-000000000001', '5eed0000-0000-0000-0005-000000000007', '5eed0000-0000-0000-0007-000000000004',
+       '5eed0000-0000-0000-000f-000000000003', 20, 1, 'ACTIVE', now(), now(), now()
+WHERE NOT EXISTS (
+    SELECT 1 FROM target_assignment t
+    WHERE t.kpi_definition_id = '5eed0000-0000-0000-0005-000000000007'
+      AND t.employee_id = '5eed0000-0000-0000-0007-000000000004'
+      AND t.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND t.status = 'ACTIVE')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO import_batch (id, file_name, total_rows, imported_rows, duplicate_rows, error_rows, imported_by, imported_at)
+SELECT '5eed0000-0000-0000-0040-000000000001', 'demo-transactions.xlsx', 4, 4, 0, 0, e.id, now()
+FROM employee e WHERE e.employee_code = 'NV013'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO imported_transaction (id, import_batch_id, transaction_code, employee_id, product_code, transaction_date, amount, denominator)
+SELECT t.id::uuid, '5eed0000-0000-0000-0040-000000000001', t.code, e.id, t.product, DATE '2026-11-02', t.amount, NULL
+FROM (VALUES
+    ('5eed0000-0000-0000-0041-000000000001', 'TX-DEMO-001', 'NV004', 'TD_CLASSIC', 1500000),
+    ('5eed0000-0000-0000-0041-000000000002', 'TX-DEMO-002', 'NV004', 'TD_GOLD',    2000000),
+    ('5eed0000-0000-0000-0041-000000000003', 'TX-DEMO-003', 'NV005', 'TD_CLASSIC', 1000000),
+    ('5eed0000-0000-0000-0041-000000000004', 'TX-DEMO-004', 'NV004', 'TD_CLASSIC', 3000000)
+) AS t(id, code, emp, product, amount)
+JOIN employee e ON e.employee_code = t.emp
+WHERE EXISTS (SELECT 1 FROM import_batch WHERE id = '5eed0000-0000-0000-0040-000000000001')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, status)
+SELECT w.id::uuid, '5eed0000-0000-0000-000c-000000000005', e.id, COALESCE(e.manager_id, e.id), w.code, w.title, w.status::work_status
+FROM (VALUES
+    ('5eed0000-0000-0000-0042-000000000001', 'W-DEMO-TX-MATCHED',    'Classic card - all codes matched',   'DONE'),
+    ('5eed0000-0000-0000-0042-000000000002', 'W-DEMO-TX-NOTMATCHED', 'Classic card - codes not matched',   'SUBMITTED'),
+    ('5eed0000-0000-0000-0042-000000000003', 'W-DEMO-TX-INREVIEW',   'Classic card - waiting for import',  'SUBMITTED')
+) AS w(id, code, title, status)
+JOIN employee e ON e.employee_code = 'NV004'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work_transaction (id, work_id, transaction_code, status, reason, imported_transaction_id, created_at, updated_at)
+SELECT x.id::uuid, x.work_id::uuid, x.code, x.status, x.reason, it.id, now(), now()
+FROM (VALUES
+    ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0042-000000000001', 'TX-DEMO-001',   'MATCHED',     NULL,               TRUE),
+    ('5eed0000-0000-0000-0043-000000000002', '5eed0000-0000-0000-0042-000000000001', 'TX-DEMO-004',   'MATCHED',     NULL,               TRUE),
+    ('5eed0000-0000-0000-0043-000000000003', '5eed0000-0000-0000-0042-000000000002', 'TX-DEMO-002',   'NOT_MATCHED', 'PRODUCT_MISMATCH', FALSE),
+    ('5eed0000-0000-0000-0043-000000000004', '5eed0000-0000-0000-0042-000000000002', 'TX-DEMO-003',   'NOT_MATCHED', 'EMPLOYEE_MISMATCH', FALSE),
+    ('5eed0000-0000-0000-0043-000000000005', '5eed0000-0000-0000-0042-000000000003', 'TX-DEMO-PENDING', 'IN_REVIEW', NULL,               FALSE)
+) AS x(id, work_id, code, status, reason, linked)
+LEFT JOIN imported_transaction it ON x.linked AND it.transaction_code = x.code
+WHERE EXISTS (SELECT 1 FROM work WHERE id = x.work_id::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verified_work_result (id, work_transaction_id, status, verified_at)
+SELECT ('5eed0000-0000-0000-0044-00000000000' || right(wt.id::text, 1))::uuid, wt.id, 'VALID', now()
+FROM work_transaction wt WHERE wt.id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT '5eed0000-0000-0000-0045-000000000001', ta.id, DATE '2026-11-02', 2, 'VALID'
+FROM target_assignment ta
+WHERE ta.kpi_definition_id = '5eed0000-0000-0000-0005-000000000007'
+  AND ta.employee_id = '5eed0000-0000-0000-0007-000000000004'
+  AND ta.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND ta.status = 'ACTIVE'
+  AND EXISTS (SELECT 1 FROM verified_work_result WHERE id = '5eed0000-0000-0000-0044-000000000001')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, raw_value, multiplier_applied)
+SELECT ('5eed0000-0000-0000-0046-00000000000' || right(vr.id::text, 1))::uuid, vr.id, '5eed0000-0000-0000-0045-000000000001',
+       '5eed0000-0000-0000-0007-000000000004', 1, 1, 1.0
+FROM verified_work_result vr
+WHERE vr.work_transaction_id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
+  AND EXISTS (SELECT 1 FROM actual_progress WHERE id = '5eed0000-0000-0000-0045-000000000001')
+ON CONFLICT DO NOTHING;
