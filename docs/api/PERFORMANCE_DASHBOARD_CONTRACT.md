@@ -203,7 +203,8 @@ Field definitions:
 branch  ->  childUnits (departments)  ->  childUnits (teams)  ->  members  ->  employee  ->  groups / kpis
 ```
 
-The drill-down stops at the KPI. It does not return works, submissions or evidence.
+The dashboard drill-down stops at the KPI. The lines behind a score, their works, submissions and transactions are
+in `docs/api/TRACEABILITY_CONTRACT.md`.
 
 ## Errors
 

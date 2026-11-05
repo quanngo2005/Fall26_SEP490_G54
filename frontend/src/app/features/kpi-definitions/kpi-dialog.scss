@@ -1,0 +1,159 @@
+/* Additions to the shared dialog (shared/ui/dialog.scss) for the KPI dialogs. */
+.dialog-narrow {
+  width: min(480px, 100%);
+}
+
+.dialog-wide {
+  width: min(760px, 100%);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+
+  legend {
+    flex: 0 0 100%;
+    padding: 0;
+    margin-bottom: 4px;
+  }
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #0f172a;
+    font:
+      400 13px Inter,
+      sans-serif;
+  }
+}
+
+.section {
+  margin: 8px 0 0;
+  color: #1d4ed8;
+  font:
+    700 12px Inter,
+    sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+
+.hint-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  color: #64748b;
+  font:
+    400 12px Inter,
+    sans-serif;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #475569;
+  font:
+    400 12px Inter,
+    sans-serif;
+
+  summary {
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+}
+
+.hint {
+  color: #64748b;
+  font:
+    400 12px Inter,
+    sans-serif;
+}
+
+.is-readonly {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.decision-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .side {
+    color: #94a3b8;
+    font:
+      600 14px Inter,
+      sans-serif;
+
+    &.is-active.approve {
+      color: #047857;
+    }
+
+    &.is-active.reject {
+      color: #b91c1c;
+    }
+  }
+}
+
+.switch {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border: 0;
+  border-radius: 13px;
+  background: #dc2626;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &.is-approve {
+    background: #059669;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: 2px;
+  }
+
+  .knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 30%);
+    transition: transform 0.15s ease;
+  }
+
+  &.is-approve .knob {
+    transform: translateX(22px);
+  }
+}

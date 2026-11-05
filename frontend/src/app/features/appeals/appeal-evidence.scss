@@ -1,0 +1,50 @@
+.reason-text-box {
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e293b;
+  line-height: 1.5;
+}
+
+.evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  .evidence-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 13px;
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .file-name {
+      font-weight: 500;
+      color: #0f172a;
+    }
+    .file-size {
+      color: #64748b;
+      font-size: 12px;
+    }
+    .preview-btn {
+      border: 0;
+      background: transparent;
+      color: #2563eb;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}

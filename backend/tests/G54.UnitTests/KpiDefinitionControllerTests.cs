@@ -1,5 +1,8 @@
+using System.Reflection;
 using System.Security.Claims;
+using G54.Api.Authorization;
 using G54.Api.Controllers;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.KpiDefinition;
 using G54.BLL.Services;
@@ -161,6 +164,59 @@ public sealed class KpiDefinitionControllerTests
         Assert.Same(dto, service.SaveDto);
     }
 
+    [Fact]
+    public async Task Summary_ReturnsTheCounts()
+    {
+        var result = await CreateController(new RecordingService()).GetSummary(CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(24, Assert.IsType<ApiResponse<KpiSummaryDto>>(ok.Value).Data!.Total);
+    }
+
+    [Fact]
+    public async Task UsageAndHistory_ReturnTheDataOfAnExistingKpi()
+    {
+        var controller = CreateController(new RecordingService());
+
+        Assert.IsType<OkObjectResult>((await controller.GetUsage(Guid.NewGuid(), CancellationToken.None)).Result);
+        var history = Assert.IsType<OkObjectResult>((await controller.GetHistory(Guid.NewGuid(), CancellationToken.None)).Result);
+        Assert.Single(Assert.IsType<ApiResponse<IReadOnlyList<KpiHistoryEntryDto>>>(history.Value).Data!);
+    }
+
+    [Fact]
+    public async Task UsageAndHistory_OfAnUnknownKpi_AreNotFound()
+    {
+        var controller = CreateController(new RecordingService { Missing = true });
+
+        await Assert.ThrowsAsync<NotFoundException>(() => controller.GetUsage(Guid.NewGuid(), CancellationToken.None));
+        await Assert.ThrowsAsync<NotFoundException>(() => controller.GetHistory(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CodeSuggestion_ReturnsTheCodeForTheName()
+    {
+        var service = new RecordingService();
+
+        var result = await CreateController(service).SuggestCode("Tiền gửi", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("TIEN_GUI", Assert.IsType<ApiResponse<KpiCodeSuggestionDto>>(ok.Value).Data!.Code);
+        Assert.Equal("Tiền gửi", service.SuggestedFor);
+    }
+
+    [Theory]
+    [InlineData(nameof(KpiDefinitionController.SuggestCode))]
+    [InlineData(nameof(KpiDefinitionController.GetSummary))]
+    [InlineData(nameof(KpiDefinitionController.GetUsage))]
+    [InlineData(nameof(KpiDefinitionController.GetHistory))]
+    public void TheCatalogReads_NeedTheKpiReadPermission(string action)
+    {
+        var required = typeof(KpiDefinitionController).GetMethod(action)!.GetCustomAttribute<HasPermissionAttribute>();
+
+        Assert.NotNull(required);
+        Assert.Equal(("kpi", "read", "All"), (required.Resource, required.Action, required.Scope));
+    }
+
     private sealed class RecordingService : IKpiDefinitionService
     {
         public KpiDefinitionDto Created { get; init; } = Sample();
@@ -230,5 +286,22 @@ public sealed class KpiDefinitionControllerTests
             (AccountId, Id, Called, RejectDto) = (accountId, id, "reject", dto);
             return Task.CompletedTask;
         }
+
+        public string? SuggestedFor { get; private set; }
+
+        public Task<KpiCodeSuggestionDto> SuggestCodeAsync(string? name, CancellationToken cancellationToken = default)
+        {
+            SuggestedFor = name;
+            return Task.FromResult(new KpiCodeSuggestionDto("TIEN_GUI"));
+        }
+
+        public Task<KpiSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new KpiSummaryDto(24, 1, 2, 0, 18, 3, 0));
+
+        public Task<KpiUsageDto?> GetUsageAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<KpiUsageDto?>(Missing ? null : new KpiUsageDto([], 0, []));
+
+        public Task<IReadOnlyList<KpiHistoryEntryDto>?> GetHistoryAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<KpiHistoryEntryDto>?>(Missing ? null : [new KpiHistoryEntryDto(DateTimeOffset.UtcNow, "An", "CREATE", "Tạo")]);
     }
 }

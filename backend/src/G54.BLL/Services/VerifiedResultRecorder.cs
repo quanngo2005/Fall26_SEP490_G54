@@ -30,9 +30,10 @@ internal static class VerifiedResultRecorder
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        // A work item (Task ID) may contribute KPI to the system only once.
+        // A work item (Task ID) may contribute KPI to the system only once; a result QA sent back for rework no longer counts.
         var alreadyContributed = await db.WorkResultItems.AnyAsync(
-            i => i.VerifiedWorkResult.Verification!.ResultSubmission.WorkId == work.Id,
+            i => i.VerifiedWorkResult.Verification!.ResultSubmission.WorkId == work.Id
+                && i.VerifiedWorkResult.Status == VerifiedResultStatus.Valid,
             cancellationToken);
         if (alreadyContributed)
         {
@@ -295,6 +296,15 @@ internal static class VerifiedResultRecorder
                 UpdatedAt = now,
             };
             db.ActualProgresses.Add(progress);
+        }
+
+        // A day's row that QA rework emptied was marked INVALID by the database (invalidate_source_actual_progress);
+        // a new verified contribution makes it live again, starting from nothing.
+        if (progress.Status == ActualProgressStatus.Invalid)
+        {
+            progress.Status = ActualProgressStatus.Valid;
+            progress.Value = 0;
+            progress.Denominator = null;
         }
 
         progress.Value += value;

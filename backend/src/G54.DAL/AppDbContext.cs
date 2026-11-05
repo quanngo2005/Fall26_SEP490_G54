@@ -1941,6 +1941,8 @@ public partial class AppDbContext : DbContext
 
         ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        ConfigureKpiCatalog(modelBuilder);
+        ConfigureQualityAssurance(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("import_batch_pkey");
