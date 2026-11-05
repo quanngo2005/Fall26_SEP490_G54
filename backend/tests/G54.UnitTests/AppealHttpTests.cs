@@ -159,8 +159,6 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         await CheckAsync(invalid, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
         using var missingNote = await _client.PostAsJsonAsync($"/appeals/{acceptAppeal}/decision", new { decision = "ADJUST" });
         await CheckAsync(missingNote, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
-        using var negative = await _client.PostAsJsonAsync($"/appeals/{acceptAppeal}/decision", new { decision = "ACCEPT", verifiedValue = -1 });
-        await CheckAsync(negative, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
         using var missing = await _client.PostAsJsonAsync($"/appeals/{Guid.NewGuid()}/decision", new { decision = "ACCEPT" });
         await CheckAsync(missing, HttpStatusCode.NotFound, "NOT_FOUND");
         await DecideAsync(acceptAppeal, "ACCEPT", "APPROVED", "VERIFIED");
@@ -173,12 +171,12 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         Authenticate(_maker);
         var kpiAppeal = await FileAppealAsync(kpiSubmission);
         Authenticate(_checker);
-        using var kpiResponse = await _client.PostAsJsonAsync($"/appeals/{kpiAppeal}/decision", new { decision = "ACCEPT", verifiedValue = 12.5m });
+        using var kpiResponse = await _client.PostAsJsonAsync($"/appeals/{kpiAppeal}/decision", new { decision = "ACCEPT" });
         await CheckAsync(kpiResponse, HttpStatusCode.OK);
         await using (var kpiScope = _provider.CreateAsyncScope())
         {
             var db = kpiScope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var item = await db.WorkResultItems.AsNoTracking().SingleAsync(i => i.VerifiedWorkResult.Verification.ResultSubmissionId == kpiSubmission);
+            var item = await db.WorkResultItems.AsNoTracking().SingleAsync(i => i.VerifiedWorkResult.Verification!.ResultSubmissionId == kpiSubmission);
             Assert.Equal(_maker.EmployeeId, item.EmployeeId);
             Assert.Equal(12.5m, item.Value);
             Assert.Equal(12.5m, (await db.ActualProgresses.AsNoTracking().SingleAsync(p => p.Id == item.ActualProgressId)).Value);
@@ -337,7 +335,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         Assert.Equal(_checker.EmployeeId, appeal.ResolvedBy);
         Assert.Equal(submissionStatus, submission.Status);
         Assert.Equal(workStatus, submission.Work.Status);
-        Assert.Equal(resultCount, await db.VerifiedWorkResults.CountAsync(r => r.Verification.ResultSubmissionId == submissionId));
+        Assert.Equal(resultCount, await db.VerifiedWorkResults.CountAsync(r => r.Verification!.ResultSubmissionId == submissionId));
     }
 
     private async Task<Guid> AddRejectedSubmissionAsync()
@@ -500,6 +498,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         });
         var submission = await db.ResultSubmissions.Include(s => s.Work).SingleAsync(s => s.Id == submissionId);
         submission.Work.WorkTypeId = type.Id;
+        submission.Comment = G54.BLL.Services.ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 12.5m, null)]);
         await db.SaveChangesAsync();
     }
 

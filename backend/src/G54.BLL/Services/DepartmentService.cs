@@ -547,7 +547,7 @@ public sealed partial class DepartmentService(
             case KpiAggregationType.Sum:
                 return Round(rows.Sum(r => r.Value));
             case KpiAggregationType.Avg:
-                return Round(rows.Average(r => r.Value));
+                return Round(rows.Sum(r => r.Value) / rows.Sum(r => r.Denominator ?? 1m));
             case KpiAggregationType.Ratio:
                 var denominator = rows.Sum(r => r.Denominator ?? 0m);
                 if (denominator == 0m)

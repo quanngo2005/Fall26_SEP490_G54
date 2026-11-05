@@ -118,6 +118,13 @@ describe('Configured sidebar navigation', () => {
     expect(navigation.routeOptions).toContain('/department-performance');
     expect(navigation.routeOptions).toContain('/departments');
   });
+  it('links the configured Appeals menu item to the appeals workspace', () => {
+    current.and.returnValue(of([{ role: 'employee', itemIds: ['appeals'], version: 1 }]));
+    const navigation = TestBed.inject(NavigationService);
+    TestBed.tick();
+    expect(navigation.items().find((item) => item.id === 'appeals')?.route).toBe('/appeals');
+    expect(navigation.routeOptions).toContain('/appeals');
+  });
   it('links Work types to the work type list for an administrator and offers that URL for overrides', () => {
     user.update((value) => value && { ...value, roles: ['SYSTEM_ADMIN'] });
     current.and.returnValue(

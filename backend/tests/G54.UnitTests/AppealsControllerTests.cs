@@ -64,6 +64,55 @@ public sealed class AppealsControllerTests
     }
 
     [Fact]
+    public void CreateScoreAppeal_IsAMultipartPostUnderTheEvaluation()
+    {
+        var method = typeof(AppealsController).GetMethod(nameof(AppealsController.CreateScoreAppeal))!;
+
+        Assert.Equal("performance-evaluations/{evaluationId:guid}/appeals", method.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        Assert.Contains("multipart/form-data", method.GetCustomAttribute<ConsumesAttribute>()!.ContentTypes);
+    }
+
+    [Fact]
+    public async Task CreateScoreAppeal_Returns201WithLocationAndPassesTheCallerAndTheEvaluation()
+    {
+        var userId = Guid.NewGuid();
+        var evaluationId = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = ControllerFor(service, userId);
+
+        var result = await controller.CreateScoreAppeal(
+            evaluationId,
+            new CreateAppealRequestDto { Reason = "điểm sai" },
+            CancellationToken.None);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(AppealsController.GetAppealById), created.ActionName);
+        Assert.Equal(service.Detail.Id, created.RouteValues!["id"]);
+        Assert.Equal(userId, service.UserId);
+        Assert.Equal(evaluationId, service.EvaluationId);
+        Assert.Equal("điểm sai", service.Request!.Reason);
+    }
+
+    [Fact]
+    public async Task GetAppeals_PassesEveryFilterToTheService()
+    {
+        var service = new RecordingService();
+        var controller = ControllerFor(service, Guid.NewGuid());
+        var periodId = Guid.NewGuid();
+        var positionId = Guid.NewGuid();
+
+        await controller.GetAppeals(
+            new AppealFilterDto { Status = "OPEN,UNDER_REVIEW", Type = "SCORE", Scope = "TEAM", PeriodId = periodId, JobPositionId = positionId },
+            CancellationToken.None);
+
+        Assert.Equal("OPEN,UNDER_REVIEW", service.Filter!.Status);
+        Assert.Equal("SCORE", service.Filter.Type);
+        Assert.Equal("TEAM", service.Filter.Scope);
+        Assert.Equal(periodId, service.Filter.PeriodId);
+        Assert.Equal(positionId, service.Filter.JobPositionId);
+    }
+
+    [Fact]
     public void CreateAppeal_AcceptsMultipartForm()
     {
         var consumes = typeof(AppealsController).GetMethod(nameof(AppealsController.CreateAppeal))!
@@ -193,6 +242,16 @@ public sealed class AppealsControllerTests
         public Task<AppealDetailDto> DisputeScoreAsync(Guid appealId, Guid userId, ScoreDisputeRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AppealScoreSettingDto> GetScoreSettingAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<AppealScoreSettingDto> UpdateScoreSettingAsync(Guid userId, AppealScoreSettingDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AppealDetailDto> CreateScoreAppealAsync(Guid evaluationId, Guid userId, CreateAppealRequestDto request, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            EvaluationId = evaluationId;
+            UserId = userId;
+            Request = request;
+            return Task.FromResult(Detail);
+        }
+
+        public Guid EvaluationId { get; private set; }
         public int Calls { get; private set; }
         public Guid UserId { get; private set; }
         public Guid SubmissionId { get; private set; }
@@ -229,7 +288,8 @@ public sealed class AppealsControllerTests
             null,
             null,
             null,
-            []);
+            [],
+            "RESULT");
 
         public Task<AppealDetailDto> CreateAppealAsync(
             Guid submissionId,

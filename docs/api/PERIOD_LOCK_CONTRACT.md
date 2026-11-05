@@ -19,7 +19,7 @@ A guarded write that targets a locked period fails with **409 `PERIOD_LOCKED`**.
 
 | Endpoint | How the period is resolved |
 | --- | --- |
-| `POST /verifications/{submissionId}/decision` with `APPROVED` and a `verifiedValue` | the employee's `ACTIVE` target that covers today's business date (UTC+7); its `evaluationPeriodId` |
+| `POST /verifications/{submissionId}/decision` with `APPROVED` and submitted KPI metrics | the employee's `ACTIVE` target that covers today's business date (UTC+7); its `evaluationPeriodId` |
 | `POST /appeals/{id}/decision` with `ACCEPT` (records the verified result) | same as above |
 | `POST /target-assignments` | body `evaluationPeriodId` |
 | `POST /target-assignments/{id}/allocations` | the parent target's `evaluationPeriodId` |

@@ -220,6 +220,28 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             """));
     }
 
+    /// <summary>The "submit appeal" form lists the caller's latest rejected submission; the demo employee needs one to try it.</summary>
+    [PostgresFact]
+    public async Task DemoEmployeeHasOneRejectedSubmissionThatCanBeAppealed()
+    {
+        await using (var scope = fixture.Provider!.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");
+            await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");
+        }
+
+        Assert.Equal(["DEMO-REJECTED-NV012|NV012|REJECTED|REJECTED|NV011|0"], await QueryAsync("""
+            SELECT w.code || '|' || submitter.employee_code || '|' || w.status::text || '|' || s.status::text
+                || '|' || verifier.employee_code || '|' || (SELECT count(*) FROM appeal a WHERE a.result_submission_id = s.id)
+            FROM work w
+            JOIN result_submission s ON s.work_id = w.id
+            JOIN employee submitter ON submitter.id = s.submitter_employee_id
+            JOIN verification v ON v.result_submission_id = s.id AND v.decision = 'REJECTED'
+            JOIN employee verifier ON verifier.id = v.verifier_employee_id
+            WHERE w.code = 'DEMO-REJECTED-NV012' AND now() - v.verified_at < interval '48 hours'
+            """));
+    }
+
     [PostgresFact]
     public async Task SeedingAgainIsIdempotentAndRemovesRolesThatAnEarlierSeedAddedByMistake()
     {
@@ -295,13 +317,47 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
         Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^1]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^2]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^3]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^4]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^5]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^6]);
-        Assert.Equal("20261101164049_AddPerformanceContributionKpiProgressUniqueIndex", migrations[^7]);
-        Assert.Equal("20261101144049_AddAuditLogs", migrations[^8]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^2]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^3]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^4]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^5]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^6]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^7]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^8]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^9]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^10]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^11]);
+    }
+
+    [PostgresFact]
+    public async Task TheSidebarMigrationRemovesTheRetiredItemAndItsRouteAndKeepsTheRest()
+    {
+        await using var scope = fixture.Provider!.CreateAsyncScope();
+        var migrator = scope.ServiceProvider.GetRequiredService<AppDbContext>().GetService<IMigrator>();
+        await migrator.MigrateAsync("20261104090000_GrantAppealDecisionToBranchManager");
+        await ExecuteAsync("""
+            DELETE FROM sidebar_configurations WHERE role IN ('sidebar-old', 'sidebar-clean');
+            INSERT INTO sidebar_configurations (id, role, item_ids, version, routes, created_at, is_deleted)
+            VALUES
+              (gen_random_uuid(), 'sidebar-old', ARRAY['overview','reportsComplaints','appeals'], 3,
+               '{"reportsComplaints": "/home", "appeals": "/appeals"}'::jsonb, now(), false),
+              (gen_random_uuid(), 'sidebar-clean', ARRAY['overview','appeals'], 5, '{"appeals": "/appeals"}'::jsonb, now(), false);
+            """);
+
+        await migrator.MigrateAsync();
+        await migrator.MigrateAsync();
+
+        Assert.Equal(["appeals,overview|3|appeals"], await QueryAsync("""
+            SELECT (SELECT string_agg(i, ',' ORDER BY i) FROM unnest(item_ids) i) || '|' || version || '|'
+                   || (SELECT string_agg(k, ',') FROM jsonb_object_keys(routes) k)
+            FROM sidebar_configurations WHERE role = 'sidebar-old'
+            """));
+        Assert.Equal(["appeals,overview|5|appeals"], await QueryAsync("""
+            SELECT (SELECT string_agg(i, ',' ORDER BY i) FROM unnest(item_ids) i) || '|' || version || '|'
+                   || (SELECT string_agg(k, ',') FROM jsonb_object_keys(routes) k)
+            FROM sidebar_configurations WHERE role = 'sidebar-clean'
+            """));
+        await ExecuteAsync("DELETE FROM sidebar_configurations WHERE role IN ('sidebar-old', 'sidebar-clean')");
     }
 
     /// <summary>The role's grants as <c>CODE=Scope</c>, ordered.</summary>
@@ -322,6 +378,37 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
+    }
+
+    [PostgresFact]
+    public async Task ReconcileDemoDataIsSeededAndExistingWorkTypeKpisDefaultToCount()
+    {
+        // The rollback test in this class drops and recreates these tables empty; reseed (idempotent).
+        await using (var scope = fixture.Provider!.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");
+        }
+
+        var statuses = await QueryAsync("""
+            SELECT status || '/' || COALESCE(reason, '-') || '=' || count(*)
+            FROM work_transaction GROUP BY status, reason ORDER BY 1
+            """);
+        Assert.Equal(
+            ["IN_REVIEW/-=1", "MATCHED/-=2", "NOT_MATCHED/EMPLOYEE_MISMATCH=1", "NOT_MATCHED/PRODUCT_MISMATCH=1"],
+            statuses);
+
+        var sources = await QueryAsync("SELECT value_source || '=' || count(*) FROM work_type_kpi GROUP BY value_source");
+        Assert.Equal(["COUNT=10"], sources);
+
+        var credited = await QueryAsync("""
+            SELECT w.status || '/' || count(i.id)
+            FROM work w
+            JOIN work_transaction wt ON wt.work_id = w.id
+            JOIN verified_work_result vwr ON vwr.work_transaction_id = wt.id
+            JOIN work_result_item i ON i.verified_work_result_id = vwr.id
+            GROUP BY w.status
+            """);
+        Assert.Equal(["DONE/2"], credited);
     }
 
     private async Task<List<string>> QueryAsync(string sql)
