@@ -171,6 +171,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluation-profiles/:id',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
+        (m) => m.EvaluationProfileDetailComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>
@@ -282,6 +291,15 @@ export const routes: Routes = [
     title: 'Chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/approval',
+    canActivate: [authGuard],
+    title: 'Duyệt kế hoạch chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-approval.component').then(
+        (m) => m.CampaignApprovalComponent,
+      ),
   },
   {
     path: 'campaigns/:id',

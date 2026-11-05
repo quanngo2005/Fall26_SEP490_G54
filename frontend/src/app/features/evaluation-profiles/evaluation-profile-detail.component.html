@@ -1,0 +1,255 @@
+@let t = localization.evaluationProfileDetail;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && !profile()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{t.loading}}</p>
+        </div>
+      } @else if (notFound()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.notFound}}</p>
+          <a routerLink="/evaluation-profiles" class="button button-secondary">{{t.backToList}}</a>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="reload()">
+            {{localization.evaluationProfiles.retry}}
+          </button>
+        </div>
+      } @else if (profile(); as current) {
+        <p class="breadcrumb">
+          {{localization.evaluationProfiles.breadcrumbHome}} /
+          {{localization.evaluationProfiles.breadcrumbConfig}} /
+          <a routerLink="/evaluation-profiles">{{localization.evaluationProfiles.breadcrumbCurrent}}</a>
+          / {{current.name}} · {{periodText()}}
+        </p>
+
+        <section class="head-card">
+          <div>
+            <h1>{{current.name}}</h1>
+            <p class="subtitle">
+              {{t.position}}: {{current.jobPositionTitle}} · {{t.period}}:
+              {{periodText()}} · {{t.updated}}
+              {{i18n.formatDate(current.updatedAt, 'DD/MM/YYYY HH:mm')}}
+            </p>
+          </div>
+          <div class="head-actions">
+            <span
+              class="status-pill"
+              [class.is-active]="current.status === 'ACTIVE'"
+              [class.is-pending]="current.status === 'PENDING_APPROVAL'"
+              [class.is-rejected]="current.status === 'REJECTED'"
+            >
+              {{statusLabel(current.status)}}
+            </span>
+            @if (canDecide()) {
+              <button
+                type="button"
+                class="button button-secondary"
+                disabled
+                [title]="t.unavailable"
+              >
+                {{t.configureTier}}
+              </button>
+              <button
+                type="button"
+                class="button button-danger"
+                [disabled]="acting()"
+                (click)="openReject()"
+              >
+                {{t.reject}}
+              </button>
+              <button
+                type="button"
+                class="button button-primary"
+                [disabled]="acting()"
+                (click)="approve()"
+              >
+                {{acting() ? t.processing : t.approve}}
+              </button>
+            }
+          </div>
+        </section>
+
+        @if (current.status === 'PENDING_APPROVAL') {
+          <div class="warn-banner" role="note">
+            <strong>{{t.pendingTitle}}</strong>
+            <span>{{t.pendingBody}}</span>
+          </div>
+        } @else if (current.status === 'REJECTED' && current.rejectReason) {
+          <div class="warn-banner is-rejected" role="note">
+            <strong>{{t.rejectedTitle}}</strong>
+            <span>{{current.rejectReason}}</span>
+          </div>
+        }
+        @if (!rejecting() && actionError(); as message) {
+          <p class="action-error" role="alert">{{message}}</p>
+        }
+
+        <div class="tabs" role="tablist">
+          @for (item of tabs; track item; let index = $index) {
+            <button
+              type="button"
+              role="tab"
+              class="tab"
+              [class.is-active]="tab() === item"
+              [attr.aria-selected]="tab() === item"
+              (click)="tab.set(item)"
+            >
+              {{index + 1}}. {{tabLabel(item)}}
+            </button>
+          }
+        </div>
+
+        @if (tab() === 'criteria') {
+          <div class="table-card">
+            <table class="work-type-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{t.colGroup}}</th>
+                  <th scope="col">{{t.colKpi}}</th>
+                  <th scope="col" class="col-num">{{t.colWeight}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (root of current.items; track root.id) {
+                  <tr class="group-row">
+                    <td colspan="2">{{root.name}}</td>
+                    <td class="col-num">{{weightText(root.weightPercent)}}</td>
+                  </tr>
+                  @for (leaf of root.children; track leaf.id) {
+                    <tr>
+                      <td></td>
+                      <td>{{leaf.kpiCode}} · {{leaf.kpiName}}</td>
+                      <td class="col-num">{{weightText(leaf.weightPercent)}}</td>
+                    </tr>
+                  }
+                } @empty {
+                  <tr>
+                    <td colspan="3" class="empty-cell">{{t.noCriteria}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="state-card muted-card" role="note">
+            <p>{{t.unavailableTab}}</p>
+          </div>
+        }
+
+        <div class="summary-grid">
+          <section class="summary-card">
+            <header>
+              <h2>{{t.criteriaCard}}</h2>
+              @if (previous()) {
+                <span class="muted">{{t.comparedWith}} {{previousPeriodText()}}</span>
+              }
+            </header>
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{t.colCriteria}}</th>
+                  <th scope="col" class="col-num">{{periodText()}}</th>
+                  @if (previous()) {
+                    <th scope="col" class="col-num">{{previousPeriodText()}}</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of criteria(); track $index) {
+                  <tr>
+                    <td>{{row.kpi}}</td>
+                    <td
+                      class="col-num"
+                      [class.is-changed]="previous() && row.previous !== row.weight"
+                    >
+                      {{weightText(row.weight)}}
+                    </td>
+                    @if (previous()) {
+                      <td class="col-num muted">{{weightText(row.previous)}}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>{{t.total}}</td>
+                  <td class="col-num">{{weightText(criteriaTotal())}}</td>
+                  @if (previous()) {
+                    <td class="col-num muted">{{weightText(previousTotal())}}</td>
+                  }
+                </tr>
+              </tfoot>
+            </table>
+          </section>
+
+          <section class="summary-card">
+            <header>
+              <h2>{{t.tierCard}}</h2>
+            </header>
+            <p class="muted-note">{{t.unavailableTab}}</p>
+          </section>
+        </div>
+      }
+    </main>
+
+    @if (rejecting()) {
+      <div class="modal-backdrop">
+        <div
+          class="modal-dialog reject-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-title"
+        >
+          <header class="modal-header">
+            <h2 id="reject-title">{{t.rejectTitle}}</h2>
+            <button
+              type="button"
+              class="modal-close"
+              [attr.aria-label]="localization.common.close"
+              (click)="closeReject()"
+            >
+              ×
+            </button>
+          </header>
+          <div class="modal-body">
+            <label for="reject-reason">{{t.rejectReason}} <span class="required">*</span></label>
+            <textarea
+              id="reject-reason"
+              class="textarea"
+              [maxlength]="maxReason"
+              [(ngModel)]="reason"
+            ></textarea>
+            @if (actionError(); as message) {
+              <p class="action-error" role="alert">{{message}}</p>
+            }
+          </div>
+          <footer class="modal-footer">
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="acting()"
+              (click)="closeReject()"
+            >
+              {{t.cancel}}
+            </button>
+            <button
+              type="button"
+              class="button button-danger"
+              [disabled]="acting() || !reasonValid()"
+              (click)="reject()"
+            >
+              {{acting() ? t.processing : t.confirmReject}}
+            </button>
+          </footer>
+        </div>
+      </div>
+    }
+  </div>
+</div>

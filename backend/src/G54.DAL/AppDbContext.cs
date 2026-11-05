@@ -510,6 +510,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.FullName)
                 .HasMaxLength(200)
                 .HasColumnName("full_name");
+            entity.Property(e => e.HireDate).HasColumnName("hire_date");
             entity.Property(e => e.JobPositionId).HasColumnName("job_position_id");
             entity.Property(e => e.LastSyncAt)
                 .HasDefaultValueSql("now()")

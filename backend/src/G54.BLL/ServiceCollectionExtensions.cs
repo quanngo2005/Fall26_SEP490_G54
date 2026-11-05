@@ -1,4 +1,5 @@
 using G54.BLL.Common;
+using G54.BLL.Common.Import.Reading;
 using G54.BLL.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -57,6 +58,9 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
         services.AddHostedService<HandoverEscalationBackgroundService>();
+
+        services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
+        services.AddScoped<IEmployeeImportService, EmployeeImportService>();
         return services;
     }
 }
