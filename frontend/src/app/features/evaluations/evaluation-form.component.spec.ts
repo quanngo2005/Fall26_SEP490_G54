@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { convertToParamMap, ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
 import { EvaluationFormComponent } from './evaluation-form.component';
+import { EmployeeService } from '../../core/employee.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import {
   DepartmentEmployeeEvaluation,
@@ -11,6 +12,7 @@ import {
   EvaluationFormModel,
   EvaluationResult,
 } from '../../core/evaluation.models';
+import { EmployeeDetail } from '../../core/employee.models';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 
@@ -120,12 +122,15 @@ function buildForm(overrides: Partial<EvaluationFormModel> = {}): EvaluationForm
       comment: 'Saved comment',
       coachingPlan: 'plan',
       coachingRequired: true,
+      generalQualitativeScore: null,
     },
     canEdit: true,
     pendingSubmissionCount: 2,
     openAppealCount: 1,
     hasOpenDispute: false,
     previousPeriod: { periodCode: '2026-Q3', totalScore: 60, tier: 'B', scoreDifference: 3 },
+    qualitativeScoreMax: 200,
+    qualitativeGroupScoreMax: 100,
     ...overrides,
   };
 }
@@ -150,6 +155,7 @@ function rosterRow(employeeId: string): DepartmentEmployeeEvaluation {
     pendingSubmissionCount: 0,
     canEvaluate: true,
     updatedAt: null,
+    quantitativeScoreChange: null,
   };
 }
 
@@ -168,8 +174,12 @@ describe('EvaluationFormComponent', () => {
   let fixture: ComponentFixture<EvaluationFormComponent>;
   let component: EvaluationFormComponent;
   let api: jasmine.SpyObj<EvaluationService>;
+  let employees: jasmine.SpyObj<EmployeeService>;
   let router: Router;
   let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+
+  const address = (employeeCode: string, periodCode = '2026-Q4') =>
+    convertToParamMap({ periodCode, employeeCode });
 
   const text = () => TestBed.inject(I18nService).localization.evaluationForm;
 
@@ -191,15 +201,27 @@ describe('EvaluationFormComponent', () => {
       'form',
       'submit',
       'departmentEmployees',
+      'periods',
     ]);
-    query = new BehaviorSubject(convertToParamMap({ employeeId: 'e2', periodId: 'period-1' }));
+    api.periods.and.returnValue(
+      of([
+        { ...buildForm().period, id: 'period-1', code: '2026-Q4', isActive: true },
+        { ...buildForm().period, id: 'period-2', code: '2026-Q1', isActive: true },
+      ]),
+    );
+    employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['byCode']);
+    employees.byCode.and.callFake((code: string) =>
+      of({ id: code === 'NV004' ? 'e2' : code.toLowerCase() } as EmployeeDetail),
+    );
+    query = new BehaviorSubject(address('NV004'));
 
     await TestBed.configureTestingModule({
       imports: [EvaluationFormComponent],
       providers: [
         provideRouter([]),
         { provide: EvaluationService, useValue: api },
-        { provide: ActivatedRoute, useValue: { queryParamMap: query.asObservable() } },
+        { provide: EmployeeService, useValue: employees },
+        { provide: ActivatedRoute, useValue: { paramMap: query.asObservable() } },
         I18nService,
       ],
     })
@@ -434,7 +456,7 @@ describe('EvaluationFormComponent', () => {
   });
 
   it('does not call the form API when the query lacks the employee or the period', async () => {
-    query.next(convertToParamMap({ employeeId: 'e2' }));
+    query.next(convertToParamMap({ employeeCode: 'NV004' }));
     await create();
     expect(api.form).not.toHaveBeenCalled();
     expect(component.failure()).toBe('notFound');
@@ -443,7 +465,7 @@ describe('EvaluationFormComponent', () => {
 
   it('reloads when the query changes', async () => {
     await create();
-    query.next(convertToParamMap({ employeeId: 'e3', periodId: 'period-1' }));
+    query.next(address('E3'));
     expect(api.form).toHaveBeenCalledWith('e3', 'period-1');
   });
 
@@ -490,6 +512,19 @@ describe('EvaluationFormComponent', () => {
     expect(component.qualitativeAverage()).toBeNull();
   });
 
+  it('shows the single qualitative score in the card when the profile has no qualitative group', async () => {
+    await create(
+      buildForm({
+        criteriaGroups: [quantitativeGroup],
+        currentEvaluation: { ...buildForm().currentEvaluation, generalQualitativeScore: 65 },
+      }),
+    );
+    expect(component.qualitativeAverage()).toBe(65);
+
+    component.generalQualitativeScore.set(72);
+    expect(component.qualitativeAverage()).toBe(72);
+  });
+
   describe('edit gate', () => {
     it('allows saving when the API says the form is editable', async () => {
       await create();
@@ -508,13 +543,39 @@ describe('EvaluationFormComponent', () => {
 
     it('blocks saving while a qualitative score is out of range', async () => {
       await create();
-      component.setQualitativeScore('g-q', component.scoreMax + 1);
+      const max = component.groupScoreMax();
+      component.setQualitativeScore('g-q', max + 1);
       expect(component.scoreInvalid()).toBeTrue();
       expect(component.canSubmit()).toBeFalse();
       component.setQualitativeScore('g-q', component.scoreMin - 1);
       expect(component.scoreInvalid()).toBeTrue();
-      component.setQualitativeScore('g-q', component.scoreMax);
+      component.setQualitativeScore('g-q', max);
       expect(component.scoreInvalid()).toBeFalse();
+    });
+
+    it('takes the highest group score from the form, not from a fixed number', async () => {
+      await create(buildForm({ qualitativeGroupScoreMax: 60 }));
+      expect(component.groupScoreMax()).toBe(60);
+      component.setQualitativeScore('g-q', 61);
+      expect(component.scoreInvalid()).toBeTrue();
+      expect(component.scoreInvalidText()).toContain('60');
+      component.setQualitativeScore('g-q', 60);
+      expect(component.scoreInvalid()).toBeFalse();
+      expect(fixture.nativeElement.querySelector('.score-suffix').textContent).toContain('60');
+    });
+
+    it('names the single score maximum in the message when that box is out of range', async () => {
+      await create(
+        buildForm({
+          criteriaGroups: [quantitativeGroup],
+          qualitativeScoreMax: 150,
+          qualitativeGroupScoreMax: 60,
+        }),
+      );
+      component.generalQualitativeScore.set(151);
+      expect(component.scoreInvalid()).toBeTrue();
+      expect(component.scoreInvalidText()).toContain('150');
+      expect(component.scoreInvalidText()).not.toContain('60');
     });
   });
 
@@ -533,6 +594,7 @@ describe('EvaluationFormComponent', () => {
         coachingRequired: true,
         qualitativeScores: [{ evaluationProfileItemId: 'g-q', score: 90, notes: 'note' }],
         isDraft: true,
+        generalQualitativeScore: null,
       });
       expect(component.saveMessage()?.kind).toBe('success');
       expect(component.saveMessage()?.text).toBe(text().saveDraftSuccess);
@@ -665,9 +727,7 @@ describe('EvaluationFormComponent', () => {
       expect(component.hasUnsavedChanges()).toBeTrue();
       component.onNext();
       expect(confirmSpy).toHaveBeenCalledOnceWith(text().confirmDiscard);
-      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-        queryParams: { employeeId: 'e3', periodId: 'period-1' },
-      });
+      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form', '2026-Q4', 'E3']);
     });
 
     it('asks when a qualitative score was changed', async () => {
@@ -728,7 +788,7 @@ describe('EvaluationFormComponent', () => {
     it('does not reload the roster when moving to another employee of the same period', async () => {
       await create();
       api.form.and.returnValue(of(buildForm({ employee: { ...buildForm().employee, id: 'e3' } })));
-      query.next(convertToParamMap({ employeeId: 'e3', periodId: 'period-1' }));
+      query.next(address('E3'));
       expect(api.departmentEmployees).toHaveBeenCalledTimes(1);
     });
 
@@ -737,13 +797,9 @@ describe('EvaluationFormComponent', () => {
       expect(component.rosterIndex()).toBe(1);
       expect(component.navIndicatorText()).toBe('2 / 3');
       component.onPrev();
-      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-        queryParams: { employeeId: 'e1', periodId: 'period-1' },
-      });
+      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form', '2026-Q4', 'E1']);
       component.onNext();
-      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-        queryParams: { employeeId: 'e3', periodId: 'period-1' },
-      });
+      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form', '2026-Q4', 'E3']);
     });
 
     it('does not move past either end of the roster', async () => {
@@ -803,7 +859,7 @@ describe('EvaluationFormComponent', () => {
       );
       expect(component.comparisonText()).toContain('2');
       expect(component.comparisonText()).not.toBe(text().comparisonEqual);
-      query.next(convertToParamMap({ employeeId: 'e2', periodId: 'period-1' }));
+      query.next(address('NV004'));
       api.form.and.returnValue(
         of(
           buildForm({
@@ -811,7 +867,7 @@ describe('EvaluationFormComponent', () => {
           }),
         ),
       );
-      query.next(convertToParamMap({ employeeId: 'e2', periodId: 'period-2' }));
+      query.next(address('NV004', '2026-Q1'));
       expect(component.comparisonText()).toBe(text().comparisonEqual);
     });
 

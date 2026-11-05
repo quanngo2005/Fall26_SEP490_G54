@@ -51,7 +51,7 @@ public sealed class EvaluationFormTests
             context,
             NullLogger<EvaluationService>.Instance,
             new FakePermissionService(null, grants.ToArray()),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
     }
 
     private static async Task<Scenario> SeedAsync(AppDbContext context)

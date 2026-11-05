@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Linq.Expressions;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -10,6 +12,7 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -17,7 +20,8 @@ public sealed partial class EvaluationService(
     AppDbContext db,
     ILogger<EvaluationService> logger,
     IPermissionService permissions,
-    IPerformanceScoreCalculator calculator) : IEvaluationService
+    IPerformanceScoreCalculator calculator,
+    IOptions<SystemParametersOptions> parameters) : IEvaluationService
 {
     /// <summary>
     /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
@@ -193,7 +197,8 @@ public sealed partial class EvaluationService(
             existingEvaluation?.ApprovedAt,
             stored.Comment,
             stored.CoachingPlan,
-            !string.IsNullOrWhiteSpace(stored.CoachingPlan));
+            !string.IsNullOrWhiteSpace(stored.CoachingPlan),
+            stored.GeneralQualitativeScore);
 
         var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
             .GetValueOrDefault(employeeId);
@@ -228,7 +233,9 @@ public sealed partial class EvaluationService(
             pendingSubmissionCount,
             openAppealCount,
             hasOpenDispute,
-            previousPeriod);
+            previousPeriod,
+            parameters.Value.QualitativeScoreMax,
+            parameters.Value.QualitativeGroupScoreMax);
     }
 
     /// <summary>
@@ -371,7 +378,8 @@ public sealed partial class EvaluationService(
             request.QualitativeScores,
             stored.CalibrationData,
             stored.RecalibrationReason,
-            stored.ApprovalComments);
+            stored.ApprovalComments,
+            request.GeneralQualitativeScore);
         var now = DateTimeOffset.UtcNow;
 
         var evaluation = existingEvaluation;
@@ -487,6 +495,7 @@ public sealed partial class EvaluationService(
 
         var pendingSubmissions = await LoadPendingSubmissionCountsAsync(employeeIds, period, cancellationToken);
         var quantitativeScores = await LoadQuantitativeScoresAsync(employees, period, cancellationToken);
+        var previousQuantitativeScores = await LoadPreviousQuantitativeScoresAsync(employees, period, cancellationToken);
 
         var periodAcceptsEvaluation = period?.Status is PeriodStatus.Open or PeriodStatus.InReview;
         var submitDepartments = periodAcceptsEvaluation
@@ -505,12 +514,21 @@ public sealed partial class EvaluationService(
             decimal? qualitativeScore = null;
             if (pe is not null)
             {
-                var (_, _, qualScores, _, _, _) = ParseStoredComment(pe.Comment, logger);
-                if (qualScores.Count > 0)
+                var (_, _, qualScores, _, _, _, generalQualitativeScore) = ParseStoredComment(pe.Comment, logger);
+                if (generalQualitativeScore.HasValue)
+                {
+                    qualitativeScore = Math.Round(generalQualitativeScore.Value, 2);
+                }
+                else if (qualScores.Count > 0)
                 {
                     qualitativeScore = Math.Round(qualScores.Values.Average(q => q.Score), 2);
                 }
             }
+
+            var quantitativeScoreChange = quantitativeScores.GetValueOrDefault(emp.Id) is { } currentQuantitative
+                && previousQuantitativeScores.GetValueOrDefault(emp.Id) is { } previousQuantitative
+                    ? Math.Round(currentQuantitative - previousQuantitative, 2)
+                    : (decimal?)null;
 
             var hasOpenDispute = pe?.IsDisputedPending() == true || employeesWithOpenAppeal.Contains(emp.Id);
             var canEvaluate = periodAcceptsEvaluation
@@ -537,8 +555,34 @@ public sealed partial class EvaluationService(
                 hasOpenDispute,
                 pendingSubmissions.GetValueOrDefault(emp.Id),
                 canEvaluate,
-                pe?.UpdatedAt);
+                pe?.UpdatedAt,
+                quantitativeScoreChange);
         }).ToList();
+    }
+
+    /// <summary>
+    /// Quantitative scores of the latest earlier period of the same type, scored by the same calculation as the current
+    /// period so the two are comparable. No earlier period means no comparison (empty), never a zero.
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal?>> LoadPreviousQuantitativeScoresAsync(
+        List<Employee> employees,
+        EvaluationPeriod? period,
+        CancellationToken cancellationToken)
+    {
+        if (period is null)
+        {
+            return [];
+        }
+
+        var previousPeriod = await db.EvaluationPeriods
+            .AsNoTracking()
+            .Where(p => p.PeriodType == period.PeriodType && p.EndDate < period.StartDate)
+            .OrderByDescending(p => p.EndDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return previousPeriod is null
+            ? []
+            : await LoadQuantitativeScoresAsync(employees, previousPeriod, cancellationToken);
     }
 
     /// <summary>Submitted or under-review result submissions of each employee that were submitted inside the period.</summary>
@@ -680,7 +724,7 @@ public sealed partial class EvaluationService(
 
             risksGroup.TryGetValue(emp.Id, out var empRisks);
 
-            var (_, coachingPlan, _, calibData, _, _) = ParseStoredComment(pe?.Comment, logger);
+            var (_, coachingPlan, _, calibData, _, _, _) = ParseStoredComment(pe?.Comment, logger);
 
             var (businessScore, serviceQualityScore, operationsScore, qualitativeScore, totalScore) =
                 ComputeEmployeeScores(pe, scoredByEmployee.GetValueOrDefault(emp.Id));
@@ -922,7 +966,7 @@ public sealed partial class EvaluationService(
             {
                 // Only the calibration marker is owned here; every other stored part (including qualitative
                 // entries the reader skips) is preserved as is.
-                var (existingText, _, _, _, _, _) = ParseStoredComment(existingPe.Comment, logger);
+                var (existingText, _, _, _, _, _, _) = ParseStoredComment(existingPe.Comment, logger);
                 var baseComment = existingText is null && !string.IsNullOrWhiteSpace(request.Notes)
                     ? $"{request.Notes.Trim()}\n\n{existingPe.Comment}"
                     : existingPe.Comment;
@@ -1075,7 +1119,7 @@ public sealed partial class EvaluationService(
 
             foreach (var pe in deptEvaluations)
             {
-                var (_, _, _, calib, recalibReason, _) = ParseStoredComment(pe.Comment, logger);
+                var (_, _, _, calib, recalibReason, _, _) = ParseStoredComment(pe.Comment, logger);
                 if (recalibReason != null)
                 {
                     reviewerComment = recalibReason;
@@ -2047,10 +2091,16 @@ public sealed partial class EvaluationService(
     /// Content check of the free-text fields of the evaluation form, run before anything is read or saved. Their length is
     /// limited by the validation attributes of <see cref="SubmitEvaluationRequestDto"/>.
     /// </summary>
-    private static void ValidateSubmitText(SubmitEvaluationRequestDto request)
+    private void ValidateSubmitText(SubmitEvaluationRequestDto request)
     {
         EnsureNoMarkerSyntax(request.Comment, "Comment");
         EnsureNoMarkerSyntax(request.CoachingPlan, "CoachingPlan");
+
+        var max = parameters.Value.QualitativeScoreMax;
+        if (request.GeneralQualitativeScore is < 0m || request.GeneralQualitativeScore > max)
+        {
+            throw new ValidationException($"Điểm định tính phải nằm trong khoảng từ 0 đến {max.ToString("0.##", CultureInfo.InvariantCulture)}.");
+        }
     }
 
     /// <summary>
@@ -2058,7 +2108,7 @@ public sealed partial class EvaluationService(
     /// catalog group id), a duplicate id, an id that is not a root group of the profile, and a group that owns an active
     /// KPI (its score comes from the KPIs, a reviewer's score never overrides it).
     /// </summary>
-    private static Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
+    private Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
         IEnumerable<QualitativeScoreInputDto>? inputs,
         IReadOnlyList<ProfileNode> roots)
     {
@@ -2084,11 +2134,11 @@ public sealed partial class EvaluationService(
                     $"Nhóm \"{EvaluationProfileTree.NodeName(root)}\" có KPI đang hoạt động nên điểm của nhóm lấy từ KPI, không nhận điểm định tính.");
             }
 
-            // A qualitative score is a percentage of its group, so it runs from 0 to the percent scale.
-            if (input.Score is < 0m or > 100m)
+            var groupMax = parameters.Value.QualitativeGroupScoreMax;
+            if (input.Score < 0m || input.Score > groupMax)
             {
                 throw new ValidationException(
-                    $"Điểm định tính của nhóm \"{EvaluationProfileTree.NodeName(root)}\" phải nằm trong khoảng từ 0 đến 100.");
+                    $"Điểm định tính của nhóm \"{EvaluationProfileTree.NodeName(root)}\" phải nằm trong khoảng từ 0 đến {groupMax.ToString("0.##", CultureInfo.InvariantCulture)}.");
             }
 
             if (!result.TryAdd(input.EvaluationProfileItemId, input))
@@ -2114,6 +2164,9 @@ public sealed partial class EvaluationService(
     [GeneratedRegex(@"<!--\s*QUALITATIVE_JSON:\s*(.*?)\s*-->", RegexOptions.Singleline)]
     private static partial Regex QualitativeMarkerRegex();
 
+    [GeneratedRegex(@"<!--\s*GENERAL_QUALITATIVE_SCORE:\s*(.*?)\s*-->", RegexOptions.Singleline)]
+    private static partial Regex GeneralQualitativeScoreMarkerRegex();
+
     [GeneratedRegex(@"<!--\s*CALIBRATION_JSON:\s*(.*?)\s*-->", RegexOptions.Singleline)]
     private static partial Regex CalibrationMarkerRegex();
 
@@ -2134,7 +2187,8 @@ public sealed partial class EvaluationService(
         Dictionary<Guid, QualitativeScoreInputDto> QualitativeScores,
         InternalCalibrationData? CalibrationData,
         string? RecalibrationReason,
-        string? ApprovalComments);
+        string? ApprovalComments,
+        decimal? GeneralQualitativeScore = null);
 
     private static readonly Action<ILogger, Guid, Exception?> LogQualitativeEntryIgnored =
         LoggerMessage.Define<Guid>(
@@ -2154,7 +2208,8 @@ public sealed partial class EvaluationService(
         List<QualitativeScoreInputDto>? qualitativeScores,
         InternalCalibrationData? calibrationData = null,
         string? recalibrationReason = null,
-        string? approvalComments = null)
+        string? approvalComments = null,
+        decimal? generalQualitativeScore = null)
     {
         var trimmedComment = comment?.Trim();
         var markers = new List<string>();
@@ -2162,6 +2217,11 @@ public sealed partial class EvaluationService(
         if (!string.IsNullOrWhiteSpace(coachingPlan))
         {
             markers.Add($"<!-- COACHING_PLAN: {coachingPlan.Trim()} -->");
+        }
+
+        if (generalQualitativeScore.HasValue)
+        {
+            markers.Add($"<!-- GENERAL_QUALITATIVE_SCORE: {generalQualitativeScore.Value.ToString(CultureInfo.InvariantCulture)} -->");
         }
 
         if (qualitativeScores is { Count: > 0 })
@@ -2317,7 +2377,26 @@ public sealed partial class EvaluationService(
             working = working.Replace(approvalMatch.Value, "");
         }
 
+        decimal? generalQualitativeScore = null;
+        var generalMatch = GeneralQualitativeScoreMarkerRegex().Match(working);
+        if (generalMatch.Success)
+        {
+            if (decimal.TryParse(generalMatch.Groups[1].Value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+            {
+                generalQualitativeScore = parsed;
+            }
+
+            working = working.Replace(generalMatch.Value, "");
+        }
+
         var clean = working.Trim();
-        return new StoredComment(string.IsNullOrEmpty(clean) ? null : clean, coachingPlan, qualDict, calibData, recalibrationReason, approvalComments);
+        return new StoredComment(
+            string.IsNullOrEmpty(clean) ? null : clean,
+            coachingPlan,
+            qualDict,
+            calibData,
+            recalibrationReason,
+            approvalComments,
+            generalQualitativeScore);
     }
 }

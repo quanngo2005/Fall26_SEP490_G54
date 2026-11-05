@@ -90,7 +90,8 @@ public sealed record PerformanceEvaluationStateDto(
     DateTimeOffset? ApprovedAt,
     string? Comment,
     string? CoachingPlan,
-    bool CoachingRequired);
+    bool CoachingRequired,
+    decimal? GeneralQualitativeScore = null);
 
 public sealed record PreviousPeriodSummaryDto(
     string PeriodCode,
@@ -110,7 +111,9 @@ public sealed record EvaluationFormDto(
     int PendingSubmissionCount,
     int OpenAppealCount,
     bool HasOpenDispute,
-    PreviousPeriodSummaryDto? PreviousPeriod);
+    PreviousPeriodSummaryDto? PreviousPeriod,
+    decimal QualitativeScoreMax,
+    decimal QualitativeGroupScoreMax);
 
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,
@@ -124,7 +127,8 @@ public sealed record SubmitEvaluationRequestDto(
     [param: StringLength(1000, ErrorMessage = "Kế hoạch kèm cặp không vượt quá 1000 ký tự.")] string? CoachingPlan = null,
     bool CoachingRequired = false,
     List<QualitativeScoreInputDto>? QualitativeScores = null,
-    bool IsDraft = false);
+    bool IsDraft = false,
+    decimal? GeneralQualitativeScore = null);
 
 public sealed record EvaluationResultDto(
     Guid EvaluationId,
@@ -164,4 +168,5 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     bool HasOpenDispute,
     int PendingSubmissionCount,
     bool CanEvaluate,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    decimal? QuantitativeScoreChange);

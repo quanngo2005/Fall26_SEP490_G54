@@ -39,7 +39,7 @@ public sealed class EvaluationServiceTests
             new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"),
             new UserPermissionDto("evaluation", "finalize", "All", "EVALUATION_FINALIZE"));
         var service = new EvaluationService(
-            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
         return (context, service);
     }
 
@@ -379,6 +379,27 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
+    public async Task GetDepartmentEmployeesForEvaluationAsync_ShowsGeneralQualitativeScore_WhenOneWasSaved()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        // Above the 0-100 group scale, so the value can only be accepted by the configured qualitative maximum.
+        const decimal generalScore = 150m;
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                EmployeeId: staff.Id,
+                PeriodId: period.Id,
+                IsDraft: true,
+                GeneralQualitativeScore: generalScore),
+            manager.Id);
+
+        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, staff.DepartmentId, manager.Id);
+
+        Assert.Equal(generalScore, rows.Single(r => r.EmployeeId == staff.Id).QualitativeScore);
+    }
+
+    [Fact]
     public async Task SubmitEvaluationAsync_DeductsRiskPenalty_WhenRiskEventsOccurred()
     {
         var (context, service) = CreateTestEnvironment();
@@ -573,7 +594,7 @@ public sealed class EvaluationServiceTests
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
         var service = new EvaluationService(
-            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
         await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
@@ -1101,7 +1122,7 @@ public sealed class EvaluationServiceTests
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
             new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
 
     [Fact]
     public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()
@@ -1145,6 +1166,49 @@ public sealed class EvaluationServiceTests
 
         Assert.Equal(400, ex.StatusCode);
         Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    private static EvaluationService CreateServiceWithGroupScoreMax(AppDbContext context, decimal groupScoreMax) =>
+        new(context, NullLogger<EvaluationService>.Instance, new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = groupScoreMax }));
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_RejectsAGroupScoreAboveTheConfiguredGroupMax()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+        var service = CreateServiceWithGroupScoreMax(context, groupScoreMax: 60m);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 61m)], IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Contains("60", ex.Message);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_AcceptsAGroupScoreUpToTheConfiguredGroupMax()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+        var service = CreateServiceWithGroupScoreMax(context, groupScoreMax: 150m);
+
+        // Above 100, so it only passes because the configured maximum is read, not a fixed 100.
+        var result = await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 150m)], IsDraft: true),
+            manager.Id);
+
+        Assert.Equal(staff.Id, result.EmployeeId);
     }
 
     [Fact]
@@ -1917,7 +1981,7 @@ public sealed class EvaluationServiceTests
                 new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
                 new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
                 new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE")),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
         return (context, check, service, interceptor);
     }
 
