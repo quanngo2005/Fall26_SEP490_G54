@@ -82,6 +82,13 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         "NV012=EMPLOYEE",
         "NV013=SYSTEM_ADMIN",
         "NV014=VERIFIER",
+        "NV015=DEPT_MANAGER",
+        "NV016=EMPLOYEE",
+        "NV017=EMPLOYEE",
+        "NV018=DEPT_MANAGER",
+        "NV019=EMPLOYEE",
+        "NV020=DEPT_MANAGER",
+        "NV021=EMPLOYEE",
     ];
 
     [PostgresFact]
@@ -97,7 +104,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             ORDER BY e.employee_code
             """);
 
-        Assert.Equal(14, perAccount.Count);
+        Assert.Equal(21, perAccount.Count);
         Assert.All(perAccount, row => Assert.EndsWith("=1", row, StringComparison.Ordinal));
     }
 

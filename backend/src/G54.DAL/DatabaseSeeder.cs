@@ -10,14 +10,16 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
 
     // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
-    // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, the rest employees.
+    // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, NV015/NV018/NV020 heads of the extra departments (department managers), the rest employees.
     private const string DemoUserRolesSql = """
         WITH demo(employee_code, role_code) AS (VALUES
             ('NV001', 'BRANCH_MANAGER'),
             ('NV002', 'DEPT_MANAGER'), ('NV003', 'DEPT_MANAGER'), ('NV011', 'DEPT_MANAGER'),
+            ('NV015', 'DEPT_MANAGER'), ('NV018', 'DEPT_MANAGER'), ('NV020', 'DEPT_MANAGER'),
             ('NV004', 'EMPLOYEE'), ('NV005', 'EMPLOYEE'), ('NV006', 'EMPLOYEE'),
             ('NV007', 'EMPLOYEE'), ('NV008', 'EMPLOYEE'), ('NV009', 'EMPLOYEE'),
             ('NV010', 'EMPLOYEE'), ('NV012', 'EMPLOYEE'),
+            ('NV016', 'EMPLOYEE'), ('NV017', 'EMPLOYEE'), ('NV019', 'EMPLOYEE'), ('NV021', 'EMPLOYEE'),
             ('NV013', 'SYSTEM_ADMIN'),
             ('NV014', 'VERIFIER')
         ),

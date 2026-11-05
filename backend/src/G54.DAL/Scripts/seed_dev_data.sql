@@ -13,7 +13,9 @@
 -- Organization
 --   Chi nhánh Hà Nội
 --   ├─ Phòng Kinh doanh  -> Nhóm KD 1, Nhóm KD 2      (SALES)
---   └─ Phòng Giao dịch   -> Quầy 1, Quầy 2            (TELLER)
+--   ├─ Phòng Giao dịch   -> Quầy 1, Quầy 2            (TELLER)
+--   ├─ Phòng KHCN, Phòng KHDN                         (SALES, no teams; extra departments for the 2027 allocation)
+--   └─ Phòng Dịch vụ KH                               (TELLER, no teams)
 -- ---------------------------------------------------------------------------
 INSERT INTO department (id, code, name, description, parent_department_id, level_type) VALUES
  ('5eed0000-0000-0000-0001-000000000001', 'CN-HN',       'Chi nhánh Hà Nội',      'Chi nhánh trọng tâm của hệ thống', NULL,                                   'BRANCH'),
@@ -22,7 +24,10 @@ INSERT INTO department (id, code, name, description, parent_department_id, level
  ('5eed0000-0000-0000-0001-000000000004', 'CN-HN-KD-N1', 'Nhóm Kinh doanh 1',     'Sales - khách hàng cá nhân',       '5eed0000-0000-0000-0001-000000000002', 'TEAM'),
  ('5eed0000-0000-0000-0001-000000000005', 'CN-HN-KD-N2', 'Nhóm Kinh doanh 2',     'Sales - hộ kinh doanh',            '5eed0000-0000-0000-0001-000000000002', 'TEAM'),
  ('5eed0000-0000-0000-0001-000000000006', 'CN-HN-GD-Q1', 'Nhóm Giao dịch Quầy 1', 'Teller - quầy tiền gửi',           '5eed0000-0000-0000-0001-000000000003', 'TEAM'),
- ('5eed0000-0000-0000-0001-000000000007', 'CN-HN-GD-Q2', 'Nhóm Giao dịch Quầy 2', 'Teller - quầy dịch vụ',            '5eed0000-0000-0000-0001-000000000003', 'TEAM')
+ ('5eed0000-0000-0000-0001-000000000007', 'CN-HN-GD-Q2', 'Nhóm Giao dịch Quầy 2', 'Teller - quầy dịch vụ',            '5eed0000-0000-0000-0001-000000000003', 'TEAM'),
+ ('5eed0000-0000-0000-0001-000000000008', 'CN-HN-KHCN',  'Phòng Khách hàng cá nhân',     'Khối bán hàng (Sales) - khách hàng cá nhân',  '5eed0000-0000-0000-0001-000000000001', 'DEPARTMENT'),
+ ('5eed0000-0000-0000-0001-000000000009', 'CN-HN-KHDN',  'Phòng Khách hàng doanh nghiệp', 'Khối bán hàng (Sales) - khách hàng doanh nghiệp', '5eed0000-0000-0000-0001-000000000001', 'DEPARTMENT'),
+ ('5eed0000-0000-0000-0001-00000000000a', 'CN-HN-DVKH',  'Phòng Dịch vụ khách hàng',    'Khối giao dịch viên (Teller) - dịch vụ khách hàng', '5eed0000-0000-0000-0001-000000000001', 'DEPARTMENT')
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -143,11 +148,18 @@ WHERE id IN ('5eed0000-0000-0000-0002-000000000001', '5eed0000-0000-0000-0002-00
 -- ACTIVE EvaluationProfile, used in phase 2 to find each department's headcount per KPI. These are separate,
 -- flat profiles (not the performance-evaluation profiles above) so they don't disturb their weight-100 tree;
 -- effective_from is offset by a day because (job_position_id, effective_from) is unique.
+-- They apply from 2027 (the year after the sample): 2026 evaluations keep using EP-SALES / EP-TELLER, whose KPIs the
+-- 2026 targets and progress are seeded for.
 -- Sales (file groups A-D) -> SALES; Service/Operations (file groups E-F) -> TELLER.
 INSERT INTO evaluation_profile (id, job_position_id, code, name, description, version, effective_from, status) VALUES
- ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES-YEARKPI',  'Hồ sơ KPI năm - Kinh doanh', 'Liên kết KPI_* nhóm A-D cho Phân bổ chỉ tiêu năm (phase 2).',             1, '2026-06-01', 'ACTIVE'),
- ('5eed0000-0000-0000-0002-000000000004', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER-YEARKPI', 'Hồ sơ KPI năm - Dịch vụ & Vận hành', 'Liên kết KPI_* nhóm E-F cho Phân bổ chỉ tiêu năm (phase 2).', 1, '2026-06-01', 'ACTIVE')
+ ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES-YEARKPI',  'Hồ sơ KPI năm - Kinh doanh', 'Liên kết KPI_* nhóm A-D cho Phân bổ chỉ tiêu năm (phase 2).',             1, '2027-01-01', 'ACTIVE'),
+ ('5eed0000-0000-0000-0002-000000000004', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER-YEARKPI', 'Hồ sơ KPI năm - Dịch vụ & Vận hành', 'Liên kết KPI_* nhóm E-F cho Phân bổ chỉ tiêu năm (phase 2).', 1, '2027-01-01', 'ACTIVE')
 ON CONFLICT DO NOTHING;
+-- Databases seeded earlier carry the profiles with the old date.
+UPDATE evaluation_profile SET effective_from = '2027-01-01'
+WHERE id IN ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0002-000000000004')
+  AND effective_from = '2026-06-01';
+
 
 INSERT INTO evaluation_profile_item (id, evaluation_profile_id, parent_item_id, kpi_definition_id, name, weight_percent, display_order) VALUES
  ('5eed0000-0000-0000-0004-000000000301', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000101', NULL, 5.2632, 1),
@@ -196,6 +208,18 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
  ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000b'),
  ('5eed0000-0000-0000-0007-00000000000d', 'NV013', 'Demo System Admin', 'sysadmin@bpms.com',     '0901000013', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-0006-000000000001', NULL),
  ('5eed0000-0000-0000-0007-00000000000e', 'NV014', 'Demo Verifier',     'verifier@bpms.com',     '0901000014', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001')
+ON CONFLICT DO NOTHING;
+
+-- NV015-NV021: staff of the extra departments (KHCN, KHDN: SALES; DVKH: TELLER), so each has headcount in the
+-- 2027 allocation grid. The first of each department is its head.
+INSERT INTO employee (id, employee_code, full_name, email, phone, department_id, job_position_id, manager_id) VALUES
+ ('5eed0000-0000-0000-0007-00000000000f', 'NV015', 'Trịnh Hoài Nam',   'nam.trinh@progest.local',   '0901000015', '5eed0000-0000-0000-0001-000000000008', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
+ ('5eed0000-0000-0000-0007-000000000010', 'NV016', 'Lương Thị Hạnh',   'hanh.luong@progest.local',  '0901000016', '5eed0000-0000-0000-0001-000000000008', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000f'),
+ ('5eed0000-0000-0000-0007-000000000011', 'NV017', 'Cao Văn Long',     'long.cao@progest.local',    '0901000017', '5eed0000-0000-0000-0001-000000000008', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000f'),
+ ('5eed0000-0000-0000-0007-000000000012', 'NV018', 'Mai Quang Huy',    'huy.mai@progest.local',     '0901000018', '5eed0000-0000-0000-0001-000000000009', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
+ ('5eed0000-0000-0000-0007-000000000013', 'NV019', 'Đinh Thị Phương',  'phuong.dinh@progest.local', '0901000019', '5eed0000-0000-0000-0001-000000000009', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000012'),
+ ('5eed0000-0000-0000-0007-000000000014', 'NV020', 'Tạ Minh Tuấn',     'tuan.ta@progest.local',     '0901000020', '5eed0000-0000-0000-0001-00000000000a', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000001'),
+ ('5eed0000-0000-0000-0007-000000000015', 'NV021', 'Phan Thùy Linh',   'linh.phan@progest.local',   '0901000021', '5eed0000-0000-0000-0001-00000000000a', '5eed0000-0000-0000-0006-000000000002', '5eed0000-0000-0000-0007-000000000014')
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -620,6 +644,368 @@ JOIN target_assignment ta ON ta.id = f.target_id::uuid
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
+-- 2026 Q1-Q3 detail: every employee quarter target split by month (HDV, KH_MOI, DU_NO), the teams/employees still
+-- missing in Q3 and below the DU_NO departments, and progress for Jan-Aug. September onwards is progress of the
+-- evaluation sample below, which reuses these month targets. Oanh has no DU_NO target (N/A sample).
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+FROM (VALUES
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000005-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000005-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000005-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000006-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000006-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000006-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000007-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000007-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000007-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000008-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000008-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000008-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000009-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000009-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000009-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-00000000000a-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-00000000000a-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-00000000000a-2026-Q1', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000004-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000004-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000004-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000005-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000005-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000005-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000006-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000006-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000006-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000007-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000007-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000007-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000008-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000008-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000008-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000009-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000009-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000009-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-00000000000a-2026-Q2', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-00000000000a-2026-Q2', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-00000000000a-2026-Q2', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000004-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000004-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000004-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000005-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000005-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000005-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000006-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000006-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000006-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000007-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000007-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000007-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-CSAT--5eed0000-0000-0000-0007-00000000000a-2026-Q3', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-00000000000a-2026-Q3', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2026-TUAN_THU--5eed0000-0000-0000-0007-00000000000a-2026-Q3', 'TUAN_THU', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3', NULL::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text)
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+FROM (VALUES
+    ('2026-HDV-5eed0000-0000-0000-0001-000000000006--2026-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 180, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-HDV-5eed0000-0000-0000-0001-000000000007--2026-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH-5eed0000-0000-0000-0001-000000000004--2026-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 70, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH-5eed0000-0000-0000-0001-000000000005--2026-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000004--2026-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q1', 'ORG'::target_split_dimension, 98, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000005--2026-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q1', 'ORG'::target_split_dimension, 92, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000006--2026-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q1', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000007--2026-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q1', 'ORG'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000004--2026-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q2', 'ORG'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000005--2026-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q2', 'ORG'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000006--2026-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q2', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000007--2026-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q2', 'ORG'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000004--2026-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 115, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000005--2026-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 115, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000006--2026-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 69, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO-5eed0000-0000-0000-0001-000000000007--2026-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 51, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+FROM (VALUES
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 85, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 36, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 50, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 48, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1', 'ORG'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 57, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 53, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 48, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2', 'ORG'::target_split_dimension, 25, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 59, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 56, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 54, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 61, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+FROM (VALUES
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 51, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 40, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 48, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 44, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 40, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 48, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 36, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 6, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 56, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 24, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 25, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 22, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 22, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 35, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 56, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 62, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 56, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000005-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 62, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000006-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000007-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 59, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 29, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 35, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3'),
+    ('2026-HDV--5eed0000-0000-0000-0007-00000000000a-2026-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 44, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000004-2026-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000005-2026-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000006-2026-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-KH--5eed0000-0000-0000-0007-000000000007-2026-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 5, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 5, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 4, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 5, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-03', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q1'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 20, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-04', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-05', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q2'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000004-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 22, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000005-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000006-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 20, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000007-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000008-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-08', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3'),
+    ('2026-DU_NO--5eed0000-0000-0000-0007-000000000009-2026-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+-- Progress for the 2026 employee months seeded above (Jan-Aug; September onwards comes from the evaluation sample below).
+-- Fixed per-row factor 0.78-1.18, not random, so every run gives the same data.
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT md5('progest-actual-2026-' || ta.id::text)::uuid,
+       ta.id,
+       (p.start_date + 14),
+       round(ta.target_value * (0.78 + (abs(hashtext(ta.id::text)) % 41) / 100.0), 0),
+       'VALID'::actual_progress_status
+FROM target_assignment ta
+JOIN evaluation_period p ON p.id = ta.evaluation_period_id AND p.period_type = 'MONTH'
+JOIN kpi_definition k ON k.id = ta.kpi_definition_id AND k.code IN ('HDV', 'KH_MOI', 'DU_NO')
+WHERE ta.employee_id IS NOT NULL
+  AND p.start_date >= '2026-01-01' AND p.start_date < '2026-09-01'
+ON CONFLICT DO NOTHING;
+
+-- Progress of the standalone quality targets (CSAT, error rate, compliance): one value per month, July and August
+-- only in Q3 (September comes from the evaluation sample). RATIO rows use denominator 100 like the sample does.
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, denominator, status)
+SELECT md5('progest-actual-quality-' || ta.id::text || '-' || m.n::text)::uuid,
+       ta.id,
+       ((p.start_date + (m.n * interval '1 month'))::date + 14),
+       CASE k.code
+           WHEN 'CSAT' THEN LEAST(5, round(ta.target_value * (0.85 + (abs(hashtext(ta.id::text || m.n::text)) % 25) / 100.0), 2))
+           WHEN 'TY_LE_LOI' THEN round(ta.target_value * (0.7 + (abs(hashtext(ta.id::text || m.n::text)) % 60) / 100.0), 2)
+           ELSE LEAST(100, round(ta.target_value * (0.9 + (abs(hashtext(ta.id::text || m.n::text)) % 11) / 100.0), 2))
+       END,
+       CASE WHEN k.aggregation_type = 'RATIO' THEN 100::numeric END,
+       'VALID'::actual_progress_status
+FROM target_assignment ta
+JOIN evaluation_period p ON p.id = ta.evaluation_period_id AND p.period_type = 'QUARTER'
+JOIN kpi_definition k ON k.id = ta.kpi_definition_id AND k.code IN ('CSAT', 'TY_LE_LOI', 'TUAN_THU')
+CROSS JOIN generate_series(0, 2) AS m(n)
+WHERE ta.employee_id IS NOT NULL AND p.start_date >= '2026-01-01' AND p.start_date < '2026-10-01'
+  AND NOT (p.code = '2026-Q3' AND m.n = 2)
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
 -- Month-level employee targets: each Q4 employee target (rows ...08-...0b HDV, ...0c-...0d KH_MOI) split by month
 -- (Oct/Nov/Dec) so the evaluation screen has targets whichever Q4 period is picked.
 -- ---------------------------------------------------------------------------
@@ -667,6 +1053,59 @@ FROM (VALUES
     ('5eed0000-0000-0000-0030-000000000003', '5eed0000-0000-0000-0015-00000000000f', '5eed0000-0000-0000-0007-00000000000c', 'COMMENT', 'Đề nghị chia lại chỉ tiêu theo số ngày đi làm thực tế.')
 ) AS f(id, target_id, employee_id, type, comment)
 JOIN target_assignment ta ON ta.id = f.target_id::uuid AND ta.employee_id = f.employee_id::uuid
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Year Target Import 2027, step 3 (/target-setup): department allocation of the branch-year rows the import creates.
+-- A KPI goes to every department that holds its position (profiles EP-SALES-YEARKPI / EP-TELLER-YEARKPI): SALES ->
+-- Kinh doanh 40 / KHCN 35 / KHDN 25, TELLER -> Giao dịch 60 / Dịch vụ KH 40. Each department quarter takes its share of the
+-- branch quarter (the last department takes the remainder, so "Còn lại" is 0), and the department year is the sum of its
+-- quarters. Ratio KPIs (no aggregation) are not allocated. Everything is DRAFT: ORG year rows, PERIOD quarter rows.
+-- Nothing is inserted until the branch year and its quarters exist, so a database without the import is unchanged.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE seed_2027_dept_quarter ON COMMIT DROP AS
+SELECT s.branch_year_id, s.business_objective_id, s.kpi_definition_id, s.department_id, s.period_id,
+       CASE WHEN s.ord = max(s.ord) OVER (PARTITION BY s.branch_year_id, s.period_id)
+            THEN s.branch_value - (sum(s.share) OVER (PARTITION BY s.branch_year_id, s.period_id) - s.share)
+            ELSE s.share END AS target_value
+FROM (
+    SELECT byr.id AS branch_year_id, byr.business_objective_id, byr.kpi_definition_id, d.id AS department_id,
+           bq.evaluation_period_id AS period_id, bq.target_value AS branch_value, w.ord,
+           round(bq.target_value * w.weight / 100,
+                 CASE WHEN bq.target_value = trunc(bq.target_value) THEN 0 ELSE 4 END) AS share
+    FROM target_assignment byr
+    JOIN evaluation_period yp ON yp.id = byr.evaluation_period_id AND yp.code = '2027'
+    JOIN department branch ON branch.id = byr.department_id AND branch.level_type = 'BRANCH'
+    JOIN kpi_definition k ON k.id = byr.kpi_definition_id AND k.aggregation_type <> 'NO_AGGREGATION'
+    JOIN evaluation_profile ep ON ep.code IN ('EP-SALES-YEARKPI', 'EP-TELLER-YEARKPI')
+    JOIN evaluation_profile_item epi ON epi.evaluation_profile_id = ep.id AND epi.kpi_definition_id = byr.kpi_definition_id
+    JOIN (VALUES ('EP-SALES-YEARKPI', 'CN-HN-KD', 40, 1), ('EP-SALES-YEARKPI', 'CN-HN-KHCN', 35, 2),
+                 ('EP-SALES-YEARKPI', 'CN-HN-KHDN', 25, 3), ('EP-TELLER-YEARKPI', 'CN-HN-GD', 60, 1),
+                 ('EP-TELLER-YEARKPI', 'CN-HN-DVKH', 40, 2)) AS w(profile_code, dept_code, weight, ord)
+         ON w.profile_code = ep.code
+    JOIN department d ON d.code = w.dept_code AND d.parent_department_id = branch.id
+    JOIN target_assignment bq ON bq.parent_assignment_id = byr.id AND bq.split_dimension = 'PERIOD' AND bq.status = 'DRAFT'
+    WHERE byr.parent_assignment_id IS NULL AND byr.split_dimension IS NULL AND byr.status = 'DRAFT'
+) s;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
+    parent_assignment_id, split_dimension, target_value, status)
+SELECT md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid,
+       q.business_objective_id, q.kpi_definition_id, q.department_id, yp.id, q.branch_year_id,
+       'ORG'::target_split_dimension, sum(q.target_value), 'DRAFT'::target_assignment_status
+FROM seed_2027_dept_quarter q
+JOIN evaluation_period yp ON yp.code = '2027'
+GROUP BY q.business_objective_id, q.kpi_definition_id, q.department_id, q.branch_year_id, yp.id
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
+    parent_assignment_id, split_dimension, target_value, status)
+SELECT md5('seed-2027-dept-quarter-' || dy.id::text || '-' || q.period_id::text)::uuid,
+       q.business_objective_id, q.kpi_definition_id, q.department_id, q.period_id, dy.id,
+       'PERIOD'::target_split_dimension, q.target_value, 'DRAFT'::target_assignment_status
+FROM seed_2027_dept_quarter q
+JOIN target_assignment dy
+  ON dy.id = md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -898,6 +1337,480 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
+-- 2025 detail for the comparison year: branch quarters, and for HDV/KH_MOI/DU_NO every department quarter split into
+-- teams, employees and months (the 2025 progress below picks the month rows up). All ACTIVE, sums exact.
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025', NULL::target_split_dimension, 420, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025', NULL::target_split_dimension, 1000, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text)
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q4', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025-Q1', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025-Q2', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025-Q4', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 220, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 240, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 260, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 280, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025', 'ORG'::target_split_dimension, 420, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025', 'ORG'::target_split_dimension, 600, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000003--2025', 'DU_NO', '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025', 'ORG'::target_split_dimension, 400, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q1', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q2', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q4', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 130, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 145, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 155, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 170, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000003--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000003--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000003--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q3', 'PERIOD'::target_split_dimension, 105, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000003--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q4', 'PERIOD'::target_split_dimension, 110, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000004--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 65, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000005--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000006--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 71, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000007--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 54, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000004--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 68, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000005--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 57, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000006--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 68, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000007--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 57, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000004--2025-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 62, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000005--2025-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 63, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000006--2025-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 72, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000007--2025-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 53, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000004--2025-Q4', 'HDV', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 66, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000005--2025-Q4', 'HDV', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 59, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000006--2025-Q4', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 70, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV-5eed0000-0000-0000-0001-000000000007--2025-Q4', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000004--2025-Q1', 'KH_MOI', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000005--2025-Q1', 'KH_MOI', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 44, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000004--2025-Q2', 'KH_MOI', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000005--2025-Q2', 'KH_MOI', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000004--2025-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000005--2025-Q3', 'KH_MOI', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000004--2025-Q4', 'KH_MOI', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 63, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH-5eed0000-0000-0000-0001-000000000005--2025-Q4', 'KH_MOI', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 57, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000004--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 67, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000005--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 63, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000004--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 79, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000005--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 66, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000004--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 77, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000005--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 78, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000004--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000005--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 80, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000006--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 51, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000007--2025-Q1', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000006--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 52, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000007--2025-Q2', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q2', 'ORG'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000006--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000007--2025-Q3', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q3', 'ORG'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000006--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 61, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO-5eed0000-0000-0000-0001-000000000007--2025-Q4', 'DU_NO', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q4', 'ORG'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2025-Q4')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 54, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 35, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-Q2', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 57, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 29, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 53, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 27, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 38, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-Q4', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 55, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-Q1', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-Q1', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-Q1', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 20, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-Q1', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 24, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-Q2', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-Q2', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 27, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-Q2', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-Q2', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 24, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 27, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 25, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-Q3', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 30, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-Q4', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-Q4', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-Q4', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 26, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-Q4', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 29, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 34, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 41, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 38, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 31, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 35, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 40, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 36, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 42, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 44, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 37, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 23, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-Q1', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 39, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 24, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-Q2', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2', 'ORG'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 27, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-Q3', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3', 'ORG'::target_split_dimension, 45, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 28, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-Q4', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4', 'ORG'::target_split_dimension, 49, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2025-Q4')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+SELECT md5('seed-target-' || t.key)::uuid,
+       NULL::uuid,
+       kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+FROM (VALUES
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-03', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 21, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-04', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-05', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-06', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 20, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-07', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-08', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-09', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 20, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000006-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000007-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000008-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-000000000009-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-10', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 19, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-11', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4'),
+    ('2025-HDV--5eed0000-0000-0000-0007-00000000000a-2025-12', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 6, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 6, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-01', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-02', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-03', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 6, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-04', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-05', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-06', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-07', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-08', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-09', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-10', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-11', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000004-2025-12', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-10', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-11', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000005-2025-12', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-10', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-11', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000006-2025-12', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-10', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-11', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-KH--5eed0000-0000-0000-0007-000000000007-2025-12', 'KH_MOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000004-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000005-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000006-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000006'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000007-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000007'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-01', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-02', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-03', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-03', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q1'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 7, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-04', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-04', 'PERIOD'::target_split_dimension, 15, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-05', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-05', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-06', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-06', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q2'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 8, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-07', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-07', 'PERIOD'::target_split_dimension, 13, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-08', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-08', 'PERIOD'::target_split_dimension, 14, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-09', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-09', 'PERIOD'::target_split_dimension, 18, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q3'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 11, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000008-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 12, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 9, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-000000000009-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-10', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-10', 'PERIOD'::target_split_dimension, 17, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-11', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-11', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4'),
+    ('2025-DU_NO--5eed0000-0000-0000-0007-00000000000a-2025-12', 'DU_NO', NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-12', 'PERIOD'::target_split_dimension, 16, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-00000000000a'::uuid, '2025-Q4')
+) AS t(key, kpi_code, dept_id, emp_id, period_code, split, target_value, status, p_dept, p_emp, p_period)
+JOIN kpi_definition kpi ON kpi.code = t.kpi_code
+JOIN evaluation_period per ON per.code = t.period_code
+LEFT JOIN evaluation_period pper ON pper.code = t.p_period
+LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evaluation_period_id = pper.id
+     AND ((t.p_dept IS NOT NULL AND par.department_id = t.p_dept) OR (t.p_emp IS NOT NULL AND par.employee_id = t.p_emp))
+     AND par.status IN ('DRAFT', 'ACTIVE')
+WHERE t.p_period IS NULL OR par.id IS NOT NULL
+ON CONFLICT DO NOTHING;
+
+
+-- ---------------------------------------------------------------------------
 -- 2025 Actual progress (one row per month L4, value = target × factor 0.80–1.20)
 -- Fixed factors (not random) for reproducibility
 -- ---------------------------------------------------------------------------
@@ -973,16 +1886,16 @@ JOIN evaluation_period ep ON ep.code = month_sample.code;
 -- and progress. NV010 deliberately has no DU_NO target to exercise the N/A state.
 CREATE TEMP TABLE seed_evaluation_metric ON COMMIT DROP AS
 SELECT c.*, k.id AS kpi_id, k.code AS kpi_code, k.aggregation_type,
-       metric.target_value,
-        round(CASE WHEN k.code = 'CSAT' THEN LEAST(metric.target_value * fluctuation.factor, 5)
-            WHEN k.code = 'TUAN_THU' THEN LEAST(metric.target_value * fluctuation.factor, 100)
-            WHEN k.code = 'KH_MOI' THEN round(metric.target_value * fluctuation.factor)
+       COALESCE(existing.target_value, metric.target_value) AS target_value,
+        round(CASE WHEN k.code = 'CSAT' THEN LEAST(COALESCE(existing.target_value, metric.target_value) * fluctuation.factor, 5)
+            WHEN k.code = 'TUAN_THU' THEN LEAST(COALESCE(existing.target_value, metric.target_value) * fluctuation.factor, 100)
+            WHEN k.code = 'KH_MOI' THEN round(COALESCE(existing.target_value, metric.target_value) * fluctuation.factor)
             WHEN k.direction = 'LOWER_BETTER'
-            THEN metric.target_value / fluctuation.factor
-            ELSE metric.target_value * fluctuation.factor END, 4) AS actual_value,
+            THEN COALESCE(existing.target_value, metric.target_value) / fluctuation.factor
+            ELSE COALESCE(existing.target_value, metric.target_value) * fluctuation.factor END, 4) AS actual_value,
        CASE WHEN k.aggregation_type = 'RATIO' THEN 100::numeric END AS denominator,
        wt.id AS work_type_id,
-       md5('evaluation-demo-target-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS target_id,
+       COALESCE(existing.id, md5('evaluation-demo-target-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid) AS target_id,
        md5('evaluation-demo-progress-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS progress_id,
        md5('evaluation-demo-work-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS work_id,
        md5('evaluation-demo-submission-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS submission_id,
@@ -1021,6 +1934,14 @@ CROSS JOIN LATERAL (
         + period_sample.offsets[metric.metric_index] AS factor
 ) fluctuation
 JOIN kpi_definition k ON k.code = metric.kpi_code
+-- Reuse the month target of the 2026 target tree when the employee has one, so the evaluation screens, the target
+-- overview and the progress below agree; otherwise the sample constant is used.
+LEFT JOIN LATERAL (
+    SELECT t.id, t.target_value FROM target_assignment t
+    WHERE t.kpi_definition_id = k.id AND t.employee_id = c.employee_id AND t.evaluation_period_id = c.period_id
+      AND t.status = 'ACTIVE'
+    LIMIT 1
+) existing ON TRUE
 JOIN work_type wt ON wt.code = metric.work_type_code
 WHERE NOT (c.employee_code = 'NV010' AND k.code = 'DU_NO');
 
@@ -1029,6 +1950,36 @@ INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_pe
 SELECT target_id, kpi_id, employee_id, period_id, target_value, 1, 'ACTIVE',
        created_at, created_at, created_at FROM seed_evaluation_metric
 ON CONFLICT DO NOTHING;
+
+-- The sample months above can sit without a quarter target (Q3 for the staff outside the 2026 tree, Q4 for every KPI
+-- the Q4 chain does not cover). Give each such employee/KPI a standalone quarter target, as the quality KPIs have
+-- in Q1-Q3, and split it into its months: SUM KPIs total the months, the others take their average.
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, employee_id, evaluation_period_id,
+    target_value, status, assigned_at, approved_at)
+SELECT md5('seed-quarter-target-' || m.employee_id::text || '-' || m.kpi_definition_id::text || '-' || q.id::text)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       m.kpi_definition_id, m.employee_id, q.id,
+       CASE WHEN k.aggregation_type = 'SUM' THEN sum(m.target_value) ELSE round(avg(m.target_value), 4) END,
+       'ACTIVE'::target_assignment_status, now(), now()
+FROM target_assignment m
+JOIN evaluation_period mp ON mp.id = m.evaluation_period_id AND mp.period_type = 'MONTH'
+JOIN evaluation_period q ON q.id = mp.parent_period_id
+JOIN kpi_definition k ON k.id = m.kpi_definition_id
+WHERE m.employee_id IS NOT NULL AND m.parent_assignment_id IS NULL AND m.status = 'ACTIVE'
+  AND q.start_date >= '2026-01-01'
+  AND NOT EXISTS (
+      SELECT 1 FROM target_assignment x
+      WHERE x.employee_id = m.employee_id AND x.kpi_definition_id = m.kpi_definition_id
+        AND x.evaluation_period_id = q.id AND x.status IN ('DRAFT', 'ACTIVE'))
+GROUP BY m.employee_id, m.kpi_definition_id, q.id, k.aggregation_type
+ON CONFLICT DO NOTHING;
+
+UPDATE target_assignment m
+SET parent_assignment_id = p.id, split_dimension = 'PERIOD'
+FROM evaluation_period mp, target_assignment p
+WHERE mp.id = m.evaluation_period_id AND mp.period_type = 'MONTH'
+  AND m.employee_id IS NOT NULL AND m.parent_assignment_id IS NULL AND m.status = 'ACTIVE'
+  AND p.id = md5('seed-quarter-target-' || m.employee_id::text || '-' || m.kpi_definition_id::text || '-' || mp.parent_period_id::text)::uuid;
 
 INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title,
     description, planned_start_date, planned_end_date, status, target_value)
