@@ -16,7 +16,8 @@ public sealed class VerificationService(
     AppDbContext db,
     ILogger<VerificationService> logger,
     TimeProvider time,
-    IPermissionService permissions) : IVerificationService
+    IPermissionService permissions,
+    IQaSamplingPolicy? qaSampling = null) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -241,6 +242,20 @@ public sealed class VerificationService(
                     .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
                     .Select(a => a.Id)
                     .ToListAsync(cancellationToken);
+                // BR-32: a random 5% of manually approved results is queued for QA re-verification.
+                if (qaSampling?.ShouldSample(submission.Work) == true
+                    && !await db.QaSamples.AnyAsync(x => x.ResultSubmissionId == submission.Id, cancellationToken))
+                {
+                    db.QaSamples.Add(new QaSample
+                    {
+                        Id = Guid.NewGuid(),
+                        ResultSubmissionId = submission.Id,
+                        SubmitterEmployeeId = submission.SubmitterEmployeeId,
+                        Status = QaSampleStatus.Pending,
+                        SampledAt = now,
+                    });
+                }
+
                 foreach (var appealId in acceptedAppeals)
                 {
                     await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
