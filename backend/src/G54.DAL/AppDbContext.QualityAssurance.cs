@@ -11,9 +11,13 @@ public partial class AppDbContext
 
     private static void ConfigureQualityAssurance(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasSequence<long>("qa_item_code_seq");
+
         modelBuilder.Entity<QualityFlag>(entity =>
         {
             entity.ToTable("quality_flag");
+            entity.Property(e => e.CodeNo).HasColumnName("code_no").HasDefaultValueSql("nextval('qa_item_code_seq')").ValueGeneratedOnAdd();
+            entity.HasIndex(e => e.CodeNo).IsUnique().HasDatabaseName("uq_quality_flag_code_no");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");
@@ -42,6 +46,8 @@ public partial class AppDbContext
         modelBuilder.Entity<QaSample>(entity =>
         {
             entity.ToTable("qa_sample");
+            entity.Property(e => e.CodeNo).HasColumnName("code_no").HasDefaultValueSql("nextval('qa_item_code_seq')").ValueGeneratedOnAdd();
+            entity.HasIndex(e => e.CodeNo).IsUnique().HasDatabaseName("uq_qa_sample_code_no");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");

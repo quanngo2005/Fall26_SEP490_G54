@@ -33,6 +33,9 @@ public sealed class QualityFlag
 {
     public Guid Id { get; set; }
 
+    /// <summary>Number shown as <c>QA-0123</c>; one sequence is shared by flags and samples so a code is never reused.</summary>
+    public long CodeNo { get; set; }
+
     public Guid ResultSubmissionId { get; set; }
 
     /// <summary>The employee whose work is flagged (the submitter).</summary>
@@ -72,6 +75,9 @@ public sealed class QualityFlag
 public sealed class QaSample
 {
     public Guid Id { get; set; }
+
+    /// <summary>Number shown as <c>QA-0123</c>; one sequence is shared by flags and samples so a code is never reused.</summary>
+    public long CodeNo { get; set; }
 
     public Guid ResultSubmissionId { get; set; }
 

@@ -315,4 +315,23 @@ public sealed class QualityReworkPostgresTests : IAsyncLifetime
         Assert.Equal(VerifiedResultStatus.Invalid, (await db.VerifiedWorkResults.SingleAsync()).Status);
         Assert.Equal(WorkStatus.InProgress, (await db.Works.SingleAsync()).Status);
     }
+
+    [PostgresFact]
+    public async Task Queue_RunsOnPostgres_WithTheDepartmentFilterAndTheSampleKept()
+    {
+        var submission = await ApproveWorkAsync(_goldTypeId, 10m);
+        await ReworkAsync(submission);
+
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var department = (await db.Employees.AsNoTracking().FirstAsync(e => e.Id == _makerId)).DepartmentId;
+        var queue = await new QaQueueService(db).GetQueueAsync(new QaQueueFilterDto { Tab = "REJECTED", DepartmentId = department, Search = "QA-" });
+
+        var item = Assert.Single(queue.Items);
+        Assert.Equal("FLAG", item.Type);
+        Assert.Equal("REWORK_REQUESTED", item.Status);
+        Assert.Equal(1, queue.Counts.Rejected);
+        Assert.Equal(department, Assert.Single(queue.Departments).Id);
+        Assert.Equal(item.Code, (await new QaQueueService(db).GetItemAsync("FLAG", item.Id)).Item.Code);
+    }
 }

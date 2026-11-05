@@ -16,8 +16,35 @@ namespace G54.Api.Controllers;
 [Authorize]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-public sealed class QualityAssuranceController(IQualityAssuranceService service) : ControllerBase
+public sealed class QualityAssuranceController(IQualityAssuranceService service, IQaQueueService queue) : ControllerBase
 {
+    [HttpGet("qa-queue")]
+    [HasPermission("quality_flag", "read", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<QaQueueDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<QaQueueDto>>> GetQueue(
+        [FromQuery] QaQueueFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await queue.GetQueueAsync(filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary><c>kind</c> is FLAG or SAMPLE.</summary>
+    [HttpGet("qa-queue/{kind}/{id:guid}")]
+    [HasPermission("quality_flag", "read", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<QaQueueDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<QaQueueDetailDto>>> GetQueueItem(
+        string kind,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await queue.GetItemAsync(kind, id, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("submissions/{submissionId:guid}/quality-flags")]
     [HasPermission("quality_flag", "create", PermissionScopes.All)]
     [ProducesResponseType<ApiResponse<QualityFlagDto>>(StatusCodes.Status201Created)]

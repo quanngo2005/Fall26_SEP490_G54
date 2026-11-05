@@ -12,7 +12,7 @@ import { appealCode, appealSubjectWithScore, openBlob, typeKey } from './appeal-
   standalone: true,
   imports: [AppDatePipe],
   templateUrl: './my-appeal-drawer.component.html',
-  styleUrls: ['./my-appeal-drawer.component.scss'],
+  styleUrls: ['./my-appeal-drawer.component.scss', './my-appeal-drawer-history.scss'],
   host: {
     '(window:keydown)': 'onKeydown($event)',
   },
