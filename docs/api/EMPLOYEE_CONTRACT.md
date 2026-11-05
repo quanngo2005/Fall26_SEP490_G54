@@ -12,8 +12,10 @@ The list at `/employees` also uses the department and job-position option lookup
 `employee:read` at `Own` scope or higher. The service restricts rows to self (`Own`), the caller's
 department subtree (`Dept`), the nearest branch subtree (`Branch`), or everyone (`All`/full access).
 Missing permission returns 403; an unknown or out-of-scope employee detail returns 404.
-`GET /employees/me` and the option lookups require authentication. The lookups return all active
-departments/positions, not a scope-filtered employee roster.
+`GET /employees/me` requires authentication. The option lookups (`/employees/departments`,
+`/employees/job-positions`) use the same `employee:read` scope as the list (403 without it): they return
+only the active departments in the caller's scope and the active positions held by at least one employee
+in that scope. `All`/full access sees every active department and position.
 The detail page additionally reads scoped `/departments/{id}/members` (see `DEPARTMENT_CONTRACT.md`).
 
 ## Endpoints
@@ -34,12 +36,15 @@ the response, not local sample counts. Search and filters are applied on the ser
 `data`: an array of `{ id, code, name, levelType }`. IDs are GUID strings;
 `levelType` follows the backend's current numeric `DepartmentLevelType` serialization
 (`Branch`, `Department`, `Team` in declaration order). The list does not use this field
-to decide access or filtering. Active departments only, ordered by code.
+to decide access or filtering. Active departments within the caller's `employee:read` scope only
+(`Own`: the caller's own department; `Dept`: its subtree; `Branch`: the nearest branch subtree; `All`:
+every department), ordered by code.
 
 ### `GET /employees/job-positions`
 
 `data`: an array of `{ id, code, title }`. IDs are GUID strings.
-Active positions only, ordered by code. Both lookup filters send GUID IDs, not display codes.
+Active positions held by at least one employee within the caller's `employee:read` scope, ordered by
+code; it does not depend on the department chosen in the list. Both lookup filters send GUID IDs, not display codes.
 
 ### List limitations
 
