@@ -1,7 +1,10 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
+import { canManageEvaluationProfiles } from '../../core/evaluation-profile-permissions';
 import {
   EvaluationProfileListItem,
   EvaluationProfileStatus,
@@ -9,12 +12,15 @@ import {
 import { EvaluationProfileService } from '../../core/evaluation-profile.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { EvaluationProfileFormDialogComponent } from './evaluation-profile-form-dialog.component';
+import { evaluationPeriodLabel, parseDate } from './evaluation-profile-period';
+import { evaluationStatusLabel } from './evaluation-profile-status';
 
 /** SCR-CFG-01: evaluation profile list for the system admin, branch manager and department manager. */
 @Component({
   selector: 'app-evaluation-profile-list',
   standalone: true,
-  imports: [FormsModule, HeaderComponent, SidebarComponent],
+  imports: [FormsModule, HeaderComponent, SidebarComponent, EvaluationProfileFormDialogComponent],
   templateUrl: './evaluation-profile-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -26,8 +32,16 @@ import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 })
 export class EvaluationProfileListComponent extends LocalizedComponent {
   private readonly api = inject(EvaluationProfileService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload = new Subject<void>();
+
+  protected readonly canManage = computed(() =>
+    canManageEvaluationProfiles(this.auth.currentUser()?.permissions),
+  );
+  protected readonly formOpen = signal(false);
+  protected readonly formProfileId = signal<string | null>(null);
 
   protected readonly allProfiles = signal<EvaluationProfileListItem[]>([]);
   protected readonly loading = signal(true);
@@ -169,48 +183,59 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
     this.currentPage.set(page);
   }
 
-  /** Quarter label (Q4/2026) when the range is a whole calendar quarter, otherwise the date range. */
   protected periodLabel(item: EvaluationProfileListItem): string {
-    const from = this.parseDate(item.effectiveFrom);
-    const to = item.effectiveTo ? this.parseDate(item.effectiveTo) : null;
-    if (to && from.getUTCDate() === 1 && from.getUTCMonth() % 3 === 0) {
-      const quarterEnd = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 3, 0));
-      if (quarterEnd.getTime() === to.getTime())
-        return `Q${from.getUTCMonth() / 3 + 1}/${from.getUTCFullYear()}`;
-    }
-    const start = this.i18n.formatDate(item.effectiveFrom, 'DD/MM/YYYY');
-    return to
-      ? `${start} – ${this.i18n.formatDate(item.effectiveTo as string, 'DD/MM/YYYY')}`
-      : `${start} – ${this.localization.evaluationProfiles.openEnded}`;
+    return evaluationPeriodLabel(
+      item.effectiveFrom,
+      item.effectiveTo,
+      (value) => this.i18n.formatDate(value, 'DD/MM/YYYY'),
+      this.localization.evaluationProfiles.openEnded,
+    );
+  }
+
+  /** SCR-CFG-01-D1: the whole row opens the profile detail. */
+  protected openDetail(item: EvaluationProfileListItem): void {
+    void this.router.navigate(['/evaluation-profiles', item.id]);
+  }
+
+  /** The row button views an approved or locked profile and edits any other. */
+  protected openRowAction(item: EvaluationProfileListItem): void {
+    if (this.isViewOnly(item)) this.openDetail(item);
+    else this.openForm(item.id);
+  }
+
+  /** SCR-CFG-01-M1: `null` creates a profile, an id edits that profile. */
+  protected openForm(profileId: string | null): void {
+    this.formProfileId.set(profileId);
+    this.formOpen.set(true);
+  }
+
+  protected closeForm(): void {
+    this.formOpen.set(false);
+  }
+
+  protected onSaved(): void {
+    this.formOpen.set(false);
+    this.load();
   }
 
   /** A profile whose effective period has ended, or that is archived, is read-only. */
   protected isLocked(item: EvaluationProfileListItem): boolean {
     if (item.status === 'ARCHIVED') return true;
     if (!item.effectiveTo) return false;
-    return this.parseDate(item.effectiveTo).getTime() < this.startOfTodayUtc();
+    return parseDate(item.effectiveTo).getTime() < this.startOfTodayUtc();
+  }
+
+  /** An approved profile (ACTIVE, or INACTIVE once replaced) and any locked profile can only be viewed. */
+  protected isViewOnly(item: EvaluationProfileListItem): boolean {
+    return item.status === 'ACTIVE' || item.status === 'INACTIVE' || this.isLocked(item);
   }
 
   protected statusLabel(status: EvaluationProfileStatus): string {
-    const t = this.localization.evaluationProfiles;
-    const labels: Record<EvaluationProfileStatus, string> = {
-      DRAFT: t.statusDraft,
-      PENDING_APPROVAL: t.statusPending,
-      REJECTED: t.statusRejected,
-      ACTIVE: t.statusActive,
-      INACTIVE: t.statusInactive,
-      ARCHIVED: t.statusArchived,
-    };
-    return labels[status] ?? status;
+    return evaluationStatusLabel(this.localization.evaluationProfiles, status);
   }
 
   protected weightText(value: number): string {
     return `${this.i18n.formatNumber(value)}%`;
-  }
-
-  private parseDate(value: string): Date {
-    const [y, m, d] = value.slice(0, 10).split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
   }
 
   private startOfTodayUtc(): number {

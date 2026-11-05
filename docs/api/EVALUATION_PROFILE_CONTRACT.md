@@ -1,6 +1,6 @@
 # Evaluation profile management
 
-Status: backend implemented (no frontend client yet). Routes use the backend origin, no API prefix; all
+Status: backend and frontend client implemented (frontend: list, detail with approve / reject, and the create / edit dialog). Routes use the backend origin, no API prefix; all
 responses use `ApiResponse<T>`. An evaluation profile defines, for one job position, which KPI groups are
 scored and with what weight, as a weight tree. `EvaluationService` / `PerformanceEvaluationService` read these profiles when
 calculating performance scores; this contract only manages them.
