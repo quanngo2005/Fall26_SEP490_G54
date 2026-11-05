@@ -1,0 +1,214 @@
+<div class="modal-backdrop" role="presentation" (click)="dismiss()">
+  <div
+    class="modal-dialog risk-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="risk-create-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="risk-create-title">{{localization.riskEvents.form.title}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        [attr.aria-label]="localization.riskEvents.close"
+        [disabled]="submitting()"
+        (click)="dismiss()"
+      >
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field">
+          <label for="risk-employee">{{localization.riskEvents.form.employee}} <b>*</b></label>
+          <select
+            id="risk-employee"
+            class="select"
+            [ngModel]="employeeId()"
+            (ngModelChange)="employeeId.set($event)"
+            [class.invalid]="showValidation() && !employeeValid()"
+            [disabled]="loadingEmployees()"
+          >
+            <option value="">
+              {{loadingEmployees()
+                  ? localization.riskEvents.form.loadingEmployees
+                  : localization.riskEvents.form.employeePlaceholder}}
+            </option>
+            @for (employee of employees(); track employee.id) {
+              <option [value]="employee.id">
+                {{employee.employeeCode}} · {{employee.fullName}}
+              </option>
+            }
+          </select>
+          @if (showValidation() && !employeeValid()) {
+            <p class="field-error" role="alert">
+              {{localization.riskEvents.form.errors.employee}}
+            </p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="risk-date">{{localization.riskEvents.form.occurredAt}} <b>*</b></label>
+          <input
+            id="risk-date"
+            class="input"
+            type="date"
+            [max]="maxDate"
+            [ngModel]="occurredOn()"
+            (ngModelChange)="occurredOn.set($event)"
+            [class.invalid]="showValidation() && !dateValid()"
+          />
+          @if (showValidation() && !dateValid()) {
+            <p class="field-error" role="alert">
+              {{localization.riskEvents.form.errors.occurredAt}}
+            </p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="risk-type">{{localization.riskEvents.form.type}} <b>*</b></label>
+          <select
+            id="risk-type"
+            class="select"
+            [ngModel]="eventType()"
+            (ngModelChange)="eventType.set($event)"
+            [class.invalid]="showValidation() && !typeValid()"
+          >
+            <option value="">{{localization.riskEvents.form.typePlaceholder}}</option>
+            @for (code of types; track code) {
+              <option [value]="code">{{typeLabel(code)}}</option>
+            }
+          </select>
+          @if (showValidation() && !typeValid()) {
+            <p class="field-error" role="alert">{{localization.riskEvents.form.errors.type}}</p>
+          }
+        </div>
+
+        <div class="field">
+          <span class="caption" id="risk-severity-label">
+            {{localization.riskEvents.form.severity}} <b>*</b>
+          </span>
+          <div class="severity-toggle" role="radiogroup" aria-labelledby="risk-severity-label">
+            @for (level of severities; track level) {
+              <button
+                type="button"
+                role="radio"
+                class="severity-btn"
+                [class]="'severity-btn level-' + level.toLowerCase()"
+                [class.active]="severity() === level"
+                [attr.aria-checked]="severity() === level"
+                (click)="severity.set(level)"
+              >
+                {{severityLabel(level)}}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="risk-penalty">{{localization.riskEvents.form.penalty}} <b>*</b></label>
+          <input
+            id="risk-penalty"
+            class="input"
+            type="number"
+            min="0"
+            step="any"
+            [ngModel]="penalty()"
+            (ngModelChange)="penalty.set($event)"
+            [class.invalid]="showValidation() && !penaltyValid()"
+            [placeholder]="localization.riskEvents.form.penaltyPlaceholder"
+          />
+          @if (showValidation() && !penaltyValid()) {
+            <p class="field-error" role="alert">
+              {{localization.riskEvents.form.errors.penalty}}
+            </p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="risk-work">{{localization.riskEvents.form.work}}</label>
+          <input
+            id="risk-work"
+            class="input"
+            type="text"
+            maxlength="50"
+            [ngModel]="workCode()"
+            (ngModelChange)="workCode.set($event)"
+            [placeholder]="localization.riskEvents.form.workPlaceholder"
+          />
+        </div>
+
+        <div class="field full">
+          <label for="risk-description"
+            >{{localization.riskEvents.form.description}} <b>*</b></label
+          >
+          <textarea
+            id="risk-description"
+            class="textarea"
+            rows="3"
+            [ngModel]="description()"
+            (ngModelChange)="description.set($event)"
+            [class.invalid]="showValidation() && !descriptionValid()"
+            [placeholder]="localization.riskEvents.form.descriptionPlaceholder"
+          ></textarea>
+          @if (showValidation() && !descriptionValid()) {
+            <p class="field-error" role="alert">
+              {{localization.riskEvents.form.errors.description}}
+            </p>
+          }
+        </div>
+
+        <div class="field full">
+          <span class="caption">{{localization.riskEvents.form.attachments}}</span>
+          <label class="file-picker">
+            <span class="file-hint">{{localization.riskEvents.form.attachHint}}</span>
+            <span class="file-action">{{localization.riskEvents.form.chooseFile}}</span>
+            <input type="file" multiple [accept]="accept" (change)="onFiles($event)" />
+          </label>
+          @for (file of files(); track file.name + file.size) {
+            <div class="file-chip">
+              <span>{{file.name}}</span>
+              <button
+                type="button"
+                [attr.aria-label]="removeLabel(file.name)"
+                (click)="removeFile(file)"
+              >
+                ×
+              </button>
+            </div>
+          }
+          @for (message of fileErrors(); track message) {
+            <p class="field-error" role="alert">{{message}}</p>
+          }
+        </div>
+      </div>
+
+      <div class="notice">
+        <strong>{{localization.riskEvents.form.noticeTitle}}</strong>
+        <p>{{localization.riskEvents.form.noticeText}}</p>
+      </div>
+
+      @if (errorKey()) {
+        <p class="field-error" role="alert">{{errorText()}}</p>
+      }
+    </div>
+
+    <div class="modal-footer risk-footer">
+      <span class="hint">{{localization.riskEvents.form.keyboard}}</span>
+      <div class="actions">
+        <button type="button" class="btn-secondary" [disabled]="submitting()" (click)="dismiss()">
+          {{localization.riskEvents.form.cancel}}
+        </button>
+        <button type="button" class="btn-primary" [disabled]="submitting()" (click)="submit()">
+          {{submitting()
+              ? localization.riskEvents.form.submitting
+              : localization.riskEvents.form.submit}}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

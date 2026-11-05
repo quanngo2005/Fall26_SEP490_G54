@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { catchError, debounceTime, EMPTY, finalize, of, Subject, switchMap, tap } from 'rxjs';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
+import { currentPeriod, sortPeriodsNewestFirst } from '../../core/period-options';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   QaDepartmentOption,
@@ -21,6 +22,11 @@ import { daysUntil, QaQueueContext } from './qa-queue-display';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Without a chosen column the queue shows pending items by due date. */
+const DEFAULT_SORT_KEY = 'due';
+const DEFAULT_SORT_DIR = 'asc';
+const DEFAULT_DESCENDING = ['created'];
+
 @Component({
   selector: 'app-qa-queue',
   imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
@@ -28,6 +34,7 @@ const SEARCH_DEBOUNCE_MS = 300;
   styleUrls: [
     '../appeals/appeals-shared.scss',
     '../appeals/appeals-list.scss',
+    '../../shared/ui/sortable-table.scss',
     './qa-queue.component.scss',
     './qa-queue-badges.scss',
   ],
@@ -47,6 +54,10 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
   protected readonly periodFilter = signal('ALL');
   protected readonly searchQuery = signal('');
   protected readonly page = signal(1);
+
+  /** The column the list is sorted by; null means the default order of the screen. */
+  protected readonly sortKey = signal<string | null>(null);
+  protected readonly sortDirection = signal<'asc' | 'desc'>('asc');
 
   protected readonly items = signal<QaQueueItem[]>([]);
   protected readonly totalCount = signal(0);
@@ -81,6 +92,7 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
               ...(department !== 'ALL' ? { departmentId: department } : {}),
               ...(period !== 'ALL' ? { periodId: period } : {}),
               search: this.searchQuery().trim(),
+              ...(this.sortKey() ? { sortBy: this.sortKey()!, sortDir: this.sortDirection() } : {}),
               page: this.page(),
             })
             .pipe(
@@ -112,15 +124,44 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // The period filter is supplementary: the queue must still work when the periods cannot be read.
+    // The period filter is supplementary: the list must still work when the periods cannot be read. It opens on the
+    // current period (a month rather than the quarter or year around it) so the first load is small.
     this.evaluations
       .periods()
       .pipe(
         catchError(() => of([])),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((periods) => this.periods.set(periods));
+      .subscribe((periods) => {
+        this.periods.set(sortPeriodsNewestFirst(periods));
+        const current = currentPeriod(periods);
+        if (current) this.periodFilter.set(current.id);
+        this.reload.next();
+      });
+  }
+
+  /** Header click: sort by this column ascending (descending for dates and amounts), a second click reverses it. */
+  protected toggleSort(key: string): void {
+    if (this.sortKey() === key) {
+      this.sortDirection.update((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.sortKey.set(key);
+      this.sortDirection.set(DEFAULT_DESCENDING.includes(key) ? 'desc' : 'asc');
+    }
+    this.page.set(1);
     this.reload.next();
+  }
+
+  protected ariaSort(key: string): 'ascending' | 'descending' | 'none' {
+    if ((this.sortKey() ?? DEFAULT_SORT_KEY) !== key) return 'none';
+    return (this.sortKey() === null ? DEFAULT_SORT_DIR : this.sortDirection()) === 'asc'
+      ? 'ascending'
+      : 'descending';
+  }
+
+  protected sortArrow(key: string): string {
+    const state = this.ariaSort(key);
+    return state === 'ascending' ? '▲' : state === 'descending' ? '▼' : '↕';
   }
 
   protected retry(): void {

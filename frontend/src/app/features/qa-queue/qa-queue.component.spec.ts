@@ -249,4 +249,86 @@ describe('QaQueueComponent', () => {
     fixture.detectChanges();
     expect(text(fixture)).toContain('QA-0331');
   });
+
+  const periodsContaining = (today: Date) => {
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const around = (days: number) =>
+      iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() + days));
+    return [
+      {
+        id: 'year',
+        code: 'Y',
+        name: 'Year',
+        startDate: iso(new Date(today.getFullYear(), 0, 1)),
+        endDate: iso(new Date(today.getFullYear(), 11, 31)),
+        status: 'OPEN',
+      },
+      {
+        id: 'month',
+        code: 'M',
+        name: 'Month',
+        startDate: around(-1),
+        endDate: around(1),
+        status: 'OPEN',
+      },
+    ];
+  };
+
+  it('opens on the current period, newest first, instead of every period', async () => {
+    const fixture = TestBed.createComponent(QaQueueComponent);
+    fixture.detectChanges();
+    http
+      .expectOne(`${environment.apiUrl}/evaluations/periods`)
+      .flush({ success: true, status: 200, data: periodsContaining(new Date()) });
+    fixture.detectChanges();
+
+    const request = listRequest();
+    expect(request.request.params.get('periodId')).toBe('month');
+    request.flush(queue([]));
+    fixture.detectChanges();
+    const options = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '.period-select option',
+      ) as NodeListOf<HTMLOptionElement>,
+    );
+    expect(options.map((o) => o.value)).toEqual(['ALL', 'month', 'year']);
+    await fixture.whenStable();
+    expect(
+      (fixture.nativeElement.querySelector('.period-select select') as HTMLSelectElement).value,
+    ).toBe('month');
+  });
+
+  it('sorts by the clicked header, reverses on a second click and starts over at the first page', () => {
+    const fixture = open();
+    listRequest().flush(queue([item()]));
+    fixture.detectChanges();
+    const header = (label: string) =>
+      (Array.from(fixture.nativeElement.querySelectorAll('th')) as HTMLElement[]).find((th) =>
+        th.textContent?.includes(label),
+      );
+    expect(header('HẠN')?.getAttribute('aria-sort') === 'ascending').toBeTrue();
+
+    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    const first = listRequest();
+    expect(first.request.params.get('sortBy')).toBe('code');
+    expect(first.request.params.get('sortDir')).toBe('asc');
+    expect(first.request.params.get('page')).toBe('1');
+    first.flush(queue([item()]));
+    fixture.detectChanges();
+    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('ascending');
+
+    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    const second = listRequest();
+    expect(second.request.params.get('sortDir')).toBe('desc');
+    second.flush(queue([item()]));
+    fixture.detectChanges();
+    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('descending');
+
+    (header('NGÀY TẠO')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    const date = listRequest();
+    expect(date.request.params.get('sortBy')).toBe('created');
+    expect(date.request.params.get('sortDir')).toBe('desc');
+    date.flush(queue([item()]));
+  });
 });

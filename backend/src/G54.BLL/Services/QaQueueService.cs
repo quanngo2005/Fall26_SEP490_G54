@@ -41,8 +41,9 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
             var period = await db.EvaluationPeriods.AsNoTracking().FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
                 ?? throw new NotFoundException("Kỳ đánh giá", periodId);
             range = (
-                new DateTimeOffset(period.StartDate.ToDateTime(TimeOnly.MinValue), BusinessOffset),
-                new DateTimeOffset(period.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), BusinessOffset));
+                // Npgsql only accepts offset 0 in a query: the Vietnamese day boundaries are converted to UTC.
+                new DateTimeOffset(period.StartDate.ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime(),
+                new DateTimeOffset(period.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime());
         }
 
         var items = new List<QaQueueItemDto>();
@@ -79,11 +80,7 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
             scoped.Count(i => i.Tab == PendingTab),
             scoped.Count(i => i.Tab == ConfirmedTab),
             scoped.Count(i => i.Tab == RejectedTab));
-        var inTab = scoped.Where(i => i.Tab == tab)
-            .OrderBy(i => tab == PendingTab ? i.DueAt : DateTimeOffset.MaxValue)
-            .ThenByDescending(i => i.CreatedAt)
-            .ThenBy(i => i.Id)
-            .ToList();
+        var inTab = Sort(scoped.Where(i => i.Tab == tab), filter.SortBy, filter.SortDir, tab);
         var pageItems = inTab.Skip((page - 1) * pageSize).Take(pageSize).ToList();
         return new QaQueueDto(pageItems, inTab.Count, page, pageSize, counts, await DepartmentOptionsAsync(cancellationToken));
     }
@@ -250,6 +247,50 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
 
         return new[] { item.Code, item.WorkCode, item.WorkTitle, item.EmployeeCode, item.EmployeeName }
             .Any(v => v.Contains(text, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static readonly Dictionary<string, Func<QaQueueItemDto, IComparable>> SortKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["code"] = i => i.Code,
+        ["type"] = i => i.Type,
+        ["work"] = i => i.WorkCode,
+        ["employee"] = i => i.EmployeeName,
+        ["source"] = i => i.Source,
+        ["created"] = i => i.CreatedAt,
+        ["due"] = i => i.DueAt,
+        ["status"] = i => i.Status,
+    };
+
+    /// <summary>
+    /// Sorts by the chosen column. Without one, pending items come by due date (soonest first) and the others newest first.
+    /// </summary>
+    private static List<QaQueueItemDto> Sort(IEnumerable<QaQueueItemDto> items, string? sortBy, string? sortDir, string tab)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy))
+        {
+            return (tab == PendingTab ? items.OrderBy(i => i.DueAt) : items.OrderByDescending(i => i.CreatedAt))
+                .ThenByDescending(i => i.CreatedAt)
+                .ThenBy(i => i.Id)
+                .ToList();
+        }
+
+        if (!SortKeys.TryGetValue(sortBy.Trim(), out var selector))
+        {
+            throw new ValidationException("Cột sắp xếp không hợp lệ.");
+        }
+
+        var descending = string.IsNullOrWhiteSpace(sortDir)
+            ? false
+            : sortDir.Trim().ToUpperInvariant() switch
+            {
+                "DESC" => true,
+                "ASC" => false,
+                _ => throw new ValidationException("Chiều sắp xếp phải là asc hoặc desc."),
+            };
+        return (descending ? items.OrderByDescending(selector) : items.OrderBy(selector))
+            .ThenByDescending(i => i.CreatedAt)
+            .ThenBy(i => i.Id)
+            .ToList();
     }
 
     private static string? ParseKind(string? value) => string.IsNullOrWhiteSpace(value)

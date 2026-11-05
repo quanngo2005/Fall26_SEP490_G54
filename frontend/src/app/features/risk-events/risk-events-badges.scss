@@ -1,0 +1,59 @@
+.sev-badge,
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sev-badge {
+  &.sev-low {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #cbd5e1;
+  }
+
+  &.sev-medium {
+    background: #fffbeb;
+    color: #b45309;
+    border-color: #fcd34d;
+  }
+
+  &.sev-high {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+  }
+
+  &.sev-critical {
+    background: #b91c1c;
+    color: #fff;
+    border-color: #991b1b;
+  }
+}
+
+.state-badge {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+
+  &.state-reversed {
+    background: #e2e8f0;
+    color: #334155;
+    border-style: dashed;
+  }
+}
+
+.penalty {
+  font-weight: 700;
+  color: #dc2626;
+
+  &.muted {
+    color: #94a3b8;
+    text-decoration: line-through;
+  }
+}

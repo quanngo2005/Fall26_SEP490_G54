@@ -293,3 +293,13 @@
     background: #dc2626;
   }
 }
+
+/* The page fills the window and the panel scrolls inside it (the shared layout only sets a minimum height). */
+.workspace-layout {
+  height: 100vh;
+  min-height: 0;
+}
+
+.workspace-main {
+  min-height: 0;
+}

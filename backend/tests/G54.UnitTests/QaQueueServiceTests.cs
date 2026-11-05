@@ -363,6 +363,27 @@ public sealed class QaQueueServiceTests : IDisposable
         await Assert.ThrowsAsync<ValidationException>(() => Queue.GetItemAsync("OTHER", Guid.NewGuid()));
     }
 
+    [Fact]
+    public async Task Queue_SortsByTheChosenColumn_AndRejectsAnUnknownOne()
+    {
+        await SeedOrganizationAsync();
+        for (var i = 1; i <= 3; i++)
+        {
+            var (_, submission) = await AddApprovedAsync($"S{i}", _childDept);
+            await AddSampleAsync(submission, 50 + i, Now.AddDays(-i));
+        }
+
+        async Task<string[]> Codes(string? by, string? dir) =>
+            (await Queue.GetQueueAsync(new QaQueueFilterDto { SortBy = by, SortDir = dir })).Items.Select(i => i.Code).ToArray();
+
+        Assert.Equal(["QA-0051", "QA-0052", "QA-0053"], await Codes("code", null));
+        Assert.Equal(["QA-0053", "QA-0052", "QA-0051"], await Codes("code", "desc"));
+        Assert.Equal(["QA-0053", "QA-0052", "QA-0051"], await Codes("created", "asc"));
+        Assert.Equal(["QA-0053", "QA-0052", "QA-0051"], await Codes(null, null));
+        await Assert.ThrowsAsync<ValidationException>(() => Codes("nope", null));
+        await Assert.ThrowsAsync<ValidationException>(() => Codes("code", "sideways"));
+    }
+
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

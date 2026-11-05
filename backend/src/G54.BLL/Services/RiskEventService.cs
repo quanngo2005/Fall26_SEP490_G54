@@ -26,6 +26,7 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
         var now = time.GetUtcNow();
         var (employeeId, eventType, description, severity, occurredAt) = Validate(request, now);
         var caller = await ResolveCallerAsync(userId, cancellationToken);
+        var workId = await ResolveWorkAsync(request.WorkCode, cancellationToken);
         if (employeeId == caller.Id)
         {
             throw new ForbiddenException("Bạn không thể ghi nhận sự kiện rủi ro cho chính mình.");
@@ -47,9 +48,19 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             Severity = severity,
             Status = RiskEventStatus.Open,
             OccurredAt = occurredAt,
+            PenaltyPoints = request.PenaltyPoints,
+            WorkId = workId,
+            RecordedAt = now,
             UpdatedAt = now,
         };
         db.RiskEvents.Add(riskEvent);
+        PerformanceContribution? contribution = null;
+        if (request.Record)
+        {
+            // Recording writes the event and its penalty in one save, so a locked period leaves nothing behind.
+            contribution = await ConfirmCoreAsync(riskEvent, now, cancellationToken);
+        }
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -59,8 +70,8 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             throw new ConflictException("Không tạo được mã sự kiện rủi ro duy nhất, vui lòng thử lại.");
         }
 
-        LogAction(logger, "CREATE", riskEvent.Id, riskEvent.EmployeeId, caller.Id, null);
-        return ToDto(riskEvent, null);
+        LogAction(logger, request.Record ? "RECORD" : "CREATE", riskEvent.Id, riskEvent.EmployeeId, caller.Id, null);
+        return ToDto(riskEvent, contribution?.Id);
     }
 
     public async Task<RiskEventDto> GetByIdAsync(Guid riskEventId, CancellationToken cancellationToken = default)
@@ -79,27 +90,10 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             throw InvalidState();
         }
 
-        var period = await FindPeriodAsync(riskEvent.OccurredAt, cancellationToken);
-        var evaluationId = await db.PerformanceEvaluations.AsNoTracking()
-            .Where(e => e.EmployeeId == riskEvent.EmployeeId && e.EvaluationPeriodId == period.Id)
-            .OrderBy(e => e.Id)
-            .Select(e => (Guid?)e.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
         var now = time.GetUtcNow();
-        var contribution = new PerformanceContribution
-        {
-            Id = Guid.NewGuid(),
-            RiskEventId = riskEvent.Id,
-            EmployeeId = riskEvent.EmployeeId,
-            EvaluationPeriodId = period.Id,
-            PerformanceEvaluationId = evaluationId,
-            ComponentScore = -EvaluationService.MapRiskPenalty(riskEvent.Severity),
-            UpdatedAt = now,
-        };
-        db.PerformanceContributions.Add(contribution);
-        riskEvent.Status = RiskEventStatus.Confirmed;
-        riskEvent.UpdatedAt = now;
+        var contribution = await ConfirmCoreAsync(riskEvent, now, cancellationToken);
+        var period = contribution.EvaluationPeriodId;
+        var evaluationId = contribution.PerformanceEvaluationId;
         await SaveTransitionAsync(cancellationToken);
 
         LogAction(logger, "CONFIRM", riskEvent.Id, riskEvent.EmployeeId, caller.Id, null);
@@ -110,7 +104,7 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             riskEvent.Severity.ToEnumString(),
             riskEvent.Status.ToEnumString(),
             contribution.Id,
-            period.Id,
+            period,
             evaluationId,
             contribution.ComponentScore!.Value,
             now);
@@ -152,6 +146,47 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
         return ToDto(riskEvent, await ContributionIdAsync(riskEventId, cancellationToken));
     }
 
+    /// <summary>
+    /// Marks the event <c>CONFIRMED</c> and adds its negative contribution (not saved here). The period of the violation date must be
+    /// open: a locked or missing period throws <c>RISK_EVENT_PERIOD_UNAVAILABLE</c>.
+    /// </summary>
+    private async Task<PerformanceContribution> ConfirmCoreAsync(RiskEvent riskEvent, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var period = await FindPeriodAsync(db, riskEvent.OccurredAt, cancellationToken);
+        var evaluationId = await db.PerformanceEvaluations.AsNoTracking()
+            .Where(e => e.EmployeeId == riskEvent.EmployeeId && e.EvaluationPeriodId == period.Id)
+            .OrderBy(e => e.Id)
+            .Select(e => (Guid?)e.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var contribution = new PerformanceContribution
+        {
+            Id = Guid.NewGuid(),
+            RiskEventId = riskEvent.Id,
+            EmployeeId = riskEvent.EmployeeId,
+            EvaluationPeriodId = period.Id,
+            PerformanceEvaluationId = evaluationId,
+            ComponentScore = -EvaluationService.RiskPenalty(riskEvent),
+            UpdatedAt = now,
+        };
+        db.PerformanceContributions.Add(contribution);
+        riskEvent.Status = RiskEventStatus.Confirmed;
+        riskEvent.UpdatedAt = now;
+        return contribution;
+    }
+
+    private async Task<Guid?> ResolveWorkAsync(string? workCode, CancellationToken cancellationToken)
+    {
+        var code = workCode?.Trim();
+        if (string.IsNullOrEmpty(code))
+        {
+            return null;
+        }
+
+        return await db.Works.AsNoTracking().Where(w => w.Code == code).Select(w => (Guid?)w.Id).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new ValidationException($"Không tìm thấy công việc có mã '{code}'.");
+    }
+
     private static (Guid EmployeeId, string EventType, string Description, RiskEventSeverity Severity, DateTimeOffset OccurredAt) Validate(
         CreateRiskEventRequestDto request,
         DateTimeOffset now)
@@ -183,6 +218,11 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             errors.Add("Thời điểm xảy ra (occurredAt) không được ở tương lai.");
         }
 
+        if (request.PenaltyPoints is { } points && (points <= 0 || points > 100 || decimal.Round(points, 2) != points))
+        {
+            errors.Add("Điểm phạt (penaltyPoints) phải lớn hơn 0, tối đa 100 và có tối đa 2 chữ số thập phân.");
+        }
+
         var severity = EnumApiFormat.ParseEnum<RiskEventSeverity>(request.Severity, "severity");
         if (severity is null)
         {
@@ -194,7 +234,8 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             throw new ValidationException(errors);
         }
 
-        return (request.EmployeeId!.Value, eventType!, description!, severity!.Value, request.OccurredAt!.Value);
+        // Npgsql only writes timestamptz values with offset 0; the client sends its own offset (the screens send +07:00).
+        return (request.EmployeeId!.Value, eventType!, description!, severity!.Value, request.OccurredAt!.Value.ToUniversalTime());
     }
 
     private async Task<Employee> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)
@@ -243,7 +284,7 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>The period containing the event date (UTC+7 calendar day); the latest start wins on overlap.</summary>
-    private async Task<EvaluationPeriod> FindPeriodAsync(DateTimeOffset occurredAt, CancellationToken cancellationToken)
+    internal static async Task<EvaluationPeriod> FindPeriodAsync(AppDbContext db, DateTimeOffset occurredAt, CancellationToken cancellationToken)
     {
         var date = DateOnly.FromDateTime(occurredAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
         var period = await db.EvaluationPeriods.AsNoTracking()
