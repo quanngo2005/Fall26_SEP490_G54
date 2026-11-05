@@ -79,10 +79,13 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
-/docs/diagrams
 # Added by code-review-graph
 .code-review-graph/
 /docs/uc
 
 # Local MCP config (machine-specific paths)
 /.mcp.json
+/docs/excels
+/docs/design
+/docs/test
+/docs/figma-gb337

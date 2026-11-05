@@ -83,3 +83,8 @@
     grid-template-columns: 1fr;
   }
 }
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

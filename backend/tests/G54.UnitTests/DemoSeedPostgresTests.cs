@@ -328,8 +328,9 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^10]);
         Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^11]);
         Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^12]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^13]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^14]);
+        Assert.Equal("20261102134713_AddDataImportSupport", migrations[^13]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^14]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^15]);
     }
 
     [PostgresFact]

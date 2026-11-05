@@ -88,6 +88,14 @@ public static class ErrorCodes
     public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
     public const string TargetInvalidState = "TARGET_INVALID_STATE";
 
+    // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
+    public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
+    public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
+    public const string DataImportInvalidValue = "DATA_IMPORT_INVALID_VALUE";
+    public const string DataImportDuplicate = "DATA_IMPORT_DUPLICATE";
+    public const string DataImportReferenceNotFound = "DATA_IMPORT_REFERENCE_NOT_FOUND";
+    public const string DataImportConflict = "DATA_IMPORT_CONFLICT";
+
     // Transaction import (docs/api/TRANSACTION_IMPORT_CONTRACT.md)
     public const string ImportInvalidFile = "IMPORT_INVALID_FILE";
 
@@ -139,6 +147,12 @@ public static class ErrorCodes
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [ImportTemplateInvalid] = ("File không đúng mẫu quy định.", "The file does not match the required template."),
+        [DataImportHasErrors] = ("File còn dòng lỗi, không thể xác nhận import.", "The file still has invalid rows and cannot be committed."),
+        [DataImportInvalidValue] = ("Giá trị không hợp lệ.", "Invalid value."),
+        [DataImportDuplicate] = ("Mã nhân viên trùng lặp trong file.", "Duplicate employee code in the file."),
+        [DataImportReferenceNotFound] = ("Mã tham chiếu không tồn tại.", "Referenced code not found."),
+        [DataImportConflict] = ("Mã nhân viên hoặc email đã tồn tại, không có dữ liệu nào được ghi.", "An employee code or email already exists, so nothing was written."),
         [ImportInvalidFile] = ("Tệp nhập không đúng định dạng .xlsx hoặc thiếu cột bắt buộc.", "The import file is not a valid .xlsx or is missing a required column."),
         [KpiAggregationNotSupported] = ("KPI kh\u00f4ng h\u1ed7 tr\u1ee3 c\u00e1ch t\u1ed5ng h\u1ee3p n\u00e0y.", "The KPI aggregation type is not supported for transaction reconciliation."),
         [WorkTransactionLimit] = ("M\u1ed7i c\u00f4ng vi\u1ec7c ch\u1ec9 c\u00f3 t\u1ed1i \u0111a 10 m\u00e3 giao d\u1ecbch.", "A work can hold at most 10 transaction codes."),

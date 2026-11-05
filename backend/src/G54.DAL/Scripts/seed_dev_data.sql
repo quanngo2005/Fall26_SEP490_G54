@@ -52,6 +52,15 @@ INSERT INTO job_position (id, code, title, description) VALUES
  ('5eed0000-0000-0000-0006-000000000002', 'TELLER', 'Giao dịch viên',         'Giao dịch tại quầy')
 ON CONFLICT DO NOTHING;
 
+-- Data Import (02_Nhan_su_To_chuc.xlsx, docs/api/DATA_IMPORT_CONTRACT.md): the other 5 positions the template offers.
+INSERT INTO job_position (id, code, title, description) VALUES
+ ('5eed0000-0000-0000-0006-000000000003', 'DEPT_MANAGER',   'Trưởng phòng',          'Quản lý phòng ban'),
+ ('5eed0000-0000-0000-0006-000000000004', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',    'Quản lý chi nhánh'),
+ ('5eed0000-0000-0000-0006-000000000005', 'QA',              'Kiểm soát chất lượng', 'Kiểm soát chất lượng dịch vụ'),
+ ('5eed0000-0000-0000-0006-000000000006', 'HR_OFFICER',      'Chuyên viên nhân sự',  'Quản lý nhân sự'),
+ ('5eed0000-0000-0000-0006-000000000007', 'SYS_ADMIN',       'Quản trị hệ thống',    'Quản trị hệ thống')
+ON CONFLICT DO NOTHING;
+
 -- ---------------------------------------------------------------------------
 -- Evaluation profiles, one per position (ACTIVE profiles must total 100% - checked at commit)
 -- ---------------------------------------------------------------------------
@@ -118,7 +127,8 @@ INSERT INTO role (id, code, name, description) VALUES
  ('5eed0000-0000-0000-0008-000000000005', 'SYSTEM_ADMIN',   'System Administrator', 'Quản trị hệ thống'),
  ('5eed0000-0000-0000-0008-000000000006', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',   'Quản lý chi nhánh và các phòng ban trực thuộc'),
  ('5eed0000-0000-0000-0008-000000000007', 'DEPT_MANAGER',   'Trưởng phòng',         'Quản lý phòng ban của mình'),
- ('5eed0000-0000-0000-0008-000000000008', 'QA',             'Kiểm soát chất lượng', 'Gắn cờ chất lượng, yêu cầu làm lại và kiểm tra ngẫu nhiên 5% kết quả đã duyệt')
+ ('5eed0000-0000-0000-0008-000000000008', 'QA',             'Kiểm soát chất lượng', 'Gắn cờ chất lượng, yêu cầu làm lại và kiểm tra ngẫu nhiên 5% kết quả đã duyệt'),
+ ('5eed0000-0000-0000-0008-000000000009', 'HR_OFFICER',     'Chuyên viên nhân sự',  'Quản lý hồ sơ nhân sự và tổ chức')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO permission (id, code, name, resource, action) VALUES
@@ -158,7 +168,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000022', 'QUALITY_FLAG_REWORK', 'Yêu cầu nhân viên làm lại', 'quality_flag', 'rework'),
  ('5eed0000-0000-0000-0009-000000000023', 'QUALITY_FLAG_DISMISS', 'Bỏ qua cờ chất lượng', 'quality_flag', 'dismiss'),
  ('5eed0000-0000-0000-0009-000000000024', 'QA_SAMPLE_READ', 'Xem mẫu kiểm tra QA 5%', 'qa_sample', 'read'),
- ('5eed0000-0000-0000-0009-000000000025', 'QA_SAMPLE_DECIDE', 'Quyết định kết quả kiểm tra mẫu QA', 'qa_sample', 'decide')
+ ('5eed0000-0000-0000-0009-000000000025', 'QA_SAMPLE_DECIDE', 'Quyết định kết quả kiểm tra mẫu QA', 'qa_sample', 'decide'),
+ ('5eed0000-0000-0000-0009-000000000026', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -193,7 +204,9 @@ FROM (VALUES
     ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
     ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
-    ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All')
+    ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All'),
+    -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
+    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
