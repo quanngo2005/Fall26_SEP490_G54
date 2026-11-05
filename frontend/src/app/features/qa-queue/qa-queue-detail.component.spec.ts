@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { QaQueueDetail, QaQueueItem } from '../../core/qa-queue.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { QaQueueContext } from './qa-queue-display';
@@ -110,6 +111,7 @@ describe('QaQueueDetailComponent', () => {
       })
       .compileComponents();
     http = TestBed.inject(HttpTestingController);
+    TestBed.inject(I18nService).setLanguage('vi');
     navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
   });
 

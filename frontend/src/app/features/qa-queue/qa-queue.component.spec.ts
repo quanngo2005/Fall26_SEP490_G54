@@ -4,6 +4,7 @@ import { Component } from '@angular/core';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { QaQueue, QaQueueItem } from '../../core/qa-queue.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { QaQueueContext } from './qa-queue-display';
@@ -80,6 +81,7 @@ describe('QaQueueComponent', () => {
       })
       .compileComponents();
     http = TestBed.inject(HttpTestingController);
+    TestBed.inject(I18nService).setLanguage('vi');
   });
 
   afterEach(() => http.verify());
