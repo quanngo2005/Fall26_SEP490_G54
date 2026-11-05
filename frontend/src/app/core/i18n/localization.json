@@ -1564,6 +1564,26 @@
           "hint": "Chỉ người tham gia chiến dịch đang hoạt động mới nhận việc; nhân viên nghỉ việc bị loại tự động.",
           "done": "Đã tạo công việc."
         },
+        "reviewPlans": "Duyệt kế hoạch",
+        "approval": {
+          "title": "Duyệt kế hoạch chiến dịch",
+          "subtitle": "Thẩm định tính khả thi của mục tiêu và phê duyệt phân bổ nhân sự",
+          "queue": "Danh sách chờ duyệt",
+          "search": "Tìm kế hoạch…",
+          "queueEmpty": "Không có kế hoạch nào đang chờ duyệt.",
+          "selectPrompt": "Chọn một kế hoạch để thẩm định.",
+          "dossier": "Hồ sơ thẩm định",
+          "openDetail": "Mở chi tiết đầy đủ",
+          "decisionTitle": "Quyết định phê duyệt",
+          "note": "Ý kiến / lý do (bắt buộc khi từ chối)",
+          "notePlaceholder": "Nhập nhận xét hoặc lý do từ chối…",
+          "cannotApprove": "Bạn không có quyền phê duyệt kế hoạch này.",
+          "reject": "Từ chối",
+          "approve": "Duyệt kế hoạch",
+          "deciding": "Đang xử lý…",
+          "rejectHint": "Từ chối sẽ hủy kế hoạch chiến dịch và không thể hoàn tác.",
+          "afterApprove": "Sau khi duyệt, chiến dịch chuyển sang Đang chạy và Trưởng phòng có thể tạo công việc hàng loạt."
+        },
         "genericError": "Không thực hiện được. Vui lòng thử lại."
       },
       "evaluations": {
@@ -3281,6 +3301,26 @@
           "invalid": "Select a work type, enter the list source, a work count from 1 to 1000 and at least one employee.",
           "hint": "Only active campaign participants receive works; employees leaving are excluded automatically.",
           "done": "Works created."
+        },
+        "reviewPlans": "Review plans",
+        "approval": {
+          "title": "Campaign plan approval",
+          "subtitle": "Assess the feasibility of the targets and approve the staff allocation",
+          "queue": "Pending approval",
+          "search": "Search plans…",
+          "queueEmpty": "No plans are waiting for approval.",
+          "selectPrompt": "Select a plan to review.",
+          "dossier": "Review file",
+          "openDetail": "Open full details",
+          "decisionTitle": "Approval decision",
+          "note": "Comment / reason (required to reject)",
+          "notePlaceholder": "Enter a comment or the reason for rejecting…",
+          "cannotApprove": "You are not allowed to decide on this plan.",
+          "reject": "Reject",
+          "approve": "Approve plan",
+          "deciding": "Processing…",
+          "rejectHint": "Rejecting cancels the campaign plan and cannot be undone.",
+          "afterApprove": "Once approved, the campaign moves to Running and the Department Manager can generate batch work."
         },
         "genericError": "The action failed. Please try again."
       },

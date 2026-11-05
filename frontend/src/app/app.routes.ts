@@ -180,6 +180,15 @@ export const routes: Routes = [
       import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
   },
   {
+    path: 'campaigns/approval',
+    canActivate: [authGuard],
+    title: 'Duyệt kế hoạch chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-approval.component').then(
+        (m) => m.CampaignApprovalComponent,
+      ),
+  },
+  {
     path: 'campaigns/:id',
     canActivate: [authGuard],
     title: 'Chi tiết chiến dịch',

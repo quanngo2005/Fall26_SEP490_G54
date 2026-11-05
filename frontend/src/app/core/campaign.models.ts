@@ -115,6 +115,20 @@ export interface CreateCampaignPayload {
   participantEmployeeIds: string[];
 }
 
+export type CampaignDecision = 'APPROVE' | 'REJECT';
+
+export interface CampaignDecisionPayload {
+  decision: CampaignDecision;
+  note: string | null;
+}
+
+export interface CampaignDecisionResult {
+  campaignId: string;
+  status: CampaignStatus;
+  decidedAt: string;
+  message: string;
+}
+
 export interface BatchWorkPayload {
   workTypeId: string;
   leadPoolSource: string;

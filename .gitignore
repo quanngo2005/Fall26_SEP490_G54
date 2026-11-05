@@ -79,7 +79,6 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
-/docs/diagrams
 # Added by code-review-graph
 .code-review-graph/
 /docs/uc
@@ -88,3 +87,5 @@ uploads/
 /.mcp.json
 /docs/excels
 /docs/design
+/docs/test
+/docs/figma-gb337
