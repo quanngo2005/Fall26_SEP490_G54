@@ -48,6 +48,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
+        services.AddScoped<ITransactionImportService, TransactionImportService>();
+        services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
         services.AddHostedService<HandoverEscalationBackgroundService>();

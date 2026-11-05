@@ -150,7 +150,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000001b', 'KPI_REQUEST',         'Yêu cầu bổ sung KPI',         'kpi',       'request'),
  ('5eed0000-0000-0000-0009-00000000001c', 'KPI_APPROVE',         'Duyệt hoặc từ chối KPI',      'kpi',       'approve'),
  ('5eed0000-0000-0000-0009-00000000001d', 'NOTIFICATION_READ',   'Xem thông báo của mình',      'notification', 'read'),
- ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send')
+ ('5eed0000-0000-0000-0009-00000000001e', 'NOTIFICATION_SEND',   'Gửi thông báo cho nhân viên', 'notification', 'send'),
+ ('5eed0000-0000-0000-0009-00000000001f', 'TRANSACTION_IMPORT_MANAGE', 'Import giao dịch Core Banking', 'transaction-import', 'manage')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -183,7 +184,7 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
     ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
     ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
-    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept')
+    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
@@ -1155,4 +1156,82 @@ SELECT '5eed0000-0000-0000-0018-0000000000a1', '5eed0000-0000-0000-0017-00000000
 FROM employee m WHERE m.employee_code = 'NV011'
   AND EXISTS (SELECT 1 FROM result_submission s WHERE s.id = '5eed0000-0000-0000-0017-0000000000a1')
   AND NOT EXISTS (SELECT 1 FROM verification v WHERE v.result_submission_id = '5eed0000-0000-0000-0017-0000000000a1')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- Transaction reconcile demo (docs/api/WORK_TRANSACTION_CONTRACT.md)
+-- work_type_kpi.value_source defaults to COUNT, so existing and seeded mappings credit 1 per transaction.
+-- NV004 holds one DONE work (2 matched codes, KPI credited), one SUBMITTED work with mismatching codes and
+-- one SUBMITTED work whose code is not in any import yet.
+-- ============================================================================
+INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, target_value, version, status, created_at, assigned_at, approved_at)
+SELECT '5eed0000-0000-0000-0047-000000000001', '5eed0000-0000-0000-0005-000000000007', '5eed0000-0000-0000-0007-000000000004',
+       '5eed0000-0000-0000-000f-000000000003', 20, 1, 'ACTIVE', now(), now(), now()
+WHERE NOT EXISTS (
+    SELECT 1 FROM target_assignment t
+    WHERE t.kpi_definition_id = '5eed0000-0000-0000-0005-000000000007'
+      AND t.employee_id = '5eed0000-0000-0000-0007-000000000004'
+      AND t.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND t.status = 'ACTIVE')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO import_batch (id, file_name, total_rows, imported_rows, duplicate_rows, error_rows, imported_by, imported_at)
+SELECT '5eed0000-0000-0000-0040-000000000001', 'demo-transactions.xlsx', 4, 4, 0, 0, e.id, now()
+FROM employee e WHERE e.employee_code = 'NV013'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO imported_transaction (id, import_batch_id, transaction_code, employee_id, product_code, transaction_date, amount, denominator)
+SELECT t.id::uuid, '5eed0000-0000-0000-0040-000000000001', t.code, e.id, t.product, DATE '2026-11-02', t.amount, NULL
+FROM (VALUES
+    ('5eed0000-0000-0000-0041-000000000001', 'TX-DEMO-001', 'NV004', 'TD_CLASSIC', 1500000),
+    ('5eed0000-0000-0000-0041-000000000002', 'TX-DEMO-002', 'NV004', 'TD_GOLD',    2000000),
+    ('5eed0000-0000-0000-0041-000000000003', 'TX-DEMO-003', 'NV005', 'TD_CLASSIC', 1000000),
+    ('5eed0000-0000-0000-0041-000000000004', 'TX-DEMO-004', 'NV004', 'TD_CLASSIC', 3000000)
+) AS t(id, code, emp, product, amount)
+JOIN employee e ON e.employee_code = t.emp
+WHERE EXISTS (SELECT 1 FROM import_batch WHERE id = '5eed0000-0000-0000-0040-000000000001')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, status)
+SELECT w.id::uuid, '5eed0000-0000-0000-000c-000000000005', e.id, COALESCE(e.manager_id, e.id), w.code, w.title, w.status::work_status
+FROM (VALUES
+    ('5eed0000-0000-0000-0042-000000000001', 'W-DEMO-TX-MATCHED',    'Classic card - all codes matched',   'DONE'),
+    ('5eed0000-0000-0000-0042-000000000002', 'W-DEMO-TX-NOTMATCHED', 'Classic card - codes not matched',   'SUBMITTED'),
+    ('5eed0000-0000-0000-0042-000000000003', 'W-DEMO-TX-INREVIEW',   'Classic card - waiting for import',  'SUBMITTED')
+) AS w(id, code, title, status)
+JOIN employee e ON e.employee_code = 'NV004'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work_transaction (id, work_id, transaction_code, status, reason, imported_transaction_id, created_at, updated_at)
+SELECT x.id::uuid, x.work_id::uuid, x.code, x.status, x.reason, it.id, now(), now()
+FROM (VALUES
+    ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0042-000000000001', 'TX-DEMO-001',   'MATCHED',     NULL,               TRUE),
+    ('5eed0000-0000-0000-0043-000000000002', '5eed0000-0000-0000-0042-000000000001', 'TX-DEMO-004',   'MATCHED',     NULL,               TRUE),
+    ('5eed0000-0000-0000-0043-000000000003', '5eed0000-0000-0000-0042-000000000002', 'TX-DEMO-002',   'NOT_MATCHED', 'PRODUCT_MISMATCH', FALSE),
+    ('5eed0000-0000-0000-0043-000000000004', '5eed0000-0000-0000-0042-000000000002', 'TX-DEMO-003',   'NOT_MATCHED', 'EMPLOYEE_MISMATCH', FALSE),
+    ('5eed0000-0000-0000-0043-000000000005', '5eed0000-0000-0000-0042-000000000003', 'TX-DEMO-PENDING', 'IN_REVIEW', NULL,               FALSE)
+) AS x(id, work_id, code, status, reason, linked)
+LEFT JOIN imported_transaction it ON x.linked AND it.transaction_code = x.code
+WHERE EXISTS (SELECT 1 FROM work WHERE id = x.work_id::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verified_work_result (id, work_transaction_id, status, verified_at)
+SELECT ('5eed0000-0000-0000-0044-00000000000' || right(wt.id::text, 1))::uuid, wt.id, 'VALID', now()
+FROM work_transaction wt WHERE wt.id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT '5eed0000-0000-0000-0045-000000000001', ta.id, DATE '2026-11-02', 2, 'VALID'
+FROM target_assignment ta
+WHERE ta.kpi_definition_id = '5eed0000-0000-0000-0005-000000000007'
+  AND ta.employee_id = '5eed0000-0000-0000-0007-000000000004'
+  AND ta.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND ta.status = 'ACTIVE'
+  AND EXISTS (SELECT 1 FROM verified_work_result WHERE id = '5eed0000-0000-0000-0044-000000000001')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO work_result_item (id, verified_work_result_id, actual_progress_id, employee_id, value, raw_value, multiplier_applied)
+SELECT ('5eed0000-0000-0000-0046-00000000000' || right(vr.id::text, 1))::uuid, vr.id, '5eed0000-0000-0000-0045-000000000001',
+       '5eed0000-0000-0000-0007-000000000004', 1, 1, 1.0
+FROM verified_work_result vr
+WHERE vr.work_transaction_id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
+  AND EXISTS (SELECT 1 FROM actual_progress WHERE id = '5eed0000-0000-0000-0045-000000000001')
 ON CONFLICT DO NOTHING;

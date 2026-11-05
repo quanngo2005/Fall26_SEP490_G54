@@ -61,11 +61,13 @@ public sealed class VerificationService(
         KpiItemDto? kpiItem = null;
         if (primaryKpi is not null)
         {
+            var declared = ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics
+                .FirstOrDefault(m => m.KpiDefinitionId == primaryKpi.Id);
             kpiItem = new KpiItemDto(
                 primaryKpi.Id,
                 primaryKpi.Code,
                 primaryKpi.Name,
-                15.0m, // Giá trị mặc định mô phỏng sản lượng nộp
+                declared?.Value ?? 0m,
                 primaryKpi.Unit);
         }
 
@@ -131,6 +133,7 @@ public sealed class VerificationService(
             .Include(s => s.Work)
                 .ThenInclude(w => w.WorkType)
                     .ThenInclude(wt => wt!.WorkTypeKpis)
+                        .ThenInclude(k => k.KpiDefinition)
             .Include(s => s.Verifications)
             .Include(s => s.SubmitterEmployee)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
@@ -212,7 +215,14 @@ public sealed class VerificationService(
             if (dbDecision == VerificationDecision.Approved)
             {
                 await VerifiedResultRecorder.RecordAsync(
-                    db, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
+                    db,
+                    time,
+                    verification,
+                    submission.Work,
+                    submission.SubmitterEmployeeId,
+                    ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics,
+                    now,
+                    cancellationToken);
             }
 
             // Insert the verification before APPROVED closes the submission in the database trigger.
@@ -359,11 +369,6 @@ public sealed class VerificationService(
             {
                 throw new ValidationException("Hạn chót nộp lại phải lớn hơn thời điểm hiện tại.");
             }
-        }
-
-        if (dec is "APPROVED" && dto.VerifiedValue.HasValue && dto.VerifiedValue.Value < 0)
-        {
-            throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
     }
 }

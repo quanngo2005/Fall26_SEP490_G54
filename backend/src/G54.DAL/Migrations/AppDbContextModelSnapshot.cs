@@ -1003,6 +1003,108 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DuplicateRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("duplicate_rows");
+
+                    b.Property<int>("ErrorRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("error_rows");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<Guid>("ImportedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_by");
+
+                    b.Property<int>("ImportedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("imported_rows");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_rows");
+
+                    b.HasKey("Id")
+                        .HasName("import_batch_pkey");
+
+                    b.ToTable("import_batch", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal?>("Denominator")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("denominator");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<string>("ProductCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_code");
+
+                    b.Property<string>("ReferEmployeeCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("refer_employee_code");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("transaction_date");
+
+                    b.HasKey("Id")
+                        .HasName("imported_transaction_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId" }, "ix_imported_transaction_batch");
+
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_imported_transaction_employee");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_imported_transaction_code")
+                        .IsUnique();
+
+                    b.ToTable("imported_transaction", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2450,7 +2552,7 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid>("VerificationId")
+                    b.Property<Guid?>("VerificationId")
                         .HasColumnType("uuid")
                         .HasColumnName("verification_id");
 
@@ -2458,12 +2560,19 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("verified_at");
 
+                    b.Property<Guid?>("WorkTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_transaction_id");
+
                     b.HasKey("Id")
                         .HasName("verified_work_result_pkey");
 
                     b.HasIndex(new[] { "Status" }, "ix_verified_work_result_status");
 
                     b.HasIndex(new[] { "VerificationId" }, "uq_verified_work_result_verification")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "WorkTransactionId" }, "uq_verified_work_result_work_transaction")
                         .IsUnique();
 
                     b.ToTable("verified_work_result", null, t =>
@@ -2648,6 +2757,63 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.WorkTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("ImportedTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_transaction_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id")
+                        .HasName("work_transaction_pkey");
+
+                    b.HasIndex(new[] { "WorkId" }, "ix_work_transaction_work");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_work_transaction_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "ImportedTransactionId" }, "uq_work_transaction_imported")
+                        .IsUnique();
+
+                    b.ToTable("work_transaction", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_work_transaction_status", "status IN ('IN_REVIEW','MATCHED','NOT_MATCHED')");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.WorkType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2740,6 +2906,14 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("ValueSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("COUNT")
+                        .HasColumnName("value_source");
 
                     b.Property<Guid>("WorkTypeId")
                         .HasColumnType("uuid")
@@ -2999,6 +3173,27 @@ namespace G54.DAL.Migrations
                     b.Navigation("ResultSubmission");
 
                     b.Navigation("RiskEvent");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_imported_transaction_employee");
+
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("Transactions")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_imported_transaction_batch");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ImportBatch");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.JobPositionWorkType", b =>
@@ -3477,10 +3672,17 @@ namespace G54.DAL.Migrations
                         .WithOne("VerifiedWorkResult")
                         .HasForeignKey("G54.DAL.Entities.VerifiedWorkResult", "VerificationId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_verified_work_result_verification");
 
+                    b.HasOne("G54.DAL.Entities.WorkTransaction", "WorkTransaction")
+                        .WithMany()
+                        .HasForeignKey("WorkTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_verified_work_result_work_transaction");
+
                     b.Navigation("Verification");
+
+                    b.Navigation("WorkTransaction");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Work", b =>
@@ -3556,6 +3758,26 @@ namespace G54.DAL.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("VerifiedWorkResult");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.WorkTransaction", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ImportedTransaction", "ImportedTransaction")
+                        .WithMany()
+                        .HasForeignKey("ImportedTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_work_transaction_imported");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_transaction_work");
+
+                    b.Navigation("ImportedTransaction");
+
+                    b.Navigation("Work");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.WorkTypeKpi", b =>
@@ -3689,6 +3911,11 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.EvaluationProfileItem", b =>
                 {
                     b.Navigation("ChildItems");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
+                {
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>

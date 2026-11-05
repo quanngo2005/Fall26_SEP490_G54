@@ -250,7 +250,6 @@ public sealed class VerificationServiceTests
             var payload = new SubmitVerificationDecisionDto
             {
                 Decision = "APPROVED",
-                VerifiedValue = 15m,
                 Feedback = "Hồ sơ đầy đủ, chứng từ hợp lệ.",
             };
 
@@ -396,7 +395,6 @@ public sealed class VerificationServiceTests
                 service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
                 {
                     Decision = "APPROVED",
-                    VerifiedValue = 1m,
                 }));
 
             Assert.Equal(ErrorCodes.VerificationInvalidState, ex.ErrorCode);
@@ -564,7 +562,6 @@ public sealed class VerificationServiceTests
             var second = await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
             {
                 Decision = "APPROVED",
-                VerifiedValue = 1m,
             });
 
             Assert.Equal("APPROVED", second.Decision);
@@ -586,7 +583,8 @@ public sealed class VerificationServiceTests
         Employee referrer,
         Employee processor,
         bool referrerHasTarget = true,
-        bool processorHasTarget = true)
+        bool processorHasTarget = true,
+        decimal declaredValue = 50m)
     {
         var today = TimeProvider.System.GetUtcNow().ToOffset(TimeSpan.FromHours(7));
         var businessToday = DateOnly.FromDateTime(today.DateTime);
@@ -619,6 +617,11 @@ public sealed class VerificationServiceTests
             IsRequired = true,
             EffectiveFrom = businessToday.AddDays(-30),
         });
+        foreach (var s in context.ResultSubmissions.Local.Where(s => s.WorkId == work.Id))
+        {
+            s.Comment = ResultSubmissionService.BuildStoredComment(
+                null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, declaredValue, null)]);
+        }
 
         var trackedWork = await context.Works.FindAsync(work.Id);
         trackedWork!.WorkTypeId = workType.Id;
@@ -703,7 +706,6 @@ public sealed class VerificationServiceTests
     private static SubmitVerificationDecisionDto Approve(decimal value) => new()
     {
         Decision = "APPROVED",
-        VerifiedValue = value,
     };
 
     [Fact]
@@ -817,7 +819,7 @@ public sealed class VerificationServiceTests
             var oldProcessor = NewEmployee(context, maker, "EMP-OLD");
             var latestProcessor = NewEmployee(context, maker, "EMP-NEW");
             await context.SaveChangesAsync();
-            await SeedKpiWorldAsync(context, work, maker, latestProcessor);
+            await SeedKpiWorldAsync(context, work, maker, latestProcessor, declaredValue: 100m);
             context.TaskHandovers.AddRange(
                 NewHandover(work, maker, oldProcessor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddDays(-5), DateTimeOffset.UtcNow.AddDays(-4)),
                 NewHandover(work, maker, latestProcessor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(-1)));
@@ -886,7 +888,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WithoutVerifiedValue_CreatesNoResultItem()
+    public async Task SubmitDecisionAsync_WithoutSubmittedMetrics_CreatesNoResultItem()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -895,6 +897,7 @@ public sealed class VerificationServiceTests
             var processor = NewEmployee(context, maker, "EMP-CO1");
             await context.SaveChangesAsync();
             await SeedKpiWorldAsync(context, work, maker, processor);
+            foreach (var s in context.ResultSubmissions.Local) { s.Comment = null; }
             context.TaskHandovers.Add(NewHandover(
                 work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
             await context.SaveChangesAsync();
