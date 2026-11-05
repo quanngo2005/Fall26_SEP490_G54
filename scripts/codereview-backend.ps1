@@ -97,6 +97,9 @@ $intentionallyOpen = @{
     "GET /submissions/{submissionId:guid}"                 = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "GET /works/{workId:guid}/submissions/{submissionId:guid}" = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "POST /submissions/{submissionId:guid}/withdraw"       = "ResultSubmissionService: submitter only"
+    "GET /works/{workId:guid}/transactions"                = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "POST /works/{workId:guid}/transactions"               = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "DELETE /works/{workId:guid}/transactions/{transactionId:guid}" = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
     "POST /works/{workId:guid}/submissions/{submissionId:guid}/withdraw" = "ResultSubmissionService: submitter only"
     "PATCH /works/{id:guid}/status"                        = "WorkService: assignee or direct manager"
 }
@@ -242,8 +245,10 @@ $checks = @(
                 Add-Finding "skipped: $($test.testName)$(if ($reason) { " - $reason" })"
             }
             $skippedTests.Count -eq 0 } },
+    # .Result only blocks when it reads a Task: the result of a call (`Foo().Result`) or a variable named *task*. A DTO or record
+    # property that happens to be called Result (e.g. dto.Result) is not sync-over-async and must not be reported.
     @{ Id = "BE-20"; Severity = "Medium"; Name = "No sync-over-async, async void, empty catch or console output in services"; Test = {
-            $a = Find-Pattern $serviceFiles '\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
+            $a = Find-Pattern $serviceFiles '(\)|[Tt]ask\w*)\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
             $b = Find-Pattern $serviceFiles '\basync\s+void\b' "async void: exceptions crash the process"
             $c = Find-PatternInContent $serviceFiles 'catch\s*(\([^)]*\))?\s*\{\s*\}' "empty catch swallows errors"
             $d = Find-Pattern $serviceFiles 'Console\.Write(Line)?\(' "use ILogger instead of Console"

@@ -13,6 +13,7 @@ public enum NotificationType
     [PgName("WORK_OVERDUE")] WorkOverdue,
     [PgName("KPI_APPROVED")] KpiApproved,
     [PgName("KPI_REJECTED")] KpiRejected,
+    [PgName("REWORK_REQUESTED")] ReworkRequested,
 }
 
 public enum NotificationSeverity
