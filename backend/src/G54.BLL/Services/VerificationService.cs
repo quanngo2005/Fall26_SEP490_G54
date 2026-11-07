@@ -16,7 +16,8 @@ public sealed class VerificationService(
     AppDbContext db,
     ILogger<VerificationService> logger,
     TimeProvider time,
-    IPermissionService permissions) : IVerificationService
+    IPermissionService permissions,
+    IQaSamplingPolicy? qaSampling = null) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -61,11 +62,13 @@ public sealed class VerificationService(
         KpiItemDto? kpiItem = null;
         if (primaryKpi is not null)
         {
+            var declared = ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics
+                .FirstOrDefault(m => m.KpiDefinitionId == primaryKpi.Id);
             kpiItem = new KpiItemDto(
                 primaryKpi.Id,
                 primaryKpi.Code,
                 primaryKpi.Name,
-                15.0m, // Giá trị mặc định mô phỏng sản lượng nộp
+                declared?.Value ?? 0m,
                 primaryKpi.Unit);
         }
 
@@ -131,6 +134,7 @@ public sealed class VerificationService(
             .Include(s => s.Work)
                 .ThenInclude(w => w.WorkType)
                     .ThenInclude(wt => wt!.WorkTypeKpis)
+                        .ThenInclude(k => k.KpiDefinition)
             .Include(s => s.Verifications)
             .Include(s => s.SubmitterEmployee)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
@@ -212,7 +216,14 @@ public sealed class VerificationService(
             if (dbDecision == VerificationDecision.Approved)
             {
                 await VerifiedResultRecorder.RecordAsync(
-                    db, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
+                    db,
+                    time,
+                    verification,
+                    submission.Work,
+                    submission.SubmitterEmployeeId,
+                    ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics,
+                    now,
+                    cancellationToken);
             }
 
             // Insert the verification before APPROVED closes the submission in the database trigger.
@@ -231,6 +242,20 @@ public sealed class VerificationService(
                     .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
                     .Select(a => a.Id)
                     .ToListAsync(cancellationToken);
+                // BR-32: a random 5% of manually approved results is queued for QA re-verification.
+                if (qaSampling?.ShouldSample(submission.Work) == true
+                    && !await db.QaSamples.AnyAsync(x => x.ResultSubmissionId == submission.Id, cancellationToken))
+                {
+                    db.QaSamples.Add(new QaSample
+                    {
+                        Id = Guid.NewGuid(),
+                        ResultSubmissionId = submission.Id,
+                        SubmitterEmployeeId = submission.SubmitterEmployeeId,
+                        Status = QaSampleStatus.Pending,
+                        SampledAt = now,
+                    });
+                }
+
                 foreach (var appealId in acceptedAppeals)
                 {
                     await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
@@ -359,11 +384,6 @@ public sealed class VerificationService(
             {
                 throw new ValidationException("Hạn chót nộp lại phải lớn hơn thời điểm hiện tại.");
             }
-        }
-
-        if (dec is "APPROVED" && dto.VerifiedValue.HasValue && dto.VerifiedValue.Value < 0)
-        {
-            throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
     }
 }

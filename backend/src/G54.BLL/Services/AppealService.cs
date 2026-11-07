@@ -67,7 +67,6 @@ public sealed partial class AppealService(
         {
             throw new ValidationException($"Sản lượng công nhận phải không âm và chỉ được gửi khi {AppealDecisions.Accept}.");
         }
-
         var caller = await ResolveCallerAsync(userId, cancellationToken);
         var isScoreAppeal = await db.Appeals.AsNoTracking()
             .Where(a => a.Id == appealId)
@@ -100,6 +99,7 @@ public sealed partial class AppealService(
                 .ThenInclude(s => s.Work)
                     .ThenInclude(w => w.WorkType)
                         .ThenInclude(wt => wt!.WorkTypeKpis)
+                            .ThenInclude(k => k.KpiDefinition)
             .FirstOrDefaultAsync(a => a.Id == appealId && a.ResultSubmissionId != null, cancellationToken)
             ?? throw new NotFoundException("Khiếu nại", appealId);
         var submission = appeal.ResultSubmission!;
@@ -144,7 +144,14 @@ public sealed partial class AppealService(
                 if (decision == AppealDecisions.Accept)
                 {
                     await VerifiedResultRecorder.RecordAsync(
-                        db, time, verification, submission.Work, submission.SubmitterEmployeeId, request.VerifiedValue, now, cancellationToken);
+                        db,
+                        time,
+                        verification,
+                        submission.Work,
+                        submission.SubmitterEmployeeId,
+                        ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics,
+                        now,
+                        cancellationToken);
                 }
 
                 db.Verifications.Add(verification);

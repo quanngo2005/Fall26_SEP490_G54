@@ -34,7 +34,11 @@ const TAB_STATUSES: Readonly<Record<DepartmentTab, readonly AppealStatus[]>> = {
   selector: 'app-department-appeals',
   imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
   templateUrl: './department-appeals.component.html',
-  styleUrls: ['./appeals-shared.scss', './department-appeals.component.scss'],
+  styleUrls: [
+    './appeals-shared.scss',
+    './appeals-list.scss',
+    './department-appeals.component.scss',
+  ],
 })
 export class DepartmentAppealsComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(AppealService);

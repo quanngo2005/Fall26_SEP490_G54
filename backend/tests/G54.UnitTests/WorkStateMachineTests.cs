@@ -32,6 +32,8 @@ public sealed class WorkStateMachineTests
         (Submitted, WorkAction.Reject, Rejected),
         (InProgress, WorkAction.Reject, Rejected),
         (Verified, WorkAction.Complete, Done),
+        (Verified, WorkAction.Rework, InProgress),
+        (Done, WorkAction.Rework, InProgress),
         (New, WorkAction.Cancel, Cancelled),
         (InProgress, WorkAction.Cancel, Cancelled),
         (HandedOver, WorkAction.Cancel, Cancelled),
@@ -104,7 +106,6 @@ public sealed class WorkStateMachineTests
     }
 
     [Theory]
-    [InlineData(Done)]
     [InlineData(Cancelled)]
     public void StatusesWithoutOutgoingTransitions_RefuseEveryAction(WorkStatus current)
     {
@@ -114,6 +115,15 @@ public sealed class WorkStateMachineTests
         }
 
         Assert.Empty(WorkStateMachine.GetNextStatuses(current));
+    }
+
+    [Fact]
+    public void OnlyAQaReworkRequestLeavesDone()
+    {
+        foreach (var action in Enum.GetValues<WorkAction>())
+        {
+            Assert.Equal(action == WorkAction.Rework, WorkStateMachine.TryGetNextStatus(Done, action, out _));
+        }
     }
 
     [Fact]

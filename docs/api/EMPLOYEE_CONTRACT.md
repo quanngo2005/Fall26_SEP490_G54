@@ -106,7 +106,12 @@ legacy link (see "Identifier hand-off").
 
 ## Enum API format
 
-`status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED`.
+`status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED | PENDING_RESIGNATION`. The last
+value is written only by the Data Import feature (`docs/api/DATA_IMPORT_CONTRACT.md`); this API accepts and
+returns it like any other status but assigns no extra behaviour to it.
+
+The Data Import feature also adds a nullable `employee.hire_date` (date) column. It is not yet exposed on
+`EmployeeDetailDto` or any endpoint below — follow-up work, tracked with the import feature's "ngoài phạm vi" list.
 
 Responses are produced with `EnumApiFormat.ToEnumString()`. The `status` query filter, the optional `status`
 of `POST /employees` (defaults to `ACTIVE`), the required `status` of `PUT /employees/{id}` and the

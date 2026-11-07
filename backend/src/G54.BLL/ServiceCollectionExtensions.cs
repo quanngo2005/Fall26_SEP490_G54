@@ -1,4 +1,5 @@
 using G54.BLL.Common;
+using G54.BLL.Common.Import.Reading;
 using G54.BLL.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,6 +29,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IRiskEventService, RiskEventService>();
+        services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
+        services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
+        services.AddScoped<IQaQueueService, QaQueueService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<INotifier, Notifier>();
@@ -48,9 +52,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
+        services.AddScoped<ITransactionImportService, TransactionImportService>();
+        services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
         services.AddHostedService<HandoverEscalationBackgroundService>();
+
+        services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
+        services.AddScoped<IEmployeeImportService, EmployeeImportService>();
         return services;
     }
 }

@@ -278,11 +278,12 @@ public sealed class AppealServiceTests : IDisposable
             Status = TargetAssignmentStatus.Active,
         });
         submission.Work.WorkTypeId = workType.Id;
+        submission.Comment = ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 12.5m, null)]);
         await _db.SaveChangesAsync();
         var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => service.DecideAppealAsync(
-            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m }));
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
 
         Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
         Assert.Empty(await _db.WorkResultItems.ToListAsync());
@@ -340,9 +341,10 @@ public sealed class AppealServiceTests : IDisposable
             Status = TargetAssignmentStatus.Active,
         });
         submission.Work.WorkTypeId = workType.Id;
+        submission.Comment = ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 12.5m, null)]);
         await _db.SaveChangesAsync();
         var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
-        var request = new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m };
+        var request = new DecideAppealRequestDto { Decision = "ACCEPT" };
 
         var result = await service.DecideAppealAsync(appeal.Id, resolver.Id, request);
 
@@ -385,11 +387,12 @@ public sealed class AppealServiceTests : IDisposable
             EffectiveFrom = new DateOnly(2026, 10, 1),
         });
         submission.Work.WorkTypeId = workType.Id;
+        submission.Comment = ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 12.5m, null)]);
         await _db.SaveChangesAsync();
         var service = ServiceAt(RejectedAt.AddHours(5), ("verification", "decide", "Branch"));
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.DecideAppealAsync(
-            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 12.5m }));
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
 
         Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
@@ -429,17 +432,14 @@ public sealed class AppealServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(null, null, null)]
-    [InlineData("UNKNOWN", null, null)]
-    [InlineData("ADJUST", null, null)]
-    [InlineData("REJECT", "short", null)]
-    [InlineData("ACCEPT", null, -1)]
-    [InlineData("ADJUST", "Bổ sung chứng từ đối soát", 1)]
-    [InlineData("REJECT", "Hồ sơ không đạt yêu cầu", 0)]
-    public async Task Decide_InvalidPayload_StoresNothing(string? decision, string? note, int? value)
+    [InlineData(null, null)]
+    [InlineData("UNKNOWN", null)]
+    [InlineData("ADJUST", null)]
+    [InlineData("REJECT", "short")]
+    public async Task Decide_InvalidPayload_StoresNothing(string? decision, string? note)
     {
         await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
-            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = decision, Note = note, VerifiedValue = value }));
+            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = decision, Note = note }));
         Assert.Empty(await _db.Appeals.ToListAsync());
     }
 

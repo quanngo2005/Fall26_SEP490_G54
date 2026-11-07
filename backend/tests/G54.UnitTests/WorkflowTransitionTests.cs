@@ -254,7 +254,6 @@ public sealed class WorkflowTransitionTests
             new SubmitVerificationDecisionDto
             {
                 Decision = decision,
-                VerifiedValue = 1m,
                 Feedback = "Lý do đủ dài để hợp lệ.",
                 ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(2),
             }));
@@ -298,7 +297,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         var result = await rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m });
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" });
 
         Assert.Equal("APPROVED", result.SubmissionStatus);
         Assert.Equal("VERIFIED", result.WorkStatus);
@@ -313,7 +312,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         await Assert.ThrowsAsync<UnauthorizedException>(() => rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m }));
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" }));
 
         Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.AsNoTracking().SingleAsync()).Status);
         Assert.Equal(WorkStatus.Submitted, await rig.WorkStatusAsync());
@@ -328,7 +327,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         await Assert.ThrowsAsync<UnauthorizedException>(() => rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m }));
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" }));
 
         Assert.Equal(WorkStatus.Submitted, await rig.WorkStatusAsync());
     }

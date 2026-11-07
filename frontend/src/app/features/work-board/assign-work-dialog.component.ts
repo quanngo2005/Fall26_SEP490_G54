@@ -17,7 +17,7 @@ const MAX_CHECKLIST_ITEMS = 20;
   standalone: true,
   imports: [A11yModule, FormsModule],
   templateUrl: './assign-work-dialog.component.html',
-  styleUrls: ['../../shared/ui/ui-controls.scss', './assign-work-dialog.component.scss'],
+  styleUrls: ['../../shared/ui/ui-controls.scss', '../../shared/ui/dialog.scss'],
 })
 export class AssignWorkDialogComponent extends LocalizedComponent {
   private readonly works = inject(WorkService);

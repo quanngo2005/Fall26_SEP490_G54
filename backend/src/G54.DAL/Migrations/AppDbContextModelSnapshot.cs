@@ -25,7 +25,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "business_campaign_status", new[] { "PLANNED", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "business_objective_status", new[] { "DRAFT", "ACTIVE", "CLOSED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "department_level_type", new[] { "BRANCH", "DEPARTMENT", "TEAM" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED", "PENDING_RESIGNATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
@@ -48,6 +48,8 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "work_status", new[] { "NEW", "IN_PROGRESS", "HANDED_OVER", "SUBMITTED", "VERIFIED", "REJECTED", "DONE", "CANCELLED", "OVERDUE" });
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.HasSequence("qa_item_code_seq");
 
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
                 {
@@ -674,6 +676,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("full_name");
 
+                    b.Property<DateOnly?>("HireDate")
+                        .HasColumnType("date")
+                        .HasColumnName("hire_date");
+
                     b.Property<Guid>("JobPositionId")
                         .HasColumnType("uuid")
                         .HasColumnName("job_position_id");
@@ -1003,6 +1009,108 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("DuplicateRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("duplicate_rows");
+
+                    b.Property<int>("ErrorRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("error_rows");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<Guid>("ImportedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_by");
+
+                    b.Property<int>("ImportedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("imported_rows");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_rows");
+
+                    b.HasKey("Id")
+                        .HasName("import_batch_pkey");
+
+                    b.ToTable("import_batch", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal?>("Denominator")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("denominator");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<string>("ProductCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_code");
+
+                    b.Property<string>("ReferEmployeeCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("refer_employee_code");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.Property<DateOnly>("TransactionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("transaction_date");
+
+                    b.HasKey("Id")
+                        .HasName("imported_transaction_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId" }, "ix_imported_transaction_batch");
+
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_imported_transaction_employee");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_imported_transaction_code")
+                        .IsUnique();
+
+                    b.ToTable("imported_transaction", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1097,11 +1205,32 @@ namespace G54.DAL.Migrations
                         .HasColumnType("kpi_aggregation_type")
                         .HasColumnName("aggregation_type");
 
+                    b.Property<decimal?>("BaselineValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("baseline_value");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
+
+                    b.Property<string>("CreditRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PROCESSOR")
+                        .HasColumnName("credit_role");
+
+                    b.Property<string>("DataSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("TRANSACTION")
+                        .HasColumnName("data_source");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
@@ -1110,6 +1239,14 @@ namespace G54.DAL.Migrations
                     b.Property<int>("Direction")
                         .HasColumnType("kpi_direction")
                         .HasColumnName("direction");
+
+                    b.Property<Guid?>("EffectiveFromPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("effective_from_period_id");
+
+                    b.Property<Guid?>("EffectiveToPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("effective_to_period_id");
 
                     b.Property<string>("Formula")
                         .HasColumnType("text")
@@ -1130,6 +1267,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("ProductName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("product_name");
+
                     b.Property<string>("RejectReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -1147,6 +1289,10 @@ namespace G54.DAL.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("kpi_status")
                         .HasColumnName("status");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
 
                     b.Property<Guid?>("SubmittedBy")
                         .HasColumnType("uuid")
@@ -1167,7 +1313,14 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("kpi_definition_pkey");
 
+                    b.HasIndex("EffectiveFromPeriodId");
+
+                    b.HasIndex("EffectiveToPeriodId");
+
                     b.HasIndex("KpiGroupId");
+
+                    b.HasIndex("ProductName")
+                        .HasDatabaseName("ix_kpi_definition_product");
 
                     b.HasIndex("RequestedBy");
 
@@ -1670,6 +1823,159 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("permission", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.QaSample", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('qa_item_code_seq')");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("comment");
+
+                    b.Property<Guid>("ResultSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_submission_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_employee_id");
+
+                    b.Property<DateTimeOffset>("SampledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sampled_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmitterEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitter_employee_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_qa_sample_code_no");
+
+                    b.HasIndex("ResultSubmissionId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_qa_sample_submission");
+
+                    b.HasIndex("ReviewedByEmployeeId");
+
+                    b.HasIndex("SubmitterEmployeeId");
+
+                    b.HasIndex("Status", "SampledAt")
+                        .HasDatabaseName("ix_qa_sample_status");
+
+                    b.ToTable("qa_sample", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.QualityFlag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('qa_item_code_seq')");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("FlaggedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("flagged_by_employee_id");
+
+                    b.Property<Guid?>("QaSampleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("qa_sample_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ResultSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_submission_id");
+
+                    b.Property<string>("ReworkComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("rework_comment");
+
+                    b.Property<DateTimeOffset?>("ReworkRequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rework_requested_at");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quality_flag_code_no");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_quality_flag_employee");
+
+                    b.HasIndex("FlaggedByEmployeeId");
+
+                    b.HasIndex("QaSampleId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_quality_flag_sample")
+                        .HasFilter("qa_sample_id IS NOT NULL");
+
+                    b.HasIndex("ResultSubmissionId")
+                        .HasDatabaseName("ix_quality_flag_submission");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_quality_flag_status");
+
+                    b.ToTable("quality_flag", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
@@ -2450,7 +2756,7 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid>("VerificationId")
+                    b.Property<Guid?>("VerificationId")
                         .HasColumnType("uuid")
                         .HasColumnName("verification_id");
 
@@ -2458,12 +2764,19 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("verified_at");
 
+                    b.Property<Guid?>("WorkTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_transaction_id");
+
                     b.HasKey("Id")
                         .HasName("verified_work_result_pkey");
 
                     b.HasIndex(new[] { "Status" }, "ix_verified_work_result_status");
 
                     b.HasIndex(new[] { "VerificationId" }, "uq_verified_work_result_verification")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "WorkTransactionId" }, "uq_verified_work_result_work_transaction")
                         .IsUnique();
 
                     b.ToTable("verified_work_result", null, t =>
@@ -2648,6 +2961,63 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.WorkTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("ImportedTransactionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_transaction_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id")
+                        .HasName("work_transaction_pkey");
+
+                    b.HasIndex(new[] { "WorkId" }, "ix_work_transaction_work");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_work_transaction_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "ImportedTransactionId" }, "uq_work_transaction_imported")
+                        .IsUnique();
+
+                    b.ToTable("work_transaction", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_work_transaction_status", "status IN ('IN_REVIEW','MATCHED','NOT_MATCHED')");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.WorkType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2741,6 +3111,14 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<string>("ValueSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("COUNT")
+                        .HasColumnName("value_source");
+
                     b.Property<Guid>("WorkTypeId")
                         .HasColumnType("uuid")
                         .HasColumnName("work_type_id");
@@ -2759,6 +3137,21 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_work_type_kpi_multiplier", "multiplier > 0 AND multiplier <= 10");
                         });
+                });
+
+            modelBuilder.Entity("kpi_definition_job_position", b =>
+                {
+                    b.Property<Guid>("kpi_definition_id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("job_position_id")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("kpi_definition_id", "job_position_id");
+
+                    b.HasIndex("job_position_id");
+
+                    b.ToTable("kpi_definition_job_position");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
@@ -3001,6 +3394,27 @@ namespace G54.DAL.Migrations
                     b.Navigation("RiskEvent");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_imported_transaction_employee");
+
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("Transactions")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_imported_transaction_batch");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ImportBatch");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.JobPositionWorkType", b =>
                 {
                     b.HasOne("G54.DAL.Entities.JobPosition", "JobPosition")
@@ -3024,6 +3438,18 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.KpiDefinition", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EffectiveFromPeriod")
+                        .WithMany()
+                        .HasForeignKey("EffectiveFromPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kpi_definition_effective_from");
+
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EffectiveToPeriod")
+                        .WithMany()
+                        .HasForeignKey("EffectiveToPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_kpi_definition_effective_to");
+
                     b.HasOne("G54.DAL.Entities.KpiGroup", "KpiGroup")
                         .WithMany("KpiDefinitions")
                         .HasForeignKey("KpiGroupId")
@@ -3042,6 +3468,10 @@ namespace G54.DAL.Migrations
                         .HasForeignKey("SubmittedBy")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_kpi_definition_submitted_by");
+
+                    b.Navigation("EffectiveFromPeriod");
+
+                    b.Navigation("EffectiveToPeriod");
 
                     b.Navigation("KpiGroup");
                 });
@@ -3208,6 +3638,73 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_performance_evaluation_history_evaluation");
 
                     b.Navigation("PerformanceEvaluation");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.QaSample", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ResultSubmission", "ResultSubmission")
+                        .WithMany()
+                        .HasForeignKey("ResultSubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_qa_sample_submission");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "ReviewedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_qa_sample_reviewer");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "SubmitterEmployee")
+                        .WithMany()
+                        .HasForeignKey("SubmitterEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_qa_sample_submitter");
+
+                    b.Navigation("ResultSubmission");
+
+                    b.Navigation("ReviewedByEmployee");
+
+                    b.Navigation("SubmitterEmployee");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.QualityFlag", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quality_flag_employee");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "FlaggedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("FlaggedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quality_flag_flagged_by");
+
+                    b.HasOne("G54.DAL.Entities.QaSample", "QaSample")
+                        .WithOne("QualityFlag")
+                        .HasForeignKey("G54.DAL.Entities.QualityFlag", "QaSampleId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_quality_flag_sample");
+
+                    b.HasOne("G54.DAL.Entities.ResultSubmission", "ResultSubmission")
+                        .WithMany()
+                        .HasForeignKey("ResultSubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_quality_flag_submission");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("FlaggedByEmployee");
+
+                    b.Navigation("QaSample");
+
+                    b.Navigation("ResultSubmission");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
@@ -3477,10 +3974,17 @@ namespace G54.DAL.Migrations
                         .WithOne("VerifiedWorkResult")
                         .HasForeignKey("G54.DAL.Entities.VerifiedWorkResult", "VerificationId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_verified_work_result_verification");
 
+                    b.HasOne("G54.DAL.Entities.WorkTransaction", "WorkTransaction")
+                        .WithMany()
+                        .HasForeignKey("WorkTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_verified_work_result_work_transaction");
+
                     b.Navigation("Verification");
+
+                    b.Navigation("WorkTransaction");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Work", b =>
@@ -3558,6 +4062,26 @@ namespace G54.DAL.Migrations
                     b.Navigation("VerifiedWorkResult");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.WorkTransaction", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ImportedTransaction", "ImportedTransaction")
+                        .WithMany()
+                        .HasForeignKey("ImportedTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_work_transaction_imported");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_transaction_work");
+
+                    b.Navigation("ImportedTransaction");
+
+                    b.Navigation("Work");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.WorkTypeKpi", b =>
                 {
                     b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
@@ -3577,6 +4101,21 @@ namespace G54.DAL.Migrations
                     b.Navigation("KpiDefinition");
 
                     b.Navigation("WorkType");
+                });
+
+            modelBuilder.Entity("kpi_definition_job_position", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.JobPosition", null)
+                        .WithMany()
+                        .HasForeignKey("job_position_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("G54.DAL.Entities.KpiDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("kpi_definition_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
@@ -3691,6 +4230,11 @@ namespace G54.DAL.Migrations
                     b.Navigation("ChildItems");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.JobPosition", b =>
                 {
                     b.Navigation("Employees");
@@ -3732,6 +4276,11 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.PermissionRecord", b =>
                 {
                     b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.QaSample", b =>
+                {
+                    b.Navigation("QualityFlag");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>

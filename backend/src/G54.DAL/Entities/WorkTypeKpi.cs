@@ -15,6 +15,9 @@ public partial class WorkTypeKpi
 
     public decimal Multiplier { get; set; } = 1m;
 
+    /// <summary>COUNT credits 1 per imported transaction; AMOUNT credits the file's amount.</summary>
+    public string ValueSource { get; set; } = KpiValueSource.Count;
+
     public DateOnly EffectiveFrom { get; set; }
 
     public DateOnly? EffectiveTo { get; set; }

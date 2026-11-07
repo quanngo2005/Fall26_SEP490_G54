@@ -26,6 +26,9 @@ public enum WorkAction
     /// <summary>The assignee's direct manager cancels the work.</summary>
     Cancel,
 
+    /// <summary>QA sends an already verified (or closed) work back to the assignee for rework.</summary>
+    Rework,
+
     /// <summary>The work is handed over to another employee.</summary>
     Handover,
 

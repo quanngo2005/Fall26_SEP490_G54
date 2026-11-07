@@ -63,7 +63,10 @@ public sealed class EvidenceService(
         var level = granted
             .Where(p => (p.Resource == "*" && p.Action == "*")
                 || (string.Equals(p.Resource, "verification", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(p.Action, "decide", StringComparison.OrdinalIgnoreCase)))
+                    && string.Equals(p.Action, "decide", StringComparison.OrdinalIgnoreCase))
+                // QA reads the evidence of the results it reviews (SCR-REV-06) without being allowed to verify them.
+                || (string.Equals(p.Resource, "quality_flag", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(p.Action, "read", StringComparison.OrdinalIgnoreCase)))
             .Select(p => PermissionScopes.GetScopeLevel(p.Scope))
             .DefaultIfEmpty(0)
             .Max();

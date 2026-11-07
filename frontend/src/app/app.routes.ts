@@ -3,6 +3,7 @@ import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
+import { qaQueueGuard } from './core/qa-queue.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
@@ -160,6 +161,24 @@ export const routes: Routes = [
       import('./features/work-types/work-type-list.component').then((m) => m.WorkTypeListComponent),
   },
   {
+    path: 'evaluation-profiles',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-list.component').then(
+        (m) => m.EvaluationProfileListComponent,
+      ),
+  },
+  {
+    path: 'evaluation-profiles/:id',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
+        (m) => m.EvaluationProfileDetailComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>
@@ -190,6 +209,20 @@ export const routes: Routes = [
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
       ),
+  },
+  {
+    path: 'qa-queue',
+    canActivate: [authGuard, qaQueueGuard],
+    title: 'Hàng chờ QA',
+    loadComponent: () =>
+      import('./features/qa-queue/qa-queue.component').then((m) => m.QaQueueComponent),
+  },
+  {
+    path: 'qa-queue/:kind/:id',
+    canActivate: [authGuard, qaQueueGuard],
+    title: 'Quyết định QA',
+    loadComponent: () =>
+      import('./features/qa-queue/qa-queue-detail.component').then((m) => m.QaQueueDetailComponent),
   },
   {
     path: 'appeals',
@@ -250,6 +283,15 @@ export const routes: Routes = [
     title: 'Chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/approval',
+    canActivate: [authGuard],
+    title: 'Duyệt kế hoạch chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-approval.component').then(
+        (m) => m.CampaignApprovalComponent,
+      ),
   },
   {
     path: 'campaigns/:id',

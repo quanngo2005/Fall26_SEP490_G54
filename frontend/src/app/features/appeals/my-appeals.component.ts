@@ -43,7 +43,12 @@ const TAB_STATUSES: Readonly<Record<MineTab, readonly AppealStatus[]>> = {
     UpperCasePipe,
   ],
   templateUrl: './my-appeals.component.html',
-  styleUrls: ['../../shared/ui/modal.scss', './appeals-shared.scss', './my-appeals.component.scss'],
+  styleUrls: [
+    '../../shared/ui/modal.scss',
+    './appeals-shared.scss',
+    './appeals-list.scss',
+    './my-appeals.component.scss',
+  ],
 })
 export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(AppealService);

@@ -19,4 +19,7 @@ public sealed class SystemParametersOptions
     /// appsettings and is checked at startup.
     /// </summary>
     public decimal QualitativeGroupScoreMax { get; set; }
+
+    /// <summary>Max data rows accepted by a data-import upload (docs/api/DATA_IMPORT_CONTRACT.md).</summary>
+    public int ImportMaxRows { get; set; } = 5000;
 }

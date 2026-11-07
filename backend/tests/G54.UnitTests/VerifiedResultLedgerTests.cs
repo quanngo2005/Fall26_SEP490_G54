@@ -1,6 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
+using G54.BLL.Dtos.Submission;
 using G54.BLL.Dtos.Verification;
 using G54.BLL.Services;
 using G54.DAL;
@@ -267,7 +268,7 @@ public sealed class VerifiedResultLedgerTests
     }
 
     [Fact]
-    public async Task Approve_CreditsTheRequiredKpiEvenWhenAnOptionalOneIsMoreRecent()
+    public async Task Approve_CreditsEveryMappedKpiIncludingAnOptionalOne()
     {
         using var rig = await Rig.CreateAsync();
         var optional = rig.AddWorkTypeKpi(isRequired: false, effectiveFromDaysAgo: 1);
@@ -279,7 +280,9 @@ public sealed class VerifiedResultLedgerTests
 
         await rig.ApproveAsync(1m);
 
-        Assert.Equal(requiredTarget.Id, (await rig.Db.ActualProgresses.SingleAsync()).TargetAssignmentId);
+        var progress = await rig.Db.ActualProgresses.ToListAsync();
+        Assert.Equal(2, progress.Count);
+        Assert.Contains(progress, p => p.TargetAssignmentId == requiredTarget.Id);
     }
 
     [Fact]
@@ -362,6 +365,143 @@ public sealed class VerifiedResultLedgerTests
         Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
     }
 
+    // ----- Several KPIs and the aggregation types -------------------------------------------
+
+    [Fact]
+    public async Task Approve_CreditsEveryKpiOfTheWorkTypeWithItsOwnSubmittedValue()
+    {
+        using var rig = await Rig.CreateAsync();
+        var cards = rig.AddKpi(KpiAggregationType.Sum);
+        var amount = rig.AddKpi(KpiAggregationType.Sum, multiplier: 2m);
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5));
+        var cardsTarget = rig.AddTarget(cards, period);
+        var amountTarget = rig.AddTarget(amount, period);
+        await rig.SaveAsync();
+
+        await rig.ApproveWithMetricsAsync([
+            new SubmissionMetricInputDto(cards.Id, 1m, null),
+            new SubmissionMetricInputDto(amount.Id, 500m, null),
+        ]);
+
+        var progress = await rig.Db.ActualProgresses.ToListAsync();
+        Assert.Equal(1m, progress.Single(p => p.TargetAssignmentId == cardsTarget.Id).Value);
+        Assert.Equal(500m, progress.Single(p => p.TargetAssignmentId == amountTarget.Id).Value);
+        var items = await rig.Db.WorkResultItems.ToListAsync();
+        Assert.Equal(2, items.Count);
+        Assert.Equal(1000m, items.Single(i => i.RawValue == 500m).Value);
+        Assert.Equal(1, await rig.Db.VerifiedWorkResults.CountAsync());
+    }
+
+    [Fact]
+    public async Task Approve_WhenOneOfSeveralKpisHasNoTarget_RejectsAndWritesNothing()
+    {
+        using var rig = await Rig.CreateAsync();
+        var cards = rig.AddKpi(KpiAggregationType.Sum);
+        var amount = rig.AddKpi(KpiAggregationType.Sum);
+        rig.AddTarget(cards, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => rig.ApproveWithMetricsAsync([
+            new SubmissionMetricInputDto(cards.Id, 1m, null),
+            new SubmissionMetricInputDto(amount.Id, 500m, null),
+        ]));
+
+        Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
+        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+        Assert.Empty(await rig.Db.ActualProgresses.ToListAsync());
+        Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Approve_IgnoresAMetricWhoseKpiIsNotMappedToTheWorkType()
+    {
+        using var rig = await Rig.CreateAsync();
+        var mapped = rig.AddKpi(KpiAggregationType.Sum);
+        rig.AddTarget(mapped, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await rig.ApproveWithMetricsAsync([
+            new SubmissionMetricInputDto(mapped.Id, 3m, null),
+            new SubmissionMetricInputDto(Guid.NewGuid(), 99m, null),
+        ]);
+
+        Assert.Equal(3m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task Approve_ARatioKpiAddsItsNumeratorAndDenominatorToTheDayRow()
+    {
+        using var rig = await Rig.CreateAsync();
+        var ratio = rig.AddKpi(KpiAggregationType.Ratio);
+        rig.AddTarget(ratio, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(ratio.Id, 2m, 50m)]);
+
+        var second = await rig.AddSecondWorkAsync();
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(ratio.Id, 1m, 50m)], second);
+
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(3m, progress.Value);
+        Assert.Equal(100m, progress.Denominator);
+    }
+
+    [Fact]
+    public async Task Approve_ARatioKpiWithoutADenominatorIsRejected()
+    {
+        using var rig = await Rig.CreateAsync();
+        var ratio = rig.AddKpi(KpiAggregationType.Ratio);
+        rig.AddTarget(ratio, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(ratio.Id, 2m, null)]));
+
+        Assert.Empty(await rig.Db.ActualProgresses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Approve_AnAverageKpiCountsOneEntryPerContribution()
+    {
+        using var rig = await Rig.CreateAsync();
+        var avg = rig.AddKpi(KpiAggregationType.Avg);
+        rig.AddTarget(avg, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(avg.Id, 4m, null)]);
+
+        var second = await rig.AddSecondWorkAsync();
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(avg.Id, 6m, null)], second);
+
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(10m, progress.Value);
+        Assert.Equal(2m, progress.Denominator); // average = 10 / 2 = 5
+    }
+
+    [Fact]
+    public async Task Approve_ASumKpiLeavesTheDenominatorEmpty()
+    {
+        using var rig = await Rig.CreateAsync();
+        var sum = rig.AddKpi(KpiAggregationType.Sum);
+        rig.AddTarget(sum, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
+        await rig.SaveAsync();
+
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(sum.Id, 4m, null)]);
+
+        Assert.Null((await rig.Db.ActualProgresses.SingleAsync()).Denominator);
+    }
+
+    [Fact]
+    public async Task Approve_ANoAggregationKpiIsNotCredited()
+    {
+        using var rig = await Rig.CreateAsync();
+        var none = rig.AddKpi(KpiAggregationType.NoAggregation);
+        await rig.SaveAsync();
+
+        await rig.ApproveWithMetricsAsync([new SubmissionMetricInputDto(none.Id, 4m, null)]);
+
+        Assert.Empty(await rig.Db.ActualProgresses.ToListAsync());
+        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
+    }
+
     // ----- Decisions that must not touch the ledger -----------------------------------------
 
     [Theory]
@@ -377,7 +517,6 @@ public sealed class VerifiedResultLedgerTests
         await rig.Service().SubmitDecisionAsync(rig.Submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto
         {
             Decision = decision,
-            VerifiedValue = 25m,
             Feedback = "Lý do đủ dài để hợp lệ.",
             // The payload check compares with the real clock, not the injected TimeProvider.
             ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(3),
@@ -386,23 +525,6 @@ public sealed class VerifiedResultLedgerTests
         Assert.Empty(await rig.Db.VerifiedWorkResults.ToListAsync());
         Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
         Assert.Empty(await rig.Db.ActualProgresses.ToListAsync());
-    }
-
-    [Fact]
-    public async Task Approve_ARejectedPayloadWithANegativeValueWritesNothingAtAll()
-    {
-        using var rig = await Rig.CreateAsync();
-        var kpi = rig.AddWorkTypeKpi();
-        rig.AddTarget(kpi, rig.AddPeriod("P", BusinessToday.AddDays(-5), BusinessToday.AddDays(5)));
-        await rig.SaveAsync();
-
-        await Assert.ThrowsAsync<ValidationException>(() => rig.ApproveAsync(-1m));
-
-        Assert.Empty(await rig.Db.Verifications.ToListAsync());
-        Assert.Empty(await rig.Db.VerifiedWorkResults.ToListAsync());
-        Assert.Empty(await rig.Db.WorkResultItems.ToListAsync());
-        Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.SingleAsync()).Status);
-        Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
     }
 
     // ----- a locked period never receives progress ------------------------------------------------
@@ -556,11 +678,33 @@ public sealed class VerifiedResultLedgerTests
 
         public Task<int> SaveAsync() => Db.SaveChangesAsync();
 
-        public Task<VerificationDecisionResultDto> ApproveAsync(decimal value, ResultSubmission? submission = null) =>
-            Service().SubmitDecisionAsync(
-                (submission ?? Submission).Id,
+        /// <summary>Approves with <paramref name="value"/> as the number the employee submitted for every KPI mapped to the work type.</summary>
+        public async Task<VerificationDecisionResultDto> ApproveAsync(decimal value, ResultSubmission? submission = null)
+        {
+            var kpiIds = await Db.WorkTypeKpis.Select(k => k.KpiDefinitionId).Distinct().ToListAsync();
+            return await ApproveWithMetricsAsync(kpiIds.Select(id => new SubmissionMetricInputDto(id, value, null)).ToList(), submission);
+        }
+
+        public async Task<VerificationDecisionResultDto> ApproveWithMetricsAsync(
+            List<SubmissionMetricInputDto> metrics,
+            ResultSubmission? submission = null)
+        {
+            var target = await Db.ResultSubmissions.SingleAsync(s => s.Id == (submission ?? Submission).Id);
+            target.Comment = ResultSubmissionService.BuildStoredComment(null, metrics);
+            await Db.SaveChangesAsync();
+            return await Service().SubmitDecisionAsync(
+                target.Id,
                 CheckerAccount.Id,
-                new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = value });
+                new SubmitVerificationDecisionDto { Decision = "APPROVED" });
+        }
+
+        public KpiDefinition AddKpi(KpiAggregationType aggregation, bool isRequired = true, decimal multiplier = 1m)
+        {
+            var kpi = NewKpiDefinition();
+            kpi.AggregationType = aggregation;
+            AddMapping(kpi, multiplier, BusinessToday.AddDays(-365), null, isRequired);
+            return kpi;
+        }
 
         public KpiDefinition AddWorkTypeKpi(decimal multiplier = 1m, bool isRequired = true, int effectiveFromDaysAgo = 365)
         {

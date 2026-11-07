@@ -234,6 +234,8 @@ public sealed class NotificationServiceTests : IDisposable
             Service().SendAsync(_manager.Id, Announcement() with { RelatedId = Guid.NewGuid() }));
         await Assert.ThrowsAsync<ValidationException>(() =>
             Service().SendAsync(_manager.Id, Announcement() with { RelatedType = "HANDOVER", RelatedId = Guid.NewGuid() }));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service().SendAsync(_manager.Id, Announcement() with { RelatedType = "KPI", RelatedId = Guid.NewGuid() }));
     }
 
     [Fact]

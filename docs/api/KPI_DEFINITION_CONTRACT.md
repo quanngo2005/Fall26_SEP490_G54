@@ -11,7 +11,8 @@ authorization.
 
 | Operation | Policy |
 | --- | --- |
-| `GET` endpoints | `[Authorize]` only (unchanged) |
+| `GET /`, `/groups`, `/{id}` | `[Authorize]` only (unchanged) |
+| `GET /code-suggestion`, `/summary`, `/{id}/usage`, `/{id}/history` | permission `kpi:read`, scope `All` (granted to every role) |
 | `POST`, `PUT`, `PATCH /{id}/status` | permission `kpi:manage`, scope `All` (unchanged) |
 | `POST /requests` | permission `kpi:request`, scope `All` |
 | `POST /{id}/approve`, `POST /{id}/reject` | permission `kpi:approve`, scope `All` |
@@ -23,7 +24,11 @@ ADMIN passes every permission policy.
 
 | Method | Route | Body | Success |
 | --- | --- | --- | --- |
-| GET | `/kpi-definitions` | query `keyword`, `kpiGroupId`, `status`, `aggregationType`, `page`, `pageSize` | 200 `PagedResult<KpiDefinition>` |
+| GET | `/kpi-definitions` | query `keyword`, `kpiGroupId`, `status`, `aggregationType`, `jobPositionId`, `creditRole`, `dataSource`, `effectiveAtPeriodId`, `page`, `pageSize` | 200 `PagedResult<KpiDefinition>`, ordered by product (KPIs without one last), then code |
+| GET | `/kpi-definitions/code-suggestion` | query `name` (required) | 200 `{ "code": ... }`: the unused code a KPI with that name would get (400 for an empty name) |
+| GET | `/kpi-definitions/summary` | — | 200 `KpiSummary` |
+| GET | `/kpi-definitions/{id}/usage` | — | 200 `KpiUsage` (404) |
+| GET | `/kpi-definitions/{id}/history` | — | 200 `KpiHistoryEntry[]`, oldest first (404) |
 | GET | `/kpi-definitions/groups` | — | 200 `KpiGroupOption[]` |
 | GET | `/kpi-definitions/{id}` | — | 200 `KpiDefinition` (404 `NOT_FOUND`) |
 | POST | `/kpi-definitions` | `KpiDefinitionSave` | 201 `KpiDefinition`, `Location` header |
@@ -55,9 +60,44 @@ the message.
 }
 ```
 
-`KpiDefinitionSave`: `kpiGroupId` (GUID, required), `code` (required, ≤ 50), `name` (required,
+`KpiDefinitionSave`: `kpiGroupId` (GUID, required), `code` (≤ 50; **leave it empty on create**, the server generates it from `name`; required on update and never changed), `name` (required,
 ≤ 255), `description` (≤ 2000, nullable), `formula` (≤ 1000, nullable), `unit` (required, ≤ 50, free
 text), `aggregationType`, `direction`, `maxAchievementPercent` (nullable, 0.0001..9999.9999).
+
+### Generated code
+
+A new KPI gets its code from its name: upper case, no accents (`đ` becomes `D`), every other character becomes `_`, words are
+joined by one `_` and the code is cut at 40 characters (`Tiền gửi - giới thiệu` becomes `TIEN_GUI_GIOI_THIEU`). When that code is
+taken the next free number is added (`TIEN_GUI_GIOI_THIEU_2`). `GET /kpi-definitions/code-suggestion?name=` returns the code a name
+would get, so the form can show it read-only while the user types; a client that sends its own `code` on create keeps it
+(409 `CONFLICT` when it exists). The code of an existing KPI cannot be edited.
+
+### Catalog fields (SCR-STRAT-02)
+
+Added to `KpiDefinition` (response) and `KpiDefinitionSave` (request). All are optional on save, so an old client keeps working.
+
+| Field | Save | Response | Rules |
+| --- | --- | --- | --- |
+| `creditRole` | `PROCESSOR` or `REFERRER` | same | Whose work earns the KPI: the employee who handled the transaction, or the one in its Refer ID column. Default `PROCESSOR`; **omitted on update = keep the current value** |
+| `dataSource` | `TRANSACTION` or `SERVICE_RATING` | same | Imported file the KPI is measured from. Default `TRANSACTION`; omitted on update = keep |
+| `productName` | string ≤ 100, nullable | string or `null` | The list groups rows by it; `null` = not tied to a product |
+| `baselineValue` | number ≥ 0, nullable | number or `null` | |
+| `jobPositionIds` | GUID[] | `jobPositions: { id, code, title }[]` | Each must exist and be `ACTIVE`; replaces the whole set (omitted = none) |
+| `effectiveFromPeriodId` / `effectiveToPeriodId` | GUID, nullable | `effectiveFrom` / `effectiveTo`: `{ id, code, name, startDate, endDate }` or `null` | Quarter periods only. `null` from = always applied, `null` to = no end. To needs From and must not be before it. A locked or closed period cannot be chosen (400, `(MSG27)`), except one the KPI already uses |
+| — | — | `submittedAt` | When the KPI was sent for approval |
+
+`PUT` replaces every catalog field except `creditRole` and `dataSource` (see above).
+`GET /kpi-definitions?effectiveAtPeriodId=` keeps the KPIs in force in that period: its start lies between the start of the KPI's
+first and last period, an open side counting as in force (404 for an unknown period).
+
+`KpiSummary`: `{ total, draft, pendingApproval, rejected, active, inactive, archived }`, for the tabs of the list.
+
+`KpiUsage`: `{ objectives: { id, code }[], activeTargetCount, relatedItems }`. `relatedItems` are the KPIs of the same product
+(the KPI itself included, empty without a product), each `{ id, code, name, creditRole, dataSource, jobPositions: string[] }`.
+
+`KpiHistoryEntry`: `{ occurredAt, actorName, action, summary }` from the audit log. `action` is `CREATE`, `SUBMIT`, `APPROVE`,
+`REJECT` (the summary carries the reason), `DEACTIVATE`, `REACTIVATE`, `ARCHIVE` or `UPDATE`; an update that only touched the
+timestamp is left out.
 
 `unit` is free text. The page suggests the distinct units already returned by the API; there is no
 fixed unit list.
@@ -123,7 +163,6 @@ Known limits:
 ## Not persisted (client-only drafts)
 
 Role weights and deposit multipliers are **not** part of `KpiDefinition` or `KpiDefinitionSave`; no
-endpoint stores them, so the page keeps them as clearly labelled browser-session drafts only. They are
-never sent to the API and are lost on reload. Measurement type (quantitative/qualitative), version and
-effective date are likewise not in the DTO and are not shown. Defining these requires a backend
-contract revision first.
+endpoint stores them. Measurement type (quantitative/qualitative) and version are likewise not in the DTO.
+Defining these requires a backend contract revision first. (Effective period, product, credit role,
+data source and applicable positions are stored: see the catalog fields above.)
