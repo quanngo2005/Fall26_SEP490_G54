@@ -11,7 +11,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddBusinessLogic(this IServiceCollection services)
     {
         services.AddOptions<SystemParametersOptions>()
-            .BindConfiguration(SystemParametersOptions.SectionName)
             .Validate(
                 options => options.QualitativeScoreMax > 0,
                 "SystemParameters:QualitativeScoreMax must be set to a value greater than 0.")
