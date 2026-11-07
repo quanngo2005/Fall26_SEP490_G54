@@ -439,7 +439,7 @@ Cùng bảng trên, nhìn theo hành động (`WorkAction`, đúng như `WorkSta
 | `Reject` | `Submitted`, `InProgress` | `Rejected` | Người thẩm định |
 | `Complete` | `Verified` | `Done` | Quản lý trực tiếp của assignee (`PATCH`) |
 | `Cancel` | `New`, `InProgress`, `HandedOver`, `Rejected`, `Overdue` | `Cancelled` | Quản lý trực tiếp của assignee (`PATCH`, bắt buộc `reason`) |
-| `Handover` | `New`, `InProgress` | `HandedOver` | Người nhận chấp nhận yêu cầu bàn giao (`POST /handovers/{id}/accept`, xem `HANDOVER_CONTRACT.md`) |
+| `Handover` | `New`, `InProgress` | `HandedOver` | Bàn giao có hiệu lực ngay khi tạo (`POST /works/{workId}/handovers`, xem `HANDOVER_CONTRACT.md`) |
 | `MarkOverdue` | `New`, `InProgress`, `HandedOver` | `Overdue` | Tiến trình nền |
 
 Sau khi người thẩm định yêu cầu bổ sung (`REVISION_REQUIRED`), công việc về `InProgress` còn báo cáo vẫn ở `UNDER_REVIEW`. `SubmissionStateMachine` cho phép thẩm định lại báo cáo đó, nên `Verify`, `Reject` và `Reopen` cũng được phép từ `InProgress`.

@@ -17,12 +17,6 @@ public sealed record CreateHandoverRequestDto
     public decimal? ReferrerSharePercent { get; init; }
 }
 
-/// <summary>Body of <c>POST /handovers/{id}/manager/reassign</c>.</summary>
-public sealed record ReassignHandoverRequestDto
-{
-    public Guid? ToEmployeeId { get; init; }
-}
-
 public sealed record HandoverDetailDto(
     Guid Id,
     Guid WorkId,

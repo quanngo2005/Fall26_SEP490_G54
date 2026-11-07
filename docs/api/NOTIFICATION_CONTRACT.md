@@ -69,7 +69,7 @@ POST /notifications
 | Trường | Ghi chú |
 |---|---|
 | `id` | |
-| `type` | `ANNOUNCEMENT`, `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE` |
+| `type` | `ANNOUNCEMENT`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE` (các giá trị cũ `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED` không còn được tạo mới; thông báo cũ trong DB vẫn có thể mang các giá trị này) |
 | `severity` | `NORMAL`, `IMPORTANT`. Client dùng `IMPORTANT` để hiện popup nổi bật |
 | `title`, `body` | `body` có thể `null` |
 | `relatedType`, `relatedId` | `WORK`, `CAMPAIGN`, `HANDOVER` hoặc `null`; để mở bản ghi liên quan |
@@ -80,10 +80,7 @@ POST /notifications
 
 | Sự kiện | Người nhận | `type` |
 |---|---|---|
-| Nhân viên tạo yêu cầu bàn giao (`PENDING`) | Người nhận bàn giao (`IMPORTANT`) và quản lý trực tiếp của người giao | `HANDOVER_REQUESTED`, `relatedType = HANDOVER` |
-| Người nhận chấp nhận / từ chối | Người giao | `HANDOVER_ACCEPTED` / `HANDOVER_REJECTED` |
-| Quản lý duyệt, đổi người nhận, hoặc chuyển ngay | Người giao (`HANDOVER_ACCEPTED`) và người nhận mới (`HANDOVER_TRANSFERRED`, `IMPORTANT`); người ra quyết định không nhận | |
-| Quản lý từ chối | Người giao và người nhận (`HANDOVER_REJECTED`) | |
+| Công việc được bàn giao (BR-21: có hiệu lực ngay, không có bước duyệt) | Người nhận (`IMPORTANT`) và người giao (`NORMAL`); người tạo bàn giao không nhận, nên khi nhân viên tự bàn giao thì chỉ người nhận được báo | `HANDOVER_TRANSFERRED`, `relatedType = HANDOVER` |
 | Job quá hạn chuyển công việc sang `OVERDUE` | Người thực hiện (`IMPORTANT`) và quản lý trực tiếp của họ | `WORK_OVERDUE`, `relatedType = WORK`. Mỗi công việc chỉ báo một lần, lúc nó chuyển sang quá hạn |
 
 Thông báo tự động là **best effort**: nếu không ghi được thì chỉ log cảnh báo và **không** làm hỏng thao tác chính đã lưu.
