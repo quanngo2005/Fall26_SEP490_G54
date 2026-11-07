@@ -52,15 +52,6 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
-builder.Services.AddOptions<G54.BLL.Common.SystemParametersOptions>()
-    .Bind(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName))
-    .Validate(
-        options => options.QualitativeScoreMax > 0,
-        "SystemParameters:QualitativeScoreMax must be set to a value greater than 0.")
-    .Validate(
-        options => options.QualitativeGroupScoreMax > 0,
-        "SystemParameters:QualitativeGroupScoreMax must be set to a value greater than 0.")
-    .ValidateOnStart();
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
 // Overrides the NullAuditContextProvider registered by AddDataAccess: within the API, the actor/request
