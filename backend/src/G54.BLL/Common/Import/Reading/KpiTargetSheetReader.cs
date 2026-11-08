@@ -112,10 +112,9 @@ public static partial class KpiTargetSheetReader
     /// </summary>
     private static int? FindHeaderRow(IXLWorksheet worksheet)
     {
-        var lastColumn = LastColumn(worksheet);
         for (var row = 1; row <= MaxHeaderScanRows; row++)
         {
-            var texts = Enumerable.Range(1, lastColumn).Select(col => Normalize(worksheet.Cell(row, col).GetString())).ToList();
+            var texts = worksheet.Row(row).CellsUsed().Select(cell => Normalize(cell.GetString())).ToList();
             if (texts.Any(Aliases[KpiCodeColumn].Contains) && texts.Any(Aliases[Q1Column].Contains))
             {
                 return row;
@@ -128,12 +127,12 @@ public static partial class KpiTargetSheetReader
     private static Dictionary<string, int> MapSourceColumns(IXLWorksheet worksheet, int headerRow, int year)
     {
         var byText = new Dictionary<string, int>();
-        for (var col = 1; col <= LastColumn(worksheet); col++)
+        foreach (var cell in worksheet.Row(headerRow).CellsUsed())
         {
-            var text = Normalize(worksheet.Cell(headerRow, col).GetString());
+            var text = Normalize(cell.GetString());
             if (text.Length > 0)
             {
-                byText.TryAdd(text, col);
+                byText.TryAdd(text, cell.Address.ColumnNumber);
             }
         }
 
@@ -197,14 +196,13 @@ public static partial class KpiTargetSheetReader
     /// <summary>Optional <c>Mã chi nhánh:</c> label anywhere above the header, branch code in the next cell (G2).</summary>
     private static string? ReadBranchCode(IXLWorksheet worksheet, int headerRow)
     {
-        var lastColumn = LastColumn(worksheet);
         for (var row = 1; row < headerRow; row++)
         {
-            for (var col = 1; col <= lastColumn; col++)
+            foreach (var cell in worksheet.Row(row).CellsUsed())
             {
-                if (Normalize(worksheet.Cell(row, col).GetString()).StartsWith(BranchCodeLabel, StringComparison.Ordinal))
+                if (Normalize(cell.GetString()).StartsWith(BranchCodeLabel, StringComparison.Ordinal))
                 {
-                    var next = GetCellText(worksheet.Cell(row, col + 1))?.Trim();
+                    var next = GetCellText(cell.CellRight())?.Trim();
                     return string.IsNullOrWhiteSpace(next) ? null : next;
                 }
             }
@@ -212,8 +210,6 @@ public static partial class KpiTargetSheetReader
 
         return null;
     }
-
-    private static int LastColumn(IXLWorksheet worksheet) => worksheet.LastColumnUsed()?.ColumnNumber() ?? 1;
 
     /// <summary>Lower-case, accent-free, single-spaced text without "(...)" notes, "*" or ":", so
     /// "Mã KPI (*)", "MA  KPI" and "Mã KPI:" all compare equal.</summary>
