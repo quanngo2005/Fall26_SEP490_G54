@@ -247,6 +247,61 @@ public sealed class BranchYearTargetImportDefinitionTests
     }
 
     [Fact]
+    public void Read_NonStandardLayout_LocatesSheetHeaderAliasesRatiosAndRows()
+    {
+        using var workbook = new XLWorkbook();
+        workbook.Worksheets.Add("Hướng dẫn").Cell(1, 1).Value = "Đọc kỹ trước khi nhập";
+        var ws = workbook.Worksheets.Add("Chỉ tiêu");
+        ws.Cell(1, 3).Value = "MÃ CHI NHÁNH:";
+        ws.Cell(1, 4).Value = "BR";
+        ws.Cell(3, 1).Value = "Tỷ lệ quý";
+        ws.Cell(3, 5).Value = 0.1;
+        ws.Cell(3, 6).Value = 0.2;
+        ws.Cell(3, 7).Value = 0.3;
+        ws.Cell(3, 8).Value = 0.4;
+        string[] headers = ["Năm 2026", "Ma chi tieu (*)", "Đơn vị tính", "Ten  KPI", "Quý 1", "Quý 2", "Quý 3", "Quý 4"];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            ws.Cell(6, i + 1).Value = headers[i];
+        }
+
+        ws.Cell(7, 4).Value = "Nhóm A";
+        ws.Cell(8, 1).Value = 100;
+        ws.Cell(8, 2).Value = "NFI-01";
+        ws.Cell(8, 3).Value = "VND";
+        ws.Cell(9, 4).Value = "Tổng";
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+
+        var result = KpiTargetSheetReader.Read(stream, 2026, 500);
+
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(8, row.RowNumber);
+        string? Cell(string header) => row.Cells[result.Headers.ToList().IndexOf(header)];
+        Assert.Equal("NFI-01", Cell(KpiTargetSheetReader.KpiCodeColumn));
+        Assert.Equal("100", Cell(KpiTargetSheetReader.YearColumn));
+        Assert.Equal("VND", Cell(KpiTargetSheetReader.UnitColumn));
+        Assert.Null(Cell(KpiTargetSheetReader.PreviousYearColumn));
+        Assert.Equal("BR", result.BranchCodeRaw);
+        Assert.Equal(0.4m, result.QuarterRatios[KpiTargetSheetReader.Q4Column]);
+    }
+
+    [Fact]
+    public void Read_NoHeaderRowInAnySheet_ThrowsTemplateInvalid()
+    {
+        using var workbook = new XLWorkbook();
+        workbook.Worksheets.Add("Sheet1").Cell(1, 1).Value = "Không có header";
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+
+        var ex = Assert.Throws<BusinessRuleException>(() => KpiTargetSheetReader.Read(stream, 2026, 500));
+        Assert.Equal(ErrorCodes.ImportTemplateInvalid, ex.ErrorCode);
+    }
+
+    [Fact]
     public void Read_FormulaCellWithNoCachedValue_IsRowError()
     {
         var sheet = new ExcelSheetResult(
