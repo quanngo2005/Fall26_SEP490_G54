@@ -58,9 +58,45 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ### 2.2 Verification
 | Method | Route | Body | Thành công |
 |---|---|---|---|
+| GET | `/verifications` | query (xem 2.2.2) | 200 `PagedResult<VerificationQueueItemDto>` |
 | GET | `/verifications/{submissionId}/dossier` | — | 200 `VerificationDossierDto` |
 | POST | `/verifications/{submissionId}/decision` | `SubmitVerificationDecisionDto` | 200 `VerificationDecisionResultDto` |
 | GET | `/verifications/{submissionId}/history` | — | 200 `VerificationHistoryDto[]` |
+
+#### 2.2.2 Hàng chờ thẩm định (`GET /verifications`) — IMPLEMENTED (GB-668)
+Quyền `verification:decide` từ phạm vi `Dept` trở lên. `Own` hoặc không có quyền → 403 `FORBIDDEN`.
+Chỉ trả submission `SUBMITTED` / `UNDER_REVIEW` của nhân sự thuộc phòng ban nằm trong phạm vi (Dept: cây phòng của người gọi; Branch: cây chi nhánh; All: mọi phòng). Submission do chính người gọi nộp bị loại (BR-02, họ không được thẩm định). Sắp xếp cố định: `submittedAt` tăng dần (cũ nhất trước), rồi `submissionId`.
+
+| Query | Kiểu | Ghi chú |
+|---|---|---|
+| `status` | `SUBMITTED \| UNDER_REVIEW` | Không phân biệt hoa thường. Bỏ trống = cả hai. Giá trị khác (kể cả `APPROVED`) → 400 `VALIDATION_ERROR`. |
+| `matchStatus` | `NONE \| MATCHED \| NOT_MATCHED \| IN_REVIEW` | Không phân biệt hoa thường. Bỏ trống = tất cả. Giá trị khác → 400. |
+| `departmentId` | GUID | Phòng ban và các phòng con, phải nằm trong phạm vi (ngoài phạm vi → 403, không tồn tại → 404). |
+| `keyword` | string | Chứa (không phân biệt hoa thường, `%` và `_` hiểu theo nghĩa đen) mã/tiêu đề công việc hoặc mã/tên người nộp. |
+| `page` | int, mặc định 1 | `< 1` được đưa về 1. Trang vượt quá cuối trả `items: []` với `totalCount` đúng. |
+| `pageSize` | int, mặc định 20 | Được kẹp (clamp) vào 1..100, không báo lỗi. |
+
+`matchStatus` tổng hợp trạng thái các mã giao dịch của công việc (`WORK_TRANSACTION_CONTRACT.md`): `NONE` = công việc chưa có mã nào (duyệt tay bằng minh chứng); `NOT_MATCHED` = có ít nhất một mã `NOT_MATCHED`; `MATCHED` = mọi mã đều `MATCHED`; `IN_REVIEW` = không có mã `NOT_MATCHED` nhưng còn mã chưa khớp.
+
+```json
+{
+  "success": true, "status": 200,
+  "data": {
+    "items": [{
+      "submissionId": "guid", "submissionCode": "#SUB-WRK-001-V1", "submissionNo": 1,
+      "workId": "guid", "workCode": "WRK-001", "workTitle": "Giải ngân khoản vay", "workTypeName": "Cho vay",
+      "submitterEmployeeId": "guid", "submitterEmployeeCode": "NV004", "submitterName": "Nguyễn Văn A",
+      "departmentId": "guid", "departmentName": "Phòng Tín dụng",
+      "submittedAt": "2026-11-08T03:00:00+00:00", "status": "SUBMITTED",
+      "matchStatus": "IN_REVIEW", "transactionCount": 3, "matchedTransactionCount": 1
+    }],
+    "totalCount": 1, "page": 1, "pageSize": 20
+  },
+  "traceId": "..."
+}
+```
+`workTypeName` có thể `null`. `submissionId` dùng cho `/verifications/{submissionId}/dossier`.
+Lỗi: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
 
 `SubmitVerificationDecisionDto`:
 ```json
