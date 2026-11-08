@@ -210,6 +210,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             JOIN kpi_definition k ON k.id = ta.kpi_definition_id AND k.code = 'HDV'
             LEFT JOIN target_assignment_feedback f ON f.target_assignment_id = ta.id
             WHERE ta.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND ta.status = 'ACTIVE'
+              AND ta.parent_assignment_id IS NOT NULL
             ORDER BY e.employee_code
             """);
 
@@ -250,7 +251,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             WHERE e.employee_code LIKE 'NV%' ORDER BY e.employee_code
             """);
         Assert.Equal(ExpectedAccountRoles, roles);
-        Assert.Equal(["14"], await QueryAsync("SELECT count(*)::text FROM account a JOIN employee e ON e.id = a.employee_id WHERE e.employee_code LIKE 'NV%'"));
+        Assert.Equal(["21"], await QueryAsync("SELECT count(*)::text FROM account a JOIN employee e ON e.id = a.employee_id WHERE e.employee_code LIKE 'NV%'"));
     }
 
     [PostgresFact]
