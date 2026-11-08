@@ -1544,7 +1544,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
             });
 
-            // Optimistic concurrency: stops two decisions (accept/reject) on the same pending handover both succeeding.
+            // Optimistic concurrency token: PostgreSQL's xmin row version.
             entity.Property<uint>("xmin").IsRowVersion();
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");

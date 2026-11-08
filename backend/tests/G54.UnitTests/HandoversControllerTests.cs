@@ -16,21 +16,20 @@ public sealed class HandoversControllerTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    [Theory]
-    [InlineData(nameof(HandoversController.CreateHandover), "works/{workId:guid}/handovers", "handover", "create")]
-    public void EveryAction_ExposesItsDocumentedRoute_AndNeedsItsPermission(string action, string route, string resource, string permission)
+    [Fact]
+    public void CreateHandover_HasItsRouteAndPermission()
     {
         var type = typeof(HandoversController);
         Assert.NotNull(type.GetCustomAttribute<AuthorizeAttribute>());
         Assert.Equal(string.Empty, type.GetCustomAttribute<RouteAttribute>()?.Template);
 
-        var method = type.GetMethod(action)!;
-        Assert.Equal(route, method.GetCustomAttribute<HttpPostAttribute>()?.Template);
+        var method = type.GetMethod(nameof(HandoversController.CreateHandover))!;
+        Assert.Equal("works/{workId:guid}/handovers", method.GetCustomAttribute<HttpPostAttribute>()?.Template);
 
         var required = method.GetCustomAttribute<HasPermissionAttribute>();
         Assert.NotNull(required);
-        Assert.Equal(resource, required.Resource);
-        Assert.Equal(permission, required.Action);
+        Assert.Equal("handover", required.Resource);
+        Assert.Equal("create", required.Action);
         Assert.Equal("Own", required.Scope);
     }
 
