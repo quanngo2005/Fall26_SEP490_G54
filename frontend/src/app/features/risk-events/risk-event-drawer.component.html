@@ -1,0 +1,197 @@
+<div class="drawer-backdrop" role="presentation" (click)="close()"></div>
+<aside
+  class="drawer"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="risk-drawer-title"
+  [attr.aria-busy]="loading()"
+>
+  <header class="drawer-header">
+    <div>
+      @if (details(); as d) {
+        <h2 id="risk-drawer-title">{{titleText()}}</h2>
+        <p class="drawer-sub">{{recordedByText()}}</p>
+      } @else {
+        <h2 id="risk-drawer-title">{{localization.riskEvents.title}}</h2>
+      }
+    </div>
+    <div class="drawer-actions">
+      @if (details(); as d) {
+        <span class="state-badge" [class.state-reversed]="isReversed()">
+          {{localization.riskEvents.state[d.item.state]}}
+        </span>
+      }
+      <button
+        type="button"
+        class="drawer-close"
+        [attr.aria-label]="localization.riskEvents.close"
+        (click)="close()"
+      >
+        ✕
+      </button>
+    </div>
+  </header>
+
+  <div class="drawer-body">
+    @if (loading() && !details()) {
+      <p role="status">{{localization.riskEvents.drawer.loading}}</p>
+    } @else if (failed()) {
+      <p class="field-error" role="alert">
+        {{notFound()
+            ? localization.riskEvents.drawer.notFound
+            : localization.riskEvents.drawer.loadError}}
+      </p>
+    } @else if (details(); as d) {
+      <section>
+        <h3>{{localization.riskEvents.drawer.info}}</h3>
+        <dl class="info-grid">
+          <div>
+            <dt>{{localization.riskEvents.drawer.employee}}</dt>
+            <dd>{{d.item.employeeCode}} · {{d.item.employeeName}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.positionDepartment}}</dt>
+            <dd>{{d.jobPositionTitle ?? '—'}} · {{d.item.departmentName}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.occurredAt}}</dt>
+            <dd>{{d.item.occurredAt | appDate: 'DD/MM/YYYY'}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.severity}}</dt>
+            <dd>
+              <span class="sev-badge" [class]="'sev-badge sev-' + d.item.severity.toLowerCase()">
+                {{severityLabel(d.item.severity)}}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.penalty}}</dt>
+            <dd>
+              <span class="penalty" [class.muted]="isReversed()">{{penaltyText()}}</span>
+            </dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.appliesTo}}</dt>
+            <dd>{{periodText()}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.riskEvents.drawer.work}}</dt>
+            <dd class="font-code">{{d.item.workCode ?? '—'}}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section>
+        <h3>{{localization.riskEvents.drawer.description}}</h3>
+        <div class="text-box">{{d.description}}</div>
+      </section>
+
+      <section>
+        <h3>{{localization.riskEvents.drawer.attachments}}</h3>
+        @for (file of d.attachments; track file.id) {
+          <div class="file-row">
+            <span class="file-name"
+              >{{file.fileName}} <small>· {{size(file.fileSize)}}</small></span
+            >
+            <button type="button" class="link-btn" (click)="preview(file)">
+              {{localization.riskEvents.drawer.preview}}
+            </button>
+          </div>
+        } @empty {
+          <p class="muted">{{localization.riskEvents.drawer.noAttachments}}</p>
+        }
+        @if (previewFailed()) {
+          <p class="field-error" role="alert">{{localization.riskEvents.drawer.previewFailed}}</p>
+        }
+      </section>
+
+      <section>
+        <h3>{{localization.riskEvents.drawer.history}}</h3>
+        <ol class="timeline">
+          <li>
+            <span>{{historyRecorded()}}</span>
+            <time>{{d.recordedAt | appDate: 'DD/MM/YYYY HH:mm:ss'}}</time>
+          </li>
+          @if (d.reversedAt) {
+            <li class="reversed">
+              <span>{{historyReversed()}}</span>
+              <time>{{d.reversedAt | appDate: 'DD/MM/YYYY HH:mm:ss'}}</time>
+              @if (d.reversalReason) {
+                <em>{{historyReason()}}</em>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+
+      <div class="immutable-note">
+        <strong>{{localization.riskEvents.drawer.immutableTitle}}</strong>
+        <p>{{localization.riskEvents.drawer.immutableText}}</p>
+      </div>
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="hint">{{localization.riskEvents.drawer.hint}}</span>
+    @if (details()?.canReverse) {
+      <button type="button" class="reverse-btn" (click)="openReverse()">
+        {{localization.riskEvents.drawer.reverse}}
+      </button>
+    }
+  </footer>
+</aside>
+
+@if (reversing()) {
+  <div class="reverse-backdrop" role="presentation" (click)="cancelReverse()">
+    <div
+      class="reverse-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="risk-reverse-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <h3 id="risk-reverse-title">
+        {{i18n.translate('riskEvents.reverse.title', { code: details()?.item?.code ?? '' })}}
+      </h3>
+      <p>{{localization.riskEvents.reverse.intro}}</p>
+      <label for="risk-reverse-reason">{{localization.riskEvents.reverse.reasonLabel}}</label>
+      <textarea
+        id="risk-reverse-reason"
+        rows="3"
+        [ngModel]="reason()"
+        (ngModelChange)="reason.set($event)"
+        [class.field-invalid]="showValidation() && !reasonValid()"
+        [placeholder]="localization.riskEvents.reverse.reasonPlaceholder"
+      ></textarea>
+      @if (showValidation() && !reasonValid()) {
+        <p class="field-error" role="alert">{{localization.riskEvents.reverse.reasonRequired}}</p>
+      }
+      @if (errorKey()) {
+        <p class="field-error" role="alert">{{errorText()}}</p>
+      }
+      <div class="reverse-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="submitting()"
+          (click)="cancelReverse()"
+        >
+          {{localization.riskEvents.reverse.cancel}}
+        </button>
+        <button
+          type="button"
+          class="btn-danger"
+          [disabled]="submitting()"
+          (click)="confirmReverse()"
+        >
+          {{submitting()
+              ? localization.riskEvents.reverse.saving
+              : localization.riskEvents.reverse.confirm}}
+        </button>
+      </div>
+    </div>
+  </div>
+}

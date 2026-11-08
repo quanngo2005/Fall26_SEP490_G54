@@ -16,7 +16,7 @@ namespace G54.Api.Controllers;
 [Route("risk-events")]
 [Authorize]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
-public sealed class RiskEventsController(IRiskEventService service) : ControllerBase
+public sealed class RiskEventsController(IRiskEventService service, IRiskEventScreenService screens) : ControllerBase
 {
     [HttpPost]
     [HasPermission("risk_event", "create", PermissionScopes.All)]
@@ -90,6 +90,63 @@ public sealed class RiskEventsController(IRiskEventService service) : Controller
         CancellationToken cancellationToken)
     {
         var result = await service.ResolveAsync(id, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet]
+    [HasPermission("risk_event", "read", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<RiskEventListDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<RiskEventListDto>>> ListRiskEvents(
+        [FromQuery] RiskEventFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await screens.ListAsync(User.GetRequiredUserId(), filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:guid}/details")]
+    [HasPermission("risk_event", "read", PermissionScopes.Dept)]
+    [ProducesResponseType<ApiResponse<RiskEventDetailsDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<RiskEventDetailsDto>>> GetRiskEventDetails(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await screens.GetDetailsAsync(User.GetRequiredUserId(), id, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Attaches evidence files (<c>files[]</c>) to a risk event.</summary>
+    [HttpPost("{id:guid}/evidence")]
+    [Consumes("multipart/form-data")]
+    [HasPermission("risk_event", "create", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<List<RiskEventAttachmentDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<List<RiskEventAttachmentDto>>>> AddEvidence(
+        Guid id,
+        [FromForm] List<IFormFile> files,
+        CancellationToken cancellationToken)
+    {
+        var result = await screens.AddEvidenceAsync(User.GetRequiredUserId(), id, files, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:guid}/reverse")]
+    [HasPermission("risk_event", "reverse", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<RiskEventDetailsDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<RiskEventDetailsDto>>> ReverseRiskEvent(
+        Guid id,
+        [FromBody] ReverseRiskEventDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await screens.ReverseAsync(User.GetRequiredUserId(), id, request, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

@@ -111,14 +111,86 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th class="col-code">{{localization.qaQueue.colCode | uppercase}}</th>
-                  <th class="col-kind">{{localization.qaQueue.colKind | uppercase}}</th>
-                  <th class="col-work">{{localization.qaQueue.colWork | uppercase}}</th>
-                  <th class="col-emp">{{localization.qaQueue.colEmployee | uppercase}}</th>
-                  <th class="col-source">{{localization.qaQueue.colSource | uppercase}}</th>
-                  <th class="col-date">{{localization.qaQueue.colCreated | uppercase}}</th>
-                  <th class="col-deadline">{{localization.qaQueue.colDue | uppercase}}</th>
-                  <th class="col-status">{{localization.qaQueue.colStatus | uppercase}}</th>
+                  <th class="col-code" [attr.aria-sort]="ariaSort('code')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('code')"
+                    >
+                      {{localization.qaQueue.colCode | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('code')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-kind" [attr.aria-sort]="ariaSort('type')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('type')"
+                    >
+                      {{localization.qaQueue.colKind | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('type')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-work" [attr.aria-sort]="ariaSort('work')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('work')"
+                    >
+                      {{localization.qaQueue.colWork | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('work')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-emp" [attr.aria-sort]="ariaSort('employee')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('employee')"
+                    >
+                      {{localization.qaQueue.colEmployee | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('employee')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-source" [attr.aria-sort]="ariaSort('source')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('source')"
+                    >
+                      {{localization.qaQueue.colSource | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('source')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-date" [attr.aria-sort]="ariaSort('created')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('created')"
+                    >
+                      {{localization.qaQueue.colCreated | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('created')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-deadline" [attr.aria-sort]="ariaSort('due')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('due')"
+                    >
+                      {{localization.qaQueue.colDue | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('due')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-status" [attr.aria-sort]="ariaSort('status')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.qaQueue.sortHint"
+                      (click)="toggleSort('status')"
+                    >
+                      {{localization.qaQueue.colStatus | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('status')}}</span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>

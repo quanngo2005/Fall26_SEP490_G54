@@ -209,7 +209,7 @@ const ITEMS: readonly NavigationItem[] = [
   },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
-  { id: 'riskEvents', icon: 'riskEvents' },
+  { id: 'riskEvents', icon: 'riskEvents', route: '/risk-events', permission: 'RISK_EVENT_READ' },
   { id: 'reportsAnalytics', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
   { id: 'accounts', icon: 'people', route: '/user-accounts' },
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },

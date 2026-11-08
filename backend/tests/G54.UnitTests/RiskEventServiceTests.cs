@@ -618,7 +618,7 @@ public sealed class RiskEventServiceTests : IDisposable
         Assert.Equal("All", permission?.Scope);
     }
 
-    private static RiskEventsController ControllerFor(IRiskEventService service, Guid userId) => new(service)
+    private static RiskEventsController ControllerFor(IRiskEventService service, Guid userId) => new(service, new NoScreens())
     {
         ControllerContext = new ControllerContext
         {
@@ -698,7 +698,7 @@ public sealed class RiskEventServiceTests : IDisposable
     public async Task Controller_WithoutIdentity_NeverReachesTheService()
     {
         var service = new RecordingService();
-        var controller = new RiskEventsController(service)
+        var controller = new RiskEventsController(service, new NoScreens())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
         };
@@ -768,5 +768,17 @@ public sealed class RiskEventServiceTests : IDisposable
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    /// <summary>The screen endpoints are covered by <c>RiskEventScreenServiceTests</c>; these controller tests never reach them.</summary>
+    private sealed class NoScreens : IRiskEventScreenService
+    {
+        public Task<RiskEventListDto> ListAsync(Guid userId, RiskEventFilterDto filter, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<RiskEventDetailsDto> GetDetailsAsync(Guid userId, Guid riskEventId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<List<RiskEventAttachmentDto>> AddEvidenceAsync(Guid userId, Guid riskEventId, IReadOnlyCollection<IFormFile> files, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<RiskEventDetailsDto> ReverseAsync(Guid userId, Guid riskEventId, ReverseRiskEventDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
