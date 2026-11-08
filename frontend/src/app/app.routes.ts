@@ -97,7 +97,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'evaluations/form/:periodCode/:employeeCode',
+    path: 'evaluations/form',
     canActivate: [authGuard],
     title: 'Đánh giá nhân viên',
     loadComponent: () =>

@@ -6,6 +6,7 @@ import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import { DepartmentEmployeeEvaluation, EvaluationPeriodOption } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -47,6 +48,7 @@ export type ListStatus = 'NOT_EVALUATED' | 'DRAFT' | 'COMPLETED';
 export class EvaluationsComponent extends LocalizedComponent {
   private readonly router = inject(Router);
   private readonly evaluationService = inject(EvaluationService);
+  private readonly formTarget = inject(EvaluationFormTargetService);
   private readonly destroyRef = inject(DestroyRef);
   private rowsRequest?: Subscription;
 
@@ -389,8 +391,9 @@ export class EvaluationsComponent extends LocalizedComponent {
   }
 
   openEvaluationForm(item: DepartmentEmployeeEvaluation): void {
-    const periodCode = this.selectedPeriod()?.code;
-    if (!periodCode) return;
-    void this.router.navigate(['/evaluations/form', periodCode, item.employeeCode]);
+    const periodId = this.selectedPeriodId();
+    if (!periodId) return;
+    this.formTarget.save({ employeeId: item.employeeId, periodId });
+    void this.router.navigate(['/evaluations/form']);
   }
 }

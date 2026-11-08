@@ -27,8 +27,7 @@ public sealed class EvaluationScopeTests
             context,
             NullLogger<EvaluationService>.Instance,
             new FakePermissionService(null, grants),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
-            Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions { QualitativeScoreMax = 200m, QualitativeGroupScoreMax = 100m }));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
     }
 
     private static UserPermissionDto Grant(string action, string scope) => new("evaluation", action, scope, "EVALUATION_" + action.ToUpperInvariant());

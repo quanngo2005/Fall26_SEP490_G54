@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { EvaluationsComponent } from './evaluations.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import { DepartmentEmployeeEvaluation, EvaluationPeriodOption } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -102,6 +103,7 @@ describe('EvaluationsComponent', () => {
   let api: jasmine.SpyObj<EvaluationService>;
 
   beforeEach(async () => {
+    sessionStorage.clear();
     api = jasmine.createSpyObj<EvaluationService>('EvaluationService', [
       'periods',
       'departmentEmployees',
@@ -123,6 +125,8 @@ describe('EvaluationsComponent', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
+
+  afterEach(() => sessionStorage.clear());
 
   it('loads the periods and then the rows of the active period', () => {
     expect(api.periods).toHaveBeenCalled();
@@ -249,11 +253,24 @@ describe('EvaluationsComponent', () => {
     expect(component.periodInfo().progressPercent).toBeNull();
   });
 
-  it('navigates to /evaluations/form when openEvaluationForm is called', () => {
+  it('opens /evaluations/form with the employee and period saved for the tab, not in the address', () => {
     const router = TestBed.inject(Router);
     spyOn(router, 'navigate');
     component.openEvaluationForm(rows[0]);
-    expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form', 'Q-TEST', 'NV0001']);
+    expect(TestBed.inject(EvaluationFormTargetService).read()).toEqual({
+      employeeId: rows[0].employeeId,
+      periodId: 'period-1',
+    });
+    expect(router.navigate).toHaveBeenCalledOnceWith(['/evaluations/form']);
+  });
+
+  it('opens nothing when no period is selected', () => {
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate');
+    component.periods.set([]);
+    component.openEvaluationForm(rows[0]);
+    expect(TestBed.inject(EvaluationFormTargetService).read()).toBeNull();
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it('links the pending review count to the work of that employee', () => {

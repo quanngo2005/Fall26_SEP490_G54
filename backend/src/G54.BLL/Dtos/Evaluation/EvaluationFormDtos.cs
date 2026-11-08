@@ -111,9 +111,7 @@ public sealed record EvaluationFormDto(
     int PendingSubmissionCount,
     int OpenAppealCount,
     bool HasOpenDispute,
-    PreviousPeriodSummaryDto? PreviousPeriod,
-    decimal QualitativeScoreMax,
-    decimal QualitativeGroupScoreMax);
+    PreviousPeriodSummaryDto? PreviousPeriod);
 
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,

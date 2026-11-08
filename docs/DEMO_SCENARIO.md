@@ -60,7 +60,7 @@ Ghi chú và chỗ thiếu của phần 2:
 | # | Bước | Cách làm | Kết quả mong đợi | Trạng thái |
 | --- | --- | --- | --- | --- |
 | 3.1 | NV002 mở `/evaluations` | **UI** | Danh sách nhân viên phòng, mặc định mở Q4/2026 | OK |
-| 3.2 | Mở form đánh giá của NV004 | **UI** `/evaluations/form/{mã kỳ}/{mã nhân viên}` | Thấy chỉ tiêu, thực tế, điểm định lượng, các nhóm định tính | OK |
+| 3.2 | Mở form đánh giá của NV004 | **UI** `/evaluations`, bấm "Đánh giá" ở dòng NV004 (mở `/evaluations/form`) | Thấy chỉ tiêu, thực tế, điểm định lượng, các nhóm định tính | OK |
 | 3.3 | Chọn kỳ Tháng 11 | **UI** | Có target tháng (seed), actual lấy từ tiến độ tháng 11 | OK sau khi sửa seed |
 | 3.4 | Nhập điểm định tính, nhận xét, **Lưu nháp** | **UI** | Trạng thái `DRAFT` | OK |
 | 3.5 | **Hoàn tất đánh giá** (nộp báo cáo của nhân viên) | **UI** | Trạng thái `CALCULATED`, có `totalScore` | OK |

@@ -150,10 +150,6 @@ export interface EvaluationFormModel {
   openAppealCount: number;
   hasOpenDispute: boolean;
   previousPeriod: PreviousPeriodSummary | null;
-  /** Highest qualitative score the form accepts (configured on the server). */
-  qualitativeScoreMax: number;
-  /** Highest qualitative score of one criteria group (configured on the server). */
-  qualitativeGroupScoreMax: number;
 }
 
 export interface QualitativeScoreInput {

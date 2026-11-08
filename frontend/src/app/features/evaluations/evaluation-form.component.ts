@@ -2,11 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin, Observable, Subscription, switchMap, throwError } from 'rxjs';
+import { Router } from '@angular/router';
+import { Observable, Subscription } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { EmployeeService } from '../../core/employee.service';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import {
   DepartmentEmployeeEvaluation,
@@ -20,8 +19,10 @@ import { serverMessage } from '../campaigns/campaign.utils';
 
 /** Longest comment the form accepts; the backend enforces the same limit on submit. */
 const COMMENT_MAX_LENGTH = 1000;
-/** A score is never negative; the highest allowed values come from the server. */
+/** Range of a qualitative score; the form checks it before sending. */
 const SCORE_MIN = 0;
+const GROUP_SCORE_MAX = 100;
+const GENERAL_SCORE_MAX = 200;
 
 type LoadFailure = 'offline' | 'forbidden' | 'notFound' | 'error';
 type SaveMessage = { kind: 'success' | 'error'; text: string };
@@ -35,19 +36,18 @@ type SaveMessage = { kind: 'success' | 'error'; text: string };
 })
 export class EvaluationFormComponent extends LocalizedComponent {
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly evaluationService = inject(EvaluationService);
-  private readonly employeeService = inject(EmployeeService);
+  private readonly formTarget = inject(EvaluationFormTargetService);
   private formRequest?: Subscription;
   private rosterRequest?: Subscription;
   private rosterKey = '';
 
   readonly maxCommentLength = COMMENT_MAX_LENGTH;
   readonly scoreMin = SCORE_MIN;
-  /** Highest value of the qualitative score of one criteria group; the server decides it. */
-  readonly groupScoreMax = computed(() => this.form()?.qualitativeGroupScoreMax ?? 0);
-  /** Highest value of the single qualitative score box; the server decides it. */
-  readonly generalScoreMax = computed(() => this.form()?.qualitativeScoreMax ?? 0);
+  /** Highest value of the qualitative score of one criteria group. */
+  readonly groupScoreMax = computed(() => GROUP_SCORE_MAX);
+  /** Highest value of the single qualitative score box. */
+  readonly generalScoreMax = computed(() => GENERAL_SCORE_MAX);
 
   readonly form = signal<EvaluationFormModel | null>(null);
   readonly loading = signal(false);
@@ -235,16 +235,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      const periodCode = params.get('periodCode');
-      const employeeCode = params.get('employeeCode');
-      if (!employeeCode || !periodCode) {
-        this.form.set(null);
-        this.failure.set('notFound');
-        return;
-      }
-      this.loadForm(this.formByCodes(employeeCode, periodCode));
-    });
+    const target = this.formTarget.read();
+    if (!target) {
+      this.failure.set('notFound');
+      return;
+    }
+    this.loadForm(this.evaluationService.form(target.employeeId, target.periodId));
   }
 
   isValidScore(score: number): boolean {
@@ -294,25 +290,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   private openRosterEntry(index: number): void {
     const target = this.roster()[index];
-    const periodCode = this.form()?.period.code;
-    if (!target || !periodCode) return;
+    const periodId = this.form()?.period.id;
+    if (!target || !periodId) return;
     if (!this.confirmLeave()) return;
-    void this.router.navigate(['/evaluations/form', periodCode, target.employeeCode]);
-  }
-
-  /** The address names the employee and the period by their codes; the API takes their ids. */
-  private formByCodes(employeeCode: string, periodCode: string): Observable<EvaluationFormModel> {
-    return forkJoin({
-      employee: this.employeeService.byCode(employeeCode),
-      periods: this.evaluationService.periods(),
-    }).pipe(
-      switchMap(({ employee, periods }) => {
-        const period = periods.find((item) => item.code === periodCode);
-        return period
-          ? this.evaluationService.form(employee.id, period.id)
-          : throwError(() => new HttpErrorResponse({ status: 404 }));
-      }),
-    );
+    // The address stays the same, so the next employee is loaded here instead of by navigating.
+    this.formTarget.save({ employeeId: target.employeeId, periodId });
+    this.loadForm(this.evaluationService.form(target.employeeId, periodId));
   }
 
   private loadForm(request: Observable<EvaluationFormModel>, keepMessage = false): void {

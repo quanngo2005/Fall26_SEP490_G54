@@ -12,7 +12,6 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -20,8 +19,7 @@ public sealed partial class EvaluationService(
     AppDbContext db,
     ILogger<EvaluationService> logger,
     IPermissionService permissions,
-    IPerformanceScoreCalculator calculator,
-    IOptions<SystemParametersOptions> parameters) : IEvaluationService
+    IPerformanceScoreCalculator calculator) : IEvaluationService
 {
     /// <summary>
     /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
@@ -233,9 +231,7 @@ public sealed partial class EvaluationService(
             pendingSubmissionCount,
             openAppealCount,
             hasOpenDispute,
-            previousPeriod,
-            parameters.Value.QualitativeScoreMax,
-            parameters.Value.QualitativeGroupScoreMax);
+            previousPeriod);
     }
 
     /// <summary>
@@ -2091,16 +2087,10 @@ public sealed partial class EvaluationService(
     /// Content check of the free-text fields of the evaluation form, run before anything is read or saved. Their length is
     /// limited by the validation attributes of <see cref="SubmitEvaluationRequestDto"/>.
     /// </summary>
-    private void ValidateSubmitText(SubmitEvaluationRequestDto request)
+    private static void ValidateSubmitText(SubmitEvaluationRequestDto request)
     {
         EnsureNoMarkerSyntax(request.Comment, "Comment");
         EnsureNoMarkerSyntax(request.CoachingPlan, "CoachingPlan");
-
-        var max = parameters.Value.QualitativeScoreMax;
-        if (request.GeneralQualitativeScore is < 0m || request.GeneralQualitativeScore > max)
-        {
-            throw new ValidationException($"Điểm định tính phải nằm trong khoảng từ 0 đến {max.ToString("0.##", CultureInfo.InvariantCulture)}.");
-        }
     }
 
     /// <summary>
@@ -2108,7 +2098,7 @@ public sealed partial class EvaluationService(
     /// catalog group id), a duplicate id, an id that is not a root group of the profile, and a group that owns an active
     /// KPI (its score comes from the KPIs, a reviewer's score never overrides it).
     /// </summary>
-    private Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
+    private static Dictionary<Guid, QualitativeScoreInputDto> BuildQualitativeInputs(
         IEnumerable<QualitativeScoreInputDto>? inputs,
         IReadOnlyList<ProfileNode> roots)
     {
@@ -2132,13 +2122,6 @@ public sealed partial class EvaluationService(
             {
                 throw new ValidationException(
                     $"Nhóm \"{EvaluationProfileTree.NodeName(root)}\" có KPI đang hoạt động nên điểm của nhóm lấy từ KPI, không nhận điểm định tính.");
-            }
-
-            var groupMax = parameters.Value.QualitativeGroupScoreMax;
-            if (input.Score < 0m || input.Score > groupMax)
-            {
-                throw new ValidationException(
-                    $"Điểm định tính của nhóm \"{EvaluationProfileTree.NodeName(root)}\" phải nằm trong khoảng từ 0 đến {groupMax.ToString("0.##", CultureInfo.InvariantCulture)}.");
             }
 
             if (!result.TryAdd(input.EvaluationProfileItemId, input))
