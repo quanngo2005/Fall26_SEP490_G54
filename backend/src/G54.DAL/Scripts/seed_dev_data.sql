@@ -169,7 +169,9 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000023', 'QUALITY_FLAG_DISMISS', 'Bỏ qua cờ chất lượng', 'quality_flag', 'dismiss'),
  ('5eed0000-0000-0000-0009-000000000024', 'QA_SAMPLE_READ', 'Xem mẫu kiểm tra QA 5%', 'qa_sample', 'read'),
  ('5eed0000-0000-0000-0009-000000000025', 'QA_SAMPLE_DECIDE', 'Quyết định kết quả kiểm tra mẫu QA', 'qa_sample', 'decide'),
- ('5eed0000-0000-0000-0009-000000000026', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import')
+ ('5eed0000-0000-0000-0009-000000000026', 'DATA_IMPORT',         'Import dữ liệu',       'data_import',  'import'),
+ ('5eed0000-0000-0000-0009-000000000027', 'SYSTEM_PARAMETER_VIEW',   'Xem tham số hệ thống',      'system_parameter', 'view'),
+ ('5eed0000-0000-0000-0009-000000000028', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -206,7 +208,10 @@ FROM (VALUES
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
-    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All')
+    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
+    -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).
+    ('ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
+    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code

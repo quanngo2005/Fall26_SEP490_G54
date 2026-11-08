@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Handover;
@@ -6,8 +7,8 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -25,17 +26,17 @@ public sealed class HandoverServiceTests : IDisposable
 
     private HandoverService ServiceWith(bool canSetShare = false, string? threshold = null)
     {
-        var settings = new Dictionary<string, string?>();
+        var options = new SystemParametersOptions();
         if (threshold is not null)
         {
-            settings["Handover:AmountThreshold"] = threshold;
+            options.HandoverAmountThreshold = decimal.Parse(threshold, System.Globalization.CultureInfo.InvariantCulture);
         }
 
         return new HandoverService(
             _db,
             new SetSharePermission(canSetShare),
-            new ConfigurationBuilder().AddInMemoryCollection(settings).Build(),
             Notifier,
+            Options.Create(options),
             NullLogger<HandoverService>.Instance,
             new FixedTime());
     }
