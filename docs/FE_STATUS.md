@@ -37,5 +37,6 @@ Quality gate: `scripts/codereview-frontend.ps1` → **ALL CHECKS PASSED** (lint,
 - **SCR-WRK-02:** no customer/CIF field (not in `POST /works`), work type list is not filtered by the assignee's position, the title is the work type name (the API needs one), and checklist items are sent but not stored by the server yet.
 - **Work:** progress update, workload and funnel views missing (backend task pending).
 - **Appeals:** N/A until the API has the data: processing deadline, transaction code, CIF, Core Banking comparison and reconciliation status, "impact if accepted"; escalation to the branch director (button and the "escalated" tab) is disabled; deciding a score appeal can keep the score or add points (lifting a risk event or a task deduction is not in the API); there is no screen that files a score appeal; the evaluation period and job position filters need the matching lookups to load; evidence is opened through a blob in a new tab.
+- **Review & verify queue (GB-668):** `GET /verifications` now exists (see `BE_STATUS.md`), but `/review-verify` still needs a `submissionId` in the URL; the queue list screen and `VerificationService.queue()` are not built yet.
 - **Handover, risk events, notifications, personal KPI/performance, HR export:** no screens.
 - Backend counterparts and their gaps: see `BE_STATUS.md`.
