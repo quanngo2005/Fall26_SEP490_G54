@@ -18,7 +18,7 @@ namespace G54.UnitTests.Import;
 
 /// <summary>
 /// Exercises <see cref="TargetImportService"/> (stateless preview/commit over <see cref="BranchYearTargetImportDefinition"/>) against the real sample file (28 KPI rows,
-/// docs/excels/KPI_Chi_nhanh_2025_chuan_hoa.xlsx) and small synthetic fixtures for the paths that need
+/// backend/tests/G54.UnitTests/Import/Fixtures/KPI_Chi_nhanh_2025_chuan_hoa.xlsx) and small synthetic fixtures for the paths that need
 /// specific DB state (partial commit, ACTIVE block, needs-review, access control).
 /// </summary>
 public sealed class BranchYearTargetImportDefinitionTests
@@ -122,7 +122,7 @@ public sealed class BranchYearTargetImportDefinitionTests
 
     private static FileStream OpenSampleFile()
     {
-        var path = FindRepoFile("docs/excels/KPI_Chi_nhanh_2025_chuan_hoa.xlsx");
+        var path = FindRepoFile("backend/tests/G54.UnitTests/Import/Fixtures/KPI_Chi_nhanh_2025_chuan_hoa.xlsx");
         // Excel may hold the file open on a dev machine; read-share so the test still works.
         return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
     }
