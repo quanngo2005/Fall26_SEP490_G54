@@ -4,6 +4,7 @@ import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
 import { qaQueueGuard } from './core/qa-queue.guard';
+import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
@@ -209,6 +210,13 @@ export const routes: Routes = [
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
       ),
+  },
+  {
+    path: 'risk-events',
+    canActivate: [authGuard, riskEventGuard],
+    title: 'Sự kiện rủi ro',
+    loadComponent: () =>
+      import('./features/risk-events/risk-events.component').then((m) => m.RiskEventsComponent),
   },
   {
     path: 'qa-queue',

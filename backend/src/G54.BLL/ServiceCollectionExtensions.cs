@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IRiskEventService, RiskEventService>();
+        services.AddScoped<IRiskEventScreenService, RiskEventScreenService>();
         services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
         services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
         services.AddScoped<IQaQueueService, QaQueueService>();

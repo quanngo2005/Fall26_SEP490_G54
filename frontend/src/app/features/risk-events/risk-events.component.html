@@ -1,0 +1,297 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      <div class="department-panel">
+        <div class="page-title-row">
+          <h1>{{localization.riskEvents.title}}</h1>
+        </div>
+
+        @if (notice()) {
+          <div class="alert-banner" role="status">
+            <span>{{notice()}}</span>
+            <button
+              type="button"
+              class="alert-close"
+              [attr.aria-label]="localization.riskEvents.close"
+              (click)="notice.set(null)"
+            >
+              ×
+            </button>
+          </div>
+        }
+
+        <div class="toolbar">
+          <div class="filters-left">
+            <div class="search-input-wrap">
+              <span class="search-icon" aria-hidden="true">🔍</span>
+              <input
+                type="text"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="setSearch($event)"
+                [attr.aria-label]="localization.riskEvents.searchPlaceholder"
+                [placeholder]="localization.riskEvents.searchPlaceholder"
+              />
+            </div>
+
+            <div class="select-dropdown period-select">
+              <select
+                [ngModel]="periodFilter()"
+                (ngModelChange)="setPeriod($event)"
+                [attr.aria-label]="localization.riskEvents.filterPeriod"
+              >
+                <option value="ALL">{{localization.riskEvents.allPeriods}}</option>
+                @for (period of periods(); track period.id) {
+                  <option [value]="period.id">{{period.code}}</option>
+                }
+              </select>
+            </div>
+
+            <div class="select-dropdown">
+              <select
+                [ngModel]="departmentFilter()"
+                (ngModelChange)="setDepartment($event)"
+                [attr.aria-label]="localization.riskEvents.filterDepartment"
+              >
+                <option value="ALL">{{localization.riskEvents.allDepartments}}</option>
+                @for (department of departments(); track department.id) {
+                  <option [value]="department.id">{{department.name}}</option>
+                }
+              </select>
+            </div>
+
+            <div class="select-dropdown">
+              <select
+                [ngModel]="severityFilter()"
+                (ngModelChange)="setSeverity($event)"
+                [attr.aria-label]="localization.riskEvents.filterSeverity"
+              >
+                <option value="ALL">{{localization.riskEvents.allSeverities}}</option>
+                @for (level of severities; track level) {
+                  <option [value]="level">{{severityLabel(level)}}</option>
+                }
+              </select>
+            </div>
+
+            <div class="select-dropdown">
+              <select
+                [ngModel]="stateFilter()"
+                (ngModelChange)="setState($event)"
+                [attr.aria-label]="localization.riskEvents.filterState"
+              >
+                <option value="ALL">{{localization.riskEvents.allStates}}</option>
+                <option value="RECORDED">
+                  {{localization.riskEvents.state.RECORDED}} ({{counts().recorded}})
+                </option>
+                <option value="REVERSED">
+                  {{localization.riskEvents.state.REVERSED}} ({{counts().reversed}})
+                </option>
+              </select>
+            </div>
+          </div>
+
+          @if (canCreate()) {
+            <div class="filters-right">
+              <button type="button" class="create-btn" (click)="openCreate()">
+                <span aria-hidden="true">＋</span> {{localization.riskEvents.createButton}}
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="table-container">
+          @if (failed()) {
+            <div class="state-block" role="alert">
+              <p>{{localization.riskEvents.loadError}}</p>
+              <button type="button" class="btn-primary-action" (click)="retry()">
+                {{localization.riskEvents.retry}}
+              </button>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th [attr.aria-sort]="ariaSort('code')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('code')"
+                    >
+                      {{localization.riskEvents.colCode | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('code')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('occurredAt')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('occurredAt')"
+                    >
+                      {{localization.riskEvents.colOccurredAt | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('occurredAt')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('employee')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('employee')"
+                    >
+                      {{localization.riskEvents.colEmployee | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('employee')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('department')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('department')"
+                    >
+                      {{localization.riskEvents.colDepartment | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('department')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('type')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('type')"
+                    >
+                      {{localization.riskEvents.colType | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('type')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('severity')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('severity')"
+                    >
+                      {{localization.riskEvents.colSeverity | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('severity')}}</span>
+                    </button>
+                  </th>
+                  <th class="col-penalty" [attr.aria-sort]="ariaSort('penalty')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('penalty')"
+                    >
+                      {{localization.riskEvents.colPenalty | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('penalty')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('work')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('work')"
+                    >
+                      {{localization.riskEvents.colLink | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('work')}}</span>
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('status')">
+                    <button
+                      type="button"
+                      class="sort-btn"
+                      [attr.title]="localization.riskEvents.sortHint"
+                      (click)="toggleSort('status')"
+                    >
+                      {{localization.riskEvents.colStatus | uppercase}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('status')}}</span>
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of items(); track item.id) {
+                  <tr
+                    class="clickable-row"
+                    [class.selected-row]="item.id === selectedId()"
+                    tabindex="0"
+                    (click)="select(item)"
+                    (keydown.enter)="select(item)"
+                  >
+                    <td class="cell-bold font-code">{{item.code}}</td>
+                    <td>{{item.occurredAt | appDate: 'DD/MM/YYYY'}}</td>
+                    <td class="col-emp">{{item.employeeCode}} · {{item.employeeName}}</td>
+                    <td>{{item.departmentName}}</td>
+                    <td>{{typeLabel(item.eventType)}}</td>
+                    <td>
+                      <span
+                        class="sev-badge"
+                        [class]="'sev-badge sev-' + item.severity.toLowerCase()"
+                      >
+                        {{severityLabel(item.severity)}}
+                      </span>
+                    </td>
+                    <td class="col-penalty">
+                      <span class="penalty" [class.muted]="item.state === 'REVERSED'">
+                        {{penaltyText(item.penaltyPoints)}}
+                      </span>
+                    </td>
+                    <td>
+                      @if (item.workCode) {
+                        <span class="work-link font-code">{{item.workCode}}</span>
+                      } @else {
+                        <span class="muted-text">{{localization.riskEvents.noLink}}</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="state-badge" [class.state-reversed]="item.state === 'REVERSED'">
+                        {{stateLabel(item)}}
+                      </span>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="9" class="empty-state">
+                      {{loading() ? localization.riskEvents.loading : localization.riskEvents.empty}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="table-footer">
+              <span class="footer-count">{{showingText()}}</span>
+              <div class="pagination">
+                @for (p of pages(); track p) {
+                  <button
+                    type="button"
+                    class="page-box"
+                    [class.active]="p === page()"
+                    [attr.aria-current]="p === page() ? 'page' : null"
+                    (click)="goToPage(p)"
+                  >
+                    {{p}}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <p class="footnote">{{localization.riskEvents.footnote}}</p>
+      </div>
+
+      @if (selectedId(); as id) {
+        <app-risk-event-drawer
+          [eventId]="id"
+          (closed)="closeDrawer()"
+          (reversed)="onReversed($event)"
+        />
+      }
+
+      @if (creating()) {
+        <app-risk-event-create-modal
+          (created)="onCreated($event)"
+          (dismissed)="creating.set(false)"
+        />
+      }
+    </main>
+  </div>
+</div>

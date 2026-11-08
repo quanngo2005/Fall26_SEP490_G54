@@ -104,7 +104,7 @@ public sealed partial class EvaluationService(
             re.EventType,
             re.Description,
             re.Severity.ToString().ToUpperInvariant(),
-            MapRiskPenalty(re.Severity),
+            RiskPenalty(re),
             re.OccurredAt)).ToList();
 
         var totalRiskPenalty = scored.RiskPenalty;
@@ -706,7 +706,7 @@ public sealed partial class EvaluationService(
                 }
                 else
                 {
-                    var penalty = empRisks.Sum(r => MapRiskPenalty(r.Severity));
+                    var penalty = empRisks.Sum(RiskPenalty);
                     disciplinaryFlag = $"Trừ điểm rủi ro (-{penalty}đ)";
                 }
             }
@@ -1988,6 +1988,9 @@ public sealed partial class EvaluationService(
 
         return employee;
     }
+
+    /// <summary>The penalty of one risk event: the points QA entered, otherwise the amount of its severity.</summary>
+    internal static decimal RiskPenalty(RiskEvent riskEvent) => riskEvent.PenaltyPoints ?? MapRiskPenalty(riskEvent.Severity);
 
     internal static decimal MapRiskPenalty(RiskEventSeverity severity) => severity switch
     {

@@ -1,5 +1,6 @@
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.Quality;
+using G54.BLL.Dtos.RiskEvent;
 using G54.BLL.Dtos.Submission;
 using G54.BLL.Dtos.Verification;
 using G54.BLL.Services;
@@ -326,6 +327,9 @@ public sealed class QualityReworkPostgresTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var department = (await db.Employees.AsNoTracking().FirstAsync(e => e.Id == _makerId)).DepartmentId;
         var queue = await new QaQueueService(db).GetQueueAsync(new QaQueueFilterDto { Tab = "REJECTED", DepartmentId = department, Search = "QA-" });
+        var periodId = (await db.EvaluationPeriods.AsNoTracking().SingleAsync(p => p.Code == "QR-M")).Id;
+        var inPeriod = await new QaQueueService(db).GetQueueAsync(new QaQueueFilterDto { Tab = "REJECTED", PeriodId = periodId });
+        Assert.Single(inPeriod.Items);
 
         var item = Assert.Single(queue.Items);
         Assert.Equal("FLAG", item.Type);
@@ -333,5 +337,65 @@ public sealed class QualityReworkPostgresTests : IAsyncLifetime
         Assert.Equal(1, queue.Counts.Rejected);
         Assert.Equal(department, Assert.Single(queue.Departments).Id);
         Assert.Equal(item.Code, (await new QaQueueService(db).GetItemAsync("FLAG", item.Id)).Item.Code);
+    }
+
+    [PostgresFact]
+    public async Task RiskEvents_RunOnPostgres_RecordListDetailsAndReverse()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var qa = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == _qaAccount);
+        var grants = new[]
+        {
+            new UserPermissionDto("risk_event", "read", "All", "RISK_EVENT_READ"),
+            new UserPermissionDto("risk_event", "reverse", "All", "RISK_EVENT_REVERSE"),
+        };
+        var screens = new RiskEventScreenService(
+            db,
+            TimeProvider.System,
+            new FakePermissionService(null, grants),
+            new NoStorage(),
+            NullLogger<RiskEventScreenService>.Instance);
+
+        var recorded = await new RiskEventService(db, NullLogger<RiskEventService>.Instance, TimeProvider.System).CreateAsync(
+            new CreateRiskEventRequestDto
+            {
+                EmployeeId = _makerId,
+                EventType = "KYC_VIOLATION",
+                Description = "Vi phạm quy trình KYC.",
+                Severity = "HIGH",
+                // The screens send the Vietnamese offset; Postgres only stores offset 0.
+                OccurredAt = DateTimeOffset.UtcNow.AddMinutes(-5).ToOffset(TimeSpan.FromHours(7)),
+                PenaltyPoints = 4m,
+                Record = true,
+            },
+            qa.EmployeeId);
+        var department = (await db.Employees.AsNoTracking().FirstAsync(e => e.Id == _makerId)).DepartmentId;
+
+        var list = await screens.ListAsync(qa.Id, new RiskEventFilterDto { DepartmentId = department, Severity = "HIGH", Search = "RSK-" });
+        // A period filter puts Vietnamese day boundaries into the query; Postgres only takes offset 0 there.
+        var periodId = (await db.EvaluationPeriods.AsNoTracking().SingleAsync(p => p.Code == "QR-M")).Id;
+        var inPeriod = await screens.ListAsync(qa.Id, new RiskEventFilterDto { PeriodId = periodId });
+        Assert.Equal(recorded.Id, Assert.Single(inPeriod.Items).Id);
+        var details = await screens.GetDetailsAsync(qa.Id, recorded.Id);
+        var reversed = await screens.ReverseAsync(qa.Id, recorded.Id, new ReverseRiskEventDto("Ghi nhầm nhân viên, đã đối chiếu lại."));
+
+        Assert.Equal(recorded.Id, Assert.Single(list.Items).Id);
+        Assert.Equal(4m, list.Items[0].PenaltyPoints);
+        Assert.Equal(new RiskEventCountsDto(1, 0), list.Counts);
+        Assert.Equal(department, Assert.Single(list.Departments).Id);
+        Assert.True(details.CanReverse);
+        Assert.Equal("REVERSED", reversed.Item.State);
+        Assert.Equal(-4m, (await db.PerformanceContributions.AsNoTracking().SingleAsync(c => c.RiskEventId == recorded.Id)).ComponentScore);
+    }
+
+    private sealed class NoStorage : IStorageService
+    {
+        public Task<IReadOnlyList<StoredFileMetadata>> UploadEvidenceFilesAsync(IEnumerable<Microsoft.AspNetCore.Http.IFormFile> files, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenEvidenceReadAsync(string filePath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task DeleteEvidenceFilesAsync(IEnumerable<StoredFileMetadata> files, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }
