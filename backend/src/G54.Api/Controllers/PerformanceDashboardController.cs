@@ -70,4 +70,43 @@ public sealed class PerformanceDashboardController(IPerformanceDashboardService 
         var result = await service.GetBranchDashboardAsync(User.GetRequiredUserId(), branchId, periodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("employees/{employeeId:guid}/ledger")]
+    [ProducesResponseType<ApiResponse<EmployeeLedgerDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EmployeeLedgerDto>>> GetEmployeeLedger(
+        Guid employeeId,
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? kpiId,
+        CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        var result = await service.GetEmployeeLedgerAsync(
+            User.GetRequiredUserId(), employeeId, periodId, kpiId, page, pageSize, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("ledger-entries/{entryId:guid}")]
+    [ProducesResponseType<ApiResponse<LedgerEntryDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<LedgerEntryDetailDto>>> GetLedgerEntry(
+        Guid entryId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetLedgerEntryAsync(User.GetRequiredUserId(), entryId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("ledger-entries/{entryId:guid}/transactions")]
+    [ProducesResponseType<ApiResponse<LedgerTransactionsDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<LedgerTransactionsDto>>> GetLedgerEntryTransactions(
+        Guid entryId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetLedgerEntryTransactionsAsync(User.GetRequiredUserId(), entryId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
 }

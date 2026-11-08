@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using G54.Api.Controllers;
 using G54.BLL.Common.Models;
@@ -50,6 +51,41 @@ public sealed class MyTargetAssignmentsControllerTests
     }
 
     [Fact]
+    public async Task GetSuggestedDaily_Returns200AndPassesTheCallerTheEmployeeAndThePeriodToTheService()
+    {
+        var employeeId = Guid.NewGuid();
+        var periodId = Guid.NewGuid();
+        var service = new StubService
+        {
+            SuggestedDaily = new SuggestedDailyTargetDto(
+                employeeId, periodId, new DateOnly(2026, 10, 1), new DateOnly(2026, 12, 31), 66, []),
+        };
+
+        var result = await CreateController(service).GetSuggestedDaily(
+            employeeId, new SuggestedDailyTargetQueryDto { EvaluationPeriodId = periodId });
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<SuggestedDailyTargetDto>>(ok.Value);
+        Assert.Equal(200, envelope.Status);
+        Assert.Equal(66, envelope.Data!.WorkingDays);
+        Assert.Equal(AccountId, service.CallerId);
+        Assert.Equal(employeeId, service.RequestedEmployeeId);
+        Assert.Equal(periodId, service.RequestedPeriodId);
+    }
+
+    [Fact]
+    public void SuggestedDailyQuery_RequiresThePeriod()
+    {
+        var query = new SuggestedDailyTargetQueryDto();
+        var results = new List<ValidationResult>();
+
+        var valid = Validator.TryValidateObject(query, new ValidationContext(query), results, validateAllProperties: true);
+
+        Assert.False(valid);
+        Assert.Contains(results, r => r.MemberNames.Contains(nameof(SuggestedDailyTargetQueryDto.EvaluationPeriodId)));
+    }
+
+    [Fact]
     public async Task Confirm_Returns201()
     {
         var feedback = new TargetAssignmentFeedbackDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "CONFIRM", null, DateTimeOffset.UnixEpoch);
@@ -76,6 +112,8 @@ public sealed class MyTargetAssignmentsControllerTests
 
         public Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto) => throw new NotImplementedException();
 
+        public Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto) => throw new NotImplementedException();
+
         public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto) => throw new NotImplementedException();
 
         public Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query) => throw new NotImplementedException();
@@ -83,6 +121,20 @@ public sealed class MyTargetAssignmentsControllerTests
         public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId) => throw new NotImplementedException();
 
         public Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity) => throw new NotImplementedException();
+
+        public SuggestedDailyTargetDto SuggestedDaily { get; set; } = null!;
+
+        public Guid RequestedEmployeeId { get; private set; }
+
+        public Guid RequestedPeriodId { get; private set; }
+
+        public Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId)
+        {
+            CallerId = accountId;
+            RequestedEmployeeId = employeeId;
+            RequestedPeriodId = evaluationPeriodId;
+            return Task.FromResult(SuggestedDaily);
+        }
 
         public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
         {

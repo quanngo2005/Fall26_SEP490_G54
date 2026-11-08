@@ -185,6 +185,21 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
                         (t.EmployeeId.HasValue && employeeIds.Contains(t.EmployeeId.Value)))
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyDictionary<Guid, int>> GetLatestVersionsAsync(
+        Guid kpiId,
+        Guid periodId,
+        IReadOnlyCollection<Guid> ownerIds,
+        CancellationToken ct = default)
+    {
+        var rows = await DbSet.AsNoTracking()
+            .Where(t => t.KpiDefinitionId == kpiId && t.EvaluationPeriodId == periodId)
+            .Where(t => (t.DepartmentId.HasValue && ownerIds.Contains(t.DepartmentId.Value)) ||
+                        (t.EmployeeId.HasValue && ownerIds.Contains(t.EmployeeId.Value)))
+            .Select(t => new { Owner = t.EmployeeId ?? t.DepartmentId, t.Version })
+            .ToListAsync(ct);
+        return rows.GroupBy(row => row.Owner!.Value).ToDictionary(group => group.Key, group => group.Max(row => row.Version));
+    }
+
     public Task<Employee?> GetAccountEmployeeAsync(Guid accountId, CancellationToken ct = default) =>
         DbContext.Set<Account>().AsNoTracking()
             .Where(a => a.Id == accountId)
@@ -198,6 +213,7 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
         CancellationToken ct = default)
     {
         var query = DbSet.AsNoTracking()
+            .Include(t => t.KpiDefinition)
             .Where(t => t.EmployeeId == employeeId && t.Status == TargetAssignmentStatus.Active);
 
         if (evaluationPeriodId.HasValue)

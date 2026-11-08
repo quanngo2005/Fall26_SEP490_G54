@@ -141,6 +141,22 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
         return new Setup(evaluation.Id, employee.Id, period.Id, first.Id, second.Id);
     }
 
+    /// <summary>
+    /// Inserts rows with SQL naming only the columns of the schema at <see cref="PreviousMigration"/>: the EF model of a
+    /// later migration (e.g. <c>weighted_actual_value</c>) cannot write to that older schema.
+    /// </summary>
+    private static async Task InsertAtPreviousSchemaAsync(AppDbContext db, params PerformanceContribution[] rows)
+    {
+        foreach (var row in rows)
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO performance_contribution (id, performance_evaluation_id, employee_id, evaluation_period_id, actual_progress_id, component_score, updated_at)
+                VALUES ({row.Id}, {row.PerformanceEvaluationId}, {row.EmployeeId}, {row.EvaluationPeriodId}, {row.ActualProgressId}, {row.ComponentScore}, {row.UpdatedAt})
+                """);
+        }
+    }
+
     private static PerformanceContribution KpiRow(Setup s, Guid? progressId, DateTimeOffset updatedAt, Guid? riskEventId = null) => new()
     {
         Id = Guid.NewGuid(),
@@ -260,8 +276,7 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             try
             {
-                db.PerformanceContributions.AddRange(old, latest, other, noProgress);
-                await db.SaveChangesAsync();
+                await InsertAtPreviousSchemaAsync(db, old, latest, other, noProgress);
             }
             finally
             {
@@ -296,12 +311,14 @@ public sealed class PerformanceContributionKpiProgressPostgresTests(DemoSeedData
             await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             try
             {
-                db.PerformanceContributions.AddRange(
+                await InsertAtPreviousSchemaAsync(
+                    db,
                     KpiRow(s, s.ProgressId, DateTimeOffset.UtcNow),
                     KpiRow(s, s.ProgressId, DateTimeOffset.UtcNow));
-                await db.SaveChangesAsync();
 
-                Assert.Equal(2, await db.PerformanceContributions.CountAsync(c => c.PerformanceEvaluationId == s.EvaluationId));
+                Assert.Equal(
+                    2,
+                    await db.Database.SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM performance_contribution WHERE performance_evaluation_id = {s.EvaluationId}").SingleAsync());
             }
             finally
             {

@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkService, WorkService>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
         services.AddScoped<IKpiMappingService, KpiMappingService>();
+        services.AddScoped<IBusinessObjectiveService, BusinessObjectiveService>();
         services.AddScoped<IWorkTypeService, WorkTypeService>();
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
@@ -29,8 +30,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IRiskEventService, RiskEventService>();
+        services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
+        services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
+        services.AddScoped<IQaQueueService, QaQueueService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
+        services.AddScoped<INotifier, Notifier>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ISidebarConfigurationService, SidebarConfigurationService>();
         services.TryAddSingleton(TimeProvider.System);
@@ -47,6 +53,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
+        services.AddScoped<ITransactionImportService, TransactionImportService>();
+        services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
         services.AddHostedService<HandoverEscalationBackgroundService>();

@@ -1,0 +1,584 @@
+<div class="branch-evaluation-shell">
+  <app-sidebar />
+
+  <div class="main-viewport">
+    <app-header [title]="headerTitle()" />
+
+    <main class="content-area">
+      <!-- Breadcrumb navigation -->
+      <nav class="breadcrumb-nav" aria-label="Breadcrumb">
+        <a class="crumb" routerLink="/home">{{t()['breadcrumbHome'] || 'Trang chủ'}}</a>
+        <span class="crumb-separator">/</span>
+        <a class="crumb" routerLink="/branch-performance/evaluations">{{t()['breadcrumbPeriods'] || 'Kỳ đánh giá'}}</a>
+        <span class="crumb-separator">/</span>
+        <span class="crumb current" aria-current="page">{{headerTitle()}}</span>
+      </nav>
+
+      <!-- Toast Banner -->
+      @if (toastMessage(); as toast) {
+        <div class="toast-banner" [ngClass]="toastType()" role="status" aria-live="polite">
+          <app-layout-icon name="check" class="toast-icon" />
+          <span>{{toast}}</span>
+        </div>
+      }
+
+      <!-- Error banner if load fails -->
+      @if (errorMessage(); as error) {
+        <div class="alert-banner error" role="alert">
+          <app-layout-icon name="riskEvents" class="alert-icon" />
+          <span>{{error}}</span>
+          <button class="btn-retry" type="button" (click)="loadBranchOverview()">Thử lại</button>
+        </div>
+      }
+
+      @if (loadingOverview()) {
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <span>{{t()['loading'] || 'Đang tải dữ liệu xếp hạng...'}}</span>
+        </div>
+      } @else {
+        <!-- Split Workspace Layout -->
+        <div class="approval-workspace-layout">
+          <!-- Left Sidebar: Department List & Actions -->
+          <aside class="departments-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                {{t()['departmentsTitle'] || 'PHÒNG'}} ({{branchOverview()?.departments?.length || 0}})
+              </h2>
+            </div>
+
+            <!-- Department List Items -->
+            <div class="department-list" role="listbox" aria-label="Danh sách phòng ban">
+              @for (dept of branchOverview()?.departments ?? []; track dept.departmentId) {
+                <div
+                  class="dept-card"
+                  [class.selected]="dept.departmentId === selectedDepartmentId()"
+                  role="option"
+                  [attr.aria-selected]="dept.departmentId === selectedDepartmentId()"
+                  tabindex="0"
+                  (click)="selectDepartment(dept.departmentId)"
+                  (keydown.enter)="selectDepartment(dept.departmentId)"
+                  (keydown.space)="selectDepartment(dept.departmentId); $event.preventDefault()"
+                >
+                  <div class="dept-card-top">
+                    <span class="dept-name">{{dept.departmentName}}</span>
+                    <span class="dept-emp-count">{{dept.totalEmployees}} NV</span>
+                  </div>
+
+                  <div class="dept-card-bottom">
+                    @if (dept.status === 'APPROVED' || dept.status === 'FINAL') {
+                      <span class="status-badge badge-approved">
+                        <app-layout-icon name="check" class="badge-icon" />
+                        {{t()['statusApproved'] || 'Đã duyệt'}}
+                      </span>
+                    } @else if (dept.status === 'IN_REVIEW') {
+                      <span class="status-badge badge-pending">
+                        {{t()['statusPending'] || 'Chờ duyệt'}} ·
+                        {{t()['statusSubmittedAt'] || 'gửi'}} {{formatDate(dept.submittedAt)}}
+                      </span>
+                    } @else {
+                      <span class="status-badge badge-not-submitted">
+                        {{t()['statusNotSubmitted'] || 'Chưa gửi'}}
+                      </span>
+                    }
+                  </div>
+                </div>
+              } @empty {
+                <div class="empty-list-text">
+                  {{t()['emptyDepartments'] || 'Không có phòng ban nào trong kỳ này.'}}
+                </div>
+              }
+            </div>
+
+            <!-- Left Bottom Actions -->
+            <div class="panel-footer-actions">
+              <button type="button" class="btn-pre-close" (click)="openPreCloseModal()">
+                <app-layout-icon name="tasks" class="btn-icon" />
+                <span>{{t()['btnPreCloseCheck'] || 'Kiểm tra trước khi đóng'}}</span>
+              </button>
+
+              <div class="publish-action-box">
+                <button
+                  type="button"
+                  class="btn-publish"
+                  [disabled]="!canPublish()"
+                  (click)="openLockModal()"
+                >
+                  <app-layout-icon name="accessPolicies" class="btn-icon" />
+                  <span>{{t()['btnPublishResults'] || 'Publish kết quả'}}</span>
+                </button>
+                <p class="publish-hint">{{publishHintText()}}</p>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Right Content: Department Calibration Review & Roster -->
+          <section class="roster-panel">
+            @if (selectedDepartment(); as curDept) {
+              <!-- Top Roster Header Bar -->
+              <header class="roster-header">
+                <div class="roster-header-left">
+                  <h2 class="roster-dept-title">{{curDept.departmentName}}</h2>
+                  @if (curDept.status === 'APPROVED' || curDept.status === 'FINAL') {
+                    <span class="status-badge badge-approved">
+                      <app-layout-icon name="check" class="badge-icon" />
+                      {{t()['statusApproved'] || 'Đã duyệt'}}
+                    </span>
+                  } @else if (curDept.status === 'IN_REVIEW') {
+                    <span class="status-badge badge-pending">
+                      {{t()['statusPending'] || 'Chờ duyệt'}} ·
+                      {{t()['statusSubmittedAt'] || 'gửi'}} {{formatDate(curDept.submittedAt)}}
+                    </span>
+                  } @else {
+                    <span class="status-badge badge-not-submitted">
+                      {{t()['statusNotSubmitted'] || 'Chưa gửi'}}
+                    </span>
+                  }
+                </div>
+
+                <div class="roster-header-right">
+                  <button
+                    type="button"
+                    class="btn-reject"
+                    [disabled]="!canRejectCurrentDept()"
+                    (click)="openRejectModal()"
+                  >
+                    <span class="action-icon">←</span>
+                    <span>{{t()['btnReject'] || 'Trả về'}}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn-approve"
+                    [disabled]="!canApproveCurrentDept()"
+                    (click)="openApproveModal()"
+                  >
+                    <app-layout-icon name="check" class="action-icon" />
+                    <span>{{t()['btnApprove'] || 'Duyệt'}}</span>
+                  </button>
+                </div>
+              </header>
+
+              <!-- Position Tabs -->
+              <div class="position-tabs-nav" role="tablist">
+                @for (tab of positionTabs(); track tab.id) {
+                  <button
+                    type="button"
+                    role="tab"
+                    class="position-tab-btn"
+                    [class.active]="tab.id === selectedPositionId()"
+                    [attr.aria-selected]="tab.id === selectedPositionId()"
+                    (click)="selectPosition(tab.id)"
+                  >
+                    <span>{{tab.title}} · {{tab.count}}</span>
+                    @if (tab.hiddenCount > 0) {
+                      <span class="dispute-hidden-tag">
+                        + {{tab.hiddenCount}} {{t()['tabHiddenSuffix'] || 'ẩn'}}
+                      </span>
+                    }
+                  </button>
+                }
+              </div>
+
+              <!-- Table Loading or Roster Table -->
+              @if (loadingCalibration()) {
+                <div class="loading-state inner">
+                  <div class="spinner"></div>
+                  <span>{{t()['loading'] || 'Đang tải dữ liệu xếp hạng...'}}</span>
+                </div>
+              } @else {
+                <div class="table-container">
+                  <table class="roster-table">
+                    <thead>
+                      <tr>
+                        <th class="th-index">{{t()['colIndex'] || '#'}}</th>
+                        <th class="th-emp">{{t()['colEmployee'] || 'NHÂN VIÊN'}}</th>
+                        <th class="th-score text-right">{{t()['colTotalPe'] || 'TỔNG PE'}}</th>
+                        <th class="th-tier text-center">{{t()['colProposed'] || 'ĐỀ XUẤT'}}</th>
+                        <th class="th-tier text-center">{{t()['colFinalized'] || 'TP CHỐT'}}</th>
+                        <th class="th-reason">
+                          {{t()['colManagerReason'] || 'LÝ DO TRƯỞNG PHÒNG'}}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (emp of filteredRoster(); track emp.employeeId; let i = $index) {
+                        <tr class="roster-row">
+                          <td class="td-index">{{i + 1}}</td>
+                          <td class="td-emp">
+                            <button
+                              type="button"
+                              class="employee-link-btn"
+                              (click)="navigateToTraceability(emp.employeeId)"
+                              [title]="'Xem chi tiết điểm của ' + emp.fullName"
+                            >
+                              <span class="emp-avatar-initial">{{emp.fullName.charAt(0)}}</span>
+                              <div class="emp-meta">
+                                <span class="emp-name">{{emp.fullName}}</span>
+                                <span class="emp-code">{{emp.employeeCode}}</span>
+                              </div>
+                              <span class="nav-arrow">↗</span>
+                            </button>
+                          </td>
+                          <td class="td-score text-right">
+                            <span class="score-value">{{formatScore(emp.totalScore)}}</span>
+                          </td>
+                          <td class="td-tier text-center">
+                            <span class="tier-pill tier-proposed">{{emp.proposedTier}}</span>
+                          </td>
+                          <td class="td-tier text-center">
+                            <div class="final-tier-cell">
+                              <span
+                                class="tier-pill tier-final"
+                                [attr.data-tier]="emp.calibratedTier"
+                              >
+                                {{emp.calibratedTier}}
+                              </span>
+                              @if (emp.proposedTier !== emp.calibratedTier) {
+                                <span
+                                  class="adjusted-marker"
+                                  title="Đã được Trưởng phòng điều chỉnh tier"
+                                  >≠</span
+                                >
+                              }
+                            </div>
+                          </td>
+                          <td class="td-reason">
+                            <span class="reason-text" [title]="emp.adjustmentReason || ''">
+                              {{emp.adjustmentReason || '-'}}
+                            </span>
+                          </td>
+                        </tr>
+                      } @empty {
+                        <tr>
+                          <td colspan="6" class="empty-table-cell">
+                            {{t()['emptyEmployees'] || 'Không có nhân viên nào trong danh mục này.'}}
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Quota Distribution Summary Bar -->
+                @if (calibrationData()?.quota; as quota) {
+                  <div class="quota-summary-bar">
+                    <span class="quota-label">{{t()['quotaRatioPrefix'] || 'So với phân bổ tier:'}}</span>
+                    <div class="quota-badges">
+                      <div class="quota-pill">
+                        <span class="tier-name">A:</span>
+                        <span class="tier-counts"
+                          >{{quota.calibratedTierACount}}/{{quota.maxTierAQuota}} ({{quota.calibratedTierAPercent}}%)</span
+                        >
+                      </div>
+                      <div class="quota-pill">
+                        <span class="tier-name">B:</span>
+                        <span class="tier-counts"
+                          >{{quota.calibratedTierBCount}} ({{quota.calibratedTierBPercent}}%)</span
+                        >
+                      </div>
+                      <div class="quota-pill">
+                        <span class="tier-name">C:</span>
+                        <span class="tier-counts"
+                          >{{quota.calibratedTierCCount}} ({{quota.calibratedTierCPercent}}%)</span
+                        >
+                      </div>
+                      <div class="quota-pill">
+                        <span class="tier-name">D:</span>
+                        <span class="tier-counts"
+                          >{{quota.calibratedTierDCount}} ({{quota.calibratedTierDPercent}}%)</span
+                        >
+                      </div>
+                    </div>
+
+                    <span
+                      class="quota-match-status"
+                      [ngClass]="quota.isCompliant ? 'match-ok' : 'match-exceeded'"
+                    >
+                      @if (quota.isCompliant) {
+                        <app-layout-icon name="check" class="badge-icon" />
+                        {{t()['quotaMatched'] || 'Khớp'}}
+                      } @else {
+                        {{t()['quotaExceeded'] || 'Vượt hạn ngạch'}}
+                      }
+                    </span>
+                  </div>
+                }
+
+                <!-- Footnote -->
+                <div class="roster-footnote">
+                  <span class="info-icon">ℹ</span>
+                  <span>{{t()['footnote'] ||
+                      'Giám đốc chi nhánh chỉ Duyệt hoặc Trả về, không sửa tier trực tiếp. Bấm tên nhân viên → SCR-PRF-05 (truy vết điểm).'}}</span>
+                </div>
+              }
+            } @else {
+              <div class="no-selection-panel">
+                <p>
+                  {{t()['emptyDepartments'] || 'Vui lòng chọn một phòng ban để xem xếp hạng.'}}
+                </p>
+              </div>
+            }
+          </section>
+        </div>
+      }
+    </main>
+  </div>
+</div>
+
+<!-- Reject Modal (SCR-EVL-03-D1) -->
+@if (isRejectModalOpen()) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeRejectModal()"
+    (keydown.escape)="closeRejectModal()"
+  >
+    <div
+      class="modal-container"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      [attr.aria-label]="t()['rejectModalTitle'] || 'Yêu cầu hiệu chuẩn lại phòng ban'"
+    >
+      <header class="modal-header">
+        <h3 class="modal-title">
+          {{t()['rejectModalTitle'] || 'Yêu cầu hiệu chuẩn lại phòng ban'}}
+        </h3>
+        <button type="button" class="btn-close" (click)="closeRejectModal()" aria-label="Close">
+          ✕
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <p class="modal-subtitle">
+          Phòng: <strong>{{selectedDepartment()?.departmentName}}</strong>
+        </p>
+
+        <div class="form-group">
+          <label for="reject-reason" class="form-label">
+            {{t()['rejectReasonLabel'] || 'Ý kiến chỉ đạo / Lý do trả về'}}
+            <span class="required-star">*</span>
+          </label>
+          <textarea
+            id="reject-reason"
+            class="form-textarea"
+            rows="4"
+            [placeholder]="
+              t()['rejectReasonPlaceholder'] ||
+              'Nhập ý kiến chỉ đạo cụ thể để Trưởng phòng điều chỉnh...'
+            "
+            [ngModel]="rejectReason()"
+            (ngModelChange)="rejectReason.set($event)"
+          ></textarea>
+          <span class="char-count" [class.valid]="rejectReason().trim().length >= 10">
+            {{rejectReason().trim().length}}/10 ký tự tối thiểu
+          </span>
+        </div>
+
+        @if (rejectError(); as rErr) {
+          <div class="modal-error-banner" role="alert">
+            <span>{{rErr}}</span>
+          </div>
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="closeRejectModal()"
+          [disabled]="rejectSubmitting()"
+        >
+          {{t()['rejectModalCancel'] || 'Hủy'}}
+        </button>
+        <button
+          type="button"
+          class="btn-danger-confirm"
+          [disabled]="rejectSubmitting() || rejectReason().trim().length < 10"
+          (click)="submitRejectDepartment()"
+        >
+          @if (rejectSubmitting()) {
+            <div class="spinner-sm"></div>
+          }
+          <span>{{t()['rejectModalConfirm'] || 'Xác nhận trả về'}}</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+}
+
+<!-- Approve Modal -->
+@if (isApproveModalOpen()) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeApproveModal()"
+    (keydown.escape)="closeApproveModal()"
+  >
+    <div
+      class="modal-container"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      [attr.aria-label]="t()['approveModalTitle'] || 'Phê duyệt xếp hạng phòng ban'"
+    >
+      <header class="modal-header">
+        <h3 class="modal-title">
+          {{t()['approveModalTitle'] || 'Phê duyệt xếp hạng phòng ban'}}
+        </h3>
+        <button type="button" class="btn-close" (click)="closeApproveModal()" aria-label="Close">
+          ✕
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <p class="modal-message">
+          {{t()['approveModalMessage'] ||
+              'Bạn có chắc chắn muốn phê duyệt kết quả xếp hạng của phòng ban này không?'}}
+        </p>
+        <p class="modal-target-dept">
+          <strong>{{selectedDepartment()?.departmentName}}</strong>
+        </p>
+
+        <div class="form-group">
+          <label for="approve-note" class="form-label">
+            {{t()['approveModalNoteLabel'] || 'Ghi chú phê duyệt (không bắt buộc)'}}
+          </label>
+          <textarea
+            id="approve-note"
+            class="form-textarea"
+            rows="3"
+            [placeholder]="t()['approveModalNotePlaceholder'] || 'Nhập ghi chú phê duyệt...'"
+            [ngModel]="approveNote()"
+            (ngModelChange)="approveNote.set($event)"
+          ></textarea>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="closeApproveModal()"
+          [disabled]="approveSubmitting()"
+        >
+          {{t()['approveModalCancel'] || 'Hủy'}}
+        </button>
+        <button
+          type="button"
+          class="btn-success-confirm"
+          [disabled]="approveSubmitting()"
+          (click)="submitApproveDepartment()"
+        >
+          @if (approveSubmitting()) {
+            <div class="spinner-sm"></div>
+          }
+          <span>{{t()['approveModalConfirm'] || 'Xác nhận duyệt'}}</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+}
+
+<!-- Lock Period Modal -->
+@if (isLockModalOpen()) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeLockModal()"
+    (keydown.escape)="closeLockModal()"
+  >
+    <div
+      class="modal-container"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+      [attr.aria-label]="tLock().lockModalTitle"
+    >
+      <header class="modal-header">
+        <h3 class="modal-title">{{tLock().lockModalTitle}}</h3>
+        <button type="button" class="btn-close" (click)="closeLockModal()" aria-label="Close">
+          ✕
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="lock-warning-banner">
+          <span class="warning-icon">⚠</span>
+          <span>{{tLock().lockModalWarning}}</span>
+        </div>
+
+        <div class="form-group">
+          <label for="lock-sig" class="form-label">
+            {{tLock().lockModalTokenLabel}}
+          </label>
+          <input
+            id="lock-sig"
+            type="password"
+            class="form-input"
+            [placeholder]="tLock().lockModalTokenPlaceholder"
+            [ngModel]="lockSignatureToken()"
+            (ngModelChange)="lockSignatureToken.set($event)"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="lock-comments" class="form-label">
+            {{tLock().lockModalCommentsLabel}}
+          </label>
+          <textarea
+            id="lock-comments"
+            class="form-textarea"
+            rows="3"
+            [placeholder]="tLock().lockModalCommentsPlaceholder"
+            [ngModel]="lockApprovalComments()"
+            (ngModelChange)="lockApprovalComments.set($event)"
+          ></textarea>
+        </div>
+
+        @if (lockError(); as lErr) {
+          <div class="modal-error-banner" role="alert">
+            <span>{{lErr}}</span>
+          </div>
+        }
+      </div>
+
+      <footer class="modal-footer">
+        <button
+          type="button"
+          class="btn-secondary"
+          (click)="closeLockModal()"
+          [disabled]="lockSubmitting()"
+        >
+          {{tLock().lockModalCancel}}
+        </button>
+        <button
+          type="button"
+          class="btn-primary-confirm"
+          [disabled]="lockSubmitting()"
+          (click)="submitLockPeriod()"
+        >
+          @if (lockSubmitting()) {
+            <div class="spinner-sm"></div>
+          }
+          <span>{{tLock().lockModalConfirm}}</span>
+        </button>
+      </footer>
+    </div>
+  </div>
+}
+
+<!-- Pre-Close Check Modal Component (SCR-EVL-03-M1) -->
+<app-pre-close-check-modal
+  [isOpen]="isPreCloseModalOpen()"
+  [periodId]="periodId()"
+  (closeModal)="closePreCloseModal()"
+  (continuePublish)="onPreCloseContinuePublish()"
+/>

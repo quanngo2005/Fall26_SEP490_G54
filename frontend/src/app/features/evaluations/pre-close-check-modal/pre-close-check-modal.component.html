@@ -1,0 +1,127 @@
+@if (isOpen()) {
+  <div
+    class="pre-close-modal-backdrop"
+    role="presentation"
+    (click)="onClose()"
+    (keydown.escape)="onClose()"
+  >
+    <div
+      class="pre-close-modal-dialog"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+      role="dialog"
+      tabindex="-1"
+      aria-modal="true"
+    >
+      <div class="pre-close-modal-header">
+        <div>
+          <h2 class="pre-close-modal-title">
+            {{(t()['modalTitle'] || 'Kiểm tra trước khi đóng {periodName}').replace(
+                '{periodName}',
+                overview()?.periodName || ''
+              )}}
+          </h2>
+          <p class="pre-close-modal-subtitle">
+            {{(
+                t()['modalSubtitle'] ||
+                'SCR-EVL-03-M1 · hạn pre-close {deadline} (tham số
+          SCR-ADM-04)'
+              ).replace('{deadline}', formattedDeadline())}}
+          </p>
+        </div>
+        <button type="button" class="btn-close" aria-label="Close" (click)="onClose()">×</button>
+      </div>
+
+      <div class="pre-close-modal-body">
+        @if (loading()) {
+          <div class="pre-close-loading">
+            <span class="spinner"></span>
+            <p>{{t()['loading'] || 'Đang kiểm tra các hạng mục trước khi đóng...'}}</p>
+          </div>
+        } @else if (error()) {
+          <div class="pre-close-error" role="alert">
+            <p>{{error()}}</p>
+            <button type="button" class="btn-secondary" (click)="onRecheck()">
+              {{t()['btnRecheck'] || 'Kiểm tra lại'}}
+            </button>
+          </div>
+        } @else if (overview()) {
+          <div class="table-container">
+            <table class="checklist-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="th-item">{{t()['colItem'] || 'HẠNG MỤC'}}</th>
+                  <th scope="col" class="th-remaining text-center">
+                    {{t()['colRemaining'] || 'CÒN LẠI'}}
+                  </th>
+                  <th scope="col" class="th-result text-center">
+                    {{t()['colResult'] || 'KẾT QUẢ'}}
+                  </th>
+                  <th scope="col" class="th-action text-right">
+                    <span class="sr-only">Hành động</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of overview()!.items; track item.code) {
+                  <tr>
+                    <td class="td-item">{{item.title}}</td>
+                    <td class="td-remaining text-center font-semibold">
+                      {{item.remainingCount}}
+                    </td>
+                    <td class="td-result text-center">
+                      @if (item.isPassed) {
+                        <span class="badge badge-success"
+                          >✓ {{t()['statusPassed'] || 'Đạt'}}</span
+                        >
+                      } @else {
+                        <span class="badge badge-danger"
+                          >× {{t()['statusFailed'] || 'Chưa đạt'}}</span
+                        >
+                      }
+                    </td>
+                    <td class="td-action text-right">
+                      @if (item.targetScreenCode) {
+                        <button type="button" class="link-action" (click)="onNavigate(item)">
+                          {{t()['actionView'] || 'Xem'}} {{item.targetScreenCode}} ›
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div
+            class="pre-close-banner"
+            [class.banner-danger]="overview()!.totalUnresolvedCount > 0"
+            [class.banner-success]="overview()!.totalUnresolvedCount === 0"
+            role="status"
+          >
+            {{bannerMessage()}}
+          </div>
+        }
+      </div>
+
+      <div class="pre-close-modal-footer">
+        <button type="button" class="btn-secondary" (click)="onClose()">
+          {{t()['btnClose'] || 'Đóng'}}
+        </button>
+        <div class="footer-actions">
+          <button type="button" class="btn-outline" (click)="onRecheck()" [disabled]="loading()">
+            {{t()['btnRecheck'] || 'Kiểm tra lại'}}
+          </button>
+          <button
+            type="button"
+            class="btn-primary"
+            (click)="onContinue()"
+            [disabled]="loading() || !overview()?.canPublish"
+          >
+            {{t()['btnContinuePublish'] || 'Tiếp tục publish'}}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

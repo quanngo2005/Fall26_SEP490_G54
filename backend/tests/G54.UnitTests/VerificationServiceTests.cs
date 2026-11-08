@@ -155,6 +155,32 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
+    public async Task GetDossierAsync_ShowsTheRequiredKpiEvenWhenAnOptionalOneIsMoreRecent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, _, _, _, work, submission) = await SeedBasicSubmissionAsync(context);
+            var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-TWO", Name = "Two KPIs", Status = RecordStatus.Active };
+            var groupId = Guid.NewGuid();
+            var optional = new KpiDefinition { Id = Guid.NewGuid(), KpiGroupId = groupId, Code = "KPI-OPT", Name = "Optional", Unit = "u", Status = KpiStatus.Active };
+            var required = new KpiDefinition { Id = Guid.NewGuid(), KpiGroupId = groupId, Code = "KPI-REQ", Name = "Required", Unit = "u", Status = KpiStatus.Active };
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            context.WorkTypes.Add(workType);
+            context.KpiDefinitions.AddRange(optional, required);
+            context.WorkTypeKpis.AddRange(
+                new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = optional.Id, IsRequired = false, EffectiveFrom = today.AddDays(-2) },
+                new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = required.Id, IsRequired = true, EffectiveFrom = today.AddDays(-30) });
+            (await context.Works.FindAsync(work.Id))!.WorkTypeId = workType.Id;
+            await context.SaveChangesAsync();
+
+            var result = await service.GetDossierAsync(submission.Id, Guid.NewGuid());
+
+            Assert.Equal(required.Id, result.KpiItem!.KpiDefinitionId);
+        }
+    }
+
+    [Fact]
     public async Task GetDossierAsync_WhenSubmissionDoesNotExist_ThrowsNotFoundException()
     {
         var (context, service) = CreateTestEnvironment();
@@ -224,7 +250,6 @@ public sealed class VerificationServiceTests
             var payload = new SubmitVerificationDecisionDto
             {
                 Decision = "APPROVED",
-                VerifiedValue = 15m,
                 Feedback = "Hồ sơ đầy đủ, chứng từ hợp lệ.",
             };
 
@@ -370,7 +395,6 @@ public sealed class VerificationServiceTests
                 service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
                 {
                     Decision = "APPROVED",
-                    VerifiedValue = 1m,
                 }));
 
             Assert.Equal(ErrorCodes.VerificationInvalidState, ex.ErrorCode);
@@ -538,7 +562,6 @@ public sealed class VerificationServiceTests
             var second = await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, new SubmitVerificationDecisionDto
             {
                 Decision = "APPROVED",
-                VerifiedValue = 1m,
             });
 
             Assert.Equal("APPROVED", second.Decision);
@@ -560,7 +583,8 @@ public sealed class VerificationServiceTests
         Employee referrer,
         Employee processor,
         bool referrerHasTarget = true,
-        bool processorHasTarget = true)
+        bool processorHasTarget = true,
+        decimal declaredValue = 50m)
     {
         var today = TimeProvider.System.GetUtcNow().ToOffset(TimeSpan.FromHours(7));
         var businessToday = DateOnly.FromDateTime(today.DateTime);
@@ -593,6 +617,11 @@ public sealed class VerificationServiceTests
             IsRequired = true,
             EffectiveFrom = businessToday.AddDays(-30),
         });
+        foreach (var s in context.ResultSubmissions.Local.Where(s => s.WorkId == work.Id))
+        {
+            s.Comment = ResultSubmissionService.BuildStoredComment(
+                null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, declaredValue, null)]);
+        }
 
         var trackedWork = await context.Works.FindAsync(work.Id);
         trackedWork!.WorkTypeId = workType.Id;
@@ -677,7 +706,6 @@ public sealed class VerificationServiceTests
     private static SubmitVerificationDecisionDto Approve(decimal value) => new()
     {
         Decision = "APPROVED",
-        VerifiedValue = value,
     };
 
     [Fact]
@@ -791,7 +819,7 @@ public sealed class VerificationServiceTests
             var oldProcessor = NewEmployee(context, maker, "EMP-OLD");
             var latestProcessor = NewEmployee(context, maker, "EMP-NEW");
             await context.SaveChangesAsync();
-            await SeedKpiWorldAsync(context, work, maker, latestProcessor);
+            await SeedKpiWorldAsync(context, work, maker, latestProcessor, declaredValue: 100m);
             context.TaskHandovers.AddRange(
                 NewHandover(work, maker, oldProcessor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddDays(-5), DateTimeOffset.UtcNow.AddDays(-4)),
                 NewHandover(work, maker, latestProcessor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddDays(-2), DateTimeOffset.UtcNow.AddDays(-1)));
@@ -860,7 +888,7 @@ public sealed class VerificationServiceTests
     }
 
     [Fact]
-    public async Task SubmitDecisionAsync_WithoutVerifiedValue_CreatesNoResultItem()
+    public async Task SubmitDecisionAsync_WithoutSubmittedMetrics_CreatesNoResultItem()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -869,6 +897,7 @@ public sealed class VerificationServiceTests
             var processor = NewEmployee(context, maker, "EMP-CO1");
             await context.SaveChangesAsync();
             await SeedKpiWorldAsync(context, work, maker, processor);
+            foreach (var s in context.ResultSubmissions.Local) { s.Comment = null; }
             context.TaskHandovers.Add(NewHandover(
                 work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
             await context.SaveChangesAsync();

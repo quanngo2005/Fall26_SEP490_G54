@@ -4,6 +4,8 @@ import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
 import { targetManageGuard } from './core/target-manage.guard';
+import { qaQueueGuard } from './core/qa-queue.guard';
+import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
   {
@@ -55,6 +57,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/target-setup/target-setup-wizard.component').then(
         (m) => m.TargetSetupWizardComponent,
+      ),
+  },
+  {
+    path: 'target-allocation',
+    canActivate: [authGuard],
+    title: 'Mục tiêu nhân viên',
+    loadComponent: () =>
+      import('./features/target-allocation/target-allocation.component').then(
+        (m) => m.TargetAllocationComponent,
       ),
   },
   {
@@ -121,6 +132,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    canActivate: [authGuard, branchEvaluationGuard],
+    title: 'Phê duyệt xếp hạng phòng ban',
+    loadComponent: () =>
+      import('./features/evaluations/department-ranking-approval/department-ranking-approval.component').then(
+        (m) => m.DepartmentRankingApprovalComponent,
+      ),
+  },
+  {
     path: 'employees',
     canActivate: [authGuard],
     title: 'Nhân viên',
@@ -141,6 +161,31 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
         (m) => m.EmployeeDetailComponent,
+      ),
+  },
+  {
+    path: 'work-types',
+    canActivate: [authGuard, adminGuard],
+    title: 'Work Types',
+    loadComponent: () =>
+      import('./features/work-types/work-type-list.component').then((m) => m.WorkTypeListComponent),
+  },
+  {
+    path: 'evaluation-profiles',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-list.component').then(
+        (m) => m.EvaluationProfileListComponent,
+      ),
+  },
+  {
+    path: 'evaluation-profiles/:id',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
+        (m) => m.EvaluationProfileDetailComponent,
       ),
   },
   {
@@ -176,6 +221,57 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'qa-queue',
+    canActivate: [authGuard, qaQueueGuard],
+    title: 'Hàng chờ QA',
+    loadComponent: () =>
+      import('./features/qa-queue/qa-queue.component').then((m) => m.QaQueueComponent),
+  },
+  {
+    path: 'qa-queue/:kind/:id',
+    canActivate: [authGuard, qaQueueGuard],
+    title: 'Quyết định QA',
+    loadComponent: () =>
+      import('./features/qa-queue/qa-queue-detail.component').then((m) => m.QaQueueDetailComponent),
+  },
+  {
+    path: 'appeals',
+    pathMatch: 'full',
+    redirectTo: appealsHomeRedirect,
+  },
+  {
+    path: 'appeals/mine',
+    canActivate: [authGuard, ownAppealsGuard],
+    title: 'Kháng nghị của tôi',
+    loadComponent: () =>
+      import('./features/appeals/my-appeals.component').then((m) => m.MyAppealsComponent),
+  },
+  {
+    path: 'appeals/department',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Kháng nghị phòng ban',
+    loadComponent: () =>
+      import('./features/appeals/department-appeals.component').then(
+        (m) => m.DepartmentAppealsComponent,
+      ),
+  },
+  {
+    path: 'appeals/department/:id',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Chi tiết khiếu nại',
+    loadComponent: () =>
+      import('./features/appeals/department-appeal-detail.component').then(
+        (m) => m.DepartmentAppealDetailComponent,
+      ),
+  },
+  {
+    path: 'my-targets',
+    canActivate: [authGuard],
+    title: 'Mục tiêu của tôi',
+    loadComponent: () =>
+      import('./features/my-targets/my-targets.component').then((m) => m.MyTargetsComponent),
+  },
+  {
     path: 'my-work',
     canActivate: [authGuard],
     title: 'Công việc',
@@ -197,6 +293,15 @@ export const routes: Routes = [
     title: 'Chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
+  },
+  {
+    path: 'campaigns/approval',
+    canActivate: [authGuard],
+    title: 'Duyệt kế hoạch chiến dịch',
+    loadComponent: () =>
+      import('./features/campaigns/campaign-approval.component').then(
+        (m) => m.CampaignApprovalComponent,
+      ),
   },
   {
     path: 'campaigns/:id',

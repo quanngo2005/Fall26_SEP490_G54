@@ -23,13 +23,13 @@ export type MenuKey =
   | 'jobPositions'
   | 'reportingLines'
   | 'employeeData'
-  | 'reportsComplaints'
+  | 'appeals'
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
-  | 'targetAllocation'
+  | 'targetOverview'
   | 'branchWork'
   | 'branchPerformance'
   | 'departmentPerformance'
@@ -60,7 +60,8 @@ export interface NavigationItem {
   id: MenuKey;
   icon: string;
   route?: string;
-  permission?: string;
+  /** One permission, or several of which any one is enough. */
+  permission?: string | readonly string[];
   children?: NavigationItem[];
 }
 
@@ -85,7 +86,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myWork',
     'mySubmissions',
     'myPerformance',
-    'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -96,9 +97,9 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'handoverDelegation',
     'reviewVerify',
     'teamPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
-    'targetAllocation',
-    'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -111,9 +112,10 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'reviewVerify',
     'branchPerformance',
     'departmentPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
-    'targetAllocation',
-    'reportsComplaints',
+    'kpiDefinitions',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -122,14 +124,14 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'employees',
     'organization',
     'employeeData',
-    'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
   qa: [
     'overview',
     'verificationQueue',
-    'reportsComplaints',
+    'appeals',
     'escalatedCases',
     'auditReview',
     'riskEvents',
@@ -142,6 +144,8 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'accounts',
     'rolesPermissions',
     'accessPolicies',
+    'workTypes',
+    'kpiDefinitions',
     'systemConfiguration',
     'systemAudit',
     'myProfile',
@@ -152,8 +156,8 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance' },
-  { id: 'reportsComplaints', icon: 'reportsComplaints' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
+  { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
@@ -177,15 +181,15 @@ const ITEMS: readonly NavigationItem[] = [
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   {
-    id: 'targetsAndCampaigns',
+    id: 'targetOverview',
     icon: 'targetsAndCampaigns',
-    route: '/campaigns',
+    route: '/target-overview',
     permission: 'TARGET_MANAGE',
   },
   {
-    id: 'targetAllocation',
-    icon: 'targetAllocation',
-    route: '/target-overview',
+    id: 'targetsAndCampaigns',
+    icon: 'targetsAndCampaigns',
+    route: '/campaigns',
     permission: 'TARGET_MANAGE',
   },
   { id: 'branchWork', icon: 'branchWork' },
@@ -196,7 +200,13 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'EVALUATION_FINALIZE',
   },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
-  { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
+  {
+    id: 'verificationQueue',
+    icon: 'verificationQueue',
+    route: '/qa-queue',
+    // The QA queue (SCR-REV-06): quality flags and the 5% re-verification samples.
+    permission: 'QUALITY_FLAG_READ',
+  },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
   { id: 'riskEvents', icon: 'riskEvents' },
@@ -220,9 +230,10 @@ const ITEMS: readonly NavigationItem[] = [
     id: 'kpiDefinitions',
     icon: 'reportsAnalytics',
     route: '/kpi-definitions',
-    permission: 'KPI_MANAGE',
+    // The System Admin maintains the catalog; the Branch Manager approves it.
+    permission: ['KPI_MANAGE', 'KPI_APPROVE'],
   },
-  { id: 'workTypes', icon: 'myWork', route: '/work-type-detail' },
+  { id: 'workTypes', icon: 'myWork', route: '/work-types' },
   { id: 'targets', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'reports', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
   { id: 'audit', icon: 'auditReview' },
@@ -242,11 +253,15 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/my-targets',
     '/departments',
     '/department-performance',
     '/employee-detail',
+    '/work-types',
+    '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
+    '/appeals',
     '/kpi-definitions',
     '/campaigns',
     '/target-overview',
@@ -351,7 +366,7 @@ export class NavigationService {
     return this.buildItems(ids, routes).filter(
       (item) =>
         (item.id !== 'systemConfiguration' || this.isAdmin()) &&
-        (!item.permission || permissions.has(item.permission)),
+        (!item.permission || [item.permission].flat().some((code) => permissions.has(code))),
     );
   });
   readonly currentPageKey = computed((): MenuKey | null => {

@@ -22,6 +22,7 @@ Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md`.
 
 | Method | Route | Body | Thành công |
 |---|---|---|---|
+| GET | `/handovers/recipients` | — | 200 `HandoverRecipientDto[]`: nhân viên `ACTIVE` cùng phòng ban với người gọi (trừ chính họ), sắp theo tên. Quyền `handover:create`. Trường: `id`, `employeeCode`, `fullName`, `jobPositionTitle` |
 | POST | `/works/{workId}/handovers` | JSON `CreateHandoverRequestDto` | 201 `HandoverDetailDto`. Nhân viên: `status = PENDING`, message `MSG05`. Quản lý chuyển ngay: `status = ACCEPTED`, message `HANDOVER_TRANSFERRED` |
 | POST | `/handovers/{id}/accept` | — | 200 `HandoverDetailDto` |
 | POST | `/handovers/{id}/reject` | — | 200 `HandoverDetailDto` |

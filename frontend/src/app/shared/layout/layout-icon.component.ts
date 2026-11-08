@@ -26,7 +26,6 @@ const PATHS: Readonly<Record<string, string>> = {
   teamPerformance: 'M4 3v18h17 M8 16v-5 M13 16V7 M18 16V4',
   targetsAndCampaigns:
     'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10 M12 11v2',
-  targetAllocation: 'M4 6h16 M4 12h10 M4 18h6 M18 14v6 M15 17h6',
   branchWork:
     'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 3h6v4H9z',
   branchPerformance: 'M3 21h18 M5 21V3h14v18 M9 7h1 M14 7h1 M9 11h1 M14 11h1 M10 21v-6h4v6',

@@ -186,3 +186,37 @@ public sealed record BranchEvaluationPeriodsOverviewDto(
     string BranchCode,
     List<int> AvailableYears,
     List<BranchEvaluationPeriodSummaryDto> Periods);
+
+// =========================================================================
+// Department Ranking Approval & Pre-close Check (SCR-EVL-03-D1, SCR-EVL-03-M1)
+// =========================================================================
+
+public sealed record ApproveDepartmentRankingRequestDto(
+    Guid PeriodId,
+    string? Note = null);
+
+public sealed record DepartmentApprovalResultDto(
+    Guid DepartmentId,
+    Guid PeriodId,
+    string Status,
+    int ApprovedEvaluationsCount,
+    string Message);
+
+public sealed record PreCloseCheckItemDto(
+    string Code,
+    string Title,
+    int RemainingCount,
+    bool IsPassed,
+    string? TargetScreenCode = null,
+    string? TargetRoute = null);
+
+public sealed record PreCloseCheckOverviewDto(
+    Guid PeriodId,
+    string PeriodCode,
+    string PeriodName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    DateTimeOffset? PreCloseDeadline,
+    bool CanPublish,
+    int TotalUnresolvedCount,
+    List<PreCloseCheckItemDto> Items);

@@ -1,0 +1,127 @@
+<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<form
+  class="dialog"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="handover-title"
+  novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (ngSubmit)="submit()"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="handover-title">{{localization.work.handover.title}}</h2>
+      <p>{{localization.work.handover.subtitle}}</p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    @if (works().length === 0) {
+      <p class="form-error" role="status">{{localization.work.handover.noWorks}}</p>
+    }
+
+    <div class="field">
+      <label for="handover-work">{{localization.work.handover.work}} *</label>
+      <select
+        id="handover-work"
+        name="work"
+        class="select"
+        [class.is-invalid]="submitted() && !workId"
+        [(ngModel)]="workId"
+      >
+        <option value="">{{localization.work.handover.workPlaceholder}}</option>
+        @for (work of works(); track work.id) {
+          <option [value]="work.id">{{work.code}} · {{work.title}}</option>
+        }
+      </select>
+      @if (submitted() && !workId) {
+        <span class="field-error" role="alert">{{localization.work.handover.required}}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label for="handover-recipient">{{localization.work.handover.recipient}} *</label>
+      <select
+        id="handover-recipient"
+        name="recipient"
+        class="select"
+        [class.is-invalid]="submitted() && !toEmployeeId"
+        [(ngModel)]="toEmployeeId"
+      >
+        <option value="">{{localization.work.handover.recipientPlaceholder}}</option>
+        @for (person of recipients(); track person.id) {
+          <option [value]="person.id">{{person.fullName}} · {{person.jobPositionTitle}}</option>
+        }
+      </select>
+      @if (recipientsFailed()) {
+        <span class="field-error" role="alert">{{localization.work.handover.recipientsError}}</span>
+      } @else if (submitted() && !toEmployeeId) {
+        <span class="field-error" role="alert">{{localization.work.handover.required}}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label for="handover-reason">{{localization.work.handover.reason}} *</label>
+      <textarea
+        id="handover-reason"
+        name="reason"
+        class="input"
+        rows="3"
+        maxlength="2000"
+        [class.is-invalid]="submitted() && !reason.trim()"
+        [placeholder]="localization.work.handover.reasonPlaceholder"
+        [(ngModel)]="reason"
+      ></textarea>
+      @if (submitted() && !reason.trim()) {
+        <span class="field-error" role="alert">{{localization.work.handover.required}}</span>
+      }
+    </div>
+
+    <div class="field">
+      <label for="handover-amount">{{localization.work.handover.amount}} *</label>
+      <input
+        id="handover-amount"
+        name="amount"
+        type="number"
+        min="0"
+        class="input"
+        [class.is-invalid]="submitted() && amountInvalid"
+        [(ngModel)]="amount"
+      />
+      @if (submitted() && amountInvalid) {
+        <span class="field-error" role="alert">{{localization.work.handover.amountInvalid}}</span>
+      }
+    </div>
+
+    <div class="notice" role="note">
+      <strong>{{localization.work.handover.noticeTitle}}</strong>
+      <span>{{localization.work.handover.noticeBody}}</span>
+    </div>
+
+    @if (errorText(); as text) {
+      <p class="form-error" role="alert">{{text}}</p>
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{localization.work.assign.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{localization.work.handover.cancel}}
+      </button>
+      <button type="submit" class="button button-primary" [disabled]="saving()">
+        {{saving() ? localization.work.handover.submitting : localization.work.handover.submit}}
+      </button>
+    </div>
+  </footer>
+</form>

@@ -268,3 +268,70 @@ export interface PublishResult {
   departmentYearCount: number;
   departmentQuarterCount: number;
 }
+
+/** `POST /target-assignments/{id}/allocations`: exactly one of `departmentId` / `employeeId` per row. */
+export interface TargetAllocationRow {
+  departmentId?: string;
+  employeeId?: string;
+  targetValue: number;
+}
+
+export interface TargetAllocationRequest {
+  allocations: TargetAllocationRow[];
+  changeReason?: string;
+}
+
+/** `PUT /target-assignments/{id}/allocations`: the new value of every owner already allocated. */
+export interface TargetReallocationRequest {
+  allocations: TargetAllocationRow[];
+  changeReason: string;
+}
+
+/** One working-day bucket of `GET /target-assignments/{id}/breakdown`. */
+export interface TargetBreakdownItem {
+  start: string;
+  end: string;
+  workingDays: number;
+  value: number;
+}
+
+export interface TargetBreakdown {
+  targetAssignmentId: string;
+  periodStart: string;
+  periodEnd: string;
+  totalValue: number;
+  workingDays: number;
+  granularity: 'MONTH' | 'WEEK' | 'DAY';
+  items: TargetBreakdownItem[];
+}
+
+/** One month of a target in `GET /target-assignments/employees/{id}/suggested-daily`; `daily` / `weekly` are display figures. */
+export interface SuggestedDailyMonth {
+  month: string;
+  workingDays: number;
+  value: number;
+  daily: number | null;
+  weekly: number | null;
+}
+
+/** `months` is empty for a KPI that is not spread over the days (average, ratio, lower is better ...). */
+export interface SuggestedDailyItem {
+  targetAssignmentId: string;
+  kpiDefinitionId: string;
+  kpiCode: string;
+  unit: string;
+  isWholeNumber: boolean;
+  targetValue: number;
+  plannedDaily: number | null;
+  plannedWeekly: number | null;
+  months: SuggestedDailyMonth[];
+}
+
+export interface SuggestedDailyTarget {
+  employeeId: string;
+  evaluationPeriodId: string;
+  periodStart: string;
+  periodEnd: string;
+  workingDays: number;
+  items: SuggestedDailyItem[];
+}

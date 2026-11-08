@@ -174,6 +174,7 @@ public sealed class AppealDecisionPostgresTests : IAsyncLifetime
             SubmitterEmployeeId = maker.Id,
             SubmissionNo = 1,
             Status = SubmissionStatus.Rejected,
+            Comment = G54.BLL.Services.ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 10m, null)]),
             SubmittedAt = now,
             UpdatedAt = now,
         };
@@ -197,7 +198,7 @@ public sealed class AppealDecisionPostgresTests : IAsyncLifetime
             NullLogger<AppealService>.Instance, TimeProvider.System, Options.Create(new SystemParametersOptions()));
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.DecideAppealAsync(
-            appeal.Id, account.Id, new DecideAppealRequestDto { Decision = "ACCEPT", VerifiedValue = 10m }));
+            appeal.Id, account.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
 
         Assert.Equal(ErrorCodes.KpiTargetNotAssigned, ex.ErrorCode);
         Assert.Equal(Microsoft.AspNetCore.Http.StatusCodes.Status409Conflict, ex.StatusCode);
@@ -318,6 +319,7 @@ public sealed class AppealDecisionPostgresTests : IAsyncLifetime
             SubmitterEmployeeId = maker.Id,
             SubmissionNo = 1,
             Status = SubmissionStatus.Submitted,
+            Comment = G54.BLL.Services.ResultSubmissionService.BuildStoredComment(null, [new G54.BLL.Dtos.Submission.SubmissionMetricInputDto(kpi.Id, 10m, null)]),
             SubmittedAt = now,
             UpdatedAt = now,
         };
@@ -335,7 +337,6 @@ public sealed class AppealDecisionPostgresTests : IAsyncLifetime
             submission.Id, account.Id, new G54.BLL.Dtos.Verification.SubmitVerificationDecisionDto
             {
                 Decision = "APPROVED",
-                VerifiedValue = 10m,
                 Feedback = "Phê duyệt nhưng thiếu target",
             }));
 

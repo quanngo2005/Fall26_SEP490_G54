@@ -66,6 +66,7 @@ $intentionallyOpen = @{
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
     "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
     "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
+    "GET /target-assignments/employees/{employeeId:guid}/suggested-daily" = "TargetAssignmentService.GetSuggestedDailyAsync calls EnsureCanViewAsync: the employee or an org-scoped caller"
     "POST /target-assignments/{id:guid}/feedback/confirm"  = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "POST /target-assignments/{id:guid}/feedback/comments" = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "GET /target-assignments/{id:guid}/feedback"           = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
@@ -82,6 +83,7 @@ $intentionallyOpen = @{
     "GET /work-types/{id:guid}"                            = "catalog read"
     # Ownership/scope enforced in the service (covered by unit tests)
     "POST /submissions/{submissionId:guid}/appeals"        = "AppealService: caller must be the submitter"
+    "POST /performance-evaluations/{evaluationId:guid}/appeals" = "AppealService: caller must be the evaluated employee"
     "POST /appeals/{id:guid}/withdraw"                     = "AppealService: caller must be the filer"
     "GET /appeals"                                         = "AppealService: scoped to own or department"
     "GET /appeals/{id:guid}/score-entries"                 = "AppealService: same own/department scope as the appeal detail"
@@ -95,6 +97,9 @@ $intentionallyOpen = @{
     "GET /submissions/{submissionId:guid}"                 = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "GET /works/{workId:guid}/submissions/{submissionId:guid}" = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "POST /submissions/{submissionId:guid}/withdraw"       = "ResultSubmissionService: submitter only"
+    "GET /works/{workId:guid}/transactions"                = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "POST /works/{workId:guid}/transactions"               = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "DELETE /works/{workId:guid}/transactions/{transactionId:guid}" = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
     "POST /works/{workId:guid}/submissions/{submissionId:guid}/withdraw" = "ResultSubmissionService: submitter only"
     "PATCH /works/{id:guid}/status"                        = "WorkService: assignee or direct manager"
 }
@@ -240,8 +245,10 @@ $checks = @(
                 Add-Finding "skipped: $($test.testName)$(if ($reason) { " - $reason" })"
             }
             $skippedTests.Count -eq 0 } },
+    # .Result only blocks when it reads a Task: the result of a call (`Foo().Result`) or a variable named *task*. A DTO or record
+    # property that happens to be called Result (e.g. dto.Result) is not sync-over-async and must not be reported.
     @{ Id = "BE-20"; Severity = "Medium"; Name = "No sync-over-async, async void, empty catch or console output in services"; Test = {
-            $a = Find-Pattern $serviceFiles '\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
+            $a = Find-Pattern $serviceFiles '(\)|[Tt]ask\w*)\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
             $b = Find-Pattern $serviceFiles '\basync\s+void\b' "async void: exceptions crash the process"
             $c = Find-PatternInContent $serviceFiles 'catch\s*(\([^)]*\))?\s*\{\s*\}' "empty catch swallows errors"
             $d = Find-Pattern $serviceFiles 'Console\.Write(Line)?\(' "use ILogger instead of Console"

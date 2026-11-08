@@ -1,7 +1,10 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, map, of, Subject, switchMap } from 'rxjs';
+import { DepartmentSummary } from '../../core/department.models';
+import { DepartmentService } from '../../core/department.service';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
@@ -9,11 +12,7 @@ import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { KpiDefinition } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
-import {
-  TargetAssignment,
-  TargetAssignmentFeedback,
-  TargetFeedbackStatus,
-} from '../../core/target-assignment.models';
+import { TargetAssignment, TargetFeedbackStatus } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { AppDatePipe, AppNumberPipe } from '../../shared/pipes';
 import { TargetCellComponent } from './target-cell.component';
@@ -28,7 +27,9 @@ import {
   includesText,
   periodQuarter,
   periodYear,
+  TargetCell,
   usedKpis,
+  valuesByOwner,
 } from './target-overview.utils';
 
 const QUARTERS = [1, 2, 3, 4] as const;
@@ -43,7 +44,7 @@ const NO_TARGETS: LoadedTargets = { yearRows: [], quarterRows: [[], [], [], []] 
 
 @Component({
   selector: 'app-department-target-overview',
-  imports: [FormsModule, TargetCellComponent, AppNumberPipe, AppDatePipe],
+  imports: [FormsModule, RouterLink, TargetCellComponent, AppNumberPipe, AppDatePipe],
   templateUrl: './department-target-overview.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -57,6 +58,7 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
   private readonly evaluationApi = inject(EvaluationService);
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly employeeApi = inject(EmployeeService);
+  private readonly departmentApi = inject(DepartmentService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly selection = new Subject<number>();
 
@@ -65,7 +67,22 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
   protected readonly failed = signal(false);
   private readonly periods = signal<EvaluationPeriodOption[]>([]);
   private readonly kpis = signal<KpiDefinition[]>([]);
+  /** Employees directly in the department first, then those of each team, team by team. */
   private readonly employees = signal<EmployeeDetail[]>([]);
+  private readonly teams = signal<DepartmentSummary[]>([]);
+  private readonly teamNames = computed(
+    () => new Map(this.teams().map((team) => [team.id, team.name])),
+  );
+  /** Each team's own share per KPI (same order as `quota`), shown on the team's header row. */
+  private readonly teamCells = computed(() => {
+    const shares = valuesByOwner(this.quarterRows(), 'departmentId');
+    return new Map(
+      this.teams().map((team) => [
+        team.id,
+        this.quota().map((row): TargetCell => shares.get(team.id)?.get(row.kpi.id) ?? 'NONE'),
+      ]),
+    );
+  });
   private readonly targets = signal<LoadedTargets>(NO_TARGETS);
   protected readonly departmentId = signal('');
   protected readonly departmentName = signal('');
@@ -77,9 +94,8 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
   protected readonly feedbackFilter = signal<TargetFeedbackStatus | ''>('');
   protected readonly page = signal(1);
 
-  protected readonly drawerRow = signal<FeedbackRow | null>(null);
-  protected readonly drawerComments = signal<TargetAssignmentFeedback[]>([]);
-  protected readonly drawerLoading = signal(false);
+  /** Latest comment text per employee id, shown in the table. */
+  protected readonly comments = signal<Record<string, string>>({});
 
   protected readonly years = computed(() => availableYears(this.periods()));
   protected readonly quarterRows = computed(
@@ -181,6 +197,7 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
       .subscribe((loaded) => {
         this.targets.set(loaded);
         this.loading.set(false);
+        this.loadComments();
       });
   }
 
@@ -196,6 +213,14 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
       .pipe(
         switchMap((me) =>
           forkJoin({
+            teams: fetchAllPages((page, pageSize) =>
+              this.departmentApi.list({
+                page,
+                pageSize,
+                parentDepartmentId: me.departmentId,
+                status: 'ACTIVE',
+              }),
+            ).pipe(map((all) => all.filter((d) => d.parentDepartmentId === me.departmentId))),
             periods: this.evaluationApi.periods(),
             kpis: fetchAllPages((page, pageSize) => this.kpiApi.list({ page, pageSize })),
             employees: fetchAllPages((page, pageSize) =>
@@ -206,15 +231,34 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
                 status: 'ACTIVE',
               }),
             ),
-          }).pipe(map((data) => ({ ...data, me }))),
+          }).pipe(
+            switchMap((data) =>
+              (data.teams.length === 0
+                ? of([])
+                : forkJoin(
+                    data.teams.map((team) =>
+                      fetchAllPages((page, pageSize) =>
+                        this.employeeApi.list({
+                          page,
+                          pageSize,
+                          departmentId: team.id,
+                          status: 'ACTIVE',
+                        }),
+                      ),
+                    ),
+                  )
+              ).pipe(map((members) => ({ ...data, me, members: members.flat() }))),
+            ),
+          ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ periods, kpis, employees, me }) => {
+        next: ({ periods, kpis, employees, teams, members, me }) => {
           this.periods.set(periods);
           this.kpis.set(kpis);
-          this.employees.set(employees);
+          this.employees.set([...employees, ...members]);
+          this.teams.set(teams);
           this.departmentId.set(me.departmentId);
           this.departmentName.set(me.departmentName);
           const year = this.years()[0] ?? null;
@@ -244,28 +288,38 @@ export class DepartmentTargetOverviewComponent extends LocalizedComponent implem
     this.page.set(1);
   }
 
-  protected openComments(row: FeedbackRow): void {
-    this.drawerRow.set(row);
-    this.drawerLoading.set(true);
-    this.drawerComments.set([]);
-    forkJoin(row.assignmentIds.map((id) => this.targetApi.feedback(id)))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (groups) => {
-          this.drawerComments.set(
-            groups
+  /** Fetches the newest comment of every employee who commented, so the table can show it. */
+  private loadComments(): void {
+    this.comments.set({});
+    const commented = this.feedbackRows().filter((row) => row.feedback === 'COMMENTED');
+    if (commented.length === 0) return;
+    forkJoin(
+      commented.map((row) =>
+        forkJoin(row.assignmentIds.map((id) => this.targetApi.feedback(id))).pipe(
+          map((groups) => {
+            const latest = groups
               .flat()
-              .filter((item) => item.type === 'COMMENT')
-              .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-          );
-          this.drawerLoading.set(false);
-        },
-        error: () => this.drawerLoading.set(false),
-      });
+              .filter((item) => item.type === 'COMMENT' && item.comment)
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+            return [row.employee.id, latest?.comment ?? ''] as const;
+          }),
+          catchError(() => of([row.employee.id, ''] as const)),
+        ),
+      ),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((entries) => this.comments.set(Object.fromEntries(entries)));
   }
 
-  protected closeComments(): void {
-    this.drawerRow.set(null);
+  /** The team whose header goes above `rows[index]`: set when the row starts a new team. */
+  protected teamStart(
+    rows: readonly FeedbackRow[],
+    index: number,
+  ): { name: string; cells: TargetCell[] } | null {
+    const department = rows[index].employee.departmentId;
+    const name = this.teamNames().get(department);
+    const starts = name !== undefined && rows[index - 1]?.employee.departmentId !== department;
+    return starts ? { name, cells: this.teamCells().get(department) ?? [] } : null;
   }
 
   protected feedbackLabel(status: TargetFeedbackStatus): string {

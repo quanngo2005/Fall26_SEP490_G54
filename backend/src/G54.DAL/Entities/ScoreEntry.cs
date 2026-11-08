@@ -8,6 +8,7 @@ public enum ScoreEntryKind
     [PgName("HOLD")] Hold,
     [PgName("TASK_DEDUCTION")] TaskDeduction,
     [PgName("REFUND")] Refund,
+    [PgName("ADJUSTMENT")] Adjustment,
 }
 
 public enum ScoreEntrySource

@@ -239,6 +239,42 @@ public sealed class PerformanceEvaluationServiceTests
     }
 
     [Fact]
+    public async Task Calculate_KeepsTheRealActualAndScoresTheProductMultiplierOnTheSumKpi()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiSum, 10m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiSum, 10m, null, Day10); // 10 real cards, as the ledger stores them
+        var valid = world.AddResultItem(progress, rawValue: 10m, value: 15m, VerifiedResultStatus.Valid);
+        world.AddResultItem(progress, rawValue: 4m, value: 6m, VerifiedResultStatus.Invalid);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
+        Assert.Equal(10m, kpi.ActualValue);
+        Assert.Equal(valid.Value, kpi.WeightedActualValue);
+        Assert.Equal(150m, kpi.AchievementPercentRaw);
+        Assert.Equal(15m, (await world.Db.PerformanceContributions.AsNoTracking().SingleAsync()).WeightedActualValue);
+    }
+
+    [Fact]
+    public async Task Calculate_DoesNotApplyTheMultiplierToANonSumKpi()
+    {
+        using var world = await World.CreateAsync();
+        world.AddTarget(world.KpiAvg, 5m, employeeLevel: false, version: 1);
+        var progress = world.AddProgress(world.KpiAvg, 5m, null, Day10);
+        world.AddResultItem(progress, rawValue: 5m, value: 7.5m, VerifiedResultStatus.Valid);
+        await world.SaveAsync();
+
+        var dto = await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id);
+
+        var kpi = Assert.Single(Assert.Single(dto.Groups).Kpis);
+        Assert.Equal(5m, kpi.ActualValue);
+        Assert.Equal(5m, kpi.WeightedActualValue);
+        Assert.Equal(100m, kpi.AchievementPercentRaw);
+    }
+
+    [Fact]
     public async Task Calculate_DoesNotCountAnotherEmployeesProgress()
     {
         using var world = await World.CreateAsync();
@@ -886,6 +922,33 @@ public sealed class PerformanceEvaluationServiceTests
             };
             Db.ActualProgresses.Add(progress);
             return progress;
+        }
+
+        /// <summary>Records a verified result that fed the progress row with its real amount and its multiplied value.</summary>
+        public WorkResultItem AddResultItem(ActualProgress progress, decimal rawValue, decimal value, VerifiedResultStatus status)
+        {
+            var result = new VerifiedWorkResult
+            {
+                Id = Guid.NewGuid(),
+                VerificationId = Guid.NewGuid(),
+                VerifiedAt = Now,
+                UpdatedAt = Now,
+                Status = status,
+            };
+            var item = new WorkResultItem
+            {
+                Id = Guid.NewGuid(),
+                VerifiedWorkResultId = result.Id,
+                ActualProgressId = progress.Id,
+                EmployeeId = Employee.Id,
+                RawValue = rawValue,
+                Value = value,
+                MultiplierApplied = rawValue == 0m ? 1m : value / rawValue,
+                UpdatedAt = Now,
+            };
+            Db.VerifiedWorkResults.Add(result);
+            Db.WorkResultItems.Add(item);
+            return item;
         }
 
         public void Dispose() => Db.Dispose();

@@ -11,6 +11,7 @@ public sealed record PerformanceKpiContributionDto(
     decimal TargetValue,
     int TargetVersion,
     decimal ActualValue,
+    decimal? WeightedActualValue,
     decimal? ActualDenominator,
     decimal? AchievementPercentRaw,
     decimal? AchievementPercentCapped,

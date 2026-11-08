@@ -151,6 +151,11 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
     private ScoredKpi ScoreKpi(ProfileNode leaf, KpiDefinition kpi, TargetRow? target, List<ProgressRow> rows)
     {
         var actual = Aggregate(kpi.AggregationType, rows);
+
+        // The product multiplier (BR-48) converts the real amount to points only here; other aggregations score the real actual.
+        var weightedActual = actual is not null && kpi.AggregationType == KpiAggregationType.Sum
+            ? rows.Sum(r => r.WeightedValue)
+            : actual?.Value;
         var score = target is not null && actual is not null
             ? RoundScore(formula.CalculateKpi(new KpiScoreInput(
                 kpi.Id,
@@ -160,7 +165,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 kpi.AggregationType,
                 kpi.MaxAchievementPercent,
                 target.TargetValue,
-                actual.Value,
+                weightedActual!.Value,
                 actual.Denominator)))
             : null;
 
@@ -181,6 +186,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             target?.TargetValue,
             target?.Version,
             actual?.Value,
+            weightedActual,
             actual?.Denominator,
             anchor?.ProgressId,
             score?.AchievementPercentRaw,
@@ -212,21 +218,46 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
     private async Task<List<ProgressRow>> LoadProgressAsync(
         EvaluationPeriod period,
         List<Guid> employeeIds,
-        CancellationToken cancellationToken) =>
-        await db.ActualProgresses.AsNoTracking()
+        CancellationToken cancellationToken)
+    {
+        var rows = await db.ActualProgresses.AsNoTracking()
             .Where(a => a.TargetAssignment.EmployeeId != null
                 && employeeIds.Contains(a.TargetAssignment.EmployeeId.Value)
                 && a.Status == ActualProgressStatus.Valid
                 && a.ProgressDate >= period.StartDate
                 && a.ProgressDate <= period.EndDate)
-            .Select(a => new ProgressRow(
+            .Select(a => new
+            {
                 a.Id,
-                a.TargetAssignment.EmployeeId!.Value,
+                EmployeeId = a.TargetAssignment.EmployeeId!.Value,
                 a.TargetAssignment.KpiDefinitionId,
                 a.ProgressDate,
                 a.Value,
-                a.Denominator))
+                a.Denominator,
+            })
             .ToListAsync(cancellationToken);
+
+        // Points = the real amount of each verified result times the multiplier it was approved with.
+        var progressIds = rows.Select(r => r.Id).ToList();
+        var weightedByProgress = (await db.WorkResultItems.AsNoTracking()
+                .Where(i => progressIds.Contains(i.ActualProgressId)
+                    && i.VerifiedWorkResult.Status == VerifiedResultStatus.Valid)
+                .Select(i => new { i.ActualProgressId, i.Value })
+                .ToListAsync(cancellationToken))
+            .GroupBy(i => i.ActualProgressId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Value));
+
+        return rows
+            .Select(r => new ProgressRow(
+                r.Id,
+                r.EmployeeId,
+                r.KpiDefinitionId,
+                r.ProgressDate,
+                r.Value,
+                weightedByProgress.GetValueOrDefault(r.Id, r.Value),
+                r.Denominator))
+            .ToList();
+    }
 
     /// <summary>Risk events that happened inside the period and were not dismissed.</summary>
     private async Task<List<RiskEvent>> LoadRiskEventsAsync(
@@ -269,7 +300,10 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             case KpiAggregationType.Sum:
                 return new ActualAggregate(rows.Sum(r => r.Value), null);
             case KpiAggregationType.Avg:
-                return new ActualAggregate(Math.Round(rows.Average(r => r.Value), ScoreDecimals, MidpointRounding.ToEven), null);
+                // A day row stores the sum of its entries and their count; a row without a count is one entry.
+                return new ActualAggregate(
+                    Math.Round(rows.Sum(r => r.Value) / rows.Sum(r => r.Denominator ?? 1m), ScoreDecimals, MidpointRounding.ToEven),
+                    null);
             case KpiAggregationType.Ratio:
                 var denominator = rows.Sum(r => r.Denominator ?? 0m);
                 return denominator > 0m ? new ActualAggregate(rows.Sum(r => r.Value), denominator) : null;
@@ -304,6 +338,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
         Guid KpiDefinitionId,
         DateOnly ProgressDate,
         decimal Value,
+        decimal WeightedValue,
         decimal? Denominator);
 
     private sealed record ActualAggregate(decimal Value, decimal? Denominator);

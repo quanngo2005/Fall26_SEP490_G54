@@ -57,6 +57,23 @@ public sealed class SidebarConfigurationServiceTests
         await Assert.ThrowsAsync<ConflictException>(() => service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["overview"], Version = 0 }, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task TheRetiredComplaintsItemIsNotInTheCatalogOrTheDefaultsAndCannotBeSaved()
+    {
+        Assert.DoesNotContain("reportsComplaints", SidebarCatalog.ItemIds);
+        Assert.All(SidebarCatalog.Defaults.Values, ids => Assert.DoesNotContain("reportsComplaints", ids));
+        foreach (var role in new[] { "employee", "departmentManager", "branchManager", "hr", "qa" })
+        {
+            Assert.Contains("appeals", SidebarCatalog.Defaults[role]);
+        }
+
+        await using var db = CreateContext();
+        var admin = await AddAccountAsync(db, "ADMIN");
+        var service = new SidebarConfigurationService(db);
+        await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["overview", "reportsComplaints"] }, CancellationToken.None));
+        Assert.Empty(db.SidebarConfigurations);
+    }
+
     [Theory]
     [InlineData("employee", "unknown")]
     [InlineData("employee", "departments")]
@@ -100,6 +117,24 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Equal("/kpi-definitions", saved.Routes!["myProfile"]);
         saved = await service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["overview"], Version = 2 }, CancellationToken.None);
         Assert.Empty(saved.Routes!);
+    }
+
+    [Fact]
+    public async Task TheAdminMenuOffersWorkTypesAndAcceptsItsListRoute()
+    {
+        await using var db = CreateContext();
+        var admin = await AddAccountAsync(db, "ADMIN");
+        var service = new SidebarConfigurationService(db);
+
+        var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
+        Assert.Contains("workTypes", defaults.ItemIds);
+
+        var saved = await service.SaveAsync(admin, "admin", new SaveSidebarConfigurationDto
+        {
+            ItemIds = ["overview", "workTypes", "systemConfiguration"],
+            Routes = new() { ["workTypes"] = "/work-types" },
+        }, CancellationToken.None);
+        Assert.Equal("/work-types", saved.Routes!["workTypes"]);
     }
 
     [Theory]
