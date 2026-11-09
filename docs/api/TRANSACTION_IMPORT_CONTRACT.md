@@ -1,15 +1,15 @@
 # Transaction Import Contract (Core Banking Excel)
 
-Status: **IMPLEMENTED** (PR 2, 4/11/2026) - verified by unit tests; HTTP exchange not yet verified against a running API.
-Hardening round (SRS UC29/UC31/UC33, BR-08, BR-29): **PLANNED** - sections marked *(planned)* below.
+Status: **IMPLEMENTED** (PR 2, 4/11/2026; template & role permissions TI-B, 10/11/2026) - verified by unit tests; HTTP exchange not yet verified against a running API.
+Hardening round (SRS UC33, BR-08, BR-29): **PLANNED** - sections marked *(planned)* below.
 
-Admin imports Core Banking transactions from an Excel file. Imported rows are only stored; matching them to
+Admin, Department Manager, Branch Manager, and QA/Inspector import Core Banking transactions from an Excel file. Imported rows are only stored; matching them to
 works and crediting KPI is PR 3.
 
 ## Permission
 
 - `TRANSACTION_IMPORT_MANAGE` (resource `transaction-import`, action `manage`, scope `All`), granted to Admin,
-  Department Manager, Branch Manager and QA/Inspector *(planned; SRS UC31)*.
+  System Admin, Department Manager, Branch Manager and QA/Inspector (SRS UC31).
 - No department scope. One file per request.
 
 ## Excel file (.xlsx, first sheet, row 1 = header)
@@ -80,7 +80,7 @@ Query `page`, `pageSize` (default 20, max 200). Returns `ApiResponse<PagedResult
 `row`: `{ row, field, code, message }`. `404` if the batch does not exist. `GET /transaction-imports/{id}` keeps
 `errors: null`; use this endpoint instead.
 
-### GET /transaction-imports/template *(planned; UC29)*
+### GET /transaction-imports/template (implemented; UC29)
 
 Returns the blank `.xlsx` template (`transaction-import-template.xlsx`) with the header row above (same columns and
 order; required columns marked with `*` is **not** used - headers must match exactly), one example row and a notes
