@@ -8,7 +8,6 @@
 }
 
 .period-select-wrap,
-.select-box,
 .search-box {
   position: relative;
   display: inline-flex;
@@ -33,7 +32,6 @@
 }
 
 .period-select,
-.filter-select,
 .search-input {
   appearance: none;
   border: none;
@@ -46,11 +44,6 @@
   font-weight: 600;
   color: #0f172a;
   padding-right: 18px;
-  cursor: pointer;
-}
-
-.filter-select {
-  color: #475569;
   cursor: pointer;
 }
 
@@ -164,11 +157,6 @@
   }
 }
 
-.select-box {
-  padding: 0 24px 0 10px;
-}
-
-.btn-save-filter,
 .btn-action {
   background: transparent;
   border: none;
@@ -192,7 +180,7 @@
     font-size: 12px;
     font-weight: 700;
     padding: 0 14px;
-    text-align: left;
+    text-align: center;
   }
 
   tbody tr {
@@ -209,6 +197,7 @@
   tbody td {
     padding: 0 14px;
     color: #0f172a;
+    text-align: center;
   }
 }
 
@@ -237,6 +226,15 @@
   color: #b45309;
 }
 
+.badge-link {
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .badge-completed {
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
@@ -253,6 +251,19 @@
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #b91c1c;
+}
+
+.score-change {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  &.score-up {
+    color: #047857;
+  }
+  &.score-down {
+    color: #b91c1c;
+  }
 }
 
 .text-right {

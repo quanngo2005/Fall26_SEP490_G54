@@ -44,6 +44,7 @@ describe('EvaluationService', () => {
     pendingSubmissionCount: 0,
     canEvaluate: true,
     updatedAt: null,
+    quantitativeScoreChange: null,
   };
 
   beforeEach(() => {

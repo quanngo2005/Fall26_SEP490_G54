@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, input, output, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { DepartmentMembers } from '../../core/department.models';
@@ -72,7 +73,10 @@ describe('WorkBoardComponent', () => {
   }
 
   /** Signs in with the given role; a department or branch manager also oversees the department's work. */
-  async function configure(role: 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER'): Promise<void> {
+  async function configure(
+    role: 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER',
+    queryParams: Record<string, string> = {},
+  ): Promise<void> {
     employees.me.and.returnValue(of({ id: 'e1', departmentId: 'd1' } as EmployeeDetail));
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
@@ -83,6 +87,10 @@ describe('WorkBoardComponent', () => {
         { provide: DepartmentService, useValue: departments },
         { provide: WorkTypeService, useValue: workTypes },
         { provide: JobPositionService, useValue: jobPositions },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
+        },
         { provide: AuthService, useValue: { currentUser: signal({ roles: [role] }) } },
       ],
     })
@@ -115,7 +123,7 @@ describe('WorkBoardComponent', () => {
       const items = data.filter((item) => filter.status?.includes(item.status) ?? true);
       return of({ items, totalCount: items.length, page: filter.page ?? 1, pageSize: 50 });
     });
-    employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['me']);
+    employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['me', 'byCode']);
     departments = jasmine.createSpyObj<DepartmentService>('DepartmentService', ['members']);
     departments.members.and.returnValue(
       of({
@@ -321,6 +329,34 @@ describe('WorkBoardComponent', () => {
         }),
       ];
       await configure('DEPT_MANAGER');
+    });
+
+    it('opens on the work of the employee named by the link, loading the board once with the filter', async () => {
+      employees.byCode.and.returnValue(of({ id: 'e2', employeeCode: 'NV002' } as EmployeeDetail));
+      await configure('DEPT_MANAGER', { employeeCode: 'NV002' });
+      const fixture = create();
+
+      expect(employees.byCode).toHaveBeenCalledOnceWith('NV002');
+      expect(works.list).toHaveBeenCalledTimes(6);
+      for (const [filter] of works.list.calls.allArgs()) {
+        expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e2' }));
+      }
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const select = root(fixture).querySelector<HTMLSelectElement>('#work-filter-employee')!;
+      expect(select.value).toBe('e2');
+    });
+
+    it('falls back to the whole department when the code of the link is unknown', async () => {
+      employees.byCode.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+      await configure('DEPT_MANAGER', { employeeCode: 'NV999' });
+      const fixture = create();
+
+      expect(works.list).toHaveBeenCalledTimes(6);
+      for (const [filter] of works.list.calls.allArgs()) {
+        expect(filter?.assigneeEmployeeId).toBe('');
+      }
+      expect(root(fixture).querySelector('h1')?.textContent?.trim()).toBe('Công việc của phòng');
     });
 
     it("opens on the department, and can switch to the manager's own work and back", () => {
