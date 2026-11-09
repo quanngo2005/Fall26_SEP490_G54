@@ -18,8 +18,18 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
 public sealed class TransactionImportsController(
-    ITransactionImportService service, IWorkTransactionService workTransactions, IOptions<SystemParametersOptions> parameters) : ControllerBase
+    ITransactionImportService service,
+    IWorkTransactionService workTransactions,
+    IOptions<SystemParametersOptions> parameters,
+    ITransactionImportTemplateProvider templateProvider) : ControllerBase
 {
+    private const string XlsxExtension = ".xlsx";
+
+    [HttpGet("template")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetTemplate() =>
+        File(templateProvider.GetTemplate(), EvidenceFileValidator.ContentTypeFor(XlsxExtension), "transaction-import-template.xlsx");
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10 * 1024 * 1024)]
