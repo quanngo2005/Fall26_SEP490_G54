@@ -50,7 +50,7 @@ public sealed class TransactionImportsController(
 
         await using var stream = file.OpenReadStream();
         var result = await service.ImportAsync(file.FileName, stream, User.GetRequiredUserId(), cancellationToken);
-        await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken);
+        result = result with { Reconcile = await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken) };
         return Created($"/transaction-imports/{result.Id}", ApiResponse.Ok(result, SuccessMessages.Created, HttpContext.TraceIdentifier));
     }
 

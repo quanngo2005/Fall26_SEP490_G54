@@ -304,7 +304,7 @@ public sealed class TransactionImportTemplateTests
         public Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
-        public Task ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
-            Task.CompletedTask;
+        public Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
+            Task.FromResult(new ReconcileSummaryDto(0, 0, 0));
     }
 }
