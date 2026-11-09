@@ -286,6 +286,9 @@ public sealed class TransactionImportTemplateTests
         public Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
+        public Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(Guid batchId, int page, int pageSize, CancellationToken ct = default) =>
+            throw new NotImplementedException();
+
         public Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default) =>
             throw new NotImplementedException();
     }
