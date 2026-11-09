@@ -79,13 +79,8 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
-# Added by code-review-graph
-.code-review-graph/
-/docs/uc
 
-# Local MCP config (machine-specific paths)
-/.mcp.json
-/docs/excels
-/docs/design
-/docs/test
-/docs/figma-gb337
+# ai-service
+.venv/
+__pycache__/
+.pytest_cache/
