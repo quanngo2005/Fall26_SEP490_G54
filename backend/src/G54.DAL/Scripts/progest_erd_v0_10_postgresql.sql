@@ -1388,8 +1388,7 @@ AS $$
 DECLARE
     parent_id UUID;
     p_kpi kpi_aggregation_type;
-    child_count INTEGER;
-    child_sum NUMERIC(30,4);
+    child_group RECORD;
     parent_target NUMERIC(30,4);
     p_status target_assignment_status;
 BEGIN
@@ -1408,16 +1407,19 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    SELECT COUNT(*), COALESCE(SUM(target_value), 0)
-    INTO child_count, child_sum
-    FROM target_assignment
-    WHERE parent_assignment_id = parent_id
-      AND status = 'ACTIVE';
-
-    IF child_count > 0 AND child_sum <> parent_target THEN
-        RAISE EXCEPTION 'Active child targets (%) must sum to parent target (%) for SUM KPI on TargetAssignment %',
-            child_sum, parent_target, parent_id;
-    END IF;
+    -- G11: PERIOD (quarter) and ORG (department) children of one parent are separate splits; each must sum alone.
+    FOR child_group IN
+        SELECT COALESCE(split_dimension::text, 'NONE') AS split_dim, COALESCE(SUM(target_value), 0) AS total
+        FROM target_assignment
+        WHERE parent_assignment_id = parent_id
+          AND status = 'ACTIVE'
+        GROUP BY split_dimension
+    LOOP
+        IF child_group.total <> parent_target THEN
+            RAISE EXCEPTION 'Active child targets (%) for split_dimension % must sum to parent target (%) for SUM KPI on TargetAssignment %',
+                child_group.total, child_group.split_dim, parent_target, parent_id;
+        END IF;
+    END LOOP;
 
     RETURN NULL;
 END;

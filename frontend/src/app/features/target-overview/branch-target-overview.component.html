@@ -14,11 +14,42 @@
     <button type="button" class="button button-secondary" disabled [title]="text.unavailable">
       {{text.export}}
     </button>
-    <button type="button" class="button button-primary" disabled [title]="text.unavailable">
-      {{text.setupYearTargets}}
-    </button>
+    @if (canManageTargets()) {
+      <button
+        type="button"
+        class="button button-secondary"
+        [disabled]="!branchId() || !year() || setup()?.status === 'ACTIVE'"
+        [title]="setup()?.status === 'ACTIVE' ? text.importLocked : ''"
+        (click)="openImport()"
+      >
+        {{text.importExcel}}
+      </button>
+      @if (setup()?.status !== 'ACTIVE') {
+        <button
+          type="button"
+          class="button button-primary"
+          [disabled]="!branchId() || !year()"
+          (click)="openSetup()"
+        >
+          {{setup()?.status === 'DRAFT' ? text.continueSetup : text.setupYearTargets}}
+        </button>
+      }
+    } @else {
+      <button type="button" class="button button-primary" disabled [title]="text.unavailable">
+        {{text.setupYearTargets}}
+      </button>
+    }
   </div>
 </div>
+
+@if (showImportModal() && branchId() && year()) {
+  <app-import-branch-target-modal
+    [branchId]="branchId()!"
+    [year]="year()!"
+    (closed)="closeImportModal()"
+    (committed)="onImportCommitted()"
+  />
+}
 
 <div class="filter-bar">
   <label class="inline-field">
@@ -153,6 +184,9 @@
                   <td>
                     {{member.employee.fullName}}
                     <span class="employee-position">· {{member.employee.jobPositionTitle}}</span>
+                    @if (member.employee.departmentId !== row.department.id) {
+                      <span class="employee-position">· {{member.employee.departmentName}}</span>
+                    }
                   </td>
                   @for (cell of member.cells; track $index) {
                     <td class="num"><app-target-cell [value]="cell" /></td>

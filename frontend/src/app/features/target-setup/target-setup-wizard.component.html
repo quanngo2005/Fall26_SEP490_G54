@@ -1,0 +1,148 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content">
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{localization.targetSetup.breadcrumb}}</p>
+          <h1>{{title()}}</h1>
+        </div>
+      </div>
+
+      @if (loading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.targetSetup.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.targetSetup.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{localization.targetSetup.retry}}
+          </button>
+        </div>
+      } @else {
+        <nav class="wizard-stepper" [attr.aria-label]="localization.targetSetup.stepperAria">
+          @for (step of steps(); track step.number) {
+            <button
+              type="button"
+              class="wizard-step"
+              [class.is-done]="step.done"
+              [class.is-current]="step.current"
+              [disabled]="!step.clickable"
+              [attr.aria-current]="step.current ? 'step' : null"
+              (click)="selectStep(step)"
+            >
+              {{step.done ? '✓ ' : ''}}{{step.label}}
+            </button>
+            @if (!$last) {
+              <span class="wizard-arrow" aria-hidden="true">›</span>
+            }
+          }
+        </nav>
+
+        <section class="wizard-body">
+          <!-- Steps 2 and 3 show their own heading, so the step name stays for screen readers only. -->
+          <h2 [class.visually-hidden]="activeStep() === 2 || activeStep() === 3">
+            {{activeTitle()}}
+          </h2>
+          @if (activeStep() === 2 && setup()?.branchYearId; as branchYearId) {
+            <app-branch-quarter-split
+              [branchYearId]="branchYearId"
+              [year]="year() ?? 0"
+              (saved)="refreshSetup()"
+              (allocateKpi)="onAllocateKpi($event)"
+              (reimport)="openReimport()"
+            />
+          }
+          @if (activeStep() === 3 && setup()?.branchYearId; as branchYearId) {
+            <app-department-allocation
+              [branchYearId]="branchYearId"
+              [year]="year() ?? 0"
+              [setup]="setup()!"
+              [initialKpiId]="allocationKpiId()"
+              (saved)="refreshSetup()"
+              (back)="goToStep(2)"
+              (publish)="goToStep(4)"
+            />
+          }
+          @if (activeStep() === 4 && setup(); as state) {
+            @let text = localization.targetSetup;
+            <div class="publish-panel">
+              @if (state.step === 'PUBLISHED') {
+                <p class="publish-done" role="status">{{text.publishedInfo}}</p>
+              } @else {
+                <p class="publish-summary">{{summaryText()}}</p>
+                @if (state.blockers.length > 0) {
+                  <div class="publish-blockers" role="alert">
+                    <p class="publish-blockers-title">{{text.publishBlockersTitle}}</p>
+                    <ul>
+                      @for (blocker of state.blockers; track blocker.kpiId) {
+                        <li>{{blocker.kpiName}}</li>
+                      }
+                    </ul>
+                  </div>
+                }
+                @if (publishError(); as message) {
+                  <div class="publish-error" role="alert">{{message}}</div>
+                }
+                <p class="publish-note">{{text.publishNote}}</p>
+                <button
+                  type="button"
+                  class="button button-primary"
+                  [disabled]="!state.canPublish || publishing()"
+                  (click)="askPublish()"
+                >
+                  {{text.publishButton}}
+                </button>
+              }
+            </div>
+          }
+        </section>
+
+        @if (confirmingPublish()) {
+          <div class="confirm-backdrop">
+            <div
+              class="confirm-dialog"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="publish-confirm-title"
+              aria-describedby="publish-confirm-body"
+            >
+              <h2 id="publish-confirm-title">{{localization.targetSetup.confirmTitle}}</h2>
+              <p id="publish-confirm-body">{{localization.targetSetup.confirmBody}}</p>
+              <div class="confirm-actions">
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  [disabled]="publishing()"
+                  (click)="cancelPublish()"
+                >
+                  {{localization.targetSetup.confirmCancel}}
+                </button>
+                <button
+                  type="button"
+                  class="button button-primary"
+                  [disabled]="publishing()"
+                  (click)="confirmPublish()"
+                >
+                  {{localization.targetSetup.confirmAccept}}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (showImportModal() && branchId() && year() !== null) {
+          <app-import-branch-target-modal
+            [branchId]="branchId()!"
+            [year]="year()!"
+            (closed)="closeReimport()"
+            (committed)="onReimportCommitted()"
+          />
+        }
+      }
+    </main>
+  </div>
+</div>

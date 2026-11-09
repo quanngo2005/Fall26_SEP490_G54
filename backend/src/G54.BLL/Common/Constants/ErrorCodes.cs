@@ -88,6 +88,27 @@ public static class ErrorCodes
     public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
     public const string TargetInvalidState = "TARGET_INVALID_STATE";
 
+    // Year target import (docs/design/BRANCH_YEAR_KPI_IMPORT_DESIGN.md, replaces TargetImportInvalid above)
+    public const string TargetImportKpiNotFound = "TARGET_IMPORT_KPI_NOT_FOUND";
+    public const string TargetImportKpiInactive = "TARGET_IMPORT_KPI_INACTIVE";
+    public const string TargetImportInvalidValue = "TARGET_IMPORT_INVALID_VALUE";
+    public const string TargetImportUnitMismatch = "TARGET_IMPORT_UNIT_MISMATCH";
+    public const string TargetImportYearColumnMissing = "TARGET_IMPORT_YEAR_COLUMN_MISSING";
+    public const string TargetImportBranchMismatch = "TARGET_IMPORT_BRANCH_MISMATCH";
+    public const string TargetImportFormulaNotCalculated = "TARGET_IMPORT_FORMULA_NOT_CALCULATED";
+    public const string TargetImportPrevYearMismatch = "TARGET_IMPORT_PREV_YEAR_MISMATCH";
+    public const string TargetImportNoValidRows = "TARGET_IMPORT_NO_VALID_ROWS";
+    public const string TargetImportQuarterSumMismatch = "TARGET_IMPORT_QUARTER_SUM_MISMATCH";
+    public const string TargetImportFieldMismatch = "TARGET_IMPORT_FIELD_MISMATCH";
+
+    // Quarter split & allocation (Phase 2, docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetQuarterSumMismatch = "TARGET_QUARTER_SUM_MISMATCH";           // MSG14, BR-24: quarters must equal year
+    public const string TargetAllocationSumMismatch = "TARGET_ALLOCATION_SUM_MISMATCH";     // MSG14, BR-24: departments must equal branch
+    public const string TargetDeptQuarterSumMismatch = "TARGET_DEPT_QUARTER_SUM_MISMATCH";  // BR-24: each dept's quarters must equal its year
+    public const string TargetQuartersNotReady = "TARGET_QUARTERS_NOT_READY";              // quarters not yet split for this KPI
+    public const string TargetDepartmentNotEligible = "TARGET_DEPARTMENT_NOT_ELIGIBLE";    // department has no headcount for this KPI
+    public const string TargetPublishBlocked = "TARGET_PUBLISH_BLOCKED";                   // publish validation failed
+
     // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
     public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
     public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
@@ -147,6 +168,17 @@ public static class ErrorCodes
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [TargetImportKpiNotFound] = ("Mã KPI không tồn tại trong danh mục.", "The KPI code does not exist in the catalog."),
+        [TargetImportKpiInactive] = ("KPI đã ngừng sử dụng nên không thể giao chỉ tiêu.", "The KPI is inactive and cannot be assigned a target."),
+        [TargetImportInvalidValue] = ("Giá trị chỉ tiêu không hợp lệ.", "The target value is invalid."),
+        [TargetImportUnitMismatch] = ("Đơn vị trong file không khớp với danh mục KPI.", "The file's unit does not match the KPI catalog."),
+        [TargetImportYearColumnMissing] = ("File không có cột 'Năm {year}' của năm cần nhập.", "The file has no 'Năm {year}' column for the requested year."),
+        [TargetImportBranchMismatch] = ("Mã chi nhánh trong file không khớp với chi nhánh đang chọn.", "The file's branch code does not match the selected branch."),
+        [TargetImportFormulaNotCalculated] = ("Ô công thức chưa có giá trị tính sẵn; hãy mở và lưu lại file bằng Excel.", "A formula cell has no cached value; open and save the file in Excel."),
+        [TargetImportPrevYearMismatch] = ("Giá trị năm trước trong file khác với dữ liệu đã lưu.", "The previous year's value in the file differs from the stored value."),
+        [TargetImportNoValidRows] = ("Không có dòng hợp lệ nào để nhập.", "There are no valid rows to import."),
+        [TargetImportQuarterSumMismatch] = ("Tổng 4 quý trong file khác với chỉ tiêu cả năm.", "The file's four quarters do not add up to the year value."),
+        [TargetImportFieldMismatch] = ("Giá trị trong file khác với danh mục KPI.", "The file's value does not match the KPI catalog."),
         [ImportTemplateInvalid] = ("File không đúng mẫu quy định.", "The file does not match the required template."),
         [DataImportHasErrors] = ("File còn dòng lỗi, không thể xác nhận import.", "The file still has invalid rows and cannot be committed."),
         [DataImportInvalidValue] = ("Giá trị không hợp lệ.", "Invalid value."),
@@ -163,6 +195,12 @@ public static class ErrorCodes
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
         [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),
+        [TargetQuarterSumMismatch] = ("Tổng 4 quý phải bằng chính xác chỉ tiêu năm.", "Quarter totals must equal year target exactly."),
+        [TargetAllocationSumMismatch] = ("Tổng chỉ tiêu của các phòng ban phải bằng chính xác chỉ tiêu của chi nhánh.", "Department allocations must equal branch target exactly."),
+        [TargetDeptQuarterSumMismatch] = ("Tổng chỉ tiêu các quý của từng phòng ban phải bằng chính xác chỉ tiêu năm của phòng đó.", "Each department's quarter totals must equal its year target exactly."),
+        [TargetQuartersNotReady] = ("Chỉ tiêu theo quý chưa được chia cho chỉ tiêu này; hãy hoàn thành bước chia quý trước.", "Quarters have not yet been split for this KPI; complete step 2 first."),
+        [TargetDepartmentNotEligible] = ("Phòng ban này không có nhân viên đủ điều kiện cho chỉ tiêu này nên bị ẩn.", "This department has no eligible employees for this KPI and is hidden."),
+        [TargetPublishBlocked] = ("Phát hành bị chặn: một hoặc nhiều chỉ tiêu chưa khớp. Xem chi tiết để hoàn thành.", "Publish is blocked: one or more KPI targets are incomplete. See details to resolve."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

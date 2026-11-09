@@ -1,0 +1,286 @@
+@let text = localization.departmentAllocation;
+@if (loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">
+      {{text.retry}}
+    </button>
+  </div>
+} @else {
+  <section class="allocation-layout">
+    <aside class="kpi-picker" [attr.aria-label]="text.pickerAria">
+      <p class="picker-title">{{text.pickerTitle}}</p>
+      @for (card of cards(); track card.row.kpiId) {
+        <button
+          type="button"
+          class="kpi-card"
+          [class.is-selected]="card.row.kpiId === selectedKpiId()"
+          [class.is-unavailable]="card.state === 'NOT_SPLIT'"
+          [disabled]="card.state === 'NOT_SPLIT'"
+          [attr.aria-pressed]="card.row.kpiId === selectedKpiId()"
+          (click)="selectKpi(card.row.kpiId)"
+        >
+          <span class="kpi-card-name">{{card.row.kpiName}}</span>
+          <span
+            class="kpi-card-status"
+            [class.is-done]="card.state === 'DONE'"
+            [class.is-mismatch]="card.state === 'MISMATCH'"
+            >{{cardStatus(card)}}</span
+          >
+        </button>
+      } @empty {
+        <p class="picker-note">{{text.pickerEmpty}}</p>
+      }
+      @for (row of ratioKpis(); track row.kpiId) {
+        <p class="picker-note">{{ratioNote(row)}}</p>
+      }
+      @if (!readOnly()) {
+        <button
+          type="button"
+          class="publish-button"
+          [disabled]="!setupState()?.canPublish"
+          (click)="requestPublish()"
+        >
+          {{text.publish}}
+        </button>
+        <p class="picker-note">{{text.publishHint}}</p>
+      }
+    </aside>
+
+    <div class="allocation-main">
+      @if (allocationLoading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{text.allocationLoading}}</p>
+        </div>
+      } @else if (allocationFailed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{text.allocationLoadFailed}}</p>
+          <button
+            type="button"
+            class="button button-secondary"
+            (click)="loadAllocation(selectedKpiId()!)"
+          >
+            {{text.retry}}
+          </button>
+        </div>
+      } @else if (allocation(); as current) {
+        <div class="allocation-header">
+          <div class="quarter-title-line">
+            <h2>{{current.kpiName}}</h2>
+            @if (current.workType) {
+              <span class="quarter-status">{{current.workType}}</span>
+            }
+            <span class="quarter-meta allocation-unit">{{unitText()}}</span>
+          </div>
+          <div class="mode-tabs" role="tablist" [attr.aria-label]="text.modeAria">
+            <button
+              type="button"
+              role="tab"
+              class="mode-tab"
+              [class.is-active]="!percentMode()"
+              [attr.aria-selected]="!percentMode()"
+              (click)="setPercentMode(false)"
+            >
+              {{text.modeValue}}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="mode-tab"
+              [class.is-active]="percentMode()"
+              [attr.aria-selected]="percentMode()"
+              (click)="setPercentMode(true)"
+            >
+              {{text.modePercent}}
+            </button>
+          </div>
+        </div>
+
+        <div class="allocation-toolbar">
+          <label class="search-box">
+            <app-layout-icon name="search" class="search-icon" />
+            <span class="visually-hidden">{{text.searchAria}}</span>
+            <input
+              type="search"
+              [placeholder]="text.searchPlaceholder"
+              [value]="search()"
+              (input)="onSearch($event)"
+            />
+          </label>
+          @if (!readOnly()) {
+            <div class="quarter-actions">
+              <button
+                type="button"
+                class="quarter-button is-secondary"
+                [disabled]="!hasPreviousYear()"
+                (click)="fillYearByPreviousYear()"
+              >
+                {{previousYearLabel()}}
+              </button>
+              <button
+                type="button"
+                class="quarter-button is-secondary"
+                (click)="fillQuartersByBranch()"
+              >
+                {{text.fillBranchRatio}}
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (toast(); as message) {
+          <div class="quarter-toast" role="status" aria-live="polite">
+            <app-layout-icon name="check" class="toast-icon" />
+            <span>{{message}}</span>
+          </div>
+        }
+        @if (saveError(); as message) {
+          <div class="quarter-save-error" role="alert">{{message}}</div>
+        }
+
+        <div class="quarter-card">
+          <div class="table-wrap">
+            <table class="quarter-table allocation-table" [attr.aria-label]="text.tableAria">
+              <thead>
+                <tr>
+                  <th scope="col" class="kpi-col">{{text.columnDepartment}}</th>
+                  <th scope="col" class="num">{{text.columnHeadcount}}</th>
+                  @for (key of cells; track key) {
+                    <th scope="col" class="num">{{columnLabel(key)}}</th>
+                  }
+                  <th scope="col">{{text.columnCheck}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (view of rows(); track view.department.departmentId) {
+                  @if (view.visible) {
+                    <tr class="quarter-row">
+                      <td class="kpi-cell">{{view.department.departmentName}}</td>
+                      <td class="num">{{view.department.headcount}}</td>
+                      @for (key of cells; track key) {
+                        <td class="num quarter-cell">
+                          @if (showInput(view, key)) {
+                            <input
+                              type="text"
+                              class="quarter-input"
+                              [class.is-locked]="isLocked(key)"
+                              [class.is-edited-error]="key !== 'year' && !view.matched"
+                              inputmode="decimal"
+                              [value]="inputText(view, key)"
+                              [disabled]="isLocked(key)"
+                              [attr.aria-label]="cellAria(view, key)"
+                              (focus)="onFocus(view, key)"
+                              (input)="onInput(view, key, $event)"
+                              (blur)="onBlur(view, key)"
+                            />
+                          } @else if (readOnly()) {
+                            <span class="quarter-static">{{formatValue(view.values[key])}}</span>
+                          } @else {
+                            <button
+                              type="button"
+                              class="cell-text"
+                              [attr.aria-label]="cellAria(view, key)"
+                              (click)="startEditing(view)"
+                            >
+                              {{formatValue(view.values[key])}}
+                            </button>
+                          }
+                        </td>
+                      }
+                      <td
+                        class="total-cell"
+                        [class.is-matched]="view.matched"
+                        [class.is-mismatch]="!view.matched"
+                      >
+                        {{checkText(view)}}
+                      </td>
+                    </tr>
+                  }
+                } @empty {
+                  <tr>
+                    <td class="empty-cell" colspan="8">{{text.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+              @if (rows().length > 0) {
+                <tfoot>
+                  <tr class="total-row">
+                    <th scope="row">{{text.rowAllocated}}</th>
+                    <td class="num">{{rows().length}}</td>
+                    @for (column of columns(); track column.key) {
+                      <td class="num" [class.is-mismatch]="!column.matched">
+                        {{formatUnits(column.totalUnits)}}
+                      </td>
+                    }
+                    <td></td>
+                  </tr>
+                  <tr class="branch-row">
+                    <th scope="row">{{text.rowBranch}}</th>
+                    <td></td>
+                    @for (column of columns(); track column.key) {
+                      <td class="num">{{formatUnits(column.branchUnits)}}</td>
+                    }
+                    <td></td>
+                  </tr>
+                  <tr class="remaining-row">
+                    <th scope="row">{{text.rowRemaining}}</th>
+                    <td></td>
+                    @for (column of columns(); track column.key) {
+                      <td
+                        class="num"
+                        [class.is-matched]="column.matched"
+                        [class.is-mismatch]="!column.matched"
+                      >
+                        {{remainingText(column)}}
+                      </td>
+                    }
+                    <td></td>
+                  </tr>
+                </tfoot>
+              }
+            </table>
+          </div>
+        </div>
+
+        @if (mismatchText(); as message) {
+          <div class="quarter-banner" role="alert">
+            <p class="banner-line">{{message}}</p>
+          </div>
+        }
+
+        <div class="allocation-footer">
+          <p class="quarter-help">{{hiddenNote() ?? ''}}</p>
+          <div class="quarter-actions">
+            <button type="button" class="quarter-button is-secondary" (click)="requestBack()">
+              {{text.back}}
+            </button>
+            @if (!readOnly()) {
+              <button
+                type="button"
+                class="quarter-button is-primary"
+                [disabled]="saving()"
+                (click)="save()"
+              >
+                {{text.saveDraft}}
+              </button>
+              <button
+                type="button"
+                class="quarter-button is-solid"
+                [disabled]="saving() || !allMatched()"
+                (click)="save(true)"
+              >
+                {{text.saveNext}}
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+}
