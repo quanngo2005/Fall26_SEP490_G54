@@ -188,9 +188,11 @@
                   <tbody>
                     @for (group of data.criteriaGroups; track group.evaluationProfileItemId) {
                       <tr class="group-header-row">
-                        <td colspan="5" class="group-header-cell">
-                          {{group.groupName}} · {{group.weightPercent | appNumber: 2}}%
+                        <td class="group-header-cell">{{group.groupName}}</td>
+                        <td class="group-header-cell text-center">
+                          {{group.weightPercent | appNumber: 2}}%
                         </td>
+                        <td colspan="3" class="group-header-cell"></td>
                         <td class="group-header-cell group-score-cell text-center">
                           @if (group.groupScore !== null) {
                             {{group.groupScore | appNumber: 2}}
@@ -316,12 +318,35 @@
                       class="score-input"
                       [ngModel]="qualitativeScores()[group.evaluationProfileItemId]"
                       (ngModelChange)="setQualitativeScore(group.evaluationProfileItemId, $event)"
+                      (wheel)="$any($event.target).blur()"
                       [min]="scoreMin"
-                      [max]="scoreMax"
+                      [max]="groupScoreMax()"
                       [disabled]="!data.canEdit"
                       [placeholder]="localization.evaluationForm.qualitativeScorePlaceholder"
                     />
-                    <span class="score-suffix">/ {{scoreMax}}</span>
+                    <span class="score-suffix">/ {{groupScoreMax()}}</span>
+                  </div>
+                </div>
+              }
+
+              @if (qualitativeGroups().length === 0) {
+                <div class="form-group">
+                  <label class="form-label" for="qualitativeScoreInput">
+                    {{localization.evaluationForm.qualitativeScoreLabel}}
+                  </label>
+                  <div class="score-input-wrap">
+                    <input
+                      id="qualitativeScoreInput"
+                      type="number"
+                      class="score-input"
+                      [ngModel]="generalQualitativeScore()"
+                      (ngModelChange)="generalQualitativeScore.set($event)"
+                      (wheel)="$any($event.target).blur()"
+                      [min]="scoreMin"
+                      [max]="generalScoreMax()"
+                      [disabled]="!data.canEdit"
+                      [placeholder]="localization.evaluationForm.qualitativeScorePlaceholder"
+                    />
                   </div>
                 </div>
               }

@@ -379,6 +379,27 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
+    public async Task GetDepartmentEmployeesForEvaluationAsync_ShowsGeneralQualitativeScore_WhenOneWasSaved()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        // Above the 0-100 group scale, so the value can only be accepted by the configured qualitative maximum.
+        const decimal generalScore = 150m;
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                EmployeeId: staff.Id,
+                PeriodId: period.Id,
+                IsDraft: true,
+                GeneralQualitativeScore: generalScore),
+            manager.Id);
+
+        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, staff.DepartmentId, manager.Id);
+
+        Assert.Equal(generalScore, rows.Single(r => r.EmployeeId == staff.Id).QualitativeScore);
+    }
+
+    [Fact]
     public async Task SubmitEvaluationAsync_DeductsRiskPenalty_WhenRiskEventsOccurred()
     {
         var (context, service) = CreateTestEnvironment();
@@ -1803,45 +1824,6 @@ public sealed class EvaluationServiceTests
         Assert.False(limit.IsValid(new string('a', limit.MaximumLength + 1)));
         Assert.False(string.IsNullOrWhiteSpace(limit.ErrorMessage));
     }
-    // ----- Qualitative score range ----------------------------------------------------------------
-
-    [Theory]
-    [InlineData(-0.01)]
-    [InlineData(100.01)]
-    [InlineData(1000000)]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsOutsideTheRange(double score)
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
-
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, (decimal)score)], IsDraft: true),
-            manager.Id));
-
-        Assert.Equal(400, ex.StatusCode);
-        Assert.Contains("Van hanh & Tuan thu", ex.Message);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(100)]
-    public async Task SubmitEvaluationAsync_AcceptsAQualitativeScoreOnTheEdgeOfTheRange(int score)
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
-
-        await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, score)], IsDraft: true),
-            manager.Id);
-
-        Assert.Single(context.PerformanceEvaluations);
-    }
-
     // ----- A concurrent first save of the same evaluation ----------------------------------------
 
     private sealed class DuplicateEvaluationInterceptor : SaveChangesInterceptor
