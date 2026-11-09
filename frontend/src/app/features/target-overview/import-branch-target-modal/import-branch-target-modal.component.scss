@@ -1,6 +1,7 @@
 /* Layout specific to SCR-STRAT-04-M1; dialog, buttons, inputs and notices come from shared/ui. */
 .import-dialog {
   width: min(1040px, 100%);
+  min-width: 0;
 }
 
 .import-steps {
@@ -37,10 +38,13 @@
   flex-direction: column;
   gap: 16px;
   max-width: 560px;
+  min-width: 0;
 }
 
+/* Long file names (no spaces) must wrap instead of widening the dialog on narrow screens. */
 .file-drop {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   border: 1px dashed #cbd5e1;
@@ -49,8 +53,10 @@
 }
 
 .file-name {
+  min-width: 0;
   color: #0f172a;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .file-meta,

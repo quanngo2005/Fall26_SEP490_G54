@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.DAL.Entities;
@@ -394,7 +395,12 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
             .Cast<TargetNodeDto>()
             .ToList();
 
-        var allocatedValue = children.Where(c => c.PeriodType != nameof(PeriodType.Week)).Sum(c => c.TargetValue);
+        // A node can hold both its own period split and same-period allocations to sub-units; count only the
+        // allocations when present so the two are not summed together.
+        var periodType = row.EvaluationPeriod?.PeriodType.ToEnumString() ?? "";
+        var allocations = children.Where(c => c.PeriodType == periodType).ToList();
+        var allocatedValue = (allocations.Count > 0 ? allocations : children.Where(c => c.PeriodType != PeriodType.Week.ToEnumString()))
+            .Sum(c => c.TargetValue);
         var actualValue = row.ActualProgresses?.Sum(ap => ap.Value) ?? 0m;
 
         var compareKey = (row.KpiDefinitionId, row.DepartmentId, GetPeriodPosition(row.EvaluationPeriod?.Code ?? ""));
@@ -414,12 +420,12 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
             row.Department?.Name ?? "",
             row.EvaluationPeriodId,
             row.EvaluationPeriod?.Code ?? "",
-            row.EvaluationPeriod?.PeriodType.ToString() ?? "",
+            row.EvaluationPeriod?.PeriodType.ToEnumString() ?? "",
             row.TargetValue,
             allocatedValue,
             actualValue > 0 ? actualValue : null,
             row.Version,
-            row.Status.ToString(),
+            row.Status.ToEnumString(),
             compareTarget,
             compareActual,
             children);

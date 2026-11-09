@@ -350,6 +350,33 @@ public sealed class TargetAllocationServiceTests
     }
 
     [Fact]
+    public async Task Tree_YearWithQuarterSplitAndDepartmentAllocation_CountsAllocationOnce()
+    {
+        var f = await CreateAsync();
+        TargetAssignment Child(Guid departmentId, Guid periodId, Guid? parentId) => new()
+        {
+            Id = Guid.NewGuid(),
+            ParentAssignmentId = parentId ?? f.BranchYearTarget.Id,
+            DepartmentId = departmentId,
+            KpiDefinitionId = f.KpiId,
+            EvaluationPeriodId = periodId,
+            TargetValue = 1000,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+        };
+        var deptYear = Child(f.DeptId, f.YearPeriodId, null);
+        f.Db.TargetAssignments.AddRange(Child(f.BranchId, f.Q1Id, null), deptYear, Child(f.DeptId, f.Q1Id, deptYear.Id));
+        await f.Db.SaveChangesAsync();
+
+        var root = Assert.Single(await f.Service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid()));
+
+        Assert.Equal("YEAR", root.PeriodType);
+        Assert.Equal("DRAFT", root.Status);
+        Assert.Equal(1000m, root.AllocatedValue);
+        Assert.Equal(1000m, root.Children.Single(c => c.Id == deptYear.Id).AllocatedValue);
+    }
+
+    [Fact]
     public async Task Tree_OtherBranchOrUnknownAccount_IsForbidden()
     {
         var f = await CreateAsync();
