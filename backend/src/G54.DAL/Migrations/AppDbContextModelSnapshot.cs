@@ -798,6 +798,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("date")
                         .HasColumnName("end_date");
 
+                    b.Property<DateOnly?>("HardLockedThrough")
+                        .HasColumnType("date")
+                        .HasColumnName("hard_locked_through");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -2502,6 +2506,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("change_reason");
 
+                    b.Property<Guid?>("ChangedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by_employee_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2511,6 +2519,14 @@ namespace G54.DAL.Migrations
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uuid")
                         .HasColumnName("department_id");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
 
                     b.Property<Guid?>("EmployeeId")
                         .HasColumnType("uuid")
@@ -2527,6 +2543,10 @@ namespace G54.DAL.Migrations
                     b.Property<Guid?>("ParentAssignmentId")
                         .HasColumnType("uuid")
                         .HasColumnName("parent_assignment_id");
+
+                    b.Property<Guid?>("PreviousVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_version_id");
 
                     b.Property<int?>("SplitDimension")
                         .HasColumnType("target_split_dimension")
@@ -2556,6 +2576,8 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("target_assignment_pkey");
 
+                    b.HasIndex("ChangedByEmployeeId");
+
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("EmployeeId");
@@ -2567,6 +2589,8 @@ namespace G54.DAL.Migrations
                     b.HasIndex(new[] { "ParentAssignmentId" }, "ix_target_assignment_parent");
 
                     b.HasIndex(new[] { "EvaluationPeriodId" }, "ix_target_assignment_period");
+
+                    b.HasIndex(new[] { "PreviousVersionId" }, "ix_target_assignment_previous_version");
 
                     b.HasIndex(new[] { "KpiDefinitionId", "DepartmentId", "EvaluationPeriodId" }, "uq_target_assignment_active_department")
                         .IsUnique()
@@ -2591,6 +2615,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_target_assignment_approved_by_time", "approved_at IS NULL OR approved_at >= created_at");
 
                             t.HasCheckConstraint("ck_target_assignment_assigned_time", "assigned_at IS NULL OR assigned_at >= created_at");
+
+                            t.HasCheckConstraint("ck_target_assignment_effective_range", "effective_to IS NULL OR effective_to >= effective_from");
 
                             t.HasCheckConstraint("ck_target_assignment_owner_xor", "(department_id IS NOT NULL) <> (employee_id IS NOT NULL)");
 
@@ -4033,6 +4059,12 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_target_assignment_objective");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "ChangedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ChangedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_assignment_changed_by");
+
                     b.HasOne("G54.DAL.Entities.Department", "Department")
                         .WithMany("TargetAssignments")
                         .HasForeignKey("DepartmentId")
@@ -4066,6 +4098,8 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_target_assignment_parent");
 
                     b.Navigation("BusinessObjective");
+
+                    b.Navigation("ChangedByEmployee");
 
                     b.Navigation("Department");
 

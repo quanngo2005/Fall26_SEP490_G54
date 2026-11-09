@@ -413,7 +413,7 @@ ON CONFLICT DO NOTHING;
 -- Plus KH_MOI per Sales (no split) and one DRAFT CSAT target for a Teller.
 -- Rows are inserted parent-first (ORDER BY row_no).
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
 SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        CASE WHEN t.kpi_no IN ('000000000001', '000000000002', '000000000003')
             THEN '5eed0000-0000-0000-0010-000000000001'::uuid END,
@@ -427,7 +427,8 @@ SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        t.status::target_assignment_status,
        now(),
        CASE WHEN t.status = 'ACTIVE' THEN now() END,
-       t.reason
+       t.reason,
+       (SELECT start_date FROM evaluation_period WHERE id = '5eed0000-0000-0000-000f-000000000003'::uuid)
 FROM (VALUES
     ('000000000001', '000000000001', '000000000001', NULL,           NULL,           NULL,  1000, 'ACTIVE', '000000000001', 'Chỉ tiêu chi nhánh Q4'),
     ('000000000002', '000000000001', '000000000002', NULL,           '000000000001', 'ORG',  900, 'ACTIVE', '000000000001', NULL),
@@ -448,7 +449,7 @@ ORDER BY t.row_no
 ON CONFLICT DO NOTHING;
 
 -- Year-level targets (DU_NO and KH_MOI) to be split by quarters
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
 SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        ('5eed0000-0000-0000-0005-' || t.kpi_no)::uuid,
@@ -461,7 +462,8 @@ SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        'ACTIVE'::target_assignment_status,
        now(),
        now(),
-       t.reason
+       t.reason,
+       (SELECT start_date FROM evaluation_period WHERE id = '5eed0000-0000-0000-000f-000000000001'::uuid)
 FROM (VALUES
     ('000000000010', '000000000003', '000000000001', 1200, 'Chỉ tiêu dư nợ năm 2026'),
     ('000000000020', '000000000002', '000000000001',  480, NULL)
@@ -469,7 +471,7 @@ FROM (VALUES
 ON CONFLICT DO NOTHING;
 
 -- Quarter-level allocations of DU_NO (period split of year)
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
 SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        '5eed0000-0000-0000-0005-000000000003'::uuid,
@@ -482,7 +484,8 @@ SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        'ACTIVE'::target_assignment_status,
        now(),
        now(),
-       NULL
+       NULL,
+       (SELECT start_date FROM evaluation_period WHERE id = ('5eed0000-0000-0000-000f-' || t.period_no)::uuid)
 FROM (VALUES
     ('000000000011', '000000000008', 300),
     ('000000000012', '000000000009', 300),
@@ -493,7 +496,7 @@ ORDER BY t.row_no
 ON CONFLICT DO NOTHING;
 
 -- ORG-level split of Q1 (DU_NO quarter target to departments)
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
 SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        '5eed0000-0000-0000-0005-000000000003'::uuid,
@@ -506,7 +509,8 @@ SELECT ('5eed0000-0000-0000-0015-' || t.row_no)::uuid,
        'ACTIVE'::target_assignment_status,
        now(),
        now(),
-       NULL
+       NULL,
+       (SELECT start_date FROM evaluation_period WHERE id = '5eed0000-0000-0000-000f-000000000008'::uuid)
 FROM (VALUES
     ('000000000015', '000000000002', 250),
     ('000000000016', '000000000003',  50)
@@ -518,7 +522,7 @@ ON CONFLICT DO NOTHING;
 -- Month-level employee targets: each Q4 employee target (rows ...08-...0b HDV, ...0c-...0d KH_MOI) split by month
 -- (Oct/Nov/Dec) so the evaluation screen has targets whichever Q4 period is picked.
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
 SELECT ('5eed0000-0000-0000-0015-' || lpad(to_hex(256 + p.parent_seq * 3 + m.month_idx), 12, '0'))::uuid,
        parent.business_objective_id,
        parent.kpi_definition_id,
@@ -531,7 +535,8 @@ SELECT ('5eed0000-0000-0000-0015-' || lpad(to_hex(256 + p.parent_seq * 3 + m.mon
        'ACTIVE'::target_assignment_status,
        now(),
        now(),
-       NULL
+       NULL,
+       (SELECT start_date FROM evaluation_period WHERE id = ('5eed0000-0000-0000-000f-00000000000' || (3 + m.month_idx))::uuid)
 FROM (VALUES
     ('000000000008', 0), ('000000000009', 1), ('00000000000a', 2), ('00000000000b', 3),
     ('00000000000c', 4), ('00000000000d', 5)
@@ -548,10 +553,12 @@ ON CONFLICT DO NOTHING;
 -- Feedback rows are only inserted when the target exists and belongs to that employee, so a database where the
 -- target was created another way (one ACTIVE target per KPI/period/employee) still seeds cleanly.
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason)
-VALUES ('5eed0000-0000-0000-0015-00000000000f', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000002',
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, change_reason, effective_from)
+SELECT '5eed0000-0000-0000-0015-00000000000f', '5eed0000-0000-0000-0010-000000000001', '5eed0000-0000-0000-0005-000000000002',
         NULL, '5eed0000-0000-0000-0007-00000000000c', '5eed0000-0000-0000-000f-000000000003', NULL, NULL,
-        30, 'ACTIVE', now(), now(), 'Chỉ tiêu KH mới Q4 (demo)')
+        30, 'ACTIVE', now(), now(), 'Chỉ tiêu KH mới Q4 (demo)',
+        p.start_date
+FROM evaluation_period p WHERE p.id = '5eed0000-0000-0000-000f-000000000003'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO target_assignment_feedback (id, target_assignment_id, employee_id, type, comment, created_at)
@@ -770,10 +777,12 @@ ON CONFLICT DO NOTHING;
 -- Using same KPI and department IDs as 2026, clean values: 1000 branch
 -- Structure: L1 (branch, 1000) -> L2 (2 depts, 500 each) -> L3 (4 quarters, 125 each) -> L4 (months)
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, version, status, assigned_at, approved_at, created_at)
-VALUES
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, version, status, assigned_at, approved_at, created_at, effective_from)
+SELECT v.id, v.business_objective_id, v.kpi_definition_id, v.department_id, v.evaluation_period_id, v.parent_assignment_id,
+       v.split_dimension, v.target_value, v.version, v.status, v.assigned_at, v.approved_at, v.created_at, p.start_date
+FROM (VALUES
  -- L1: Branch-Year 2025
- ('5eed0000-0000-0000-0025-000000000001', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-002f-000000000001', NULL, NULL, 1000, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
+ ('5eed0000-0000-0000-0025-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, '5eed0000-0000-0000-002f-000000000001'::uuid, NULL::uuid, NULL::target_split_dimension, 1000, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
  -- L2: Dept-Year (2 departments, 500 each)
  ('5eed0000-0000-0000-0025-000000000002', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000001', '5eed0000-0000-0000-0025-000000000001', 'ORG'::target_split_dimension, 500, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
  ('5eed0000-0000-0000-0025-000000000003', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000003', '5eed0000-0000-0000-002f-000000000001', '5eed0000-0000-0000-0025-000000000001', 'ORG'::target_split_dimension, 500, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
@@ -790,6 +799,9 @@ VALUES
  ('5eed0000-0000-0000-0025-00000000000c', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000008', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 42, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
  ('5eed0000-0000-0000-0025-00000000000d', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-000000000009', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 42, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0)),
  ('5eed0000-0000-0000-0025-00000000000e', NULL, '5eed0000-0000-0000-0005-000000000001', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-002f-00000000000a', '5eed0000-0000-0000-0025-000000000004', 'PERIOD'::target_split_dimension, 41, 1, 'ACTIVE'::target_assignment_status, make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0))
+) AS v(id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, version, status, assigned_at, approved_at, created_at)
+JOIN evaluation_period p ON p.id = v.evaluation_period_id
+ORDER BY v.id
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -920,9 +932,11 @@ JOIN work_type wt ON wt.code = metric.work_type_code
 WHERE NOT (c.employee_code = 'NV010' AND k.code = 'DU_NO');
 
 INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id,
-    target_value, version, status, created_at, assigned_at, approved_at)
-SELECT target_id, kpi_id, employee_id, period_id, target_value, 1, 'ACTIVE',
-       created_at, created_at, created_at FROM seed_evaluation_metric
+    target_value, version, status, created_at, assigned_at, approved_at, effective_from)
+SELECT m.target_id, m.kpi_id, m.employee_id, m.period_id, m.target_value, 1, 'ACTIVE',
+       m.created_at, m.created_at, m.created_at, p.start_date
+FROM seed_evaluation_metric m
+JOIN evaluation_period p ON p.id = m.period_id
 ON CONFLICT DO NOTHING;
 
 INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title,
@@ -1247,9 +1261,10 @@ ON CONFLICT DO NOTHING;
 -- NV004 holds one DONE work (2 matched codes, KPI credited), one SUBMITTED work with mismatching codes and
 -- one SUBMITTED work whose code is not in any import yet.
 -- ============================================================================
-INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, target_value, version, status, created_at, assigned_at, approved_at)
+INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, target_value, version, status, created_at, assigned_at, approved_at, effective_from)
 SELECT '5eed0000-0000-0000-0047-000000000001', '5eed0000-0000-0000-0005-000000000007', '5eed0000-0000-0000-0007-000000000004',
-       '5eed0000-0000-0000-000f-000000000003', 20, 1, 'ACTIVE', now(), now(), now()
+       '5eed0000-0000-0000-000f-000000000003', 20, 1, 'ACTIVE', now(), now(), now(),
+       (SELECT start_date FROM evaluation_period WHERE id = '5eed0000-0000-0000-000f-000000000003'::uuid)
 WHERE NOT EXISTS (
     SELECT 1 FROM target_assignment t
     WHERE t.kpi_definition_id = '5eed0000-0000-0000-0005-000000000007'
