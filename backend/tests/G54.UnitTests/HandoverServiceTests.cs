@@ -21,6 +21,8 @@ public sealed class HandoverServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
+    private RecordingNotifier Notifier { get; } = new();
+
     private HandoverService ServiceWith(bool canSetShare = false, string? threshold = null)
     {
         var settings = new Dictionary<string, string?>();
@@ -33,6 +35,7 @@ public sealed class HandoverServiceTests : IDisposable
             _db,
             new SetSharePermission(canSetShare),
             new ConfigurationBuilder().AddInMemoryCollection(settings).Build(),
+            Notifier,
             NullLogger<HandoverService>.Instance,
             new FixedTime());
     }
@@ -855,6 +858,104 @@ public sealed class HandoverServiceTests : IDisposable
         await Assert.ThrowsAsync<NotFoundException>(() => service.ApproveByManagerAsync(Guid.NewGuid(), manager.Id));
         await Assert.ThrowsAsync<NotFoundException>(() => service.RejectByManagerAsync(Guid.NewGuid(), manager.Id));
         await Assert.ThrowsAsync<UnauthorizedException>(() => service.ApproveByManagerAsync(Guid.NewGuid(), Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task Create_TellsTheRecipientAndTheRequestersManager()
+    {
+        var manager = await AddEmployeeAsync("BOSS");
+        var from = await AddEmployeeAsync("FROM", managerId: manager.Id);
+        var to = await AddEmployeeAsync("TO");
+        var work = await AddWorkAsync(from);
+
+        var handover = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+
+        Assert.Equal([to.Id, manager.Id], Notifier.Drafts.Select(d => d.RecipientEmployeeId).ToArray());
+        Assert.All(Notifier.Drafts, d =>
+        {
+            Assert.Equal(NotificationType.HandoverRequested, d.Type);
+            Assert.Equal(NotificationRelatedType.Handover, d.RelatedType);
+            Assert.Equal(handover.Id, d.RelatedId);
+        });
+        Assert.Equal(NotificationSeverity.Important, Notifier.Drafts[0].Severity);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotTellTheRecipientTwiceWhenTheyAreTheManager()
+    {
+        var to = await AddEmployeeAsync("TO");
+        var from = await AddEmployeeAsync("FROM", managerId: to.Id);
+        var work = await AddWorkAsync(from);
+
+        await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+
+        Assert.Equal(to.Id, Assert.Single(Notifier.Drafts).RecipientEmployeeId);
+    }
+
+    [Fact]
+    public async Task Accept_TellsTheRequesterOnly()
+    {
+        var (from, to, work) = await ArrangeAsync();
+        var handover = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+        Notifier.Drafts.Clear();
+
+        await ServiceWith().AcceptHandoverAsync(handover.Id, to.Id);
+
+        var draft = Assert.Single(Notifier.Drafts);
+        Assert.Equal(from.Id, draft.RecipientEmployeeId);
+        Assert.Equal(NotificationType.HandoverAccepted, draft.Type);
+    }
+
+    [Fact]
+    public async Task Reject_TellsTheRequesterOnly()
+    {
+        var (from, to, work) = await ArrangeAsync();
+        var handover = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+        Notifier.Drafts.Clear();
+
+        await ServiceWith().RejectHandoverAsync(handover.Id, to.Id);
+
+        var draft = Assert.Single(Notifier.Drafts);
+        Assert.Equal(from.Id, draft.RecipientEmployeeId);
+        Assert.Equal(NotificationType.HandoverRejected, draft.Type);
+    }
+
+    [Fact]
+    public async Task ManagerTransfer_TellsBothEmployeesButNotTheManager()
+    {
+        var (manager, sub, to, work) = await ArrangeTransferAsync();
+
+        await ServiceWith(canSetShare: true).CreateHandoverAsync(work.Id, manager.Id, Request(to.Id));
+
+        Assert.Equal(
+            [(sub.Id, NotificationType.HandoverAccepted), (to.Id, NotificationType.HandoverTransferred)],
+            Notifier.Drafts.Select(d => (d.RecipientEmployeeId, d.Type)).ToArray());
+    }
+
+    [Fact]
+    public async Task ManagerApproveAndReject_TellTheRequesterAndTheRecipient()
+    {
+        var (manager, sub, to, work) = await ArrangeTransferAsync();
+        var service = ServiceWith();
+        var approved = await service.CreateHandoverAsync(work.Id, sub.Id, Request(to.Id));
+        Notifier.Drafts.Clear();
+
+        await service.ApproveByManagerAsync(approved.Id, manager.Id);
+
+        Assert.Equal(
+            [(sub.Id, NotificationType.HandoverAccepted), (to.Id, NotificationType.HandoverTransferred)],
+            Notifier.Drafts.Select(d => (d.RecipientEmployeeId, d.Type)).ToArray());
+
+        var next = await AddEmployeeAsync("NEXT");
+        var secondWork = await AddWorkAsync(sub);
+        var rejected = await service.CreateHandoverAsync(secondWork.Id, sub.Id, Request(next.Id));
+        Notifier.Drafts.Clear();
+
+        await service.RejectByManagerAsync(rejected.Id, manager.Id);
+
+        Assert.Equal(
+            [(sub.Id, NotificationType.HandoverRejected), (next.Id, NotificationType.HandoverRejected)],
+            Notifier.Drafts.Select(d => (d.RecipientEmployeeId, d.Type)).ToArray());
     }
 
     private sealed class FixedTime : TimeProvider

@@ -83,6 +83,10 @@ export class CampaignDetailComponent extends LocalizedComponent {
     return Math.ceil((end - Date.now()) / DAY_MS);
   }
 
+  protected initials(fullName: string): string {
+    return (fullName.trim().split(/\s+/).pop() ?? '').charAt(0).toUpperCase();
+  }
+
   protected back(): void {
     void this.router.navigate(['/campaigns']);
   }

@@ -1,0 +1,194 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a routerLink="/campaigns">{{localization.campaign.breadcrumb}}</a>
+          / {{localization.campaign.approval.title}}
+        </p>
+        <h1>{{localization.campaign.approval.title}}</h1>
+        <p class="subtitle">{{localization.campaign.approval.subtitle}}</p>
+      </div>
+
+      @if (notice(); as message) {
+        <div class="notice" role="status">
+          <span>{{message}}</span>
+          <button
+            type="button"
+            (click)="notice.set(null)"
+            [attr.aria-label]="localization.common.close"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="approval-layout">
+        <section
+          class="panel surface-card queue"
+          [attr.aria-label]="localization.campaign.approval.queue"
+        >
+          <h2>
+            {{localization.campaign.approval.queue}}
+            <span class="count">{{pending().length}}</span>
+          </h2>
+          <form (ngSubmit)="load()">
+            <input
+              type="search"
+              class="input"
+              name="search"
+              [(ngModel)]="search"
+              [placeholder]="localization.campaign.approval.search"
+              [attr.aria-label]="localization.campaign.approval.search"
+            />
+          </form>
+          @if (loading() && pending().length === 0) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+              <p>{{localization.campaign.loading}}</p>
+            </div>
+          } @else if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.campaign.loadFailed}}</p>
+              <button type="button" class="button button-secondary" (click)="load()">
+                {{localization.campaign.retry}}
+              </button>
+            </div>
+          } @else if (pending().length === 0) {
+            <p class="muted empty">{{localization.campaign.approval.queueEmpty}}</p>
+          } @else {
+            <ul class="queue-list">
+              @for (item of pending(); track item.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="queue-item"
+                    [class.is-selected]="selected()?.id === item.id"
+                    [attr.aria-current]="selected()?.id === item.id"
+                    (click)="select(item.id)"
+                  >
+                    <span class="queue-title">
+                      <strong>{{item.code}} {{item.name}}</strong>
+                      <span class="status-badge is-warning">{{statusLabel(item.status)}}</span>
+                    </span>
+                    <span class="muted">
+                      {{item.businessObjectiveCode}} · {{item.updatedAt | appDate}}
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <div class="review">
+          @if (detailLoading()) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+              <p>{{localization.campaign.loading}}</p>
+            </div>
+          } @else if (detailFailed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.campaign.detail.notFound}}</p>
+            </div>
+          } @else if (selected(); as c) {
+            <section class="panel surface-card">
+              <div class="review-head">
+                <div>
+                  <p class="eyebrow">{{localization.campaign.approval.dossier}}</p>
+                  <h2>{{c.code}} – {{c.name}}</h2>
+                </div>
+                <a class="link" [routerLink]="['/campaigns', c.id]">
+                  {{localization.campaign.approval.openDetail}} →
+                </a>
+              </div>
+              <dl class="facts">
+                <div>
+                  <dt>{{localization.campaign.detail.objective}}</dt>
+                  <dd>{{c.businessObjective.code}} · {{c.businessObjective.name}}</dd>
+                </div>
+                <div>
+                  <dt>{{localization.campaign.detail.period}}</dt>
+                  <dd class="mono">{{c.startDate | appDate}} – {{c.endDate | appDate}}</dd>
+                </div>
+                <div>
+                  <dt>{{localization.campaign.detail.statParticipants}}</dt>
+                  <dd>
+                    {{c.participants.length}}
+                    {{localization.campaign.detail.statParticipantsUnit}}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{{localization.campaign.detail.description}}</dt>
+                  <dd>{{c.description || localization.campaign.detail.noDescription}}</dd>
+                </div>
+              </dl>
+              <h3>{{localization.campaign.detail.workTypes}}</h3>
+              <ul class="chips">
+                @for (workType of c.workTypes; track workType.workTypeId) {
+                  <li class="chip">
+                    <span class="mono">{{workType.code}}</span> {{workType.name}}
+                  </li>
+                } @empty {
+                  <li class="muted">{{localization.campaign.detail.noWorkTypes}}</li>
+                }
+              </ul>
+            </section>
+
+            <section class="panel surface-card">
+              <h2>{{localization.campaign.approval.decisionTitle}}</h2>
+              @if (error(); as message) {
+                <div class="notice is-error" role="alert">
+                  <span>{{message}}</span>
+                </div>
+              }
+              <div class="field">
+                <label for="approval-note">{{localization.campaign.approval.note}}</label>
+                <textarea
+                  id="approval-note"
+                  class="textarea"
+                  name="note"
+                  maxlength="1000"
+                  [(ngModel)]="note"
+                  [placeholder]="localization.campaign.approval.notePlaceholder"
+                ></textarea>
+              </div>
+              @if (!c.canApprove) {
+                <p class="hint" role="status">{{localization.campaign.approval.cannotApprove}}</p>
+              }
+              <div class="actions">
+                <button
+                  type="button"
+                  class="button button-danger"
+                  [disabled]="!canSubmit('REJECT')"
+                  (click)="decide('REJECT')"
+                >
+                  {{localization.campaign.approval.reject}}
+                </button>
+                <button
+                  type="button"
+                  class="button button-primary"
+                  [disabled]="!canSubmit('APPROVE')"
+                  (click)="decide('APPROVE')"
+                >
+                  ✓
+                  {{deciding()
+                      ? localization.campaign.approval.deciding
+                      : localization.campaign.approval.approve}}
+                </button>
+              </div>
+              <p class="muted">{{localization.campaign.approval.rejectHint}}</p>
+              <p class="muted">{{localization.campaign.approval.afterApprove}}</p>
+            </section>
+          } @else if (!loading()) {
+            <div class="state-card">
+              <p>{{localization.campaign.approval.selectPrompt}}</p>
+            </div>
+          }
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

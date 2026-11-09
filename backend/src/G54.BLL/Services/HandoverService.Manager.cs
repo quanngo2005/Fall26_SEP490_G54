@@ -87,6 +87,7 @@ public sealed partial class HandoverService
         await SaveDecisionAsync(cancellationToken);
 
         LogHandoverDecided(logger, $"MANAGER_{action.ToString().ToUpperInvariant()}", handover.Id, work.Id, handover.FromEmployeeId, handover.ToEmployeeId, null);
+        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, handover.FromEmployee, handover.ToEmployee, caller.Id), cancellationToken);
 
         return Map(handover, work, handover.FromEmployee, handover.ToEmployee);
     }

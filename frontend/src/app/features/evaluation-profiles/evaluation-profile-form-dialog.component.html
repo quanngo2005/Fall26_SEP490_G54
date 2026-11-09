@@ -1,0 +1,234 @@
+@let t = localization.evaluationProfileForm;
+<div class="modal-backdrop">
+  <div
+    class="modal-dialog profile-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="profile-form-title"
+  >
+    <header class="modal-header">
+      <div>
+        <h2 id="profile-form-title">{{isEdit ? t.titleEdit : t.titleCreate}}</h2>
+        <p class="meta">{{metaText()}}</p>
+      </div>
+      <button
+        type="button"
+        class="modal-close"
+        [attr.aria-label]="localization.common.close"
+        (click)="close()"
+      >
+        ×
+      </button>
+    </header>
+
+    <div class="modal-body">
+      @if (loading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{t.loading}}</p>
+        </div>
+      } @else if (loadFailed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+        </div>
+      } @else {
+        <div class="form-row">
+          <div class="field">
+            <label for="profile-position">{{t.position}}</label>
+            @if (isEdit) {
+              <input
+                id="profile-position"
+                class="input is-locked"
+                [value]="positionTitle()"
+                disabled
+              />
+            } @else {
+              <select id="profile-position" class="select" [(ngModel)]="jobPositionId">
+                <option value="">{{t.selectPosition}}</option>
+                @for (pos of positions(); track pos.id) {
+                  <option [value]="pos.id">{{pos.title}}</option>
+                }
+              </select>
+            }
+          </div>
+          <div class="field">
+            <label [attr.for]="isEdit ? 'profile-period' : 'profile-from'">{{t.period}}</label>
+            @if (isEdit) {
+              <input id="profile-period" class="input is-locked" [value]="periodText()" disabled />
+            } @else {
+              <div class="period-inputs">
+                <input
+                  id="profile-from"
+                  type="date"
+                  class="input"
+                  [(ngModel)]="effectiveFrom"
+                  [attr.aria-label]="t.effectiveFrom"
+                />
+                <input
+                  type="date"
+                  class="input"
+                  [(ngModel)]="effectiveTo"
+                  [class.is-invalid]="periodInvalid()"
+                  [attr.aria-label]="t.effectiveTo"
+                />
+              </div>
+            }
+          </div>
+          <div class="field">
+            <label for="profile-name">{{t.name}} <span class="required">*</span></label>
+            <input
+              id="profile-name"
+              class="input"
+              maxlength="200"
+              [(ngModel)]="name"
+              [class.is-invalid]="!name.trim()"
+            />
+          </div>
+        </div>
+        @if (!isEdit) {
+          <div class="field code-field">
+            <label for="profile-code">{{t.code}} <span class="required">*</span></label>
+            <input id="profile-code" class="input" maxlength="50" [(ngModel)]="code" />
+            <small>{{t.codeHint}}</small>
+          </div>
+        }
+        @if (periodInvalid()) {
+          <p class="field-error" role="alert">{{t.periodInvalid}}</p>
+        }
+
+        <h3 class="section-title">{{t.groupsHeading}}</h3>
+        @if (structureLocked) {
+          <p class="note" role="note">{{t.lockedHint}}</p>
+        }
+        @if (!treeSupported()) {
+          <p class="field-error" role="alert">{{t.unsupportedTree}}</p>
+        }
+        <div class="rows-card">
+          <table class="rows-table">
+            <thead>
+              <tr>
+                <th scope="col">{{t.colGroup}}</th>
+                <th scope="col">{{t.colKpi}}</th>
+                <th scope="col" class="col-num">{{t.colWeight}}</th>
+                <th scope="col">
+                  <span class="visually-hidden">{{localization.common.actions}}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track $index) {
+                <tr>
+                  <td>
+                    <input
+                      class="input"
+                      maxlength="200"
+                      [placeholder]="t.groupPlaceholder"
+                      [attr.aria-label]="t.colGroup"
+                      [disabled]="structureLocked"
+                      [ngModel]="row.group"
+                      (ngModelChange)="setGroup($index, $event)"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      class="select"
+                      [attr.aria-label]="t.colKpi"
+                      [disabled]="structureLocked"
+                      [ngModel]="row.kpiDefinitionId"
+                      (ngModelChange)="setKpi($index, $event)"
+                    >
+                      <option value="">{{t.selectKpi}}</option>
+                      @for (kpi of kpiOptions($index); track kpi.id) {
+                        <option [value]="kpi.id">{{kpi.code}} · {{kpi.name}}</option>
+                      }
+                    </select>
+                  </td>
+                  <td class="col-num">
+                    <input
+                      type="number"
+                      class="input weight-input"
+                      min="0"
+                      max="100"
+                      step="any"
+                      [attr.aria-label]="t.colWeight"
+                      [class.is-invalid]="rowInvalid(row)"
+                      [disabled]="structureLocked"
+                      [ngModel]="row.weight"
+                      (ngModelChange)="setWeight($index, $event)"
+                    />
+                  </td>
+                  <td class="col-action">
+                    <button
+                      type="button"
+                      class="link-button"
+                      [disabled]="structureLocked"
+                      [attr.aria-label]="t.removeRow"
+                      (click)="removeRow($index)"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4" class="empty-cell">{{t.noRows}}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="link-button"
+                    [disabled]="structureLocked"
+                    (click)="addRow()"
+                  >
+                    + {{t.addRow}}
+                  </button>
+                </td>
+                <td class="muted">{{t.activeKpiHint}}</td>
+                <td class="col-num total" [class.is-ok]="total() === 100">
+                  {{total()}}%
+                  @if (total() === 100) {
+                    ✓
+                  }
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <h3 class="section-title">{{t.unavailableHeading}}</h3>
+        <p class="note muted-note" role="note">{{t.unavailableBody}}</p>
+
+        @if (saveError(); as message) {
+          <p class="field-error" role="alert">{{message}}</p>
+        }
+      }
+    </div>
+
+    <footer class="modal-footer profile-footer">
+      <span class="changes">{{changeText()}}</span>
+      <div class="buttons">
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="close()"
+        >
+          {{t.cancel}}
+        </button>
+        <button
+          type="button"
+          class="button button-primary"
+          [disabled]="saving() || loading() || loadFailed() || !valid()"
+          (click)="save()"
+        >
+          {{saving() ? t.saving : t.save}}
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>

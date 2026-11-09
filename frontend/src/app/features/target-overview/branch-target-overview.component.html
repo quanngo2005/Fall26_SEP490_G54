@@ -1,0 +1,213 @@
+@let text = localization.targetOverview;
+<div class="page-toolbar">
+  <div class="page-heading">
+    <p class="breadcrumb">{{text.breadcrumb}}</p>
+    <h1>
+      {{text.title}}
+      @if (table().branchName) {
+        · {{table().branchName}}
+      }
+    </h1>
+    <p class="subtitle">{{text.branchSubtitle}}</p>
+  </div>
+  <div class="toolbar-actions">
+    <button type="button" class="button button-secondary" disabled [title]="text.unavailable">
+      {{text.export}}
+    </button>
+    <button type="button" class="button button-primary" disabled [title]="text.unavailable">
+      {{text.setupYearTargets}}
+    </button>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <label class="inline-field">
+    {{text.year}}
+    <select
+      class="select"
+      [ngModel]="year()"
+      (ngModelChange)="selectYear(+$event)"
+      [attr.aria-label]="text.year"
+    >
+      @for (item of years(); track item) {
+        <option [ngValue]="item">{{item}}</option>
+      }
+    </select>
+  </label>
+  <div class="period-tabs" role="tablist">
+    <button
+      type="button"
+      role="tab"
+      [class.is-active]="quarter() === 0"
+      [attr.aria-selected]="quarter() === 0"
+      (click)="selectQuarter(0)"
+    >
+      {{text.wholeYear}}
+    </button>
+    @for (item of quarters; track item) {
+      <button
+        type="button"
+        role="tab"
+        [class.is-active]="quarter() === item"
+        [attr.aria-selected]="quarter() === item"
+        (click)="selectQuarter(item)"
+      >
+        {{text.quarter}} {{item}}
+      </button>
+    }
+  </div>
+  <div class="filter-spacer"></div>
+  <input
+    type="search"
+    class="input filter-search"
+    [ngModel]="search()"
+    (ngModelChange)="search.set($event); resetPage()"
+    [placeholder]="text.searchBranch"
+    [attr.aria-label]="text.searchBranch"
+  />
+  <select
+    class="select filter-select"
+    [ngModel]="departmentId()"
+    (ngModelChange)="departmentId.set($event); resetPage()"
+    [attr.aria-label]="text.allDepartments"
+  >
+    <option value="">{{text.allDepartments}} ({{departmentOptions().length}})</option>
+    @for (item of departmentOptions(); track item.id) {
+      <option [value]="item.id">{{item.name}}</option>
+    }
+  </select>
+  <select
+    class="select filter-select"
+    [ngModel]="position()"
+    (ngModelChange)="position.set($event); resetPage()"
+    [attr.aria-label]="text.allPositions"
+  >
+    <option value="">{{text.allPositions}}</option>
+    @for (item of positionOptions(); track item) {
+      <option [value]="item">{{item}}</option>
+    }
+  </select>
+</div>
+
+@if (loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">{{text.retry}}</button>
+  </div>
+} @else if (years().length === 0) {
+  <div class="state-card">
+    <p>{{text.noPeriod}}</p>
+  </div>
+} @else {
+  <section class="surface-card target-card">
+    <div class="table-wrap">
+      <table class="target-table">
+        <thead>
+          <tr>
+            <th>{{text.colUnit}}</th>
+            @for (kpi of columns(); track kpi.id) {
+              <th class="num">{{columnLabel(kpi)}}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @if (columns().length === 0) {
+            <tr>
+              <td class="empty-cell" colspan="2">{{text.empty}}</td>
+            </tr>
+          } @else {
+            <tr class="row-total">
+              <td>{{table().branchName}}</td>
+              @for (cell of table().total; track $index) {
+                <td class="num"><app-target-cell [value]="cell" /></td>
+              }
+            </tr>
+          }
+          @for (row of pageRows(); track row.department.id) {
+            @let open = expanded().has(row.department.id);
+            <tr class="row-department" [class.is-open]="open">
+              <td>
+                <button
+                  type="button"
+                  class="row-toggle"
+                  [attr.aria-expanded]="open"
+                  (click)="toggle(row.department.id)"
+                >
+                  <span aria-hidden="true">{{open ? '▾' : '▸'}}</span>
+                  <span class="department-name">{{row.department.name}}</span>
+                  <span class="department-count">· {{row.memberCount}} {{text.people}}</span>
+                </button>
+              </td>
+              @for (cell of row.cells; track $index) {
+                <td class="num"><app-target-cell [value]="cell" /></td>
+              }
+            </tr>
+            @if (open) {
+              @for (member of row.members.slice(0, memberPreview); track member.employee.id) {
+                <tr class="row-employee">
+                  <td>
+                    {{member.employee.fullName}}
+                    <span class="employee-position">· {{member.employee.jobPositionTitle}}</span>
+                  </td>
+                  @for (cell of member.cells; track $index) {
+                    <td class="num"><app-target-cell [value]="cell" /></td>
+                  }
+                </tr>
+              }
+              @if (row.members.length > memberPreview) {
+                <tr class="row-employee">
+                  <td class="employee-more" [attr.colspan]="columns().length + 1">
+                    … {{row.members.length - memberPreview}} {{text.otherEmployees}}
+                  </td>
+                </tr>
+              }
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <span>
+        {{table().departments.length}} {{text.departments}} · {{employeeCount()}}
+        {{text.employees}} ·
+        {{text.legend}}
+      </span>
+      <div class="pager">
+        @if (totalPages() > 1) {
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="page() <= 1"
+            (click)="page.set(page() - 1)"
+          >
+            {{text.previous}}
+          </button>
+          <span class="page-indicator">{{page()}} / {{totalPages()}}</span>
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="page() >= totalPages()"
+            (click)="page.set(page() + 1)"
+          >
+            {{text.next}}
+          </button>
+        }
+        <select
+          class="select page-size"
+          [ngModel]="pageSize()"
+          (ngModelChange)="setPageSize($event)"
+          [attr.aria-label]="text.perPage"
+        >
+          @for (size of pageSizes; track size) {
+            <option [ngValue]="size">{{size}} {{text.perPage}}</option>
+          }
+        </select>
+      </div>
+    </div>
+  </section>
+}

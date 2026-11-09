@@ -243,6 +243,27 @@ public sealed class EvaluationProfileItemServiceTests
         }
     }
 
+    [Theory]
+    [InlineData(KpiStatus.Draft)]
+    [InlineData(KpiStatus.Inactive)]
+    [InlineData(KpiStatus.Archived)]
+    public async Task AddItem_AKpiThatIsNotActive_IsAValidationError(KpiStatus status)
+    {
+        var (db, service) = CreateEnvironment();
+        using (db)
+        {
+            var kpi = AddKpi(db, "KPI_A");
+            kpi.Status = status;
+            await db.SaveChangesAsync();
+            var profile = await CreateDraftAsync(service, AddPosition(db), Input("Group", 100));
+            var groupId = await RootIdAsync(db, "Group");
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.AddItemAsync(profile.Id, AddLeafDto(kpi, groupId, 100)));
+
+            Assert.Equal(1, await db.EvaluationProfileItems.CountAsync());
+        }
+    }
+
     [Fact]
     public async Task AddItem_AKpiAlreadyInTheProfile_IsAConflict()
     {

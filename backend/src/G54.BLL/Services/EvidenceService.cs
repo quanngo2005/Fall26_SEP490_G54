@@ -22,6 +22,8 @@ public sealed class EvidenceService(
                 .ThenInclude(s => s.SubmitterEmployee)
             .Include(e => e.Appeal!)
                 .ThenInclude(a => a.Employee)
+            .Include(e => e.RiskEvent!)
+                .ThenInclude(r => r.Employee)
             .FirstOrDefaultAsync(e => e.Id == evidenceId, cancellationToken)
             ?? throw new NotFoundException("Tệp bằng chứng", evidenceId);
 
@@ -51,19 +53,28 @@ public sealed class EvidenceService(
 
     private async Task<bool> CanViewAsync(Employee caller, Evidence evidence, CancellationToken cancellationToken)
     {
-        // Evidence of a submission or an appeal belongs to the employee who filed it. Evidence attached to a risk event
-        // has no owner or scope rule yet, so only a global verifier sees it.
+        // Evidence of a submission or an appeal belongs to the employee who filed it.
         var submitter = evidence.ResultSubmission?.SubmitterEmployee ?? evidence.Appeal?.Employee;
         if (submitter is not null && submitter.Id == caller.Id)
         {
             return true;
         }
 
+        // Evidence of a risk event is about the employee it was recorded against, who does not get to read it; whoever may read
+        // risk events sees it within the scope of that employee's department.
+        var subject = submitter ?? evidence.RiskEvent?.Employee;
+
         var granted = await permissions.GetEffectivePermissionsAsync(caller.Account!.Id, cancellationToken);
         var level = granted
             .Where(p => (p.Resource == "*" && p.Action == "*")
                 || (string.Equals(p.Resource, "verification", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(p.Action, "decide", StringComparison.OrdinalIgnoreCase)))
+                    && string.Equals(p.Action, "decide", StringComparison.OrdinalIgnoreCase))
+                // QA reads the evidence of the results it reviews (SCR-REV-06) without being allowed to verify them.
+                || (string.Equals(p.Resource, "quality_flag", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(p.Action, "read", StringComparison.OrdinalIgnoreCase))
+                || (evidence.RiskEventId is not null
+                    && string.Equals(p.Resource, "risk_event", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(p.Action, "read", StringComparison.OrdinalIgnoreCase)))
             .Select(p => PermissionScopes.GetScopeLevel(p.Scope))
             .DefaultIfEmpty(0)
             .Max();
@@ -73,20 +84,20 @@ public sealed class EvidenceService(
             return true;
         }
 
-        if (level < DepartmentScopeLevel || submitter is null)
+        if (level < DepartmentScopeLevel || subject is null)
         {
             return false;
         }
 
         var parents = await db.Departments.AsNoTracking()
             .ToDictionaryAsync(d => d.Id, d => new DepartmentLink(d.ParentDepartmentId, d.LevelType), cancellationToken);
-        if (!parents.ContainsKey(caller.DepartmentId) || !parents.ContainsKey(submitter.DepartmentId))
+        if (!parents.ContainsKey(caller.DepartmentId) || !parents.ContainsKey(subject.DepartmentId))
         {
             return false;
         }
 
         var scopeRoot = level >= BranchScopeLevel ? BranchRoot(parents, caller.DepartmentId) : caller.DepartmentId;
-        return IsSelfOrDescendant(parents, submitter.DepartmentId, scopeRoot);
+        return IsSelfOrDescendant(parents, subject.DepartmentId, scopeRoot);
     }
 
     /// <summary>True when <paramref name="rootId"/> is on the path from <paramref name="departmentId"/> up to the top.</summary>

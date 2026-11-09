@@ -58,15 +58,50 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ### 2.2 Verification
 | Method | Route | Body | Thành công |
 |---|---|---|---|
+| GET | `/verifications` | query (xem 2.2.2) | 200 `PagedResult<VerificationQueueItemDto>` |
 | GET | `/verifications/{submissionId}/dossier` | — | 200 `VerificationDossierDto` |
 | POST | `/verifications/{submissionId}/decision` | `SubmitVerificationDecisionDto` | 200 `VerificationDecisionResultDto` |
 | GET | `/verifications/{submissionId}/history` | — | 200 `VerificationHistoryDto[]` |
+
+#### 2.2.2 Hàng chờ thẩm định (`GET /verifications`) — IMPLEMENTED (GB-668)
+Quyền `verification:decide` từ phạm vi `Dept` trở lên. `Own` hoặc không có quyền → 403 `FORBIDDEN`.
+Chỉ trả submission `SUBMITTED` / `UNDER_REVIEW` của nhân sự thuộc phòng ban nằm trong phạm vi (Dept: cây phòng của người gọi; Branch: cây chi nhánh; All: mọi phòng). Submission do chính người gọi nộp bị loại (BR-02, họ không được thẩm định). Sắp xếp cố định: `submittedAt` tăng dần (cũ nhất trước), rồi `submissionId`.
+
+| Query | Kiểu | Ghi chú |
+|---|---|---|
+| `status` | `SUBMITTED \| UNDER_REVIEW` | Không phân biệt hoa thường. Bỏ trống = cả hai. Giá trị khác (kể cả `APPROVED`) → 400 `VALIDATION_ERROR`. |
+| `matchStatus` | `NONE \| MATCHED \| NOT_MATCHED \| IN_REVIEW` | Không phân biệt hoa thường. Bỏ trống = tất cả. Giá trị khác → 400. |
+| `departmentId` | GUID | Phòng ban và các phòng con, phải nằm trong phạm vi (ngoài phạm vi → 403, không tồn tại → 404). |
+| `keyword` | string | Chứa (không phân biệt hoa thường, `%` và `_` hiểu theo nghĩa đen) mã/tiêu đề công việc hoặc mã/tên người nộp. |
+| `page` | int, mặc định 1 | `< 1` được đưa về 1. Trang vượt quá cuối trả `items: []` với `totalCount` đúng. |
+| `pageSize` | int, mặc định 20 | Được kẹp (clamp) vào 1..100, không báo lỗi. |
+
+`matchStatus` tổng hợp trạng thái các mã giao dịch của công việc (`WORK_TRANSACTION_CONTRACT.md`): `NONE` = công việc chưa có mã nào (duyệt tay bằng minh chứng); `NOT_MATCHED` = có ít nhất một mã `NOT_MATCHED`; `MATCHED` = mọi mã đều `MATCHED`; `IN_REVIEW` = không có mã `NOT_MATCHED` nhưng còn mã chưa khớp.
+
+```json
+{
+  "success": true, "status": 200,
+  "data": {
+    "items": [{
+      "submissionId": "guid", "submissionCode": "#SUB-WRK-001-V1", "submissionNo": 1,
+      "workId": "guid", "workCode": "WRK-001", "workTitle": "Giải ngân khoản vay", "workTypeName": "Cho vay",
+      "submitterEmployeeId": "guid", "submitterEmployeeCode": "NV004", "submitterName": "Nguyễn Văn A",
+      "departmentId": "guid", "departmentName": "Phòng Tín dụng",
+      "submittedAt": "2026-11-08T03:00:00+00:00", "status": "SUBMITTED",
+      "matchStatus": "IN_REVIEW", "transactionCount": 3, "matchedTransactionCount": 1
+    }],
+    "totalCount": 1, "page": 1, "pageSize": 20
+  },
+  "traceId": "..."
+}
+```
+`workTypeName` có thể `null`. `submissionId` dùng cho `/verifications/{submissionId}/dossier`.
+Lỗi: 400 `VALIDATION_ERROR`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`.
 
 `SubmitVerificationDecisionDto`:
 ```json
 {
   "decision": "APPROVED | REVISION_REQUIRED | REJECTED",
-  "verifiedValue": 15,
   "feedback": "bắt buộc >= 10 ký tự khi REVISION_REQUIRED/REJECTED",
   "resubmitDeadline": "2026-10-20T10:00:00+07:00 (bắt buộc khi REVISION_REQUIRED, phải > now)",
   "checklistResults": [{ "standardId": "STD-01", "isPassed": true }]
@@ -74,7 +109,13 @@ Mọi response (thành công **và** lỗi, kể cả 400 model-validation, 401/
 ```
 
 #### Ghi nhận KPI khi `APPROVED` (không đổi route hay DTO)
-Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loại công việc, hệ thống tạo `WorkResultItem` cho KPI đầu tiên của loại công việc đó, ghi vào target ACTIVE của từng nhân sự:
+Khi duyệt `APPROVED`, hệ thống ghi nhận **mọi KPI** mà nhân viên đã nộp số liệu lúc submit (mỗi KPI có số riêng; KPI không thuộc loại công việc bị bỏ qua; `NO_AGGREGATION` không được ghi). SUM cộng giá trị; RATIO cộng tử số vào `value` và mẫu số (bắt buộc > 0, thiếu thì 400) vào `denominator`; AVG cộng giá trị và tăng `denominator` thêm 1 (trung bình = Σvalue / Σdenominator). `verifiedValue` đã bị bỏ khỏi request. Với công việc có KPI của loại công việc, hệ thống chọn bản ghi
+`WorkTypeKpi` **đang hiệu lực tại ngày hiện tại** (múi giờ nghiệp vụ): `EffectiveFrom <= hôm nay &&
+(EffectiveTo == null || EffectiveTo >= hôm nay)`, nếu có nhiều bản ghi khớp thì lấy `EffectiveFrom`
+lớn nhất. KPI và hệ số (`multiplier`, BR-48 Task Multiplier) đến từ bản ghi đó. Không có bản ghi nào
+đang hiệu lực (hết hạn hoặc chưa tới ngày bắt đầu) thì hành vi giữ như không có KPI: duyệt bình
+thường, không tạo `WorkResultItem`, không cộng tiến độ. Hệ thống tạo `WorkResultItem` cho KPI đó, ghi
+vào target ACTIVE của từng nhân sự:
 
 | Công việc có bàn giao `ACCEPTED`? | Người nhận điểm | Tỷ lệ |
 |---|---|---|
@@ -83,8 +124,16 @@ Khi duyệt `APPROVED` kèm `verifiedValue` và công việc có KPI của loạ
 | | Người nhận (`toEmployeeId`, người xử lý) | `100 - referrerSharePercent` (mặc định 70%) |
 
 - Tỷ lệ được lưu theo từng bản bàn giao ở cột `task_handover.referrer_share_percent` (`numeric(7,4)`, 0-100, mặc định cột 30, ràng buộc `ck_task_handover_referrer_share`), không còn là hằng số trong code.
-- Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng `verifiedValue`.
-- Nhân sự chưa có target ACTIVE cho KPI đó thì không có `WorkResultItem`; phần của người kia không bị thay đổi. Hệ thống chỉ ghi log cảnh báo.
+- Phần của người giới thiệu được làm tròn 4 chữ số thập phân, người xử lý nhận phần còn lại nên tổng hai phần luôn bằng số liệu nộp (đây là phần **raw**, trước khi nhân hệ số).
+- Mỗi `WorkResultItem` lưu `rawValue` (phần raw của người nhận, sau khi chia bàn giao nếu có) và
+  `multiplierApplied` (hệ số của mapping đang hiệu lực tại thời điểm duyệt). `value = round(rawValue ×
+  multiplierApplied, 4, ToEven)` là điểm quy đổi, chỉ lưu trên `WorkResultItem`. `ActualProgress` chỉ được
+  cộng `rawValue` (số thật, ví dụ 10 thẻ Platinum vẫn là 10); hệ số chỉ được dùng để quy đổi ra điểm khi chấm
+  KPI (`weightedActualValue`, xem `PERFORMANCE_EVALUATION_CONTRACT.md`). Đổi hệ số sau đó (bản ghi mới hoặc sửa
+  tại chỗ) không làm thay đổi các `WorkResultItem`/`ActualProgress` đã ghi trước đó.
+- Nếu công việc có KPI và nhân viên đã nộp số liệu, **mọi** nhân sự nhận điểm đều phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Thiếu target của bất kỳ ai thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
+- Công việc không có KPI trong loại công việc, hoặc nhân viên không nộp số liệu KPI, vẫn được duyệt bình thường và không ghi `WorkResultItem`.
+- Target đã đạt hoặc vượt chỉ tiêu mà vẫn `ACTIVE` thì vẫn nhận điểm; không có giới hạn trên (tỷ lệ hoàn thành bị chặn bởi `MaxAchievementPercent` của KPI khi tính điểm đánh giá).
 - Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `KPI_ALREADY_CONTRIBUTED` và không ghi nhận gì thêm.
 
 ### 2.2.1 Evidence (file bằng chứng)
@@ -107,7 +156,7 @@ Lưu trữ: thư mục `Storage:EvidencePath` (Docker: `/app/data/evidence`, vol
 | GET | `/works/{workId}/kpi-results` | — | 200 `KpiResultDto[]` |
 | GET | `/kpi-results` | `employeeId, kpiDefinitionId, evaluationPeriodId, status, pageIndex, pageSize` | 200 `KpiResultDto[]` + `pagination` |
 
-DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`).
+DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` tương ứng một `WorkResultItem` thuộc `VerifiedWorkResult`. `status` = `VALID | INVALID` (INVALID khi bị `RiskEvent` vô hiệu hóa, kèm `invalidatedAt`). `value` là điểm đã nhân hệ số (không cộng vào `ActualProgress`, chỉ dùng khi chấm KPI); `rawValue` và `multiplierApplied` cho biết điểm gốc và hệ số đã dùng tại thời điểm duyệt, để truy xuất loại công việc → hệ số → điểm.
 
 ### 2.4 Alias deprecated (bị ẩn khỏi Swagger, xóa sau khi FE chuyển route)
 | Alias | Route chính tắc |
@@ -147,11 +196,13 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Tình huống | HTTP | errorCode |
 |---|---|---|
 | Submission không tồn tại (dossier, decision, history) | 404 | `NOT_FOUND` |
-| `decision` ngoài `APPROVED / REVISION_REQUIRED / REJECTED`; feedback < 10 ký tự; thiếu/sai `resubmitDeadline`; `verifiedValue` âm | 400 | `VALIDATION_ERROR` |
+| `decision` ngoài `APPROVED / REVISION_REQUIRED / REJECTED`; feedback < 10 ký tự; thiếu/sai `resubmitDeadline` | 400 | `VALIDATION_ERROR` |
 | Người thẩm định chính là người nộp (BR-02) | 422 | `MAKER_CANNOT_BE_CHECKER` |
 | Submission đã `APPROVED` — khóa vĩnh viễn (BR-13) | 409 | `EVIDENCE_LOCKED` |
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
 | Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `KPI_ALREADY_CONTRIBUTED` |
+| Duyệt `APPROVED` mà kỳ đánh giá của chỉ tiêu đang áp dụng đã `LOCKED` / `CLOSED` (xem `PERIOD_LOCK_CONTRACT.md`) | 409 | `PERIOD_LOCKED` |
+| Duyệt `APPROVED` có KPI và số liệu nộp nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 
 ### 3.4 KPI Result
 | Tình huống | HTTP | errorCode |
@@ -173,4 +224,4 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 Các trường status khác (`SubmissionDetailDto.status`, `SubmissionContextDto.workStatus`, `aggregationType`, `direction`, `VerificationDossierDto.status`) trả đúng giá trị `PgName`: `SUBMITTED`, `UNDER_REVIEW`, `WITHDRAWN`, `IN_PROGRESS`, `HIGHER_BETTER`…
 
 ## 5. Mã lỗi
-Định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.cs` (message VI/EN qua `ErrorCodes.GetDefaultMessage`). Mã mới trong GB-252: `SUBMISSION_INVALID_STATE`, `VERIFICATION_INVALID_STATE`, `KPI_RESULT_NOT_FOUND`.
+Định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.cs` (message VI/EN qua `ErrorCodes.GetDefaultMessage`). Mã mới trong GB-252: `SUBMISSION_INVALID_STATE`, `VERIFICATION_INVALID_STATE`, `KPI_RESULT_NOT_FOUND`. Mã bổ sung sau đó: `KPI_TARGET_NOT_ASSIGNED`.

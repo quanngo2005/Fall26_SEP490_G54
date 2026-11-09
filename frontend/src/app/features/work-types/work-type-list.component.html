@@ -1,0 +1,226 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">
+        {{localization.workTypes.breadcrumbHome}} /
+        {{localization.workTypes.breadcrumbConfig}} /
+        {{localization.workTypes.breadcrumbCurrent}}
+      </p>
+      <div class="list-toolbar">
+        <div>
+          <h1>{{localization.workTypes.title}}</h1>
+          <p class="subtitle">{{subtitleText()}}</p>
+        </div>
+        <button
+          type="button"
+          class="button button-primary"
+          disabled
+          [title]="localization.workTypes.unavailable"
+        >
+          + {{localization.workTypes.create}}
+        </button>
+      </div>
+
+      <div class="info-banner" role="note">
+        <strong>{{localization.workTypes.bannerTitle}}</strong>
+        <span>{{localization.workTypes.bannerBody}}</span>
+      </div>
+
+      <div class="position-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="position-tab"
+          [class.is-active]="selectedPositionId() === ''"
+          [attr.aria-selected]="selectedPositionId() === ''"
+          (click)="selectPositionTab('')"
+        >
+          {{localization.workTypes.tabAll}} · {{allWorkTypes().length}}
+        </button>
+        @for (pos of positions(); track pos.id) {
+          <button
+            type="button"
+            role="tab"
+            class="position-tab"
+            [class.is-active]="selectedPositionId() === pos.id"
+            [attr.aria-selected]="selectedPositionId() === pos.id"
+            (click)="selectPositionTab(pos.id)"
+          >
+            {{pos.title}} · {{positionCount(pos)}}
+          </button>
+        }
+      </div>
+
+      <div class="list-filters">
+        <input
+          type="search"
+          class="input search-input"
+          [(ngModel)]="keyword"
+          (input)="applyFilter()"
+          (change)="applyFilter()"
+          [placeholder]="localization.workTypes.search"
+          [attr.aria-label]="localization.workTypes.search"
+        />
+        <select
+          class="select filter-select"
+          [(ngModel)]="status"
+          (ngModelChange)="applyFilter()"
+          [attr.aria-label]="localization.workTypes.colStatus"
+        >
+          <option value="">{{localization.workTypes.statusAll}}</option>
+          <option value="ACTIVE">
+            {{localization.workTypes.statusFilterPrefix}}{{localization.workTypes.statusActive}}
+          </option>
+          <option value="INACTIVE">
+            {{localization.workTypes.statusFilterPrefix}}{{localization.workTypes.statusInactive}}
+          </option>
+          <option value="ARCHIVED">
+            {{localization.workTypes.statusFilterPrefix}}{{localization.workTypes.statusArchived}}
+          </option>
+        </select>
+        <select
+          class="select filter-select kpi-select"
+          [(ngModel)]="kpiId"
+          (ngModelChange)="applyFilter()"
+          [attr.aria-label]="localization.workTypes.colKpi"
+        >
+          <option value="">{{localization.workTypes.kpiFilterAll}}</option>
+          @for (kpi of kpiOptions(); track kpi.id) {
+            <option [value]="kpi.id">{{kpi.code}} · {{kpi.name}}</option>
+          }
+        </select>
+        <button type="button" class="link-button" (click)="clearFilter()">
+          {{localization.workTypes.clearFilter}}
+        </button>
+      </div>
+
+      @if (loading() && workTypes().length === 0) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.workTypes.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.workTypes.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{localization.workTypes.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="table-card">
+          <div class="table-wrap">
+            <table class="work-type-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{localization.workTypes.colCode}}</th>
+                  <th scope="col">{{localization.workTypes.colName}}</th>
+                  <th scope="col">{{localization.workTypes.colPosition}}</th>
+                  <th scope="col">{{localization.workTypes.colKpi}}</th>
+                  <th scope="col">{{localization.workTypes.colCif}}</th>
+                  <th scope="col" class="col-num">{{localization.workTypes.colOpenWorks}}</th>
+                  <th scope="col">{{localization.workTypes.colStatus}}</th>
+                  <th scope="col">{{localization.workTypes.colCreated}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of workTypes(); track item.id) {
+                  <tr
+                    class="work-type-row"
+                    tabindex="0"
+                    [class.is-selected]="selectedId() === item.id"
+                    [attr.aria-selected]="selectedId() === item.id"
+                    (click)="open(item)"
+                    (keydown.enter)="open(item)"
+                    [class.is-inactive]="item.status !== 'ACTIVE'"
+                  >
+                    <td class="col-code">{{item.code}}</td>
+                    <td>{{item.name}}</td>
+                    <td>
+                      <span class="position-badge">{{positionLabel(item)}}</span>
+                    </td>
+                    <td class="col-kpi">
+                      @if (item.kpis.length > 0) {
+                        <span>{{item.kpis[0].kpiCode}} {{item.kpis[0].kpiName}}</span>
+                        @if (item.kpis.length > 1) {
+                          <span class="kpi-more">+{{item.kpis.length - 1}}</span>
+                        }
+                      } @else {
+                        <span class="muted">{{localization.workTypes.noKpi}}</span>
+                      }
+                    </td>
+                    <td>{{transactionCifLabel(item)}}</td>
+                    <td class="col-num">
+                      {{openCount(item.id) ?? localization.workTypes.notAvailable}}
+                    </td>
+                    <td>
+                      <span class="status-pill" [class.is-active]="item.status === 'ACTIVE'">
+                        {{statusLabel(item.status)}}
+                      </span>
+                    </td>
+                    <td class="col-date">
+                      {{i18n.formatDate(item.createdAt, 'DD/MM/YYYY HH:mm')}}
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="8" class="empty-cell">{{localization.workTypes.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="pager">
+            <span>{{rangeText()}}</span>
+            <div class="pager-controls">
+              <button
+                type="button"
+                class="page-button"
+                [disabled]="page <= 1"
+                [attr.aria-label]="localization.workTypes.previous"
+                (click)="goToPage(page - 1)"
+              >
+                ‹
+              </button>
+              <span class="page-button is-current">{{page}} / {{totalPages()}}</span>
+              <button
+                type="button"
+                class="page-button"
+                [disabled]="page >= totalPages()"
+                [attr.aria-label]="localization.workTypes.next"
+                (click)="goToPage(page + 1)"
+              >
+                ›
+              </button>
+              <select
+                class="select page-size"
+                [(ngModel)]="pageSize"
+                (ngModelChange)="applyFilter()"
+                [attr.aria-label]="localization.workTypes.pageSize"
+              >
+                @for (size of pageSizes; track size) {
+                  <option [ngValue]="size">
+                    {{size}} / {{localization.workTypes.perPage}}
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      }
+
+      <p class="footnote">{{localization.workTypes.footnote}}</p>
+    </main>
+    @if (selected(); as current) {
+      <app-work-type-detail-drawer
+        [workType]="current"
+        [positionName]="positionLabel(current)"
+        [resultUnit]="resultUnitLabel(current)"
+        [transactionCif]="transactionCifLabel(current)"
+        (closeDrawer)="selectedId.set(null)"
+        (changed)="load()"
+      />
+    }
+  </div>
+</div>

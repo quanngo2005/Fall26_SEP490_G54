@@ -18,6 +18,7 @@ const workType: WorkTypeDetail = {
   code: 'HUY_DONG',
   name: 'Huy động tiền gửi',
   description: null,
+  productCode: null,
   status: 'ACTIVE',
   createdAt: '2026-01-01T00:00:00+00:00',
   kpis: [
@@ -26,6 +27,7 @@ const workType: WorkTypeDetail = {
       kpiCode: 'HDV',
       kpiName: 'Huy động vốn',
       isRequired: true,
+      multiplier: 1,
       effectiveFrom: '2026-01-01',
       effectiveTo: null,
     },
@@ -34,6 +36,7 @@ const workType: WorkTypeDetail = {
       kpiCode: 'OLD',
       kpiName: 'Chỉ tiêu cũ',
       isRequired: false,
+      multiplier: 1,
       effectiveFrom: '2020-01-01',
       effectiveTo: '2020-12-31',
     },
@@ -83,6 +86,28 @@ describe('WorkTypeDetailComponent', () => {
     TestBed.inject(I18nService).setLanguage('en');
     fixture.detectChanges();
     expect(root.querySelector('select')?.getAttribute('aria-label')).toBe('Select work type');
+  });
+
+  it('renders the product code and the multiplier of each KPI mapping', () => {
+    api.list.and.returnValue(
+      of({
+        items: [
+          {
+            ...workType,
+            productCode: 'TD_PLATINUM',
+            kpis: [{ ...workType.kpis[0], multiplier: 1.5 }],
+          },
+        ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 100,
+      }),
+    );
+    const fixture = TestBed.createComponent(WorkTypeDetailComponent);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.textContent).toContain('TD_PLATINUM');
+    expect(root.textContent).toContain('×1.5');
   });
 
   it('derives mapping state from dates and can hide expired mappings', () => {

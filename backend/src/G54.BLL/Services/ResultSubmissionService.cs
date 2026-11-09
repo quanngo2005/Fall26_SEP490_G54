@@ -542,7 +542,7 @@ public sealed partial class ResultSubmissionService(
         return new();
     }
 
-    private static string? BuildStoredComment(string? userComment, List<SubmissionMetricInputDto> metrics)
+    internal static string? BuildStoredComment(string? userComment, List<SubmissionMetricInputDto> metrics)
     {
         var trimmedComment = userComment?.Trim();
         if (metrics.Count == 0)
@@ -558,7 +558,7 @@ public sealed partial class ResultSubmissionService(
             : $"{trimmedComment}\n\n{marker}";
     }
 
-    private static (string? CleanComment, List<SubmissionMetricInputDto> Metrics) ParseStoredComment(string? storedComment)
+    internal static (string? CleanComment, List<SubmissionMetricInputDto> Metrics) ParseStoredComment(string? storedComment)
     {
         if (string.IsNullOrWhiteSpace(storedComment))
         {

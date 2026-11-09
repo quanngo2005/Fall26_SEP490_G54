@@ -36,11 +36,22 @@
               </span>
             </div>
           </div>
-          @if (c.canGenerateBatchWork && c.workTypes.length && c.participants.length) {
-            <button type="button" class="button button-primary" (click)="batchOpen.set(true)">
-              ＋ {{localization.campaign.detail.createBatch}}
-            </button>
-          }
+          <div class="toolbar-actions">
+            @if (c.canApprove) {
+              <a
+                class="button button-primary"
+                routerLink="/campaigns/approval"
+                [queryParams]="{ id: c.id }"
+              >
+                {{localization.campaign.reviewPlans}}
+              </a>
+            }
+            @if (c.canGenerateBatchWork && c.workTypes.length && c.participants.length) {
+              <button type="button" class="button button-primary" (click)="batchOpen.set(true)">
+                ＋ {{localization.campaign.detail.createBatch}}
+              </button>
+            }
+          </div>
         </div>
 
         @if (notice(); as message) {
@@ -70,6 +81,16 @@
               {{c.participants.length}}
               <small>{{localization.campaign.detail.statParticipantsUnit}}</small>
             </p>
+            <ul class="avatars">
+              @for (participant of c.participants.slice(0, 4); track participant.employeeId) {
+                <li class="avatar" [title]="participant.fullName">
+                  {{initials(participant.fullName)}}
+                </li>
+              }
+              @if (c.participants.length > 4) {
+                <li class="avatar is-more">+{{c.participants.length - 4}}</li>
+              }
+            </ul>
           </article>
           <article class="panel surface-card">
             <p class="stat-label">{{localization.campaign.detail.statWorks}}</p>

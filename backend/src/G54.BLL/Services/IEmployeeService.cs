@@ -19,8 +19,14 @@ public interface IEmployeeService
     /// <exception cref="G54.BLL.Common.Exceptions.NotFoundException">No such account.</exception>
     /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The account is locked or the employee is not active.</exception>
     Task<EmployeeDetailDto> GetCurrentEmployeeAsync(Guid accountId, CancellationToken cancellationToken = default);
-    Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(CancellationToken cancellationToken = default);
-    Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Active departments within the caller's employee:read scope.</summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The caller holds no employee:read scope.</exception>
+    Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(Guid callerAccountId, CancellationToken cancellationToken = default);
+
+    /// <summary>Active job positions held by at least one employee within the caller's employee:read scope.</summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The caller holds no employee:read scope.</exception>
+    Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(Guid callerAccountId, CancellationToken cancellationToken = default);
     Task<EmployeeDetailDto> CreateEmployeeAsync(CreateEmployeeDto dto, CancellationToken cancellationToken = default);
     Task<EmployeeDetailDto> UpdateEmployeeAsync(Guid id, UpdateEmployeeDto dto, CancellationToken cancellationToken = default);
     Task ChangeStatusAsync(Guid id, EmployeeStatusDto dto, CancellationToken cancellationToken = default);

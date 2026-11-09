@@ -160,7 +160,7 @@ public sealed class ScopedReadAccessTests
     // ---- work:read / work:create ------------------------------------------------------------------
 
     private static WorkService WorkServiceFor(AppDbContext db, FakePermissionService permissions) =>
-        new(new UnitOfWork(db), NullLogger<WorkService>.Instance, TimeProvider.System, permissions);
+        new(new UnitOfWork(db), NullLogger<WorkService>.Instance, TimeProvider.System, permissions, new RecordingNotifier());
 
     private static Work NewWork(string code, Guid assigneeId) => new()
     {
@@ -441,6 +441,23 @@ public sealed class ScopedReadAccessTests
         var attribute = PermissionOf(controller, method);
 
         Assert.Equal(("kpi", "manage", "All"), (attribute.Resource, attribute.Action, attribute.Scope));
+    }
+
+    [Theory]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.GetObjectives), "objective", "read", "Dept")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.GetObjective), "objective", "read", "Dept")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.CreateObjective), "objective", "manage", "All")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.UpdateObjective), "objective", "manage", "All")]
+    [InlineData(typeof(BusinessObjectivesController), nameof(BusinessObjectivesController.DeleteObjective), "objective", "manage", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.RequestKpi), "kpi", "request", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.ApproveKpi), "kpi", "approve", "All")]
+    [InlineData(typeof(KpiDefinitionController), nameof(KpiDefinitionController.RejectKpi), "kpi", "approve", "All")]
+    public void ObjectiveAndKpiApprovalEndpoints_RequireTheirOwnPermission(
+        Type controller, string method, string resource, string action, string scope)
+    {
+        var attribute = PermissionOf(controller, method);
+
+        Assert.Equal((resource, action, scope), (attribute.Resource, attribute.Action, attribute.Scope));
     }
 
     [Theory]

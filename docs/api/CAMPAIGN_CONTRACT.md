@@ -36,7 +36,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chiá
 
 | Method | Endpoint | Description | Auth / Role |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/business-objectives` | Lists the business objectives a campaign can be linked to (everything but `CANCELLED`), ordered by code. Feeds the objective dropdown of the plan form. | `[Authorize]` `campaign:read` (Dept) |
+| `GET` | `/business-objectives` | Lists the business objectives a campaign can be linked to (everything but `CANCELLED`), ordered by code. Feeds the objective dropdown of the plan form. Now served by `BusinessObjectivesController`, see `BUSINESS_OBJECTIVE_CONTRACT.md`. | `[Authorize]` `objective:read` (Dept) |
 | `GET` | `/campaigns` | Lists business campaigns with status/objective filters, pagination, and KPI metric summary cards. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `GET` | `/campaigns/{id}` | Gets campaign detail including linked objective, configured work types, participants, and progress metrics. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `POST` | `/campaigns` | Creates a new campaign plan with participants and work types (Status: `PLANNED`). | `[Authorize]` Dept Mgr |
@@ -50,7 +50,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chiá
 ## 3. Endpoint Specifications
 
 ### 3.0 GET `/business-objectives`
-`data`: array of `{ id, code, name, description }` for objectives whose status is not `CANCELLED`, ordered by `code`.
+`data`: array of business objectives (the shape, the permission and the visibility rules are in `BUSINESS_OBJECTIVE_CONTRACT.md`; it still contains `id`, `code`, `name`, `description`), without `CANCELLED` ones unless `status` is given, ordered by `code`.
 
 ---
 

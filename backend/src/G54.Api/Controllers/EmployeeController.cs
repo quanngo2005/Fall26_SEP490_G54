@@ -85,19 +85,21 @@ public sealed class EmployeeController(IEmployeeService service) : ControllerBas
 
     [HttpGet("departments")]
     [ProducesResponseType<ApiResponse<List<DepartmentOptionDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ApiResponse<List<DepartmentOptionDto>>>> GetDepartmentOptions(
         CancellationToken cancellationToken)
     {
-        var result = await service.GetDepartmentOptionsAsync(cancellationToken);
+        var result = await service.GetDepartmentOptionsAsync(User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
     [HttpGet("job-positions")]
     [ProducesResponseType<ApiResponse<List<JobPositionOptionDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<ApiResponse<List<JobPositionOptionDto>>>> GetJobPositionOptions(
         CancellationToken cancellationToken)
     {
-        var result = await service.GetJobPositionOptionsAsync(cancellationToken);
+        var result = await service.GetJobPositionOptionsAsync(User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

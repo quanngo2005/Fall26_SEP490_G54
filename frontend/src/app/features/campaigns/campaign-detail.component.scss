@@ -52,6 +52,30 @@
   height: 100%;
   background: #0e7490;
 }
+.avatars {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-right: -6px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: #0e7490;
+  color: #fff;
+  font:
+    600 11px Inter,
+    sans-serif;
+  place-items: center;
+}
+.avatar.is-more {
+  background: #e2e8f0;
+  color: #475569;
+}
 .tabs {
   display: flex;
   gap: 4px;
@@ -147,4 +171,9 @@ h3 {
   .overview {
     grid-template-columns: 1fr;
   }
+}
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }

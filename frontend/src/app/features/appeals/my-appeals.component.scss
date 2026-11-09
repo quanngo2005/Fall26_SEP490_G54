@@ -1,0 +1,27 @@
+:host {
+  display: block;
+  height: 100vh;
+  width: 100%;
+}
+
+.table-container .data-table tbody tr {
+  &.selected-row {
+    background: #eff6ff !important;
+
+    td:first-child {
+      border-left: 3px solid #2563eb;
+    }
+  }
+
+  &.muted-row {
+    color: #94a3b8;
+
+    .cell-bold {
+      color: #94a3b8;
+    }
+  }
+
+  td.muted-text {
+    color: #94a3b8;
+  }
+}

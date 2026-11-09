@@ -38,3 +38,10 @@ public sealed record HandoverDetailDto(
     DateTimeOffset HandoverAt,
     DateTimeOffset? AcceptedAt,
     DateTimeOffset UpdatedAt);
+
+/// <summary>A colleague a work can be handed over to (<c>GET /handovers/recipients</c>).</summary>
+public sealed record HandoverRecipientDto(
+    Guid Id,
+    string EmployeeCode,
+    string FullName,
+    string JobPositionTitle);

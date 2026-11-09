@@ -318,10 +318,10 @@ public sealed class EnumApiFormatContractTests
             var created = await service.CreateKpiAsync(NewKpi(group, "K-5", "SUM", "HIGHER_BETTER"));
 
             await Assert.ThrowsAsync<ValidationException>(
-                () => service.ChangeStatusAsync(created.Id, new KpiStatusDto { Status = "Published" }));
+                () => service.ChangeStatusAsync(Guid.NewGuid(), created.Id, new KpiStatusDto { Status = "Published" }));
 
-            await service.ChangeStatusAsync(created.Id, new KpiStatusDto { Status = "ACTIVE" });
-            Assert.Equal("ACTIVE", (await service.GetKpiByIdAsync(created.Id))!.Status);
+            await service.ChangeStatusAsync(Guid.NewGuid(), created.Id, new KpiStatusDto { Status = "archived" });
+            Assert.Equal("ARCHIVED", (await service.GetKpiByIdAsync(created.Id))!.Status);
         }
     }
 

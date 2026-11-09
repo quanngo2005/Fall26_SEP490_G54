@@ -17,6 +17,24 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class VerificationController(IVerificationService service) : ControllerBase
 {
+    /// <summary>
+    /// Verification queue: submissions waiting for a decision (SUBMITTED / UNDER_REVIEW) from the departments the
+    /// caller's <c>verification:decide</c> scope covers, oldest first, with the transaction match status.
+    /// </summary>
+    [HttpGet]
+    [HasPermission("verification", "decide", "Dept")]
+    [ProducesResponseType<ApiResponse<PagedResult<VerificationQueueItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<PagedResult<VerificationQueueItemDto>>>> GetQueue(
+        [FromQuery] VerificationQueueFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetQueueAsync(User.GetRequiredUserId(), filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{submissionId:guid}/dossier")]
     [HasPermission("verification", "decide", "Dept")]
     [ProducesResponseType<ApiResponse<VerificationDossierDto>>(StatusCodes.Status200OK)]

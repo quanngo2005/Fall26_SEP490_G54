@@ -13,6 +13,8 @@ public partial class WorkType
 
     public string? Description { get; set; }
 
+    public string? ProductCode { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public RecordStatus Status { get; set; }

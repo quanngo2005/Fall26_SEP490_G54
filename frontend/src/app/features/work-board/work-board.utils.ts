@@ -1,6 +1,6 @@
 import { WorkListItem, WorkStatus } from '../../core/work.models';
 
-export type BoardColumnKey = 'new' | 'inProgress' | 'submitted' | 'done' | 'overdue';
+export type BoardColumnKey = 'new' | 'inProgress' | 'submitted' | 'verified' | 'done' | 'overdue';
 
 interface BoardColumnDef {
   key: BoardColumnKey;
@@ -23,12 +23,15 @@ export const BOARD_COLUMNS: readonly BoardColumnDef[] = [
   { key: 'overdue', statuses: ['Overdue'] },
 ];
 
-/** A manager's board shows `Verified` work in the Done column, where it waits to be completed. */
-export const TEAM_COLUMNS: readonly BoardColumnDef[] = BOARD_COLUMNS.map((column) => {
-  if (column.key === 'submitted') return { ...column, statuses: ['Submitted'] };
-  if (column.key === 'done') return { ...column, statuses: ['Verified', 'Done'] };
-  return column;
-});
+/** A manager's board has its own Verified column: verified work waits there until the manager completes it. */
+export const TEAM_COLUMNS: readonly BoardColumnDef[] = [
+  { key: 'new', statuses: ['New'] },
+  { key: 'inProgress', statuses: ['InProgress', 'HandedOver', 'Rejected'] },
+  { key: 'submitted', statuses: ['Submitted'] },
+  { key: 'verified', statuses: ['Verified'] },
+  { key: 'done', statuses: ['Done'] },
+  { key: 'overdue', statuses: ['Overdue'] },
+];
 
 export type QuickFilter = 'open' | 'dueToday' | 'overdue' | 'done';
 export type DueRange = 'all' | 'today' | 'week' | 'month';

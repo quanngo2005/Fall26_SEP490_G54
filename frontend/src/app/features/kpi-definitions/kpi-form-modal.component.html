@@ -1,0 +1,377 @@
+@let t = localization.kpiCatalog;
+@let e = errors();
+<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<form
+  class="dialog dialog-wide"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="kpi-form-title"
+  novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (ngSubmit)="submit(canSendOnSave)"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="kpi-form-title">
+        {{mode() === 'edit'
+            ? t.formTitleEdit
+            : mode() === 'request'
+              ? t.formTitleRequest
+              : t.formTitleCreate}}
+      </h2>
+      <p>
+        @if (mode() === 'edit') {
+          {{i18n.translate('kpiCatalog.formSubtitleEdit', { code: kpi()!.code, name: kpi()!.name })}}
+        } @else if (mode() === 'request') {
+          {{t.formSubtitleRequest}}
+        } @else {
+          {{t.formSubtitleCreate}}
+        }
+      </p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    <h3 class="section">{{t.sectionIdentity}}</h3>
+    <div class="field">
+      <label class="label" for="kpi-name">{{t.fieldNameVi}} *</label>
+      <input
+        id="kpi-name"
+        name="name"
+        class="input"
+        maxlength="255"
+        [class.is-invalid]="e.name"
+        [(ngModel)]="values.name"
+        (ngModelChange)="onNameChange($event)"
+      />
+      @if (e.name) {
+        <span class="field-error" role="alert">{{e.name}}</span>
+      }
+    </div>
+    <div class="row">
+      <div class="field">
+        <label class="label" for="kpi-code">{{t.fieldCode}}</label>
+        <input
+          id="kpi-code"
+          name="code"
+          class="input is-readonly"
+          readonly
+          [value]="code()"
+          [placeholder]="t.fieldCodePlaceholder"
+          [class.is-invalid]="e.code"
+        />
+        @if (e.code) {
+          <span class="field-error" role="alert">{{e.code}}</span>
+        } @else {
+          <span class="hint">{{t.fieldCodeHint}}</span>
+        }
+      </div>
+      <div class="field">
+        <label class="label" for="kpi-group">{{t.fieldGroup}} *</label>
+        <select
+          id="kpi-group"
+          name="group"
+          class="select"
+          [class.is-invalid]="e.kpiGroupId"
+          [(ngModel)]="values.kpiGroupId"
+        >
+          <option value="">{{t.fieldGroupPlaceholder}}</option>
+          @for (group of groups(); track group.id) {
+            <option [value]="group.id">{{group.name}}</option>
+          }
+        </select>
+        @if (e.kpiGroupId) {
+          <span class="field-error" role="alert">{{e.kpiGroupId}}</span>
+        }
+      </div>
+    </div>
+    <div class="row">
+      <fieldset class="field choice">
+        <legend class="label">{{t.fieldPositions}} *</legend>
+        @for (position of positions(); track position.id) {
+          <label>
+            <input
+              type="checkbox"
+              [name]="'position-' + position.id"
+              [checked]="values.positionIds.includes(position.id)"
+              (change)="values.positionIds = toggleSelect(values.positionIds, position.id)"
+            />
+            {{position.title}}
+          </label>
+        }
+        @if (e.positionIds) {
+          <span class="field-error" role="alert">{{e.positionIds}}</span>
+        }
+      </fieldset>
+      <fieldset class="field choice">
+        <legend class="label">{{t.fieldCredit}} *</legend>
+        @for (role of creditRoles; track role) {
+          <label>
+            <input type="radio" name="creditRole" [value]="role" [(ngModel)]="values.creditRole" />
+            {{role === 'PROCESSOR' ? t.creditProcessor : t.creditReferrer}}
+          </label>
+        }
+      </fieldset>
+    </div>
+    @if (offersPair) {
+      <p class="hint-line">
+        {{t.creditHint}}
+        <label class="inline-check">
+          <input type="checkbox" name="pair" [(ngModel)]="pair" />
+          {{t.createPairLink}}
+        </label>
+      </p>
+    }
+
+    <h3 class="section">{{t.sectionMeasure}}</h3>
+    <div class="row">
+      <fieldset class="field choice">
+        <legend class="label">{{t.fieldSource}} *</legend>
+        @for (source of dataSources; track source) {
+          <label>
+            <input
+              type="radio"
+              name="dataSource"
+              [value]="source"
+              [(ngModel)]="values.dataSource"
+            />
+            {{source === 'TRANSACTION' ? t.sourceTransactionLabel : t.sourceRatingLabel}}
+          </label>
+        }
+      </fieldset>
+      <div class="field">
+        <label class="label" for="kpi-product">{{t.fieldProduct}}</label>
+        <input
+          id="kpi-product"
+          name="product"
+          class="input"
+          list="kpi-products"
+          maxlength="100"
+          [placeholder]="t.productPlaceholder"
+          [(ngModel)]="values.productName"
+        />
+        <datalist id="kpi-products">
+          @for (product of products(); track product) {
+            <option [value]="product"></option>
+          }
+        </datalist>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <span class="label">{{t.fieldUnit}} · {{t.fieldDirection}} *</span>
+        <div class="pair">
+          <input
+            name="unit"
+            class="input"
+            list="kpi-units"
+            maxlength="50"
+            [attr.aria-label]="t.fieldUnit"
+            [class.is-invalid]="e.unit"
+            [(ngModel)]="values.unit"
+          />
+          <datalist id="kpi-units">
+            @for (unit of units(); track unit) {
+              <option [value]="unit"></option>
+            }
+          </datalist>
+          <select
+            name="direction"
+            class="select"
+            [attr.aria-label]="t.fieldDirection"
+            [(ngModel)]="values.direction"
+          >
+            @for (direction of directions; track direction) {
+              <option [value]="direction">{{localization.kpi[directionKey[direction]]}}</option>
+            }
+          </select>
+        </div>
+        @if (e.unit) {
+          <span class="field-error" role="alert">{{e.unit}}</span>
+        }
+      </div>
+      <div class="field">
+        <label class="label" for="kpi-aggregation">{{t.fieldAggregation}} *</label>
+        <select
+          id="kpi-aggregation"
+          name="aggregation"
+          class="select"
+          [(ngModel)]="values.aggregationType"
+        >
+          @for (aggregation of aggregations; track aggregation) {
+            <option [value]="aggregation">
+              {{localization.kpi[aggregationKey[aggregation]]}}
+            </option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <h3 class="section">{{t.sectionValidity}}</h3>
+    <div class="row">
+      <div class="field">
+        <label class="label" for="kpi-from">{{t.fieldFrom}} *</label>
+        <select
+          id="kpi-from"
+          name="from"
+          class="select"
+          [class.is-invalid]="e.fromPeriodId"
+          [(ngModel)]="values.fromPeriodId"
+        >
+          <option value="">{{t.periodPlaceholder}}</option>
+          @for (period of periods(); track period.id) {
+            <option [value]="period.id">{{periodLabel(period)}}</option>
+          }
+        </select>
+        @if (e.fromPeriodId) {
+          <span class="field-error" role="alert">{{e.fromPeriodId}}</span>
+        }
+      </div>
+      <div class="field">
+        <label class="label" for="kpi-to">{{t.fieldTo}}</label>
+        <select
+          id="kpi-to"
+          name="to"
+          class="select"
+          [class.is-invalid]="e.toPeriodId"
+          [(ngModel)]="values.toPeriodId"
+        >
+          <option value="">{{t.toPlaceholder}}</option>
+          @for (period of periods(); track period.id) {
+            <option [value]="period.id">{{periodLabel(period)}}</option>
+          }
+        </select>
+        @if (e.toPeriodId) {
+          <span class="field-error" role="alert">{{e.toPeriodId}}</span>
+        }
+      </div>
+    </div>
+
+    <details class="more">
+      <summary>{{t.moreFields}}</summary>
+      <div class="row">
+        <div class="field">
+          <label class="label" for="kpi-ceiling">{{t.fieldCeiling}}</label>
+          <input
+            id="kpi-ceiling"
+            name="ceiling"
+            class="input"
+            inputmode="decimal"
+            [class.is-invalid]="e.maxAchievementPercent"
+            [(ngModel)]="values.maxAchievementPercent"
+          />
+          @if (e.maxAchievementPercent) {
+            <span class="field-error" role="alert">{{e.maxAchievementPercent}}</span>
+          } @else {
+            <span class="hint">{{t.ceilingHint}}</span>
+          }
+        </div>
+        <div class="field">
+          <label class="label" for="kpi-baseline">{{t.fieldBaseline}}</label>
+          <input
+            id="kpi-baseline"
+            name="baseline"
+            class="input"
+            inputmode="decimal"
+            [class.is-invalid]="e.baselineValue"
+            [(ngModel)]="values.baselineValue"
+          />
+          @if (e.baselineValue) {
+            <span class="field-error" role="alert">{{e.baselineValue}}</span>
+          }
+        </div>
+      </div>
+      <div class="field">
+        <label class="label" for="kpi-formula">{{t.fieldFormula}}</label>
+        <textarea
+          id="kpi-formula"
+          name="formula"
+          class="input"
+          rows="2"
+          maxlength="1000"
+          [(ngModel)]="values.formula"
+        ></textarea>
+      </div>
+      <div class="field">
+        <label class="label" for="kpi-description">{{t.fieldDescription}}</label>
+        <textarea
+          id="kpi-description"
+          name="description"
+          class="input"
+          rows="2"
+          maxlength="2000"
+          [(ngModel)]="values.description"
+        ></textarea>
+      </div>
+    </details>
+
+    @if (mode() === 'request') {
+      <div class="field">
+        <label class="label" for="kpi-request-note">{{t.fieldRequestNote}} *</label>
+        <textarea
+          id="kpi-request-note"
+          name="requestNote"
+          class="input"
+          rows="3"
+          [maxlength]="maxNote"
+          [placeholder]="t.requestNotePlaceholder"
+          [class.is-invalid]="e.requestNote"
+          [(ngModel)]="values.requestNote"
+        ></textarea>
+        @if (e.requestNote) {
+          <span class="field-error" role="alert">{{e.requestNote}}</span>
+        }
+      </div>
+    }
+
+    @if (e.form) {
+      <p class="form-error" role="alert">{{e.form}}</p>
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{t.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{t.cancel}}
+      </button>
+      @if (mode() === 'request') {
+        <button type="submit" class="button button-primary" [disabled]="saving()">
+          {{saving() ? t.saving : t.sendRequest}}
+        </button>
+      } @else if (canSendOnSave) {
+        <button
+          type="button"
+          id="kpi-save-draft"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="submit(false)"
+        >
+          {{t.saveDraft}}
+        </button>
+        <button
+          type="submit"
+          id="kpi-save-submit"
+          class="button button-primary"
+          [disabled]="saving()"
+        >
+          {{saving() ? t.saving : t.saveSubmit}}
+        </button>
+      } @else {
+        <button type="submit" id="kpi-save" class="button button-primary" [disabled]="saving()">
+          {{saving() ? t.saving : t.saveOnly}}
+        </button>
+      }
+    </div>
+  </footer>
+</form>

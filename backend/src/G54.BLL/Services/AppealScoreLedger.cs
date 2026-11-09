@@ -68,7 +68,15 @@ internal static class AppealScoreLedger
         Add(db, evaluation, -hold.Points, ScoreEntryKind.Refund, ScoreEntrySource.Reversal, "Hoàn khoản tạm giữ khi kết quả khiếu nại được duyệt.", actor, now, appealId, hold.WorkId, hold.Id);
     }
 
-    public static async Task<decimal> NetAsync(AppDbContext db, Guid employeeId, Guid periodId, CancellationToken ct) =>
-        await db.ScoreEntries.Where(e => e.EmployeeId == employeeId && e.Evaluation.EvaluationPeriodId == periodId)
-            .SumAsync(e => (decimal?)e.Points, ct) ?? 0m;
+    /// <summary>Net ledger points of each employee in the period; an employee without entries has no key (net 0).</summary>
+    public static async Task<Dictionary<Guid, decimal>> NetByEmployeeAsync(
+        AppDbContext db,
+        IReadOnlyCollection<Guid> employeeIds,
+        Guid periodId,
+        CancellationToken ct) =>
+        await db.ScoreEntries
+            .Where(e => employeeIds.Contains(e.EmployeeId) && e.Evaluation.EvaluationPeriodId == periodId)
+            .GroupBy(e => e.EmployeeId)
+            .Select(g => new { EmployeeId = g.Key, Net = g.Sum(e => e.Points) })
+            .ToDictionaryAsync(x => x.EmployeeId, x => x.Net, ct);
 }

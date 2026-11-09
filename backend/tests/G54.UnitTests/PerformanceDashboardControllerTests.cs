@@ -47,6 +47,9 @@ public sealed class PerformanceDashboardControllerTests
     [InlineData(nameof(PerformanceDashboardController.GetEmployee), "employees/{employeeId:guid}")]
     [InlineData(nameof(PerformanceDashboardController.GetDepartment), "departments/{departmentId:guid}")]
     [InlineData(nameof(PerformanceDashboardController.GetBranch), "branches/{branchId:guid}")]
+    [InlineData(nameof(PerformanceDashboardController.GetEmployeeLedger), "employees/{employeeId:guid}/ledger")]
+    [InlineData(nameof(PerformanceDashboardController.GetLedgerEntry), "ledger-entries/{entryId:guid}")]
+    [InlineData(nameof(PerformanceDashboardController.GetLedgerEntryTransactions), "ledger-entries/{entryId:guid}/transactions")]
     public void EveryAction_IsAGetWithTheDocumentedRoute(string action, string template)
     {
         var method = typeof(PerformanceDashboardController).GetMethod(action);
@@ -247,6 +250,33 @@ public sealed class PerformanceDashboardControllerTests
             return Task.FromResult(Unit("BRANCH"));
         }
 
+        public Task<EmployeeLedgerDto> GetEmployeeLedgerAsync(
+            Guid accountId,
+            Guid employeeId,
+            Guid? periodId,
+            Guid? kpiId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            Record("ledger", accountId, employeeId, periodId);
+            return Task.FromResult(new EmployeeLedgerDto(null, new LedgerSummaryDto(0m, 0m, 0m), new(new List<LedgerEntryDto>(), 0, page, pageSize)));
+        }
+
+        public Task<LedgerEntryDetailDto> GetLedgerEntryAsync(Guid accountId, Guid entryId, CancellationToken cancellationToken = default)
+        {
+            Record("entry", accountId, entryId, null);
+            return Task.FromResult(new LedgerEntryDetailDto(
+                new LedgerEntryDto(entryId, "RESULT", DateTimeOffset.UnixEpoch, 0m, null, null, null, null, null, null, null),
+                Guid.NewGuid(), null, null, null, null, null));
+        }
+
+        public Task<LedgerTransactionsDto> GetLedgerEntryTransactionsAsync(Guid accountId, Guid entryId, CancellationToken cancellationToken = default)
+        {
+            Record("transactions", accountId, entryId, null);
+            return Task.FromResult(new LedgerTransactionsDto(entryId, null, []));
+        }
+
         private void Record(string call, Guid accountId, Guid targetId, Guid? periodId)
         {
             LastCall = call;
@@ -283,3 +313,4 @@ public sealed class PerformanceDashboardControllerTests
             DateTimeOffset.UnixEpoch);
     }
 }
+

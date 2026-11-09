@@ -137,7 +137,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         ValidateItems(dto.Items);
 
         await EnsureJobPositionExistsAsync(dto.JobPositionId, cancellationToken);
-        await EnsureKpiDefinitionsExistAsync(dto.Items, cancellationToken);
+        await EnsureKpiDefinitionsUsableAsync(dto.Items, new HashSet<Guid>(), cancellationToken);
 
         var existingVersion = await db.EvaluationProfiles
             .AsNoTracking()
@@ -204,7 +204,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             await EnsureJobPositionExistsAsync(dto.JobPositionId, cancellationToken);
         }
 
-        await EnsureKpiDefinitionsExistAsync(dto.Items, cancellationToken);
+        await EnsureKpiDefinitionsUsableAsync(dto.Items, PlacedKpiIds(profile.EvaluationProfileItems), cancellationToken);
 
         var isInUse = await db.PerformanceEvaluations.AnyAsync(e => e.EvaluationProfileId == id, cancellationToken);
         if (isInUse && (positionChanged || profile.EffectiveFrom != dto.EffectiveFrom || ItemsDiffer(profile, dto.Items)))
@@ -389,8 +389,10 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
 
         if (dto.KpiDefinitionId.HasValue)
         {
-            await EnsureKpiDefinitionsExistAsync(
-                [new EvaluationProfileItemInputDto { KpiDefinitionId = dto.KpiDefinitionId }], cancellationToken);
+            await EnsureKpiDefinitionsUsableAsync(
+                [new EvaluationProfileItemInputDto { KpiDefinitionId = dto.KpiDefinitionId }],
+                PlacedKpiIds(items),
+                cancellationToken);
             if (items.Any(i => i.KpiDefinitionId == dto.KpiDefinitionId))
             {
                 throw new ConflictException("KPI này đã có trong hồ sơ đánh giá.");
@@ -758,8 +760,13 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         }
     }
 
-    private async Task EnsureKpiDefinitionsExistAsync(
+    /// <summary>
+    /// Every KPI sent must exist, and a KPI that is new to the profile must be ACTIVE. A KPI already placed in the
+    /// profile is not checked again, so a profile can still be edited after one of its KPIs was deactivated.
+    /// </summary>
+    private async Task EnsureKpiDefinitionsUsableAsync(
         List<EvaluationProfileItemInputDto> items,
+        HashSet<Guid> alreadyPlacedKpiIds,
         CancellationToken cancellationToken)
     {
         var kpiIds = Descendants(items)
@@ -772,12 +779,24 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
             return;
         }
 
-        var existing = await db.KpiDefinitions.CountAsync(k => kpiIds.Contains(k.Id), cancellationToken);
-        if (existing != kpiIds.Count)
+        var found = await db.KpiDefinitions
+            .AsNoTracking()
+            .Where(k => kpiIds.Contains(k.Id))
+            .Select(k => new { k.Id, k.Status })
+            .ToListAsync(cancellationToken);
+        if (found.Count != kpiIds.Count)
         {
             throw new NotFoundException("Một hoặc nhiều KPI được chọn không tồn tại.");
         }
+
+        if (found.Any(k => k.Status != KpiStatus.Active && !alreadyPlacedKpiIds.Contains(k.Id)))
+        {
+            throw new ValidationException("Một hoặc nhiều KPI được chọn không ở trạng thái hoạt động (Active).");
+        }
     }
+
+    private static HashSet<Guid> PlacedKpiIds(IEnumerable<EvaluationProfileItem> items) =>
+        items.Where(i => i.KpiDefinitionId.HasValue).Select(i => i.KpiDefinitionId!.Value).ToHashSet();
 
     private async Task EnsurePositionEffectiveFromUniqueAsync(
         Guid jobPositionId,

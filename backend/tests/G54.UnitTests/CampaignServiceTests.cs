@@ -1442,39 +1442,6 @@ public sealed class CampaignServiceTests
         }
     }
 
-    [Fact]
-    public async Task GetObjectives_ReturnsNonCancelledObjectivesByCode()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            foreach (var (code, status) in new[]
-            {
-                ("OBJ-2", BusinessObjectiveStatus.Active),
-                ("OBJ-1", BusinessObjectiveStatus.Draft),
-                ("OBJ-3", BusinessObjectiveStatus.Cancelled),
-            })
-            {
-                context.BusinessObjectives.Add(new BusinessObjective
-                {
-                    Id = Guid.NewGuid(),
-                    Code = code,
-                    Name = $"Objective {code}",
-                    StartDate = new DateOnly(2026, 1, 1),
-                    EndDate = new DateOnly(2026, 12, 31),
-                    Status = status,
-                    UpdatedAt = DateTimeOffset.UtcNow,
-                });
-            }
-
-            await context.SaveChangesAsync();
-
-            var objectives = await service.GetObjectivesAsync();
-
-            Assert.Equal(["OBJ-1", "OBJ-2"], objectives.Select(o => o.Code));
-        }
-    }
-
     private static async Task<(BusinessCampaign Campaign, WorkType WorkType, Employee Employee)> SeedTargetCampaignAsync(
         AppDbContext context,
         string? kpiUnit = "tài khoản")

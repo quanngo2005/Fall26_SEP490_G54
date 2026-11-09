@@ -81,8 +81,8 @@ public sealed partial class PerformanceDashboardService
 
     /// <summary>
     /// The profile's root groups in display order, each with the KPIs (leaves of the group and of its sub-groups)
-    /// the calculation stored a contribution for. A group's score is the mean of its scored parts weighted by
-    /// their weight among siblings, normalised over the parts that have a score.
+    /// the calculation stored a contribution for. A group's score is the mean of its parts weighted by their weight
+    /// among siblings; an active KPI without a stored contribution counts as 0, the same rule as the calculation.
     /// </summary>
     private async Task<List<DashboardGroupDto>> BuildGroupsAsync(
         EvaluationRow evaluation,

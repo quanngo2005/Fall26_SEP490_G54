@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, input, output, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { DepartmentMembers } from '../../core/department.models';
@@ -72,7 +73,10 @@ describe('WorkBoardComponent', () => {
   }
 
   /** Signs in with the given role; a department or branch manager also oversees the department's work. */
-  async function configure(role: 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER'): Promise<void> {
+  async function configure(
+    role: 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER',
+    queryParams: Record<string, string> = {},
+  ): Promise<void> {
     employees.me.and.returnValue(of({ id: 'e1', departmentId: 'd1' } as EmployeeDetail));
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
@@ -83,6 +87,10 @@ describe('WorkBoardComponent', () => {
         { provide: DepartmentService, useValue: departments },
         { provide: WorkTypeService, useValue: workTypes },
         { provide: JobPositionService, useValue: jobPositions },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
+        },
         { provide: AuthService, useValue: { currentUser: signal({ roles: [role] }) } },
       ],
     })
@@ -115,7 +123,7 @@ describe('WorkBoardComponent', () => {
       const items = data.filter((item) => filter.status?.includes(item.status) ?? true);
       return of({ items, totalCount: items.length, page: filter.page ?? 1, pageSize: 50 });
     });
-    employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['me']);
+    employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['me', 'byCode']);
     departments = jasmine.createSpyObj<DepartmentService>('DepartmentService', ['members']);
     departments.members.and.returnValue(
       of({
@@ -323,6 +331,34 @@ describe('WorkBoardComponent', () => {
       await configure('DEPT_MANAGER');
     });
 
+    it('opens on the work of the employee named by the link, loading the board once with the filter', async () => {
+      employees.byCode.and.returnValue(of({ id: 'e2', employeeCode: 'NV002' } as EmployeeDetail));
+      await configure('DEPT_MANAGER', { employeeCode: 'NV002' });
+      const fixture = create();
+
+      expect(employees.byCode).toHaveBeenCalledOnceWith('NV002');
+      expect(works.list).toHaveBeenCalledTimes(6);
+      for (const [filter] of works.list.calls.allArgs()) {
+        expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e2' }));
+      }
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const select = root(fixture).querySelector<HTMLSelectElement>('#work-filter-employee')!;
+      expect(select.value).toBe('e2');
+    });
+
+    it('falls back to the whole department when the code of the link is unknown', async () => {
+      employees.byCode.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+      await configure('DEPT_MANAGER', { employeeCode: 'NV999' });
+      const fixture = create();
+
+      expect(works.list).toHaveBeenCalledTimes(6);
+      for (const [filter] of works.list.calls.allArgs()) {
+        expect(filter?.assigneeEmployeeId).toBe('');
+      }
+      expect(root(fixture).querySelector('h1')?.textContent?.trim()).toBe('Công việc của phòng');
+    });
+
     it("opens on the department, and can switch to the manager's own work and back", () => {
       const fixture = create();
       const scopeButton = (id: string) => root(fixture).querySelector<HTMLButtonElement>(id)!;
@@ -384,7 +420,7 @@ describe('WorkBoardComponent', () => {
     it('asks for the department with its child departments, not for one employee', () => {
       create();
 
-      expect(works.list).toHaveBeenCalledTimes(5);
+      expect(works.list).toHaveBeenCalledTimes(6);
       expect(works.list.calls.first().args[0]).toEqual(
         jasmine.objectContaining({ departmentId: 'd1', includeChildDepartments: true }),
       );
@@ -393,28 +429,37 @@ describe('WorkBoardComponent', () => {
       }
     });
 
-    it('renders the 5 columns, with Verified work sharing the Done column', () => {
+    it('renders the 6 columns, with Verified work in its own column', () => {
       const fixture = create();
 
       const titles = Array.from(root(fixture).querySelectorAll('.column h2')).map((el) => text(el));
-      expect(titles).toEqual(['Mới', 'Đang thực hiện', 'Đã nộp', 'Hoàn thành', 'Quá hạn']);
+      expect(titles).toEqual([
+        'Mới',
+        'Đang thực hiện',
+        'Đã nộp',
+        'Đã xác minh',
+        'Hoàn thành',
+        'Quá hạn',
+      ]);
       expect(cards(column(fixture, 'Đã nộp')).length).toBe(2);
-      expect(cards(column(fixture, 'Hoàn thành')).length).toBe(2);
-      const doneCall = works.list.calls
-        .allArgs()
-        .map(([filter]) => filter)
-        .find((filter) => filter?.status?.includes('Done'));
-      expect(doneCall?.status).toEqual(['Verified', 'Done']);
+      expect(cards(column(fixture, 'Đã xác minh')).length).toBe(1);
+      expect(cards(column(fixture, 'Hoàn thành')).length).toBe(1);
+      const statusesOf = (status: string) =>
+        works.list.calls
+          .allArgs()
+          .map(([filter]) => filter)
+          .find((filter) => filter?.status?.includes(status as never))?.status;
+      expect(statusesOf('Verified')).toEqual(['Verified']);
+      expect(statusesOf('Done')).toEqual(['Done']);
     });
 
-    it('labels each Done card with its real status and shows the assignee', () => {
+    it('labels each Verified and Done card with its real status and shows the assignee', () => {
       const fixture = create();
 
-      const done = cards(column(fixture, 'Hoàn thành'));
-      expect(done.map((card) => text(card.querySelector('.chip'))).sort()).toEqual([
-        'Hoàn thành',
-        'Đã thẩm định',
-      ]);
+      const labelsOf = (title: string) =>
+        cards(column(fixture, title)).map((card) => text(card.querySelector('.chip')));
+      expect(labelsOf('Đã xác minh')).toEqual(['Đã thẩm định']);
+      expect(labelsOf('Hoàn thành')).toEqual(['Hoàn thành']);
       const first = cards(column(fixture, 'Mới'))[0];
       expect(text(first.querySelector('.avatar-circle'))).toBe('VA');
       expect(text(first.querySelector('.assignee-name'))).toBe('Nguyễn Văn A');
@@ -459,7 +504,7 @@ describe('WorkBoardComponent', () => {
       select.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      expect(works.list).toHaveBeenCalledTimes(5);
+      expect(works.list).toHaveBeenCalledTimes(6);
       for (const [filter] of works.list.calls.allArgs()) {
         expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e2' }));
       }
@@ -512,10 +557,9 @@ describe('WorkBoardComponent', () => {
       const toast = root(fixture).querySelector('.toast');
       expect(toast?.classList).toContain('toast-error');
       expect(text(toast)).toContain('quản lý trực tiếp');
-      const chips = cards(column(fixture, 'Hoàn thành')).map((card) =>
-        text(card.querySelector('.chip')),
-      );
-      expect(chips.sort()).toEqual(['Hoàn thành', 'Đã thẩm định']);
+      expect(cards(column(fixture, 'Hoàn thành')).length).toBe(1);
+      const verified = cards(column(fixture, 'Đã xác minh'));
+      expect(verified.map((card) => text(card.querySelector('.chip')))).toEqual(['Đã thẩm định']);
     });
 
     it('does nothing for a work that is not Verified', () => {

@@ -93,9 +93,10 @@ public sealed class PerformanceCalculationEdgeCaseTests
 
         var dto = await rig.Service().CalculateAsync(rig.ManagerAccount.Id, rig.Evaluation.Id);
 
+        // The target does not apply, so the KPI has nothing to score against: no detail row, and it counts as 0.
         Assert.Empty(Assert.Single(dto.Groups).Kpis);
-        Assert.Null(dto.TotalScore);
-        Assert.Equal("DRAFT", dto.Status);
+        Assert.Equal(0m, dto.TotalScore);
+        Assert.Equal("CALCULATED", dto.Status);
         Assert.Equal(0, await rig.Db.PerformanceContributions.CountAsync());
     }
 
@@ -152,7 +153,7 @@ public sealed class PerformanceCalculationEdgeCaseTests
     // ----- Groups and total -----------------------------------------------------------------
 
     [Fact]
-    public async Task Calculate_DoesNotShareTheWeightOfAGroupWithoutDataAmongTheOthers()
+    public async Task Calculate_AGroupWithoutDataScoresZeroAndKeepsItsWeight()
     {
         using var rig = await Rig.CreateAsync([60m, 40m]);
         var scored = rig.AddKpi(0, "SCORED");
@@ -165,8 +166,8 @@ public sealed class PerformanceCalculationEdgeCaseTests
         var dto = await rig.Service().CalculateAsync(rig.ManagerAccount.Id, rig.Evaluation.Id);
 
         Assert.Equal(50m, dto.Groups[0].ComponentScore);
-        Assert.Null(dto.Groups[1].ComponentScore);
-        Assert.Equal(30m, dto.TotalScore); // 50 * 60 %, not rescaled to 50
+        Assert.Equal(0m, dto.Groups[1].ComponentScore); // counts as 0, not left out
+        Assert.Equal(30m, dto.TotalScore); // 50 x 60% + 0 x 40%, not rescaled to 50
         Assert.Equal("CALCULATED", dto.Status);
     }
 
@@ -319,7 +320,7 @@ public sealed class PerformanceCalculationEdgeCaseTests
         public PerformanceEvaluationService Service() => new(
             Db,
             new FakePermissionService(null, new UserPermissionDto("evaluation", "calculate", PermissionScopes.All, "EVALUATION_CALCULATE")),
-            new PerformanceScoreFormula(),
+            new PerformanceScoreCalculator(Db, new PerformanceScoreFormula()),
             new FixedTime(Now),
             NullLogger<PerformanceEvaluationService>.Instance);
 

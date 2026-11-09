@@ -102,6 +102,13 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
             .Include(t => t.Employee)
             .SingleOrDefaultAsync(t => t.Id == id, ct);
 
+    public Task<TargetAssignment?> GetWithOwnerAndContextAsync(Guid id, CancellationToken ct = default) =>
+        DbSet.AsNoTracking()
+            .Include(t => t.Employee)
+            .Include(t => t.EvaluationPeriod)
+            .Include(t => t.KpiDefinition)
+            .SingleOrDefaultAsync(t => t.Id == id, ct);
+
     public Task<Guid?> GetAccountDepartmentIdAsync(Guid accountId, CancellationToken ct = default) =>
         DbContext.Set<Account>().AsNoTracking()
             .Where(a => a.Id == accountId)
@@ -149,6 +156,78 @@ public sealed class TargetAssignmentRepository(AppDbContext dbContext) : Reposit
         return await query
             .OrderBy(t => t.EvaluationPeriodId)
             .ThenBy(t => t.ParentAssignmentId)
+            .ThenBy(t => t.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Employee>> GetEmployeesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        return await DbContext.Set<Employee>()
+            .AsNoTracking()
+            .Where(e => ids.Contains(e.Id))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<TargetAssignment>> GetActiveOwnerTargetsAsync(
+        Guid kpiId,
+        Guid periodId,
+        IReadOnlyCollection<Guid> departmentIds,
+        IReadOnlyCollection<Guid> employeeIds,
+        CancellationToken ct = default) =>
+        await DbSet.AsNoTracking()
+            .Where(t => t.KpiDefinitionId == kpiId && t.EvaluationPeriodId == periodId && t.Status == TargetAssignmentStatus.Active)
+            .Where(t => (t.DepartmentId.HasValue && departmentIds.Contains(t.DepartmentId.Value)) ||
+                        (t.EmployeeId.HasValue && employeeIds.Contains(t.EmployeeId.Value)))
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetLatestVersionsAsync(
+        Guid kpiId,
+        Guid periodId,
+        IReadOnlyCollection<Guid> ownerIds,
+        CancellationToken ct = default)
+    {
+        var rows = await DbSet.AsNoTracking()
+            .Where(t => t.KpiDefinitionId == kpiId && t.EvaluationPeriodId == periodId)
+            .Where(t => (t.DepartmentId.HasValue && ownerIds.Contains(t.DepartmentId.Value)) ||
+                        (t.EmployeeId.HasValue && ownerIds.Contains(t.EmployeeId.Value)))
+            .Select(t => new { Owner = t.EmployeeId ?? t.DepartmentId, t.Version })
+            .ToListAsync(ct);
+        return rows.GroupBy(row => row.Owner!.Value).ToDictionary(group => group.Key, group => group.Max(row => row.Version));
+    }
+
+    public Task<Employee?> GetAccountEmployeeAsync(Guid accountId, CancellationToken ct = default) =>
+        DbContext.Set<Account>().AsNoTracking()
+            .Where(a => a.Id == accountId)
+            .Select(a => a.Employee)
+            .SingleOrDefaultAsync(ct);
+
+    public async Task<IReadOnlyList<TargetAssignment>> ListForEmployeeAsync(
+        Guid employeeId,
+        Guid? evaluationPeriodId,
+        Guid? kpiDefinitionId,
+        CancellationToken ct = default)
+    {
+        var query = DbSet.AsNoTracking()
+            .Include(t => t.KpiDefinition)
+            .Where(t => t.EmployeeId == employeeId && t.Status == TargetAssignmentStatus.Active);
+
+        if (evaluationPeriodId.HasValue)
+        {
+            query = query.Where(t => t.EvaluationPeriodId == evaluationPeriodId.Value);
+        }
+
+        if (kpiDefinitionId.HasValue)
+        {
+            query = query.Where(t => t.KpiDefinitionId == kpiDefinitionId.Value);
+        }
+
+        return await query
+            .OrderBy(t => t.EvaluationPeriodId)
             .ThenBy(t => t.CreatedAt)
             .ToListAsync(ct);
     }

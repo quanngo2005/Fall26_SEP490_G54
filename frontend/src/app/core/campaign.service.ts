@@ -7,6 +7,8 @@ import {
   BatchWorkPayload,
   BatchWorkResult,
   CampaignDetail,
+  CampaignDecisionPayload,
+  CampaignDecisionResult,
   CampaignFilter,
   CampaignListOverview,
   CampaignObjective,
@@ -39,6 +41,15 @@ export class CampaignService {
   create(payload: CreateCampaignPayload): Observable<CampaignDetail> {
     return this.http
       .post<ApiResponse<CampaignDetail>>(this.url, payload)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  decide(id: string, payload: CampaignDecisionPayload): Observable<CampaignDecisionResult> {
+    return this.http
+      .post<ApiResponse<CampaignDecisionResult>>(
+        `${this.url}/${encodeURIComponent(id)}/decision`,
+        payload,
+      )
       .pipe(map((response) => this.unwrap(response)));
   }
 

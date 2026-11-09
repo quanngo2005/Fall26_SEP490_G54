@@ -143,6 +143,57 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetBranchPeriods_ForwardsQueryFiltersWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+
+        var result = await controller.GetBranchPeriods(2026, "QUARTER", "IN_REVIEW", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((2026, "QUARTER", "IN_REVIEW", UserId), service.LastBranchPeriodsRequest);
+        var data = Assert.IsType<ApiResponse<BranchEvaluationPeriodsOverviewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("Chi nhánh kiểm thử", data.BranchName);
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentRanking_ForwardsTheDepartmentIdAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var deptId = Guid.NewGuid();
+        var request = new ApproveDepartmentRankingRequestDto(Guid.NewGuid(), "Approved by BM");
+
+        var result = await controller.ApproveDepartmentRanking(deptId, request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(deptId, service.LastApprovedDepartmentId);
+        Assert.Same(request, service.LastApproval);
+        Assert.Equal(UserId, service.LastApprovalUserId);
+        var data = Assert.IsType<ApiResponse<DepartmentApprovalResultDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("APPROVED", data.Status);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheck_ForwardsPeriodIdWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+
+        var result = await controller.GetPreCloseCheck(periodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, UserId), service.LastPreCloseCheckRequest);
+        var data = Assert.IsType<ApiResponse<PreCloseCheckOverviewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("TEST-Q3", data.PeriodCode);
+        Assert.Single(data.Items);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -189,6 +240,14 @@ public sealed class EvaluationControllerTests
         public RejectCalibrationRequestDto? LastRejection { get; private set; }
 
         public Guid LastRejectionUserId { get; private set; }
+
+        public Guid LastApprovedDepartmentId { get; private set; }
+
+        public ApproveDepartmentRankingRequestDto? LastApproval { get; private set; }
+
+        public Guid LastApprovalUserId { get; private set; }
+
+        public (Guid PeriodId, Guid UserId) LastPreCloseCheckRequest { get; private set; }
 
         public FinalizeEvaluationPeriodRequestDto? LastFinalize { get; private set; }
 
@@ -253,11 +312,39 @@ public sealed class EvaluationControllerTests
             return Task.FromResult(new CalibrationDecisionResultDto(departmentId, request.PeriodId, "RECALIBRATION_REQUESTED", "returned"));
         }
 
+        public Task<DepartmentApprovalResultDto> ApproveDepartmentCalibrationAsync(Guid departmentId, ApproveDepartmentRankingRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastApprovedDepartmentId = departmentId;
+            LastApproval = request;
+            LastApprovalUserId = currentUserId;
+            return Task.FromResult(new DepartmentApprovalResultDto(departmentId, request.PeriodId, "APPROVED", 5, "approved"));
+        }
+
+        public Task<PreCloseCheckOverviewDto> GetPreCloseCheckAsync(Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPreCloseCheckRequest = (periodId, currentUserId);
+            var item = new PreCloseCheckItemDto("CHECK_1", "Check 1", 0, true);
+            return Task.FromResult(new PreCloseCheckOverviewDto(periodId, "TEST-Q3", "Q3", new DateOnly(2026, 7, 1), new DateOnly(2026, 9, 30), DateTimeOffset.UtcNow, true, 0, [item]));
+        }
+
         public Task<FinalizeResultDto> FinalizeAndLockPeriodAsync(FinalizeEvaluationPeriodRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
         {
             LastFinalize = request;
             LastFinalizeUserId = currentUserId;
             return Task.FromResult(FinalizeResult);
+        }
+
+        public (int? Year, string? PeriodType, string? Status, Guid UserId) LastBranchPeriodsRequest { get; private set; }
+
+        public Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+            int? year,
+            string? periodType,
+            string? status,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastBranchPeriodsRequest = (year, periodType, status, currentUserId);
+            return Task.FromResult(new BranchEvaluationPeriodsOverviewDto("Chi nhánh kiểm thử", "BR-TEST", [2026], []));
         }
     }
 }

@@ -15,6 +15,7 @@ public enum EmployeeStatus
     [PgName("INACTIVE")] Inactive,
     [PgName("ON_LEAVE")] OnLeave,
     [PgName("TERMINATED")] Terminated,
+    [PgName("PENDING_RESIGNATION")] PendingResignation,
 }
 
 public enum RecordStatus
@@ -47,6 +48,8 @@ public enum KpiStatus
     [PgName("ACTIVE")] Active,
     [PgName("INACTIVE")] Inactive,
     [PgName("ARCHIVED")] Archived,
+    [PgName("PENDING_APPROVAL")] PendingApproval,
+    [PgName("REJECTED")] Rejected,
 }
 
 public enum KpiAggregationType
@@ -208,4 +211,10 @@ public enum TargetSplitDimension
 {
     [PgName("ORG")] Org,
     [PgName("PERIOD")] Period,
+}
+
+public enum TargetAssignmentFeedbackType
+{
+    [PgName("CONFIRM")] Confirm,
+    [PgName("COMMENT")] Comment,
 }

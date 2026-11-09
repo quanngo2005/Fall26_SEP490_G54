@@ -99,6 +99,19 @@ describe('CampaignService', () => {
     expect(generated).toBe(36);
   });
 
+  it('posts the approval decision for a campaign plan', () => {
+    let status = '';
+    service
+      .decide('c 1', { decision: 'REJECT', note: 'Thiếu chỉ tiêu' })
+      .subscribe((result) => (status = result.status));
+
+    const request = http.expectOne(`${url}/c%201/decision`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ decision: 'REJECT', note: 'Thiếu chỉ tiêu' });
+    request.flush(envelope({ campaignId: 'c1', status: 'CANCELLED' }));
+    expect(status).toBe('CANCELLED');
+  });
+
   it('rejects an unsuccessful envelope', () => {
     let failed = false;
     service.detail('c1').subscribe({ error: () => (failed = true) });

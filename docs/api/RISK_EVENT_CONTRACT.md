@@ -1,6 +1,6 @@
 # Risk Event Contract
 
-Trạng thái: tạo, xem chi tiết, xác nhận, bác bỏ, giải quyết risk event **đã triển khai** (backend). Chưa có API danh sách / tìm kiếm, chưa có upload evidence cho risk event và chưa có màn hình frontend.
+Trạng thái: tạo (có ghi nhận ngay), xem chi tiết, xác nhận, bác bỏ, giải quyết, **danh sách, chi tiết cho drawer, đính kèm và đảo sự kiện** (§9) **đã triển khai** (backend, unit-test; chưa chạy qua HTTP).
 
 Mọi response dùng envelope `ApiResponse` (xem `API_CONVENTIONS.md`). Entity: `risk_event`, `performance_contribution`.
 
@@ -132,3 +132,52 @@ Sự kiện không hợp lệ: `OPEN` → `DISMISSED`. Không có body, không g
 ## 8. Giải quyết — `POST /risk-events/{id}/resolve`
 
 Sự kiện đã xử lý xong: `CONFIRMED` → `RESOLVED`, ghi `resolvedAt` và `updatedAt` bằng thời điểm hiện tại. Không có body. Dòng contribution âm được giữ nguyên và sự kiện vẫn bị tính điểm phạt như trước. 200 với `RiskEventDto` (có `contributionId`); `status` khác `CONFIRMED`: 409 `RISK_EVENT_INVALID_STATE`.
+
+## 9. Màn Sự kiện rủi ro (SCR-RSK-01 / D1 / M1)
+
+Bổ sung cho ba màn của QA: danh sách, drawer chi tiết và modal ghi sự kiện. Quyền mới (migration `AddRiskEventScreens`): `risk_event:read` (QA, Admin ở `All`; Trưởng phòng `Dept`, Giám đốc chi nhánh `Branch`), `risk_event:create` và `risk_event:reverse` (chỉ QA, Admin, `All`).
+
+### 9.1 Ghi sự kiện — `POST /risk-events` (mở rộng)
+
+Thêm các trường tùy chọn vào body (§4):
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `penaltyPoints` | number | điểm phạt (dương, ≤ 100, tối đa 2 chữ số thập phân); bỏ trống thì dùng mức theo `severity` (§6) |
+| `workCode` | string | mã công việc liên kết; không có công việc này thì 400 `VALIDATION_ERROR` |
+| `record` | boolean | `true` = ghi nhận ngay: sự kiện tạo ở `CONFIRMED` và dòng contribution âm được ghi trong cùng một lần lưu (cùng điều kiện kỳ của §6: 409 `RISK_EVENT_PERIOD_UNAVAILABLE`). Mặc định `false` (giữ luồng `OPEN` → `confirm`) |
+
+Điểm phạt hiệu lực của một sự kiện là `penaltyPoints` nếu có, ngược lại theo `severity`. Mọi phép tính điểm (đánh giá, dashboard, `component_score`) dùng điểm hiệu lực này. Sự kiện đã ghi **không sửa được**.
+
+### 9.2 Danh sách — `GET /risk-events`
+
+Quyền `risk_event:read`; người có `Dept` / `Branch` chỉ thấy nhân viên trong phạm vi phòng của mình. Query: `periodId` (sự kiện có ngày vi phạm trong kỳ), `departmentId` (gồm phòng con), `severity`, `state` (`RECORDED` | `REVERSED`), `search` (mã `RSK-0045` hoặc `45`, mã / tên nhân viên, mã công việc), `page`, `pageSize` (tối đa 100). Mới nhất (ngày vi phạm) trước.
+
+```json
+{ "items": [RiskEventListItem], "totalCount": 4, "page": 1, "pageSize": 20,
+  "counts": { "recorded": 3, "reversed": 1 },
+  "departments": [{ "id": "…", "name": "Phòng Khách hàng cá nhân" }] }
+```
+
+`counts` tính theo các bộ lọc khác nhưng không theo `state`; `departments` là mọi phòng có sự kiện (để bộ lọc phòng không cần quyền đọc phòng ban).
+
+`RiskEventListItem`: `id`, `code` (hiển thị `RSK-0045`, số từ sequence `risk_event_code_seq`), `occurredAt`, `employeeId`, `employeeCode`, `employeeName`, `departmentId`, `departmentName`, `eventType`, `severity`, `penaltyPoints` (số dương, điểm hiệu lực; UI hiển thị `−N`), `workId`, `workCode` (nullable), `status` (`OPEN | CONFIRMED | DISMISSED | RESOLVED`), `state` (`REVERSED` khi `status` là `DISMISSED`, kể cả sự kiện bị bác bỏ từ `OPEN`; ngược lại `RECORDED`), `createdAt`.
+
+### 9.3 Chi tiết — `GET /risk-events/{id}/details`
+
+`{ item: RiskEventListItem, jobPositionTitle, description, periodCode, periodName, recordedByName, recordedAt, reversedAt, reversedByName, reversalReason, attachments: [{ id, fileName, fileSize, mimeType }], canReverse }`. `canReverse` = `true` khi `status` là `CONFIRMED` hoặc `RESOLVED`, chưa đảo và người gọi có `risk_event:reverse`. 404 nếu không có hoặc ngoài phạm vi.
+
+### 9.4 Đính kèm — `POST /risk-events/{id}/evidence`
+
+`multipart/form-data`, trường `files[]` (`.pdf .docx .xlsx .png .jpg`, ≤ 25 MB mỗi tệp). Quyền `risk_event:create`. 200 với danh sách đính kèm của sự kiện. Mở tệp qua `GET /evidence/{id}/preview` (`risk_event:read` đủ để xem).
+
+### 9.5 Gỡ điểm phạt — `POST /risk-events/{id}/reverse`
+
+Body `{ "reason": "…" }` (10–2000 ký tự). Quyền `risk_event:reverse` ("Gỡ điểm phạt sự kiện rủi ro"). Sự kiện `CONFIRMED` / `RESOLVED` chuyển sang `DISMISSED` (màn hình gọi là **gỡ điểm phạt**, trạng thái "Đã gỡ"; tên kỹ thuật `reverse` / `REVERSED` giữ nguyên) và lưu `reversedAt`, `reversedBy`, `reversalReason`; từ đây điểm phạt không còn được tính (các phép tính bỏ qua `DISMISSED`). Dòng contribution âm ban đầu và mọi thay đổi được giữ nguyên trong audit log, không xóa. 200 với dữ liệu §9.3.
+
+| Điều kiện | Kết quả |
+|---|---|
+| Đã gỡ điểm phạt (`DISMISSED`), hoặc `status` là `OPEN` | 409 `RISK_EVENT_INVALID_STATE` |
+| Kỳ chứa ngày vi phạm đã khóa | 409 `RISK_EVENT_PERIOD_UNAVAILABLE` |
+| `reason` ngắn hơn 10 ký tự | 400 `VALIDATION_ERROR` |
+| Sự kiện của chính người gọi | 403 `FORBIDDEN` |

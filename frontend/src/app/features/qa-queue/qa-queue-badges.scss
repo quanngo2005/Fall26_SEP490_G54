@@ -1,0 +1,42 @@
+.kind-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+
+  &.kind-flag {
+    background: #fffbeb;
+    color: #b45309;
+    border-color: #fcd34d;
+  }
+
+  &.kind-sample {
+    background: #ecfeff;
+    color: #0e7490;
+    border-color: #67e8f9;
+  }
+}
+
+.status-badge {
+  &.status-pending {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+  }
+
+  &.status-passed,
+  &.status-dismissed {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+
+  &.status-failed,
+  &.status-rework_requested {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fecaca;
+  }
+}

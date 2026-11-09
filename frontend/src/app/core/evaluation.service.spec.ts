@@ -44,6 +44,7 @@ describe('EvaluationService', () => {
     pendingSubmissionCount: 0,
     canEvaluate: true,
     updatedAt: null,
+    quantitativeScoreChange: null,
   };
 
   beforeEach(() => {
@@ -186,5 +187,78 @@ describe('EvaluationService', () => {
         { status: 409, statusText: 'Conflict' },
       );
     expect(status).toBe(409);
+  });
+
+  it('loads branch evaluation periods with optional query filters', () => {
+    service.branchPeriods(2026, 'QUARTER', 'IN_REVIEW').subscribe((overview) => {
+      expect(overview.branchName).toBe('Chi nhánh Hà Đông');
+      expect(overview.periods.length).toBe(1);
+      expect(overview.availableYears).toEqual([2026]);
+      expect(overview.periods[0].qualityRatio).toBeNull();
+    });
+
+    const request = http.expectOne((r) => r.url === `${url}/branch-periods`);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('year')).toBe('2026');
+    expect(request.request.params.get('periodType')).toBe('QUARTER');
+    expect(request.request.params.get('status')).toBe('IN_REVIEW');
+
+    request.flush({
+      success: true,
+      status: 200,
+      data: {
+        branchName: 'Chi nhánh Hà Đông',
+        branchCode: 'BR-HADONG',
+        availableYears: [2026],
+        periods: [
+          {
+            id: 'p1',
+            code: 'Q3-2026',
+            name: 'Quý 3/2026',
+            startDate: '2026-07-01',
+            endDate: '2026-09-30',
+            periodType: 'QUARTER',
+            status: 'IN_REVIEW',
+            displayStatus: 'IN_REVIEW',
+            qualityRatio: null,
+            submittedDepartmentCount: 6,
+            approvedDepartmentCount: 4,
+            totalDepartmentCount: 8,
+            appealWindow: null,
+            canOpen: true,
+            canLock: false,
+            canViewHistory: false,
+          },
+        ],
+      },
+    });
+  });
+
+  it('submits period finalization to /approvals/finalize', () => {
+    const finalizeBody = {
+      periodId: 'p1',
+      signatureToken: 'TOKEN-123',
+      approvalComments: 'Approved',
+    };
+    service.finalize(finalizeBody).subscribe((res) => {
+      expect(res.periodStatus).toBe('LOCKED');
+      expect(res.totalEvaluationsFinalized).toBe(92);
+    });
+
+    const request = http.expectOne(`${url}/approvals/finalize`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(finalizeBody);
+
+    request.flush({
+      success: true,
+      status: 200,
+      data: {
+        periodId: 'p1',
+        periodStatus: 'LOCKED',
+        finalizedAt: '2026-10-15T10:00:00Z',
+        totalEvaluationsFinalized: 92,
+        message: 'Locked',
+      },
+    });
   });
 });

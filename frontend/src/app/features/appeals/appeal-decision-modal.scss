@@ -1,0 +1,205 @@
+/* Decision Modal Styles */
+/* Inherited by the whole dialog: the body font of the screen */
+.modal-backdrop {
+  font-family: Inter, sans-serif;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-window {
+  background: #fff;
+  border-radius: 8px;
+  width: 520px;
+  max-width: 90vw;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+
+  .modal-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    h3 {
+      margin: 0;
+      font:
+        700 16px Manrope,
+        sans-serif;
+      color: #0f172a;
+    }
+    .modal-close {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+      color: #64748b;
+    }
+  }
+
+  .modal-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .decision-radios {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #0f172a;
+      &.radio-selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+      p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        font-weight: 400;
+        color: #64748b;
+      }
+    }
+  }
+
+  .adjustment-field .adjustment-select {
+    width: 100%;
+    height: 38px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0 12px;
+    font-size: 13px;
+    color: #0f172a;
+    outline: none;
+  }
+
+  .note-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #334155;
+      .required {
+        color: #dc2626;
+      }
+    }
+    textarea,
+    input {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+      &:focus {
+        border-color: #2563eb;
+      }
+      &.field-invalid {
+        border-color: #ef4444;
+      }
+    }
+    .char-counter {
+      align-self: flex-end;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .field-error {
+      margin: 0;
+      font-size: 12px;
+      color: #dc2626;
+    }
+  }
+
+  .consequence-callout {
+    padding: 10px 14px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    .callout-title {
+      margin: 0 0 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #166534;
+    }
+    .callout-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12px;
+      color: #1e293b;
+      line-height: 1.45;
+      li {
+        margin-bottom: 2px;
+      }
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    .footer-hint {
+      font-size: 12px;
+      color: #64748b;
+      kbd {
+        display: inline-block;
+        padding: 1px 5px;
+        font-size: 11px;
+        background: #e2e8f0;
+        border: 1px solid #cbd5e1;
+        border-radius: 3px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+    }
+    .footer-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-secondary {
+      padding: 7px 16px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      padding: 7px 18px;
+      background: #2563eb;
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      &:hover:not(:disabled) {
+        background: #1d4ed8;
+      }
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+}

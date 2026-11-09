@@ -35,21 +35,26 @@ public sealed partial class PerformanceDashboardService(
         Guid? periodId,
         CancellationToken cancellationToken = default)
     {
+        await EnsureCanViewEmployeeAsync(accountId, employeeId, cancellationToken);
+        return await BuildPersonalAsync(employeeId, periodId, cancellationToken);
+    }
+
+    private async Task EnsureCanViewEmployeeAsync(Guid accountId, Guid employeeId, CancellationToken cancellationToken)
+    {
         var caller = await ResolveCallerAsync(accountId, cancellationToken);
-
-        if (employeeId != caller.EmployeeId)
+        if (employeeId == caller.EmployeeId)
         {
-            var employeeDepartmentId = await db.Employees.AsNoTracking()
-                .Where(e => e.Id == employeeId)
-                .Select(e => (Guid?)e.DepartmentId)
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new NotFoundException("Nhân viên", employeeId);
-
-            var org = await LoadOrgAsync(cancellationToken);
-            EnsureVisible(ResolveVisible(caller, org), employeeDepartmentId, "Bạn không có quyền xem hiệu suất của nhân viên này.");
+            return;
         }
 
-        return await BuildPersonalAsync(employeeId, periodId, cancellationToken);
+        var employeeDepartmentId = await db.Employees.AsNoTracking()
+            .Where(e => e.Id == employeeId)
+            .Select(e => (Guid?)e.DepartmentId)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Nhân viên", employeeId);
+
+        var org = await LoadOrgAsync(cancellationToken);
+        EnsureVisible(ResolveVisible(caller, org), employeeDepartmentId, "Bạn không có quyền xem hiệu suất của nhân viên này.");
     }
 
     public async Task<UnitPerformanceDashboardDto> GetDepartmentDashboardAsync(

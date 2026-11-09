@@ -1,0 +1,178 @@
+.profile-dialog {
+  width: min(860px, 100%);
+}
+
+.meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.period-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.is-locked {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.is-invalid {
+  border-color: #dc2626;
+}
+
+.required {
+  color: #dc2626;
+}
+
+.code-field {
+  max-width: 320px;
+  margin-bottom: 12px;
+
+  small {
+    color: #64748b;
+  }
+}
+
+.section-title {
+  margin: 18px 0 8px;
+  font:
+    700 12px 'Inter',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.muted-note {
+  padding: 10px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  color: #94a3b8;
+}
+
+.field-error {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+.rows-card {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.rows-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font:
+      600 11px 'Inter',
+      sans-serif;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+
+  tfoot td {
+    background: #f8fafc;
+    border-bottom: 0;
+  }
+}
+
+.col-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.col-action {
+  width: 32px;
+  text-align: center;
+}
+
+.weight-input {
+  width: 90px;
+  text-align: right;
+}
+
+.total {
+  font-weight: 700;
+
+  &.is-ok {
+    color: #15803d;
+  }
+}
+
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.empty-cell {
+  text-align: center;
+  color: #94a3b8;
+}
+
+.link-button {
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+}
+
+.profile-footer {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.changes {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

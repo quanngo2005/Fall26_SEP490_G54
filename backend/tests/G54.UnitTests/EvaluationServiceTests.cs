@@ -6,6 +6,7 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -35,8 +36,10 @@ public sealed class EvaluationServiceTests
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
             new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
-            new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"));
-        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+            new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"),
+            new UserPermissionDto("evaluation", "finalize", "All", "EVALUATION_FINALIZE"));
+        var service = new EvaluationService(
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
         return (context, service);
     }
 
@@ -348,12 +351,14 @@ public sealed class EvaluationServiceTests
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
 
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
         var request = new SubmitEvaluationRequestDto(
             EmployeeId: staff.Id,
             PeriodId: period.Id,
             Comment: "Hoàn thành tốt nhiệm vụ.",
             CoachingPlan: "Tham gia khóa đào tạo kỹ năng bán chéo nâng cao",
             CoachingRequired: true,
+            QualitativeScores: [new(qualitativeRoot.Id, 90m)],
             IsDraft: false);
 
         var result = await service.SubmitEvaluationAsync(request, manager.Id);
@@ -371,6 +376,27 @@ public sealed class EvaluationServiceTests
         Assert.Equal(result.TotalScore, savedEvaluation.TotalScore);
         Assert.Equal(PerformanceEvaluationStatus.Calculated, savedEvaluation.Status);
         Assert.Contains("Tham gia khóa đào tạo kỹ năng bán chéo nâng cao", savedEvaluation.Comment);
+    }
+
+    [Fact]
+    public async Task GetDepartmentEmployeesForEvaluationAsync_ShowsGeneralQualitativeScore_WhenOneWasSaved()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        // Above the 0-100 group scale, so the value can only be accepted by the configured qualitative maximum.
+        const decimal generalScore = 150m;
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                EmployeeId: staff.Id,
+                PeriodId: period.Id,
+                IsDraft: true,
+                GeneralQualitativeScore: generalScore),
+            manager.Id);
+
+        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, staff.DepartmentId, manager.Id);
+
+        Assert.Equal(generalScore, rows.Single(r => r.EmployeeId == staff.Id).QualitativeScore);
     }
 
     [Fact]
@@ -395,7 +421,33 @@ public sealed class EvaluationServiceTests
         await context.RiskEvents.AddAsync(risk);
         await context.SaveChangesAsync();
 
-        var cldvItem = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Chat luong dich vu");
+        // The service-quality KPI also reaches its target, so the total is 80 and only the risk event limits the tier.
+        var csatKpi = await context.KpiDefinitions.SingleAsync(k => k.Code == "CSAT");
+        var csatTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            KpiDefinitionId = csatKpi.Id,
+            TargetValue = 10m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.TargetAssignments.AddAsync(csatTarget);
+        await context.ActualProgresses.AddAsync(new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = csatTarget.Id,
+            Value = 10m,
+            ProgressDate = new DateOnly(2026, 10, 15),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await context.SaveChangesAsync();
+
+        var cldvItem = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
         var request = new SubmitEvaluationRequestDto(
             EmployeeId: staff.Id,
             PeriodId: period.Id,
@@ -541,7 +593,8 @@ public sealed class EvaluationServiceTests
         var permissions = new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
-        var service = new EvaluationService(context, NullLogger<EvaluationService>.Instance, permissions);
+        var service = new EvaluationService(
+            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
         await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
@@ -1051,10 +1104,15 @@ public sealed class EvaluationServiceTests
             Entries.Add((logLevel, formatter(state, exception)));
     }
 
-    private static async Task StoreCommentAsync(AppDbContext context, Employee employee, EvaluationPeriod period, string comment)
+    private static async Task StoreCommentAsync(
+        AppDbContext context,
+        Employee employee,
+        EvaluationPeriod period,
+        string comment,
+        PerformanceEvaluationStatus status = PerformanceEvaluationStatus.Calculated)
     {
         var profile = context.EvaluationProfiles.Single();
-        var evaluation = await AddScoredEvaluationAsync(context, employee, period, profile, 80m);
+        var evaluation = await AddScoredEvaluationAsync(context, employee, period, profile, 80m, status);
         evaluation.Comment = comment;
         await context.SaveChangesAsync();
     }
@@ -1063,7 +1121,8 @@ public sealed class EvaluationServiceTests
         new(context, logger, new FakePermissionService(
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
-            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")));
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
 
     [Fact]
     public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()
@@ -1263,7 +1322,7 @@ public sealed class EvaluationServiceTests
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var marker = malformed ? MalformedQualitativeMarker : LegacyQualitativeMarker;
-        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}");
+        await StoreCommentAsync(context, staff, period, $"Nhận xét\n\n{marker}", PerformanceEvaluationStatus.InReview);
 
         await service.FinalizeAndLockPeriodAsync(
             new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Phê duyệt"), manager.Id);
@@ -1271,5 +1330,760 @@ public sealed class EvaluationServiceTests
         var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
         Assert.Contains(marker, stored);
         Assert.Contains("APPROVAL_COMMENTS: Phê duyệt", stored);
+    }
+
+    private static async Task<Department> AttachBranchAsync(AppDbContext context, Department dept)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var branch = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "BR-TEST",
+            Name = "Chi nhánh kiểm thử",
+            LevelType = DepartmentLevelType.Branch,
+            Status = RecordStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Departments.AddAsync(branch);
+        var tracked = await context.Departments.SingleAsync(d => d.Id == dept.Id);
+        tracked.ParentDepartmentId = branch.Id;
+        await context.SaveChangesAsync();
+        return branch;
+    }
+
+    private static async Task AddEvaluationAsync(
+        AppDbContext context, Employee employee, EvaluationPeriod period, PerformanceEvaluationStatus status)
+    {
+        await context.PerformanceEvaluations.AddAsync(new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.First().Id,
+            TotalScore = 80m,
+            Status = status,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ReturnsRealBranchAndCountsWithoutInventedFields()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var branch = await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.InReview);
+
+        var overview = await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id);
+
+        Assert.Equal(branch.Name, overview.BranchName);
+        Assert.Equal(branch.Code, overview.BranchCode);
+        var row = Assert.Single(overview.Periods);
+        Assert.Equal("MONTH", row.PeriodType);
+        Assert.Equal("OPEN", row.Status);
+        Assert.Equal("IN_REVIEW", row.DisplayStatus);
+        Assert.Equal(1, row.TotalDepartmentCount);
+        Assert.Equal(1, row.SubmittedDepartmentCount);
+        Assert.Equal(0, row.ApprovedDepartmentCount);
+        Assert.Null(row.QualityRatio);
+        Assert.Null(row.AppealWindow);
+        Assert.True(row.CanOpen);
+        Assert.False(row.CanLock);
+        Assert.False(row.CanViewHistory);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ThrowsNotFound_WhenNoBranchExists()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id));
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_AllApproved_IsPublishedAndLockable()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.Approved);
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "published", manager.Id)).Periods);
+
+        Assert.Equal("PUBLISHED", row.DisplayStatus);
+        Assert.Equal(1, row.ApprovedDepartmentCount);
+        Assert.True(row.CanLock);
+        Assert.False(row.CanOpen);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_DisputedEvaluation_BlocksLocking()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        await AddEvaluationAsync(context, staff, period, PerformanceEvaluationStatus.Disputed);
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id)).Periods);
+
+        Assert.False(row.CanLock);
+        Assert.NotEqual("PUBLISHED", row.DisplayStatus);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_LockedPeriod_CountsFromDataNotFromTotals()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        var tracked = await context.EvaluationPeriods.SingleAsync(p => p.Id == period.Id);
+        tracked.Status = PeriodStatus.Locked;
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single((await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, null, manager.Id)).Periods);
+
+        Assert.Equal("LOCKED", row.DisplayStatus);
+        Assert.Equal(0, row.SubmittedDepartmentCount);
+        Assert.Equal(0, row.ApprovedDepartmentCount);
+        Assert.Equal(1, row.TotalDepartmentCount);
+        Assert.Null(row.AppealWindow);
+        Assert.True(row.CanViewHistory);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_FiltersByYearTypeAndStatus()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+        var now = DateTimeOffset.UtcNow;
+        await context.EvaluationPeriods.AddAsync(new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2025-H2",
+            Name = "Nửa năm 2/2025",
+            PeriodType = PeriodType.HalfYear,
+            StartDate = new DateOnly(2025, 7, 1),
+            EndDate = new DateOnly(2025, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        });
+        await context.SaveChangesAsync();
+
+        var byYear = await service.GetBranchEvaluationPeriodsOverviewAsync(2025, null, null, manager.Id);
+        var byType = await service.GetBranchEvaluationPeriodsOverviewAsync(null, "half_year", null, manager.Id);
+        var byStatus = await service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "LOCKED", manager.Id);
+
+        Assert.Equal([2026, 2025], byYear.AvailableYears);
+        Assert.Equal("HALF_YEAR", Assert.Single(byYear.Periods).PeriodType);
+        Assert.Equal("2025-H2", Assert.Single(byType.Periods).Code);
+        Assert.Empty(byStatus.Periods);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationPeriodsOverviewAsync_ThrowsValidation_ForUnknownFilters()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, _, manager, _) = await SeedBaseScenarioAsync(context);
+        await AttachBranchAsync(context, dept);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, "FORTNIGHT", null, manager.Id));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetBranchEvaluationPeriodsOverviewAsync(null, null, "BOGUS", manager.Id));
+    }
+
+    // ----- Qualitative group: a score is accepted only for a group without an active KPI -----------
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsSentForAGroupWithActiveKpis()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var kpiGroupRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Kinh doanh");
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(kpiGroupRoot.Id, 10m)], IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Contains("Kinh doanh", ex.Message);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_AcceptsAQualitativeScore_WhenEveryKpiOfTheGroupIsInactive()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var serviceGroup = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Chat luong dich vu");
+        (await context.KpiDefinitions.SingleAsync(k => k.Code == "CSAT")).Status = KpiStatus.Inactive;
+        await context.SaveChangesAsync();
+
+        var result = await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(serviceGroup.Id, 50m)], IsDraft: true),
+            manager.Id);
+
+        var form = await service.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == serviceGroup.Id);
+        Assert.True(group.IsQualitative);
+        Assert.Equal(50m, group.GroupScore);
+        Assert.Equal(result.TotalScore, form.CurrentEvaluation.TotalScore);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_Draft_CountsAnUnscoredQualitativeGroupAsZero()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var scored = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        var unscored = await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, IsDraft: true), manager.Id);
+        var withScore = await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(scored.Id, 100m)], IsDraft: true),
+            manager.Id);
+
+        // The unscored group adds nothing; scoring it raises the total by exactly its weighted score.
+        Assert.Equal(scored.WeightPercent, withScore.TotalScore - unscored.TotalScore);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_Complete_ThrowsValidation_WhenAQualitativeGroupHasNoScore()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, IsDraft: false), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Contains("Van hanh & Tuan thu", ex.Message);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task GetDepartmentCalibrationAsync_ReadsTheSavedQualitativeScore_InsteadOfAFullScore()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
+
+        var unscored = (await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id))
+            .RankedRoster.Single(e => e.EmployeeId == staff.Id);
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(
+                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 70m)], IsDraft: true),
+            manager.Id);
+        var scored = (await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id))
+            .RankedRoster.Single(e => e.EmployeeId == staff.Id);
+
+        Assert.Equal(0m, unscored.QualitativeScore);
+        Assert.Equal(70m, scored.QualitativeScore);
+        Assert.Equal(qualitativeRoot.WeightPercent * 70m / 100m, scored.TotalScore - unscored.TotalScore);
+    }
+
+    // ----- Save and lock rules enforced by the service, not only by the form's flags ---------------
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.InReview)]
+    [InlineData(PerformanceEvaluationStatus.Approved)]
+    [InlineData(PerformanceEvaluationStatus.Final)]
+    public async Task SubmitEvaluationAsync_ThrowsConflict_WhenTheEvaluationIsAlreadyPastCalculated(PerformanceEvaluationStatus status)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "Nhận xét gốc", status);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Ghi đè", IsDraft: true), manager.Id));
+
+        Assert.Equal(ErrorCodes.PerformanceEvaluationInvalidState, ex.ErrorCode);
+        var stored = await context.PerformanceEvaluations.AsNoTracking().SingleAsync();
+        Assert.Equal(status, stored.Status);
+        Assert.Equal("Nhận xét gốc", stored.Comment);
+    }
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.Draft)]
+    [InlineData(PerformanceEvaluationStatus.Calculated)]
+    public async Task SubmitEvaluationAsync_Saves_WhenTheEvaluationIsStillDraftOrCalculated(PerformanceEvaluationStatus status)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "Nhận xét gốc", status);
+
+        await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Nhận xét mới", IsDraft: true), manager.Id);
+
+        var stored = await ReadStoredCommentAsync(context, staff.Id, period.Id);
+        Assert.Equal("Nhận xét mới", stored);
+    }
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.Draft)]
+    [InlineData(PerformanceEvaluationStatus.Calculated)]
+    public async Task FinalizeAndLockPeriodAsync_ThrowsConflict_AndChangesNothing_WhenAnEvaluationWasNeverSentForReview(
+        PerformanceEvaluationStatus status)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "Nhận xét", status);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, "Phê duyệt"), manager.Id));
+
+        Assert.Equal(ErrorCodes.PerformanceEvaluationInvalidState, ex.ErrorCode);
+        context.ChangeTracker.Clear();
+        Assert.Equal(PeriodStatus.Open, (await context.EvaluationPeriods.AsNoTracking().SingleAsync(p => p.Id == period.Id)).Status);
+        var stored = await context.PerformanceEvaluations.AsNoTracking().SingleAsync();
+        Assert.Equal(status, stored.Status);
+        Assert.Equal("Nhận xét", stored.Comment);
+        Assert.Null(stored.ApprovedAt);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_KeepsTheApprovalTimeOfAnEvaluationThatIsAlreadyFinal()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var earlier = new DateTimeOffset(2026, 10, 20, 8, 0, 0, TimeSpan.Zero);
+        var final = await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.Final);
+        final.ApprovedAt = earlier;
+        var peer = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV-FINAL",
+            FullName = "Nhân viên chờ chốt",
+            Email = "inreview@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.Employees.AddAsync(peer);
+        await context.SaveChangesAsync();
+        await AddScoredEvaluationAsync(context, peer, period, profile, 80m, PerformanceEvaluationStatus.InReview);
+
+        var result = await service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, null), manager.Id);
+
+        Assert.Equal("LOCKED", result.PeriodStatus);
+        context.ChangeTracker.Clear();
+        var stored = await context.PerformanceEvaluations.AsNoTracking().ToListAsync();
+        Assert.All(stored, pe => Assert.Equal(PerformanceEvaluationStatus.Final, pe.Status));
+        Assert.Equal(earlier, stored.Single(pe => pe.EmployeeId == staff.Id).ApprovedAt);
+    }
+
+    [Fact]
+    public async Task GetBranchApprovalOverviewAsync_CannotFinalize_WhenAnEvaluationOfTheDepartmentWasNeverSentForReview()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        var peer = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV-NOTREADY",
+            FullName = "Nhân viên chưa trình duyệt",
+            Email = "notready@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.Employees.AddAsync(peer);
+        await context.SaveChangesAsync();
+        await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.InReview);
+        await AddScoredEvaluationAsync(context, peer, period, profile, 80m, PerformanceEvaluationStatus.Calculated);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        // The department reads IN_REVIEW because one evaluation is, yet finalizing would be refused: the flag must agree.
+        Assert.Equal("IN_REVIEW", overview.Departments.Single(d => d.DepartmentId == dept.Id).Status);
+        Assert.False(overview.CanFinalize);
+        await Assert.ThrowsAsync<ConflictException>(() => service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, null), manager.Id));
+    }
+
+    [Fact]
+    public async Task GetBranchApprovalOverviewAsync_CanFinalize_WhenEveryEvaluationWasSentForReview()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.InReview);
+
+        var overview = await service.GetBranchApprovalOverviewAsync(period.Id, manager.Id);
+
+        Assert.True(overview.CanFinalize);
+    }
+
+    // ----- Free text never becomes system data (markers) and stays within the configured limit -----
+
+    private const string FakeCalibrationMarker = "<!-- CALIBRATION_JSON: {\"CalibratedTier\":\"A1\",\"Reason\":\"x\",\"CoachingFlag\":false} -->";
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenTheCommentCarriesAMarker()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: $"Nhận xét {FakeCalibrationMarker}", IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Theory]
+    [InlineData("<!-- ")]
+    [InlineData(" -->")]
+    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenTheCoachingPlanBreaksAMarkerDelimiter(string fragment)
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, CoachingPlan: $"Kèm cặp{fragment}", IsDraft: true), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_ThrowsValidation_WhenTheNotesCarryAMarker()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitDepartmentCalibrationAsync(
+            new SubmitCalibrationRequestDto(
+                dept.Id, period.Id, [new(staff.Id, "B")], Notes: FakeCalibrationMarker, IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Empty(context.PerformanceEvaluations);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_ThrowsValidation_WhenTheReasonCarriesAMarker()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "Nhận xét", PerformanceEvaluationStatus.InReview);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.RejectDepartmentCalibrationAsync(
+            dept.Id, new RejectCalibrationRequestDto(period.Id, FakeCalibrationMarker), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        var stored = await context.PerformanceEvaluations.AsNoTracking().SingleAsync();
+        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Equal("Nhận xét", stored.Comment);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_ThrowsValidation_WhenTheApprovalCommentsCarryAMarker()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        await StoreCommentAsync(context, staff, period, "Nhận xét", PerformanceEvaluationStatus.InReview);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.FinalizeAndLockPeriodAsync(
+            new FinalizeEvaluationPeriodRequestDto(period.Id, null, FakeCalibrationMarker), manager.Id));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Equal(PeriodStatus.Open, (await context.EvaluationPeriods.AsNoTracking().SingleAsync(p => p.Id == period.Id)).Status);
+    }
+
+    [Theory]
+    [InlineData(typeof(SubmitEvaluationRequestDto), "Comment")]
+    [InlineData(typeof(SubmitEvaluationRequestDto), "CoachingPlan")]
+    [InlineData(typeof(QualitativeScoreInputDto), "Notes")]
+    public void EvaluationFreeText_IsLimitedByTheDto(Type dto, string parameterName)
+    {
+        // ASP.NET Core validates the attributes of a record's constructor parameters while binding the request body.
+        var limit = dto.GetConstructors().Single().GetParameters().Single(p => p.Name == parameterName)
+            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.StringLengthAttribute), inherit: false)
+            .Cast<System.ComponentModel.DataAnnotations.StringLengthAttribute>().Single();
+
+        Assert.True(limit.IsValid(null));
+        Assert.True(limit.IsValid(new string('a', limit.MaximumLength)));
+        Assert.False(limit.IsValid(new string('a', limit.MaximumLength + 1)));
+        Assert.False(string.IsNullOrWhiteSpace(limit.ErrorMessage));
+    }
+    // ----- A concurrent first save of the same evaluation ----------------------------------------
+
+    private sealed class DuplicateEvaluationInterceptor : SaveChangesInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
+            Armed
+                ? throw new DbUpdateException(
+                    "duplicate key",
+                    new Npgsql.PostgresException("duplicate key", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.UniqueViolation))
+                : base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    [Fact]
+    public async Task SubmitEvaluationAsync_ThrowsConflict_WhenTheDatabaseRejectsTheEvaluationAsADuplicate()
+    {
+        var interceptor = new DuplicateEvaluationInterceptor();
+        var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options);
+        DowngradeTestData.Seed(context);
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var service = CreateServiceWith(context, NullLogger<EvaluationService>.Instance);
+        interceptor.Armed = true;
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Nhận xét", IsDraft: true), manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
+    }
+
+    // ----- A save that loses a race with another request is a 409, never a server error ---------
+
+    private sealed class FailingSaveInterceptor(Func<Exception> failure) : SaveChangesInterceptor
+    {
+        public bool Armed { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
+            Armed ? throw failure() : base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    public static TheoryData<string> SaveRaceFailures => new() { "unique", "concurrency" };
+
+    private static Exception SaveRaceFailure(string kind) => kind == "unique"
+        ? new DbUpdateException(
+            "duplicate key",
+            new Npgsql.PostgresException("duplicate key", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.UniqueViolation))
+        : new DbUpdateConcurrencyException("row changed or removed by another request");
+
+    /// <summary>
+    /// A service and a context that fails on save once armed, plus a second context on the same store (no interceptor) to
+    /// show that nothing was written.
+    /// </summary>
+    private static (AppDbContext Context, AppDbContext Check, EvaluationService Service, FailingSaveInterceptor Interceptor) CreateFailingSaveEnvironment(string kind)
+    {
+        var name = Guid.NewGuid().ToString();
+        var interceptor = new FailingSaveInterceptor(() => SaveRaceFailure(kind));
+        var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(name)
+            .AddInterceptors(interceptor)
+            .Options);
+        var check = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(name).Options);
+        DowngradeTestData.Seed(context);
+        var service = new EvaluationService(
+            context,
+            NullLogger<EvaluationService>.Instance,
+            new FakePermissionService(
+                null,
+                new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+                new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
+                new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE")),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+        return (context, check, service, interceptor);
+    }
+
+    [Theory]
+    [MemberData(nameof(SaveRaceFailures))]
+    public async Task SubmitEvaluationAsync_ThrowsConflict_WhenTheSaveLosesARaceWithAnotherRequest(string kind)
+    {
+        var (context, check, service, interceptor) = CreateFailingSaveEnvironment(kind);
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        interceptor.Armed = true;
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Nhận xét", IsDraft: true), manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(check.PerformanceEvaluations);
+        Assert.Empty(check.PerformanceContributions);
+    }
+
+    [Theory]
+    [MemberData(nameof(SaveRaceFailures))]
+    public async Task SubmitDepartmentCalibrationAsync_ThrowsConflict_WhenTheSaveLosesARaceWithAnotherRequest(string kind)
+    {
+        var (context, check, service, interceptor) = CreateFailingSaveEnvironment(kind);
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        interceptor.Armed = true;
+
+        // The employee has no evaluation yet, so the calibration creates one together with its KPI rows.
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.SubmitDepartmentCalibrationAsync(
+            new SubmitCalibrationRequestDto(
+                dept.Id, period.Id, [new CalibrationAdjustmentItemDto(staff.Id, "B", null, false)], IsDraft: true),
+            manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Empty(check.PerformanceEvaluations);
+        Assert.Empty(check.PerformanceContributions);
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentCalibrationAsync_ApprovesInReviewEvaluations()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var pe = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.InReview,
+            TotalScore = 85m,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(pe);
+        await context.SaveChangesAsync();
+
+        var result = await service.ApproveDepartmentCalibrationAsync(
+            dept.Id,
+            new ApproveDepartmentRankingRequestDto(period.Id, "Duyệt theo đề xuất"),
+            manager.Id);
+
+        Assert.Equal("APPROVED", result.Status);
+        Assert.Equal(1, result.ApprovedEvaluationsCount);
+
+        var updated = await context.PerformanceEvaluations.FindAsync(pe.Id);
+        Assert.NotNull(updated);
+        Assert.Equal(PerformanceEvaluationStatus.Approved, updated.Status);
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentCalibrationAsync_ThrowsNotFound_WhenNoEvaluationsExist()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, _) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ApproveDepartmentCalibrationAsync(
+            dept.Id,
+            new ApproveDepartmentRankingRequestDto(period.Id, "Duyệt"),
+            manager.Id));
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentCalibrationAsync_ThrowsBusiness_WhenPeriodIsLockedOrClosed()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        period.Status = PeriodStatus.Locked;
+        await context.SaveChangesAsync();
+
+        var pe = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.InReview,
+            TotalScore = 85m,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(pe);
+        await context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.ApproveDepartmentCalibrationAsync(
+            dept.Id,
+            new ApproveDepartmentRankingRequestDto(period.Id, "Duyệt"),
+            manager.Id));
+
+        Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentCalibrationAsync_ThrowsBusiness_WhenDepartmentHasActiveDispute()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var pe = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.Disputed,
+            TotalScore = 80m,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(pe);
+        await context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.ApproveDepartmentCalibrationAsync(
+            dept.Id,
+            new ApproveDepartmentRankingRequestDto(period.Id, "Duyệt"),
+            manager.Id));
+
+        Assert.Equal(ErrorCodes.EvaluationDisputePending, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheckAsync_ReturnsCorrectChecklistItems()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var check = await service.GetPreCloseCheckAsync(period.Id, manager.Id);
+
+        Assert.NotNull(check);
+        Assert.Equal(period.Id, check.PeriodId);
+        Assert.Equal(period.Code, check.PeriodCode);
+        Assert.Equal(5, check.Items.Count);
+        Assert.Contains(check.Items, i => i.Code == "IN_REVIEW_SUBMISSIONS");
+        Assert.Contains(check.Items, i => i.Code == "MANUAL_WORK_ITEMS");
+        Assert.Contains(check.Items, i => i.Code == "OPEN_DISPUTES");
+        Assert.Contains(check.Items, i => i.Code == "UNAPPROVED_DEPARTMENTS");
+        Assert.Contains(check.Items, i => i.Code == "CORE_BANKING_IMPORT");
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheckAsync_DetectsOpenDisputes_AndSetsCanPublishFalse()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var pe = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.Disputed,
+            TotalScore = 75m,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(pe);
+        await context.SaveChangesAsync();
+
+        var check = await service.GetPreCloseCheckAsync(period.Id, manager.Id);
+
+        Assert.NotNull(check);
+        Assert.False(check.CanPublish);
+        Assert.True(check.TotalUnresolvedCount > 0);
+        var disputeItem = check.Items.Single(i => i.Code == "OPEN_DISPUTES");
+        Assert.False(disputeItem.IsPassed);
+        Assert.Equal(1, disputeItem.RemainingCount);
     }
 }

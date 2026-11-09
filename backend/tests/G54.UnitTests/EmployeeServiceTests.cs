@@ -239,7 +239,7 @@ public sealed class EmployeeServiceTests
             await context.Departments.AddRangeAsync(activeDept, inactiveDept);
             await context.SaveChangesAsync();
 
-            var options = await service.GetDepartmentOptionsAsync();
+            var options = await service.GetDepartmentOptionsAsync(Guid.Empty);
             Assert.Contains(options, o => o.Code == "D-ACT");
             Assert.DoesNotContain(options, o => o.Code == "D-INACT");
         }
@@ -273,7 +273,7 @@ public sealed class EmployeeServiceTests
             await context.JobPositions.AddRangeAsync(activePos, inactivePos);
             await context.SaveChangesAsync();
 
-            var options = await service.GetJobPositionOptionsAsync();
+            var options = await service.GetJobPositionOptionsAsync(Guid.Empty);
             Assert.Contains(options, o => o.Code == "P-ACT");
             Assert.DoesNotContain(options, o => o.Code == "P-INACT");
         }

@@ -123,4 +123,24 @@ describe('WorkService', () => {
     http.expectOne(`${url}/w1`).flush({ success: false, status: 200, data: null, message: 'x' });
     expect(failed).toBeTrue();
   });
+
+  it('creates a work through POST /works', () => {
+    let code = '';
+    service
+      .create({
+        title: 'Mở thẻ tín dụng',
+        workTypeId: 't1',
+        assigneeEmployeeId: 'e1',
+        priority: 'High',
+        plannedEndDate: '2026-11-30',
+      })
+      .subscribe((work) => (code = work.code));
+
+    const request = http.expectOne(url);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body.priority).toBe('High');
+    request.flush({ success: true, status: 200, data: { ...item, code: 'WRK-1' } });
+
+    expect(code).toBe('WRK-1');
+  });
 });

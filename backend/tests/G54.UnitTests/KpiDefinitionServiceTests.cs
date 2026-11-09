@@ -333,7 +333,7 @@ public sealed class KpiDefinitionServiceTests
             Unit = "pts",
             AggregationType = KpiAggregationType.Sum,
             Direction = KpiDirection.HigherBetter,
-            Status = KpiStatus.Draft,
+            Status = KpiStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
         await context.KpiGroups.AddAsync(group);
@@ -341,10 +341,10 @@ public sealed class KpiDefinitionServiceTests
         await context.SaveChangesAsync();
 
         var service = new KpiDefinitionService(context);
-        await service.ChangeStatusAsync(kpi.Id, new KpiStatusDto { Status = "ACTIVE" });
+        await service.ChangeStatusAsync(Guid.NewGuid(), kpi.Id, new KpiStatusDto { Status = "INACTIVE" });
 
         var updated = await context.KpiDefinitions.FindAsync(kpi.Id);
         Assert.NotNull(updated);
-        Assert.Equal(KpiStatus.Active, updated.Status);
+        Assert.Equal(KpiStatus.Inactive, updated.Status);
     }
 }

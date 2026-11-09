@@ -30,4 +30,26 @@ public interface IPerformanceDashboardService
         Guid branchId,
         Guid? periodId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>The lines behind one employee's score in a period (verified results, risk penalties, appeal score entries), newest first; <paramref name="kpiId"/> keeps only that KPI's results.</summary>
+    Task<EmployeeLedgerDto> GetEmployeeLedgerAsync(
+        Guid accountId,
+        Guid employeeId,
+        Guid? periodId,
+        Guid? kpiId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>One ledger line with its work, submission and the risk event or appeal behind it.</summary>
+    Task<LedgerEntryDetailDto> GetLedgerEntryAsync(
+        Guid accountId,
+        Guid entryId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The transaction codes of the work a ledger line came from, with their reconciled import data.</summary>
+    Task<LedgerTransactionsDto> GetLedgerEntryTransactionsAsync(
+        Guid accountId,
+        Guid entryId,
+        CancellationToken cancellationToken = default);
 }

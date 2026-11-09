@@ -8,6 +8,7 @@ public sealed record WorkTypeDetailDto(
     string Code,
     string Name,
     string? Description,
+    string? ProductCode,
     string Status,
     DateTimeOffset CreatedAt,
     List<WorkTypeKpiDetailDto> Kpis);

@@ -7,7 +7,9 @@ public partial class VerifiedWorkResult
 {
     public Guid Id { get; set; }
 
-    public Guid VerificationId { get; set; }
+    public Guid? VerificationId { get; set; }
+
+    public Guid? WorkTransactionId { get; set; }
 
     public DateTimeOffset VerifiedAt { get; set; }
 
@@ -17,7 +19,9 @@ public partial class VerifiedWorkResult
 
     public VerifiedResultStatus Status { get; set; }
 
-    public virtual Verification Verification { get; set; } = null!;
+    public virtual Verification? Verification { get; set; }
+
+    public virtual WorkTransaction? WorkTransaction { get; set; }
 
     public virtual ICollection<WorkResultItem> WorkResultItems { get; set; } = new List<WorkResultItem>();
 }

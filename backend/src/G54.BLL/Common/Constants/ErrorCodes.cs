@@ -29,6 +29,7 @@ public static class ErrorCodes
     public const string KpiResultNotFound = "KPI_RESULT_NOT_FOUND";
     public const string MakerCannotBeChecker = "MAKER_CANNOT_BE_CHECKER";       // MSG10, BR-02
     public const string KpiAlreadyContributed = "KPI_ALREADY_CONTRIBUTED";      // MSG22, BR-08
+    public const string KpiTargetNotAssigned = "KPI_TARGET_NOT_ASSIGNED";
     public const string EvidenceLocked = "EVIDENCE_LOCKED";                     // MSG23, BR-13
     public const string MediaTimestampRequired = "MEDIA_TIMESTAMP_REQUIRED";    // MSG28, BR-19
 
@@ -52,6 +53,7 @@ public static class ErrorCodes
     public const string AppealInvalidState = "APPEAL_INVALID_STATE";
     public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
     public const string AppealWindowExpired = "APPEAL_WINDOW_EXPIRED";
+    public const string AppealScoreWindowExpired = "APPEAL_SCORE_WINDOW_EXPIRED";
 
     // Handover (docs/api/HANDOVER_CONTRACT.md)
     public const string HandoverAmountExceedsThreshold = "HANDOVER_AMOUNT_EXCEEDS_THRESHOLD";
@@ -61,12 +63,18 @@ public static class ErrorCodes
     // Evaluation profile management (docs/api/EVALUATION_PROFILE_CONTRACT.md)
     public const string EvaluationProfileInUse = "EVALUATION_PROFILE_IN_USE";
 
+    // Business objectives (docs/api/BUSINESS_OBJECTIVE_CONTRACT.md)
+    public const string BusinessObjectiveInUse = "BUSINESS_OBJECTIVE_IN_USE";
+
     // Evaluation & Calibration lifecycle (docs/api/CALIBRATION_APPROVAL_CONTRACT.md)
     public const string TierAQuotaExceeded = "TIER_A_QUOTA_EXCEEDED";
     public const string EvaluationDisputePending = "EVALUATION_DISPUTE_PENDING";           // BR-31
 
     // Evaluation periods (docs/api/EVALUATION_PERIOD_CONTRACT.md)
     public const string EvaluationPeriodInvalidState = "EVALUATION_PERIOD_INVALID_STATE";
+
+    // Locked evaluation periods (docs/api/PERIOD_LOCK_CONTRACT.md)
+    public const string PeriodLocked = "PERIOD_LOCKED";
 
     // Risk events (docs/api/RISK_EVENT_CONTRACT.md)
     public const string RiskEventInvalidState = "RISK_EVENT_INVALID_STATE";
@@ -79,6 +87,22 @@ public static class ErrorCodes
     public const string TargetDepartmentNotInBranch = "TARGET_DEPARTMENT_NOT_IN_BRANCH";
     public const string TargetImportInvalid = "TARGET_IMPORT_INVALID";
     public const string TargetInvalidState = "TARGET_INVALID_STATE";
+
+    // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
+    public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
+    public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
+    public const string DataImportInvalidValue = "DATA_IMPORT_INVALID_VALUE";
+    public const string DataImportDuplicate = "DATA_IMPORT_DUPLICATE";
+    public const string DataImportReferenceNotFound = "DATA_IMPORT_REFERENCE_NOT_FOUND";
+    public const string DataImportConflict = "DATA_IMPORT_CONFLICT";
+
+    // Transaction import (docs/api/TRANSACTION_IMPORT_CONTRACT.md)
+    public const string ImportInvalidFile = "IMPORT_INVALID_FILE";
+
+    // Work transaction reconcile (docs/api/WORK_TRANSACTION_CONTRACT.md)
+    public const string KpiAggregationNotSupported = "KPI_AGGREGATION_NOT_SUPPORTED";
+    public const string WorkTransactionLimit = "WORK_TRANSACTION_LIMIT";
+    public const string WorkTransactionDuplicate = "WORK_TRANSACTION_DUPLICATE";
 
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
@@ -97,6 +121,7 @@ public static class ErrorCodes
         [KpiResultNotFound] = ("Chưa có kết quả KPI đã được thẩm định.", "No verified KPI result was found."),
         [MakerCannotBeChecker] = ("Lỗi kiểm tra: Người thực hiện (Maker) không được phép tự phân công mình làm người phê duyệt (Checker).", "Validation Error: Maker cannot assign self as Checker/Approver for this task."),
         [KpiAlreadyContributed] = ("Lỗi Xung đột: Công việc ID đã đóng góp KPI vào hệ thống trước đó.", "Conflict Error: Task ID has already contributed KPI to the system."),
+        [KpiTargetNotAssigned] = ("Nhân sự nhận điểm chưa có chỉ tiêu (target) đang hiệu lực cho KPI của công việc này nên chưa thể phê duyệt kết quả.", "The recipient has no active target for this work's KPI, so the result cannot be approved."),
         [EvidenceLocked] = ("Truy cập bị từ chối: Tệp tài liệu minh chứng đã bị khóa vĩnh viễn sau khi phê duyệt.", "Access Denied: Evidence attachments are permanently locked post-approval."),
         [MediaTimestampRequired] = ("Lỗi kiểm tra: Bắt buộc phải cung cấp Dấu thời gian (Timestamp) minh chứng.", "Validation Error: Media Timestamp proof is required."),
         [WorkInvalidState] = ("Trạng thái hiện tại của công việc không cho phép chuyển sang trạng thái yêu cầu.", "The current work status does not allow the requested transition."),
@@ -110,18 +135,31 @@ public static class ErrorCodes
         [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
+        [AppealScoreWindowExpired] = ("Đã quá thời hạn khiếu nại điểm đánh giá.", "The window to appeal an evaluation score has expired."),
         [HandoverAmountExceedsThreshold] = ("Giá trị giao dịch vượt ngưỡng cho phép bàn giao (BR-01).", "The amount exceeds the allowed handover threshold (BR-01)."),
         [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
         [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
+        [BusinessObjectiveInUse] = ("Mục tiêu kinh doanh đã được dùng bởi chiến dịch, chỉ tiêu, KPI hoặc mục tiêu con nên không thể xóa.", "The business objective is used by campaigns, targets, KPIs or child objectives and cannot be deleted."),
         [TargetDepartmentSumBelow] = ("Tổng chỉ tiêu năm của các phòng ban phải lớn hơn hoặc bằng chỉ tiêu năm của chi nhánh.", "Department year targets must add up to at least the branch year target."),
         [TargetQuarterSumBelow] = ("Tổng chỉ tiêu các quý phải lớn hơn hoặc bằng chỉ tiêu năm của phòng ban.", "Quarter targets must add up to at least the department year target."),
         [TargetPeriodNotOpen] = ("Kỳ đánh giá không ở trạng thái mở nên không thể giao chỉ tiêu.", "The evaluation period is not open for target allocation."),
         [TargetDepartmentNotInBranch] = ("Phòng ban phải là đơn vị con trực tiếp của chi nhánh.", "Each department must be a direct child of the branch."),
         [TargetImportInvalid] = ("Tệp nhập chứa dòng dữ liệu không hợp lệ nên không có chỉ tiêu nào được ghi nhận.", "The import file contains invalid rows, so no target was applied."),
         [TargetInvalidState] = ("Trạng thái chỉ tiêu hiện tại không cho phép thao tác này.", "The current target state does not allow this action."),
+        [ImportTemplateInvalid] = ("File không đúng mẫu quy định.", "The file does not match the required template."),
+        [DataImportHasErrors] = ("File còn dòng lỗi, không thể xác nhận import.", "The file still has invalid rows and cannot be committed."),
+        [DataImportInvalidValue] = ("Giá trị không hợp lệ.", "Invalid value."),
+        [DataImportDuplicate] = ("Mã nhân viên trùng lặp trong file.", "Duplicate employee code in the file."),
+        [DataImportReferenceNotFound] = ("Mã tham chiếu không tồn tại.", "Referenced code not found."),
+        [DataImportConflict] = ("Mã nhân viên hoặc email đã tồn tại, không có dữ liệu nào được ghi.", "An employee code or email already exists, so nothing was written."),
+        [ImportInvalidFile] = ("Tệp nhập không đúng định dạng .xlsx hoặc thiếu cột bắt buộc.", "The import file is not a valid .xlsx or is missing a required column."),
+        [KpiAggregationNotSupported] = ("KPI kh\u00f4ng h\u1ed7 tr\u1ee3 c\u00e1ch t\u1ed5ng h\u1ee3p n\u00e0y.", "The KPI aggregation type is not supported for transaction reconciliation."),
+        [WorkTransactionLimit] = ("M\u1ed7i c\u00f4ng vi\u1ec7c ch\u1ec9 c\u00f3 t\u1ed1i \u0111a 10 m\u00e3 giao d\u1ecbch.", "A work can hold at most 10 transaction codes."),
+        [WorkTransactionDuplicate] = ("M\u00e3 giao d\u1ecbch \u0111\u00e3 \u0111\u01b0\u1ee3c d\u00f9ng cho m\u1ed9t c\u00f4ng vi\u1ec7c.", "The transaction code is already used by a work."),
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
+        [PeriodLocked] = ("Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI.", "The evaluation period is locked, so KPI data cannot be changed or imported."),
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
         [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),

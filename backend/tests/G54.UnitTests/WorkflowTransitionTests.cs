@@ -254,7 +254,6 @@ public sealed class WorkflowTransitionTests
             new SubmitVerificationDecisionDto
             {
                 Decision = decision,
-                VerifiedValue = 1m,
                 Feedback = "Lý do đủ dài để hợp lệ.",
                 ResubmitDeadline = DateTimeOffset.UtcNow.AddDays(2),
             }));
@@ -298,7 +297,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         var result = await rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m });
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" });
 
         Assert.Equal("APPROVED", result.SubmissionStatus);
         Assert.Equal("VERIFIED", result.WorkStatus);
@@ -313,7 +312,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         await Assert.ThrowsAsync<UnauthorizedException>(() => rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m }));
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" }));
 
         Assert.Equal(SubmissionStatus.Submitted, (await rig.Db.ResultSubmissions.AsNoTracking().SingleAsync()).Status);
         Assert.Equal(WorkStatus.Submitted, await rig.WorkStatusAsync());
@@ -328,7 +327,7 @@ public sealed class WorkflowTransitionTests
         await rig.SaveAsync();
 
         await Assert.ThrowsAsync<UnauthorizedException>(() => rig.Verifications().SubmitDecisionAsync(
-            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED", VerifiedValue = 1m }));
+            submission.Id, rig.CheckerAccount.Id, new SubmitVerificationDecisionDto { Decision = "APPROVED" }));
 
         Assert.Equal(WorkStatus.Submitted, await rig.WorkStatusAsync());
     }
@@ -433,6 +432,32 @@ public sealed class WorkflowTransitionTests
                 UpdatedAt = Now,
             });
 
+            // Approving a result with a verified value needs an active target for the assignee.
+            var period = new EvaluationPeriod
+            {
+                Id = Guid.NewGuid(),
+                Code = "P",
+                Name = "Period",
+                PeriodType = PeriodType.Month,
+                StartDate = Today.AddDays(-10),
+                EndDate = Today.AddDays(10),
+                Status = PeriodStatus.Open,
+                UpdatedAt = Now,
+            };
+            db.EvaluationPeriods.Add(period);
+            db.TargetAssignments.Add(new TargetAssignment
+            {
+                Id = Guid.NewGuid(),
+                KpiDefinitionId = kpi.Id,
+                EmployeeId = assignee.Id,
+                EvaluationPeriodId = period.Id,
+                Version = 1,
+                TargetValue = 100m,
+                Status = TargetAssignmentStatus.Active,
+                CreatedAt = Now,
+                UpdatedAt = Now,
+            });
+
             var work = new Work
             {
                 Id = Guid.NewGuid(),
@@ -465,7 +490,8 @@ public sealed class WorkflowTransitionTests
             new UnitOfWork(Db),
             NullLogger<WorkService>.Instance,
             new FixedTime(Now),
-            new FakePermissionService(null, FakePermissionService.WorkCreate("All")));
+            new FakePermissionService(null, FakePermissionService.WorkCreate("All")),
+            new RecordingNotifier());
 
         public ResultSubmissionService Submissions()
         {

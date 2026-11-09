@@ -8,9 +8,16 @@
           <p class="breadcrumb">{{localization.campaign.breadcrumb}}</p>
           <h1>{{localization.campaign.title}}</h1>
         </div>
-        <button type="button" class="button button-primary" (click)="createOpen.set(true)">
-          ＋ {{localization.campaign.createPlan}}
-        </button>
+        <div class="toolbar-actions">
+          @if ((overview()?.metrics?.plannedCampaigns ?? 0) > 0) {
+            <a class="button button-secondary" routerLink="/campaigns/approval">
+              {{localization.campaign.reviewPlans}}
+            </a>
+          }
+          <button type="button" class="button button-primary" (click)="createOpen.set(true)">
+            ＋ {{localization.campaign.createPlan}}
+          </button>
+        </div>
       </div>
 
       <div class="tabs" role="tablist">

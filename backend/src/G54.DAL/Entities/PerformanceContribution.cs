@@ -23,12 +23,19 @@ public partial class PerformanceContribution
 
     public decimal? ActualValue { get; set; }
 
+    /// <summary>The actual in points: each verified result's real amount times its product multiplier (BR-48). Equals <see cref="ActualValue"/> when no multiplier applies.</summary>
+    public decimal? WeightedActualValue { get; set; }
+
     public decimal? ActualDenominator { get; set; }
 
     public decimal? AchievementPercentRaw { get; set; }
 
     public decimal? AchievementPercentCapped { get; set; }
 
+    /// <summary>
+    /// Weight of the KPI leaf among its sibling nodes in the evaluation profile tree (the leaf's own weight percent),
+    /// not the weight of its group and not its share of the whole profile.
+    /// </summary>
     public decimal? WeightSnapshot { get; set; }
 
     public decimal? ComponentScore { get; set; }

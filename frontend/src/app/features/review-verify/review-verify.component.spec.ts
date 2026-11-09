@@ -202,6 +202,31 @@ describe('ReviewVerifyComponent', () => {
     );
   });
 
+  it('maps the missing-target error code to a localized message', () => {
+    const fixture = open();
+    load(fixture);
+    const cmp = internals(fixture);
+    cmp.selectDecision('APPROVED');
+    cmp.setVerifiedValue('15');
+    cmp.openConfirm();
+    cmp.confirm();
+    http
+      .expectOne(`${base}/decision`)
+      .flush(
+        { success: false, status: 409, errorCode: 'KPI_TARGET_NOT_ASSIGNED', message: 'x' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.notice.is-error')?.textContent).toContain(
+      'chưa có chỉ tiêu',
+    );
+    TestBed.inject(I18nService).setLanguage('en');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.notice.is-error')?.textContent).toContain(
+      'has no active target',
+    );
+  });
+
   it('hides the decision form for a submission that can no longer be decided', () => {
     const fixture = open();
     load(fixture, { ...dossier, status: 'APPROVED' });
