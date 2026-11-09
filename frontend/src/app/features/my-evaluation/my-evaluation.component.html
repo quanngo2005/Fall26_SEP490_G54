@@ -1,0 +1,335 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content my-evaluation-container">
+      <!-- Breadcrumb navigation -->
+      <nav class="breadcrumb-trail" [attr.aria-label]="localization.myEvaluation.breadcrumbHome">
+        <a routerLink="/home" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbHome}}</a>
+        <span class="breadcrumb-separator">/</span>
+        <a routerLink="/my-targets" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbMyPerformance}}</a>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-current">{{localization.myEvaluation.breadcrumbCurrent}}</span>
+      </nav>
+
+      <!-- Page Head -->
+      <header class="eval-head">
+        <div class="head-info">
+          <div class="title-badge-row">
+            <h1 class="eval-title">
+              {{i18n.translate('myEvaluation.periodTitle', { period: evaluation().periodName })}}
+            </h1>
+            <span class="badge-published">{{localization.myEvaluation.statusPublished}}</span>
+          </div>
+          <p class="appeal-deadline-notice">
+            {{i18n.translate('myEvaluation.appealDeadlineNotice', {
+                deadline: evaluation().appealDeadlineText,
+                remainingDays: evaluation().appealRemainingDays,
+              })}}
+          </p>
+        </div>
+
+        <div class="head-actions">
+          <select
+            class="period-select"
+            [attr.aria-label]="localization.myEvaluation.periodSelectorAria"
+            [ngModel]="selectedPeriodId()"
+            (ngModelChange)="onPeriodChange($event)"
+          >
+            @for (p of periods(); track p.id) {
+              <option [value]="p.id">{{p.name}}</option>
+            }
+          </select>
+
+          <button type="button" class="btn-secondary appeal-btn" (click)="openAppeal()">
+            {{localization.myEvaluation.appealButton}}
+          </button>
+
+          @if (evaluation().isAcknowledged) {
+            <span class="badge-acknowledged">
+              <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"
+                />
+              </svg>
+              {{localization.myEvaluation.acknowledgedBadge}}
+            </span>
+          } @else {
+            <button type="button" class="btn-primary ack-btn" (click)="openAcknowledgeModal()">
+              {{localization.myEvaluation.acknowledgeButton}}
+            </button>
+          }
+        </div>
+      </header>
+
+      @if (acknowledgeSuccess()) {
+        <div class="alert-success" role="status">
+          <svg class="alert-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path
+              d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm-1-4 5-5-1.06-1.06L7 8.88 5.06 6.94 4 8l3 3Z"
+            />
+          </svg>
+          <span>{{localization.myEvaluation.acknowledgeSuccessMsg}}</span>
+        </div>
+      }
+
+      <!-- 3 Summary Metric Cards -->
+      <section class="summary-cards-grid" aria-label="Metric Summary">
+        <!-- Card 1: Tổng điểm PE -->
+        <article class="summary-card">
+          <span class="card-label">{{localization.myEvaluation.cardTotalScore}}</span>
+          <div class="card-body-row">
+            <span class="card-hero-score num">{{evaluation().totalPeScore | appNumber: 1}}</span>
+            <span class="card-delta-badge text-positive num">
+              {{i18n.translate('myEvaluation.cardTotalScoreTrend', {
+                  diff: (evaluation().scoreDelta | appNumber: 1),
+                  prevPeriod: evaluation().previousPeriodName,
+                  prevScore: (evaluation().previousPeriodScore | appNumber: 1),
+                })}}
+            </span>
+          </div>
+        </article>
+
+        <!-- Card 2: Tier -->
+        <article class="summary-card">
+          <span class="card-label">{{localization.myEvaluation.cardTier}}</span>
+          <div class="tier-card-body">
+            <span class="tier-hero-pill">{{evaluation().tier}}</span>
+            <div class="tier-track" role="list">
+              @for (t of evaluation().allTiers; track t) {
+                <span class="tier-pill" [class.tier-pill-active]="t === evaluation().tier">{{t}}</span>
+              }
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 3: Xếp hạng (ẩn danh) -->
+        <article class="summary-card">
+          <span class="card-label">{{localization.myEvaluation.cardRanking}}</span>
+          <div class="ranking-card-body">
+            <span class="ranking-hero-val num">{{evaluation().rankingPercentile}}</span>
+            <span class="ranking-sub-text">
+              {{i18n.translate('myEvaluation.cardRankingDetail', {
+                  rank: evaluation().rankingPosition,
+                  total: evaluation().rankingTotalEmployees,
+                  roleName: evaluation().rankingRoleTitle,
+                })}}
+            </span>
+          </div>
+        </article>
+      </section>
+
+      <!-- Evaluation Data Table -->
+      <section class="table-card surface-card" aria-label="Performance Breakdown">
+        <div class="table-scroll-wrap">
+          <table class="evaluation-table">
+            <thead>
+              <tr>
+                <th scope="col" class="th-criteria">
+                  {{localization.myEvaluation.colCriteriaGroup}}
+                </th>
+                <th scope="col" class="th-weight">{{localization.myEvaluation.colWeight}}</th>
+                <th scope="col" class="th-actual-target">
+                  {{localization.myEvaluation.colActualTarget}}
+                </th>
+                <th scope="col" class="th-score">{{localization.myEvaluation.colScore}}</th>
+                <th scope="col" class="th-weighted-score">
+                  {{localization.myEvaluation.colWeightedScore}}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (crit of evaluation().criteria; track crit.id) {
+                <tr class="criteria-row">
+                  <td class="col-criteria">
+                    @if (crit.hasDrilldown) {
+                      <button type="button" class="criteria-link-btn" (click)="openDrilldown(crit)">
+                        <span class="criteria-link-label">{{crit.name}}</span>
+                        <span class="criteria-chevron" aria-hidden="true">›</span>
+                      </button>
+                    } @else {
+                      <span class="criteria-text">{{crit.name}}</span>
+                    }
+                  </td>
+                  <td class="col-weight num">{{crit.weightPercent}}%</td>
+                  <td class="col-actual-target num">{{crit.actualTargetDisplay}}</td>
+                  <td class="col-score num">{{crit.score | appNumber: 1}}</td>
+                  <td class="col-weighted-score num">{{crit.weightedScore | appNumber: 1}}</td>
+                </tr>
+              }
+
+              <!-- Modifier rows -->
+              <tr class="modifier-row">
+                <td class="col-criteria modifier-label">
+                  {{localization.myEvaluation.rowQualityRatio}}
+                </td>
+                <td class="col-weight"></td>
+                <td class="col-actual-target"></td>
+                <td class="col-score"></td>
+                <td class="col-weighted-score modifier-val num">
+                  {{formatRatio(evaluation().qualityRatio)}}
+                </td>
+              </tr>
+              <tr class="modifier-row">
+                <td class="col-criteria modifier-label">
+                  {{localization.myEvaluation.rowRiskPenalty}}
+                </td>
+                <td class="col-weight"></td>
+                <td class="col-actual-target"></td>
+                <td class="col-score"></td>
+                <td class="col-weighted-score modifier-val num">{{evaluation().riskPenalty}}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td class="col-criteria total-label">{{localization.myEvaluation.rowTotal}}</td>
+                <td class="col-weight total-weight num">100%</td>
+                <td class="col-actual-target"></td>
+                <td class="col-score"></td>
+                <td class="col-weighted-score total-score num">
+                  {{evaluation().totalPeScore | appNumber: 1}}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- Manager Feedback Card -->
+      <section class="manager-card surface-card" aria-label="Manager Feedback">
+        <h2 class="manager-title">{{localization.myEvaluation.managerNotesTitle}}</h2>
+        <p class="manager-body">{{evaluation().managerFeedback}}</p>
+      </section>
+
+      <!-- Footnote notice -->
+      <footer class="eval-footnote">
+        <p>{{localization.myEvaluation.footnote}}</p>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<!-- Modal Acknowledge Result (UC108) -->
+@if (showAcknowledgeModal()) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeAcknowledgeModal()"
+    (keydown.escape)="closeAcknowledgeModal()"
+  >
+    <div
+      class="modal-dialog ack-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ack-dialog-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <h3 id="ack-dialog-title" class="modal-title">
+          {{localization.myEvaluation.acknowledgeModalTitle}}
+        </h3>
+        <button
+          type="button"
+          class="modal-close-btn"
+          [attr.aria-label]="localization.myEvaluation.closeButton"
+          (click)="closeAcknowledgeModal()"
+        >
+          ×
+        </button>
+      </header>
+      <div class="modal-body">
+        <p class="modal-desc">
+          {{i18n.translate('myEvaluation.acknowledgeModalDesc', { period: evaluation().periodName })}}
+        </p>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="button button-secondary" (click)="closeAcknowledgeModal()">
+          {{localization.myEvaluation.acknowledgeModalCancel}}
+        </button>
+        <button
+          type="button"
+          class="button button-primary"
+          [disabled]="acknowledging()"
+          (click)="confirmAcknowledge()"
+        >
+          {{localization.myEvaluation.acknowledgeModalConfirm}}
+        </button>
+      </footer>
+    </div>
+  </div>
+}
+
+<!-- Modal Drilldown Ledger Drawer -->
+@if (selectedDrilldownCriteria(); as crit) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeDrilldown()"
+    (keydown.escape)="closeDrilldown()"
+  >
+    <div
+      class="modal-dialog ledger-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ledger-dialog-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <h3 id="ledger-dialog-title" class="modal-title">
+          {{i18n.translate('myEvaluation.ledgerDrawerTitle', { criteriaName: crit.name })}}
+        </h3>
+        <button
+          type="button"
+          class="modal-close-btn"
+          [attr.aria-label]="localization.myEvaluation.ledgerCloseAria"
+          (click)="closeDrilldown()"
+        >
+          ×
+        </button>
+      </header>
+      <div class="modal-body ledger-body">
+        @if (ledgerItems().length > 0) {
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th scope="col">{{localization.myEvaluation.ledgerColTxCode}}</th>
+                <th scope="col">{{localization.myEvaluation.ledgerColDate}}</th>
+                <th scope="col">{{localization.myEvaluation.ledgerColAmount}}</th>
+                <th scope="col">{{localization.myEvaluation.ledgerColContribution}}</th>
+                <th scope="col">{{localization.myEvaluation.ledgerColStatus}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (tx of ledgerItems(); track tx.id) {
+                <tr>
+                  <td class="font-mono">{{tx.txCode}}</td>
+                  <td>{{tx.date}}</td>
+                  <td class="font-mono">{{tx.amount}}</td>
+                  <td class="font-mono text-positive num">
+                    +{{tx.kpiContribution | appNumber: 1}}
+                  </td>
+                  <td>
+                    <span class="badge badge-success">
+                      {{localization.myEvaluation.ledgerVerified}}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="muted-empty">{{localization.myEvaluation.ledgerEmpty}}</p>
+        }
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="button button-secondary" (click)="closeDrilldown()">
+          {{localization.myEvaluation.closeButton}}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

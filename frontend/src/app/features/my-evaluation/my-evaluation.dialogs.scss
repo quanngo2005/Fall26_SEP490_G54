@@ -1,0 +1,123 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.modal-dialog {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+
+  &.ack-dialog {
+    max-width: 500px;
+    width: 100%;
+  }
+
+  &.ledger-dialog {
+    max-width: 760px;
+    width: 100%;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e2e8f0;
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #64748b;
+      cursor: pointer;
+    }
+  }
+
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 480px;
+
+    .modal-desc {
+      font-size: 14px;
+      color: #334155;
+      line-height: 1.6;
+      margin: 0;
+    }
+  }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+
+    .button {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .button-secondary {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      color: #1e293b;
+    }
+
+    .button-primary {
+      background: #1a73e8;
+      border: 1px solid #1a73e8;
+      color: #fff;
+    }
+  }
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: #475569;
+  }
+}
+
+.muted-empty {
+  font-size: 14px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 32px 0;
+  margin: 0;
+}

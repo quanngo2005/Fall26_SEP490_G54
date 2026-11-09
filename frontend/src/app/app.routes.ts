@@ -6,6 +6,7 @@ import { branchEvaluationGuard } from './core/branch-evaluation.guard';
 import { qaQueueGuard } from './core/qa-queue.guard';
 import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
+import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 
 export const routes: Routes = [
   {
@@ -260,6 +261,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/appeals/department-appeal-detail.component').then(
         (m) => m.DepartmentAppealDetailComponent,
+      ),
+  },
+  {
+    path: 'my-evaluation',
+    canActivate: [authGuard, personalEvaluationGuard],
+    title: 'Kết quả đánh giá của tôi',
+    loadComponent: () =>
+      import('./features/my-evaluation/my-evaluation.component').then(
+        (m) => m.MyEvaluationComponent,
       ),
   },
   {

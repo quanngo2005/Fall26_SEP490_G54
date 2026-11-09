@@ -156,7 +156,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },

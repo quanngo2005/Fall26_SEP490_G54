@@ -1,0 +1,98 @@
+.summary-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100px;
+
+  .card-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .card-body-row,
+  .ranking-card-body {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .card-hero-score,
+  .ranking-hero-val {
+    font-size: 36px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+  }
+
+  .card-delta-badge {
+    font-size: 13px;
+    font-weight: 600;
+    color: #16a34a;
+  }
+
+  .ranking-sub-text {
+    font-size: 13px;
+    color: #64748b;
+  }
+
+  .tier-card-body {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .tier-hero-pill {
+      min-width: 52px;
+      height: 38px;
+      background: #e8f0fe;
+      color: #1a73e8;
+      font-size: 20px;
+      font-weight: 700;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tier-track {
+      display: flex;
+      gap: 6px;
+
+      .tier-pill {
+        min-width: 32px;
+        height: 30px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #94a3b8;
+        border: 1px solid #f1f5f9;
+        background: #f8fafc;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        &.tier-pill-active {
+          background: #e8f0fe;
+          color: #1a73e8;
+          border-color: #d2e3fc;
+        }
+      }
+    }
+  }
+}
