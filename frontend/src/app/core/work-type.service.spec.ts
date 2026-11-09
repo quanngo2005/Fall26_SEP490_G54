@@ -14,6 +14,7 @@ describe('WorkTypeService', () => {
     code: 'HUY_DONG',
     name: 'Huy động tiền gửi',
     description: null,
+    productCode: null,
     status: 'ARCHIVED',
     createdAt: '2026-10-01T00:00:00+00:00',
     kpis: [],

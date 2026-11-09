@@ -4,6 +4,9 @@ namespace G54.BLL.Services;
 
 public interface IHandoverService
 {
+    /// <summary>Active colleagues in the caller's department (excluding the caller) who can receive a handover.</summary>
+    Task<IReadOnlyList<HandoverRecipientDto>> GetRecipientsAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>Creates a PENDING handover request for a work item the caller is assigned to.</summary>
     Task<HandoverDetailDto> CreateHandoverAsync(
         Guid workId,

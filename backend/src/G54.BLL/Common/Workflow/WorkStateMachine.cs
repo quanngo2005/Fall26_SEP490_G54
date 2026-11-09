@@ -11,6 +11,7 @@ namespace G54.BLL.Common.Workflow;
 /// SUBMITTED / IN_PROGRESS ──Reopen──► IN_PROGRESS
 /// SUBMITTED / IN_PROGRESS ──Verify──► VERIFIED ──Complete──► DONE
 /// SUBMITTED / IN_PROGRESS ──Reject──► REJECTED
+/// VERIFIED / DONE ──Rework (QA)──► IN_PROGRESS
 /// NEW / IN_PROGRESS ──Handover──► HANDED_OVER
 /// NEW / IN_PROGRESS / HANDED_OVER ──MarkOverdue──► OVERDUE
 /// NEW / IN_PROGRESS / HANDED_OVER / REJECTED / OVERDUE ──Cancel──► CANCELLED
@@ -23,7 +24,7 @@ namespace G54.BLL.Common.Workflow;
 /// OVERDUE work cannot be started again: the overdue job re-marks any open work past its planned end date, so the
 /// work could only flip back. It leaves OVERDUE by being submitted or cancelled.
 ///
-/// DONE and CANCELLED have no outgoing transition. The machine only answers which status an action leads to;
+/// Only a QA rework request (see <c>QualityAssuranceService</c>) leaves VERIFIED or DONE; CANCELLED has no outgoing transition. The machine only answers which status an action leads to;
 /// callers decide which error to raise when the action is not allowed.
 /// </summary>
 public static class WorkStateMachine
@@ -54,6 +55,7 @@ public static class WorkStateMachine
         Allow(table, WorkAction.Reopen, WorkStatus.InProgress, WorkStatus.Submitted, WorkStatus.InProgress);
         Allow(table, WorkAction.Verify, WorkStatus.Verified, WorkStatus.Submitted, WorkStatus.InProgress);
         Allow(table, WorkAction.Reject, WorkStatus.Rejected, WorkStatus.Submitted, WorkStatus.InProgress);
+        Allow(table, WorkAction.Rework, WorkStatus.InProgress, WorkStatus.Verified, WorkStatus.Done);
         Allow(table, WorkAction.Complete, WorkStatus.Done, WorkStatus.Verified);
         Allow(table, WorkAction.Cancel, WorkStatus.Cancelled, WorkStatus.New, WorkStatus.InProgress, WorkStatus.HandedOver, WorkStatus.Rejected, WorkStatus.Overdue);
         Allow(table, WorkAction.Handover, WorkStatus.HandedOver, WorkStatus.New, WorkStatus.InProgress);

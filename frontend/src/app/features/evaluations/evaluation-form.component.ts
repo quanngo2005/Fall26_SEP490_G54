@@ -2,10 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
+import { Router } from '@angular/router';
+import { Observable, Subscription } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import {
   DepartmentEmployeeEvaluation,
@@ -15,12 +15,14 @@ import {
 } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppNumberPipe } from '../../shared/pipes';
+import { serverMessage } from '../campaigns/campaign.utils';
 
-/** Longest comment the form accepts; the backend does not limit it, so the form does. */
+/** Longest comment the form accepts; the backend enforces the same limit on submit. */
 const COMMENT_MAX_LENGTH = 1000;
-/** A qualitative score is a percentage of the group, so it runs from 0 to the percent scale. */
+/** Range of a qualitative score; the form checks it before sending. */
 const SCORE_MIN = 0;
-const SCORE_MAX = 100;
+const GROUP_SCORE_MAX = 100;
+const GENERAL_SCORE_MAX = 200;
 
 type LoadFailure = 'offline' | 'forbidden' | 'notFound' | 'error';
 type SaveMessage = { kind: 'success' | 'error'; text: string };
@@ -34,15 +36,18 @@ type SaveMessage = { kind: 'success' | 'error'; text: string };
 })
 export class EvaluationFormComponent extends LocalizedComponent {
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly evaluationService = inject(EvaluationService);
+  private readonly formTarget = inject(EvaluationFormTargetService);
   private formRequest?: Subscription;
   private rosterRequest?: Subscription;
   private rosterKey = '';
 
   readonly maxCommentLength = COMMENT_MAX_LENGTH;
   readonly scoreMin = SCORE_MIN;
-  readonly scoreMax = SCORE_MAX;
+  /** Highest value of the qualitative score of one criteria group. */
+  readonly groupScoreMax = computed(() => GROUP_SCORE_MAX);
+  /** Highest value of the single qualitative score box. */
+  readonly generalScoreMax = computed(() => GENERAL_SCORE_MAX);
 
   readonly form = signal<EvaluationFormModel | null>(null);
   readonly loading = signal(false);
@@ -53,6 +58,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly roster = signal<DepartmentEmployeeEvaluation[]>([]);
   readonly commentInput = signal('');
   readonly qualitativeScores = signal<Record<string, number | null>>({});
+  /** The single qualitative score box shown when the profile has no qualitative group to key a score on. */
+  readonly generalQualitativeScore = signal<number | null>(null);
 
   readonly qualitativeGroups = computed<EvaluationCriterionGroup[]>(() =>
     (this.form()?.criteriaGroups ?? []).filter((group) => group.isQualitative),
@@ -61,6 +68,9 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly commentLength = computed(() => this.commentInput().length);
 
   readonly qualitativeAverage = computed<number | null>(() => {
+    if (this.qualitativeGroups().length === 0) {
+      return this.generalQualitativeScore();
+    }
     const scores = this.qualitativeGroups()
       .map((group) => this.qualitativeScores()[group.evaluationProfileItemId])
       .filter((score): score is number => typeof score === 'number');
@@ -77,7 +87,19 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly isDraftStatus = computed(() => this.form()?.currentEvaluation.status === 'DRAFT');
 
   /** Out-of-range or non-numeric scores block both actions; a missing score or comment only blocks completion. */
-  readonly scoreInvalid = computed(() =>
+  readonly scoreInvalid = computed(() => this.generalScoreInvalid() || this.groupScoreInvalid());
+
+  private readonly generalScoreInvalid = computed(() => {
+    const general = this.generalQualitativeScore();
+    return (
+      this.qualitativeGroups().length === 0 &&
+      general !== null &&
+      general !== undefined &&
+      !this.isValidGeneralScore(general)
+    );
+  });
+
+  private readonly groupScoreInvalid = computed(() =>
     this.qualitativeGroups().some((group) => {
       const score = this.qualitativeScores()[group.evaluationProfileItemId];
       return score !== null && score !== undefined && !this.isValidScore(score);
@@ -95,6 +117,25 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly canSubmit = computed(
     () => !!this.form()?.canEdit && !this.saving() && !this.scoreInvalid(),
   );
+
+  /** The comment or a qualitative score differs from what the loaded form holds, so leaving would lose it. */
+  readonly hasUnsavedChanges = computed(() => {
+    const form = this.form();
+    if (!form || !form.canEdit) return false;
+    if (this.commentInput() !== (form.currentEvaluation.comment ?? '')) return true;
+    if (
+      this.qualitativeGroups().length === 0 &&
+      (this.generalQualitativeScore() ?? null) !==
+        (form.currentEvaluation.generalQualitativeScore ?? null)
+    ) {
+      return true;
+    }
+    return this.qualitativeGroups().some(
+      (group) =>
+        (this.qualitativeScores()[group.evaluationProfileItemId] ?? null) !==
+        (group.qualitativeScore ?? null),
+    );
+  });
 
   readonly stateText = computed(() => {
     const text = this.localization.evaluationForm;
@@ -121,7 +162,10 @@ export class EvaluationFormComponent extends LocalizedComponent {
   );
 
   readonly scoreInvalidText = computed(() =>
-    this.i18n.translate('evaluationForm.scoreInvalid', { min: this.scoreMin, max: this.scoreMax }),
+    this.i18n.translate('evaluationForm.scoreInvalid', {
+      min: this.scoreMin,
+      max: this.generalScoreInvalid() ? this.generalScoreMax() : this.groupScoreMax(),
+    }),
   );
 
   readonly navIndicatorText = computed(() =>
@@ -152,7 +196,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   readonly comparisonText = computed(() => {
     const previous = this.form()?.previousPeriod;
-    if (!previous) return this.localization.evaluations.emptyValue;
+    if (!previous || previous.scoreDifference === null)
+      return this.localization.evaluations.emptyValue;
     const key =
       previous.scoreDifference > 0
         ? 'comparisonHigher'
@@ -190,20 +235,20 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      const employeeId = params.get('employeeId');
-      const periodId = params.get('periodId');
-      if (!employeeId || !periodId) {
-        this.form.set(null);
-        this.failure.set('notFound');
-        return;
-      }
-      this.loadForm(employeeId, periodId);
-    });
+    const target = this.formTarget.read();
+    if (!target) {
+      this.failure.set('notFound');
+      return;
+    }
+    this.loadForm(this.evaluationService.form(target.employeeId, target.periodId));
   }
 
   isValidScore(score: number): boolean {
-    return Number.isFinite(score) && score >= SCORE_MIN && score <= SCORE_MAX;
+    return Number.isFinite(score) && score >= SCORE_MIN && score <= this.groupScoreMax();
+  }
+
+  isValidGeneralScore(score: number): boolean {
+    return Number.isFinite(score) && score >= SCORE_MIN && score <= this.generalScoreMax();
   }
 
   setQualitativeScore(itemId: string, value: number | null): void {
@@ -234,24 +279,31 @@ export class EvaluationFormComponent extends LocalizedComponent {
   }
 
   onBackToList(): void {
+    if (!this.confirmLeave()) return;
     void this.router.navigate(['/evaluations']);
+  }
+
+  /** True when there is nothing to lose or the reviewer agrees to discard the unsaved input. */
+  private confirmLeave(): boolean {
+    return !this.hasUnsavedChanges() || confirm(this.localization.evaluationForm.confirmDiscard);
   }
 
   private openRosterEntry(index: number): void {
     const target = this.roster()[index];
     const periodId = this.form()?.period.id;
     if (!target || !periodId) return;
-    void this.router.navigate(['/evaluations/form'], {
-      queryParams: { employeeId: target.employeeId, periodId },
-    });
+    if (!this.confirmLeave()) return;
+    // The address stays the same, so the next employee is loaded here instead of by navigating.
+    this.formTarget.save({ employeeId: target.employeeId, periodId });
+    this.loadForm(this.evaluationService.form(target.employeeId, periodId));
   }
 
-  private loadForm(employeeId: string, periodId: string, keepMessage = false): void {
+  private loadForm(request: Observable<EvaluationFormModel>, keepMessage = false): void {
     this.formRequest?.unsubscribe();
     this.loading.set(true);
     this.failure.set(null);
     if (!keepMessage) this.saveMessage.set(null);
-    this.formRequest = this.evaluationService.form(employeeId, periodId).subscribe({
+    this.formRequest = request.subscribe({
       next: (form) => {
         this.form.set(form);
         this.applyInputs(form);
@@ -277,6 +329,7 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   private applyInputs(form: EvaluationFormModel): void {
     this.commentInput.set(form.currentEvaluation.comment ?? '');
+    this.generalQualitativeScore.set(form.currentEvaluation.generalQualitativeScore ?? null);
     const scores: Record<string, number | null> = {};
     for (const group of form.criteriaGroups) {
       if (group.isQualitative)
@@ -322,6 +375,9 @@ export class EvaluationFormComponent extends LocalizedComponent {
           notes: group.qualitativeNotes,
         })),
       isDraft,
+      generalQualitativeScore: this.qualitativeGroups().length
+        ? null
+        : this.generalQualitativeScore(),
     };
 
     this.saving.set(true);
@@ -335,7 +391,7 @@ export class EvaluationFormComponent extends LocalizedComponent {
             ? this.localization.evaluationForm.saveDraftSuccess
             : this.localization.evaluationForm.completeSuccess,
         });
-        this.loadForm(form.employee.id, form.period.id, true);
+        this.loadForm(this.evaluationService.form(form.employee.id, form.period.id), true);
       },
       error: (error: unknown) => {
         this.saving.set(false);
@@ -350,6 +406,9 @@ export class EvaluationFormComponent extends LocalizedComponent {
     switch (status) {
       case 0:
         return text.offline;
+      case 400:
+        // The API says which rule the input broke (range, length, a group that takes no qualitative score...).
+        return serverMessage(error) ?? text.saveError;
       case 403:
         return text.saveForbidden;
       case 409:

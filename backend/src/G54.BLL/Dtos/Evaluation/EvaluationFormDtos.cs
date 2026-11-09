@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Evaluation;
@@ -28,7 +29,8 @@ public sealed record EvaluationProfileSummaryDto(
 
 /// <summary>
 /// One KPI leaf of a group. WeightPercent is its share of the root group: its weight among its siblings multiplied
-/// by the weights of its parent groups, so the leaves of a group add up to 100.
+/// by the weights of its parent groups, so the active leaves of a group add up to 100. A KPI without a target or without
+/// progress has no actual, achievement or score to show (null, shown as N/A); in the group score it counts as 0 and keeps its share.
 /// </summary>
 public sealed record EvaluationKpiItemDto(
     Guid KpiDefinitionId,
@@ -37,20 +39,21 @@ public sealed record EvaluationKpiItemDto(
     string Unit,
     decimal WeightPercent,
     decimal? TargetValue,
-    decimal ActualValue,
-    decimal AchievementPercent,
-    decimal ComponentScore);
+    decimal? ActualValue,
+    decimal? AchievementPercent,
+    decimal? ComponentScore);
 
 /// <summary>
 /// A root group of the evaluation profile tree. EvaluationProfileItemId is the tree node and the key of its
-/// qualitative score; GroupCode is the code of the catalog KPI group of its KPIs.
+/// qualitative score; GroupCode is the code of the catalog KPI group of its KPIs. GroupScore is null only when the
+/// calculator has no score for the group (it scores every root group, so not in practice).
 /// </summary>
 public sealed record EvaluationCriterionGroupDto(
     Guid EvaluationProfileItemId,
     string GroupCode,
     string GroupName,
     decimal WeightPercent,
-    decimal GroupScore,
+    decimal? GroupScore,
     List<EvaluationKpiItemDto> KpiItems,
     decimal? QualitativeScore = null,
     string? QualitativeNotes = null,
@@ -65,14 +68,17 @@ public sealed record EvaluationRiskEventDto(
     decimal PenaltyPoints,
     DateTimeOffset OccurredAt);
 
+/// <summary>
+/// The scores of the form. TotalScore, ProposedTier and WeightedScore are null only when the profile has no root group (N/A, never 0).
+/// </summary>
 public sealed record EvaluationCalculationSummaryDto(
-    decimal BusinessScore,
-    decimal ServiceQualityScore,
-    decimal OperationsScore,
+    decimal? BusinessScore,
+    decimal? ServiceQualityScore,
+    decimal? OperationsScore,
     decimal TotalRiskPenalty,
-    decimal TotalScore,
-    string ProposedTier,
-    decimal WeightedScore);
+    decimal? TotalScore,
+    string? ProposedTier,
+    decimal? WeightedScore);
 
 public sealed record PerformanceEvaluationStateDto(
     Guid? Id,
@@ -84,13 +90,14 @@ public sealed record PerformanceEvaluationStateDto(
     DateTimeOffset? ApprovedAt,
     string? Comment,
     string? CoachingPlan,
-    bool CoachingRequired);
+    bool CoachingRequired,
+    decimal? GeneralQualitativeScore = null);
 
 public sealed record PreviousPeriodSummaryDto(
     string PeriodCode,
     decimal TotalScore,
     string Tier,
-    decimal ScoreDifference);
+    decimal? ScoreDifference);
 
 public sealed record EvaluationFormDto(
     EvaluationEmployeeDto Employee,
@@ -109,25 +116,26 @@ public sealed record EvaluationFormDto(
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,
     decimal Score,
-    string? Notes = null);
+    [param: StringLength(1000, ErrorMessage = "Ghi chú điểm định tính không vượt quá 1000 ký tự.")] string? Notes = null);
 
 public sealed record SubmitEvaluationRequestDto(
     Guid EmployeeId,
     Guid PeriodId,
-    string? Comment = null,
-    string? CoachingPlan = null,
+    [param: StringLength(1000, ErrorMessage = "Nhận xét không vượt quá 1000 ký tự.")] string? Comment = null,
+    [param: StringLength(1000, ErrorMessage = "Kế hoạch kèm cặp không vượt quá 1000 ký tự.")] string? CoachingPlan = null,
     bool CoachingRequired = false,
     List<QualitativeScoreInputDto>? QualitativeScores = null,
-    bool IsDraft = false);
+    bool IsDraft = false,
+    decimal? GeneralQualitativeScore = null);
 
 public sealed record EvaluationResultDto(
     Guid EvaluationId,
     Guid EmployeeId,
     Guid PeriodId,
-    decimal TotalScore,
+    decimal? TotalScore,
     string Status,
-    string ProposedTier,
-    DateTimeOffset CalculatedAt,
+    string? ProposedTier,
+    DateTimeOffset? CalculatedAt,
     string Message);
 
 public sealed record EvaluationPeriodOptionDto(
@@ -158,4 +166,5 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     bool HasOpenDispute,
     int PendingSubmissionCount,
     bool CanEvaluate,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    decimal? QuantitativeScoreChange);

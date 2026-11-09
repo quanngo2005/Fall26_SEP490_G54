@@ -151,23 +151,47 @@ public sealed class EmployeeService(
         return await GetRequiredEmployeeAsync(account.EmployeeId, cancellationToken);
     }
 
-    public Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(
+    public async Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(
+        Guid callerAccountId,
         CancellationToken cancellationToken = default)
     {
-        return db.Departments
+        var scope = await ResolveReadScopeAsync(callerAccountId, cancellationToken);
+        var query = db.Departments
             .AsNoTracking()
-            .Where(d => d.Status == RecordStatus.Active)
+            .Where(d => d.Status == RecordStatus.Active);
+
+        if (scope.Departments is { } departments)
+        {
+            query = query.Where(d => departments.Contains(d.Id));
+        }
+
+        return await query
             .OrderBy(d => d.Code)
             .Select(d => new DepartmentOptionDto(d.Id, d.Code, d.Name, d.LevelType))
             .ToListAsync(cancellationToken);
     }
 
-    public Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(
+    public async Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(
+        Guid callerAccountId,
         CancellationToken cancellationToken = default)
     {
-        return db.JobPositions
+        var scope = await ResolveReadScopeAsync(callerAccountId, cancellationToken);
+        var query = db.JobPositions
             .AsNoTracking()
-            .Where(j => j.Status == RecordStatus.Active)
+            .Where(j => j.Status == RecordStatus.Active);
+
+        if (scope.Departments is not null)
+        {
+            var positionIds = await db.Employees
+                .AsNoTracking()
+                .Where(scope.Visible)
+                .Select(e => e.JobPositionId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            query = query.Where(j => positionIds.Contains(j.Id));
+        }
+
+        return await query
             .OrderBy(j => j.Code)
             .Select(j => new JobPositionOptionDto(j.Id, j.Code, j.Title))
             .ToListAsync(cancellationToken);
@@ -439,7 +463,11 @@ public sealed class EmployeeService(
     /// The employees the caller may read: everyone (All), the caller's department subtree (Dept, Branch widens to the
     /// nearest branch), or only the caller (Own). Callers without employee:read are rejected.
     /// </summary>
-    private async Task<Expression<Func<Employee, bool>>> ResolveVisibilityAsync(Guid callerAccountId, CancellationToken cancellationToken)
+    private async Task<Expression<Func<Employee, bool>>> ResolveVisibilityAsync(Guid callerAccountId, CancellationToken cancellationToken) =>
+        (await ResolveReadScopeAsync(callerAccountId, cancellationToken)).Visible;
+
+    /// <summary>The employees the caller may read and the departments those employees belong to (null = every department).</summary>
+    private async Task<ReadScope> ResolveReadScopeAsync(Guid callerAccountId, CancellationToken cancellationToken)
     {
         var granted = await permissions.GetEffectivePermissionsAsync(callerAccountId, cancellationToken);
         var level = AccessScope.LevelFor(granted, "employee", "read");
@@ -450,7 +478,7 @@ public sealed class EmployeeService(
 
         if (level >= AccessScope.AllLevel)
         {
-            return _ => true;
+            return new ReadScope(_ => true, null);
         }
 
         var caller = await db.Accounts
@@ -460,17 +488,19 @@ public sealed class EmployeeService(
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ForbiddenException();
 
+        var selfEmployeeId = caller.EmployeeId;
         if (level < AccessScope.DeptLevel)
         {
-            var selfId = caller.EmployeeId;
-            return e => e.Id == selfId;
+            return new ReadScope(e => e.Id == selfEmployeeId, [caller.DepartmentId]);
         }
 
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments, cancellationToken);
         var departments = AccessScope.DepartmentsInScope(level, caller.DepartmentId, hierarchy) ?? new HashSet<Guid>();
-        var selfEmployeeId = caller.EmployeeId;
-        return e => e.Id == selfEmployeeId || departments.Contains(e.DepartmentId);
+        var optionDepartments = new HashSet<Guid>(departments) { caller.DepartmentId };
+        return new ReadScope(e => e.Id == selfEmployeeId || departments.Contains(e.DepartmentId), optionDepartments);
     }
+
+    private sealed record ReadScope(Expression<Func<Employee, bool>> Visible, HashSet<Guid>? Departments);
 
     private static void ValidatePhone(string? phone)
     {

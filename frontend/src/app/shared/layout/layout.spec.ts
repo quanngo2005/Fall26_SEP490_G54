@@ -18,6 +18,8 @@ describe('Shared workspace layout', () => {
     'KPI_READ',
     'KPI_MANAGE',
     'VERIFICATION_DECIDE',
+    'QUALITY_FLAG_READ',
+    'RISK_EVENT_READ',
     'TARGET_MANAGE',
     'EVALUATION_READ',
   ];

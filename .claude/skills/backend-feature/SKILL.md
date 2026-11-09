@@ -32,6 +32,7 @@ contract when present; do not independently invent a route or response shape.
 6. **Controller (Api)**: add `src/G54.Api/Controllers/<Name>Controller.cs` with `[ApiController]`, an explicit root resource route such as `[Route("kpi-definitions")]`, `[Authorize]` unless public, and accurate `ProducesResponseType` attributes. Follow the published contract for existing endpoints. Controllers only call services.
 7. **Tests**: add `tests/G54.UnitTests/<Name>ServiceTests.cs`.
 8. **Review**: run `./scripts/codereview-backend.ps1` until it passes.
+9. **Status**: update `docs/BE_STATUS.md` (status, what exists, remaining gaps, date); add the screen-side gap to `docs/FE_STATUS.md` if the frontend must follow.
 
 ## API Contract (Backend First or Frontend First)
 

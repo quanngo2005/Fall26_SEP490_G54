@@ -40,6 +40,10 @@ public sealed record GaussianDistributionDto(
     decimal TargetTierCPercent,
     decimal TargetTierDPercent);
 
+/// <summary>
+/// One employee of the calibration roster. The scores, the rank and the tiers are null when the score cannot be
+/// determined (no evaluation profile, or a profile without a root group): such an employee is not ranked and has no tier.
+/// </summary>
 public sealed record CalibrationEmployeeRowDto(
     Guid EmployeeId,
     string EmployeeCode,
@@ -48,14 +52,14 @@ public sealed record CalibrationEmployeeRowDto(
     string JobPositionTitle,
     Guid DepartmentId,
     string DepartmentName,
-    decimal BusinessScore,
-    decimal ServiceQualityScore,
-    decimal OperationsScore,
-    decimal QualitativeScore,
-    decimal TotalScore,
-    int Rank,
-    string ProposedTier,
-    string CalibratedTier,
+    decimal? BusinessScore,
+    decimal? ServiceQualityScore,
+    decimal? OperationsScore,
+    decimal? QualitativeScore,
+    decimal? TotalScore,
+    int? Rank,
+    string? ProposedTier,
+    string? CalibratedTier,
     bool IsAdjusted,
     string? AdjustmentReason,
     bool CoachingFlag,
@@ -152,3 +156,67 @@ public sealed record FinalizeResultDto(
     DateTimeOffset FinalizedAt,
     int TotalEvaluationsFinalized,
     string Message);
+
+public sealed record AppealWindowDto(
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    bool IsExpired,
+    bool IsClosed);
+
+public sealed record BranchEvaluationPeriodSummaryDto(
+    Guid Id,
+    string Code,
+    string Name,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    string PeriodType,
+    string Status,
+    string DisplayStatus,
+    decimal? QualityRatio,
+    int SubmittedDepartmentCount,
+    int ApprovedDepartmentCount,
+    int TotalDepartmentCount,
+    AppealWindowDto? AppealWindow,
+    bool CanOpen,
+    bool CanLock,
+    bool CanViewHistory);
+
+public sealed record BranchEvaluationPeriodsOverviewDto(
+    string BranchName,
+    string BranchCode,
+    List<int> AvailableYears,
+    List<BranchEvaluationPeriodSummaryDto> Periods);
+
+// =========================================================================
+// Department Ranking Approval & Pre-close Check (SCR-EVL-03-D1, SCR-EVL-03-M1)
+// =========================================================================
+
+public sealed record ApproveDepartmentRankingRequestDto(
+    Guid PeriodId,
+    string? Note = null);
+
+public sealed record DepartmentApprovalResultDto(
+    Guid DepartmentId,
+    Guid PeriodId,
+    string Status,
+    int ApprovedEvaluationsCount,
+    string Message);
+
+public sealed record PreCloseCheckItemDto(
+    string Code,
+    string Title,
+    int RemainingCount,
+    bool IsPassed,
+    string? TargetScreenCode = null,
+    string? TargetRoute = null);
+
+public sealed record PreCloseCheckOverviewDto(
+    Guid PeriodId,
+    string PeriodCode,
+    string PeriodName,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    DateTimeOffset? PreCloseDeadline,
+    bool CanPublish,
+    int TotalUnresolvedCount,
+    List<PreCloseCheckItemDto> Items);

@@ -165,6 +165,8 @@ public sealed class TargetAssignmentsControllerTests
             return Task.FromResult(Children);
         }
 
+        public Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto) => throw new NotImplementedException();
+
         public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
         {
             CallerId = accountId;
@@ -184,5 +186,48 @@ public sealed class TargetAssignmentsControllerTests
             RequestedId = assignmentId;
             return Task.FromResult(Result);
         }
+
+        public Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(BreakdownResult);
+        }
+
+        public Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId) =>
+            throw new NotImplementedException();
+
+        public TargetAssignmentBreakdownDto BreakdownResult { get; set; } = null!;
+
+        public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
+        {
+            CallerId = accountId;
+            return Task.FromResult(Children);
+        }
+
+        public Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackResult);
+        }
+
+        public Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackResult);
+        }
+
+        public TargetAssignmentFeedbackDto FeedbackResult { get; set; } = null!;
+
+        public Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId)
+        {
+            CallerId = accountId;
+            RequestedId = assignmentId;
+            return Task.FromResult(FeedbackHistory);
+        }
+
+        public IReadOnlyList<TargetAssignmentFeedbackDto> FeedbackHistory { get; set; } = [];
     }
 }

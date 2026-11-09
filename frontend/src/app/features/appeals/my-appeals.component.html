@@ -1,0 +1,254 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      @if (notice()) {
+        <div class="alert-banner" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="alert-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+      @if (errorKey()) {
+        <div class="alert-banner alert-error" role="alert">
+          <span>{{errorText()}}</span>
+          <button
+            type="button"
+            class="alert-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="errorKey.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="master-detail-container" [class.has-drawer]="selectedAppeal() !== null">
+        <!-- Master Panel (Left side) -->
+        <div class="master-panel">
+          <div class="page-title-row">
+            <h1>{{localization.appeals.myTitle}}</h1>
+          </div>
+
+          <!-- Filter Tabs -->
+          <div class="tabs-bar" role="tablist" [attr.aria-label]="localization.appeals.tabsAria">
+            <button
+              type="button"
+              role="tab"
+              class="tab-btn"
+              [class.active]="activeTab() === 'ALL'"
+              [attr.aria-selected]="activeTab() === 'ALL'"
+              (click)="setTab('ALL')"
+            >
+              {{localization.appeals.all}} <span class="tab-count">{{counts().all}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="tab-btn"
+              [class.active]="activeTab() === 'OPEN'"
+              [attr.aria-selected]="activeTab() === 'OPEN'"
+              (click)="setTab('OPEN')"
+            >
+              {{localization.appeals.open}} <span class="tab-count">{{counts().open}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="tab-btn"
+              [class.active]="activeTab() === 'UNDER_REVIEW'"
+              [attr.aria-selected]="activeTab() === 'UNDER_REVIEW'"
+              (click)="setTab('UNDER_REVIEW')"
+            >
+              {{localization.appeals.underReview}}
+              <span class="tab-count">{{counts().underReview}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="tab-btn"
+              [class.active]="activeTab() === 'RESOLVED'"
+              [attr.aria-selected]="activeTab() === 'RESOLVED'"
+              (click)="setTab('RESOLVED')"
+            >
+              {{localization.appeals.resolved}}
+              <span class="tab-count">{{counts().resolved}}</span>
+            </button>
+          </div>
+
+          <!-- Toolbar / Filters -->
+          <div class="toolbar">
+            <div class="filters-left">
+              <div class="search-input-wrap">
+                <span class="search-icon" aria-hidden="true">🔍</span>
+                <input
+                  type="text"
+                  [ngModel]="searchQuery()"
+                  (ngModelChange)="searchQuery.set($event)"
+                  [attr.aria-label]="localization.appeals.searchMine"
+                  [placeholder]="localization.appeals.searchMine"
+                />
+              </div>
+
+              <div class="select-dropdown">
+                <select
+                  [ngModel]="typeFilter()"
+                  (ngModelChange)="setType($event)"
+                  [attr.aria-label]="localization.appeals.filterType"
+                >
+                  <option value="ALL">{{localization.appeals.allTypes}}</option>
+                  <option value="RESULT">{{localization.appeals.resultAppeal}}</option>
+                  <option value="SCORE">{{localization.appeals.scoreAppeal}}</option>
+                </select>
+              </div>
+
+              @if (!selectedAppeal()) {
+                <div class="select-dropdown period-select">
+                  <select
+                    [ngModel]="periodFilter()"
+                    (ngModelChange)="setPeriod($event)"
+                    [attr.aria-label]="localization.appeals.filterPeriod"
+                  >
+                    <option value="ALL">{{localization.appeals.allPeriods}}</option>
+                    @for (period of periods(); track period.id) {
+                      <option [value]="period.id">{{period.code}}</option>
+                    }
+                  </select>
+                </div>
+              }
+            </div>
+
+            @if (!selectedAppeal()) {
+              <div class="filters-right">
+                <button type="button" class="btn-primary-action" (click)="openSubmit()">
+                  {{localization.appeals.submitAppeal}}
+                </button>
+              </div>
+            }
+          </div>
+
+          <!-- Appeals Table -->
+          <div class="table-container">
+            @if (failed()) {
+              <div class="state-block" role="alert">
+                <p>{{localization.appeals.loadError}}</p>
+                <button type="button" class="btn-primary-action" (click)="retry()">
+                  {{localization.appeals.retry}}
+                </button>
+              </div>
+            } @else {
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="col-code">{{localization.appeals.code | uppercase}}</th>
+                    <th class="col-kind">{{localization.appeals.type | uppercase}}</th>
+                    @if (!selectedAppeal()) {
+                      <th class="col-subject">{{localization.appeals.subject | uppercase}}</th>
+                    }
+                    <th class="col-date">{{localization.appeals.filedAt | uppercase}}</th>
+                    @if (!selectedAppeal()) {
+                      <th class="col-handler">{{localization.appeals.handler | uppercase}}</th>
+                    }
+                    <th class="col-status">{{localization.appeals.statusLabel | uppercase}}</th>
+                    @if (!selectedAppeal()) {
+                      <th class="col-outcome">{{localization.appeals.outcome | uppercase}}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of filteredItems(); track item.id) {
+                    <tr
+                      [class.selected-row]="selectedId() === item.id"
+                      [class.muted-row]="item.status === 'WITHDRAWN'"
+                      (click)="selectAppeal(item)"
+                    >
+                      <td class="col-code cell-bold font-code">{{code(item)}}</td>
+                      <td class="col-kind">{{kindLabel(item.type)}}</td>
+                      @if (!selectedAppeal()) {
+                        <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
+                      }
+                      <td class="col-date">{{item.filedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
+                      @if (!selectedAppeal()) {
+                        <td class="col-handler">
+                          {{item.resolvedByEmployeeName ?? localization.appeals.notAvailable}}
+                        </td>
+                      }
+                      <td class="col-status">
+                        <span class="status-badge" [class]="'status-' + item.status.toLowerCase()">
+                          {{statusLabel(item.status)}}
+                        </span>
+                      </td>
+                      @if (!selectedAppeal()) {
+                        <td class="col-outcome" [class.muted-text]="item.status === 'WITHDRAWN'">
+                          {{outcome(item)}}
+                        </td>
+                      }
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td [attr.colspan]="selectedAppeal() ? 4 : 7" class="empty-state">
+                        {{loading() ? localization.appeals.loading : localization.appeals.empty}}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+
+              <div class="table-footer">
+                <span class="footer-count">{{showingText()}}</span>
+                <div class="pagination">
+                  @for (p of pages(); track p) {
+                    <button
+                      type="button"
+                      class="page-box"
+                      [class.active]="p === page()"
+                      [attr.aria-current]="p === page() ? 'page' : null"
+                      (click)="goToPage(p)"
+                    >
+                      {{p}}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Bottom Info Callout (Only when drawer is closed) -->
+          @if (!selectedAppeal()) {
+            <div class="info-callout">
+              <h4 class="callout-title">{{localization.appeals.deadlineHintTitle}}</h4>
+              <p class="callout-text">{{localization.appeals.deadlineHint}}</p>
+            </div>
+          }
+        </div>
+
+        <!-- Detail Drawer Component (Right side) -->
+        @if (selectedAppeal(); as selected) {
+          <app-my-appeal-drawer
+            [appeal]="selected"
+            [detail]="detail()"
+            [loading]="detailLoading()"
+            [failed]="detailFailed()"
+            (closeDrawer)="closeDrawer()"
+            (withdraw)="onWithdraw($event)"
+            (selectNext)="selectNext()"
+            (selectPrev)="selectPrev()"
+          />
+        }
+      </div>
+
+      @if (submitOpen()) {
+        <app-appeal-submit-modal (submitted)="onSubmitted()" (dismissed)="submitOpen.set(false)" />
+      }
+    </main>
+  </div>
+</div>

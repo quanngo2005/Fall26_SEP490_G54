@@ -118,6 +118,30 @@ describe('Configured sidebar navigation', () => {
     expect(navigation.routeOptions).toContain('/department-performance');
     expect(navigation.routeOptions).toContain('/departments');
   });
+  it('links the configured Appeals menu item to the appeals workspace', () => {
+    current.and.returnValue(of([{ role: 'employee', itemIds: ['appeals'], version: 1 }]));
+    const navigation = TestBed.inject(NavigationService);
+    TestBed.tick();
+    expect(navigation.items().find((item) => item.id === 'appeals')?.route).toBe('/appeals');
+    expect(navigation.routeOptions).toContain('/appeals');
+  });
+  it('links Work types to the work type list for an administrator and offers that URL for overrides', () => {
+    user.update((value) => value && { ...value, roles: ['SYSTEM_ADMIN'] });
+    current.and.returnValue(
+      of([
+        {
+          role: 'admin',
+          itemIds: ['overview', 'workTypes', 'systemConfiguration'],
+          version: 1,
+        },
+      ]),
+    );
+    const navigation = TestBed.inject(NavigationService);
+    TestBed.tick();
+
+    expect(navigation.items().find((item) => item.id === 'workTypes')?.route).toBe('/work-types');
+    expect(navigation.routeOptions).toContain('/work-types');
+  });
   it('cancels an in-flight reload when the account signs out', () => {
     const response = new Subject<SidebarConfiguration[]>();
     current.and.returnValue(response);

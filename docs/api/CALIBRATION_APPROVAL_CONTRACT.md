@@ -15,11 +15,11 @@ Following [API_CONVENTIONS.md](API_CONVENTIONS.md):
 
 | Method | Endpoint | Description | Role / Permission |
 | --- | --- | --- | --- |
-| `GET` | `/evaluations/calibration` | Get department calibration overview with ranked roster, Bell curve, and quota metrics | `MANAGER`, `ADMIN` |
-| `POST` | `/evaluations/calibration/submit` | Save draft or submit calibrated rankings to Executive with Tier A quota check | `MANAGER`, `ADMIN` |
-| `GET` | `/evaluations/approvals` | Get branch-wide evaluation approval overview and department comparative ratios | `ADMIN`, `MANAGER` |
-| `POST` | `/evaluations/approvals/{departmentId}/recalibrate` | Reject department calibration proposal and return for re-calibration | `ADMIN` |
-| `POST` | `/evaluations/approvals/finalize` | Executive approval and hard-lock of evaluation period | `ADMIN` |
+| `GET` | `/evaluations/calibration` | Get department calibration overview with ranked roster, Bell curve, and quota metrics | `evaluation:read` (Dept) |
+| `POST` | `/evaluations/calibration/submit` | Save draft or submit calibrated rankings to Executive with Tier A quota check | `evaluation:calibrate` (Dept) |
+| `GET` | `/evaluations/approvals` | Get branch-wide evaluation approval overview and department comparative ratios | `evaluation:read` (Branch) |
+| `POST` | `/evaluations/approvals/{departmentId}/recalibrate` | Reject department calibration proposal and return for re-calibration | `evaluation:finalize` (Branch) |
+| `POST` | `/evaluations/approvals/finalize` | Executive approval and hard-lock of evaluation period | `evaluation:finalize` (Branch) |
 
 ---
 
@@ -43,6 +43,7 @@ Get department calibration overview for a specific evaluation period and optiona
   4. `EmployeeCode` ASC
 - **BR-37**: Department Tier A quota cap (max 20%, minimum 1 for small teams).
 - Bell Curve Gaussian distribution $\mu$ (mean) and $\sigma$ (standard deviation) calculated dynamically from scores.
+- **Scores**: an evaluation that has a stored `totalScore` and is not `DRAFT` shows the stored score in every score column (a stored score is never recalculated). A `DRAFT` evaluation, or an employee without one, is scored by the shared score calculation (the same as `GET /evaluations/form` and `POST /performance-evaluations/{id}/calculate`), with the qualitative scores saved on the evaluation. An employee whose score cannot be determined (no evaluation profile, or a profile without any root group) has `null` scores, `rank`, `proposedTier` and `calibratedTier` (N/A, never a default score): such an employee is listed after the ranked ones, is not ranked, and does not count in `quota` or `bellCurve`. `qualitativeScore` is `null` when the employee has no qualitative group. Calibrating or submitting for an employee who has no evaluation yet creates the evaluation with the score of the shared score calculation and its KPI detail rows (no fixed default score); if the employee's position has no evaluation profile the request is rejected with 400 `VALIDATION_ERROR` before anything is saved.
 - **BR-31**: an evaluation whose status is `DISPUTED` (Disputed_Pending, see `APPEAL_CONTRACT.md` 2.5) is hidden from this
   screen: it is not in `rankedRoster`, gets no `rank`, and does not count in `quota` or `bellCurve`. The response adds
   `disputedPendingCount` (int, default 0) so the client can show how many scores are held back.
@@ -168,8 +169,11 @@ Save draft or submit department calibration proposal to Executive.
   - Evaluations status transitioned to `IN_REVIEW`.
 - **BR-31**: adjustments for an employee whose evaluation is `DISPUTED` are ignored (not counted in `totalAdjusted`,
   `tierACount` or the quota base) and the evaluation keeps `DISPUTED`.
+- `notes` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is saved): the column that stores it also holds system markers.
 - If `isDraft == true`:
   - Saves adjustments without transitioning status to `IN_REVIEW`.
+- When the save loses a race with another request (the evaluation of an employee created twice, or a row changed or
+  removed meanwhile) the response is 409 `CONFLICT` and nothing is saved; reload the roster and try again.
 
 #### 200 OK Response
 ```json
@@ -203,6 +207,10 @@ Executive overview of evaluation submissions across departments with Tier A comp
 `DISPUTED` evaluations are excluded from every figure of the response (`totalEmployees`, `totalEvaluated`, per-department
 counts, `averageScore`, tier counts) and `canFinalize` is `false` while any exists. `disputedPendingCount` (int, default 0)
 returns how many there are.
+
+`canFinalize` is also `false` while any evaluation of the period is still `DRAFT` or `CALCULATED` (never sent for
+review), whichever department it belongs to: the same condition `POST /evaluations/approvals/finalize` refuses with 409
+`PERFORMANCE_EVALUATION_INVALID_STATE`.
 
 #### 200 OK Response
 ```json
@@ -269,6 +277,7 @@ Reject department proposal and request re-calibration (UC106 Alt).
 ```
 
 #### Behavior
+- `reason` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is changed).
 - Reverts department evaluations from `IN_REVIEW` back to `CALCULATED`. `DISPUTED` evaluations (BR-31) are left unchanged.
 - Records rejection feedback in evaluations.
 
@@ -305,8 +314,10 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 #### Behavior
 - **BR-31**: rejected with 409 `EVALUATION_DISPUTE_PENDING` (nothing is changed) while any evaluation of the period is
   `DISPUTED`.
+- **Not ready**: rejected with 409 `PERFORMANCE_EVALUATION_INVALID_STATE` (nothing is changed) while any evaluation of the period is still `DRAFT` or `CALCULATED`, i.e. was never sent for review; the message gives how many. Only `IN_REVIEW`, `APPROVED` and `FINAL` evaluations can be locked.
+- `approvalComments` may not contain `<!--` or `-->` (400 `VALIDATION_ERROR`, nothing is changed).
 - Sets `evaluation_period.status = LOCKED`.
-- Sets all evaluations in period: `status = FINAL`, `approved_at = NOW()`.
+- Sets every evaluation in the period that is not yet `FINAL` to `status = FINAL`, `approved_at = NOW()`; an evaluation already `FINAL` keeps its `approved_at`.
 - Immutable lock prevents subsequent modifications.
 
 #### 200 OK Response

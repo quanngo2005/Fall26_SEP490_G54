@@ -113,6 +113,30 @@ public sealed class AppealsController(IAppealService appealService) : Controller
         return CreatedAtAction(nameof(GetAppealById), new { id = result.Id }, response);
     }
 
+    [HttpPost("performance-evaluations/{evaluationId:guid}/appeals")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(MaxAppealRequestBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAppealRequestBytes)]
+    [ProducesResponseType<ApiResponse<AppealDetailDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<AppealDetailDto>>> CreateScoreAppeal(
+        Guid evaluationId,
+        [FromForm] CreateAppealRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await appealService.CreateScoreAppealAsync(evaluationId, User.GetRequiredUserId(), request, cancellationToken);
+        var response = ApiResponse.Ok(
+            result,
+            SuccessMessages.GetMessage(SuccessMessages.Created),
+            HttpContext.TraceIdentifier);
+
+        return CreatedAtAction(nameof(GetAppealById), new { id = result.Id }, response);
+    }
+
     [HttpPost("appeals/{id:guid}/withdraw")]
     [ProducesResponseType<ApiResponse<AppealDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]

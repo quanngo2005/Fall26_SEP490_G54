@@ -37,6 +37,19 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
         return CreatedAtAction(nameof(GetById), new { id }, Created(result, "Phân bổ target thành công."));
     }
 
+    /// <summary>Changes the values of an already allocated target's children; each changed child becomes a new version.</summary>
+    [HttpPut("{id:guid}/allocations")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> Reallocate(
+        Guid id,
+        [FromBody] ReallocateTargetDto dto)
+    {
+        var result = await service.ReallocateAsync(User.GetRequiredUserId(), id, dto);
+        return Ok(ApiResponse.Ok(result, "Điều chỉnh target thành công.", HttpContext.TraceIdentifier));
+    }
+
     /// <summary>Splits an ACTIVE target across evaluation periods (by period).</summary>
     [HttpPost("{id:guid}/period-allocations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status201Created)]
@@ -59,6 +72,10 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
         var result = await service.ListAsync(User.GetRequiredUserId(), query);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    // GET /target-assignments/{id}/breakdown is served by MyTargetAssignmentsController: it is readable by
+    // both org-scoped (target:manage Dept) callers and the owning employee, which this class-level
+    // [HasPermission] attribute would otherwise block for the latter.
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<TargetAssignmentDto>>(StatusCodes.Status200OK)]

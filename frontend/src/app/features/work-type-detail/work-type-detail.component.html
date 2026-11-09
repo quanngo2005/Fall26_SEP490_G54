@@ -11,19 +11,29 @@
           <p class="breadcrumb">{{localization.workType.breadcrumb}}</p>
           <p class="eyebrow">{{localization.workType.eyebrow}}</p>
         </div>
-        <div class="field department-picker">
-          <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
-          <select
-            id="work-type-select"
-            class="select"
-            [attr.aria-label]="localization.workType.selectWorkType"
-            [(ngModel)]="selectedId"
-            (ngModelChange)="changeWorkType()"
+        <div class="toolbar-actions">
+          <div class="field department-picker">
+            <label for="work-type-select">{{localization.workType.pickerLabel}}</label>
+            <select
+              id="work-type-select"
+              class="select"
+              [attr.aria-label]="localization.workType.selectWorkType"
+              [(ngModel)]="selectedId"
+              (ngModelChange)="changeWorkType()"
+            >
+              @for (item of workTypes(); track item.id) {
+                <option [value]="item.id">{{item.code}} · {{item.name}}</option>
+              }
+            </select>
+          </div>
+          <button
+            type="button"
+            class="button button-primary"
+            disabled
+            [title]="localization.workTypes.unavailable"
           >
-            @for (item of workTypes(); track item.id) {
-              <option [value]="item.id">{{item.code}} · {{item.name}}</option>
-            }
-          </select>
+            + {{localization.workTypes.create}}
+          </button>
         </div>
       </div>
       @if (loading() && !workType()) {
@@ -74,6 +84,10 @@
             </p>
             <dl class="detail-list">
               <div>
+                <dt>{{localization.workType.productCode}}</dt>
+                <dd class="mono">{{data.productCode ?? localization.workType.notAvailable}}</dd>
+              </div>
+              <div>
                 <dt>{{localization.workType.createdAt}}</dt>
                 <dd class="mono">{{i18n.formatDate(data.createdAt, 'DD/MM/YYYY HH:mm')}}</dd>
               </div>
@@ -102,6 +116,7 @@
                   <th>{{localization.workType.kpiCode}}</th>
                   <th>{{localization.workType.kpiName}}</th>
                   <th>{{localization.workType.requirement}}</th>
+                  <th>{{localization.workType.multiplier}}</th>
                   <th>{{localization.workType.period}}</th>
                   <th>{{localization.workType.status}}</th>
                 </tr>
@@ -118,6 +133,7 @@
                           ? localization.workType.required
                           : localization.workType.optional}}</span>
                     </td>
+                    <td class="mono">×{{kpi.multiplier}}</td>
                     <td class="mono">
                       {{i18n.formatDate(kpi.effectiveFrom)}} –
                       {{kpi.effectiveTo
@@ -135,7 +151,7 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="5" class="empty-cell">{{localization.workType.noMappings}}</td>
+                    <td colspan="6" class="empty-cell">{{localization.workType.noMappings}}</td>
                   </tr>
                 }
               </tbody>

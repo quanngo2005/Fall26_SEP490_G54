@@ -18,6 +18,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Appeal> Appeals { get; set; }
 
+    public virtual DbSet<AuditLog> AuditLogs { get; set; }
+
     public virtual DbSet<AuthAuditLog> AuthAuditLogs { get; set; }
 
     public virtual DbSet<BusinessCampaign> BusinessCampaigns { get; set; }
@@ -37,6 +39,12 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<EvaluationProfileItem> EvaluationProfileItems { get; set; }
 
     public virtual DbSet<Evidence> Evidences { get; set; }
+
+    public virtual DbSet<ImportBatch> ImportBatches { get; set; }
+
+    public virtual DbSet<WorkTransaction> WorkTransactions { get; set; }
+
+    public virtual DbSet<ImportedTransaction> ImportedTransactions { get; set; }
 
     public virtual DbSet<JobPosition> JobPositions { get; set; }
 
@@ -71,6 +79,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<RolePermissionAssignment> RolePermissions { get; set; }
 
     public virtual DbSet<TargetAssignment> TargetAssignments { get; set; }
+
+    public virtual DbSet<TargetAssignmentFeedback> TargetAssignmentFeedbacks { get; set; }
 
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
@@ -116,6 +126,7 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<PerformanceEvaluationHistoryAction>("public", "performance_evaluation_history_action")
             .HasPostgresEnum<TargetAssignmentStatus>("public", "target_assignment_status")
             .HasPostgresEnum<TargetSplitDimension>("public", "target_split_dimension")
+            .HasPostgresEnum<TargetAssignmentFeedbackType>("public", "target_assignment_feedback_type")
             .HasPostgresExtension("pgcrypto");
 
         modelBuilder.Entity<Account>(entity =>
@@ -251,6 +262,38 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("appeal_status")
                 .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("audit_logs_pkey");
+
+            entity.ToTable("audit_logs");
+
+            entity.HasIndex(e => new { e.EntityName, e.EntityId }, "ix_audit_logs_entity");
+
+            entity.HasIndex(e => e.OccurredAt, "ix_audit_logs_occurred_at");
+
+            entity.HasIndex(e => e.ActorId, "ix_audit_logs_actor_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.EntityName).HasMaxLength(100).HasColumnName("entity_name");
+            entity.Property(e => e.EntityId).HasMaxLength(100).HasColumnName("entity_id");
+            entity.Property(e => e.Action).HasMaxLength(20).HasColumnName("action");
+            entity.Property(e => e.OldValues).HasColumnType("jsonb").HasColumnName("old_values");
+            entity.Property(e => e.NewValues).HasColumnType("jsonb").HasColumnName("new_values");
+            entity.Property(e => e.ChangedColumns).HasColumnType("jsonb").HasColumnName("changed_columns");
+            entity.Property(e => e.ActorId).HasColumnName("actor_id");
+            entity.Property(e => e.ActorName).HasMaxLength(200).HasColumnName("actor_name");
+            entity.Property(e => e.IpAddress).HasMaxLength(64).HasColumnName("ip_address");
+            entity.Property(e => e.UserAgent).HasMaxLength(512).HasColumnName("user_agent");
+            entity.Property(e => e.HttpMethod).HasMaxLength(10).HasColumnName("http_method");
+            entity.Property(e => e.RequestPath).HasMaxLength(512).HasColumnName("request_path");
+            entity.Property(e => e.TraceId).HasMaxLength(64).HasColumnName("trace_id");
+            entity.Property(e => e.OccurredAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("occurred_at");
+            // No FK to account: an audit entry must survive deletion of the actor's account.
         });
 
         modelBuilder.Entity<AuthAuditLog>(entity =>
@@ -467,6 +510,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.FullName)
                 .HasMaxLength(200)
                 .HasColumnName("full_name");
+            entity.Property(e => e.HireDate).HasColumnName("hire_date");
             entity.Property(e => e.JobPositionId).HasColumnName("job_position_id");
             entity.Property(e => e.LastSyncAt)
                 .HasDefaultValueSql("now()")
@@ -785,6 +829,14 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Name)
                 .HasMaxLength(255)
                 .HasColumnName("name");
+            entity.Property(e => e.RejectReason)
+                .HasMaxLength(500)
+                .HasColumnName("reject_reason");
+            entity.Property(e => e.RequestNote)
+                .HasMaxLength(500)
+                .HasColumnName("request_note");
+            entity.Property(e => e.RequestedBy).HasColumnName("requested_by");
+            entity.Property(e => e.SubmittedBy).HasColumnName("submitted_by");
             entity.Property(e => e.Unit)
                 .HasMaxLength(50)
                 .HasColumnName("unit");
@@ -796,6 +848,16 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.KpiGroupId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_kpi_definition_group");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.RequestedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_kpi_definition_requested_by");
+
+            entity.HasOne<Employee>().WithMany()
+                .HasForeignKey(d => d.SubmittedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_kpi_definition_submitted_by");
 
             entity.Property(e => e.AggregationType)
                 .HasColumnType("kpi_aggregation_type")
@@ -924,6 +986,12 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.RiskEventId, "uq_performance_contribution_risk_event").IsUnique();
 
+            // One KPI row per anchoring progress row within an evaluation: two requests saving the same evaluation
+            // at once cannot both insert the KPI row (the KPI is identified through its progress).
+            entity.HasIndex(e => new { e.PerformanceEvaluationId, e.ActualProgressId }, "uq_performance_contribution_kpi_progress")
+                .IsUnique()
+                .HasFilter("risk_event_id IS NULL AND actual_progress_id IS NOT NULL");
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
@@ -940,6 +1008,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ActualValue)
                 .HasPrecision(18, 4)
                 .HasColumnName("actual_value");
+            entity.Property(e => e.WeightedActualValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("weighted_actual_value");
             entity.Property(e => e.ComponentScore)
                 .HasPrecision(10, 4)
                 .HasColumnName("component_score");
@@ -1422,6 +1493,46 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("split_dimension");
         });
 
+        modelBuilder.Entity<TargetAssignmentFeedback>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("target_assignment_feedback_pkey");
+
+            entity.ToTable("target_assignment_feedback", table =>
+            {
+                table.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+            });
+
+            entity.HasIndex(e => e.TargetAssignmentId, "ix_target_assignment_feedback_target");
+            entity.HasIndex(e => e.EmployeeId, "ix_target_assignment_feedback_employee");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TargetAssignmentId).HasColumnName("target_assignment_id");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.Comment)
+                .HasMaxLength(500)
+                .HasColumnName("comment");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Type)
+                .HasColumnType("target_assignment_feedback_type")
+                .HasColumnName("type");
+
+            entity.HasOne(d => d.TargetAssignment)
+                .WithMany()
+                .HasForeignKey(d => d.TargetAssignmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_target_assignment_feedback_target");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_feedback_employee");
+        });
+
         modelBuilder.Entity<TaskHandover>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("task_handover_pkey");
@@ -1593,6 +1704,10 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
             entity.Property(e => e.VerificationId).HasColumnName("verification_id");
+            entity.Property(e => e.WorkTransactionId).HasColumnName("work_transaction_id");
+            entity.HasIndex(e => e.WorkTransactionId, "uq_verified_work_result_work_transaction").IsUnique();
+            entity.HasOne(d => d.WorkTransaction).WithMany().HasForeignKey(d => d.WorkTransactionId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_verified_work_result_work_transaction");
             entity.Property(e => e.VerifiedAt).HasColumnName("verified_at");
 
             entity.HasOne(d => d.Verification).WithOne(p => p.VerifiedWorkResult)
@@ -1698,6 +1813,8 @@ public partial class AppDbContext : DbContext
             {
                 table.HasCheckConstraint("ck_work_result_item_value", "value >= 0");
                 table.HasCheckConstraint("ck_work_result_item_denominator", "denominator IS NULL OR denominator > 0");
+                table.HasCheckConstraint("ck_work_result_item_raw_value", "raw_value >= 0");
+                table.HasCheckConstraint("ck_work_result_item_multiplier_applied", "multiplier_applied > 0");
             });
 
             entity.HasIndex(e => e.ActualProgressId, "ix_work_result_item_progress");
@@ -1722,6 +1839,13 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Value)
                 .HasPrecision(18, 4)
                 .HasColumnName("value");
+            entity.Property(e => e.RawValue)
+                .HasPrecision(18, 4)
+                .HasColumnName("raw_value");
+            entity.Property(e => e.MultiplierApplied)
+                .HasPrecision(6, 4)
+                .HasDefaultValue(1.0m)
+                .HasColumnName("multiplier_applied");
             entity.Property(e => e.VerifiedWorkResultId).HasColumnName("verified_work_result_id");
 
             entity.HasOne(d => d.ActualProgress).WithMany(p => p.WorkResultItems)
@@ -1747,6 +1871,10 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.Code, "uq_work_type_code").IsUnique();
 
+            entity.HasIndex(e => e.ProductCode, "uq_work_type_product_code")
+                .IsUnique()
+                .HasFilter("product_code IS NOT NULL");
+
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
@@ -1754,6 +1882,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("code");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ProductCode)
+                .HasMaxLength(50)
+                .HasColumnName("product_code");
             entity.Property(e => e.Name)
                 .HasMaxLength(200)
                 .HasColumnName("name");
@@ -1773,6 +1904,7 @@ public partial class AppDbContext : DbContext
             entity.ToTable("work_type_kpi", table =>
             {
                 table.HasCheckConstraint("ck_work_type_kpi_dates", "effective_to IS NULL OR effective_to >= effective_from");
+                table.HasCheckConstraint("ck_work_type_kpi_multiplier", "multiplier > 0 AND multiplier <= 10");
             });
 
             entity.HasIndex(e => new { e.WorkTypeId, e.KpiDefinitionId, e.EffectiveFrom }, "uq_work_type_kpi_effective").IsUnique();
@@ -1787,7 +1919,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.IsRequired)
                 .HasDefaultValue(false)
                 .HasColumnName("is_required");
+            entity.Property(e => e.Multiplier)
+                .HasPrecision(6, 4)
+                .HasDefaultValue(1.0m)
+                .HasColumnName("multiplier");
             entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.ValueSource).HasMaxLength(10).HasDefaultValue(KpiValueSource.Count).HasColumnName("value_source");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1804,6 +1941,67 @@ public partial class AppDbContext : DbContext
         });
 
         ConfigureScores(modelBuilder);
+        ConfigureNotifications(modelBuilder);
+        ConfigureKpiCatalog(modelBuilder);
+        ConfigureQualityAssurance(modelBuilder);
+        ConfigureRiskEventScreens(modelBuilder);
+        modelBuilder.Entity<ImportBatch>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("import_batch_pkey");
+            entity.ToTable("import_batch");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FileName).HasMaxLength(255).HasColumnName("file_name");
+            entity.Property(e => e.TotalRows).HasColumnName("total_rows");
+            entity.Property(e => e.ImportedRows).HasColumnName("imported_rows");
+            entity.Property(e => e.DuplicateRows).HasColumnName("duplicate_rows");
+            entity.Property(e => e.ErrorRows).HasColumnName("error_rows");
+            entity.Property(e => e.ImportedBy).HasColumnName("imported_by");
+            entity.Property(e => e.ImportedAt).HasColumnName("imported_at");
+        });
+
+        modelBuilder.Entity<ImportedTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("imported_transaction_pkey");
+            entity.ToTable("imported_transaction");
+            entity.HasIndex(e => e.TransactionCode, "uq_imported_transaction_code").IsUnique();
+            entity.HasIndex(e => e.ImportBatchId, "ix_imported_transaction_batch");
+            entity.HasIndex(e => e.EmployeeId, "ix_imported_transaction_employee");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
+            entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.ProductCode).HasMaxLength(100).HasColumnName("product_code");
+            entity.Property(e => e.TransactionDate).HasColumnName("transaction_date");
+            entity.Property(e => e.Amount).HasPrecision(18, 4).HasColumnName("amount");
+            entity.Property(e => e.Denominator).HasPrecision(18, 4).HasColumnName("denominator");
+            entity.Property(e => e.ReferEmployeeCode).HasMaxLength(50).HasColumnName("refer_employee_code");
+            entity.HasOne(e => e.ImportBatch).WithMany(b => b.Transactions).HasForeignKey(e => e.ImportBatchId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_imported_transaction_batch");
+            entity.HasOne(e => e.Employee).WithMany().HasForeignKey(e => e.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_imported_transaction_employee");
+        });
+
+        modelBuilder.Entity<WorkTransaction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("work_transaction_pkey");
+            entity.ToTable("work_transaction", table => table.HasCheckConstraint("ck_work_transaction_status", "status IN ('IN_REVIEW','MATCHED','NOT_MATCHED')"));
+            entity.HasIndex(e => e.TransactionCode, "uq_work_transaction_code").IsUnique();
+            entity.HasIndex(e => e.WorkId, "ix_work_transaction_work");
+            entity.HasIndex(e => e.ImportedTransactionId, "uq_work_transaction_imported").IsUnique();
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.WorkId).HasColumnName("work_id");
+            entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.Status).HasMaxLength(20).HasColumnName("status");
+            entity.Property(e => e.Reason).HasMaxLength(100).HasColumnName("reason");
+            entity.Property(e => e.ImportedTransactionId).HasColumnName("imported_transaction_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne(e => e.Work).WithMany().HasForeignKey(e => e.WorkId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_work_transaction_work");
+            entity.HasOne(e => e.ImportedTransaction).WithMany().HasForeignKey(e => e.ImportedTransactionId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_work_transaction_imported");
+        });
+
         OnModelCreatingPartial(modelBuilder);
     }
 

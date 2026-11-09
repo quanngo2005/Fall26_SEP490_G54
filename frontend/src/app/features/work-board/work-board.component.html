@@ -62,8 +62,8 @@
               type="button"
               id="work-transfer"
               class="button button-secondary"
-              disabled
-              [attr.title]="localization.work.comingSoon"
+              [disabled]="profileLoading()"
+              (click)="openHandover()"
             >
               {{localization.work.transfer}}
             </button>
@@ -72,8 +72,9 @@
             type="button"
             id="work-create"
             class="button button-primary"
-            disabled
-            [attr.title]="localization.work.comingSoon"
+            [disabled]="!isTeam() || profileLoading()"
+            [attr.title]="isTeam() ? null : localization.work.comingSoon"
+            (click)="openAssign()"
           >
             + {{isTeam() ? localization.work.team.assignWork : localization.work.create}}
           </button>
@@ -521,4 +522,21 @@
 
 @if (selectedId(); as id) {
   <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" />
+}
+
+@if (handoverOpen()) {
+  <app-handover-dialog
+    [works]="handoverWorks()"
+    (closed)="handoverOpen.set(false)"
+    (requested)="onHandoverRequested($event)"
+  />
+}
+
+@if (assignOpen()) {
+  <app-assign-work-dialog
+    [members]="members()"
+    [workTypes]="workTypes()"
+    (closed)="assignOpen.set(false)"
+    (assigned)="onAssigned($event)"
+  />
 }

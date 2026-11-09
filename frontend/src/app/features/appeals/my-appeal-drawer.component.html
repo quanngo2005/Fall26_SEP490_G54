@@ -1,0 +1,155 @@
+<aside class="appeal-drawer" role="region" [attr.aria-label]="code()">
+  <header class="drawer-header">
+    <div class="header-top-line">
+      <div class="header-title-group">
+        <h2 class="appeal-title">{{code()}} · {{kindLabel()}}</h2>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge" [class]="'status-' + appeal().status.toLowerCase()">
+          {{localization.appeals.status[appeal().status]}}
+        </span>
+        <button
+          type="button"
+          class="close-button"
+          [attr.aria-label]="localization.appeals.closeDetail"
+          (click)="closeDrawer.emit()"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+      </div>
+    </div>
+    <p class="drawer-subtitle">{{subtitle()}}</p>
+  </header>
+
+  <div class="drawer-body">
+    @if (loading()) {
+      <p class="drawer-state" role="status">{{localization.appeals.loading}}</p>
+    } @else if (failed()) {
+      <p class="drawer-state" role="alert">{{localization.appeals.loadError}}</p>
+    } @else {
+      <!-- Section: ĐỐI TƯỢNG -->
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.appeals.subject}}</h3>
+        <div class="target-grid">
+          <div class="grid-item">
+            <span class="field-label">
+              {{appeal().type === 'SCORE'
+                  ? localization.appeals.period
+                  : localization.appeals.submission}}
+            </span>
+            <span class="field-value">{{subject()}}</span>
+          </div>
+          @if (appeal().type === 'RESULT') {
+            <div class="grid-item">
+              <span class="field-label">{{localization.appeals.work}}</span>
+              <span class="field-value">
+                {{appeal().workTitle ?? localization.appeals.notAvailable}}
+              </span>
+            </div>
+            <div class="grid-item">
+              <span class="field-label">{{localization.appeals.transactionCode}}</span>
+              <span class="field-value font-code">{{localization.appeals.notAvailable}}</span>
+            </div>
+            <div class="grid-item">
+              <span class="field-label">{{localization.appeals.reconciliation}}</span>
+              <span class="field-value">{{localization.appeals.notAvailable}}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Section: LÝ DO -->
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.appeals.reasonTitle}}</h3>
+        <div class="reason-card">
+          <p>{{detail()?.reason ?? localization.appeals.notAvailable}}</p>
+        </div>
+      </section>
+
+      <!-- Section: BẰNG CHỨNG -->
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.appeals.evidenceTitle}}</h3>
+        <div class="evidence-list">
+          @for (file of detail()?.evidences ?? []; track file.id) {
+            <div class="evidence-item">
+              <div class="evidence-info">
+                <span class="file-name">{{file.fileName}}</span>
+                <span class="file-size">· {{size(file.fileSize)}}</span>
+              </div>
+              <button type="button" class="preview-btn" (click)="preview(file)">
+                {{localization.appeals.preview}}
+              </button>
+            </div>
+          } @empty {
+            <p class="drawer-state">{{localization.appeals.noEvidence}}</p>
+          }
+        </div>
+        @if (previewFailed()) {
+          <p class="drawer-state" role="alert">{{localization.appeals.previewFailed}}</p>
+        }
+      </section>
+
+      <!-- Section: TIẾN TRÌNH -->
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.appeals.timeline}}</h3>
+        <div class="timeline">
+          <div class="timeline-step">
+            <div class="step-marker active">
+              <span class="dot"></span>
+              <span class="line"></span>
+            </div>
+            <div class="step-content">
+              <div class="step-title">{{localization.appeals.timelineFiled}}</div>
+              <div class="step-time">{{appeal().filedAt | appDate: 'DD/MM/YYYY HH:mm:ss'}}</div>
+            </div>
+          </div>
+          <div class="timeline-step">
+            @if (appeal().status === 'OPEN' || appeal().status === 'UNDER_REVIEW') {
+              <div class="step-marker pending">
+                <span class="dot"></span>
+              </div>
+              <div class="step-content">
+                <div class="step-title">{{localization.appeals.timelineWaiting}}</div>
+                <div class="step-time sla-deadline">
+                  {{localization.appeals.deadlineLabel}}: {{localization.appeals.notAvailable}}
+                </div>
+              </div>
+            } @else {
+              <div class="step-marker active">
+                <span class="dot"></span>
+              </div>
+              <div class="step-content">
+                <div class="step-title">
+                  {{appeal().status === 'WITHDRAWN'
+                      ? localization.appeals.timelineWithdrawn
+                      : localization.appeals.timelineDecided}}
+                </div>
+                <div class="step-time">
+                  {{appeal().decidedAt ?? appeal().updatedAt | appDate: 'DD/MM/YYYY HH:mm:ss'}}
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Callout Box: Rút khiếu nại -->
+      <div class="drawer-callout">
+        <h4 class="callout-heading">{{localization.appeals.withdrawalTitle}}</h4>
+        <p class="callout-body">{{localization.appeals.withdrawalHint}}</p>
+      </div>
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="footer-hint">{{localization.appeals.keyboardHint}}</span>
+    <button
+      type="button"
+      class="withdraw-button"
+      [disabled]="appeal().status !== 'OPEN'"
+      (click)="confirmWithdraw()"
+    >
+      {{localization.appeals.withdraw}}
+    </button>
+  </footer>
+</aside>

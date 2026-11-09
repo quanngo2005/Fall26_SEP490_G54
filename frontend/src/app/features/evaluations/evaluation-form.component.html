@@ -105,14 +105,26 @@
           <div class="metric-card">
             <span class="metric-title">{{localization.evaluationForm.totalScoreTitle}}</span>
             <div class="metric-value-row">
-              <span class="metric-value highlight">{{data.summary.totalScore | appNumber: 2}}</span>
+              <span class="metric-value highlight">
+                @if (data.summary.totalScore !== null) {
+                  {{data.summary.totalScore | appNumber: 2}}
+                } @else {
+                  {{localization.evaluations.emptyValue}}
+                }
+              </span>
             </div>
           </div>
 
           <div class="metric-card">
             <span class="metric-title">{{localization.evaluationForm.quantitativeScoreTitle}}</span>
             <div class="metric-value-row">
-              <span class="metric-value">{{data.summary.weightedScore | appNumber: 2}}</span>
+              <span class="metric-value">
+                @if (data.summary.weightedScore !== null) {
+                  {{data.summary.weightedScore | appNumber: 2}}
+                } @else {
+                  {{localization.evaluations.emptyValue}}
+                }
+              </span>
               <span class="metric-calc-detail">
                 {{localization.evaluationForm.penaltyLabel}}
                 {{data.summary.totalRiskPenalty | appNumber: 2}}
@@ -176,11 +188,17 @@
                   <tbody>
                     @for (group of data.criteriaGroups; track group.evaluationProfileItemId) {
                       <tr class="group-header-row">
-                        <td colspan="5" class="group-header-cell">
-                          {{group.groupName}} · {{group.weightPercent | appNumber: 2}}%
+                        <td class="group-header-cell">{{group.groupName}}</td>
+                        <td class="group-header-cell text-center">
+                          {{group.weightPercent | appNumber: 2}}%
                         </td>
+                        <td colspan="3" class="group-header-cell"></td>
                         <td class="group-header-cell group-score-cell text-center">
-                          {{group.groupScore | appNumber: 2}}
+                          @if (group.groupScore !== null) {
+                            {{group.groupScore | appNumber: 2}}
+                          } @else {
+                            {{localization.evaluations.emptyValue}}
+                          }
                         </td>
                       </tr>
 
@@ -206,13 +224,25 @@
                             }
                           </td>
                           <td class="td-actual text-center">
-                            {{item.actualValue | appNumber: 2}} {{item.unit}}
+                            @if (item.actualValue !== null) {
+                              {{item.actualValue | appNumber: 2}} {{item.unit}}
+                            } @else {
+                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                            }
                           </td>
                           <td class="td-achieved text-center">
-                            {{item.achievementPercent | appNumber: 2}}%
+                            @if (item.achievementPercent !== null) {
+                              {{item.achievementPercent | appNumber: 2}}%
+                            } @else {
+                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                            }
                           </td>
                           <td class="td-score text-center">
-                            {{item.componentScore | appNumber: 2}}
+                            @if (item.componentScore !== null) {
+                              {{item.componentScore | appNumber: 2}}
+                            } @else {
+                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                            }
                           </td>
                         </tr>
                       }
@@ -223,7 +253,11 @@
                         {{localization.evaluationForm.rowTotalKpi}}
                       </td>
                       <td class="td-summary-value text-center">
-                        {{data.summary.weightedScore | appNumber: 2}}
+                        @if (data.summary.weightedScore !== null) {
+                          {{data.summary.weightedScore | appNumber: 2}}
+                        } @else {
+                          {{localization.evaluations.emptyValue}}
+                        }
                       </td>
                     </tr>
 
@@ -246,7 +280,11 @@
                         {{localization.evaluationForm.rowFinalTotal}}
                       </td>
                       <td class="td-summary-value text-center">
-                        {{data.summary.totalScore | appNumber: 2}}
+                        @if (data.summary.totalScore !== null) {
+                          {{data.summary.totalScore | appNumber: 2}}
+                        } @else {
+                          {{localization.evaluations.emptyValue}}
+                        }
                       </td>
                     </tr>
                   </tbody>
@@ -280,12 +318,35 @@
                       class="score-input"
                       [ngModel]="qualitativeScores()[group.evaluationProfileItemId]"
                       (ngModelChange)="setQualitativeScore(group.evaluationProfileItemId, $event)"
+                      (wheel)="$any($event.target).blur()"
                       [min]="scoreMin"
-                      [max]="scoreMax"
+                      [max]="groupScoreMax()"
                       [disabled]="!data.canEdit"
                       [placeholder]="localization.evaluationForm.qualitativeScorePlaceholder"
                     />
-                    <span class="score-suffix">/ {{scoreMax}}</span>
+                    <span class="score-suffix">/ {{groupScoreMax()}}</span>
+                  </div>
+                </div>
+              }
+
+              @if (qualitativeGroups().length === 0) {
+                <div class="form-group">
+                  <label class="form-label" for="qualitativeScoreInput">
+                    {{localization.evaluationForm.qualitativeScoreLabel}}
+                  </label>
+                  <div class="score-input-wrap">
+                    <input
+                      id="qualitativeScoreInput"
+                      type="number"
+                      class="score-input"
+                      [ngModel]="generalQualitativeScore()"
+                      (ngModelChange)="generalQualitativeScore.set($event)"
+                      (wheel)="$any($event.target).blur()"
+                      [min]="scoreMin"
+                      [max]="generalScoreMax()"
+                      [disabled]="!data.canEdit"
+                      [placeholder]="localization.evaluationForm.qualitativeScorePlaceholder"
+                    />
                   </div>
                 </div>
               }

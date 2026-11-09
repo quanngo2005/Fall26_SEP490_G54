@@ -218,10 +218,10 @@ public sealed class EmployeeControllerTests
             return Task.FromResult(Detail);
         }
 
-        public Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(CancellationToken cancellationToken = default) =>
+        public Task<List<DepartmentOptionDto>> GetDepartmentOptionsAsync(Guid callerAccountId, CancellationToken cancellationToken = default) =>
             Task.FromResult<List<DepartmentOptionDto>>([new DepartmentOptionDto(Guid.NewGuid(), "DEP-01", "Retail", G54.DAL.Entities.DepartmentLevelType.Department)]);
 
-        public Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(CancellationToken cancellationToken = default) =>
+        public Task<List<JobPositionOptionDto>> GetJobPositionOptionsAsync(Guid callerAccountId, CancellationToken cancellationToken = default) =>
             Task.FromResult<List<JobPositionOptionDto>>([new JobPositionOptionDto(Guid.NewGuid(), "JP-01", "Officer")]);
 
         public Task<EmployeeDetailDto> CreateEmployeeAsync(CreateEmployeeDto dto, CancellationToken cancellationToken = default)

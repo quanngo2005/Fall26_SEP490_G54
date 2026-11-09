@@ -298,7 +298,7 @@ Kết nối PostgreSQL từ pgAdmin khi pgAdmin cũng chạy trong Compose:
 ```text
 Host: postgres
 Port: 5432
-Database: postgres
+Database: bpms_db
 Username: postgres
 Password: postgres
 ```
@@ -308,7 +308,7 @@ Kết nối từ công cụ native trên máy, ví dụ DBeaver:
 ```text
 Host: localhost
 Port: 5432
-Database: postgres
+Database: bpms_db
 Username: postgres
 Password: postgres
 ```
@@ -329,7 +329,7 @@ ASPNETCORE_ENVIRONMENT
 Ví dụ:
 
 ```powershell
-$env:ConnectionStrings__Postgres = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres"
+$env:ConnectionStrings__Postgres = "Host=localhost;Port=5432;Database=bpms_db;Username=postgres;Password=postgres"
 $env:ConnectionStrings__Redis = "localhost:6379,abortConnect=false"
 $env:Jwt__Key = "replace-with-a-random-secret-at-least-32-characters"
 ```
