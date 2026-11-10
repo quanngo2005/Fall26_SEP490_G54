@@ -13,6 +13,8 @@ export interface QaQueueFilter {
   departmentId?: string;
   periodId?: string;
   search?: string;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }

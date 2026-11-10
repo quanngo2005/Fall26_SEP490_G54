@@ -35,6 +35,7 @@ export interface DepartmentEmployeeEvaluation {
   pendingSubmissionCount: number;
   canEvaluate: boolean;
   updatedAt: string | null;
+  quantitativeScoreChange: number | null;
 }
 
 export interface EvaluationEmployee {
@@ -124,6 +125,8 @@ export interface PerformanceEvaluationState {
   comment: string | null;
   coachingPlan: string | null;
   coachingRequired: boolean;
+  /** The single qualitative score saved with the evaluation; null when none was entered. */
+  generalQualitativeScore: number | null;
 }
 
 export interface PreviousPeriodSummary {
@@ -163,6 +166,7 @@ export interface SubmitEvaluationRequest {
   coachingRequired?: boolean;
   qualitativeScores: QualitativeScoreInput[];
   isDraft: boolean;
+  generalQualitativeScore?: number | null;
 }
 
 export interface EvaluationResult {

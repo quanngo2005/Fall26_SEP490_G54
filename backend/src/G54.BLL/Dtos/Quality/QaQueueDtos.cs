@@ -17,6 +17,12 @@ public sealed class QaQueueFilterDto
     /// <summary>QA code (<c>QA-0331</c> or <c>331</c>), work code or title, employee code or name.</summary>
     public string? Search { get; set; }
 
+    /// <summary>Column to sort by: code, type, work, employee, source, created, due or status. Default: due date for PENDING, newest first otherwise.</summary>
+    public string? SortBy { get; set; }
+
+    /// <summary>asc (default) or desc.</summary>
+    public string? SortDir { get; set; }
+
     public int Page { get; set; } = 1;
 
     public int PageSize { get; set; } = 20;

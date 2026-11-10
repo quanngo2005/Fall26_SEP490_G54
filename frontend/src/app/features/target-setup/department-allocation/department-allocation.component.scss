@@ -1,0 +1,238 @@
+/* Department allocation (SCR-STRAT-04-D1 step 3, Figma 2928:3060). Grid, buttons and banners reuse the
+   quarter split styles; only the two-column layout, KPI picker, tabs and footer rows live here. */
+.allocation-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.kpi-picker {
+  display: flex;
+  flex: 0 0 240px;
+  flex-direction: column;
+  gap: 8px;
+}
+.picker-title {
+  margin: 0;
+  color: #334155;
+  font:
+    600 12px Inter,
+    sans-serif;
+  letter-spacing: 0.48px;
+  text-transform: uppercase;
+}
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0.8px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+}
+.kpi-card:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+.kpi-card:focus-visible {
+  outline: 2px solid #002b49;
+  outline-offset: 2px;
+}
+.kpi-card.is-selected {
+  border: 1.6px solid #2563eb;
+  background: #eff6ff;
+}
+.kpi-card.is-unavailable {
+  background: #eef2f6;
+  cursor: not-allowed;
+}
+.kpi-card-name {
+  color: #0f172a;
+  font:
+    600 13px Inter,
+    sans-serif;
+}
+.kpi-card.is-unavailable .kpi-card-name {
+  color: #475569;
+}
+.kpi-card-status {
+  color: #475569;
+  font-size: 12px;
+}
+.kpi-card-status.is-done {
+  color: #047857;
+  font-weight: 600;
+}
+.kpi-card-status.is-mismatch {
+  color: #b45309;
+  font-weight: 600;
+}
+.picker-note {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.publish-button {
+  height: 36px;
+  border: 0.8px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font:
+    600 13px Inter,
+    sans-serif;
+}
+.publish-button:disabled {
+  border-color: #cbd5e1;
+  background: #cbd5e1;
+  color: #475569;
+  cursor: not-allowed;
+}
+
+.allocation-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.allocation-header,
+.allocation-toolbar,
+.allocation-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.allocation-unit {
+  margin: 0;
+}
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+}
+.mode-tab {
+  height: 36px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #475569;
+  cursor: pointer;
+  font:
+    500 13px Inter,
+    sans-serif;
+  padding: 0 12px;
+}
+.mode-tab.is-active {
+  border-bottom-color: #2563eb;
+  color: #2563eb;
+  font-weight: 600;
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 200px;
+  height: 32px;
+  box-sizing: border-box;
+  border: 0.8px solid #8494a9;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 10px;
+}
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: #0f172a;
+  font:
+    400 13px Inter,
+    sans-serif;
+  outline: none;
+}
+.search-icon {
+  width: 14px;
+  height: 14px;
+  color: #475569;
+}
+
+.allocation-table {
+  min-width: 860px;
+}
+.cell-text {
+  border: 0;
+  background: none;
+  color: #0f172a;
+  cursor: text;
+  font:
+    400 13px Inter,
+    sans-serif;
+  padding: 0;
+}
+.allocation-table tfoot th,
+.allocation-table tfoot td {
+  height: 40px;
+  box-sizing: border-box;
+  border-top: 1px solid #eef2f6;
+  font-size: 13px;
+  padding: 0 12px;
+  text-align: left;
+}
+.allocation-table tfoot td.num {
+  text-align: right;
+}
+.total-row th,
+.total-row td {
+  background: #eef2f6;
+  color: #0f172a;
+  font-weight: 700;
+}
+.branch-row th,
+.branch-row td {
+  color: #94a3b8;
+  font-weight: 400;
+}
+.remaining-row th {
+  color: #0f172a;
+  font-weight: 400;
+}
+.allocation-table tfoot .is-matched {
+  color: #047857;
+  font-weight: 600;
+}
+.allocation-table tfoot .is-mismatch {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.allocation-footer .quarter-help {
+  margin: 0;
+}
+.quarter-button.is-solid {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+.quarter-button.is-solid:disabled {
+  border-color: #cbd5e1;
+  background: #cbd5e1;
+  color: #475569;
+  opacity: 1;
+}
+
+@media (max-width: 1100px) {
+  .allocation-layout {
+    flex-direction: column;
+  }
+  .kpi-picker {
+    flex-basis: auto;
+    width: 100%;
+  }
+}

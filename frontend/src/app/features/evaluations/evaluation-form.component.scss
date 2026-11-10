@@ -197,7 +197,7 @@
 }
 
 .score-input {
-  width: 50px;
+  width: 90px;
   border: none;
   outline: none;
   font:
@@ -206,6 +206,13 @@
     sans-serif;
   font-variant-numeric: tabular-nums;
   color: #0f172a;
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
 }
 
 .score-suffix {

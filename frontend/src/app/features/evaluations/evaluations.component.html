@@ -10,16 +10,59 @@
       <section class="context-bar">
         <div class="context-left">
           <div class="period-select-wrap">
-            <span class="period-label">{{localization.evaluations.periodPrefix}}</span>
+            <span class="period-label">{{localization.evaluations.yearLabel}}</span>
             <select
-              class="period-select"
-              [value]="selectedPeriodId()"
-              (change)="onPeriodChange($event)"
-              [attr.aria-label]="localization.evaluations.periodAria"
+              class="period-select year-select"
+              [value]="year()"
+              (change)="onYearChange($event)"
+              [attr.aria-label]="localization.evaluations.yearAria"
             >
-              @for (period of periods(); track period.id) {
-                <option [value]="period.id" [selected]="period.id === selectedPeriodId()">
-                  {{period.code}}
+              @for (item of years(); track item) {
+                <option [value]="item" [selected]="item === year()">{{item}}</option>
+              }
+            </select>
+            <app-layout-icon name="chevronDown" class="select-chevron" />
+          </div>
+
+          <div class="period-select-wrap">
+            <span class="period-label">{{localization.evaluations.quarterLabel}}</span>
+            <select
+              class="period-select quarter-select"
+              [value]="quarter()"
+              (change)="onQuarterChange($event)"
+              [attr.aria-label]="localization.evaluations.quarterAria"
+            >
+              @if (hasYearPeriod()) {
+                <option value="0" [selected]="quarter() === 0">
+                  {{localization.evaluations.wholeYear}}
+                </option>
+              }
+              @for (item of quarterOptions(); track item) {
+                <option [value]="item" [selected]="item === quarter()">
+                  {{quarterOptionText(item)}}
+                </option>
+              }
+            </select>
+            <app-layout-icon name="chevronDown" class="select-chevron" />
+          </div>
+
+          <div class="period-select-wrap">
+            <span class="period-label">{{localization.evaluations.monthLabel}}</span>
+            <select
+              class="period-select month-select"
+              [value]="month()"
+              (change)="onMonthChange($event)"
+              [disabled]="quarter() === 0"
+              [attr.aria-label]="localization.evaluations.monthAria"
+            >
+              @if (hasQuarterPeriod()) {
+                <option value="0" [selected]="month() === 0">
+                  {{localization.evaluations.wholeQuarter}}
+                </option>
+              }
+              @for (item of monthOptions(); track item) {
+                <option [value]="item" [selected]="item === month()">
+                  {{monthOptionText(item)}}
                 </option>
               }
             </select>
@@ -126,39 +169,6 @@
             [attr.aria-label]="localization.evaluations.searchAria"
           />
         </div>
-
-        <div class="select-box">
-          <select
-            class="filter-select"
-            (change)="onPositionFilterChange($event)"
-            [attr.aria-label]="localization.evaluations.positionAria"
-          >
-            <option value="ALL">
-              {{localization.evaluations.positionPrefix}}
-              {{localization.evaluations.positionAll}}
-            </option>
-            @for (pos of positions(); track pos.id) {
-              <option [value]="pos.id">{{pos.title}}</option>
-            }
-          </select>
-          <app-layout-icon name="chevronDown" class="select-chevron" />
-        </div>
-
-        <div class="select-box">
-          <select
-            class="filter-select"
-            (change)="onAttentionFilterChange($event)"
-            [attr.aria-label]="localization.evaluations.attentionAria"
-          >
-            <option value="ALL">{{localization.evaluations.attentionFilter}}</option>
-            <option value="ATTENTION">{{localization.evaluations.cardAttention}}</option>
-          </select>
-          <app-layout-icon name="chevronDown" class="select-chevron" />
-        </div>
-
-        <button type="button" class="btn-save-filter">
-          {{localization.evaluations.saveFilter}}
-        </button>
       </section>
 
       <!-- Evaluation Data Table -->
@@ -194,6 +204,16 @@
                   <td class="td-quantitative text-right">
                     @if (item.quantitativeScore !== null) {
                       {{item.quantitativeScore | appNumber: 2}}
+                      @if (item.quantitativeScoreChange !== null) {
+                        <span
+                          class="score-change"
+                          [class.score-up]="item.quantitativeScoreChange > 0"
+                          [class.score-down]="item.quantitativeScoreChange < 0"
+                          [title]="localization.evaluations.scoreChangeTitle"
+                        >
+                          {{scoreChangeText(item.quantitativeScoreChange)}}
+                        </span>
+                      }
                     } @else {
                       <span class="text-muted">{{localization.evaluations.noData}}</span>
                     }
@@ -228,9 +248,13 @@
                   <td class="td-attention text-center">
                     @if (needsAttention(item)) {
                       @if (item.pendingSubmissionCount > 0) {
-                        <span class="badge badge-warning"
+                        <a
+                          class="badge badge-warning badge-link"
+                          routerLink="/my-work"
+                          [queryParams]="{ employeeCode: item.employeeCode }"
+                          [attr.aria-label]="pendingReviewLinkText(item)"
                           >{{item.pendingSubmissionCount}}
-                          {{localization.evaluations.pendingReviewSuffix}}</span
+                          {{localization.evaluations.pendingReviewSuffix}}</a
                         >
                       }
                       @if (item.hasOpenDispute) {

@@ -3,7 +3,9 @@ import { authGuard } from './core/auth.guard';
 import { adminGuard } from './core/admin.guard';
 import { organizationGuard } from './core/organization.guard';
 import { branchEvaluationGuard } from './core/branch-evaluation.guard';
+import { targetManageGuard } from './core/target-manage.guard';
 import { qaQueueGuard } from './core/qa-queue.guard';
+import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 
 export const routes: Routes = [
@@ -63,6 +65,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/target-overview/target-overview.component').then(
         (m) => m.TargetOverviewComponent,
+      ),
+  },
+  {
+    path: 'target-setup/:year',
+    canActivate: [authGuard, targetManageGuard],
+    title: 'Phân bổ mục tiêu',
+    loadComponent: () =>
+      import('./features/target-setup/target-setup-wizard.component').then(
+        (m) => m.TargetSetupWizardComponent,
       ),
   },
   {
@@ -186,6 +197,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'evaluation-profiles/:id',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Evaluation Profile',
+    loadComponent: () =>
+      import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
+        (m) => m.EvaluationProfileDetailComponent,
+      ),
+  },
+  {
     path: 'work-type-detail',
     title: 'Work Type Detail',
     loadComponent: () =>
@@ -216,6 +236,13 @@ export const routes: Routes = [
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
       ),
+  },
+  {
+    path: 'risk-events',
+    canActivate: [authGuard, riskEventGuard],
+    title: 'Sự kiện rủi ro',
+    loadComponent: () =>
+      import('./features/risk-events/risk-events.component').then((m) => m.RiskEventsComponent),
   },
   {
     path: 'qa-queue',

@@ -6,6 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { CampaignDetail, CampaignSummary } from '../../core/campaign.models';
 import { CampaignService } from '../../core/campaign.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { CampaignApprovalComponent } from './campaign-approval.component';
 
@@ -115,6 +116,7 @@ describe('CampaignApprovalComponent', () => {
         add: { imports: [HeaderStub, SidebarStub] },
       })
       .compileComponents();
+    TestBed.inject(I18nService).setLanguage('vi');
   });
 
   it('loads planned campaigns and reviews the first one', async () => {

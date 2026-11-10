@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
-public sealed class VerificationService(
+public sealed partial class VerificationService(
     AppDbContext db,
     ILogger<VerificationService> logger,
     TimeProvider time,
@@ -90,11 +90,9 @@ public sealed class VerificationService(
             new("STD-03", "Tuân thủ chữ ký pháp lý trên hợp đồng tín dụng", true),
         };
 
-        var submissionCode = $"#SUB-{submission.Work.Code}-V{submission.SubmissionNo}";
-
         return new VerificationDossierDto(
             submission.Id,
-            submissionCode,
+            SubmissionCode(submission.Work.Code, submission.SubmissionNo),
             submission.SubmissionNo,
             submission.WorkId,
             submission.Work.Code,

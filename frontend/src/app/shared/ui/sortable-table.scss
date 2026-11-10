@@ -1,0 +1,38 @@
+/* Clickable column headers of the QA lists. */
+.data-table th .sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: #1d4ed8;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  .sort-arrow {
+    font-size: 10px;
+    color: #94a3b8;
+  }
+}
+
+.data-table th[aria-sort='ascending'] .sort-arrow,
+.data-table th[aria-sort='descending'] .sort-arrow {
+  color: #1d4ed8;
+}
+
+.data-table th.col-penalty .sort-btn {
+  flex-direction: row-reverse;
+}
