@@ -266,7 +266,6 @@ export class NavigationService {
     '/campaigns',
     '/target-overview',
     '/sidebar-settings',
-    '/system-parameters',
     '/roles',
     '/user-accounts',
     '/audit-logs',

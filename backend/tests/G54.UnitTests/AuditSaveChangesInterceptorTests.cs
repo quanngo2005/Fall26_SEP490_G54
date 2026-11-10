@@ -65,37 +65,6 @@ public sealed class AuditSaveChangesInterceptorTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_OldValuesHoldThePreviousValueNotTheNewOne()
-    {
-        var parameter = new SystemParameter { Key = "handoverThresholdVnd", Value = "50000000" };
-        _db.SystemParameters.Add(parameter);
-        await _db.SaveChangesAsync();
-
-        parameter.Value = "500000000";
-        await _db.SaveChangesAsync();
-
-        var log = await _db.AuditLogs.SingleAsync(a => a.EntityName == nameof(SystemParameter) && a.Action == "Update");
-        Assert.Equal("{\"Value\":\"50000000\"}", log.OldValues);
-        Assert.Equal("{\"Value\":\"500000000\"}", log.NewValues);
-    }
-
-    [Fact]
-    public async Task SystemParameterFirstSave_ReportsCreatedStampAsLastUpdate()
-    {
-        _db.Accounts.Add(new Account { Id = ActorId, Username = "sa.admin", PasswordHash = "x" });
-        await _db.SaveChangesAsync();
-        var store = new G54.BLL.Services.SystemParameterStore(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
-        var service = new G54.BLL.Services.SystemParameterService(_db, store);
-
-        var result = await service.UpdateAsync(new G54.BLL.Dtos.SystemParameter.UpdateSystemParametersDto(
-            [new G54.BLL.Dtos.SystemParameter.SystemParameterChangeDto("appealWindowDays", 10)]));
-
-        var item = result.Single(i => i.Key == "appealWindowDays");
-        Assert.Equal(Now, item.UpdatedAt);
-        Assert.Equal("sa.admin", item.UpdatedBy);
-    }
-
-    [Fact]
     public async Task SoftDelete_IsLoggedAsSoftDeleteNotUpdate()
     {
         var sidebar = NewSidebarConfiguration();

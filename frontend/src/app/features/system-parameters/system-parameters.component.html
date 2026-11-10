@@ -11,13 +11,6 @@
           <p class="description">{{t.description}}</p>
         </div>
         <div class="title-actions">
-          <a
-            class="btn-link"
-            [routerLink]="['/audit-logs']"
-            [queryParams]="{ entityName: auditEntityName }"
-          >
-            {{t.auditLogLink}} ↗
-          </a>
           <button type="button" class="btn" [disabled]="!dirty() || saving()" (click)="discard()">
             {{t.discard}}
           </button>

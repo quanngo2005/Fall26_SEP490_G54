@@ -1,7 +1,6 @@
 import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
   AUDIT_ACTIONS,
@@ -39,7 +38,6 @@ interface ChangeRow {
 export class AuditLogListComponent extends LocalizedComponent {
   private readonly api = inject(AuditLogService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly route = inject(ActivatedRoute);
   private listRequest?: Subscription;
   private detailRequest?: Subscription;
 
@@ -48,9 +46,6 @@ export class AuditLogListComponent extends LocalizedComponent {
 
   readonly keyword = signal('');
   readonly entityName = signal('');
-  /** Not exposed in the filter bar; carried only from an incoming link, e.g. the system parameters audit link. */
-  readonly entityId = signal('');
-  readonly actorId = signal('');
   readonly action = signal<AuditAction | ''>('');
   readonly fromDate = signal('');
   readonly toDate = signal('');
@@ -77,8 +72,6 @@ export class AuditLogListComponent extends LocalizedComponent {
     () =>
       !!this.keyword() ||
       !!this.entityName() ||
-      !!this.entityId() ||
-      !!this.actorId() ||
       !!this.action() ||
       !!this.fromDate() ||
       !!this.toDate(),
@@ -105,27 +98,7 @@ export class AuditLogListComponent extends LocalizedComponent {
       this.listRequest?.unsubscribe();
       this.detailRequest?.unsubscribe();
     });
-    this.applyInitialQueryParams();
     this.load();
-  }
-
-  /** Seeds filters from the URL (e.g. a link from another screen's audit-log action). */
-  private applyInitialQueryParams(): void {
-    const params = this.route.snapshot.queryParamMap;
-    const entityName = params.get('entityName');
-    if (entityName) this.entityName.set(entityName);
-    const entityId = params.get('entityId');
-    if (entityId) this.entityId.set(entityId);
-    const actorId = params.get('actorId');
-    if (actorId) this.actorId.set(actorId);
-    const action = params.get('action');
-    if (action && (AUDIT_ACTIONS as readonly string[]).includes(action)) {
-      this.action.set(action as AuditAction);
-    }
-    const from = params.get('from');
-    if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) this.fromDate.set(from);
-    const to = params.get('to');
-    if (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) this.toDate.set(to);
   }
 
   applyFilters(): void {
@@ -137,8 +110,6 @@ export class AuditLogListComponent extends LocalizedComponent {
   clearFilters(): void {
     this.keyword.set('');
     this.entityName.set('');
-    this.entityId.set('');
-    this.actorId.set('');
     this.action.set('');
     this.fromDate.set('');
     this.toDate.set('');
@@ -231,8 +202,6 @@ export class AuditLogListComponent extends LocalizedComponent {
       pageSize: PAGE_SIZE,
       keyword: this.keyword().trim(),
       entityName: this.entityName().trim(),
-      entityId: this.entityId().trim() || undefined,
-      actorId: this.actorId().trim() || undefined,
       action: this.action(),
       from: this.dayBoundary(this.fromDate(), false),
       to: this.dayBoundary(this.toDate(), true),

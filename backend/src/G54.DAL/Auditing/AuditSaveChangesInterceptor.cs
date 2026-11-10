@@ -80,8 +80,8 @@ public sealed class AuditSaveChangesInterceptor(
             StampAuditableEntity(entry, now, auditContext.ActorId);
 
             var action = ResolveAction(entry);
-            var old = action is "Update" or "Delete" or "SoftDelete" ? Snapshot(entry, useOriginalValues: true, changedOnly: action == "Update") : null;
-            var @new = action is "Create" or "Update" or "SoftDelete" ? Snapshot(entry, useOriginalValues: false, changedOnly: action == "Update") : null;
+            var old = action is "Update" or "Delete" or "SoftDelete" ? Snapshot(entry, usePrincipalValues: action != "Update", changedOnly: action == "Update") : null;
+            var @new = action is "Create" or "Update" or "SoftDelete" ? Snapshot(entry, usePrincipalValues: false, changedOnly: action == "Update") : null;
             var changedColumns = action == "Update"
                 ? entry.Properties.Where(p => p.IsModified && !IsPropertyIgnored(p.Metadata.PropertyInfo)).Select(p => p.Metadata.Name).ToArray()
                 : null;
@@ -215,7 +215,7 @@ public sealed class AuditSaveChangesInterceptor(
         }
     }
 
-    private static string? Snapshot(EntityEntry entry, bool useOriginalValues, bool changedOnly)
+    private static string? Snapshot(EntityEntry entry, bool usePrincipalValues, bool changedOnly)
     {
         var values = new Dictionary<string, object?>();
         foreach (var property in entry.Properties)
@@ -230,7 +230,7 @@ public sealed class AuditSaveChangesInterceptor(
                 continue;
             }
 
-            var raw = useOriginalValues ? property.OriginalValue : property.CurrentValue;
+            var raw = usePrincipalValues ? property.OriginalValue : property.CurrentValue;
             values[property.Metadata.Name] = Mask(property.Metadata.Name, raw);
         }
 

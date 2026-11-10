@@ -1,9 +1,7 @@
 $drawer-width: 560px;
 
-@media (min-width: 1200px) {
-  .workspace-content.has-drawer {
-    padding-right: calc(#{$drawer-width} + 32px);
-  }
+.workspace-content.has-drawer {
+  padding-right: calc(#{$drawer-width} + 32px);
 }
 .list-toolbar {
   display: flex;
@@ -55,7 +53,6 @@ $drawer-width: 560px;
   font-size: 12px;
 }
 .table-card {
-  position: relative;
   overflow-x: auto;
 }
 .log-table,
@@ -179,7 +176,7 @@ $drawer-width: 560px;
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 60;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   width: min(#{$drawer-width}, 100vw);
