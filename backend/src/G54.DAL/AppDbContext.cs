@@ -84,6 +84,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
+    public virtual DbSet<SystemSetting> SystemSettings { get; set; }
+
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
     public virtual DbSet<Verification> Verifications { get; set; }
@@ -1612,6 +1614,23 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("status");
         });
 
+        modelBuilder.Entity<SystemSetting>(entity =>
+        {
+            entity.HasKey(e => e.Key).HasName("system_setting_pkey");
+
+            entity.ToTable("system_setting");
+
+            entity.Property(e => e.Key)
+                .HasMaxLength(100)
+                .HasColumnName("key");
+            entity.Property(e => e.Value)
+                .HasMaxLength(500)
+                .HasColumnName("value");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
         modelBuilder.Entity<UserRole>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("user_role_pkey");
@@ -1730,6 +1749,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
                 table.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
                 table.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
+                table.HasCheckConstraint("ck_work_progress_percent", "progress_percent >= 0 AND progress_percent <= 100");
             });
 
             entity.HasIndex(e => e.AssigneeEmployeeId, "ix_work_assignee");
@@ -1760,6 +1780,10 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ParentWorkId).HasColumnName("parent_work_id");
             entity.Property(e => e.PlannedEndDate).HasColumnName("planned_end_date");
             entity.Property(e => e.PlannedStartDate).HasColumnName("planned_start_date");
+            entity.Property(e => e.ProgressPercent)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("progress_percent");
             entity.Property(e => e.TargetValue)
                 .HasPrecision(18, 4)
                 .HasColumnName("target_value");

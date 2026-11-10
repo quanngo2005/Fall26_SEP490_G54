@@ -1,12 +1,14 @@
+using System.Globalization;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Handover;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace G54.BLL.Services;
 
-/// <summary>The direct manager of the requester settles a pending handover without the recipient's say.</summary>
+/// <summary>Manager actions (approve, reassign/assign from pool, reject) and administrator settings for handovers.</summary>
 public sealed partial class HandoverService
 {
     private enum ManagerAction
@@ -14,6 +16,108 @@ public sealed partial class HandoverService
         Approve,
         Reassign,
         Reject,
+    }
+
+    public async Task<IReadOnlyList<HandoverDetailDto>> GetPoolAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var caller = await ResolveCallerAsync(userId, cancellationToken);
+        var items = await db.TaskHandovers.AsNoTracking()
+            .Include(h => h.Work)
+            .Include(h => h.FromEmployee)
+            .Include(h => h.ToEmployee)
+            .Where(h => h.Status == HandoverStatus.InPool && h.FromEmployee.ManagerId == caller.Id)
+            .OrderBy(h => h.HandoverAt)
+            .ToListAsync(cancellationToken);
+
+        return items.Select(h => Map(h, h.Work, h.FromEmployee, h.ToEmployee)).ToList();
+    }
+
+    public async Task<HandoverSettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await db.SystemSettings.AsNoTracking()
+            .Where(s => s.Key == SettingKeyAssignmentMode || s.Key == SettingKeyMinProgressPercent)
+            .ToListAsync(cancellationToken);
+
+        var modeRow = rows.FirstOrDefault(s => s.Key == SettingKeyAssignmentMode);
+        var progressRow = rows.FirstOrDefault(s => s.Key == SettingKeyMinProgressPercent);
+
+        var mode = modeRow?.Value
+            ?? configuration.GetValue("Handover:TransferAssignmentMode", ModeRandom)
+            ?? ModeRandom;
+        if (!string.Equals(mode, ModeRandom, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(mode, ModeAssigned, StringComparison.OrdinalIgnoreCase))
+        {
+            mode = ModeRandom;
+        }
+        else
+        {
+            mode = mode.ToUpperInvariant();
+        }
+
+        var minProgress = progressRow is not null
+            && decimal.TryParse(progressRow.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : configuration.GetValue("Handover:TransferMinProgressPercent", DefaultTransferMinProgressPercent);
+
+        DateTimeOffset? updatedAt = rows.Count > 0 ? rows.Max(r => r.UpdatedAt) : null;
+        return new HandoverSettingsDto(mode, minProgress, updatedAt);
+    }
+
+    public async Task<HandoverSettingsDto> UpdateSettingsAsync(
+        UpdateHandoverSettingsRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var errors = new List<string>();
+        var rawMode = request.TransferAssignmentMode?.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(rawMode) || (rawMode != ModeRandom && rawMode != ModeAssigned))
+        {
+            errors.Add($"Chế độ phân công chuyển việc phải là '{ModeRandom}' hoặc '{ModeAssigned}'.");
+        }
+
+        if (request.TransferMinProgressPercent is null)
+        {
+            errors.Add("Ngưỡng tiến độ tối thiểu là bắt buộc.");
+        }
+        else if (request.TransferMinProgressPercent is < 0 or > 100)
+        {
+            errors.Add("Ngưỡng tiến độ tối thiểu phải nằm trong khoảng 0-100.");
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new ValidationException(errors);
+        }
+
+        var now = time.GetUtcNow();
+        var minProgress = Math.Round(request.TransferMinProgressPercent!.Value, 2);
+        await UpsertSettingAsync(SettingKeyAssignmentMode, rawMode!, now, cancellationToken);
+        await UpsertSettingAsync(SettingKeyMinProgressPercent, minProgress.ToString("0.##", CultureInfo.InvariantCulture), now, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new HandoverSettingsDto(rawMode!, minProgress, now);
+    }
+
+    private async Task UpsertSettingAsync(string key, string value, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var existing = await db.SystemSettings.FirstOrDefaultAsync(s => s.Key == key, cancellationToken);
+        if (existing is null)
+        {
+            db.SystemSettings.Add(new SystemSetting
+            {
+                Key = key,
+                Value = value,
+                UpdatedAt = now,
+            });
+        }
+        else
+        {
+            existing.Value = value;
+            existing.UpdatedAt = now;
+        }
     }
 
     public Task<HandoverDetailDto> ApproveByManagerAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
@@ -59,7 +163,7 @@ public sealed partial class HandoverService
             throw new ForbiddenException("Chỉ quản lý trực tiếp của người bàn giao mới có quyền xử lý yêu cầu này.");
         }
 
-        if (handover.Status != HandoverStatus.Pending)
+        if (handover.Status is not (HandoverStatus.Pending or HandoverStatus.InPool))
         {
             throw new ConflictException(
                 ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverNotPending),
@@ -77,6 +181,10 @@ public sealed partial class HandoverService
             if (action == ManagerAction.Reassign)
             {
                 await ReassignRecipientAsync(handover, work, newRecipientId!.Value, cancellationToken);
+            }
+            else if (handover.ToEmployeeId is null)
+            {
+                throw new ValidationException("Yêu cầu trong hàng chờ (pool) chưa có người nhận; vui lòng chỉ định người nhận.");
             }
 
             AcceptInto(handover, work, now);

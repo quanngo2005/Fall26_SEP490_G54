@@ -1085,6 +1085,39 @@ public sealed class WorkServiceTests
         }
     }
 
+    [Fact]
+    public async Task UpdateProgressAsync_UpdatesAssigneeProgress_AndValidatesRangeAndOwnership()
+    {
+        var (context, service, workType, employee) = await CreateAtAsync("2026-10-21T18:00:00+00:00");
+        using (context)
+        {
+            var other = NewEmployee("EMP-OTHER");
+            context.Employees.Add(other);
+            await context.SaveChangesAsync();
+
+            var created = await service.CreateWorkAsync(
+                new CreateWorkRequestDto(
+                    Title: "Progress test",
+                    WorkTypeId: workType.Id,
+                    AssigneeEmployeeId: employee.Id),
+                employee.Id);
+
+            var updated = await service.UpdateProgressAsync(
+                created.Id,
+                employee.Id,
+                new UpdateWorkProgressDto { ProgressPercent = 92.5m });
+
+            Assert.Equal(92.5m, updated.ProgressPercent);
+
+            await Assert.ThrowsAsync<ForbiddenException>(() =>
+                service.UpdateProgressAsync(created.Id, other.Id, new UpdateWorkProgressDto { ProgressPercent = 50m }));
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.UpdateProgressAsync(created.Id, employee.Id, new UpdateWorkProgressDto { ProgressPercent = -1m }));
+            await Assert.ThrowsAsync<ValidationException>(() =>
+                service.UpdateProgressAsync(created.Id, employee.Id, new UpdateWorkProgressDto { ProgressPercent = 101m }));
+        }
+    }
+
     private static JobPositionWorkType LinkFor(Employee employee, WorkType workType) => new()
     {
         Id = Guid.NewGuid(),

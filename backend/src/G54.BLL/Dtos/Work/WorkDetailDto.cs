@@ -17,4 +17,11 @@ public sealed record WorkDetailDto(
     DateOnly? PlannedStartDate,
     DateOnly? PlannedEndDate,
     decimal? EstimatedHours,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    decimal ProgressPercent = 0m);
+
+/// <summary>Body of <c>PATCH /works/{id}/progress</c>.</summary>
+public sealed record UpdateWorkProgressDto
+{
+    public decimal? ProgressPercent { get; init; }
+}

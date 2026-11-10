@@ -233,6 +233,43 @@ public sealed partial class WorkService(
         return (await LoadDetailAsync(work.Id, cancellationToken))!;
     }
 
+    public async Task<WorkDetailDto> UpdateProgressAsync(
+        Guid id,
+        Guid userId,
+        UpdateWorkProgressDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (dto.ProgressPercent is null || dto.ProgressPercent < 0m || dto.ProgressPercent > 100m)
+        {
+            throw new ValidationException("Tiến độ công việc phải nằm trong khoảng 0-100.");
+        }
+
+        var work = await unitOfWork.Works.GetByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("Công việc", id);
+        var actor = await ResolveActorAsync(userId, cancellationToken);
+
+        if (work.AssigneeEmployeeId != actor.Id)
+        {
+            throw new ForbiddenException("Chỉ người đang được giao việc mới có quyền cập nhật tiến độ công việc.");
+        }
+
+        if (work.Status is not (WorkStatus.New or WorkStatus.InProgress or WorkStatus.HandedOver))
+        {
+            throw new ConflictException(
+                $"Không thể cập nhật tiến độ cho công việc đang ở trạng thái {work.Status.ToEnumString()}.",
+                ErrorCodes.WorkInvalidState);
+        }
+
+        work.ProgressPercent = Math.Round(dto.ProgressPercent.Value, 2);
+        work.UpdatedAt = time.GetUtcNow();
+        unitOfWork.Works.Update(work);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return (await LoadDetailAsync(work.Id, cancellationToken))!;
+    }
+
     public async Task<int> MarkOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)
     {
         var candidates = await unitOfWork.Works.Query(asNoTracking: false)
@@ -356,7 +393,8 @@ public sealed partial class WorkService(
             PlannedStartDate: work.PlannedStartDate,
             PlannedEndDate: work.PlannedEndDate,
             EstimatedHours: work.EstimatedHours,
-            UpdatedAt: work.UpdatedAt);
+            UpdatedAt: work.UpdatedAt,
+            ProgressPercent: work.ProgressPercent);
 
     private static string? NormalizeStatusInput(string? status)
     {

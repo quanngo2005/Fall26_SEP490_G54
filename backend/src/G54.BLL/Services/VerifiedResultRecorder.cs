@@ -215,7 +215,7 @@ internal static class VerifiedResultRecorder
         return
         [
             (handover.FromEmployeeId, referrerPoints),
-            (handover.ToEmployeeId, processorPoints),
+            (handover.ToEmployeeId!.Value, processorPoints),
         ];
     }
 

@@ -27,7 +27,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "department_level_type", new[] { "BRANCH", "DEPARTMENT", "TEAM" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED", "PENDING_RESIGNATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED", "IN_POOL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
@@ -2470,6 +2470,31 @@ namespace G54.DAL.Migrations
                     b.ToTable("sidebar_configurations", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.SystemSetting", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Key")
+                        .HasName("system_setting_pkey");
+
+                    b.ToTable("system_setting", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2686,7 +2711,7 @@ namespace G54.DAL.Migrations
                         .HasColumnType("handover_status")
                         .HasColumnName("status");
 
-                    b.Property<Guid>("ToEmployeeId")
+                    b.Property<Guid?>("ToEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("to_employee_id");
 
@@ -2928,6 +2953,13 @@ namespace G54.DAL.Migrations
                         .HasColumnType("work_priority")
                         .HasColumnName("priority");
 
+                    b.Property<decimal>("ProgressPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("progress_percent");
+
                     b.Property<int>("Status")
                         .HasColumnType("work_status")
                         .HasColumnName("status");
@@ -2976,6 +3008,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_work_no_self_parent", "parent_work_id IS NULL OR parent_work_id <> id");
 
                             t.HasCheckConstraint("ck_work_planned_dates", "planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date");
+
+                            t.HasCheckConstraint("ck_work_progress_percent", "progress_percent >= 0 AND progress_percent <= 100");
 
                             t.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
                         });
@@ -4027,7 +4061,6 @@ namespace G54.DAL.Migrations
                         .WithMany("TaskHandoverToEmployees")
                         .HasForeignKey("ToEmployeeId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_task_handover_to_employee");
 
                     b.HasOne("G54.DAL.Entities.Work", "Work")

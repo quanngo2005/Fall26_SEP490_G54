@@ -102,5 +102,8 @@ public sealed class WorkOverdueBackgroundServiceTests
 
         public Task<WorkDetailDto> ChangeStatusAsync(Guid id, Guid userId, WorkStatusDto dto, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not exercised by the overdue sweep.");
+
+        public Task<WorkDetailDto> UpdateProgressAsync(Guid id, Guid userId, UpdateWorkProgressDto dto, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not exercised by the overdue sweep.");
     }
 }

@@ -38,6 +38,13 @@ public interface IWorkService
         WorkStatusDto dto,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Updates the completion percentage (0-100) reported by the current assignee.</summary>
+    Task<WorkDetailDto> UpdateProgressAsync(
+        Guid id,
+        Guid userId,
+        UpdateWorkProgressDto dto,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Moves New / InProgress / HandedOver work whose planned end date is before <paramref name="today"/>
     /// to Overdue. Returns the number of work items updated.

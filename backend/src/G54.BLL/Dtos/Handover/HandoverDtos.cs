@@ -5,6 +5,12 @@ public sealed record CreateHandoverRequestDto
 {
     public Guid? ToEmployeeId { get; init; }
 
+    /// <summary>
+    /// Optional target role code when transferring work to another role (<c>A -&gt; B</c>) without specifying
+    /// <see cref="ToEmployeeId"/>.
+    /// </summary>
+    public string? TargetRoleCode { get; init; }
+
     public string? Reason { get; init; }
 
     /// <summary>Monetary value of the work being handed over; checked against the BR-01 threshold, not stored.</summary>
@@ -30,8 +36,8 @@ public sealed record HandoverDetailDto(
     string WorkTitle,
     Guid FromEmployeeId,
     string FromEmployeeName,
-    Guid ToEmployeeId,
-    string ToEmployeeName,
+    Guid? ToEmployeeId,
+    string? ToEmployeeName,
     string Reason,
     decimal ReferrerSharePercent,
     string Status,
@@ -45,3 +51,17 @@ public sealed record HandoverRecipientDto(
     string EmployeeCode,
     string FullName,
     string JobPositionTitle);
+
+/// <summary>Administrator settings for the cross-role transfer flow (<c>A -&gt; B</c>).</summary>
+public sealed record HandoverSettingsDto(
+    string TransferAssignmentMode,
+    decimal TransferMinProgressPercent,
+    DateTimeOffset? UpdatedAt);
+
+/// <summary>Body of <c>PUT /handovers/settings</c>.</summary>
+public sealed record UpdateHandoverSettingsRequestDto
+{
+    public string? TransferAssignmentMode { get; init; }
+
+    public decimal? TransferMinProgressPercent { get; init; }
+}

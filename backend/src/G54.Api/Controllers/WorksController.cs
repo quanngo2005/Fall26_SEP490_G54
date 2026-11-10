@@ -90,4 +90,21 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
         var result = await workService.ChangeStatusAsync(id, User.GetRequiredUserId(), dto, cancellationToken);
         return Ok(ApiResponse.Ok(result, "Cập nhật trạng thái công việc thành công.", HttpContext.TraceIdentifier));
     }
+
+    [HttpPatch("{id:guid}/progress")]
+    [HasPermission("work", "read", "Own")]
+    [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<WorkDetailDto>>> UpdateProgress(
+        Guid id,
+        [FromBody] UpdateWorkProgressDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.UpdateProgressAsync(id, User.GetRequiredUserId(), dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật tiến độ công việc thành công.", HttpContext.TraceIdentifier));
+    }
 }

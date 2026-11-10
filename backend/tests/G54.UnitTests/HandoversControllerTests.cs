@@ -62,6 +62,11 @@ public sealed class HandoversControllerTests
         var transferred = await controller.CreateHandover(workId, request, CancellationToken.None);
 
         Assert.Equal("Đã chuyển công việc cho người nhận.", MessageOf(Assert.IsType<ObjectResult>(transferred.Result)));
+
+        service.Detail = service.Detail with { Status = "IN_POOL", ToEmployeeId = null, ToEmployeeName = null };
+        var pooled = await controller.CreateHandover(workId, request, CancellationToken.None);
+
+        Assert.Equal("Đã đưa công việc vào hàng chờ phân công (pool).", MessageOf(Assert.IsType<ObjectResult>(pooled.Result)));
     }
 
     [Fact]
@@ -152,6 +157,58 @@ public sealed class HandoversControllerTests
             .RootElement.GetProperty("data").GetArrayLength());
     }
 
+    [Fact]
+    public async Task GetPool_IsAGetNeedingHandoverManage_AndReturnsPoolItems()
+    {
+        var method = typeof(HandoversController).GetMethod(nameof(HandoversController.GetPool))!;
+        Assert.Equal("handovers/pool", method.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        var required = method.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.NotNull(required);
+        Assert.Equal("handover", required.Resource);
+        Assert.Equal("manage", required.Action);
+        Assert.Equal("Own", required.Scope);
+
+        var userId = Guid.NewGuid();
+        var service = new RecordingService();
+        var result = await ControllerFor(service, userId).GetPool(CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(userId, service.UserId);
+    }
+
+    [Fact]
+    public async Task Settings_RequireAdminScope_AndCallService()
+    {
+        var getMethod = typeof(HandoversController).GetMethod(nameof(HandoversController.GetSettings))!;
+        Assert.Equal("handovers/settings", getMethod.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        var getPerm = getMethod.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.NotNull(getPerm);
+        Assert.Equal("handover", getPerm.Resource);
+        Assert.Equal("manage", getPerm.Action);
+        Assert.Equal("All", getPerm.Scope);
+
+        var putMethod = typeof(HandoversController).GetMethod(nameof(HandoversController.UpdateSettings))!;
+        Assert.Equal("handovers/settings", putMethod.GetCustomAttribute<HttpPutAttribute>()?.Template);
+        var putPerm = putMethod.GetCustomAttribute<HasPermissionAttribute>();
+        Assert.NotNull(putPerm);
+        Assert.Equal("handover", putPerm.Resource);
+        Assert.Equal("manage", putPerm.Action);
+        Assert.Equal("All", putPerm.Scope);
+
+        var userId = Guid.NewGuid();
+        var service = new RecordingService();
+        var controller = ControllerFor(service, userId);
+
+        var getResult = await controller.GetSettings(CancellationToken.None);
+        Assert.IsType<OkObjectResult>(getResult.Result);
+
+        var putResult = await controller.UpdateSettings(
+            new UpdateHandoverSettingsRequestDto { TransferAssignmentMode = "ASSIGNED", TransferMinProgressPercent = 90m },
+            CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(putResult.Result);
+        Assert.Equal("Cập nhật cấu hình bàn giao thành công.", MessageOf(ok));
+    }
+
     private static string? MessageOf(ObjectResult result)
     {
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(result.Value, JsonOptions));
@@ -222,6 +279,25 @@ public sealed class HandoversControllerTests
         }
 
         public List<HandoverRecipientDto> Recipients { get; } = [];
+
+        public Task<IReadOnlyList<HandoverDetailDto>> GetPoolAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult<IReadOnlyList<HandoverDetailDto>>([Detail]);
+        }
+
+        public Task<HandoverSettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new HandoverSettingsDto("RANDOM", 90m, null));
+        }
+
+        public Task<HandoverSettingsDto> UpdateSettingsAsync(UpdateHandoverSettingsRequestDto request, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new HandoverSettingsDto(request.TransferAssignmentMode ?? "RANDOM", request.TransferMinProgressPercent ?? 90m, DateTimeOffset.UtcNow));
+        }
 
         public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
             => Record("accept", handoverId, userId);

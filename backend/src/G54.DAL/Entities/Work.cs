@@ -35,6 +35,9 @@ public partial class Work : IBaseEntity
     /// </summary>
     public decimal? TargetValue { get; set; }
 
+    /// <summary>Completion (0-100) reported by the assignee; a handover to a different role needs it above the configured threshold.</summary>
+    public decimal ProgressPercent { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public WorkPriority Priority { get; set; }

@@ -114,7 +114,8 @@ Response Body:
     "plannedStartDate": "2026-10-20",
     "plannedEndDate": "2026-10-31",
     "estimatedHours": 16.5,
-    "updatedAt": "2026-10-19T08:30:00+00:00"
+    "updatedAt": "2026-10-19T08:30:00+00:00",
+    "progressPercent": 0
   },
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
 }
@@ -275,7 +276,8 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
     "plannedStartDate": "2026-10-20",
     "plannedEndDate": "2026-10-31",
     "estimatedHours": 16.5,
-    "updatedAt": "2026-10-19T08:30:00+00:00"
+    "updatedAt": "2026-10-19T08:30:00+00:00",
+    "progressPercent": 0
   },
   "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
 }

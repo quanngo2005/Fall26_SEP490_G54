@@ -94,6 +94,7 @@ public enum HandoverStatus
     [PgName("ACCEPTED")] Accepted,
     [PgName("REJECTED")] Rejected,
     [PgName("CANCELLED")] Cancelled,
+    [PgName("IN_POOL")] InPool,
 }
 
 public enum SubmissionStatus

@@ -34,12 +34,32 @@ internal static class AutomaticNotifications
         return drafts;
     }
 
+    /// <summary>An employee placed a cross-role transfer into the pool (<c>IN_POOL</c>): their direct manager is told to assign a recipient.</summary>
+    public static List<NotificationDraft> HandoverPooled(TaskHandover handover, Work work, Employee from)
+    {
+        var drafts = new List<NotificationDraft>();
+        if (from.ManagerId is { } managerId)
+        {
+            drafts.Add(ForHandover(
+                managerId,
+                NotificationType.HandoverRequested,
+                "Yêu cầu chuyển việc trong pool chờ phân công",
+                $"{from.FullName} đã chuyển công việc {Describe(work)} vào hàng chờ (pool). Vui lòng phân công người nhận.",
+                NotificationSeverity.Important,
+                handover));
+        }
+
+        return drafts;
+    }
+
     /// <summary>A handover was settled: whoever did not make the decision hears the outcome.</summary>
-    public static List<NotificationDraft> HandoverDecided(TaskHandover handover, Work work, Employee from, Employee to, Guid deciderId)
+    public static List<NotificationDraft> HandoverDecided(TaskHandover handover, Work work, Employee from, Employee? to, Guid deciderId)
     {
         var drafts = new List<NotificationDraft>();
         var accepted = handover.Status == HandoverStatus.Accepted;
-        var details = $"{Describe(work)} từ {from.FullName} sang {to.FullName}";
+        var details = to is not null
+            ? $"{Describe(work)} từ {from.FullName} sang {to.FullName}"
+            : $"{Describe(work)} của {from.FullName}";
 
         if (from.Id != deciderId)
         {
@@ -48,7 +68,7 @@ internal static class AutomaticNotifications
                 : ForHandover(from.Id, NotificationType.HandoverRejected, "Yêu cầu bàn giao bị từ chối", $"Yêu cầu bàn giao công việc {details} đã bị từ chối.", NotificationSeverity.Normal, handover));
         }
 
-        if (to.Id != deciderId)
+        if (to is not null && to.Id != deciderId)
         {
             drafts.Add(accepted
                 ? ForHandover(to.Id, NotificationType.HandoverTransferred, "Bạn được giao công việc mới", $"Công việc {details} đã được chuyển cho bạn.", NotificationSeverity.Important, handover)
