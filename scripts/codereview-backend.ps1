@@ -64,6 +64,7 @@ $intentionallyOpen = @{
     "GET /sidebar-configurations"                          = "SidebarConfigurationService filters by the caller's roles"
     "GET /sidebar-configurations/current"                  = "SidebarConfigurationService filters by the caller's roles"
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
+    "GET /my-dashboard/progress-card"                      = "MyDashboardService resolves the caller and employee from the token, no IDOR possible"
     "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
     "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
     "GET /target-assignments/employees/{employeeId:guid}/suggested-daily" = "TargetAssignmentService.GetSuggestedDailyAsync calls EnsureCanViewAsync: the employee or an org-scoped caller"
