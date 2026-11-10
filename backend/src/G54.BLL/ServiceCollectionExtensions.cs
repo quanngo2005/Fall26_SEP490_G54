@@ -55,6 +55,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITransactionImportService, TransactionImportService>();
         services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
+        services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
+        services.AddHostedService<HandoverEscalationBackgroundService>();
 
         services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
         services.AddScoped<IEmployeeImportService, EmployeeImportService>();
