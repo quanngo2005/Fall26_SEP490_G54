@@ -34,6 +34,30 @@ import {
 /** The period levels the year / quarter / month filter drills through. */
 const SELECTABLE_PERIOD_TYPES = ['YEAR', 'QUARTER', 'MONTH'];
 
+const STATUS_KEY_MAP: Readonly<Record<string, string>> = {
+  DRAFT: 'statusDraft',
+  CALCULATED: 'statusCalculated',
+  IN_REVIEW: 'statusInReview',
+  APPROVED: 'statusApproved',
+  DISPUTED: 'statusDisputed',
+  FINAL: 'statusFinal',
+  PUBLISHED: 'statusPublished',
+};
+
+const ROLE_TITLE_EN: Readonly<Record<string, string>> = {
+  'Chuyên viên Kinh doanh': 'Sales Officer',
+  'Giao dịch viên': 'Teller',
+  'Trưởng phòng': 'Department Manager',
+  'Nhân viên': 'Employee',
+};
+
+const UNIT_REPLACEMENTS_EN: readonly [RegExp, string][] = [
+  [/\btỷ VND\b/g, 'B VND'],
+  [/\bkhách hàng\b/g, 'customers'],
+  [/\bhợp đồng\b/g, 'contracts'],
+  [/\bđiểm\b/g, 'pts'],
+];
+
 function periodMonth(period: EvaluationPeriodOption): number {
   return Number(period.startDate.slice(5, 7));
 }
@@ -383,6 +407,49 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     return scoreDelta >= 0
       ? 'myEvaluation.cardTotalScoreTrend'
       : 'myEvaluation.cardTotalScoreTrendDown';
+  }
+
+  statusLabel(status: string): string {
+    const key = STATUS_KEY_MAP[status.toUpperCase()];
+    const myEval = this.localization.myEvaluation as Record<string, string>;
+    return (key && myEval[key]) || status;
+  }
+
+  formatPeriodName(name: string): string {
+    if (this.i18n.currentLanguage() !== 'en') {
+      return name;
+    }
+    return name
+      .replace(/^Quý\s+(\d+)\/(\d{4})$/i, 'Q$1/$2')
+      .replace(/^Tháng\s+0?(\d+)\/(\d{4})$/i, 'Month $1/$2')
+      .replace(/^Năm\s+(\d{4})$/i, 'Year $1');
+  }
+
+  formatAppealDeadline(deadline: string): string {
+    const match = /^(\d{2}:\d{2})\s+(?:ngày\s+|on\s+)?(\d{2}\/\d{2}\/\d{4})$/i.exec(
+      deadline.trim(),
+    );
+    if (!match) {
+      return deadline;
+    }
+    return this.i18n.currentLanguage() === 'en'
+      ? `${match[1]} on ${match[2]}`
+      : `${match[1]} ngày ${match[2]}`;
+  }
+
+  formatRoleTitle(roleTitle: string): string {
+    const clean = roleTitle.replace(/\s+trong phòng$/i, '').trim();
+    if (this.i18n.currentLanguage() !== 'en') {
+      return clean;
+    }
+    return ROLE_TITLE_EN[clean] ?? clean;
+  }
+
+  formatActualTarget(display: string): string {
+    if (this.i18n.currentLanguage() !== 'en') {
+      return display;
+    }
+    return UNIT_REPLACEMENTS_EN.reduce((acc, [pattern, en]) => acc.replace(pattern, en), display);
   }
 
   formatRatio(val: number | null | undefined): string {

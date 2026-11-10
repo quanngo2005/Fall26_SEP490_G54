@@ -6,6 +6,7 @@ import { of, throwError } from 'rxjs';
 import { AuthenticatedUser } from '../../core/auth.models';
 import { AuthService } from '../../core/auth.service';
 import { EvaluationService } from '../../core/evaluation.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { MyEvaluationComponent } from './my-evaluation.component';
 import {
   EvaluationPeriodOption,
@@ -380,5 +381,50 @@ describe('MyEvaluationComponent', () => {
     expect(deltaBadge.classes['text-negative']).toBeTrue();
     expect(deltaBadge.nativeElement.textContent).toContain('↓');
     expect(deltaBadge.nativeElement.textContent).toContain('2,4');
+  });
+
+  it('localizes status, deadline, period name, role title, and units cleanly in English', () => {
+    spyOn(mockEvaluationService, 'getPersonalEvaluation').and.returnValue(
+      of({
+        ...mockEvalData,
+        status: 'CALCULATED',
+        appealDeadlineText: '23:59 ngày 31/12/2026',
+        appealRemainingDays: 52,
+        rankingRoleTitle: 'Chuyên viên Kinh doanh trong phòng',
+        criteria: [
+          {
+            ...mockEvalData.criteria[0],
+            actualTargetDisplay: '261 / 450 tỷ VND',
+          },
+        ],
+      }),
+    );
+
+    const i18n = TestBed.inject(I18nService);
+    component.loadEvaluation('2026-Q2');
+    i18n.setLanguage('en');
+    fixture.detectChanges();
+
+    try {
+      const titleText = fixture.debugElement.query(By.css('.eval-title')).nativeElement.textContent;
+      const badgeText = fixture.debugElement.query(By.css('.badge-published')).nativeElement
+        .textContent;
+      const deadlineText = fixture.debugElement.query(By.css('.appeal-deadline-notice'))
+        .nativeElement.textContent;
+      const rankingText = fixture.debugElement.query(By.css('.ranking-sub-text')).nativeElement
+        .textContent;
+      const targetText = fixture.debugElement.query(By.css('.col-actual-target')).nativeElement
+        .textContent;
+
+      expect(titleText).toContain('Q2/2026');
+      expect(badgeText.trim()).toBe('Calculated');
+      expect(deadlineText).toContain('23:59 on 31/12/2026');
+      expect(deadlineText).not.toContain('ngày');
+      expect(rankingText).toContain('Sales Officer in department');
+      expect(rankingText).not.toContain('trong phòng');
+      expect(targetText).toContain('261 / 450 B VND');
+    } finally {
+      i18n.setLanguage('vi');
+    }
   });
 });

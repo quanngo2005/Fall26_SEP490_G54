@@ -2606,7 +2606,7 @@ public sealed partial class EvaluationService(
         var evalStatus = (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToString().ToUpperInvariant();
         var canAppeal = remainingDays > 0 && existingEvaluation?.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final;
         var appealDeadlineText = remainingDays > 0
-            ? $"23:59 ngày {period.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
+            ? $"23:59 {period.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
             : "—";
 
         var isAcknowledged = stored.AcknowledgedAt.HasValue;
@@ -2630,7 +2630,7 @@ public sealed partial class EvaluationService(
             RankingPercentile: rankingPercentile,
             RankingPosition: rank,
             RankingTotalEmployees: totalPeers,
-            RankingRoleTitle: $"{rankingRoleTitle} trong phòng",
+            RankingRoleTitle: rankingRoleTitle,
             Criteria: criteria,
             QualityRatio: null,
             RiskPenalty: riskPenalty,

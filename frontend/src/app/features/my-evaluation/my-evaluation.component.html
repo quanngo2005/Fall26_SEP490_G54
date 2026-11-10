@@ -30,14 +30,16 @@
           <div class="head-info">
             <div class="title-badge-row">
               <h1 class="eval-title">
-                {{i18n.translate('myEvaluation.periodTitle', { period: evalData.periodName })}}
+                {{i18n.translate('myEvaluation.periodTitle', {
+                    period: formatPeriodName(evalData.periodName),
+                  })}}
               </h1>
-              <span class="badge-published">{{evalData.status}}</span>
+              <span class="badge-published">{{statusLabel(evalData.status)}}</span>
             </div>
             @if (evalData.appealRemainingDays > 0) {
               <p class="appeal-deadline-notice">
                 {{i18n.translate('myEvaluation.appealDeadlineNotice', {
-                    deadline: evalData.appealDeadlineText,
+                    deadline: formatAppealDeadline(evalData.appealDeadlineText),
                     remainingDays: evalData.appealRemainingDays,
                   })}}
               </p>
@@ -173,7 +175,7 @@
                 >
                   {{i18n.translate(scoreTrendKey(evalData.scoreDelta), {
                       diff: (absValue(evalData.scoreDelta) | appNumber: 1),
-                      prevPeriod: evalData.previousPeriodName,
+                      prevPeriod: formatPeriodName(evalData.previousPeriodName),
                       prevScore: (evalData.previousPeriodScore | appNumber: 1),
                     })}}
                 </span>
@@ -209,7 +211,7 @@
                 {{i18n.translate('myEvaluation.cardRankingDetail', {
                     rank: evalData.rankingPosition,
                     total: evalData.rankingTotalEmployees,
-                    roleName: evalData.rankingRoleTitle,
+                    roleName: formatRoleTitle(evalData.rankingRoleTitle),
                   })}}
               </span>
             </div>
@@ -253,7 +255,9 @@
                       }
                     </td>
                     <td class="col-weight num">{{crit.weightPercent}}%</td>
-                    <td class="col-actual-target num">{{crit.actualTargetDisplay}}</td>
+                    <td class="col-actual-target num">
+                      {{formatActualTarget(crit.actualTargetDisplay)}}
+                    </td>
                     <td class="col-score num">
                       @if (crit.score !== null) {
                         {{crit.score | appNumber: 1}}
@@ -366,7 +370,9 @@
         </header>
         <div class="modal-body">
           <p class="modal-desc">
-            {{i18n.translate('myEvaluation.acknowledgeModalDesc', { period: evalData.periodName })}}
+            {{i18n.translate('myEvaluation.acknowledgeModalDesc', {
+                period: formatPeriodName(evalData.periodName),
+              })}}
           </p>
           @if (acknowledgeError()) {
             <p class="modal-error" role="alert">{{localization.myEvaluation.acknowledgeError}}</p>

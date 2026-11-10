@@ -2141,6 +2141,8 @@ public sealed class EvaluationServiceTests
         Assert.Equal(75m, view.PreviousPeriodScore);
         Assert.Equal("Hoàn thành tốt chỉ tiêu tháng.", view.ManagerFeedback);
         Assert.False(view.IsAcknowledged);
+        Assert.Equal("Giao dịch viên", view.RankingRoleTitle);
+        Assert.DoesNotContain("ngày", view.AppealDeadlineText);
         Assert.NotEmpty(view.Criteria);
         Assert.Contains(view.Criteria, c => c.HasDrilldown && c.KpiDefinitionId.HasValue);
     }
