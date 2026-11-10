@@ -111,6 +111,21 @@ public sealed class TransactionImportServiceTests
     }
 
     [Fact]
+    public async Task ListBatches_ClampsPageAndPageSize()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1"));
+        await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var belowMin = await service.ListBatchesAsync(0, 0);
+        var aboveMax = await service.ListBatchesAsync(1, 500);
+
+        Assert.Equal(1, belowMin.Page);
+        Assert.Equal(1, belowMin.PageSize);
+        Assert.Equal(200, aboveMax.PageSize);
+    }
+
+    [Fact]
     public async Task ListTransactions_FiltersAndThrowsNotFoundForUnknownBatch()
     {
         var (_, service) = Create();
