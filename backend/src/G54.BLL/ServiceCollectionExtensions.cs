@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
         services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
         services.AddScoped<IQaQueueService, QaQueueService>();
+        services.AddScoped<IQaDashboardService, QaDashboardService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<INotifier, Notifier>();
