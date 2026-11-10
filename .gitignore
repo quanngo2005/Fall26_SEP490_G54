@@ -84,3 +84,11 @@ uploads/
 .venv/
 __pycache__/
 .pytest_cache/
+
+# Local MCP config (machine-specific paths)
+/.mcp.json
+/docs/excels
+/docs/design
+/docs/test
+/docs/figma-gb337
+/docs/testing

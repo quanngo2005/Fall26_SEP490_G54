@@ -1,6 +1,7 @@
 using G54.BLL.Common;
 using G54.BLL.Common.Import.Reading;
 using G54.BLL.Services;
+using G54.BLL.Services.Import.BranchYearTarget;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -62,6 +63,10 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
         services.AddScoped<IEmployeeImportService, EmployeeImportService>();
+        services.AddScoped<BranchYearTargetImportDefinition>();
+        services.AddScoped<BranchYearTargetCommitter>();
+        services.AddScoped<ITargetImportService, TargetImportService>();
+        services.AddScoped<ITargetSetupService, TargetSetupService>();
         return services;
     }
 }
