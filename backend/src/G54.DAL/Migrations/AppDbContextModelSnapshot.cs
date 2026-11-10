@@ -51,6 +51,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.HasSequence("qa_item_code_seq");
 
+            modelBuilder.HasSequence("risk_event_code_seq");
+
             modelBuilder.Entity("G54.DAL.Entities.Account", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1050,6 +1052,47 @@ namespace G54.DAL.Migrations
                         .HasName("import_batch_pkey");
 
                     b.ToTable("import_batch", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatchError", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("field");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("message");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_number");
+
+                    b.HasKey("Id")
+                        .HasName("import_batch_error_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId", "RowNumber" }, "ix_import_batch_error_batch_row");
+
+                    b.ToTable("import_batch_error", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
@@ -2096,6 +2139,12 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
 
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('risk_event_code_seq')");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text")
@@ -2115,6 +2164,17 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at");
 
+                    b.Property<decimal?>("PenaltyPoints")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("penalty_points");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
                     b.Property<Guid>("RecordedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("recorded_by");
@@ -2122,6 +2182,19 @@ namespace G54.DAL.Migrations
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("resolved_at");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reversal_reason");
+
+                    b.Property<DateTimeOffset?>("ReversedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reversed_at");
+
+                    b.Property<Guid?>("ReversedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reversed_by");
 
                     b.Property<int>("Severity")
                         .HasColumnType("risk_event_severity")
@@ -2137,8 +2210,23 @@ namespace G54.DAL.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<Guid?>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
                     b.HasKey("Id")
                         .HasName("risk_event_pkey");
+
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_risk_event_code_no");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("ix_risk_event_occurred_at");
+
+                    b.HasIndex("ReversedBy");
+
+                    b.HasIndex("WorkId");
 
                     b.HasIndex(new[] { "EmployeeId" }, "ix_risk_event_employee");
 
@@ -2149,7 +2237,11 @@ namespace G54.DAL.Migrations
 
                     b.ToTable("risk_event", null, t =>
                         {
+                            t.HasCheckConstraint("ck_risk_event_penalty_points", "penalty_points IS NULL OR (penalty_points > 0 AND penalty_points <= 100)");
+
                             t.HasCheckConstraint("ck_risk_event_resolved_at", "resolved_at IS NULL OR resolved_at >= occurred_at");
+
+                            t.HasCheckConstraint("ck_risk_event_reversal", "(reversed_at IS NULL) = (reversed_by IS NULL)");
                         });
                 });
 
@@ -3394,6 +3486,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("RiskEvent");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatchError", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("Errors")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_import_batch_error_batch");
+
+                    b.Navigation("ImportBatch");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
                 {
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
@@ -3744,9 +3848,25 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_risk_event_recorded_by");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "ReversedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ReversedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_risk_event_reversed_by");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_risk_event_work");
+
                     b.Navigation("Employee");
 
                     b.Navigation("RecordedByNavigation");
+
+                    b.Navigation("ReversedByEmployee");
+
+                    b.Navigation("Work");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RolePermissionAssignment", b =>
@@ -4232,6 +4352,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
                 {
+                    b.Navigation("Errors");
+
                     b.Navigation("Transactions");
                 });
 

@@ -114,7 +114,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
 
         var weighted = RoundScore(formula.CalculateTotal(
             groups.Select(g => new GroupScoreEntry(g.EvaluationProfileItemId, g.WeightPercent, g.Score)).ToList()));
-        var penalty = risks.Sum(risk => EvaluationService.MapRiskPenalty(risk.Severity));
+        var penalty = risks.Sum(EvaluationService.RiskPenalty);
         decimal? total = weighted.HasValue
             ? RoundScore(Math.Max(0m, weighted.Value - penalty) + appealNet)
             : null;

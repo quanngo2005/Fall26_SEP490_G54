@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { EvaluationsComponent } from './evaluations.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import { DepartmentEmployeeEvaluation, EvaluationPeriodOption } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -32,6 +33,16 @@ const period: EvaluationPeriodOption = {
   isActive: true,
 };
 
+const monthPeriod: EvaluationPeriodOption = {
+  ...period,
+  id: 'period-2',
+  code: 'M-TEST',
+  name: 'Test month',
+  startDate: '2026-11-01',
+  endDate: '2026-11-30',
+  periodType: 'MONTH',
+};
+
 function row(overrides: Partial<DepartmentEmployeeEvaluation>): DepartmentEmployeeEvaluation {
   return {
     employeeId: 'e1',
@@ -52,6 +63,7 @@ function row(overrides: Partial<DepartmentEmployeeEvaluation>): DepartmentEmploy
     pendingSubmissionCount: 0,
     canEvaluate: true,
     updatedAt: null,
+    quantitativeScoreChange: null,
     ...overrides,
   };
 }
@@ -91,11 +103,12 @@ describe('EvaluationsComponent', () => {
   let api: jasmine.SpyObj<EvaluationService>;
 
   beforeEach(async () => {
+    sessionStorage.clear();
     api = jasmine.createSpyObj<EvaluationService>('EvaluationService', [
       'periods',
       'departmentEmployees',
     ]);
-    api.periods.and.returnValue(of([period]));
+    api.periods.and.returnValue(of([period, monthPeriod]));
     api.departmentEmployees.and.returnValue(of(rows));
 
     await TestBed.configureTestingModule({
@@ -112,6 +125,8 @@ describe('EvaluationsComponent', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
+
+  afterEach(() => sessionStorage.clear());
 
   it('loads the periods and then the rows of the active period', () => {
     expect(api.periods).toHaveBeenCalled();
@@ -154,9 +169,9 @@ describe('EvaluationsComponent', () => {
     expect(title).toBe(TestBed.inject(I18nService).localization.evaluations.pageTitle);
   });
 
-  it('shows the period code, the department and the deadline from the API in the context bar', () => {
+  it('shows the year, the department and the deadline from the API in the context bar', () => {
     const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.period-select')?.textContent).toContain('Q-TEST');
+    expect(el.querySelector('.year-select')?.textContent).toContain('2026');
     const info = el.querySelector('.dept-info')?.textContent ?? '';
     expect(info).toContain('Phòng Kinh doanh');
     expect(info).toContain('31/12/2026');
@@ -197,23 +212,19 @@ describe('EvaluationsComponent', () => {
     expect(component.displayedEvaluations().length).toBe(2);
   });
 
-  it('filters items by keyword and by position', () => {
+  it('filters items by keyword', () => {
     component.searchKeyword.set('Giang');
     expect(component.displayedEvaluations().map((i) => i.employeeCode)).toEqual(['NV0003']);
-
-    component.searchKeyword.set('');
-    component.positionFilter.set('p1');
-    expect(component.displayedEvaluations().length).toBe(2);
   });
 
   it('reloads the rows when another period is chosen', () => {
-    component.onPeriodChange({ target: { value: 'period-2' } } as unknown as Event);
+    component.onMonthChange({ target: { value: '11' } } as unknown as Event);
     expect(api.departmentEmployees).toHaveBeenCalledWith('period-2');
   });
 
   it('shows the offline state instead of rows', () => {
     api.departmentEmployees.and.returnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+    component.onMonthChange({ target: { value: '11' } } as unknown as Event);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
     expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
@@ -225,7 +236,7 @@ describe('EvaluationsComponent', () => {
     api.departmentEmployees.and.returnValue(
       throwError(() => new HttpErrorResponse({ status: 403 })),
     );
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+    component.onMonthChange({ target: { value: '11' } } as unknown as Event);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
       TestBed.inject(I18nService).localization.evaluations.forbidden,
@@ -234,7 +245,7 @@ describe('EvaluationsComponent', () => {
 
   it('shows the empty state for a genuine empty list', () => {
     api.departmentEmployees.and.returnValue(of([]));
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+    component.onMonthChange({ target: { value: '11' } } as unknown as Event);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
       TestBed.inject(I18nService).localization.evaluations.emptyList,
@@ -242,16 +253,34 @@ describe('EvaluationsComponent', () => {
     expect(component.periodInfo().progressPercent).toBeNull();
   });
 
-  it('navigates to /evaluations/form when openEvaluationForm is called', () => {
+  it('opens /evaluations/form with the employee and period saved for the tab, not in the address', () => {
     const router = TestBed.inject(Router);
     spyOn(router, 'navigate');
     component.openEvaluationForm(rows[0]);
-    expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-      queryParams: {
-        employeeId: 'e1',
-        periodId: 'period-1',
-      },
+    expect(TestBed.inject(EvaluationFormTargetService).read()).toEqual({
+      employeeId: rows[0].employeeId,
+      periodId: 'period-1',
     });
+    expect(router.navigate).toHaveBeenCalledOnceWith(['/evaluations/form']);
+  });
+
+  it('opens nothing when no period is selected', () => {
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate');
+    component.periods.set([]);
+    component.openEvaluationForm(rows[0]);
+    expect(TestBed.inject(EvaluationFormTargetService).read()).toBeNull();
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('links the pending review count to the work of that employee', () => {
+    const link = fixture.nativeElement.querySelector('a.badge-warning') as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    const url = TestBed.inject(Router).parseUrl(link.getAttribute('href')!);
+    expect(url.root.children['primary'].segments.map((segment) => segment.path)).toEqual([
+      'my-work',
+    ]);
+    expect(url.queryParams).toEqual({ employeeCode: 'NV0001' });
   });
 
   it('shows the number of units when the rows span several departments', () => {

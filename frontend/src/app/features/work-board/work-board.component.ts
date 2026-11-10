@@ -2,6 +2,7 @@ import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/
 import { Component, DestroyRef, NgZone, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import {
   EMPTY,
   Observable,
@@ -133,6 +134,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   private readonly workTypeApi = inject(WorkTypeService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly boardReload = new Subject<void>();
   private readonly listReload = new Subject<void>();
@@ -341,7 +343,12 @@ export class WorkBoardComponent extends LocalizedComponent {
             );
           }
           this.profileLoading.set(false);
-          this.chooseScope(manager ? 'team' : 'mine');
+          const employeeCode = this.route.snapshot.queryParamMap.get('employeeCode');
+          if (manager && employeeCode) {
+            this.openTeamOfEmployee(employeeCode);
+          } else {
+            this.chooseScope(manager ? 'team' : 'mine');
+          }
         },
         error: () => {
           this.profileFailed.set(true);
@@ -358,15 +365,30 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   /**
-   * Switches between my own work and the department's. The two use different columns and filters, so the
-   * screen starts over with the new ones.
+   * Opens the department's work already narrowed to the employee of a link (`?employeeCode=`), so the board
+   * is loaded once, with the filter. A code that does not resolve falls back to the whole department.
    */
-  protected chooseScope(scope: WorkScope): void {
+  private openTeamOfEmployee(employeeCode: string): void {
+    this.employees
+      .byCode(employeeCode)
+      .pipe(
+        map((employee) => employee.id),
+        catchError(() => of('')),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((employeeId) => this.chooseScope('team', employeeId));
+  }
+
+  /**
+   * Switches between my own work and the department's. The two use different columns and filters, so the
+   * screen starts over with the new ones (the department's can start on one employee).
+   */
+  protected chooseScope(scope: WorkScope, employeeId = ''): void {
     if (scope === 'team' && !this.isManager()) return;
     this.scope.set(scope);
     this.quick.set(null);
     this.positionId.set('');
-    this.employeeId = '';
+    this.employeeId = employeeId;
     this.priority = '';
     this.columns.set(this.emptyColumns(true));
     this.list.update((state) => ({ ...state, items: [], totalCount: 0, page: 1 }));

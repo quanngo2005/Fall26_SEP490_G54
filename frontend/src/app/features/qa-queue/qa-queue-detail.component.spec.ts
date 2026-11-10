@@ -129,7 +129,7 @@ describe('QaQueueDetailComponent', () => {
     expect(body).toContain('NV0244 · Lê Thu Hoa · Teller');
     expect(body).toContain('Mở thẻ ghi nợ');
     expect(body).toContain('TX-1');
-    expect(body).toContain('Matched');
+    expect(body).toContain('Đã khớp');
     expect(body).toContain('IMP-1024.xlsx');
     expect(body).toContain('Số liệu không khớp chứng từ gốc.');
     expect(fixture.nativeElement.querySelector('#qaComment')).not.toBeNull();
@@ -169,7 +169,7 @@ describe('QaQueueDetailComponent', () => {
     fixture.detectChanges();
 
     expect(text(fixture)).toContain('Đã ghi nhận quyết định cho QA-0331.');
-    expect(text(fixture)).toContain('Mục này đã được xử lý: Đã xác nhận.');
+    expect(text(fixture)).toContain('Mục này đã được xử lý (Đã xác nhận).');
     expect(fixture.nativeElement.querySelector('#qaComment')).toBeNull();
   });
 
@@ -189,7 +189,7 @@ describe('QaQueueDetailComponent', () => {
     const fixture = open();
     click(fixture, '.verdict-btn', 1);
     fixture.detectChanges();
-    expect(text(fixture)).toContain('điểm KPI của công việc này được trừ lại');
+    expect(text(fixture)).toContain('điểm KPI của công việc được trừ lại');
     type(fixture, 'Làm lại báo cáo và đính kèm chứng từ.');
     click(fixture, '.btn-primary');
 
@@ -207,7 +207,7 @@ describe('QaQueueDetailComponent', () => {
         ),
       );
     fixture.detectChanges();
-    expect(text(fixture)).toContain('Yêu cầu làm lại');
+    expect(text(fixture)).toContain('Nội dung yêu cầu làm lại');
   });
 
   it('passes a 5% sample without a reason', () => {
@@ -251,7 +251,7 @@ describe('QaQueueDetailComponent', () => {
     type(fixture, 'Chứng từ không hợp lệ, cần làm lại.');
     click(fixture, '.switch');
     fixture.detectChanges();
-    expect(text(fixture)).toContain('tạo một cờ chất lượng chờ xử lý');
+    expect(text(fixture)).toContain('tạo một cờ chất lượng ở trạng thái chờ xử lý');
 
     click(fixture, '.btn-primary');
     const request = http.expectOne(`${api}/qa-samples/s1/decision`);
@@ -295,7 +295,7 @@ describe('QaQueueDetailComponent', () => {
       ),
     );
 
-    expect(text(fixture)).toContain('Mục này đã được xử lý: Đã xác nhận.');
+    expect(text(fixture)).toContain('Mục này đã được xử lý (Đã xác nhận).');
     expect(text(fixture)).toContain('Lê Văn Kiểm');
     expect(fixture.nativeElement.querySelector('.decision-footer')).toBeNull();
   });

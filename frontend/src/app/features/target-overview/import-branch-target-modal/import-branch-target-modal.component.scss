@@ -1,0 +1,202 @@
+/* Layout specific to SCR-STRAT-04-M1; dialog, buttons, inputs and notices come from shared/ui. */
+.import-dialog {
+  width: min(1040px, 100%);
+  min-width: 0;
+}
+
+.import-steps {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+
+  li {
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    color: #64748b;
+    padding: 3px 10px;
+  }
+
+  li.is-done {
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+  }
+
+  li.is-active {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+}
+
+.file-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+  min-width: 0;
+}
+
+/* Long file names (no spaces) must wrap instead of widening the dialog on narrow screens. */
+.file-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.file-name {
+  min-width: 0;
+  color: #0f172a;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.file-meta,
+.field-hint {
+  flex: 1;
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.link-button {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.notice.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.import-summary {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  white-space: nowrap;
+  padding: 2px 8px;
+}
+
+.badge.is-success,
+.badge.is-create {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.badge.is-update {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.badge.is-error,
+.badge.is-invalid {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 8px 10px;
+    vertical-align: top;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  tr.row-invalid {
+    background: #fff1f2;
+  }
+}
+
+.check-ok {
+  color: #047857;
+}
+
+.check-error,
+.check-warning {
+  margin: 0;
+}
+
+.check-error {
+  color: #be123c;
+}
+
+.check-warning {
+  color: #92400e;
+}
+
+.kpis-not-in-file {
+  margin-top: 12px;
+  color: #475569;
+  font-size: 13px;
+}

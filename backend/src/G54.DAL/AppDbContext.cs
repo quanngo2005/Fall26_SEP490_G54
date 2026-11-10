@@ -1944,6 +1944,7 @@ public partial class AppDbContext : DbContext
         ConfigureNotifications(modelBuilder);
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
+        ConfigureRiskEventScreens(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("import_batch_pkey");
@@ -1956,6 +1957,21 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ErrorRows).HasColumnName("error_rows");
             entity.Property(e => e.ImportedBy).HasColumnName("imported_by");
             entity.Property(e => e.ImportedAt).HasColumnName("imported_at");
+        });
+
+        modelBuilder.Entity<ImportBatchError>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("import_batch_error_pkey");
+            entity.ToTable("import_batch_error");
+            entity.HasIndex(e => new { e.ImportBatchId, e.RowNumber }, "ix_import_batch_error_batch_row");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
+            entity.Property(e => e.RowNumber).HasColumnName("row_number");
+            entity.Property(e => e.Field).HasMaxLength(50).HasColumnName("field");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Message).HasMaxLength(500).HasColumnName("message");
+            entity.HasOne(e => e.ImportBatch).WithMany(b => b.Errors).HasForeignKey(e => e.ImportBatchId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_import_batch_error_batch");
         });
 
         modelBuilder.Entity<ImportedTransaction>(entity =>

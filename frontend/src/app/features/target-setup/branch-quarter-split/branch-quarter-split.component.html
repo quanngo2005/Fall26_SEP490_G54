@@ -1,0 +1,169 @@
+@let text = localization.branchQuarterSplit;
+@if (loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">
+      {{text.retry}}
+    </button>
+  </div>
+} @else if (data()) {
+  <section class="quarter-split">
+    <div class="quarter-toolbar">
+      <div class="quarter-heading">
+        <div class="quarter-title-line">
+          <h2>{{text.title}}</h2>
+          <span class="quarter-status">{{statusLabel()}}</span>
+        </div>
+        @if (importedText(); as imported) {
+          <p class="quarter-meta">{{imported}}</p>
+        }
+      </div>
+
+      @if (!readOnly()) {
+        <div class="quarter-actions">
+          <button type="button" class="quarter-button is-secondary" (click)="requestReimport()">
+            {{text.reimport}}
+          </button>
+          <button type="button" class="quarter-button is-secondary" (click)="splitEvenly()">
+            {{text.splitEqual}}
+          </button>
+          <button
+            type="button"
+            class="quarter-button is-secondary"
+            [disabled]="!hasPreviousYear()"
+            (click)="splitByPreviousYear()"
+          >
+            {{previousYearLabel()}}
+          </button>
+          <button
+            type="button"
+            class="quarter-button is-secondary"
+            [disabled]="!hasFileRatios()"
+            (click)="splitByFileRatios()"
+          >
+            {{text.splitFile}}
+          </button>
+          <button
+            type="button"
+            class="quarter-button is-primary"
+            [disabled]="saving()"
+            (click)="save()"
+          >
+            {{text.saveDraft}}
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (toast(); as message) {
+      <div class="quarter-toast" role="status" aria-live="polite">
+        <app-layout-icon name="check" class="toast-icon" />
+        <span>{{message}}</span>
+      </div>
+    }
+
+    @if (saveError(); as message) {
+      <div class="quarter-save-error" role="alert">{{message}}</div>
+    }
+
+    <div class="quarter-card">
+      <div class="table-wrap">
+        <table class="quarter-table" [attr.aria-label]="text.tableAria">
+          <thead>
+            <tr>
+              <th scope="col" class="kpi-col">{{text.columnKpi}}</th>
+              <th scope="col" class="unit-col">{{text.columnUnit}}</th>
+              <th scope="col" class="num">{{text.columnYear}}</th>
+              <th scope="col" class="num">{{text.columnTotal}}</th>
+              @for (quarter of quarters; track quarter) {
+                <th scope="col" class="num">{{quarterHeader(quarter)}}</th>
+              }
+              <th scope="col" class="action-col">
+                <span class="visually-hidden">{{text.columnAction}}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (view of rows(); track view.row.kpiId) {
+              <tr class="quarter-row" [class.is-ratio]="view.row.isRatio">
+                <td class="kpi-cell">{{view.row.kpiName}}</td>
+                <td class="unit-cell">{{view.row.unit}}</td>
+                <td class="num year-cell">
+                  <span class="year-value">{{formatValue(view.row.yearValue)}}</span>
+                  <app-layout-icon name="lock" class="year-lock" />
+                  <span class="visually-hidden">{{text.yearLockedAria}}</span>
+                </td>
+                <td
+                  class="num total-cell"
+                  [class.is-matched]="view.matched"
+                  [class.is-mismatch]="!view.row.isRatio && !view.matched"
+                >
+                  {{view.row.isRatio ? '—' : totalText(view)}}
+                </td>
+                @if (view.row.isRatio) {
+                  <td class="ratio-cell" colspan="4">{{ratioNote(view.row)}}</td>
+                } @else {
+                  @for (key of quarterKeys; track key) {
+                    <td class="num quarter-cell">
+                      @if (readOnly()) {
+                        <span class="quarter-static">{{formatValue(view.values[key])}}</span>
+                      } @else {
+                        <input
+                          type="text"
+                          class="quarter-input"
+                          [class.is-locked]="view.locked[$index]"
+                          [class.is-edited-error]="view.edited[$index]"
+                          inputmode="decimal"
+                          [value]="inputText(view, key)"
+                          [disabled]="view.locked[$index]"
+                          [attr.aria-label]="quarterAria(view.row, $index)"
+                          (focus)="onQuarterFocus(view, key)"
+                          (input)="onQuarterInput(view, key, $event)"
+                          (blur)="onQuarterBlur(view, key)"
+                        />
+                      }
+                    </td>
+                  }
+                }
+                <td class="row-action">
+                  @if (!view.row.isRatio && !readOnly()) {
+                    <button
+                      type="button"
+                      class="allocate-button"
+                      [disabled]="!view.canAllocate"
+                      [attr.aria-label]="allocateAria(view.row)"
+                      (click)="requestAllocation(view.row)"
+                    >
+                      {{text.allocate}}
+                    </button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td class="empty-cell" colspan="9">{{text.empty}}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @let mismatches = mismatchLines();
+    @if (mismatches.length > 0) {
+      <div class="quarter-banner" role="alert">
+        @for (line of mismatches; track $index) {
+          <p class="banner-line">{{line}}</p>
+        }
+        <p class="banner-footer">{{text.mismatchFooter}}</p>
+      </div>
+    }
+
+    <p class="quarter-help">{{helpText()}}</p>
+  </section>
+}
