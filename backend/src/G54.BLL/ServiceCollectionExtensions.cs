@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
         services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
         services.AddScoped<IQaQueueService, QaQueueService>();
+        services.AddScoped<IQaDashboardService, QaDashboardService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<INotifier, Notifier>();
@@ -55,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
+        services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
         services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();
