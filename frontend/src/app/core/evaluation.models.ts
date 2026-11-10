@@ -363,3 +363,59 @@ export interface PreCloseCheckOverview {
   totalUnresolvedCount: number;
   items: PreCloseCheckItem[];
 }
+
+export interface PersonalEvaluationCriteriaItem {
+  id: string;
+  name: string;
+  weightPercent: number;
+  actualTargetDisplay: string;
+  score: number | null;
+  weightedScore: number | null;
+  hasDrilldown: boolean;
+  kpiDefinitionId?: string | null;
+}
+
+export interface PersonalEvaluationView {
+  periodId: string;
+  periodName: string;
+  periodCode: string;
+  status: string;
+  appealDeadlineText: string;
+  appealRemainingDays: number;
+  canAppeal: boolean;
+  totalPeScore: number | null;
+  scoreDelta: number | null;
+  previousPeriodName: string | null;
+  previousPeriodScore: number | null;
+  tier: string | null;
+  allTiers: string[];
+  rankingPercentile: string;
+  rankingPosition: number;
+  rankingTotalEmployees: number;
+  rankingRoleTitle: string;
+  criteria: PersonalEvaluationCriteriaItem[];
+  qualityRatio: number | null;
+  riskPenalty: number;
+  managerFeedback: string | null;
+  isAcknowledged: boolean;
+  acknowledgedAt: string | null;
+}
+
+export interface AcknowledgePersonalEvaluationRequest {
+  periodId: string;
+}
+
+export interface AcknowledgePersonalEvaluationResult {
+  success: boolean;
+  acknowledgedAt: string;
+  message: string;
+}
+
+export interface PersonalCriteriaLedgerItem {
+  id: string;
+  txCode: string;
+  date: string;
+  amount: string;
+  kpiContribution: number;
+  status: string;
+}

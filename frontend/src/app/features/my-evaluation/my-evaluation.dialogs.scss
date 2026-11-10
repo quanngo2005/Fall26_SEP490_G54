@@ -52,7 +52,7 @@
 
   .modal-body {
     padding: 20px;
-    overflow-y: auto;
+    overflow: auto;
     max-height: 480px;
 
     .modal-desc {
@@ -60,6 +60,16 @@
       color: #334155;
       line-height: 1.6;
       margin: 0;
+    }
+
+    .modal-error {
+      margin: 12px 0 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      font-size: 13px;
     }
   }
 

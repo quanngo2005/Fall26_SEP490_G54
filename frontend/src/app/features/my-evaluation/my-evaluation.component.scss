@@ -5,7 +5,7 @@
 .my-evaluation-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px 32px 48px;
+  padding: 20px 24px 36px;
 }
 
 .num {
@@ -20,9 +20,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   color: #64748b;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 
   a {
     color: #64748b;
@@ -47,18 +47,20 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .title-badge-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 
   .eval-title {
-    font-size: 24px;
-    font-weight: 700;
+    font:
+      700 20px/28px Inter,
+      system-ui,
+      sans-serif;
     color: #0f172a;
     margin: 0;
   }
@@ -66,74 +68,85 @@
   .badge-published {
     background: #e6f4ea;
     color: #137333;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 4px;
     border: 1px solid #ceead6;
   }
 }
 
 .appeal-deadline-notice {
-  font-size: 13px;
+  font-size: 12px;
   color: #d97706;
   font-weight: 500;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+
+  &.text-muted {
+    color: #94a3b8;
+  }
 }
 
 .head-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 
-  .period-select {
-    height: 38px;
+  .btn-secondary {
+    height: 32px;
     padding: 0 12px;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
     background: #fff;
-    font-size: 14px;
-    font-weight: 500;
-  }
-
-  .btn-secondary {
-    height: 38px;
-    padding: 0 16px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    background: #fff;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
 
   .btn-primary {
-    height: 38px;
-    padding: 0 18px;
+    height: 32px;
+    padding: 0 14px;
     border: 1px solid #1a73e8;
     border-radius: 6px;
     background: #1a73e8;
     color: #fff;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: #1557b0;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
 
   .badge-acknowledged {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 38px;
-    padding: 0 14px;
+    height: 32px;
+    padding: 0 12px;
     background: #e8f5e9;
     color: #2e7d32;
     border: 1px solid #c8e6c9;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
 
     .check-icon {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
     }
   }
 }
@@ -142,39 +155,39 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   color: #166534;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-bottom: 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
 
   .alert-icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
   }
 }
 
 .manager-card {
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 20px 24px;
-  margin-bottom: 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
 
   .manager-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     color: #0f172a;
-    margin: 0 0 8px;
+    margin: 0 0 6px;
   }
 
   .manager-body {
-    font-size: 14px;
+    font-size: 13px;
     color: #334155;
-    line-height: 1.6;
+    line-height: 1.5;
     margin: 0;
   }
 }
@@ -182,6 +195,46 @@
 .eval-footnote p {
   font-size: 12px;
   color: #64748b;
-  line-height: 1.5;
+  line-height: 1.4;
   margin: 0;
+}
+
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 13px;
+
+  .btn-primary {
+    height: 32px;
+    padding: 0 14px;
+    border: 1px solid #1a73e8;
+    border-radius: 6px;
+    background: #1a73e8;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #1a73e8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
