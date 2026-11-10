@@ -680,12 +680,13 @@ ON CONFLICT DO NOTHING;
 -- Q1-Q2 are fully allocated, Q3 is half-way (department rows DRAFT, GD has no teams), Q4 is only allocated
 -- for the HDV chain above, so the wizard still has steps to run. Values are uneven on purpose.
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, effective_from)
 SELECT t.id,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        t.kpi_id, t.dept_id, t.emp_id, t.period_id, t.parent_id, t.split, t.target_value, t.status,
        now(),
-       CASE WHEN t.status = 'ACTIVE' THEN now() END
+       CASE WHEN t.status = 'ACTIVE' THEN now() END,
+       (SELECT start_date FROM evaluation_period WHERE id = t.period_id)
 FROM (VALUES
     ('5eed0000-0000-0000-0035-000000000001'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000001'::uuid, NULL::uuid, NULL::target_split_dimension, 3500, 'DRAFT'::target_assignment_status),
     ('5eed0000-0000-0000-0035-000000000011'::uuid, '5eed0000-0000-0000-0005-000000000001'::uuid, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '5eed0000-0000-0000-000f-000000000008'::uuid, '5eed0000-0000-0000-0035-000000000001'::uuid, 'PERIOD'::target_split_dimension, 750, 'ACTIVE'::target_assignment_status),
@@ -783,11 +784,11 @@ ON CONFLICT DO NOTHING;
 -- missing in Q3 and below the DU_NO departments, and progress for Jan-Aug. September onwards is progress of the
 -- evaluation sample below, which reuses these month targets. Oanh has no DU_NO target (N/A sample).
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now(), per.start_date
 FROM (VALUES
     ('2026-CSAT--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'CSAT', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', NULL::target_split_dimension, 4.5, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
     ('2026-TY_LE_LOI--5eed0000-0000-0000-0007-000000000004-2026-Q1', 'TY_LE_LOI', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1', NULL::target_split_dimension, 2, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
@@ -862,11 +863,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now(), per.start_date
 FROM (VALUES
     ('2026-HDV-5eed0000-0000-0000-0001-000000000006--2026-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 180, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3'),
     ('2026-HDV-5eed0000-0000-0000-0001-000000000007--2026-Q3', 'HDV', '5eed0000-0000-0000-0001-000000000007'::uuid, NULL::uuid, '2026-Q3', 'ORG'::target_split_dimension, 120, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000003'::uuid, NULL::uuid, '2026-Q3'),
@@ -894,11 +895,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now(), per.start_date
 FROM (VALUES
     ('2026-HDV--5eed0000-0000-0000-0007-000000000008-2026-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000008'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 95, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3'),
     ('2026-HDV--5eed0000-0000-0000-0007-000000000009-2026-Q3', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000009'::uuid, '2026-Q3', 'ORG'::target_split_dimension, 85, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000006'::uuid, NULL::uuid, '2026-Q3'),
@@ -935,11 +936,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now()
+       now(), CASE WHEN t.status = 'ACTIVE' THEN now() END, now(), per.start_date
 FROM (VALUES
     ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-01', 'PERIOD'::target_split_dimension, 43, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
     ('2026-HDV--5eed0000-0000-0000-0007-000000000004-2026-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-02', 'PERIOD'::target_split_dimension, 46, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2026-Q1'),
@@ -1227,23 +1228,24 @@ FROM (
 ) s;
 
 INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
-    parent_assignment_id, split_dimension, target_value, status)
+    parent_assignment_id, split_dimension, target_value, status, effective_from)
 SELECT md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid,
        q.business_objective_id, q.kpi_definition_id, q.department_id, yp.id, q.branch_year_id,
-       'ORG'::target_split_dimension, sum(q.target_value), 'DRAFT'::target_assignment_status
+       'ORG'::target_split_dimension, sum(q.target_value), 'DRAFT'::target_assignment_status, yp.start_date
 FROM seed_2027_dept_quarter q
 JOIN evaluation_period yp ON yp.code = '2027'
-GROUP BY q.business_objective_id, q.kpi_definition_id, q.department_id, q.branch_year_id, yp.id
+GROUP BY q.business_objective_id, q.kpi_definition_id, q.department_id, q.branch_year_id, yp.id, yp.start_date
 ON CONFLICT DO NOTHING;
 
 INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
-    parent_assignment_id, split_dimension, target_value, status)
+    parent_assignment_id, split_dimension, target_value, status, effective_from)
 SELECT md5('seed-2027-dept-quarter-' || dy.id::text || '-' || q.period_id::text)::uuid,
        q.business_objective_id, q.kpi_definition_id, q.department_id, q.period_id, dy.id,
-       'PERIOD'::target_split_dimension, q.target_value, 'DRAFT'::target_assignment_status
+       'PERIOD'::target_split_dimension, q.target_value, 'DRAFT'::target_assignment_status, qp.start_date
 FROM seed_2027_dept_quarter q
 JOIN target_assignment dy
   ON dy.id = md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid
+JOIN evaluation_period qp ON qp.id = q.period_id
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
@@ -1443,11 +1445,11 @@ ON CONFLICT DO NOTHING;
 -- 2025 detail for the comparison year: branch quarters, and for HDV/KH_MOI/DU_NO every department quarter split into
 -- teams, employees and months (the 2025 progress below picks the month rows up). All ACTIVE, sums exact.
 -- ---------------------------------------------------------------------------
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-KH-5eed0000-0000-0000-0001-000000000001--2025', 'KH_MOI', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025', NULL::target_split_dimension, 420, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text),
     ('2025-DU_NO-5eed0000-0000-0000-0001-000000000001--2025', 'DU_NO', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025', NULL::target_split_dimension, 1000, 'ACTIVE'::target_assignment_status, NULL::uuid, NULL::uuid, NULL::text)
@@ -1461,11 +1463,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
     ('2025-HDV-5eed0000-0000-0000-0001-000000000001--2025-Q2', 'HDV', '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 250, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
@@ -1489,11 +1491,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025', 'ORG'::target_split_dimension, 420, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
     ('2025-DU_NO-5eed0000-0000-0000-0001-000000000002--2025', 'DU_NO', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025', 'ORG'::target_split_dimension, 600, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000001'::uuid, NULL::uuid, '2025'),
@@ -1508,11 +1510,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q1', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1', 'PERIOD'::target_split_dimension, 90, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
     ('2025-KH-5eed0000-0000-0000-0001-000000000002--2025-Q2', 'KH_MOI', '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q2', 'PERIOD'::target_split_dimension, 100, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025'),
@@ -1536,11 +1538,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-HDV-5eed0000-0000-0000-0001-000000000004--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 65, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
     ('2025-HDV-5eed0000-0000-0000-0001-000000000005--2025-Q1', 'HDV', '5eed0000-0000-0000-0001-000000000005'::uuid, NULL::uuid, '2025-Q1', 'ORG'::target_split_dimension, 60, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000002'::uuid, NULL::uuid, '2025-Q1'),
@@ -1592,11 +1594,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 33, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
     ('2025-HDV--5eed0000-0000-0000-0007-000000000005-2025-Q1', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000005'::uuid, '2025-Q1', 'ORG'::target_split_dimension, 32, 'ACTIVE'::target_assignment_status, '5eed0000-0000-0000-0001-000000000004'::uuid, NULL::uuid, '2025-Q1'),
@@ -1680,11 +1682,11 @@ LEFT JOIN target_assignment par ON par.kpi_definition_id = kpi.id AND par.evalua
 WHERE t.p_period IS NULL OR par.id IS NOT NULL
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at)
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, employee_id, evaluation_period_id, parent_assignment_id, split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
 SELECT md5('seed-target-' || t.key)::uuid,
        NULL::uuid,
        kpi.id, t.dept_id, t.emp_id, per.id, par.id, t.split, t.target_value, t.status,
-       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz
+       '2025-01-01 08:00+00'::timestamptz, CASE WHEN t.status = 'ACTIVE' THEN '2025-01-15 17:00+00'::timestamptz END, '2025-01-01 08:00+00'::timestamptz, per.start_date
 FROM (VALUES
     ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-01', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-01', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
     ('2025-HDV--5eed0000-0000-0000-0007-000000000004-2025-02', 'HDV', NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-02', 'PERIOD'::target_split_dimension, 10, 'ACTIVE'::target_assignment_status, NULL::uuid, '5eed0000-0000-0000-0007-000000000004'::uuid, '2025-Q1'),
@@ -2060,12 +2062,12 @@ ON CONFLICT DO NOTHING;
 -- the Q4 chain does not cover). Give each such employee/KPI a standalone quarter target, as the quality KPIs have
 -- in Q1-Q3, and split it into its months: SUM KPIs total the months, the others take their average.
 INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, employee_id, evaluation_period_id,
-    target_value, status, assigned_at, approved_at)
+    target_value, status, assigned_at, approved_at, effective_from)
 SELECT md5('seed-quarter-target-' || m.employee_id::text || '-' || m.kpi_definition_id::text || '-' || q.id::text)::uuid,
        '5eed0000-0000-0000-0010-000000000001'::uuid,
        m.kpi_definition_id, m.employee_id, q.id,
        CASE WHEN k.aggregation_type = 'SUM' THEN sum(m.target_value) ELSE round(avg(m.target_value), 4) END,
-       'ACTIVE'::target_assignment_status, now(), now()
+       'ACTIVE'::target_assignment_status, now(), now(), q.start_date
 FROM target_assignment m
 JOIN evaluation_period mp ON mp.id = m.evaluation_period_id AND mp.period_type = 'MONTH'
 JOIN evaluation_period q ON q.id = mp.parent_period_id
@@ -2076,7 +2078,7 @@ WHERE m.employee_id IS NOT NULL AND m.parent_assignment_id IS NULL AND m.status 
       SELECT 1 FROM target_assignment x
       WHERE x.employee_id = m.employee_id AND x.kpi_definition_id = m.kpi_definition_id
         AND x.evaluation_period_id = q.id AND x.status IN ('DRAFT', 'ACTIVE'))
-GROUP BY m.employee_id, m.kpi_definition_id, q.id, k.aggregation_type
+GROUP BY m.employee_id, m.kpi_definition_id, q.id, k.aggregation_type, q.start_date
 ON CONFLICT DO NOTHING;
 
 UPDATE target_assignment m
