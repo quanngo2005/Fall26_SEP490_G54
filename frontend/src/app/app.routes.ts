@@ -18,6 +18,22 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'system-parameters',
+    canActivate: [authGuard, adminGuard],
+    title: 'Tham số hệ thống',
+    loadComponent: () =>
+      import('./features/system-parameters/system-parameters.component').then(
+        (m) => m.SystemParametersComponent,
+      ),
+  },
+  {
+    path: 'audit-logs',
+    canActivate: [authGuard, adminGuard],
+    title: 'Nhật ký audit',
+    loadComponent: () =>
+      import('./features/audit-logs/audit-log-list.component').then((m) => m.AuditLogListComponent),
+  },
+  {
     path: 'roles',
     canActivate: [authGuard, adminGuard],
     title: 'Vai trò & quyền',

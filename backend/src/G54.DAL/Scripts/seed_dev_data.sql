@@ -281,7 +281,9 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000029', 'RISK_EVENT_CONFIRM', 'Xác nhận sự kiện rủi ro', 'risk_event', 'confirm'),
  ('5eed0000-0000-0000-0009-00000000002a', 'RISK_EVENT_DISMISS', 'Bác bỏ sự kiện rủi ro', 'risk_event', 'dismiss'),
  ('5eed0000-0000-0000-0009-00000000002b', 'RISK_EVENT_RESOLVE', 'Giải quyết sự kiện rủi ro', 'risk_event', 'resolve'),
- ('5eed0000-0000-0000-0009-00000000002c', 'RISK_EVENT_REVERSE', 'Gỡ điểm phạt sự kiện rủi ro', 'risk_event', 'reverse')
+ ('5eed0000-0000-0000-0009-00000000002c', 'RISK_EVENT_REVERSE', 'Gỡ điểm phạt sự kiện rủi ro', 'risk_event', 'reverse'),
+ ('5eed0000-0000-0000-0009-00000000002d', 'SYSTEM_PARAMETER_VIEW',   'Xem tham số hệ thống',      'system_parameter', 'view'),
+ ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -324,7 +326,10 @@ FROM (VALUES
     ('ADMIN', 'RISK_EVENT_CREATE', 'All'), ('ADMIN', 'RISK_EVENT_READ', 'All'), ('ADMIN', 'RISK_EVENT_CONFIRM', 'All'), ('ADMIN', 'RISK_EVENT_DISMISS', 'All'), ('ADMIN', 'RISK_EVENT_RESOLVE', 'All'), ('ADMIN', 'RISK_EVENT_REVERSE', 'All'), ('QA', 'RISK_EVENT_CREATE', 'All'), ('QA', 'RISK_EVENT_READ', 'All'), ('QA', 'RISK_EVENT_CONFIRM', 'All'), ('QA', 'RISK_EVENT_DISMISS', 'All'), ('QA', 'RISK_EVENT_RESOLVE', 'All'), ('QA', 'RISK_EVENT_REVERSE', 'All'),
     ('MANAGER', 'RISK_EVENT_READ', 'Dept'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
-    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All')
+    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
+    -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).
+    ('ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
+    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code

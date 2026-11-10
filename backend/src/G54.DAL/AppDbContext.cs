@@ -72,6 +72,14 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
 
+    public virtual DbSet<SystemParameter> SystemParameters { get; set; }
+
+    public virtual DbSet<EvaluationComparisonSetting> EvaluationComparisonSettings { get; set; }
+
+    public virtual DbSet<TierCriterion> TierCriteria { get; set; }
+
+    public virtual DbSet<TierCriterionRequirement> TierCriterionRequirements { get; set; }
+
     public virtual DbSet<Downgrade> Downgrades { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
@@ -1281,6 +1289,89 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("risk_event_status")
                 .HasColumnName("status");
+        });
+
+        modelBuilder.Entity<SystemParameter>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("system_parameters_pkey");
+
+            entity.ToTable("system_parameters");
+
+            entity.HasIndex(e => e.Key, "uq_system_parameters_key").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Key).HasMaxLength(100).HasColumnName("key");
+            entity.Property(e => e.Value).HasMaxLength(200).HasColumnName("value");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<EvaluationComparisonSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("evaluation_comparison_setting_pkey");
+
+            entity.ToTable("evaluation_comparison_setting", table =>
+            {
+                table.HasCheckConstraint("ck_evaluation_comparison_setting_baseline", "baseline IN ('PREVIOUS_PERIOD', 'SAME_PERIOD_LAST_YEAR', 'AVERAGE_LAST_N')");
+                table.HasCheckConstraint("ck_evaluation_comparison_setting_lookback", "lookback_periods BETWEEN 2 AND 12");
+            });
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Baseline).HasMaxLength(30).HasColumnName("baseline");
+            entity.Property(e => e.LookbackPeriods).HasColumnName("lookback_periods");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<TierCriterion>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("tier_criterion_pkey");
+
+            entity.ToTable("tier_criterion");
+
+            entity.HasIndex(e => e.Code, "uq_tier_criterion_code").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(200).HasColumnName("name");
+            entity.Property(e => e.Metric).HasMaxLength(30).HasColumnName("metric");
+            entity.Property(e => e.Threshold).HasPrecision(10, 2).HasColumnName("threshold");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<TierCriterionRequirement>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("tier_criterion_requirement_pkey");
+
+            entity.ToTable("tier_criterion_requirement");
+
+            entity.HasIndex(e => new { e.TierCriterionId, e.TierCode }, "uq_tier_criterion_requirement").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TierCriterionId).HasColumnName("tier_criterion_id");
+            entity.Property(e => e.TierCode).HasMaxLength(20).HasColumnName("tier_code");
+            entity.Property(e => e.Required).HasColumnName("required");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(e => e.TierCriterion).WithMany(c => c.Requirements)
+                .HasForeignKey(e => e.TierCriterionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_tier_criterion_requirement_criterion");
         });
 
         modelBuilder.Entity<RankingTierThreshold>(entity =>
