@@ -55,6 +55,7 @@ public sealed class TransactionImportsController(
     }
 
     [HttpGet]
+    [ProducesResponseType<ApiResponse<PagedResult<ImportBatchDto>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<PagedResult<ImportBatchDto>>>> List(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
     {
