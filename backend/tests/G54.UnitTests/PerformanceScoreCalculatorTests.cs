@@ -172,6 +172,75 @@ public sealed class PerformanceScoreCalculatorTests
         Assert.Equal(100m, kpi.ComponentScore);
     }
 
+    // ----- BR-15 mid-period target change: segment scoring -----------------------------------------
+
+    [Fact]
+    public async Task Calculate_OneVersionCoveringTheWholePeriod_ScoresExactlyAsBeforeBR15()
+    {
+        using var w = await World.CreateAsync();
+        w.AddTarget(w.Hdv, 100m);
+        w.AddProgress(w.Hdv, 80m);
+
+        var kpi = (await w.ScoreAsync(w.Staff1)).Groups.Single(g => g.Name == "Sales").Kpis.Single(k => k.Code == "HDV");
+
+        Assert.Equal(100m, kpi.TargetValue);
+        Assert.Equal(80m, kpi.ComponentScore);
+    }
+
+    [Fact]
+    public async Task Calculate_AMidPeriodRevision_ScoresEachVersionAsItsOwnDayProratedSegment()
+    {
+        // October has 31 days: version 1 covers the first 15 (Oct 1-15), version 2 the other 16 (Oct 16-31).
+        using var w = await World.CreateAsync();
+        var v1 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = w.Hdv.Id,
+            EmployeeId = w.Staff1.Id,
+            EvaluationPeriodId = w.Period.Id,
+            Version = 1,
+            TargetValue = 310m,
+            Status = TargetAssignmentStatus.Superseded,
+            EffectiveFrom = new DateOnly(2026, 10, 1),
+            EffectiveTo = new DateOnly(2026, 10, 15),
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        };
+        var v2 = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = w.Hdv.Id,
+            EmployeeId = w.Staff1.Id,
+            EvaluationPeriodId = w.Period.Id,
+            Version = 2,
+            TargetValue = 310m,
+            Status = TargetAssignmentStatus.Active,
+            EffectiveFrom = new DateOnly(2026, 10, 16),
+            PreviousVersionId = v1.Id,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        };
+        w.Db.TargetAssignments.AddRange(v1, v2);
+        w.Db.ActualProgresses.AddRange(
+            new ActualProgress { Id = Guid.NewGuid(), TargetAssignmentId = v1.Id, ProgressDate = new DateOnly(2026, 10, 10), Value = 100m, Status = ActualProgressStatus.Valid, UpdatedAt = Now },
+            new ActualProgress { Id = Guid.NewGuid(), TargetAssignmentId = v2.Id, ProgressDate = new DateOnly(2026, 10, 20), Value = 50m, Status = ActualProgressStatus.Valid, UpdatedAt = Now });
+        await w.Db.SaveChangesAsync();
+
+        var kpis = (await w.ScoreAsync(w.Staff1)).Groups.Single(g => g.Name == "Sales").Kpis.Where(k => k.Code == "HDV").ToList();
+
+        Assert.Equal(2, kpis.Count);
+        var segment1 = kpis.Single(k => k.TargetVersion == 1);
+        var segment2 = kpis.Single(k => k.TargetVersion == 2);
+
+        // 310 x 15/31 and 310 x 16/31 (period = 31 days, segment 1 = 15 days, segment 2 = 16 days).
+        Assert.Equal(150m, segment1.TargetValue);
+        Assert.Equal(160m, segment2.TargetValue);
+        Assert.Equal(100m, segment1.ActualValue);
+        Assert.Equal(50m, segment2.ActualValue);
+        Assert.Equal(Math.Round(100m / 150m * 100m, 4), segment1.ComponentScore);
+        Assert.Equal(Math.Round(50m / 160m * 100m, 4), segment2.ComponentScore);
+    }
+
     [Fact]
     public async Task Calculate_ProgressOutsideThePeriodOrNotValid_IsIgnored()
     {

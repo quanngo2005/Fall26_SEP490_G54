@@ -22,6 +22,9 @@ public partial class EvaluationPeriod
     public PeriodType PeriodType { get; set; }
     public PeriodStatus Status { get; set; }
 
+    /// <summary>Hard-lock watermark (BR-29): every month up to and including this date's month is read-only.</summary>
+    public DateOnly? HardLockedThrough { get; set; }
+
     public virtual ICollection<EvaluationPeriod> InverseParentPeriod { get; set; } = new List<EvaluationPeriod>();
 
     public virtual EvaluationPeriod? ParentPeriod { get; set; }

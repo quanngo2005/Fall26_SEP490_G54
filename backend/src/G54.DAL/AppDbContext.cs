@@ -577,6 +577,7 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("name");
             entity.Property(e => e.ParentPeriodId).HasColumnName("parent_period_id");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.HardLockedThrough).HasColumnName("hard_locked_through");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1494,6 +1495,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_target_assignment_approval", "(status IN ('ACTIVE', 'SUPERSEDED', 'CLOSED') AND approved_at IS NOT NULL)\r\n            OR status = 'DRAFT'");
                 table.HasCheckConstraint("ck_target_assignment_approved_by_time", "approved_at IS NULL OR approved_at >= created_at");
                 table.HasCheckConstraint("ck_target_assignment_assigned_time", "assigned_at IS NULL OR assigned_at >= created_at");
+                table.HasCheckConstraint("ck_target_assignment_effective_range", "effective_to IS NULL OR effective_to >= effective_from");
             });
 
             entity.HasIndex(e => e.BusinessObjectiveId, "ix_target_assignment_objective");
@@ -1574,6 +1576,19 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ParentAssignmentId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_target_assignment_parent");
+
+            entity.Property(e => e.EffectiveFrom).HasColumnName("effective_from");
+            entity.Property(e => e.EffectiveTo).HasColumnName("effective_to");
+            entity.Property(e => e.PreviousVersionId).HasColumnName("previous_version_id");
+            entity.Property(e => e.ChangedByEmployeeId).HasColumnName("changed_by_employee_id");
+
+            // No database FK for PreviousVersionId (self-referencing): see the doc comment on the property.
+            entity.HasIndex(e => e.PreviousVersionId, "ix_target_assignment_previous_version");
+
+            entity.HasOne(d => d.ChangedByEmployee).WithMany()
+                .HasForeignKey(d => d.ChangedByEmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_changed_by");
 
             entity.Property(e => e.Status)
                 .HasColumnType("target_assignment_status")

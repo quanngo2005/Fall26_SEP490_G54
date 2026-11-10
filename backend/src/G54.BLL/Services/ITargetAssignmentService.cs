@@ -19,6 +19,13 @@ public interface ITargetAssignmentService
     /// <summary>Creates every child of <paramref name="parentAssignmentId"/> ACTIVE in one transaction, split by period.</summary>
     Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto);
 
+    /// <summary>
+    /// Mid-period change of the ACTIVE target <paramref name="assignmentId"/> (BR-15): freezes the current version
+    /// (and its active descendants) as SUPERSEDED with <c>EffectiveTo = effectiveDate - 1</c>, then creates the next
+    /// version ACTIVE from <c>effectiveDate</c>. Returns the new version and its re-created direct children.
+    /// </summary>
+    Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto);
+
     /// <summary>Lists target assignments matching optional filters, respecting caller's department scope.</summary>
     Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query);
 

@@ -37,6 +37,7 @@ public sealed class TargetAssignmentSuggestedDailyTests : IDisposable
         new Repository<EvaluationPeriod>(_db),
         new FakePermissions(admin, _manager, _outsiderManager),
         new WeekdayWorkingDayCalendar(),
+        new RecordingNotifier(),
         new FixedTime());
 
     /// <summary>Q4/2026 has 22 + 21 + 23 = 66 weekdays. DEPT holds the member, a peer and the manager; OTHER holds an outsider.</summary>
