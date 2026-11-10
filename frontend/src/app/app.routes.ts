@@ -34,6 +34,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'import-history',
+    canActivate: [authGuard, adminGuard],
+    title: 'Lịch sử nhập',
+    loadComponent: () =>
+      import('./features/import-history/import-history-list.component').then(
+        (m) => m.ImportHistoryListComponent,
+      ),
+  },
+  {
     path: 'role-permissions',
     canActivate: [authGuard, adminGuard],
     title: 'Thiết lập quyền',

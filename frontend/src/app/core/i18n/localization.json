@@ -156,7 +156,8 @@
         "audit": "Kiểm toán & Tuân thủ",
         "users": "Tài khoản & Phân quyền",
         "settings": "Cài đặt hệ thống",
-        "appeals": "Khiếu nại & Phúc khảo"
+        "appeals": "Khiếu nại & Phúc khảo",
+        "importHistory": "Lịch sử nhập"
       },
       "common": {
         "close": "Đóng",
@@ -2982,6 +2983,37 @@
         "rejectReason": "Lý do từ chối",
         "cancel": "Hủy",
         "confirmReject": "Từ chối"
+      },
+      "importHistory": {
+        "title": "Lịch sử nhập",
+        "searchPlaceholder": "Mã lô / tên tệp",
+        "fileType": "Loại tệp",
+        "fileTypeTransaction": "Giao dịch",
+        "period": "Kỳ dữ liệu",
+        "dateRange": "Khoảng thời gian",
+        "status": "Trạng thái",
+        "importNew": "Nhập mới",
+        "filterComingSoon": "Sắp ra mắt — chờ API hỗ trợ lọc",
+        "importComingSoon": "Sắp ra mắt — chờ API hỗ trợ lọc",
+        "colBatchCode": "Mã lô",
+        "colFileType": "Loại tệp",
+        "colFileName": "Tên tệp",
+        "colPeriod": "Kỳ",
+        "colTime": "Thời gian",
+        "colTotal": "Tổng",
+        "colSuccess": "Thành công",
+        "colErrors": "Lỗi",
+        "colStatus": "Trạng thái",
+        "statusCompleted": "Hoàn tất",
+        "statusCompletedWithErrors": "Hoàn tất có lỗi",
+        "statusRejected": "Từ chối",
+        "loading": "Đang tải lịch sử nhập...",
+        "loadError": "Không thể tải lịch sử nhập. Vui lòng thử lại.",
+        "retry": "Thử lại",
+        "empty": "Chưa có lô nhập dữ liệu nào.",
+        "range": "{from}–{to} / {total} lô",
+        "pagination": "Phân trang",
+        "footnote": "Danh sách chỉ gồm các lô nhập giao dịch Core Banking. Bộ lọc và kỳ dữ liệu sẽ sẵn sàng khi API hỗ trợ."
       }
     },
     "en": {
@@ -3120,7 +3152,8 @@
         "audit": "Audit & Compliance",
         "users": "Accounts & Permissions",
         "settings": "System Settings",
-        "appeals": "Appeals & Inquiries"
+        "appeals": "Appeals & Inquiries",
+        "importHistory": "Import History"
       },
       "common": {
         "close": "Close",
@@ -5946,6 +5979,37 @@
         "rejectReason": "Rejection reason",
         "cancel": "Cancel",
         "confirmReject": "Reject"
+      },
+      "importHistory": {
+        "title": "Import history",
+        "searchPlaceholder": "Batch code / file name",
+        "fileType": "File type",
+        "fileTypeTransaction": "Transaction",
+        "period": "Data period",
+        "dateRange": "Date range",
+        "status": "Status",
+        "importNew": "New import",
+        "filterComingSoon": "Coming soon — awaiting API filter support",
+        "importComingSoon": "Coming soon — awaiting API filter support",
+        "colBatchCode": "Batch code",
+        "colFileType": "File type",
+        "colFileName": "File name",
+        "colPeriod": "Period",
+        "colTime": "Time",
+        "colTotal": "Total",
+        "colSuccess": "Success",
+        "colErrors": "Errors",
+        "colStatus": "Status",
+        "statusCompleted": "Completed",
+        "statusCompletedWithErrors": "Completed with errors",
+        "statusRejected": "Rejected",
+        "loading": "Loading import history...",
+        "loadError": "Could not load import history. Please try again.",
+        "retry": "Retry",
+        "empty": "No import batches yet.",
+        "range": "{from}–{to} / {total} batches",
+        "pagination": "Pagination",
+        "footnote": "This list covers Core Banking transaction import batches only. Filters and data period will be available once the API supports them."
       }
     }
   }
