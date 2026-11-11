@@ -71,7 +71,14 @@ public sealed class SystemParameterService(AppDbContext db, SystemParameterStore
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            throw new ConflictException("Tham số vừa được người khác cập nhật. Vui lòng tải lại và thử lại.");
+        }
 
         var rows = await LoadRowsAsync(ct);
         Publish(rows);

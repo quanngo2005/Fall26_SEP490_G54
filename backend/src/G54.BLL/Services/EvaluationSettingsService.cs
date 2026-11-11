@@ -115,7 +115,15 @@ public sealed class EvaluationSettingsService(AppDbContext db) : IEvaluationSett
             }
         }
 
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            throw new ConflictException("Tiêu chí vừa được người khác cập nhật. Vui lòng tải lại và thử lại.");
+        }
+
         return await GetTierCriteriaAsync(ct);
     }
 
