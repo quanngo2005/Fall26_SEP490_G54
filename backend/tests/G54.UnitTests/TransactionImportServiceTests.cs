@@ -111,6 +111,52 @@ public sealed class TransactionImportServiceTests
     }
 
     [Fact]
+    public async Task GB633_01_ListBatches_ReturnsNewestFirstWithCountsAndNoErrors()
+    {
+        var (db, service) = Create();
+        var importer = Guid.NewGuid();
+        db.ImportBatches.AddRange(
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "old.xlsx", TotalRows = 3, ImportedRows = 2, DuplicateRows = 0, ErrorRows = 1, ImportedBy = importer, ImportedAt = Now.AddDays(-2) },
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "new.xlsx", TotalRows = 5, ImportedRows = 4, DuplicateRows = 1, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now },
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "mid.xlsx", TotalRows = 1, ImportedRows = 1, DuplicateRows = 0, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now.AddDays(-1) });
+        await db.SaveChangesAsync();
+
+        var result = await service.ListBatchesAsync(1, 20);
+
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(["new.xlsx", "mid.xlsx", "old.xlsx"], result.Items.Select(b => b.FileName));
+        Assert.All(result.Items, b => Assert.Null(b.Errors));
+        var newest = result.Items[0];
+        Assert.Equal((5, 4, 1, 0, importer), (newest.TotalRows, newest.ImportedRows, newest.DuplicateRows, newest.ErrorRows, newest.ImportedBy));
+    }
+
+    [Fact]
+    public async Task GB633_02_ListBatches_EmptyHistoryReturnsNoItems()
+    {
+        var (_, service) = Create();
+
+        var result = await service.ListBatchesAsync(1, 20);
+
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListBatches_ClampsPageAndPageSize()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1"));
+        await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var belowMin = await service.ListBatchesAsync(0, 0);
+        var aboveMax = await service.ListBatchesAsync(1, 500);
+
+        Assert.Equal(1, belowMin.Page);
+        Assert.Equal(1, belowMin.PageSize);
+        Assert.Equal(200, aboveMax.PageSize);
+    }
+
+    [Fact]
     public async Task ListTransactions_FiltersAndThrowsNotFoundForUnknownBatch()
     {
         var (_, service) = Create();

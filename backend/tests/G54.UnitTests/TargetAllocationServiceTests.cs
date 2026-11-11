@@ -105,6 +105,18 @@ public sealed class TargetAllocationServiceTests
     }
 
     [Fact]
+    public async Task AllocateDepartments_EmptyItems_ThrowsValidationInsteadOfAServerError()
+    {
+        var f = await CreateAsync();
+        var dto = new AllocateDepartmentsDto([], null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, dto, Guid.NewGuid()));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task AllocateDepartments_SumBelowTarget_Throws422()
     {
         var f = await CreateAsync();
