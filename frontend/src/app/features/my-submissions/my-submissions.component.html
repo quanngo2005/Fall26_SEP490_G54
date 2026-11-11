@@ -1,0 +1,189 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      @if (notice()) {
+        <div class="alert-banner" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="alert-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="master-detail-container" [class.has-drawer]="selectedItem() !== null">
+        <div class="master-panel">
+          <div class="page-title-row">
+            <h1>{{localization.submissions.title}}</h1>
+            <span class="period-summary">{{summary()}}</span>
+          </div>
+
+          <div class="toolbar">
+            <div class="filters-left">
+              <div class="search-input-wrap">
+                <span class="search-icon" aria-hidden="true">🔍</span>
+                <input
+                  type="text"
+                  [ngModel]="keyword()"
+                  (ngModelChange)="onKeyword($event)"
+                  [attr.aria-label]="localization.submissions.searchPlaceholder"
+                  [placeholder]="localization.submissions.searchPlaceholder"
+                />
+              </div>
+
+              <div class="select-dropdown">
+                <select
+                  [ngModel]="matchFilter()"
+                  (ngModelChange)="setMatch($event)"
+                  [attr.aria-label]="localization.submissions.filterMatch"
+                >
+                  <option value="ALL">{{localization.submissions.matchFilter.all}}</option>
+                  <option value="MATCHED">
+                    {{localization.submissions.matchFilter.MATCHED}}
+                  </option>
+                  <option value="NOT_MATCHED">
+                    {{localization.submissions.matchFilter.NOT_MATCHED}}
+                  </option>
+                  <option value="IN_REVIEW">
+                    {{localization.submissions.matchFilter.IN_REVIEW}}
+                  </option>
+                  <option value="NONE">{{localization.submissions.matchFilter.NONE}}</option>
+                </select>
+              </div>
+
+              @if (!selectedItem()) {
+                <div class="select-dropdown period-select">
+                  <select
+                    [ngModel]="periodFilter()"
+                    (ngModelChange)="setPeriod($event)"
+                    [attr.aria-label]="localization.submissions.filterPeriod"
+                  >
+                    <option value="ALL">{{localization.submissions.allPeriods}}</option>
+                    @for (period of periods(); track period.id) {
+                      <option [value]="period.id">{{period.code}}</option>
+                    }
+                  </select>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="table-container">
+            @if (failed()) {
+              <div class="state-block" role="alert">
+                <p>{{localization.submissions.loadError}}</p>
+                <button type="button" class="btn-primary-action" (click)="retry()">
+                  {{localization.submissions.retry}}
+                </button>
+              </div>
+            } @else {
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>{{localization.submissions.columns.work}}</th>
+                    <th>{{localization.submissions.columns.version}}</th>
+                    @if (!selectedItem()) {
+                      <th>{{localization.submissions.columns.transaction}}</th>
+                    }
+                    <th>{{localization.submissions.columns.submittedAt}}</th>
+                    <th>{{localization.submissions.columns.status}}</th>
+                    @if (!selectedItem()) {
+                      <th>{{localization.submissions.columns.reconciliation}}</th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of items(); track item.submissionId) {
+                    <tr
+                      tabindex="0"
+                      [class.selected-row]="selectedId() === item.submissionId"
+                      [attr.aria-current]="selectedId() === item.submissionId ? 'true' : null"
+                      (click)="select(item)"
+                      (keydown.enter)="select(item)"
+                    >
+                      <td class="cell-bold font-code">{{item.workCode}}</td>
+                      <td class="col-version">v{{item.submissionNo}}</td>
+                      @if (!selectedItem()) {
+                        <td class="font-code">{{transactionText(item)}}</td>
+                      }
+                      <td class="col-date">{{item.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
+                      <td>
+                        @let b = badge(item);
+                        <span class="status-badge" [class]="'tone-' + b.tone">{{b.label}}</span>
+                      </td>
+                      @if (!selectedItem()) {
+                        <td>{{reconcileText(item)}}</td>
+                      }
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td [attr.colspan]="selectedItem() ? 4 : 6" class="empty-state">
+                        {{loading()
+                            ? localization.submissions.loading
+                            : localization.submissions.empty}}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+
+              <div class="table-footer">
+                <span class="footer-count">{{showingText()}}</span>
+                <div class="pagination">
+                  @for (p of pages(); track p) {
+                    <button
+                      type="button"
+                      class="page-box"
+                      [class.active]="p === page()"
+                      [attr.aria-current]="p === page() ? 'page' : null"
+                      (click)="goToPage(p)"
+                    >
+                      {{p}}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          @if (!selectedItem()) {
+            <div class="info-callout">
+              <h4 class="callout-title">{{localization.submissions.hintTitle}}</h4>
+              <p class="callout-text">{{localization.submissions.hint}}</p>
+            </div>
+          }
+        </div>
+
+        @if (selectedItem(); as selected) {
+          <app-my-submission-drawer
+            [item]="selected"
+            [detail]="detail()"
+            [loading]="detailLoading()"
+            [failed]="detailFailed()"
+            (closeDrawer)="closeDrawer()"
+            (selectNext)="selectNext()"
+            (selectPrev)="selectPrev()"
+            (selectVersion)="viewVersion($event)"
+            (appeal)="openAppeal($event)"
+          />
+        }
+      </div>
+
+      @if (appealFor(); as submissionId) {
+        <app-appeal-submit-modal
+          [submissionId]="submissionId"
+          (submitted)="onAppealed()"
+          (dismissed)="appealFor.set(null)"
+        />
+      }
+    </main>
+  </div>
+</div>

@@ -155,7 +155,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
-  { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
+  { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
   { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
