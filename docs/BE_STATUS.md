@@ -23,7 +23,7 @@ Quality gate: `scripts/codereview-backend.ps1` → **ALL CHECKS PASSED** (build,
 
 | Area | Status | Notes |
 |---|---|---|
-| Auth, roles, permission matrix (Resource×Action×Scope) | ✅ | `AuthController`, `PermissionService`, `RolePermission.Scope` |
+| Auth, roles, permission matrix (Resource×Action×Scope) | 🟡 | Auth and role listing are implemented; permission-matrix mutation APIs remain |
 | Employee / Department (view-only) | 🟡 | `EmployeeController`, `DepartmentsController`; context says employee changes **only via import** — but `POST /employees`, `PUT /employees/{id}`, `PATCH /employees/{id}/status` and `DELETE /employees/{id}` still exist |
 | Performance dashboard | ✅ | Personal / Department / Branch + drill-down |
 | Drill-down traceability (score → ledger → result → transaction) | 🟡 | `GET /performance-dashboard/employees/{id}/ledger`, `/ledger-entries/{id}`, `/ledger-entries/{id}/transactions` (`docs/api/TRACEABILITY_CONTRACT.md`, 5/11/2026): results (raw × multiplier = points), risk penalties and appeal score entries, same scope as the dashboard, transaction codes unmasked. Unit-tested (`PerformanceLedgerTraceabilityTests`); not yet run on PostgreSQL or over HTTP. Lines are merged in memory (not paged in SQL) |
