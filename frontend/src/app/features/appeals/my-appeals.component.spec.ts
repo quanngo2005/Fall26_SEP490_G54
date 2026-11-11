@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AppealListItem } from '../../core/appeal.models';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -231,6 +231,57 @@ describe('MyAppealsComponent', () => {
     expect(fixture.nativeElement.querySelector('.alert-error')?.textContent).toContain(
       'không còn ở trạng thái',
     );
+  });
+
+  describe('opened by link (?appeal=)', () => {
+    const detail = (over: Partial<AppealListItem> = {}) => ({
+      success: true,
+      status: 200,
+      data: {
+        ...item(over),
+        reason: 'Lý do khiếu nại',
+        evidences: [],
+        scoreDisputeReason: null,
+        submittedAt: null,
+        workTypeName: null,
+        referrerEmployeeCode: null,
+        referrerEmployeeName: null,
+      },
+    });
+
+    it('opens the drawer of that appeal as soon as its detail arrives', async () => {
+      const id = item().id;
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([item()]);
+      http.expectOne(`${url}/${id}`).flush(detail());
+      fixture.detectChanges();
+      const drawer = fixture.nativeElement.querySelector('app-my-appeal-drawer');
+      expect(drawer?.textContent).toContain('Lý do khiếu nại');
+      expect(fixture.nativeElement.querySelector('tr.selected-row')).not.toBeNull();
+    });
+
+    it('still opens it when the appeal is not in the list on screen', async () => {
+      const id = 'aaaaaaaa-1111-2222-3333-444455556666';
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([item()]);
+      http.expectOne(`${url}/${id}`).flush(detail({ id }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-my-appeal-drawer')?.textContent).toContain(
+        'Lý do khiếu nại',
+      );
+    });
+
+    it('shows no drawer when the appeal cannot be loaded', async () => {
+      const id = item().id;
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([]);
+      http.expectOne(`${url}/${id}`).flush(null, { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-my-appeal-drawer')).toBeNull();
+    });
   });
 
   it('switches language live without changing the data', () => {
