@@ -316,7 +316,10 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
     ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
     ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
-    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('QA', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('MANAGER', 'NOTIFICATION_SEND', 'Dept'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All'),
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.

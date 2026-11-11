@@ -13,7 +13,7 @@ namespace G54.UnitTests;
 public sealed class TransactionImportsControllerTests
 {
     private static TransactionImportsController CreateController(StubService service) => new(
-        service, new StubWorkTransactionService(), Options.Create(new SystemParametersOptions()))
+        service, new StubWorkTransactionService(), Options.Create(new SystemParametersOptions()), new StubTemplateProvider())
     {
         ControllerContext = new ControllerContext
         {
@@ -61,6 +61,9 @@ public sealed class TransactionImportsControllerTests
         public Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
             Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default) =>
             throw new NotImplementedException();
+
+        public Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(Guid batchId, int page, int pageSize, CancellationToken ct = default) =>
+            throw new NotImplementedException();
     }
 
     private sealed class StubWorkTransactionService : IWorkTransactionService
@@ -74,6 +77,12 @@ public sealed class TransactionImportsControllerTests
         public Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
-        public Task ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
+            throw new NotImplementedException();
+    }
+
+    private sealed class StubTemplateProvider : ITransactionImportTemplateProvider
+    {
+        public byte[] GetTemplate() => throw new NotImplementedException();
     }
 }

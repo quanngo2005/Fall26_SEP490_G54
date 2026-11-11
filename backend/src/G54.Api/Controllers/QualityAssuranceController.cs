@@ -9,14 +9,17 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 /// <summary>
-/// QA quality control: flag an approved result, request rework, and re-verify the random 5% sample (BR-32).
-/// Contract: docs/api/QUALITY_ASSURANCE_CONTRACT.md. Errors are raised as AppException and mapped by GlobalExceptionHandler.
+/// QA quality control: flag an approved result, request rework, re-verify the random 5% sample (BR-32) and the QA dashboard (SCR-PRF-04).
+/// Contracts: docs/api/QUALITY_ASSURANCE_CONTRACT.md, docs/api/QA_DASHBOARD_CONTRACT.md. Errors are raised as AppException and mapped by GlobalExceptionHandler.
 /// </summary>
 [ApiController]
 [Authorize]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-public sealed class QualityAssuranceController(IQualityAssuranceService service, IQaQueueService queue) : ControllerBase
+public sealed class QualityAssuranceController(
+    IQualityAssuranceService service,
+    IQaQueueService queue,
+    IQaDashboardService dashboard) : ControllerBase
 {
     [HttpGet("qa-queue")]
     [HasPermission("quality_flag", "read", PermissionScopes.All)]
@@ -132,5 +135,44 @@ public sealed class QualityAssuranceController(IQualityAssuranceService service,
     {
         var result = await service.DecideSampleAsync(id, User.GetRequiredUserId(), dto, cancellationToken);
         return Ok(ApiResponse.Ok(result, "Đã ghi nhận kết quả kiểm tra QA.", HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>QA dashboard (SCR-PRF-04): KPI cards, banner, weekly matched rate, top discrepancy employees, reasons.</summary>
+    [HttpGet("qa-dashboard")]
+    [HasPermission("quality_flag", "read", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<QaDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<QaDashboardDto>>> GetDashboard(
+        [FromQuery] QaDashboardFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await dashboard.GetDashboardAsync(filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Paginated reconciliation list for the QA dashboard drill-down ("Xem đối soát").</summary>
+    [HttpGet("qa-dashboard/reconciliations")]
+    [HasPermission("quality_flag", "read", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<PagedResult<QaReconciliationItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<PagedResult<QaReconciliationItemDto>>>> GetReconciliations(
+        [FromQuery] QaReconciliationFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await dashboard.GetReconciliationsAsync(filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Dropdown options for the QA dashboard header (periods, departments, job positions).</summary>
+    [HttpGet("qa-dashboard/filters")]
+    [HasPermission("quality_flag", "read", PermissionScopes.All)]
+    [ProducesResponseType<ApiResponse<QaDashboardFilterOptionsDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<QaDashboardFilterOptionsDto>>> GetDashboardFilters(
+        CancellationToken cancellationToken)
+    {
+        var result = await dashboard.GetFilterOptionsAsync(cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

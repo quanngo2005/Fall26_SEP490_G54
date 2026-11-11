@@ -12,4 +12,5 @@ public sealed class ImportBatch
     public DateTimeOffset ImportedAt { get; set; }
 
     public ICollection<ImportedTransaction> Transactions { get; set; } = new List<ImportedTransaction>();
+    public ICollection<ImportBatchError> Errors { get; set; } = new List<ImportBatchError>();
 }

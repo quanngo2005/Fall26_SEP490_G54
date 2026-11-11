@@ -14,31 +14,98 @@ public sealed class TransactionImportService(IUnitOfWork uow, TimeProvider clock
     private static readonly string[] Headers =
         ["transaction_code", "employee_code", "product_code", "transaction_date", "amount", "denominator", "refer_employee_code"];
 
+    // MSG27 (SRS BR-29): the evaluation period of the transaction date is locked.
+    private const string PeriodLockedMessage =
+        "Kỳ đánh giá của ngày giao dịch đã bị khóa; mọi thay đổi phải thực hiện qua bút toán đảo (Reversal Entry) ở kỳ đang mở. " +
+        "/ The evaluation period of this transaction date is locked; changes require a Reversal Entry in the active period.";
+
+    private const string PeriodLockedCode = "PERIOD_LOCKED";
+    private const string ConflictingDuplicateCode = "CONFLICTING_DUPLICATE";
     private const int RequiredColumns = 5;
     private const int LookupChunk = 1000;
+    private const int MaxMessageLength = 500;
 
     public async Task<ImportBatchDto> ImportAsync(string fileName, Stream excel, Guid userId, CancellationToken ct = default)
     {
         var rows = ReadRows(excel);
+        var employees = await LoadEmployeesAsync(rows, ct);
+        var lockedPeriods = await LoadLockedPeriodsAsync(rows, ct);
+
+        // A concurrent import of the same codes can win the unique index between our read and our insert:
+        // reload what exists and classify the rows again, once, instead of failing the whole request.
+        for (var attempt = 0; ; attempt++)
+        {
+            var existing = await LoadExistingAsync(rows, ct);
+            var (batch, errors) = Build(fileName, userId, rows, employees, lockedPeriods, existing);
+            await uow.ImportBatches.AddAsync(batch, ct);
+            try
+            {
+                await uow.SaveChangesAsync(ct);
+                return ToDto(batch, errors);
+            }
+            catch (DbUpdateException ex) when (attempt == 0 && PostgresConflict.IsUniqueViolation(ex))
+            {
+                uow.ImportBatches.Remove(batch);
+            }
+        }
+    }
+
+    public async Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default)
+    {
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var result = await uow.ImportBatches.GetPagedAsync(page, pageSize, null, q => q.OrderByDescending(b => b.ImportedAt), ct);
+        return new PagedResult<ImportBatchDto>(result.Items.Select(b => ToDto(b, null)).ToList(), result.TotalCount, result.PageIndex, result.PageSize);
+    }
+
+    public async Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default)
+    {
+        var batch = await uow.ImportBatches.GetByIdAsync(id, ct) ?? throw new NotFoundException("Import batch not found.");
+        return ToDto(batch, null);
+    }
+
+    public async Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(
+        Guid batchId, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!await uow.ImportBatches.AnyAsync(b => b.Id == batchId, ct))
+            throw new NotFoundException("Import batch not found.");
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var query = uow.Repository<ImportBatchError>().Query().Where(e => e.ImportBatchId == batchId);
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(e => e.RowNumber).ThenBy(e => e.Code).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(e => new ImportRowErrorDto(e.RowNumber, e.Field, e.Code, e.Message))
+            .ToListAsync(ct);
+        return new PagedResult<ImportRowErrorDto>(items, total, page, pageSize);
+    }
+
+    public async Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
+        Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!await uow.ImportBatches.AnyAsync(b => b.Id == batchId, ct))
+            throw new NotFoundException("Import batch not found.");
+
+        var query = uow.ImportedTransactions.Query().Where(t => t.ImportBatchId == batchId);
+        if (!string.IsNullOrWhiteSpace(employeeCode)) query = query.Where(t => t.Employee.EmployeeCode == employeeCode.Trim());
+        if (!string.IsNullOrWhiteSpace(productCode)) query = query.Where(t => t.ProductCode == productCode.Trim());
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(t => t.TransactionCode).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(t => new ImportedTransactionDto(t.Id, t.TransactionCode, t.Employee.EmployeeCode, t.ProductCode,
+                t.TransactionDate, t.Amount, t.Denominator, t.ReferEmployeeCode))
+            .ToListAsync(ct);
+        return new PagedResult<ImportedTransactionDto>(items, total, page, pageSize);
+    }
+
+    // Row order: required/format and unknown employee, then locked period (BR-29), then duplicates (BR-08).
+    private (ImportBatch Batch, List<ImportRowErrorDto> Errors) Build(
+        string fileName, Guid userId, List<Row> rows, Dictionary<string, Guid> employees,
+        List<(DateOnly Start, DateOnly End)> lockedPeriods, Dictionary<string, ImportedTransaction> existing)
+    {
         var errors = new List<ImportRowErrorDto>();
-
-        var employeeCodes = rows.Select(r => r.EmployeeCode).Where(c => c.Length > 0).Distinct().ToList();
-        var employees = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        foreach (var chunk in employeeCodes.Chunk(LookupChunk))
-        {
-            var found = await uow.Employees.Query().Where(e => chunk.Contains(e.EmployeeCode))
-                .Select(e => new { e.EmployeeCode, e.Id }).ToListAsync(ct);
-            foreach (var e in found) employees[e.EmployeeCode] = e.Id;
-        }
-
-        var existing = new HashSet<string>();
-        foreach (var chunk in rows.Select(r => r.TransactionCode).Where(c => c.Length > 0).Distinct().Chunk(LookupChunk))
-        {
-            var found = await uow.ImportedTransactions.Query().Where(t => chunk.Contains(t.TransactionCode))
-                .Select(t => t.TransactionCode).ToListAsync(ct);
-            existing.UnionWith(found);
-        }
-
         var batch = new ImportBatch
         {
             Id = Guid.NewGuid(),
@@ -52,14 +119,24 @@ public sealed class TransactionImportService(IUnitOfWork uow, TimeProvider clock
         foreach (var row in rows)
         {
             var error = Validate(row, employees);
+            if (error is null && lockedPeriods.Any(p => p.Start <= row.Date!.Value && row.Date.Value <= p.End))
+                error = ("transaction_date", PeriodLockedCode, PeriodLockedMessage);
             if (error is not null)
             {
                 errors.Add(new ImportRowErrorDto(row.Number, error.Value.Field, error.Value.Code, error.Value.Message));
                 continue;
             }
-            if (existing.Contains(row.TransactionCode))
+            if (existing.TryGetValue(row.TransactionCode, out var current))
             {
-                duplicates++;
+                if (SameValues(current, row, employees[row.EmployeeCode]))
+                {
+                    duplicates++;
+                }
+                else
+                {
+                    errors.Add(new ImportRowErrorDto(row.Number, "transaction_code", ConflictingDuplicateCode,
+                        $"transaction_code '{row.TransactionCode}' was already imported with different values."));
+                }
                 continue;
             }
             if (!seen.Add(row.TransactionCode))
@@ -82,46 +159,67 @@ public sealed class TransactionImportService(IUnitOfWork uow, TimeProvider clock
             });
         }
 
+        foreach (var e in errors)
+        {
+            batch.Errors.Add(new ImportBatchError
+            {
+                Id = Guid.NewGuid(),
+                ImportBatchId = batch.Id,
+                RowNumber = e.Row,
+                Field = e.Field,
+                Code = e.Code,
+                Message = e.Message.Length > MaxMessageLength ? e.Message[..MaxMessageLength] : e.Message,
+            });
+        }
         batch.ImportedRows = batch.Transactions.Count;
         batch.DuplicateRows = duplicates;
         batch.ErrorRows = errors.Count;
-        await uow.ImportBatches.AddAsync(batch, ct);
-        await uow.SaveChangesAsync(ct);
-        return ToDto(batch, errors);
+        return (batch, errors);
     }
 
-    public async Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default)
+    private static bool SameValues(ImportedTransaction current, Row row, Guid employeeId) =>
+        current.EmployeeId == employeeId
+        && current.ProductCode == row.ProductCode
+        && current.TransactionDate == row.Date
+        && current.Amount == row.Amount
+        && current.Denominator == row.Denominator
+        && current.ReferEmployeeCode == row.ReferEmployeeCode;
+
+    private async Task<Dictionary<string, Guid>> LoadEmployeesAsync(List<Row> rows, CancellationToken ct)
     {
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-        var result = await uow.ImportBatches.GetPagedAsync(page, pageSize, null, q => q.OrderByDescending(b => b.ImportedAt), ct);
-        return new PagedResult<ImportBatchDto>(result.Items.Select(b => ToDto(b, null)).ToList(), result.TotalCount, result.PageIndex, result.PageSize);
+        var employees = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chunk in rows.Select(r => r.EmployeeCode).Where(c => c.Length > 0).Distinct().Chunk(LookupChunk))
+        {
+            var found = await uow.Employees.Query().Where(e => chunk.Contains(e.EmployeeCode))
+                .Select(e => new { e.EmployeeCode, e.Id }).ToListAsync(ct);
+            foreach (var e in found) employees[e.EmployeeCode] = e.Id;
+        }
+        return employees;
     }
 
-    public async Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default)
+    private async Task<Dictionary<string, ImportedTransaction>> LoadExistingAsync(List<Row> rows, CancellationToken ct)
     {
-        var batch = await uow.ImportBatches.GetByIdAsync(id, ct) ?? throw new NotFoundException("Import batch not found.");
-        return ToDto(batch, null);
+        var existing = new Dictionary<string, ImportedTransaction>();
+        foreach (var chunk in rows.Select(r => r.TransactionCode).Where(c => c.Length > 0).Distinct().Chunk(LookupChunk))
+        {
+            var found = await uow.ImportedTransactions.Query().AsNoTracking()
+                .Where(t => chunk.Contains(t.TransactionCode)).ToListAsync(ct);
+            foreach (var t in found) existing[t.TransactionCode] = t;
+        }
+        return existing;
     }
 
-    public async Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
-        Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default)
+    // BR-29: evaluation periods with status LOCKED or CLOSED reject new data (docs/api/PERIOD_LOCK_CONTRACT.md).
+    private async Task<List<(DateOnly Start, DateOnly End)>> LoadLockedPeriodsAsync(List<Row> rows, CancellationToken ct)
     {
-        if (!await uow.ImportBatches.AnyAsync(b => b.Id == batchId, ct))
-            throw new NotFoundException("Import batch not found.");
-
-        var query = uow.ImportedTransactions.Query().Where(t => t.ImportBatchId == batchId);
-        if (!string.IsNullOrWhiteSpace(employeeCode)) query = query.Where(t => t.Employee.EmployeeCode == employeeCode.Trim());
-        if (!string.IsNullOrWhiteSpace(productCode)) query = query.Where(t => t.ProductCode == productCode.Trim());
-
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-        var total = await query.CountAsync(ct);
-        var items = await query.OrderBy(t => t.TransactionCode).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(t => new ImportedTransactionDto(t.Id, t.TransactionCode, t.Employee.EmployeeCode, t.ProductCode,
-                t.TransactionDate, t.Amount, t.Denominator, t.ReferEmployeeCode))
-            .ToListAsync(ct);
-        return new PagedResult<ImportedTransactionDto>(items, total, page, pageSize);
+        var dates = rows.Where(r => r.Date is not null).Select(r => r.Date!.Value).ToList();
+        if (dates.Count == 0) return [];
+        var min = dates.Min();
+        var max = dates.Max();
+        var periods = await uow.EvaluationPeriods.Query().AsNoTracking()
+            .Where(p => (p.Status == PeriodStatus.Locked || p.Status == PeriodStatus.Closed) && p.StartDate <= max && p.EndDate >= min)
+            .Select(p => new { p.StartDate, p.EndDate }).ToListAsync(ct);
+        return periods.Select(p => (p.StartDate, p.EndDate)).ToList();
     }
 
     private static ImportBatchDto ToDto(ImportBatch b, List<ImportRowErrorDto>? errors) =>

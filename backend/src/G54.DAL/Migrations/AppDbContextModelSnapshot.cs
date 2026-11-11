@@ -1108,6 +1108,47 @@ namespace G54.DAL.Migrations
                     b.ToTable("import_batch", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatchError", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Field")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("field");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("message");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_number");
+
+                    b.HasKey("Id")
+                        .HasName("import_batch_error_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId", "RowNumber" }, "ix_import_batch_error_batch_row");
+
+                    b.ToTable("import_batch_error", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3688,6 +3729,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("RiskEvent");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.ImportBatchError", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("Errors")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_import_batch_error_batch");
+
+                    b.Navigation("ImportBatch");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ImportedTransaction", b =>
                 {
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
@@ -4562,6 +4615,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
                 {
+                    b.Navigation("Errors");
+
                     b.Navigation("Transactions");
                 });
 
