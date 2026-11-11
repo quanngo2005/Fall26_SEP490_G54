@@ -50,6 +50,20 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
         return Ok(ApiResponse.Ok(result, "Điều chỉnh target thành công.", HttpContext.TraceIdentifier));
     }
 
+    /// <summary>Mid-period change of an ACTIVE target's value (BR-15): freezes the current version and creates the next one.</summary>
+    [HttpPost("{id:guid}/revisions")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> Revise(
+        Guid id,
+        [FromBody] ReviseTargetAssignmentDto dto)
+    {
+        var result = await service.ReviseAsync(User.GetRequiredUserId(), id, dto);
+        return CreatedAtAction(nameof(GetById), new { id = result[0].Id }, Created(result, "Điều chỉnh target giữa kỳ thành công."));
+    }
+
     /// <summary>Splits an ACTIVE target across evaluation periods (by period).</summary>
     [HttpPost("{id:guid}/period-allocations")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status201Created)]

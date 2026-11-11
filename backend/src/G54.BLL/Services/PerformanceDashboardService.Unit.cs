@@ -40,9 +40,17 @@ public sealed partial class PerformanceDashboardService
             previousAverage = Mean(previousEvaluations.Values.Select(e => e.TotalScore));
         }
 
-        var contributions = await LoadKpiContributionsAsync(
+        var allContributions = await LoadKpiContributionsAsync(
             evaluations.Values.Select(e => e.Id).ToList(),
             cancellationToken);
+
+        // A mid-period target change (BR-15) can leave several contribution rows per employee and KPI (one per
+        // version/segment); the unit summary shows only the latest version per employee/KPI, never a sum or mean
+        // across segments.
+        var contributions = allContributions
+            .GroupBy(c => (c.EmployeeId, c.KpiDefinitionId))
+            .Select(g => g.OrderByDescending(c => c.TargetVersionSnapshot).First())
+            .ToList();
 
         return new UnitPerformanceDashboardDto(
             orgUnit,

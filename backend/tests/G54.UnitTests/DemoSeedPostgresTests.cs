@@ -331,24 +331,25 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
 
         Assert.Equal("20261110000000_GrantTransactionImportToManagersAndQa", migrations[^1]);
         Assert.Equal("20261109182557_AddImportBatchError", migrations[^2]);
-        Assert.Equal("20261105160000_AddRiskEventScreens", migrations[^3]);
-        Assert.Equal("20261105151226_AddSystemParameters", migrations[^4]);
-        Assert.Equal("20261105150000_FixInvalidateProgressUsesRawValue", migrations[^5]);
-        Assert.Equal("20261105094144_AddQaItemCode", migrations[^6]);
-        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^7]);
-        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^8]);
-        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^9]);
-        Assert.Equal("20261104153505_AddTransactionImport", migrations[^10]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^11]);
-        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^12]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^13]);
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^14]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^15]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^16]);
-        Assert.Equal("20261103112541_UpdateTargetChildrenSumTriggerBySplitDimension", migrations[^17]);
-        Assert.Equal("20261102134713_AddDataImportSupport", migrations[^18]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^19]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^20]);
+        Assert.Equal("20261108063514_AddTargetVersionEffectiveDates", migrations[^3]);
+        Assert.Equal("20261105160000_AddRiskEventScreens", migrations[^4]);
+        Assert.Equal("20261105151226_AddSystemParameters", migrations[^5]);
+        Assert.Equal("20261105150000_FixInvalidateProgressUsesRawValue", migrations[^6]);
+        Assert.Equal("20261105094144_AddQaItemCode", migrations[^7]);
+        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^8]);
+        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^9]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^10]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^11]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^12]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^13]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^14]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^15]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^16]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^17]);
+        Assert.Equal("20261103112541_UpdateTargetChildrenSumTriggerBySplitDimension", migrations[^18]);
+        Assert.Equal("20261102134713_AddDataImportSupport", migrations[^19]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^20]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^21]);
     }
 
     [PostgresFact]

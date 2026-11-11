@@ -94,7 +94,10 @@ public sealed partial class PerformanceDashboardService
             .ToListAsync(cancellationToken);
 
         var contributions = await LoadKpiContributionsAsync([evaluation.Id], cancellationToken);
-        var byKpi = contributions.ToLookup(c => c.KpiDefinitionId);
+        // A mid-period target change (BR-15) can leave several contribution rows for the same KPI (one per
+        // version/segment); this summary view shows only the latest version, ordered first so Take(1) / FirstOrDefault
+        // below pick it deterministically.
+        var byKpi = contributions.OrderByDescending(c => c.TargetVersionSnapshot).ToLookup(c => c.KpiDefinitionId);
 
         return EvaluationProfileTree.Build(items)
             .Select(root =>
@@ -155,7 +158,8 @@ public sealed partial class PerformanceDashboardService
                 c.ActualValue,
                 c.AchievementPercentRaw,
                 c.AchievementPercentCapped,
-                c.ComponentScore))
+                c.ComponentScore,
+                c.TargetVersionSnapshot))
             .ToListAsync(cancellationToken);
 
     private sealed record EvaluationRow(
@@ -180,5 +184,7 @@ public sealed partial class PerformanceDashboardService
         decimal? ActualValue,
         decimal? AchievementPercentRaw,
         decimal? AchievementPercentCapped,
-        decimal? ComponentScore);
+        decimal? ComponentScore,
+        /// <summary>Null-safe tiebreak so a mid-period change (BR-15, several rows per KPI) always surfaces the latest version here.</summary>
+        int? TargetVersionSnapshot);
 }
