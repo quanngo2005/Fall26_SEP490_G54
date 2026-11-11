@@ -1,0 +1,124 @@
+@let text = localization.departmentPerformance;
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">{{text.colEmployee}}</th>
+        @for (column of columns(); track column) {
+          <th scope="col" class="num">{{column}}</th>
+        }
+        <th scope="col" class="num">{{text.colTotal}} {{periodName()}}</th>
+        @if (compareName()) {
+          <th scope="col" class="center">{{text.colChangeVs}} {{compareName()}}</th>
+        }
+        <th scope="col" class="num">{{text.colOpenWork}}</th>
+        <th scope="col" class="num">{{text.overdue}}</th>
+        <th scope="col" class="num">{{text.colPendingReview}}</th>
+        <th scope="col">{{text.colStatus}}</th>
+        <th scope="col">
+          <span class="sr-only">{{text.view}}</span>
+        </th>
+      </tr>
+    </thead>
+    @for (section of sections(); track section.title) {
+      <tbody>
+        <tr class="position-row">
+          <th scope="rowgroup">
+            {{section.title}}
+            @if (section.position; as position) {
+              · {{position.employeeCount}} {{text.employeesUnit}}
+            }
+          </th>
+          @for (column of columns(); track column) {
+            <td class="num">
+              @if (weight(section.position, column); as w) {
+                <span class="chip mono">{{score(w, 0)}}%</span>
+              }
+            </td>
+          }
+          <td class="num mono strong">
+            {{text.averageShort}} {{score(section.position?.average ?? null)}}
+          </td>
+          @if (compareName()) {
+            <td class="center mono" [class]="tone(section.position?.changeFromPrevious ?? null)">
+              {{signed(section.position?.changeFromPrevious ?? null)}}
+            </td>
+          }
+          <td colspan="5"></td>
+        </tr>
+        @for (member of section.members; track member.id) {
+          @let disputed = member.evaluationStatus === 'DISPUTED';
+          <tr [class.is-disputed]="disputed">
+            <td>
+              <div class="who">
+                <span class="avatar" aria-hidden="true">{{initials(member.fullName)}}</span>
+                <span
+                  ><b>{{member.fullName}}</b
+                  ><small class="mono">{{member.employeeCode}}</small></span
+                >
+              </div>
+            </td>
+            @for (column of columns(); track column) {
+              <td class="num mono" [class.down]="isWeakest(member, column)">
+                {{score(groupScore(member, column))}}
+              </td>
+            }
+            <td class="num mono strong">{{score(member.performanceScore)}}</td>
+            @if (compareName()) {
+              <td class="change">
+                @if (disputed) {
+                  <span class="badge disputed">{{text.disputed}}</span>
+                } @else if (member.changeFromPrevious !== null) {
+                  <span class="diverge" [class]="tone(member.changeFromPrevious)">
+                    <span class="half neg">
+                      @if (member.changeFromPrevious < 0) {
+                        <i class="mono">{{signed(member.changeFromPrevious)}}</i>
+                        <span
+                          class="bar"
+                          [style.width.%]="changeWidth(member.changeFromPrevious)"
+                        ></span>
+                      }
+                    </span>
+                    <span class="axis" aria-hidden="true"></span>
+                    <span class="half pos">
+                      @if (member.changeFromPrevious >= 0) {
+                        <span
+                          class="bar"
+                          [style.width.%]="changeWidth(member.changeFromPrevious)"
+                        ></span>
+                        <i class="mono">{{signed(member.changeFromPrevious)}}</i>
+                      }
+                    </span>
+                  </span>
+                } @else {
+                  <span class="muted center-text">—</span>
+                }
+              </td>
+            }
+            <td class="num mono">{{member.openWorkCount}}</td>
+            <td class="num mono" [class.warn]="member.overdueWorkCount > 0">
+              {{member.overdueWorkCount}}
+            </td>
+            <td class="num mono" [class.link-blue]="member.pendingReviewCount > 0">
+              {{member.pendingReviewCount}}
+            </td>
+            <td>
+              <span class="badge" [class.leave]="member.status !== 'ACTIVE'">{{statusLabel(member.status)}}</span>
+            </td>
+            <td class="num">
+              <a class="view" [routerLink]="['/employee-detail', member.employeeCode]"
+                >{{text.view}} ›</a
+              >
+            </td>
+          </tr>
+        }
+      </tbody>
+    } @empty {
+      <tbody>
+        <tr>
+          <td [attr.colspan]="columns().length + 8" class="empty">{{text.noMembers}}</td>
+        </tr>
+      </tbody>
+    }
+  </table>
+</div>

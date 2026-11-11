@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -7,13 +8,15 @@ using G54.BLL.Dtos.Department;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
 public sealed partial class DepartmentService(
     AppDbContext db,
     IPermissionService permissions,
-    TimeProvider time) : IDepartmentService
+    TimeProvider time,
+    IOptions<SystemParametersOptions> parameters) : IDepartmentService
 {
     private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
@@ -119,39 +122,56 @@ public sealed partial class DepartmentService(
         Guid accountId,
         Guid departmentId,
         Guid? periodId,
+        string? compare = null,
         CancellationToken cancellationToken = default)
     {
+        var mode = ParseCompare(compare);
         var org = await LoadOrgAsync(cancellationToken);
         await EnsureAccessibleAsync(accountId, departmentId, org, cancellationToken);
 
         var today = Today();
         var periods = await LoadSelectablePeriodsAsync(cancellationToken);
         var period = await ResolvePeriodAsync(periodId, periods, today, cancellationToken);
+        var comparePeriod = ResolveComparePeriod(period, periods, mode);
         var subtree = org.Subtree(departmentId);
 
         var detail = await BuildDetailAsync(org, departmentId, cancellationToken);
-        var metrics = await BuildMetricsAsync(subtree, today, cancellationToken);
-        var (works, workMix) = await BuildWorkAsync(subtree, today, cancellationToken);
-        var operational = await BuildOperationalAsync(subtree, works, period, cancellationToken);
-        var performance = await BuildPerformanceAsync(departmentId, subtree, period, periods, cancellationToken);
+        var metrics = await BuildMetricsAsync(subtree, cancellationToken);
+        var (works, workMix) = await BuildWorkAsync(subtree, cancellationToken);
+        var operational = await BuildOperationalAsync(subtree, works, period, metrics.PendingReviewCount, cancellationToken);
+        var snapshot = await LoadSnapshotAsync(subtree, period, comparePeriod, cancellationToken);
+        var performance = await BuildPerformanceAsync(
+            departmentId, subtree, period, comparePeriod, periods, snapshot, cancellationToken);
+        var childUnits = BuildChildUnits(org, departmentId, snapshot);
+        var overdueByEmployee = works
+            .Where(w => IsOverdue(w, today))
+            .GroupBy(w => w.AssigneeEmployeeId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var (declined, compared) = CountDeclined(snapshot, comparePeriod is not null);
 
         return new DepartmentOverviewDto(
             detail,
             period is null ? null : ToDto(period),
+            comparePeriod is null ? null : ToDto(comparePeriod),
             periods.Select(ToDto).ToList(),
-            metrics with { OpenWorkCount = works.Count, AttentionWorkCount = works.Count(w => IsAttention(w, today)) },
+            metrics with
+            {
+                OpenWorkCount = works.Count,
+                AttentionWorkCount = works.Count(w => IsAttention(w, today)),
+                DeclinedEmployeeCount = declined,
+                ComparedEmployeeCount = compared,
+                DeclinedChildUnitCount = comparePeriod is null || childUnits.Count == 0
+                    ? null
+                    : childUnits.Count(c => c.ChangeFromPrevious < 0),
+            },
             performance,
             workMix,
             operational,
+            period is null ? [] : BuildAttention(snapshot, overdueByEmployee),
+            childUnits,
             time.GetUtcNow());
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage(
-        "Performance",
-        "CA1862:Use the 'StringComparison' method overloads to perform case-insensitive string comparisons",
-        Justification = "EF Core must translate this predicate to SQL; Npgsql cannot translate StringComparison overloads.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL lower(), using database collation rather than CLR culture.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToLower() to SQL lower().")]
     public async Task<PagedResult<DepartmentMemberDto>> GetMembersAsync(
         Guid accountId,
         Guid departmentId,
@@ -160,13 +180,28 @@ public sealed partial class DepartmentService(
     {
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var members = await LoadMemberRowsAsync(accountId, departmentId, filter, cancellationToken);
+        var items = await BuildMembersAsync(members, (page - 1) * pageSize, pageSize, cancellationToken);
+        return new PagedResult<DepartmentMemberDto>(items, members.Rows.Count, page, pageSize);
+    }
+
+    /// <summary>The filtered subtree employees, the resolved periods and the sort; every filter is validated here.</summary>
+    private async Task<MemberSelection> LoadMemberRowsAsync(
+        Guid accountId,
+        Guid departmentId,
+        DepartmentMemberFilterDto filter,
+        CancellationToken cancellationToken)
+    {
         var status = ParseEnum<EmployeeStatus>(filter.Status, "status");
+        var mode = ParseCompare(filter.Compare);
+        var sort = ParseEnum<DepartmentMemberSort>(filter.Sort, "sort");
 
         var org = await LoadOrgAsync(cancellationToken);
         await EnsureAccessibleAsync(accountId, departmentId, org, cancellationToken);
 
         var periods = await LoadSelectablePeriodsAsync(cancellationToken);
         var period = await ResolvePeriodAsync(filter.PeriodId, periods, Today(), cancellationToken);
+        var comparePeriod = ResolveComparePeriod(period, periods, mode);
         var subtree = org.Subtree(departmentId);
 
         var query = db.Employees.AsNoTracking().Where(e => subtree.Contains(e.DepartmentId));
@@ -182,18 +217,10 @@ public sealed partial class DepartmentService(
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim().ToLowerInvariant();
-            query = query.Where(e =>
-                e.EmployeeCode.ToLower().Contains(keyword)
-                || e.FullName.ToLower().Contains(keyword)
-                || e.Email.ToLower().Contains(keyword));
+            query = WhereKeyword(query, filter.Keyword.Trim().ToLowerInvariant());
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
         var rows = await query
-            .OrderBy(e => e.EmployeeCode)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
             .Select(e => new MemberRow(
                 e.Id,
                 e.EmployeeCode,
@@ -205,40 +232,135 @@ public sealed partial class DepartmentService(
                 e.Status))
             .ToListAsync(cancellationToken);
 
+        return new MemberSelection(rows, period, comparePeriod, sort);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1862:Use the 'StringComparison' method overloads to perform case-insensitive string comparisons",
+        Justification = "EF Core must translate this predicate to SQL; Npgsql cannot translate StringComparison overloads.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL lower(), using database collation rather than CLR culture.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToLower() to SQL lower().")]
+    private static IQueryable<Employee> WhereKeyword(IQueryable<Employee> query, string keyword) =>
+        query.Where(e =>
+            e.EmployeeCode.ToLower().Contains(keyword)
+            || e.FullName.ToLower().Contains(keyword)
+            || e.Email.ToLower().Contains(keyword));
+
+    /// <summary>
+    /// Sorts the rows (with a sort: grouped by job position title, the sort inside each position), takes the requested
+    /// slice and adds scores, profile group scores and work counts to it.
+    /// </summary>
+    private async Task<List<DepartmentMemberDto>> BuildMembersAsync(
+        MemberSelection selection,
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var (rows, period, comparePeriod, sort) = selection;
         var ids = rows.Select(r => r.Id).ToList();
-        var openCounts = await db.Works.AsNoTracking()
+        var current = period is null ? [] : await LoadScoredAsync(period.Id, ids, cancellationToken);
+        var previous = comparePeriod is null ? [] : await LoadScoredAsync(comparePeriod.Id, ids, cancellationToken);
+
+        decimal? Score(Guid id) => current.TryGetValue(id, out var row) ? Round(row.Score) : null;
+        decimal? PreviousScore(Guid id) => previous.TryGetValue(id, out var row) ? Round(row.Score) : null;
+
+        // Without a sort the list keeps its original order (employee code) for the clients that predate SCR-PRF-02.
+        var byPosition = sort is null
+            ? rows.OrderBy(_ => 0)
+            : rows.OrderBy(r => r.JobPositionTitle, StringComparer.Ordinal);
+        var ordered = sort switch
+        {
+            DepartmentMemberSort.TotalAsc => byPosition
+                .ThenBy(r => Score(r.Id) is null)
+                .ThenBy(r => Score(r.Id)),
+            DepartmentMemberSort.Code or null => byPosition,
+            _ => byPosition
+                .ThenBy(r => Change(Score(r.Id), PreviousScore(r.Id)) is null)
+                .ThenByDescending(r => Change(Score(r.Id), PreviousScore(r.Id))),
+        };
+        var pageRows = ordered.ThenBy(r => r.EmployeeCode, StringComparer.Ordinal).Skip(skip).Take(take).ToList();
+
+        var pageIds = pageRows.Select(r => r.Id).ToList();
+        var today = Today();
+        var openWorks = await db.Works.AsNoTracking()
             .Where(IsOpenWork)
-            .Where(w => ids.Contains(w.AssigneeEmployeeId))
-            .GroupBy(w => w.AssigneeEmployeeId)
+            .Where(w => pageIds.Contains(w.AssigneeEmployeeId))
+            .Select(w => new { w.AssigneeEmployeeId, w.Status, w.PlannedEndDate })
+            .ToListAsync(cancellationToken);
+        var pendingReviews = await db.ResultSubmissions.AsNoTracking()
+            .Where(s => (s.Status == SubmissionStatus.Submitted || s.Status == SubmissionStatus.UnderReview)
+                && pageIds.Contains(s.Work.AssigneeEmployeeId))
+            .GroupBy(s => s.Work.AssigneeEmployeeId)
             .Select(g => new { EmployeeId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.EmployeeId, x => x.Count, cancellationToken);
 
-        var scores = new Dictionary<Guid, decimal>();
+        var statuses = new Dictionary<Guid, PerformanceEvaluationStatus>();
+        var groupScores = new Dictionary<Guid, IReadOnlyList<GroupScore>>();
+        var positionRoots = new Dictionary<Guid, IReadOnlyList<ProfileNode>>();
         if (period is not null)
         {
-            var evaluations = await db.PerformanceEvaluations.AsNoTracking()
-                .Where(pe => pe.EvaluationPeriodId == period.Id && ids.Contains(pe.EmployeeId))
-                .Where(PerformanceEvaluationExtensions.HasRankableScore)
-                .Select(pe => new { pe.EmployeeId, Score = pe.TotalScore!.Value })
-                .ToListAsync(cancellationToken);
-            scores = evaluations.ToDictionary(x => x.EmployeeId, x => Round(x.Score));
+            statuses = (await db.PerformanceEvaluations.AsNoTracking()
+                    .Where(pe => pe.EvaluationPeriodId == period.Id && pageIds.Contains(pe.EmployeeId))
+                    .Select(pe => new { pe.EmployeeId, pe.Status })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(x => x.EmployeeId)
+                .ToDictionary(g => g.Key, g => g.First().Status);
+
+            var pageScored = pageRows.Where(r => current.ContainsKey(r.Id)).Select(r => current[r.Id]).ToList();
+            var positionProfiles = await LoadPositionProfilesAsync(
+                pageRows.Select(r => r.JobPositionId).Distinct().ToList(), period, cancellationToken);
+            var trees = await LoadProfileTreesAsync(
+                pageScored.Select(s => s.ProfileId).Concat(positionProfiles.Values), cancellationToken);
+            groupScores = await LoadGroupScoresAsync(pageScored, trees, cancellationToken);
+            positionRoots = positionProfiles.ToDictionary(x => x.Key, x => trees.GetValueOrDefault(x.Value) ?? []);
         }
 
-        var items = rows
-            .Select(r => new DepartmentMemberDto(
-                r.Id,
-                r.EmployeeCode,
-                r.FullName,
-                r.DepartmentId,
-                r.DepartmentName,
-                r.JobPositionId,
-                r.JobPositionTitle,
-                r.Status.ToEnumString(),
-                openCounts.GetValueOrDefault(r.Id),
-                scores.TryGetValue(r.Id, out var score) ? score : null))
-            .ToList();
+        var weakScore = parameters.Value.PerfWeakGroupScore;
+        return pageRows
+            .Select(r =>
+            {
+                var memberScores = groupScores.GetValueOrDefault(r.Id, []);
+                var groups = positionRoots.GetValueOrDefault(r.JobPositionId, [])
+                    .Select(root =>
+                    {
+                        var name = EvaluationProfileTree.NodeName(root);
+                        return new DepartmentMemberGroupDto(
+                            root.Item.Id,
+                            name,
+                            root.Item.DisplayOrder,
+                            root.Item.WeightPercent,
+                            memberScores.FirstOrDefault(gs => string.Equals(gs.Name, name, StringComparison.Ordinal))?.Score);
+                    })
+                    .ToList();
+                var weakest = groups
+                    .Where(g => g.Score.HasValue)
+                    .OrderBy(g => g.Score)
+                    .FirstOrDefault();
+                var memberWorks = openWorks.Where(w => w.AssigneeEmployeeId == r.Id).ToList();
+                var score = Score(r.Id);
+                var previousScore = PreviousScore(r.Id);
 
-        return new PagedResult<DepartmentMemberDto>(items, totalCount, page, pageSize);
+                return new DepartmentMemberDto(
+                    r.Id,
+                    r.EmployeeCode,
+                    r.FullName,
+                    r.DepartmentId,
+                    r.DepartmentName,
+                    r.JobPositionId,
+                    r.JobPositionTitle,
+                    r.Status.ToEnumString(),
+                    memberWorks.Count,
+                    score,
+                    statuses.TryGetValue(r.Id, out var status) ? status.ToEnumString() : null,
+                    previousScore,
+                    Change(score, previousScore),
+                    groups,
+                    weakest is not null && weakest.Score < weakScore ? weakest.ProfileItemId : null,
+                    memberWorks.Count(w => IsOverdue(w.Status, w.PlannedEndDate, today)),
+                    pendingReviews.GetValueOrDefault(r.Id));
+            })
+            .ToList();
     }
 
     // ----- Detail ---------------------------------------------------------------------------
@@ -344,10 +466,8 @@ public sealed partial class DepartmentService(
 
     private async Task<DepartmentMetricsDto> BuildMetricsAsync(
         List<Guid> subtree,
-        DateOnly today,
         CancellationToken cancellationToken)
     {
-        _ = today;
         var byStatus = await db.Employees.AsNoTracking()
             .Where(e => subtree.Contains(e.DepartmentId))
             .GroupBy(e => e.Status)
@@ -368,14 +488,13 @@ public sealed partial class DepartmentService(
 
     private async Task<(List<OpenWorkRow> Works, List<DepartmentWorkMixDto> Mix)> BuildWorkAsync(
         List<Guid> subtree,
-        DateOnly today,
         CancellationToken cancellationToken)
     {
-        _ = today;
         var works = await db.Works.AsNoTracking()
             .Where(IsOpenWork)
             .Where(w => subtree.Contains(w.AssigneeEmployee.DepartmentId))
             .Select(w => new OpenWorkRow(
+                w.AssigneeEmployeeId,
                 w.Status,
                 w.PlannedEndDate,
                 w.WorkTypeId,
@@ -398,6 +517,7 @@ public sealed partial class DepartmentService(
         List<Guid> subtree,
         List<OpenWorkRow> works,
         EvaluationPeriod? period,
+        int pendingReview,
         CancellationToken cancellationToken)
     {
         var today = Today();
@@ -415,66 +535,68 @@ public sealed partial class DepartmentService(
                 .CountAsync(cancellationToken);
         }
 
+        // In progress excludes overdue work, so completed / in progress / waiting / overdue are disjoint.
         return new DepartmentOperationalDto(
             works.Count(w => w.Status == WorkStatus.New),
-            works.Count(w => w.Status is WorkStatus.InProgress or WorkStatus.HandedOver or WorkStatus.Overdue),
+            works.Count(w => (w.Status is WorkStatus.InProgress or WorkStatus.HandedOver) && !IsOverdue(w, today)),
             works.Count(w => IsOverdue(w, today)),
             null,
-            completed);
+            completed,
+            pendingReview);
     }
 
     private async Task<DepartmentPerformanceDto> BuildPerformanceAsync(
         Guid departmentId,
         List<Guid> subtree,
         EvaluationPeriod? period,
+        EvaluationPeriod? comparePeriod,
         List<EvaluationPeriod> periods,
+        ScoreSnapshot snapshot,
         CancellationToken cancellationToken)
     {
         if (period is null)
         {
-            return new DepartmentPerformanceDto(null, null, null, 0, []);
+            return new DepartmentPerformanceDto(null, null, null, null, 0, [], [], [], []);
         }
 
-        var (average, count) = await AverageScoreAsync(period.Id, subtree, cancellationToken);
+        var average = Mean(snapshot.Current.Values.Select(s => s.Score));
+        var previousAverage = Mean(snapshot.Previous.Values);
 
-        decimal? change = null;
-        if (average.HasValue)
-        {
-            var previous = periods
-                .Where(p => p.PeriodType == period.PeriodType && p.EndDate < period.StartDate)
-                .OrderByDescending(p => p.EndDate)
-                .FirstOrDefault();
-            if (previous is not null)
-            {
-                var (previousAverage, _) = await AverageScoreAsync(previous.Id, subtree, cancellationToken);
-                change = previousAverage.HasValue ? Round(average.Value - previousAverage.Value) : null;
-            }
-        }
+        var kpis = await LoadKpiRowsAsync(departmentId, subtree, period, includeCampaign: true, cancellationToken);
+        var previousAchievement = comparePeriod is null
+            ? []
+            : (await LoadKpiRowsAsync(departmentId, subtree, comparePeriod, includeCampaign: false, cancellationToken))
+                .ToDictionary(k => k.KpiDefinitionId, k => k.AchievementPercent);
 
-        var kpis = await BuildKpisAsync(departmentId, subtree, period, cancellationToken);
-        return new DepartmentPerformanceDto(average, null, change, count, kpis);
+        return new DepartmentPerformanceDto(
+            average,
+            previousAverage,
+            null,
+            Change(average, previousAverage),
+            snapshot.Current.Count,
+            kpis.Select(k => new DepartmentKpiPerformanceDto(
+                k.KpiDefinitionId,
+                k.Code,
+                k.Name,
+                k.Unit,
+                k.Direction.ToEnumString(),
+                k.TargetValue,
+                k.ActualValue,
+                k.AchievementPercent)).ToList(),
+            await BuildTrendAsync(period, periods, snapshot, cancellationToken),
+            BuildKpiGroups(kpis, previousAchievement, snapshot),
+            BuildPositions(snapshot));
     }
 
-    private async Task<(decimal? Average, int Count)> AverageScoreAsync(
-        Guid periodId,
-        List<Guid> subtree,
-        CancellationToken cancellationToken)
-    {
-        var scores = await db.PerformanceEvaluations.AsNoTracking()
-            .Where(pe => pe.EvaluationPeriodId == periodId
-                && pe.Employee.Status != EmployeeStatus.Terminated
-                && subtree.Contains(pe.Employee.DepartmentId))
-            .Where(PerformanceEvaluationExtensions.HasRankableScore)
-            .Select(pe => pe.TotalScore!.Value)
-            .ToListAsync(cancellationToken);
-
-        return scores.Count == 0 ? (null, 0) : (Round(scores.Average()), scores.Count);
-    }
-
-    private async Task<List<DepartmentKpiPerformanceDto>> BuildKpisAsync(
+    /// <summary>
+    /// One row per KPI with an ACTIVE target on this node and period (highest version wins), its actual over the
+    /// subtree and, when asked, the part of a SUM actual that came from campaign work (BR-26).
+    /// </summary>
+    private async Task<List<KpiRow>> LoadKpiRowsAsync(
         Guid departmentId,
         List<Guid> subtree,
         EvaluationPeriod period,
+        bool includeCampaign,
         CancellationToken cancellationToken)
     {
         var assignments = await db.TargetAssignments.AsNoTracking()
@@ -517,22 +639,67 @@ public sealed partial class DepartmentService(
             .ToListAsync(cancellationToken);
 
         var byKpi = progress.ToLookup(p => p.KpiDefinitionId);
+        var campaign = includeCampaign
+            ? await LoadCampaignActualsAsync(
+                latest.Where(a => a.AggregationType == KpiAggregationType.Sum).Select(a => a.KpiDefinitionId).ToList(),
+                subtree,
+                period,
+                cancellationToken)
+            : [];
 
         return latest
             .Select(a =>
             {
                 var actual = AggregateActual(a, byKpi[a.KpiDefinitionId].ToList());
-                return new DepartmentKpiPerformanceDto(
+                decimal? campaignActual = includeCampaign && actual.HasValue && a.AggregationType == KpiAggregationType.Sum
+                    ? Round(campaign.GetValueOrDefault(a.KpiDefinitionId))
+                    : null;
+                return new KpiRow(
                     a.KpiDefinitionId,
                     a.Code,
                     a.Name,
                     a.Unit,
-                    a.Direction.ToEnumString(),
+                    a.Direction,
                     a.TargetValue,
                     actual,
-                    Achievement(a.Direction, a.TargetValue, actual, a.MaxAchievementPercent));
+                    Achievement(a.Direction, a.TargetValue, actual, a.MaxAchievementPercent),
+                    campaignActual);
             })
             .ToList();
+    }
+
+    /// <summary>
+    /// Sum of the raw values that VALID verified results of campaign work added to the progress rows counted in the
+    /// KPI actual (same KPI, period and subtree filters), by KPI. A verified result reaches its work through the
+    /// verification's submission or through the matched transaction.
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> LoadCampaignActualsAsync(
+        List<Guid> kpiIds,
+        List<Guid> subtree,
+        EvaluationPeriod period,
+        CancellationToken cancellationToken)
+    {
+        if (kpiIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await db.WorkResultItems.AsNoTracking()
+            .Where(i => i.VerifiedWorkResult.Status == VerifiedResultStatus.Valid
+                && i.ActualProgress.Status == ActualProgressStatus.Valid
+                && kpiIds.Contains(i.ActualProgress.TargetAssignment.KpiDefinitionId)
+                && i.ActualProgress.ProgressDate >= period.StartDate
+                && i.ActualProgress.ProgressDate <= period.EndDate
+                && i.ActualProgress.TargetAssignment.Employee != null
+                && i.ActualProgress.TargetAssignment.Employee.Status != EmployeeStatus.Terminated
+                && subtree.Contains(i.ActualProgress.TargetAssignment.Employee.DepartmentId)
+                && ((i.VerifiedWorkResult.Verification != null
+                        && i.VerifiedWorkResult.Verification.ResultSubmission.Work.BusinessCampaignId != null)
+                    || (i.VerifiedWorkResult.WorkTransaction != null
+                        && i.VerifiedWorkResult.WorkTransaction.Work.BusinessCampaignId != null)))
+            .GroupBy(i => i.ActualProgress.TargetAssignment.KpiDefinitionId)
+            .Select(g => new { KpiDefinitionId = g.Key, Value = g.Sum(i => i.RawValue) })
+            .ToDictionaryAsync(x => x.KpiDefinitionId, x => x.Value, cancellationToken);
     }
 
     private static decimal? AggregateActual(TargetRow target, List<ProgressRow> rows)
@@ -732,9 +899,11 @@ public sealed partial class DepartmentService(
 
     private DateOnly Today() => time.GetBusinessToday();
 
-    private static bool IsOverdue(OpenWorkRow work, DateOnly today) =>
-        work.Status == WorkStatus.Overdue
-        || (work.PlannedEndDate.HasValue && work.PlannedEndDate.Value < today);
+    private static bool IsOverdue(OpenWorkRow work, DateOnly today) => IsOverdue(work.Status, work.PlannedEndDate, today);
+
+    private static bool IsOverdue(WorkStatus status, DateOnly? plannedEndDate, DateOnly today) =>
+        status == WorkStatus.Overdue
+        || (plannedEndDate.HasValue && plannedEndDate.Value < today);
 
     private static bool IsAttention(OpenWorkRow work, DateOnly today) =>
         work.Status == WorkStatus.Rejected || IsOverdue(work, today);
@@ -763,6 +932,7 @@ public sealed partial class DepartmentService(
         EmployeeStatus Status);
 
     private sealed record OpenWorkRow(
+        Guid AssigneeEmployeeId,
         WorkStatus Status,
         DateOnly? PlannedEndDate,
         Guid? WorkTypeId,
@@ -781,4 +951,21 @@ public sealed partial class DepartmentService(
         decimal? MaxAchievementPercent);
 
     private sealed record ProgressRow(Guid KpiDefinitionId, decimal Value, decimal? Denominator);
+
+    private sealed record KpiRow(
+        Guid KpiDefinitionId,
+        string Code,
+        string Name,
+        string Unit,
+        KpiDirection Direction,
+        decimal TargetValue,
+        decimal? ActualValue,
+        decimal? AchievementPercent,
+        decimal? CampaignActualValue);
+
+    private sealed record MemberSelection(
+        List<MemberRow> Rows,
+        EvaluationPeriod? Period,
+        EvaluationPeriod? ComparePeriod,
+        DepartmentMemberSort? Sort);
 }

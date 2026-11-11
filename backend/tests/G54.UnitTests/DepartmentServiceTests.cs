@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Department;
@@ -6,6 +7,7 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -63,7 +65,8 @@ public sealed class DepartmentServiceTests
         var service = new DepartmentService(
             world.Db,
             new FakePermissions(world.AdminAccount, "All", resource: "evaluation", action: "read"),
-            new FixedTime(Now));
+            new FixedTime(Now),
+            Options.Create(new SystemParametersOptions()));
 
         // evaluation:read used to open the department data; the dedicated organization:read permission replaced it.
         await Assert.ThrowsAsync<ForbiddenException>(() =>
@@ -301,7 +304,7 @@ public sealed class DepartmentServiceTests
         Assert.Equal(2, overview.Metrics.AttentionWorkCount); // overdue + rejected
         Assert.Equal(1, overview.Metrics.PendingReviewCount);
         Assert.Equal(1, overview.Operational.Waiting);
-        Assert.Equal(2, overview.Operational.InProgress);
+        Assert.Equal(1, overview.Operational.InProgress); // the overdue in-progress work counts as overdue only
         Assert.Equal(1, overview.Operational.Overdue);
         Assert.Equal(1, overview.Operational.CompletedInPeriod);
         Assert.Null(overview.Operational.Escalated);
@@ -376,7 +379,8 @@ public sealed class DepartmentServiceTests
         var world = await World.CreateAsync();
         var service = world.ServiceFor(world.AdminAccount, "All");
 
-        var all = await service.GetMembersAsync(world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto());
+        var all = await service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Sort = "CODE" });
         Assert.Equal(["E001", "E002", "E003", "M001"], all.Items.Select(m => m.EmployeeCode)); // terminated hidden
         var first = all.Items.Single(m => m.EmployeeCode == "E001");
         Assert.Equal("ACTIVE", first.Status);
@@ -394,7 +398,7 @@ public sealed class DepartmentServiceTests
         Assert.Equal(3, search.TotalCount);
 
         var paged = await service.GetMembersAsync(
-            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Page = 2, PageSize = 3 });
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Page = 2, PageSize = 3, Sort = "CODE" });
         Assert.Equal(["M001"], paged.Items.Select(m => m.EmployeeCode));
         Assert.Equal(4, paged.TotalCount);
     }
@@ -409,6 +413,301 @@ public sealed class DepartmentServiceTests
             () => service.GetMembersAsync(world.ManagerAccount, world.Branch.Id, new DepartmentMemberFilterDto()));
         await Assert.ThrowsAsync<ForbiddenException>(
             () => service.GetOverviewAsync(world.ManagerAccount, world.Branch.Id, null));
+    }
+
+    // ----- SCR-PRF-02 / SCR-PRF-03 ------------------------------------------------------------
+
+    [Fact]
+    public void ComparePeriodFollowsTheMode()
+    {
+        EvaluationPeriod P(string code, PeriodType type, DateOnly start, DateOnly end) =>
+            new() { Id = Guid.NewGuid(), Code = code, Name = code, PeriodType = type, StartDate = start, EndDate = end };
+        var oct = P("2026-10", PeriodType.Month, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        var sep = P("2026-09", PeriodType.Month, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
+        var aug = P("2026-08", PeriodType.Month, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31));
+        var lastOct = P("2025-10", PeriodType.Month, new DateOnly(2025, 10, 1), new DateOnly(2025, 10, 31));
+        var q3 = P("2026-Q3", PeriodType.Quarter, new DateOnly(2026, 7, 1), new DateOnly(2026, 9, 30));
+        var all = new[] { oct, sep, aug, lastOct, q3 };
+
+        Assert.Same(sep, DepartmentService.ResolveComparePeriod(oct, all, PerformanceCompareMode.Previous));
+        Assert.Same(lastOct, DepartmentService.ResolveComparePeriod(oct, all, PerformanceCompareMode.SameLastYear));
+        Assert.Null(DepartmentService.ResolveComparePeriod(q3, all, PerformanceCompareMode.Previous));
+        Assert.Null(DepartmentService.ResolveComparePeriod(null, all, PerformanceCompareMode.Previous));
+    }
+
+    [Fact]
+    public async Task OverviewReturnsComparePeriodPreviousAverageAndDeclineCounts()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var overview = await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null);
+
+        Assert.Equal("2026-09", overview.ComparePeriod?.Code);
+        Assert.Equal(75m, overview.Performance.PreviousAverage);
+        Assert.Equal(5m, overview.Performance.ChangeFromPrevious);
+        Assert.Equal(2, overview.Metrics.ComparedEmployeeCount); // E001 70 -> 70, E002 80 -> 90
+        Assert.Equal(0, overview.Metrics.DeclinedEmployeeCount);
+        Assert.Equal(0, overview.Metrics.DeclinedChildUnitCount); // child B-D-T went from 75 to 80
+    }
+
+    [Fact]
+    public async Task SameLastYearWithoutSuchPeriodNullsEveryComparison()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var overview = await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null, "same_last_year");
+
+        Assert.Null(overview.ComparePeriod);
+        Assert.Null(overview.Performance.PreviousAverage);
+        Assert.Null(overview.Performance.ChangeFromPrevious);
+        Assert.Null(overview.Metrics.DeclinedEmployeeCount);
+        Assert.Null(overview.Metrics.ComparedEmployeeCount);
+        Assert.All(overview.Performance.Positions, p => Assert.Null(p.PreviousAverage));
+        Assert.All(overview.AttentionMembers, m => Assert.Null(m.ChangeFromPrevious));
+    }
+
+    [Fact]
+    public async Task InvalidCompareOrSortIsAValidationError()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null, "LAST_WEEK"));
+        await Assert.ThrowsAsync<ValidationException>(() => service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Compare = "x" }));
+        await Assert.ThrowsAsync<ValidationException>(() => service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Sort = "NAME" }));
+    }
+
+    [Fact]
+    public async Task OperationalPartsAreDisjointAndCarryPendingReview()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var overview = await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null);
+
+        Assert.Equal(1, overview.Operational.InProgress); // W3 only: W2 is in progress but overdue
+        Assert.Equal(1, overview.Operational.Overdue);
+        Assert.Equal(1, overview.Operational.PendingReview);
+        Assert.Equal(overview.Metrics.PendingReviewCount, overview.Operational.PendingReview);
+    }
+
+    [Fact]
+    public async Task TrendCoversTheConfiguredNumberOfPeriodsOfTheSameType()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var trend = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.Trend;
+        Assert.Equal(["2026-09", "2026-10"], trend.Select(t => t.PeriodName));
+        Assert.Equal([75m, 80m], trend.Select(t => t.Average));
+
+        world.Parameters.PerfTrendPeriodCount = 1;
+        trend = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.Trend;
+        Assert.Equal(["2026-10"], trend.Select(t => t.PeriodName));
+    }
+
+    [Fact]
+    public async Task KpiGroupsFollowTheProfileRootsWithWeightsPreviousAchievementAndCampaignPart()
+    {
+        var world = await World.CreateAsync();
+        await world.SeedProfileGroupsAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var groups = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.KpiGroups;
+
+        Assert.Equal(["Business", "Service", null], groups.Select(g => g.Name));
+        var business = groups[0];
+        Assert.Equal(60m, Assert.Single(business.Weights).WeightPercent);
+        Assert.Equal("Sales", business.Weights[0].JobPositionTitle);
+        var sum = Assert.Single(business.Kpis);
+        Assert.Equal("KPI_SUM", sum.Code);
+        Assert.Equal(150m, sum.ActualValue);
+        Assert.Equal(40m, sum.CampaignActualValue); // campaign result on E001's progress; BAU = 110
+        Assert.Null(sum.PreviousAchievementPercent); // no target in the compare month
+
+        var avg = Assert.Single(groups[1].Kpis);
+        Assert.Null(avg.CampaignActualValue); // only defined for SUM KPIs
+        Assert.Equal(["KPI_NONE"], groups[2].Kpis.Select(k => k.Code));
+        Assert.Empty(groups[2].Weights);
+    }
+
+    [Fact]
+    public async Task PositionsAverageGroupScoresAndFlagWeakGroups()
+    {
+        var world = await World.CreateAsync();
+        await world.SeedProfileGroupsAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var position = Assert.Single((await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.Positions);
+
+        Assert.Equal("Sales", position.JobPositionTitle);
+        Assert.Equal(4, position.EmployeeCount);
+        Assert.Equal(2, position.EvaluatedEmployeeCount);
+        Assert.Equal(80m, position.Average);
+        Assert.Equal(75m, position.PreviousAverage);
+        Assert.Equal(5m, position.ChangeFromPrevious);
+        Assert.Equal(["Business", "Service"], position.Groups.Select(g => g.Name));
+        Assert.Equal([85m, 80m], position.Groups.Select(g => g.Average)); // (80+90)/2, (60+100)/2
+        Assert.Equal([false, true], position.Groups.Select(g => g.IsWeak)); // threshold 85
+
+        world.Parameters.PerfWeakGroupScore = 90m;
+        position = Assert.Single((await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.Positions);
+        Assert.Equal([true, true], position.Groups.Select(g => g.IsWeak));
+    }
+
+    [Fact]
+    public async Task AttentionListsScoredEmployeesWithReasonsAndRespectsTheThresholds()
+    {
+        var world = await World.CreateAsync();
+        await world.SeedProfileGroupsAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var attention = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).AttentionMembers;
+
+        var e1 = Assert.Single(attention);
+        Assert.Equal("E001", e1.EmployeeCode);
+        Assert.Equal(["LOW_SCORE", "OVERDUE_WORK"], e1.Reasons); // 70 < 80 and W2 is overdue
+        Assert.Equal(0m, e1.ChangeFromPrevious);
+        Assert.Equal(1, e1.OverdueWorkCount);
+        Assert.Equal(new DepartmentWeakestGroupDto("Service", 60m), e1.WeakestGroup);
+
+        world.Parameters.PerfAttentionLowScore = 95m;
+        attention = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).AttentionMembers;
+        Assert.Equal(["E001", "E002"], attention.Select(a => a.EmployeeCode)); // two reasons first
+
+        world.Parameters.PerfAttentionTopN = 1;
+        attention = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).AttentionMembers;
+        Assert.Equal(["E001"], attention.Select(a => a.EmployeeCode));
+    }
+
+    [Fact]
+    public async Task DisputedEvaluationIsLeftOutOfAveragesCountsAndAttention()
+    {
+        var world = await World.CreateAsync();
+        var e2 = await world.Db.Employees.SingleAsync(e => e.EmployeeCode == "E002");
+        var month = await world.Db.EvaluationPeriods.SingleAsync(p => p.Code == "2026-10");
+        var evaluation = await world.Db.PerformanceEvaluations.SingleAsync(pe => pe.EmployeeId == e2.Id && pe.EvaluationPeriodId == month.Id);
+        evaluation.Status = PerformanceEvaluationStatus.Disputed;
+        await world.Db.SaveChangesAsync();
+        world.Parameters.PerfAttentionLowScore = 95m;
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var overview = await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null);
+
+        Assert.Equal(70m, overview.Performance.Average);
+        Assert.Equal(1, overview.Performance.EvaluatedEmployeeCount);
+        Assert.Equal(1, overview.Metrics.ComparedEmployeeCount);
+        Assert.DoesNotContain(overview.AttentionMembers, m => m.EmployeeCode == "E002");
+
+        var member = (await service.GetMembersAsync(world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto()))
+            .Items.Single(m => m.EmployeeCode == "E002");
+        Assert.Equal("DISPUTED", member.EvaluationStatus);
+        Assert.Null(member.PerformanceScore);
+        Assert.Null(member.ChangeFromPrevious);
+    }
+
+    [Fact]
+    public async Task BranchOverviewListsChildUnitsWithTheirChange()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var overview = await service.GetOverviewAsync(world.AdminAccount, world.Branch.Id, null);
+
+        var unit = Assert.Single(overview.ChildUnits);
+        Assert.Equal("B-D", unit.Code);
+        Assert.Equal("DEPARTMENT", unit.LevelType);
+        Assert.Equal(4, unit.EmployeeCount);
+        Assert.Equal(2, unit.EvaluatedEmployeeCount);
+        Assert.Equal(80m, unit.Average);
+        Assert.Equal(75m, unit.PreviousAverage);
+        Assert.Equal(5m, unit.ChangeFromPrevious);
+        Assert.Equal(0, overview.Metrics.DeclinedChildUnitCount);
+
+        var team = await service.GetOverviewAsync(world.AdminAccount, world.Team.Id, null);
+        Assert.Empty(team.ChildUnits);
+        Assert.Null(team.Metrics.DeclinedChildUnitCount);
+    }
+
+    [Fact]
+    public async Task MembersCarryGroupsChangeWorkCountsAndSortInsidePositions()
+    {
+        var world = await World.CreateAsync();
+        await world.SeedProfileGroupsAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var members = (await service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Sort = "change_desc" })).Items;
+
+        // CHANGE_DESC: E002 +10, E001 0, then rows without a change by code.
+        Assert.Equal(["E002", "E001", "E003", "M001"], members.Select(m => m.EmployeeCode));
+        var e1 = members.Single(m => m.EmployeeCode == "E001");
+        Assert.Equal("CALCULATED", e1.EvaluationStatus);
+        Assert.Equal(70m, e1.PreviousPerformanceScore);
+        Assert.Equal(0m, e1.ChangeFromPrevious);
+        Assert.Equal(["Business", "Service"], e1.Groups.Select(g => g.Name));
+        Assert.Equal([80m, 60m], e1.Groups.Select(g => g.Score));
+        Assert.Equal([60m, 40m], e1.Groups.Select(g => g.WeightPercent));
+        Assert.Equal(e1.Groups[1].ProfileItemId, e1.WeakestProfileItemId);
+        Assert.Equal(1, e1.OverdueWorkCount);
+        Assert.Equal(0, e1.PendingReviewCount);
+
+        var e2 = members.Single(m => m.EmployeeCode == "E002");
+        Assert.Null(e2.WeakestProfileItemId); // lowest group 90 is not below 85
+        Assert.Equal(1, e2.PendingReviewCount);
+        var e3 = members.Single(m => m.EmployeeCode == "E003");
+        Assert.Equal("DRAFT", e3.EvaluationStatus);
+        Assert.All(e3.Groups, g => Assert.Null(g.Score));
+
+        var byTotal = await service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Sort = "TOTAL_ASC" });
+        Assert.Equal(["E001", "E002", "E003", "M001"], byTotal.Items.Select(m => m.EmployeeCode));
+    }
+
+    [Fact]
+    public async Task MembersAreGroupedByJobPositionTitle()
+    {
+        var world = await World.CreateAsync();
+        var teller = world.AddPosition("TELLER", "Teller");
+        world.AddEmployee("A001", world.Department.Id, teller.Id, null, EmployeeStatus.Active);
+        await world.Db.SaveChangesAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var members = await service.GetMembersAsync(
+            world.AdminAccount, world.Department.Id, new DepartmentMemberFilterDto { Sort = "CODE" });
+
+        Assert.Equal(["E001", "E002", "E003", "M001", "A001"], members.Items.Select(m => m.EmployeeCode)); // Sales < Teller
+    }
+
+    [Fact]
+    public async Task ExportBuildsAWorkbookWithTheDocumentedSheets()
+    {
+        var world = await World.CreateAsync();
+        await world.SeedProfileGroupsAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var file = await service.ExportOverviewAsync(world.AdminAccount, world.Branch.Id, null);
+
+        Assert.Equal("hieu-suat-B-2026-10.xlsx", file.FileName);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content));
+        Assert.Equal(["Tong quan", "KPI", "Can bo", "Don vi"], workbook.Worksheets.Select(w => w.Name));
+        Assert.Equal("Mã cán bộ", workbook.Worksheet("Can bo").Cell(1, 1).GetString());
+        Assert.Equal(5, workbook.Worksheet("Can bo").RowsUsed().Count()); // header + 4 members
+    }
+
+    [Fact]
+    public async Task ExportOutsideScopeIsForbidden()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.ManagerAccount, "Department");
+
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.ExportOverviewAsync(world.ManagerAccount, world.Branch.Id, null));
     }
 
     // ----- Test world -----------------------------------------------------------------------
@@ -431,6 +730,7 @@ public sealed class DepartmentServiceTests
         public EvaluationPeriod DayPeriod { get; private set; } = null!;
         public Guid AdminAccount { get; } = Guid.NewGuid();
         public Guid ManagerAccount { get; private set; }
+        public SystemParametersOptions Parameters { get; } = new();
 
         public static async Task<World> CreateAsync(bool withPeriods = true, DateTimeOffset? clock = null)
         {
@@ -443,10 +743,10 @@ public sealed class DepartmentServiceTests
         }
 
         public DepartmentService ServiceFor(Guid accountId, string scope) =>
-            new(Db, new FakePermissions(accountId, scope), new FixedTime(Clock));
+            new(Db, new FakePermissions(accountId, scope), new FixedTime(Clock), Options.Create(Parameters));
 
         public DepartmentService ServiceWithoutPermission(Guid accountId) =>
-            new(Db, new FakePermissions(accountId, null), new FixedTime(Clock));
+            new(Db, new FakePermissions(accountId, null), new FixedTime(Clock), Options.Create(Parameters));
 
         public async Task<Department> AddDepartmentAsync(string code, Guid? parentId, DepartmentLevelType level)
         {
@@ -489,6 +789,110 @@ public sealed class DepartmentServiceTests
             Db.Employees.Add(employee);
             return employee;
         }
+
+        /// <summary>
+        /// Profile roots Business (60%: KPI_SUM) and Service (40%: KPI_AVG), stored KPI scores for the month
+        /// (E001: 80 / 60, E002: 90 / 100) and one campaign result of 40 on E001's KPI_SUM progress.
+        /// </summary>
+        public async Task SeedProfileGroupsAsync()
+        {
+            var profile = await Db.EvaluationProfiles.SingleAsync();
+            var sum = await Db.KpiDefinitions.SingleAsync(k => k.Code == "KPI_SUM");
+            var avg = await Db.KpiDefinitions.SingleAsync(k => k.Code == "KPI_AVG");
+            var business = ProfileItem(profile, null, null, "Business", 60m, 1);
+            var service = ProfileItem(profile, null, null, "Service", 40m, 2);
+            Db.EvaluationProfileItems.AddRange(
+                business,
+                service,
+                ProfileItem(profile, business.Id, sum.Id, null, 100m, 1),
+                ProfileItem(profile, service.Id, avg.Id, null, 100m, 1));
+
+            var month = await Db.EvaluationPeriods.SingleAsync(p => p.Code == "2026-10");
+            foreach (var (code, sumScore, avgScore) in new[] { ("E001", 80m, 60m), ("E002", 90m, 100m) })
+            {
+                var employee = await Db.Employees.SingleAsync(e => e.EmployeeCode == code);
+                var evaluation = await Db.PerformanceEvaluations.SingleAsync(
+                    pe => pe.EmployeeId == employee.Id && pe.EvaluationPeriodId == month.Id);
+                foreach (var (kpi, score) in new[] { (sum, sumScore), (avg, avgScore) })
+                {
+                    var progress = await Db.ActualProgresses.FirstAsync(a =>
+                        a.TargetAssignment.EmployeeId == employee.Id && a.TargetAssignment.KpiDefinitionId == kpi.Id
+                        && a.Status == ActualProgressStatus.Valid && a.ProgressDate >= month.StartDate);
+                    Db.PerformanceContributions.Add(new PerformanceContribution
+                    {
+                        Id = Guid.NewGuid(),
+                        PerformanceEvaluationId = evaluation.Id,
+                        EmployeeId = employee.Id,
+                        EvaluationPeriodId = month.Id,
+                        ActualProgressId = progress.Id,
+                        ComponentScore = score,
+                        UpdatedAt = Clock,
+                    });
+                }
+            }
+
+            var e1 = await Db.Employees.SingleAsync(e => e.EmployeeCode == "E001");
+            var e1Sum = await Db.ActualProgresses.SingleAsync(a =>
+                a.TargetAssignment.EmployeeId == e1.Id && a.TargetAssignment.KpiDefinitionId == sum.Id
+                && a.ProgressDate == new DateOnly(2026, 10, 5));
+            var campaignWork = Work("CW1", e1.Id, WorkStatus.Done, null, null);
+            campaignWork.BusinessCampaignId = Guid.NewGuid();
+            var submission = new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = campaignWork.Id,
+                SubmitterEmployeeId = e1.Id,
+                SubmissionNo = 1,
+                SubmittedAt = Clock,
+                UpdatedAt = Clock,
+                Status = SubmissionStatus.Approved,
+            };
+            var verification = new Verification
+            {
+                Id = Guid.NewGuid(),
+                ResultSubmissionId = submission.Id,
+                VerifierEmployeeId = e1.Id,
+                RoundNo = 1,
+                UpdatedAt = Clock,
+                Decision = VerificationDecision.Approved,
+            };
+            var verified = new VerifiedWorkResult
+            {
+                Id = Guid.NewGuid(),
+                VerificationId = verification.Id,
+                VerifiedAt = Clock,
+                UpdatedAt = Clock,
+                Status = VerifiedResultStatus.Valid,
+            };
+            Db.Works.Add(campaignWork);
+            Db.ResultSubmissions.Add(submission);
+            Db.Verifications.Add(verification);
+            Db.VerifiedWorkResults.Add(verified);
+            Db.WorkResultItems.Add(new WorkResultItem
+            {
+                Id = Guid.NewGuid(),
+                VerifiedWorkResultId = verified.Id,
+                ActualProgressId = e1Sum.Id,
+                EmployeeId = e1.Id,
+                Value = 40m,
+                RawValue = 40m,
+                UpdatedAt = Clock,
+            });
+            await Db.SaveChangesAsync();
+        }
+
+        private EvaluationProfileItem ProfileItem(
+            EvaluationProfile profile, Guid? parentId, Guid? kpiId, string? name, decimal weight, int order) => new()
+            {
+                Id = Guid.NewGuid(),
+                EvaluationProfileId = profile.Id,
+                ParentItemId = parentId,
+                KpiDefinitionId = kpiId,
+                Name = name,
+                WeightPercent = weight,
+                DisplayOrder = order,
+                UpdatedAt = Clock,
+            };
 
         private async Task SeedAsync(bool withPeriods)
         {

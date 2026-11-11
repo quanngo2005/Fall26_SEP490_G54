@@ -1,0 +1,71 @@
+@let text = localization.departmentPerformance;
+<section class="card" id="kpi-groups" aria-labelledby="kpi-groups-title">
+  <div class="card-head">
+    <h2 id="kpi-groups-title">{{text.kpiGroupsTitle}}</h2>
+  </div>
+  @if (groups().length) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">{{text.colKpi}}</th>
+            <th scope="col" class="num">{{text.colTarget}}</th>
+            <th scope="col" class="num">{{text.colActual}}</th>
+            @if (showCampaign()) {
+              <th scope="col" class="num">{{text.colCampaign}}</th>
+            }
+            <th scope="col">{{text.colAchievement}}</th>
+            @if (compareName()) {
+              <th scope="col" class="num">± {{compareName()}}</th>
+            }
+          </tr>
+        </thead>
+        @for (group of groups(); track group.name; let i = $index) {
+          <tbody>
+            <tr class="group-row">
+              <th scope="rowgroup" [attr.colspan]="showCampaign() ? 4 : 3">
+                <span class="swatch" [attr.data-index]="i % 3" aria-hidden="true"></span>
+                {{group.name ?? text.otherGroup}}
+              </th>
+              <td [attr.colspan]="compareName() ? 2 : 1" class="weights">{{weights(group)}}</td>
+            </tr>
+            @for (kpi of group.kpis; track kpi.kpiDefinitionId) {
+              <tr>
+                <td class="kpi-name">{{kpi.name}}</td>
+                <td class="num mono muted">{{target(kpi)}}</td>
+                <td class="num mono strong">{{value(kpi.actualValue, kpi.unit)}}</td>
+                @if (showCampaign()) {
+                  <td class="num mono">{{value(kpi.campaignActualValue, kpi.unit)}}</td>
+                }
+                <td>
+                  <div class="achievement">
+                    <span class="track" aria-hidden="true">
+                      <span
+                        class="fill"
+                        [class.below]="
+                          kpi.achievementPercent !== null && kpi.achievementPercent < 100
+                        "
+                        [style.width.%]="width(kpi.achievementPercent)"
+                      ></span>
+                      <span class="marker" [style.left.%]="marker()"></span>
+                    </span>
+                    <strong
+                      class="mono"
+                      [class.down]="kpi.achievementPercent !== null && kpi.achievementPercent < 100"
+                      >{{percent(kpi.achievementPercent)}}</strong
+                    >
+                  </div>
+                </td>
+                @if (compareName()) {
+                  <td class="num mono" [class]="tone(kpi)">{{change(kpi)}}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        }
+      </table>
+    </div>
+  } @else {
+    <p class="empty">{{text.noKpis}}</p>
+  }
+</section>

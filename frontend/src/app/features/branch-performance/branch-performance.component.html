@@ -1,0 +1,162 @@
+@let shared = localization.departmentPerformance;
+@let text = localization.branchPerformance;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && overview()) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">{{text.breadcrumb}}</p>
+          @if (overview(); as data) {
+            <h1>{{data.department.name}}</h1>
+            <p class="subline">
+              {{data.childUnits.length}} {{text.departmentsUnit}} ·
+              {{data.metrics.employeeCount}} {{shared.employeesUnit}} · {{text.director}}
+              {{data.department.manager?.fullName ?? '—'}}
+            </p>
+          } @else {
+            <h1>{{text.title}}</h1>
+          }
+        </div>
+        <div class="filters">
+          @if (branches().length > 1) {
+            <select
+              class="select"
+              [attr.aria-label]="text.selectBranch"
+              [(ngModel)]="branchId"
+              (ngModelChange)="changeBranch()"
+            >
+              @for (branch of branches(); track branch.id) {
+                <option [value]="branch.id">{{branch.code}} · {{branch.name}}</option>
+              }
+            </select>
+          }
+          @if (overview(); as data) {
+            <select
+              class="select"
+              [attr.aria-label]="shared.period"
+              [(ngModel)]="periodId"
+              (ngModelChange)="refresh()"
+            >
+              @for (period of data.availablePeriods; track period.id) {
+                <option [value]="period.id">{{period.name}}</option>
+              }
+            </select>
+            <select
+              class="select"
+              [attr.aria-label]="shared.compare"
+              [(ngModel)]="compare"
+              (ngModelChange)="refresh()"
+            >
+              @for (mode of compareModes; track mode) {
+                <option [value]="mode">{{shared.compare}}: {{compareLabel(mode)}}</option>
+              }
+            </select>
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="exporting()"
+              (click)="exportExcel(data)"
+            >
+              {{exporting() ? shared.exporting : shared.exportExcel}}
+            </button>
+          }
+        </div>
+      </div>
+      @if (exportFailed()) {
+        <p class="inline-error" role="alert">{{shared.exportError}}</p>
+      }
+      @if (loading() && !overview()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{shared.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{shared.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{shared.retry}}
+          </button>
+        </div>
+      } @else if (overview(); as data) {
+        @if (!data.comparePeriod) {
+          <p class="note">{{shared.noComparePeriod}}</p>
+        }
+        <section class="metrics" [attr.aria-label]="shared.summary">
+          <app-perf-metric-card
+            [label]="shared.averagePerformance"
+            [value]="score(data.performance.average)"
+            [delta]="delta(data.performance.changeFromPrevious)"
+            [deltaTone]="tone(data.performance.changeFromPrevious)"
+          />
+          <app-perf-metric-card
+            [label]="shared.kpiOnPlan"
+            [value]="ratio(kpiCount().onPlan, kpiCount().total)"
+            [valueTone]="kpiCount().onPlan < kpiCount().total ? 'down' : null"
+            [clickable]="true"
+            (activate)="scrollTo('kpi-groups')"
+          />
+          <app-perf-metric-card
+            [label]="text.declinedUnits"
+            [value]="ratio(data.metrics.declinedChildUnitCount, data.childUnits.length)"
+            [valueTone]="data.metrics.declinedChildUnitCount ? 'down' : null"
+            [clickable]="true"
+            (activate)="scrollTo('child-units')"
+          />
+          <app-perf-metric-card
+            [label]="text.slowCampaigns"
+            [value]="
+              ratio(campaigns()?.metrics?.slowCampaignCount, campaigns()?.campaigns?.totalCount)
+            "
+            [valueTone]="campaigns()?.metrics?.slowCampaignCount ? 'down' : null"
+            [clickable]="true"
+            (activate)="open('/campaigns')"
+          />
+        </section>
+        <div class="grid">
+          <app-perf-child-units
+            [units]="data.childUnits"
+            [periodName]="data.period?.name ?? null"
+            [periodId]="data.period?.id ?? null"
+            [compareName]="compareName()"
+            [compare]="compare"
+          />
+          <app-perf-evaluation-period
+            [periods]="periods()"
+            [failed]="periodsFailed()"
+            (retry)="loadPeriods()"
+          />
+          <app-perf-campaign-pace
+            [campaigns]="campaigns()?.campaigns?.items ?? []"
+            [failed]="campaignsFailed()"
+            (retry)="loadCampaigns()"
+          />
+          <app-perf-kpi-below-plan
+            [groups]="data.performance.kpiGroups"
+            [compareName]="compareName()"
+            (viewAll)="scrollTo('kpi-groups')"
+          />
+        </div>
+        <h2 class="divider">
+          <span>{{shared.detail}}</span>
+        </h2>
+        <div class="grid">
+          <app-perf-kpi-group-table
+            [groups]="data.performance.kpiGroups"
+            [compareName]="compareName()"
+            [showCampaign]="true"
+          />
+          <app-perf-trend-chart [points]="data.performance.trend" [title]="text.trendTitle" />
+        </div>
+      } @else {
+        <div class="state-card">
+          <p>{{text.noBranch}}</p>
+        </div>
+      }
+    </main>
+  </div>
+</div>
