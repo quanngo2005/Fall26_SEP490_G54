@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -78,11 +79,12 @@ public sealed partial class KpiDefinitionService(
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(kpi =>
-                kpi.Code.Contains(keyword) ||
-                kpi.Name.Contains(keyword) ||
-                (kpi.Description != null && kpi.Description.Contains(keyword)));
+                EF.Functions.ILike(kpi.Code, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(kpi.Name, pattern, LikePattern.Escape) ||
+                (kpi.Description != null && EF.Functions.ILike(kpi.Description, pattern, LikePattern.Escape)));
         }
 
         if (status.HasValue)
