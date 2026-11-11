@@ -227,6 +227,17 @@ public sealed class EvaluationScopeTests
     }
 
     [Fact]
+    public async Task RejectDepartmentCalibration_DeptManagerForOtherDepartment_ThrowsForbidden()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, Grant("finalize", PermissionScopes.Dept));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            service.RejectDepartmentCalibrationAsync(s.DeptBId, new RejectCalibrationRequestDto(Guid.NewGuid(), "Cần hiệu chuẩn lại"), s.ManagerAAccount.Id));
+    }
+
+    [Fact]
     public async Task GetDepartmentCalibration_DeptManagerForOtherDepartment_ThrowsForbidden()
     {
         using var context = CreateContext();

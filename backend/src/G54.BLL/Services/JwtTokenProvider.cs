@@ -26,6 +26,7 @@ public sealed class JwtTokenProvider(IConfiguration configuration)
         TimeSpan lifetime)
     {
         var tokenId = Guid.NewGuid().ToString();
+        var issuedAtMilliseconds = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, accountId.ToString()),
@@ -33,6 +34,7 @@ public sealed class JwtTokenProvider(IConfiguration configuration)
             new(JwtRegisteredClaimNames.Email, email),
             new("name", fullName),
             new(TokenTypeClaim, "access"),
+            new("issued_at_ms", issuedAtMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
         claims.AddRange(roles.Select(role => new Claim("role", role)));
         claims.AddRange(permissions.Select(permission => new Claim("scope", permission)));

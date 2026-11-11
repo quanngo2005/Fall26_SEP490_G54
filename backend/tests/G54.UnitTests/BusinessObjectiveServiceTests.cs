@@ -167,26 +167,7 @@ public sealed class BusinessObjectiveServiceTests
             () => service.GetObjectivesAsync(world.CallerAccount.Id, new BusinessObjectiveFilterDto { Status = "9" }));
     }
 
-    [Fact]
-    public async Task List_KeywordMatchesCodeOrName()
-    {
-        using var db = CreateDb();
-        var world = await CreateWorldAsync(db);
-        var byName = NewObjective("X1");
-        byName.Name = "Deposit growth";
-        db.BusinessObjectives.AddRange(byName, NewObjective("DEP-2"), NewObjective("OTHER"));
-        await db.SaveChangesAsync();
-
-        var service = ServiceFor(db, Grant("Branch"));
-
-        // The in-memory provider matches case-sensitively, so the keywords use the stored casing.
-        var byCode = await service.GetObjectivesAsync(world.CallerAccount.Id, new BusinessObjectiveFilterDto { Keyword = " DEP" });
-        var byNameText = await service.GetObjectivesAsync(world.CallerAccount.Id, new BusinessObjectiveFilterDto { Keyword = "Deposit" });
-
-        Assert.Equal("DEP-2", Assert.Single(byCode).Code);
-        Assert.Equal("X1", Assert.Single(byNameText).Code);
-    }
-
+    // The keyword filter uses PostgreSQL ILike; it is covered against a real database in ObjectiveHttpTests (UC37_02).
     [Fact]
     public async Task List_DeptScope_ReadsEveryNonCancelledObjective_IncludingOnesWithoutATargetInTheCallersDepartment()
     {

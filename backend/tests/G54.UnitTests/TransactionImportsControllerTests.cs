@@ -14,8 +14,6 @@ namespace G54.UnitTests;
 
 public sealed class TransactionImportsControllerTests
 {
-    private static TransactionImportsController CreateController(StubService service) => new(
-        service, new StubWorkTransactionService(), Options.Create(new SystemParametersOptions()), new StubTemplateProvider())
     private static readonly Guid UserId = Guid.NewGuid();
 
     private static FormFile MakeXlsxFile(string fileName = "transactions.xlsx", int length = 8)
@@ -34,17 +32,16 @@ public sealed class TransactionImportsControllerTests
         workService ?? new StubWorkTransactionService(),
         Options.Create(options ?? new SystemParametersOptions()),
         templateProvider ?? new StubTemplateProvider())
-    {
-        ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext { TraceIdentifier = "trace-1" },
-            HttpContext = new DefaultHttpContext
+            ControllerContext = new ControllerContext
             {
-                TraceIdentifier = "trace-1",
-                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", UserId.ToString())], "test")),
+                HttpContext = new DefaultHttpContext
+                {
+                    TraceIdentifier = "trace-1",
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", UserId.ToString())], "test")),
+                },
             },
-        },
-    };
+        };
 
     [Fact]
     public void GetTemplate_ReturnsFileContentResultWithTemplate()
@@ -114,6 +111,27 @@ public sealed class TransactionImportsControllerTests
         var envelope = Assert.IsType<ApiResponse>(bad.Value);
         Assert.False(envelope.Success);
         Assert.Equal(ErrorCodes.ImportInvalidFile, envelope.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Import_Returns201WithAnEnvelopeThatAgreesWithTheHttpStatus()
+    {
+        var batch = new ImportBatchDto(
+            Guid.NewGuid(), "tx.xlsx", "COMPLETED", 10, 9, 1, 0, null, DateTimeOffset.UnixEpoch, Guid.NewGuid());
+        var service = new StubService { Imported = batch };
+        var file = new FormFile(new MemoryStream([1, 2, 3]), 0, 3, "file", "tx.xlsx");
+
+        var controller = CreateController(service);
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())], "test"));
+
+        var result = await controller.Import(file, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedResult>(result.Result);
+        Assert.Equal(201, created.StatusCode);
+        var envelope = Assert.IsType<ApiResponse<ImportBatchDto>>(created.Value);
+        Assert.Equal(201, envelope.Status);
+        Assert.True(envelope.Success);
+        Assert.Equal(1, envelope.Data!.Reconcile!.Matched);
     }
 
     [Fact]
@@ -210,21 +228,20 @@ public sealed class TransactionImportsControllerTests
     private sealed class StubService : ITransactionImportService
     {
         public PagedResult<ImportBatchDto> Page { get; set; } = null!;
-        public ImportBatchDto BatchToImport { get; set; } = null!;
+        public ImportBatchDto? BatchToImport { get; set; }
+        public ImportBatchDto? Imported { get; set; }
         public ImportBatchDto BatchToGet { get; set; } = null!;
         public PagedResult<ImportRowErrorDto> ErrorsPage { get; set; } = null!;
         public PagedResult<ImportedTransactionDto> TransactionsPage { get; set; } = null!;
 
         public int RequestedPage { get; private set; }
-
         public int RequestedPageSize { get; private set; }
         public Guid RequestedBatchId { get; private set; }
         public string? RequestedEmployeeCode { get; private set; }
         public string? RequestedProductCode { get; private set; }
 
         public Task<ImportBatchDto> ImportAsync(string fileName, Stream excel, Guid userId, CancellationToken ct = default) =>
-            throw new NotImplementedException();
-            Task.FromResult(BatchToImport);
+            Task.FromResult(BatchToImport ?? Imported ?? throw new NotImplementedException());
 
         public Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default)
         {
@@ -233,7 +250,6 @@ public sealed class TransactionImportsControllerTests
             return Task.FromResult(Page);
         }
 
-        public Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default)
         {
             RequestedBatchId = id;
@@ -241,8 +257,6 @@ public sealed class TransactionImportsControllerTests
         }
 
         public Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
-            Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default) =>
-            throw new NotImplementedException();
             Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default)
         {
             RequestedBatchId = batchId;
@@ -251,8 +265,6 @@ public sealed class TransactionImportsControllerTests
             return Task.FromResult(TransactionsPage);
         }
 
-        public Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(Guid batchId, int page, int pageSize, CancellationToken ct = default) =>
-            throw new NotImplementedException();
         public Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(Guid batchId, int page, int pageSize, CancellationToken ct = default)
         {
             RequestedBatchId = batchId;
@@ -262,7 +274,7 @@ public sealed class TransactionImportsControllerTests
 
     private sealed class StubWorkTransactionService : IWorkTransactionService
     {
-        public ReconcileSummaryDto ReconcileSummary { get; set; } = new(0, 0, 0);
+        public ReconcileSummaryDto ReconcileSummary { get; set; } = new(1, 0, 0);
 
         public Task<WorkTransactionsDto> ListAsync(Guid workId, Guid userId, CancellationToken ct = default) =>
             throw new NotImplementedException();
@@ -274,13 +286,11 @@ public sealed class TransactionImportsControllerTests
             throw new NotImplementedException();
 
         public Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
-            throw new NotImplementedException();
             Task.FromResult(ReconcileSummary);
     }
 
     private sealed class StubTemplateProvider : ITransactionImportTemplateProvider
     {
-        public byte[] GetTemplate() => throw new NotImplementedException();
         public byte[] TemplateBytes { get; set; } = [1, 2, 3];
         public byte[] GetTemplate() => TemplateBytes;
     }
