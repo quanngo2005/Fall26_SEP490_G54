@@ -10,14 +10,6 @@ public interface IHandoverService
     /// <summary>Handovers in the pool (<c>IN_POOL</c>) waiting for the caller (direct manager of the requester) to assign a recipient.</summary>
     Task<IReadOnlyList<HandoverDetailDto>> GetPoolAsync(Guid userId, CancellationToken cancellationToken = default);
 
-    /// <summary>Reads the administrator settings governing cross-role work transfers (<c>A -&gt; B</c>).</summary>
-    Task<HandoverSettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Updates the administrator settings governing cross-role work transfers (<c>A -&gt; B</c>).</summary>
-    Task<HandoverSettingsDto> UpdateSettingsAsync(
-        UpdateHandoverSettingsRequestDto request,
-        CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Creates a handover for a work item:
     /// <list type="bullet">

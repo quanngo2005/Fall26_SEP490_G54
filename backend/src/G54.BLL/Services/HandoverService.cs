@@ -14,11 +14,9 @@ using Npgsql;
 namespace G54.BLL.Services;
 
 /// <summary>
-/// Handover requests. Supports two flows distinguished by role:
-/// <list type="bullet">
-/// <item>Same role (<c>A -&gt; A1</c>, peer swap): creates a <c>PENDING</c> request, notifies the manager and <c>A1</c>; <c>A1</c> (or manager) accepts/rejects, and rejecting returns the work to <c>A</c>.</item>
-/// <item>Different role (<c>A -&gt; B</c>, work transfer): requires <c>Work.ProgressPercent</c> at or above the configured threshold (default 90%), then transfers immediately to a randomly selected <c>B</c> (<c>RANDOM</c>) or places the work in the pool (<c>IN_POOL</c>, <c>ASSIGNED</c>) for the manager to assign; <c>B</c> cannot reject.</item>
-/// </list>
+/// Handover requests. A request whose amount is above <c>Handover:AmountThreshold</c> (BR-01) is rejected. A request to a
+/// different role (<c>A -&gt; B</c>) needs the work progress to reach <c>Handover:TransferMinProgressPercent</c>, then goes to a
+/// random <c>B</c> at once or waits in the pool (<c>Handover:TransferAssignmentMode</c> = <c>ASSIGNED</c>).
 /// </summary>
 public sealed partial class HandoverService(
     AppDbContext db,
@@ -28,16 +26,14 @@ public sealed partial class HandoverService(
     ILogger<HandoverService> logger,
     TimeProvider time) : IHandoverService
 {
-    public const string ModeRandom = "RANDOM";
-    public const string ModeAssigned = "ASSIGNED";
-    public const string SettingKeyAssignmentMode = "handover.transfer_assignment_mode";
-    public const string SettingKeyMinProgressPercent = "handover.transfer_min_progress_percent";
-
     /// <summary>Fallback when <c>Handover:AmountThreshold</c> is not configured.</summary>
     private const decimal DefaultAmountThreshold = 500_000_000m;
 
-    /// <summary>Fallback minimum progress percentage required for a cross-role transfer (<c>A -&gt; B</c>).</summary>
+    /// <summary>Fallback when <c>Handover:TransferMinProgressPercent</c> is not configured: the progress a cross-role transfer (<c>A -&gt; B</c>) needs.</summary>
     private const decimal DefaultTransferMinProgressPercent = 90m;
+
+    /// <summary>Value of <c>Handover:TransferAssignmentMode</c> that puts a cross-role transfer in the pool; anything else picks a random recipient.</summary>
+    private const string TransferModePool = "ASSIGNED";
 
     private const int MaxReasonLength = 2000;
 
@@ -76,9 +72,11 @@ public sealed partial class HandoverService(
             .FirstOrDefaultAsync(w => w.Id == workId, cancellationToken)
             ?? throw new NotFoundException("Công việc", workId);
 
-        var managerTransfer = work.AssigneeEmployeeId != caller.Id;
+        // The assignee asks (the recipient must then accept or reject). The assignee's direct manager transfers the
+        // work outright: the recipient has no say, so the handover is accepted at once.
+        var transfer = work.AssigneeEmployeeId != caller.Id;
         var from = caller;
-        if (managerTransfer)
+        if (transfer)
         {
             var assignee = await db.Employees.AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == work.AssigneeEmployeeId, cancellationToken);
@@ -138,7 +136,7 @@ public sealed partial class HandoverService(
                 ErrorCodes.HandoverAlreadyPending);
         }
 
-        if (!managerTransfer)
+        if (!transfer)
         {
             var (isCrossRoleTransfer, targetRoles) = await ResolveFlowAsync(from.Id, recipient, input.TargetRoleCode, cancellationToken);
             if (isCrossRoleTransfer)
@@ -161,14 +159,14 @@ public sealed partial class HandoverService(
             ToEmployeeId = recipient.Id,
             Reason = input.Reason,
             ReferrerSharePercent = input.ReferrerSharePercent,
-            Status = managerTransfer ? HandoverStatus.Accepted : HandoverStatus.Pending,
+            Status = transfer ? HandoverStatus.Accepted : HandoverStatus.Pending,
             HandoverAt = now,
-            AcceptedAt = managerTransfer ? now : null,
-            ApprovedBy = managerTransfer ? caller.Id : null,
+            AcceptedAt = transfer ? now : null,
+            ApprovedBy = transfer ? caller.Id : null,
             UpdatedAt = now,
         };
         db.TaskHandovers.Add(handover);
-        if (managerTransfer)
+        if (transfer)
         {
             work.AssigneeEmployeeId = recipient.Id;
             work.Status = handedOverStatus;
@@ -177,7 +175,7 @@ public sealed partial class HandoverService(
 
         await SaveNewHandoverAsync(cancellationToken);
 
-        if (managerTransfer)
+        if (transfer)
         {
             LogHandoverDecided(logger, "TRANSFER", handover.Id, workId, from.Id, recipient.Id, null);
             await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, from, recipient, caller.Id), cancellationToken);
@@ -242,17 +240,17 @@ public sealed partial class HandoverService(
         WorkStatus handedOverStatus,
         CancellationToken cancellationToken)
     {
-        var settings = await GetSettingsAsync(cancellationToken);
-        if (work.ProgressPercent < settings.TransferMinProgressPercent)
+        var minProgress = configuration.GetValue("Handover:TransferMinProgressPercent", DefaultTransferMinProgressPercent);
+        if (work.ProgressPercent < minProgress)
         {
             throw new BusinessRuleException(
                 ErrorCodes.HandoverProgressBelowThreshold,
-                $"{ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverProgressBelowThreshold)} Tiến độ hiện tại: {work.ProgressPercent:0.##}%, ngưỡng tối thiểu: {settings.TransferMinProgressPercent:0.##}%.",
+                $"{ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverProgressBelowThreshold)} Tiến độ hiện tại: {work.ProgressPercent:0.##}%, ngưỡng tối thiểu: {minProgress:0.##}%.",
                 StatusCodes.Status422UnprocessableEntity);
         }
 
         var now = time.GetUtcNow();
-        if (string.Equals(settings.TransferAssignmentMode, ModeAssigned, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(configuration["Handover:TransferAssignmentMode"], TransferModePool, StringComparison.OrdinalIgnoreCase))
         {
             var pooled = new TaskHandover
             {
@@ -314,29 +312,19 @@ public sealed partial class HandoverService(
         if (targetRoles.Count > 0)
         {
             var upperRoles = targetRoles.Select(r => r.ToUpperInvariant()).ToList();
-            var deptCandidates = await db.Employees.AsNoTracking()
-                .Where(e => e.DepartmentId == from.DepartmentId
-                    && e.Id != from.Id
-                    && e.Status == EmployeeStatus.Active
-                    && e.Account != null
-                    && e.Account.UserRoles.Any(ur => ur.Role.Status == RecordStatus.Active && upperRoles.Contains(ur.Role.Code)))
-                .ToListAsync(cancellationToken);
-
-            if (deptCandidates.Count > 0)
-            {
-                return deptCandidates[Random.Shared.Next(deptCandidates.Count)];
-            }
-
-            var allCandidates = await db.Employees.AsNoTracking()
+            var candidates = await db.Employees.AsNoTracking()
                 .Where(e => e.Id != from.Id
                     && e.Status == EmployeeStatus.Active
                     && e.Account != null
                     && e.Account.UserRoles.Any(ur => ur.Role.Status == RecordStatus.Active && upperRoles.Contains(ur.Role.Code)))
                 .ToListAsync(cancellationToken);
 
-            if (allCandidates.Count > 0)
+            // The requester's own department first; the whole branch only when nobody there holds the role.
+            var sameDepartment = candidates.FindAll(e => e.DepartmentId == from.DepartmentId);
+            var eligible = sameDepartment.Count > 0 ? sameDepartment : candidates;
+            if (eligible.Count > 0)
             {
-                return allCandidates[Random.Shared.Next(allCandidates.Count)];
+                return eligible[Random.Shared.Next(eligible.Count)];
             }
         }
 

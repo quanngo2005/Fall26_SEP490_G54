@@ -42,35 +42,6 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Reads the administrator settings for cross-role work transfers (<c>A -&gt; B</c>).</summary>
-    [HttpGet("handovers/settings")]
-    [HasPermission("handover", "manage", PermissionScopes.All)]
-    [ProducesResponseType<ApiResponse<HandoverSettingsDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ApiResponse<HandoverSettingsDto>>> GetSettings(
-        CancellationToken cancellationToken)
-    {
-        var result = await handoverService.GetSettingsAsync(cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>Updates the administrator settings for cross-role work transfers (<c>A -&gt; B</c>).</summary>
-    [HttpPut("handovers/settings")]
-    [HasPermission("handover", "manage", PermissionScopes.All)]
-    [ProducesResponseType<ApiResponse<HandoverSettingsDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ApiResponse<HandoverSettingsDto>>> UpdateSettings(
-        [FromBody] UpdateHandoverSettingsRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await handoverService.UpdateSettingsAsync(request, cancellationToken);
-        return Ok(ApiResponse.Ok(
-            result,
-            SuccessMessages.GetMessage(SuccessMessages.HandoverSettingsUpdated),
-            HttpContext.TraceIdentifier));
-    }
-
     [HttpPost("works/{workId:guid}/handovers")]
     [HasPermission("handover", "create", "Own")]
     [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status201Created)]

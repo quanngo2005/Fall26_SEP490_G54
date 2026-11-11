@@ -35,6 +35,7 @@ Nguồn tham chiếu quy ước chung: `docs/api/API_CONVENTIONS.md`.
 | `GET` | `/works` | `work:read` (scope `Own` trở lên) | Danh sách công việc: lọc theo trạng thái / người thực hiện / phòng ban, phân trang |
 | `GET` | `/works/{id}` | `[Authorize]` (Mọi tài khoản đã xác thực) | Lấy thông tin chi tiết công việc theo Id |
 | `PATCH` | `/works/{id}/status` | `[Authorize]` + kiểm tra assignee / quản lý trực tiếp tại service | Chuyển trạng thái công việc theo máy trạng thái (mục 7) |
+| `PATCH` | `/works/{id}/progress` | `work:read` (scope `Own`) + chỉ assignee tại service | Cập nhật tiến độ hoàn thành 0-100 (mục 3.4) |
 
 ---
 
@@ -336,11 +337,39 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 | 404 | `NOT_FOUND` | Không tìm thấy công việc |
 | 409 | `WORK_INVALID_STATE` | Trạng thái hiện tại không cho phép chuyển sang trạng thái đích (kể cả khi đích trùng trạng thái hiện tại) |
 
+### 3.4. `PATCH /works/{id}/progress` - Cập nhật tiến độ
+
+Nhân viên đang được giao việc báo tiến độ hoàn thành. Chuyển việc sang role khác (`A -> B`) đọc giá trị này (xem `HANDOVER_CONTRACT.md`).
+
+#### Request Body (`UpdateWorkProgressDto`)
+
+| Tên trường | Kiểu dữ liệu | Bắt buộc | Ràng buộc | Ghi chú |
+|---|---|---|---|---|
+| `progressPercent` | `number (decimal)` | **Có** | `0` đến `100` (gồm hai đầu mút); làm tròn 2 chữ số thập phân | Tiến độ hoàn thành, đơn vị %. |
+
+```json
+{ "progressPercent": 92.5 }
+```
+
+#### Response Thành công (`200 OK`)
+
+`data` là `WorkDetailDto` (xem mục 4) với `progressPercent` và `updatedAt` mới.
+
+#### Các mã lỗi
+
+| HTTP Status | errorCode | Trường hợp |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | `progressPercent` thiếu hoặc ngoài khoảng 0-100 |
+| 401 | `UNAUTHORIZED` | Thiếu hoặc sai token |
+| 403 | `FORBIDDEN` | Người gọi không có quyền `work:read` hoặc không phải assignee hiện tại |
+| 404 | `NOT_FOUND` | Không tìm thấy công việc |
+| 409 | `WORK_INVALID_STATE` | Công việc không còn ở `New` / `InProgress` / `HandedOver` |
+
 ---
 
 ## 4. Mô hình Dữ liệu Chi tiết (`WorkDetailDto`)
 
-Đối tượng `data` trong response của `POST /works` và `GET /works/{id}` gồm 17 trường (cũng là `data` của `PATCH /works/{id}/status`):
+Đối tượng `data` trong response của `POST /works` và `GET /works/{id}` gồm 18 trường (cũng là `data` của `PATCH /works/{id}/status` và `PATCH /works/{id}/progress`):
 
 | Tên trường | Kiểu dữ liệu | Nullable | Mô tả |
 |---|---|---|---|
@@ -361,6 +390,7 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 | `plannedEndDate` | `string (date)` | Có | Hạn hoàn thành dự kiến (`YYYY-MM-DD`). |
 | `estimatedHours` | `number (decimal)` | Có | Số giờ ước tính hoàn thành công việc. |
 | `updatedAt` | `string (date-time)`| Không | Thời điểm cập nhật cuối cùng (ISO 8601 kèm múi giờ offset). |
+| `progressPercent` | `number (decimal)` | Không | Tiến độ hoàn thành 0-100 do assignee báo; mặc định `0` (xem mục 3.4). |
 
 ---
 

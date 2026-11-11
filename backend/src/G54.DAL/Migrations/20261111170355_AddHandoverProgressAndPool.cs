@@ -6,11 +6,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace G54.DAL.Migrations;
 
 /// <inheritdoc />
-public partial class AddHandoverProgressPoolAndSettings : Migration
+public partial class AddHandoverProgressAndPool : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // PostgreSQL cannot drop an enum label, so the label is added with IF NOT EXISTS: a replay after Down must not fail.
         migrationBuilder.Sql("ALTER TYPE handover_status ADD VALUE IF NOT EXISTS 'IN_POOL';");
 
         migrationBuilder.AddColumn<decimal>(
@@ -30,19 +31,6 @@ public partial class AddHandoverProgressPoolAndSettings : Migration
             oldClrType: typeof(Guid),
             oldType: "uuid");
 
-        migrationBuilder.CreateTable(
-            name: "system_setting",
-            columns: table => new
-            {
-                key = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                value = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()")
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("system_setting_pkey", x => x.key);
-            });
-
         migrationBuilder.AddCheckConstraint(
             name: "ck_work_progress_percent",
             table: "work",
@@ -52,9 +40,6 @@ public partial class AddHandoverProgressPoolAndSettings : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropTable(
-            name: "system_setting");
-
         migrationBuilder.DropCheckConstraint(
             name: "ck_work_progress_percent",
             table: "work");
@@ -63,6 +48,8 @@ public partial class AddHandoverProgressPoolAndSettings : Migration
             name: "progress_percent",
             table: "work");
 
+        // A pooled request has no recipient and cannot exist without the label, so it is cancelled and its recipient column
+        // can become required again.
         migrationBuilder.Sql("DELETE FROM task_handover WHERE to_employee_id IS NULL; UPDATE task_handover SET status = 'CANCELLED' WHERE status::text = 'IN_POOL';");
 
         migrationBuilder.AlterColumn<Guid>(

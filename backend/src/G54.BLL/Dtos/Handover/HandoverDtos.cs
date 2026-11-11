@@ -51,17 +51,3 @@ public sealed record HandoverRecipientDto(
     string EmployeeCode,
     string FullName,
     string JobPositionTitle);
-
-/// <summary>Administrator settings for the cross-role transfer flow (<c>A -&gt; B</c>).</summary>
-public sealed record HandoverSettingsDto(
-    string TransferAssignmentMode,
-    decimal TransferMinProgressPercent,
-    DateTimeOffset? UpdatedAt);
-
-/// <summary>Body of <c>PUT /handovers/settings</c>.</summary>
-public sealed record UpdateHandoverSettingsRequestDto
-{
-    public string? TransferAssignmentMode { get; init; }
-
-    public decimal? TransferMinProgressPercent { get; init; }
-}

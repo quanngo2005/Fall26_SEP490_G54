@@ -15,7 +15,6 @@ public static class SuccessMessages
     public const string HandoverPooled = "HANDOVER_POOLED";
     public const string HandoverAccepted = "HANDOVER_ACCEPTED";
     public const string HandoverRejected = "HANDOVER_REJECTED";
-    public const string HandoverSettingsUpdated = "HANDOVER_SETTINGS_UPDATED";
     public const string WorkResultSubmitted = "WORK_RESULT_SUBMITTED";       // MSG06
     public const string Deleted = "DELETED";                                 // MSG07
     public const string LateSubmissionAccepted = "LATE_SUBMISSION_ACCEPTED"; // MSG17, BR-12
@@ -30,7 +29,6 @@ public static class SuccessMessages
         [HandoverPooled] = ("Đã đưa công việc vào hàng chờ phân công (pool).", "Work has been placed in the assignment pool."),
         [HandoverAccepted] = ("Đã nhận bàn giao công việc.", "Handover accepted successfully."),
         [HandoverRejected] = ("Đã từ chối yêu cầu bàn giao.", "Handover rejected successfully."),
-        [HandoverSettingsUpdated] = ("Cập nhật cấu hình bàn giao thành công.", "Handover settings updated successfully."),
         [WorkResultSubmitted] = ("Nộp kết quả công việc thành công. Đang chờ thẩm định.", "Work result submitted successfully. Awaiting verification."),
         [Deleted] = ("Xóa thành công.", "Delete successfully."),
         [LateSubmissionAccepted] = ("Nộp trễ hạn: Đã nhận trong thời gian gia hạn 5 phút. Chuyển sang luồng Thẩm định Nộp trễ.", "Late Submission: Received within 5-minute grace period. Routed for Late Submission Review."),

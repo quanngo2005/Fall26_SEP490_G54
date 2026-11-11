@@ -329,7 +329,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261110164520_AddHandoverProgressPoolAndSettings", migrations[^1]);
+        Assert.Equal("20261111170355_AddHandoverProgressAndPool", migrations[^1]);
         Assert.Equal("20261110000000_GrantTransactionImportToManagersAndQa", migrations[^2]);
         Assert.Equal("20261109182557_AddImportBatchError", migrations[^3]);
         Assert.Equal("20261105160000_AddRiskEventScreens", migrations[^4]);

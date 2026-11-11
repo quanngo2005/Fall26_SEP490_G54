@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace G54.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261110164520_AddHandoverProgressPoolAndSettings")]
-    partial class AddHandoverProgressPoolAndSettings
+    [Migration("20261111170355_AddHandoverProgressAndPool")]
+    partial class AddHandoverProgressAndPool
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -2471,31 +2471,6 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("sidebar_configurations", (string)null);
-                });
-
-            modelBuilder.Entity("G54.DAL.Entities.SystemSetting", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("value");
-
-                    b.HasKey("Key")
-                        .HasName("system_setting_pkey");
-
-                    b.ToTable("system_setting", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>

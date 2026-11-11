@@ -2470,31 +2470,6 @@ namespace G54.DAL.Migrations
                     b.ToTable("sidebar_configurations", (string)null);
                 });
 
-            modelBuilder.Entity("G54.DAL.Entities.SystemSetting", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("key");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("value");
-
-                    b.HasKey("Key")
-                        .HasName("system_setting_pkey");
-
-                    b.ToTable("system_setting", (string)null);
-                });
-
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
                 {
                     b.Property<Guid>("Id")

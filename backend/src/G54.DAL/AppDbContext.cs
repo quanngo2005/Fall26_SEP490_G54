@@ -84,7 +84,6 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
-    public virtual DbSet<SystemSetting> SystemSettings { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
@@ -1547,7 +1546,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_task_handover_escalation", "(escalated_at IS NULL) = (escalated_to_employee_id IS NULL)");
             });
 
-            // Optimistic concurrency token: PostgreSQL's xmin row version.
+            // Optimistic concurrency: stops two decisions (accept/reject) on the same pending handover both succeeding.
             entity.Property<uint>("xmin").IsRowVersion();
 
             entity.HasIndex(e => e.WorkId, "ix_task_handover_work");
@@ -1612,23 +1611,6 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Status)
                 .HasColumnType("handover_status")
                 .HasColumnName("status");
-        });
-
-        modelBuilder.Entity<SystemSetting>(entity =>
-        {
-            entity.HasKey(e => e.Key).HasName("system_setting_pkey");
-
-            entity.ToTable("system_setting");
-
-            entity.Property(e => e.Key)
-                .HasMaxLength(100)
-                .HasColumnName("key");
-            entity.Property(e => e.Value)
-                .HasMaxLength(500)
-                .HasColumnName("value");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<UserRole>(entity =>
