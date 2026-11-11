@@ -347,6 +347,20 @@ describe('WorkBoardComponent', () => {
       expect(select.value).toBe('e2');
     });
 
+    it('opens the work of a transaction link on my own work, searched by its code and opened in the drawer', async () => {
+      await configure('DEPT_MANAGER', { keyword: 'W-TX', workId: 'w-1' });
+      const fixture = create();
+
+      expect(employees.byCode).not.toHaveBeenCalled();
+      expect(works.list).toHaveBeenCalled();
+      for (const [filter] of works.list.calls.allArgs()) {
+        expect(filter).toEqual(
+          jasmine.objectContaining({ assigneeEmployeeId: 'e1', keyword: 'W-TX' }),
+        );
+      }
+      expect(fixture.componentInstance['selectedId']()).toBe('w-1');
+    });
+
     it('falls back to the whole department when the code of the link is unknown', async () => {
       employees.byCode.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
       await configure('DEPT_MANAGER', { employeeCode: 'NV999' });

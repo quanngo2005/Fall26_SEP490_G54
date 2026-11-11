@@ -64,7 +64,7 @@ identically. The permission check of this endpoint applies only to calls made th
 
 ### Score formula
 
-For one KPI, with `target` and the `weightedActualValue` from step 4 as the actual (for a `RATIO` KPI the actual is
+For one KPI, with `target` (when the target is missing or 0, the KPI's `baselineValue` is used instead) and the `weightedActualValue` from step 4 as the actual (for a `RATIO` KPI the actual is
 `actualValue / actualDenominator`, multiplied by 100 when the unit is `%`):
 
 | `direction` | `achievementPercentRaw` |
@@ -77,7 +77,7 @@ For one KPI, with `target` and the `weightedActualValue` from step 4 as the actu
 - `achievementPercentCapped` is the raw value limited by the KPI's `maxAchievementPercent` when it is set,
   otherwise it equals the raw value. It is never above the raw value.
 - The KPI's `componentScore` is `achievementPercentCapped`.
-- A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`, shown as N/A).
+- A KPI with no usable target (missing or 0 and no baseline; for `LOWER_BETTER` only a negative one), or a `RATIO` KPI without a positive denominator, has no score (`null`, shown as N/A).
 - The profile is a tree: root nodes are groups, a group has KPI leaves and/or sub-groups (at most 3 levels), and the
   `weightPercent` of a node is relative to its siblings (siblings add up to 100 on an `ACTIVE` profile).
 - An **active** KPI that cannot be scored (no target, no progress, target 0, or a `RATIO` without a denominator)

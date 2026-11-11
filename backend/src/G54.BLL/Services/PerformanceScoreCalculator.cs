@@ -156,7 +156,9 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
         var weightedActual = actual is not null && kpi.AggregationType == KpiAggregationType.Sum
             ? rows.Sum(r => r.WeightedValue)
             : actual?.Value;
-        var score = target is not null && actual is not null
+        var resolvedActual = RoundScore(
+            PerformanceScoreFormula.ResolveActual(kpi.AggregationType, kpi.Unit, actual?.Value, actual?.Denominator));
+        var score = actual is not null
             ? RoundScore(formula.CalculateKpi(new KpiScoreInput(
                 kpi.Id,
                 kpi.Code,
@@ -164,9 +166,10 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 kpi.Direction,
                 kpi.AggregationType,
                 kpi.MaxAchievementPercent,
-                target.TargetValue,
+                target?.TargetValue,
                 weightedActual!.Value,
-                actual.Denominator)))
+                actual.Denominator,
+                kpi.BaselineValue)))
             : null;
 
         // The KPI is identified through its progress; the latest row anchors the aggregate.
@@ -191,7 +194,8 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             anchor?.ProgressId,
             score?.AchievementPercentRaw,
             score?.AchievementPercentCapped,
-            score?.ComponentScore);
+            score?.ComponentScore,
+            resolvedActual);
     }
 
     // ----- Data (one query per table for all subjects) --------------------------------------

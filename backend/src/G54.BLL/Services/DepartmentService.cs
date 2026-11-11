@@ -745,7 +745,8 @@ public sealed partial class DepartmentService(
                 value = actual.Value / target * 100m;
                 break;
             case KpiDirection.LowerBetter:
-                value = actual.Value == 0m ? maxPercent ?? 100m : target / actual.Value * 100m;
+                var ceiling = maxPercent ?? 100m;
+                value = actual.Value <= target ? ceiling : target / actual.Value * 100m;
                 break;
             default:
                 value = 100m - Math.Abs(actual.Value - target) / Math.Abs(target) * 100m;
