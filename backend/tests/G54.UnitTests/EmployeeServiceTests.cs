@@ -123,17 +123,7 @@ public sealed class EmployeeServiceTests
             await context.Employees.AddRangeAsync(manager, dev1, dev2);
             await context.SaveChangesAsync();
 
-            // Filter by keyword
-            var filterByKeyword = new EmployeeFilterDto { Keyword = "Tran Van", Page = 1, PageSize = 10 };
-            var resultKeyword = await service.GetEmployeesAsync(Guid.Empty, filterByKeyword);
-            Assert.Single(resultKeyword.Items);
-            Assert.Equal("DEV-001", resultKeyword.Items[0].EmployeeCode);
-            Assert.Equal("MGR-001", resultKeyword.Items[0].ManagerCode);
-
-            // Keyword matches the employee code as stored
-            var resultCode = await service.GetEmployeesAsync(
-                Guid.Empty, new EmployeeFilterDto { Keyword = "DEV-001", Page = 1, PageSize = 10 });
-            Assert.Equal("DEV-001", Assert.Single(resultCode.Items).EmployeeCode);
+            // The keyword filter uses PostgreSQL ILike, so it is covered against a real database in EmployeeSearchHttpTests.
 
             // Filter by status Active
             var filterByStatus = new EmployeeFilterDto { Status = "ACTIVE" };
@@ -145,6 +135,7 @@ public sealed class EmployeeServiceTests
             var resultManager = await service.GetEmployeesAsync(Guid.Empty, filterByManager);
             Assert.Single(resultManager.Items);
             Assert.Equal("DEV-001", resultManager.Items[0].EmployeeCode);
+            Assert.Equal("MGR-001", resultManager.Items[0].ManagerCode);
         }
     }
 

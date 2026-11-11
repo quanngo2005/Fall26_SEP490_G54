@@ -305,9 +305,10 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 return new ActualAggregate(rows.Sum(r => r.Value), null);
             case KpiAggregationType.Avg:
                 // A day row stores the sum of its entries and their count; a row without a count is one entry.
-                return new ActualAggregate(
-                    Math.Round(rows.Sum(r => r.Value) / rows.Sum(r => r.Denominator ?? 1m), ScoreDecimals, MidpointRounding.ToEven),
-                    null);
+                var entryCount = rows.Sum(r => r.Denominator ?? 1m);
+                return entryCount > 0m
+                    ? new ActualAggregate(Math.Round(rows.Sum(r => r.Value) / entryCount, ScoreDecimals, MidpointRounding.ToEven), null)
+                    : null;
             case KpiAggregationType.Ratio:
                 var denominator = rows.Sum(r => r.Denominator ?? 0m);
                 return denominator > 0m ? new ActualAggregate(rows.Sum(r => r.Value), denominator) : null;

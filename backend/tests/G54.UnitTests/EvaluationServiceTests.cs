@@ -341,8 +341,10 @@ public sealed class EvaluationServiceTests
             PeriodId: period.Id,
             Comment: "Attempt on locked period");
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitEvaluationAsync(request, manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
     }
 
     [Fact]
@@ -871,6 +873,32 @@ public sealed class EvaluationServiceTests
         Assert.NotEmpty(overview.Departments);
         Assert.Contains(overview.Departments, d => d.DepartmentId == dept.Id);
         Assert.True(overview.TotalEvaluated >= 1);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_DoesNotReopenAnApprovedEvaluation()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id).Id,
+            TotalScore = 90m,
+            Status = PerformanceEvaluationStatus.Approved,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        await service.RejectDepartmentCalibrationAsync(dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        var stored = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Approved, stored!.Status);
+        Assert.DoesNotContain("RECALIBRATION_REASON", stored.Comment ?? string.Empty);
     }
 
     [Fact]

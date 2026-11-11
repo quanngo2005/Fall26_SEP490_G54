@@ -13,7 +13,11 @@ public sealed record ImportBatchDto(
     int ErrorRows,
     List<ImportRowErrorDto>? Errors,
     DateTimeOffset ImportedAt,
-    Guid ImportedBy);
+    Guid ImportedBy,
+    ReconcileSummaryDto? Reconcile = null);
+
+/// <summary>How the work transaction codes found in a batch ended up after the automatic reconcile (UC87).</summary>
+public sealed record ReconcileSummaryDto(int Matched, int NotMatched, int InReview);
 
 public sealed record ImportedTransactionDto(
     Guid Id,

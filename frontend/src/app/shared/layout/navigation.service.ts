@@ -268,6 +268,7 @@ export class NavigationService {
     '/appeals',
     '/kpi-definitions',
     '/campaigns',
+    '/target-overview',
     '/sidebar-settings',
     '/roles',
     '/user-accounts',

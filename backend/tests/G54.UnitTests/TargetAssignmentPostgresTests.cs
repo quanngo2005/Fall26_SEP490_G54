@@ -1,9 +1,11 @@
 using G54.BLL.Common;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
+using G54.DAL.Uow;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -144,6 +146,79 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
             (account.Id, branch.Id, deptA.Id, deptB.Id, team.Id, member.Id, kpi.Id, period.Id);
     }
 
+    /// <summary>G11: a branch-year with both PERIOD (branch quarters) and ORG (department years) children, published
+    /// through <see cref="TargetSetupService.PublishAsync"/>, must pass <c>validate_target_children_sum</c>, which
+    /// sums the ACTIVE children of each split dimension separately.</summary>
+    [PostgresFact]
+    public async Task Publish_BranchQuartersAndDepartmentSplits_ArePassedByTheChildrenSumTrigger()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var now = DateTimeOffset.UtcNow;
+
+        // GetYearAsync finds the year by its real code, and quarters sit under half-years as in the seed.
+        var year = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026", Name = "2026", PeriodType = PeriodType.Year, Status = PeriodStatus.Open, StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), UpdatedAt = now };
+        var h1 = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-H1", Name = "H1", PeriodType = PeriodType.HalfYear, ParentPeriodId = year.Id, Status = PeriodStatus.Open, StartDate = new(2026, 1, 1), EndDate = new(2026, 6, 30), UpdatedAt = now };
+        var h2 = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-H2", Name = "H2", PeriodType = PeriodType.HalfYear, ParentPeriodId = year.Id, Status = PeriodStatus.Open, StartDate = new(2026, 7, 1), EndDate = new(2026, 12, 31), UpdatedAt = now };
+        var quarters = new[]
+        {
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-Q1", Name = "Q1", PeriodType = PeriodType.Quarter, ParentPeriodId = h1.Id, Status = PeriodStatus.Open, StartDate = new(2026, 1, 1), EndDate = new(2026, 3, 31), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-Q2", Name = "Q2", PeriodType = PeriodType.Quarter, ParentPeriodId = h1.Id, Status = PeriodStatus.Open, StartDate = new(2026, 4, 1), EndDate = new(2026, 6, 30), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-Q3", Name = "Q3", PeriodType = PeriodType.Quarter, ParentPeriodId = h2.Id, Status = PeriodStatus.Open, StartDate = new(2026, 7, 1), EndDate = new(2026, 9, 30), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-Q4", Name = "Q4", PeriodType = PeriodType.Quarter, ParentPeriodId = h2.Id, Status = PeriodStatus.Open, StartDate = new(2026, 10, 1), EndDate = new(2026, 12, 31), UpdatedAt = now },
+        };
+        db.EvaluationPeriods.Add(year);
+        await db.SaveChangesAsync();
+        db.EvaluationPeriods.AddRange(h1, h2);
+        await db.SaveChangesAsync();
+        db.EvaluationPeriods.AddRange(quarters);
+
+        // The seeded member of deptA has no evaluation profile, so it is eligible through its job's work type (D11).
+        var member = await db.Employees.SingleAsync(e => e.Id == _memberId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "PG-WT", Name = "Work", Status = RecordStatus.Active, UpdatedAt = now };
+        db.WorkTypes.Add(workType);
+        db.JobPositionWorkTypes.Add(new JobPositionWorkType { Id = Guid.NewGuid(), JobPositionId = member.JobPositionId, WorkTypeId = workType.Id, UpdatedAt = now });
+        db.WorkTypeKpis.Add(new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = _kpiId, EffectiveFrom = year.StartDate, UpdatedAt = now });
+
+        TargetAssignment Row(Guid departmentId, Guid periodId, decimal value, Guid? parentId, TargetSplitDimension? split) => new()
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = departmentId,
+            KpiDefinitionId = _kpiId,
+            EvaluationPeriodId = periodId,
+            ParentAssignmentId = parentId,
+            SplitDimension = split,
+            TargetValue = value,
+            Version = 1,
+            Status = TargetAssignmentStatus.Draft,
+            CreatedAt = now,
+            AssignedAt = now,
+        };
+
+        var branchYear = Row(_branchId, year.Id, 4000m, null, null);
+        var deptYear = Row(_deptA, year.Id, 4000m, branchYear.Id, TargetSplitDimension.Org);
+        db.TargetAssignments.AddRange(branchYear, deptYear);
+        foreach (var quarter in quarters)
+        {
+            db.TargetAssignments.Add(Row(_branchId, quarter.Id, 1000m, branchYear.Id, TargetSplitDimension.Period));
+            db.TargetAssignments.Add(Row(_deptA, quarter.Id, 1000m, deptYear.Id, TargetSplitDimension.Period));
+        }
+
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var service = new TargetSetupService(new UnitOfWork(db), db, new AdminPermissions());
+        var result = await service.PublishAsync(branchYear.Id, _adminAccount, CancellationToken.None);
+
+        Assert.Equal((1, 4, 1, 4), (result.BranchYearCount, result.QuarterCount, result.DepartmentYearCount, result.DepartmentQuarterCount));
+        var statuses = await db.TargetAssignments.AsNoTracking()
+            .Where(t => t.EvaluationPeriodId == year.Id || quarters.Select(q => q.Id).Contains(t.EvaluationPeriodId))
+            .Select(t => t.Status)
+            .ToListAsync();
+        Assert.Equal(10, statuses.Count);
+        Assert.All(statuses, s => Assert.Equal(TargetAssignmentStatus.Active, s));
+    }
+
     private static Department Department(string code, DepartmentLevelType level, Guid? parent, DateTimeOffset now) => new()
     {
         Id = Guid.NewGuid(),
@@ -202,11 +277,11 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task ASumMismatch_IsRejectedByTheDatabaseAndLeavesNothingBehind()
+    public async Task ASumMismatch_IsRejectedWith400AndLeavesNothingBehind()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
 
-        await Assert.ThrowsAsync<PostgresException>(
+        await Assert.ThrowsAsync<ValidationException>(
             () => RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 600m), (_deptB, null, 300m)))));
 
         await using var scope = _provider.CreateAsyncScope();
@@ -215,20 +290,20 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task AChildOutsideTheParentsOrganisation_IsRejectedByTheDatabase()
+    public async Task AChildOutsideTheParentsOrganisation_IsRejectedWithA4xxError()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
         var level2 = await RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 1000m))));
 
-        await Assert.ThrowsAsync<DbUpdateException>(
+        await Assert.ThrowsAsync<ValidationException>(
             () => RunAsync(s => s.AllocateAsync(_adminAccount, level2[0].Id, Split((_deptB, null, 1000m)))));
     }
     [PostgresFact]
-    public async Task ADuplicateRoot_IsRejectedByTheDatabase()
+    public async Task ADuplicateRoot_IsRejectedWithA4xxError()
     {
         await RunAsync(s => s.CreateRootAsync(_adminAccount, Root()));
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
+        await Assert.ThrowsAsync<ConflictException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
     }
 
     private sealed class AdminPermissions : IPermissionService

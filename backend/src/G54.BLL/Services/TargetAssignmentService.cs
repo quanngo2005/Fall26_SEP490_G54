@@ -7,6 +7,8 @@ using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.DAL.Entities;
 using G54.DAL.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace G54.BLL.Services;
 
@@ -18,6 +20,7 @@ public sealed class TargetAssignmentService(
     ITargetAssignmentRepository targetRepository,
     ITargetAssignmentFeedbackRepository feedbackRepository,
     IRepository<EvaluationPeriod> periodRepository,
+    IRepository<Department> departmentRepository,
     IPermissionService permissions,
     IWorkingDayCalendar workingDayCalendar,
     TimeProvider time) : ITargetAssignmentService
@@ -34,6 +37,47 @@ public sealed class TargetAssignmentService(
         "hợp đồng", "hop dong", "khách hàng", "khach hang", "giao dịch", "giao dich",
         "contract", "contracts", "customer", "customers", "cái", "cai", "lần", "lan",
     };
+    /// <summary>Saves target rows and turns the database's own rule violations into 4xx answers instead of a 500.</summary>
+    private async Task SaveTargetsAsync()
+    {
+        try
+        {
+            await targetRepository.SaveChangesAsync();
+        }
+        // A deferred trigger fails at commit, where EF rethrows the PostgresException without a DbUpdateException around it.
+        catch (Exception ex) when (ex is DbUpdateException or PostgresException && ToRuleViolation(ex) is not null)
+        {
+            throw ToRuleViolation(ex)!;
+        }
+    }
+
+    private static AppException? ToRuleViolation(Exception ex)
+    {
+        if (PostgresConflict.IsUniqueViolation(ex))
+        {
+            return new ConflictException("Chủ sở hữu này đã có target đang hoạt động cho KPI và kỳ đánh giá này.");
+        }
+
+        if (PostgresConflict.IsForeignKeyViolation(ex))
+        {
+            return new ValidationException("KPI, kỳ đánh giá, phòng ban hoặc nhân viên không tồn tại.");
+        }
+
+        if (PostgresConflict.IsCheckViolation(ex))
+        {
+            return new ValidationException("Giá trị target không hợp lệ (phải từ 0 và đúng độ chính xác cho phép).");
+        }
+
+        if (PostgresConflict.IsRaisedException(ex))
+        {
+            // The hierarchy and SUM rules live in database triggers; keep their text as the detail of the 400.
+            var detail = PostgresConflict.DatabaseMessage(ex);
+            return new ValidationException("Phân bổ target vi phạm quy tắc phân cấp hoặc tổng giá trị.", detail is null ? null : [detail]);
+        }
+
+        return null;
+    }
+
     public async Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto)
     {
         if (!await IsAdminAsync(accountId))
@@ -41,12 +85,20 @@ public sealed class TargetAssignmentService(
             throw new ForbiddenException("Chỉ quản trị viên mới được giao target gốc cho chi nhánh.");
         }
 
+        // The contract hands a root target to a branch only; the database would also accept any other department.
+        var owner = await departmentRepository.GetByIdAsync(dto.DepartmentId!.Value)
+            ?? throw new NotFoundException("Phòng ban", dto.DepartmentId.Value);
+        if (owner.LevelType != DepartmentLevelType.Branch)
+        {
+            throw new ValidationException("Target gốc chỉ được giao cho chi nhánh.");
+        }
+
         PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value));
 
         var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason);
         target.DepartmentId = dto.DepartmentId;
         await targetRepository.AddAsync(target);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return ToDto(target);
     }
@@ -62,7 +114,7 @@ public sealed class TargetAssignmentService(
         var children = await NewChildrenAsync(parent, allocations, dto.ChangeReason);
 
         await targetRepository.AddRangeAsync(children);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         // A brand-new employee target has no feedback yet.
         return [.. children.Select(c => ToDtoWithFeedback(c, null))];
@@ -206,7 +258,7 @@ public sealed class TargetAssignmentService(
         replacements.AddRange(await NewChildrenAsync(parent, added, dto.ChangeReason));
 
         await targetRepository.AddRangeAsync(replacements);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return [.. replacements.Select(next => ToDtoWithFeedback(next, null))];
     }
@@ -307,7 +359,7 @@ public sealed class TargetAssignmentService(
         }).ToList();
 
         await targetRepository.AddRangeAsync(children);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return [.. children.Select(c => ToDto(c))];
     }

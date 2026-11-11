@@ -1,7 +1,6 @@
-using System.Runtime.CompilerServices;
-using ClosedXML.Excel;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.DAL.Entities;
@@ -11,159 +10,16 @@ namespace G54.BLL.Services;
 
 public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService permissions) : ITargetAllocationService
 {
-    private const string AccessDenied = "Bạn không có quyền với target của đơn vị này.";
+    private Task<HashSet<Guid>?> ResolveVisibleAsync(Guid userId, CancellationToken ct) =>
+        DepartmentAccessGuard.ResolveVisibleAsync(uow, permissions, userId, ct);
 
-    /// <summary>Returns null for admins (target:manage:All); otherwise the caller's department subtree.</summary>
-    private async Task<HashSet<Guid>?> ResolveVisibleAsync(Guid userId, CancellationToken ct)
-    {
-        if (await permissions.HasPermissionAsync(userId, "target", "manage", "All", ct))
-            return null;
-
-        var callerDepartmentId = await uow.TargetAssignments.GetAccountDepartmentIdAsync(userId, ct)
-            ?? throw new ForbiddenException(AccessDenied);
-        return [.. await uow.TargetAssignments.GetDescendantDepartmentIdsAsync(callerDepartmentId, ct)];
-    }
-
-    private async Task EnsureDepartmentAccessAsync(Guid userId, Guid? departmentId, CancellationToken ct)
-    {
-        var visible = await ResolveVisibleAsync(userId, ct);
-        if (visible is not null && (departmentId is null || !visible.Contains(departmentId.Value)))
-            throw new ForbiddenException(AccessDenied);
-    }
+    private Task EnsureDepartmentAccessAsync(Guid userId, Guid? departmentId, CancellationToken ct) =>
+        DepartmentAccessGuard.EnsureDepartmentAccessAsync(uow, permissions, userId, departmentId, ct);
 
     private static bool IsVisibleRow(TargetAssignment row, HashSet<Guid>? visible) =>
         visible is null
         || row.ParentAssignmentId == null
         || (row.DepartmentId.HasValue && visible.Contains(row.DepartmentId.Value));
-
-    public async Task<TargetImportResultDto> ImportYearTargetsAsync(Guid branchId, int year, Stream excel, Guid userId, CancellationToken ct = default)
-    {
-        var branch = await uow.Departments.GetByIdAsync(branchId, ct);
-        if (branch?.LevelType != DepartmentLevelType.Branch)
-            throw new NotFoundException("Branch not found or invalid type.");
-
-        await EnsureDepartmentAccessAsync(userId, branchId, ct);
-
-        var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
-        if (yearPeriod == null)
-            throw new NotFoundException($"Year period {year} not found.");
-
-        if (yearPeriod.Status != PeriodStatus.Open)
-            throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
-
-        var errors = new List<TargetImportRowErrorDto>();
-        var importData = new Dictionary<Guid, (string Name, decimal Value)>();
-
-        var kpiByName = (await uow.KpiDefinitions.ListAsync(ct))
-            .GroupBy(k => k.Name.Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        using (var workbook = new XLWorkbook(excel))
-        {
-            var worksheet = workbook.Worksheets.FirstOrDefault();
-            if (worksheet == null)
-                throw new ValidationException("Excel file has no worksheets.");
-
-            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            for (int row = 2; row <= (worksheet.LastRowUsed()?.RowNumber() ?? 1); row++)
-            {
-                var kpiNameCell = worksheet.Cell(row, 1);
-                var valueCell = worksheet.Cell(row, 2);
-
-                var kpiName = kpiNameCell.GetString()?.Trim();
-                if (string.IsNullOrEmpty(kpiName))
-                    continue;
-
-                if (!seenNames.Add(kpiName))
-                {
-                    errors.Add(new(row, kpiName, "Duplicate KPI name in file."));
-                    continue;
-                }
-
-                if (!kpiByName.TryGetValue(kpiName, out var kpi))
-                {
-                    errors.Add(new(row, kpiName, "KPI not found."));
-                    continue;
-                }
-
-                if (!decimal.TryParse(valueCell.GetString(), out var value) || value <= 0)
-                {
-                    errors.Add(new(row, kpiName, "Value must be a positive number."));
-                    continue;
-                }
-
-                importData[kpi.Id] = (kpiName, value);
-            }
-        }
-
-        if (errors.Count > 0)
-            throw new AppException("Import file contains invalid rows.", ErrorCodes.TargetImportInvalid, 400,
-                errors.Select(e => $"Row {e.RowNumber} ({e.KpiName}): {e.Message}").ToList());
-
-        await uow.ExecuteInTransactionAsync(async transaction =>
-        {
-            foreach (var (kpiId, (name, value)) in importData)
-            {
-                var existing = await uow.TargetAssignments.GetCurrentBranchYearAsync(branchId, kpiId, yearPeriod.Id, transaction);
-
-                if (existing != null)
-                {
-                    if (existing.Status == TargetAssignmentStatus.Draft)
-                    {
-                        existing.TargetValue = value;
-                    }
-                    else if (existing.Status == TargetAssignmentStatus.Active)
-                    {
-                        var descendants = await uow.TargetAssignments.GetActiveDescendantsAsync(existing.Id, transaction);
-                        foreach (var desc in descendants)
-                        {
-                            desc.Status = TargetAssignmentStatus.Superseded;
-                        }
-
-                        existing.Status = TargetAssignmentStatus.Superseded;
-
-                        var newRow = new TargetAssignment
-                        {
-                            Id = Guid.NewGuid(),
-                            DepartmentId = branchId,
-                            KpiDefinitionId = kpiId,
-                            EvaluationPeriodId = yearPeriod.Id,
-                            ParentAssignmentId = null,
-                            SplitDimension = null,
-                            TargetValue = value,
-                            Version = existing.Version + 1,
-                            Status = TargetAssignmentStatus.Active,
-                            AssignedAt = DateTimeOffset.UtcNow,
-                            ApprovedAt = DateTimeOffset.UtcNow,
-                            ChangeReason = "Re-import",
-                        };
-                        await uow.TargetAssignments.AddAsync(newRow, transaction);
-                    }
-                }
-                else
-                {
-                    var newRow = new TargetAssignment
-                    {
-                        Id = Guid.NewGuid(),
-                        DepartmentId = branchId,
-                        KpiDefinitionId = kpiId,
-                        EvaluationPeriodId = yearPeriod.Id,
-                        ParentAssignmentId = null,
-                        SplitDimension = null,
-                        TargetValue = value,
-                        Version = 1,
-                        Status = TargetAssignmentStatus.Draft,
-                        AssignedAt = DateTimeOffset.UtcNow,
-                    };
-                    await uow.TargetAssignments.AddAsync(newRow, transaction);
-                }
-            }
-        }, ct);
-
-        var tree = await GetTreeAsync(branchId, year, null, userId, ct);
-        return new(branchId, year, tree);
-    }
 
     public async Task<List<TargetNodeDto>> AllocateDepartmentsAsync(Guid branchYearId, AllocateDepartmentsDto dto, Guid userId, CancellationToken ct = default)
     {
@@ -175,6 +31,9 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
 
         if (branchYearTarget.EvaluationPeriod?.Status != PeriodStatus.Open)
             throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
+
+        if (dto.Items is not { Count: > 0 })
+            throw new ValidationException("Danh sách phân bổ phải có ít nhất một phòng ban.");
 
         var deptIds = dto.Items.Select(i => i.DepartmentId).Distinct().ToList();
         var depts = await uow.Departments.ListAsync(d => deptIds.Contains(d.Id), ct);
@@ -485,7 +344,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
             visible = null;
         if (visible is not null
             && !visible.Overlaps(await uow.TargetAssignments.GetDescendantDepartmentIdsAsync(branchId, ct)))
-            throw new ForbiddenException(AccessDenied);
+            throw new ForbiddenException(DepartmentAccessGuard.AccessDenied);
 
         var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, ct);
         if (yearPeriod == null)
@@ -539,7 +398,12 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
             .Cast<TargetNodeDto>()
             .ToList();
 
-        var allocatedValue = children.Where(c => c.PeriodType != nameof(PeriodType.Week)).Sum(c => c.TargetValue);
+        // A node can hold both its own period split and same-period allocations to sub-units; count only the
+        // allocations when present so the two are not summed together.
+        var periodType = row.EvaluationPeriod?.PeriodType.ToEnumString() ?? "";
+        var allocations = children.Where(c => c.PeriodType == periodType).ToList();
+        var allocatedValue = (allocations.Count > 0 ? allocations : children.Where(c => c.PeriodType != PeriodType.Week.ToEnumString()))
+            .Sum(c => c.TargetValue);
         var actualValue = row.ActualProgresses?.Sum(ap => ap.Value) ?? 0m;
 
         var compareKey = (row.KpiDefinitionId, row.DepartmentId, GetPeriodPosition(row.EvaluationPeriod?.Code ?? ""));
@@ -559,12 +423,12 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
             row.Department?.Name ?? "",
             row.EvaluationPeriodId,
             row.EvaluationPeriod?.Code ?? "",
-            row.EvaluationPeriod?.PeriodType.ToString() ?? "",
+            row.EvaluationPeriod?.PeriodType.ToEnumString() ?? "",
             row.TargetValue,
             allocatedValue,
             actualValue > 0 ? actualValue : null,
             row.Version,
-            row.Status.ToString(),
+            row.Status.ToEnumString(),
             compareTarget,
             compareActual,
             children);
