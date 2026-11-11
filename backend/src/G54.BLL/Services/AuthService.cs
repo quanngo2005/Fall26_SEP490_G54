@@ -137,7 +137,9 @@ public sealed class AuthService(
             return null;
         }
 
-        if (account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
+        // A lock with a LockedUntil in the past has expired, exactly as at login and password change.
+        var stillLocked = account.IsLocked && (account.LockedUntil is null || account.LockedUntil > DateTimeOffset.UtcNow);
+        if (stillLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             var revoked = await sessionStore.RevokeAsync(
                 currentToken.AccountId,

@@ -47,7 +47,7 @@ public sealed partial class KpiDefinitionService(
         kpi.MaxAchievementPercent,
         kpi.Status.ToEnumString(),
         kpi.UpdatedAt,
-        kpi.RejectReason,
+        kpi.Status == KpiStatus.Rejected ? kpi.RejectReason : null,
         kpi.RequestNote,
         kpi.RequestedBy,
         kpi.CreditRole.ToEnumString(),
@@ -402,7 +402,7 @@ public sealed partial class KpiDefinitionService(
 
     private static (KpiAggregationType AggregationType, KpiDirection Direction) Validate(KpiDefinitionSaveDto dto, bool requireCode = true)
     {
-        if (dto.KpiGroupId == Guid.Empty || (requireCode && string.IsNullOrWhiteSpace(dto.Code)) || dto.Code.Trim().Length > 50 ||
+        if (dto.KpiGroupId == Guid.Empty || (requireCode && string.IsNullOrWhiteSpace(dto.Code)) || (dto.Code ?? string.Empty).Trim().Length > 50 ||
             string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 255 ||
             string.IsNullOrWhiteSpace(dto.Unit) || dto.Unit.Trim().Length > 50)
         {

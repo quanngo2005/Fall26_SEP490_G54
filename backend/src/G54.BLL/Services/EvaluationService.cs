@@ -314,7 +314,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc cập nhật đánh giá.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc cập nhật đánh giá.", 409);
         }
 
         var profile = await FindProfileAsync(employee.JobPositionId, period, cancellationToken)
@@ -863,7 +863,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc điều chỉnh hiệu chuẩn.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc điều chỉnh hiệu chuẩn.", 409);
         }
 
         var department = await db.Departments
@@ -1231,7 +1231,8 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, "finalize", reviewer, departmentId, cancellationToken);
 
         EnsureNoMarkerSyntax(request.Reason, "Reason");
 
@@ -1244,7 +1245,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể yêu cầu hiệu chuẩn lại.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể yêu cầu hiệu chuẩn lại.", 409);
         }
 
         var department = await db.Departments
@@ -1271,9 +1272,14 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var reasonTrimmed = request.Reason.Trim();
 
-        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending()))
+        // Only the evaluations under review go back to CALCULATED; an approved or final one is not reopened by a recalibration request.
+        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending() && e.Status is not (PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final)))
         {
-            pe.Status = PerformanceEvaluationStatus.Calculated;
+            if (pe.Status == PerformanceEvaluationStatus.InReview)
+            {
+                pe.Status = PerformanceEvaluationStatus.Calculated;
+            }
+
             pe.Comment = SetStoredMarker(pe.Comment, RecalibrationReasonMarkerRegex(), "RECALIBRATION_REASON", reasonTrimmed);
             pe.UpdatedAt = now;
         }
@@ -1308,7 +1314,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể phê duyệt kết quả xếp hạng.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể phê duyệt kết quả xếp hạng.", 409);
         }
 
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);

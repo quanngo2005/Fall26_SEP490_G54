@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using G54.Api.Controllers;
 using G54.BLL.Common;
 using G54.BLL.Common.Models;
@@ -22,6 +23,27 @@ public sealed class TransactionImportsControllerTests
     };
 
     [Fact]
+    public async Task Import_Returns201WithAnEnvelopeThatAgreesWithTheHttpStatus()
+    {
+        var batch = new ImportBatchDto(
+            Guid.NewGuid(), "tx.xlsx", "COMPLETED", 10, 9, 1, 0, null, DateTimeOffset.UnixEpoch, Guid.NewGuid());
+        var service = new StubService { Imported = batch };
+        var file = new FormFile(new MemoryStream([1, 2, 3]), 0, 3, "file", "tx.xlsx");
+
+        var controller = CreateController(service);
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())], "test"));
+
+        var result = await controller.Import(file, CancellationToken.None);
+
+        var created = Assert.IsType<CreatedResult>(result.Result);
+        Assert.Equal(201, created.StatusCode);
+        var envelope = Assert.IsType<ApiResponse<ImportBatchDto>>(created.Value);
+        Assert.Equal(201, envelope.Status);
+        Assert.True(envelope.Success);
+        Assert.Equal(1, envelope.Data!.Reconcile!.Matched);
+    }
+
+    [Fact]
     public async Task List_Returns200WithPagedBatchesAndPassesPagingToTheService()
     {
         var batch = new ImportBatchDto(
@@ -42,12 +64,14 @@ public sealed class TransactionImportsControllerTests
     {
         public PagedResult<ImportBatchDto> Page { get; set; } = null!;
 
+        public ImportBatchDto? Imported { get; set; }
+
         public int RequestedPage { get; private set; }
 
         public int RequestedPageSize { get; private set; }
 
         public Task<ImportBatchDto> ImportAsync(string fileName, Stream excel, Guid userId, CancellationToken ct = default) =>
-            throw new NotImplementedException();
+            Imported is null ? throw new NotImplementedException() : Task.FromResult(Imported);
 
         public Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default)
         {
@@ -78,7 +102,7 @@ public sealed class TransactionImportsControllerTests
             throw new NotImplementedException();
 
         public Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
-            throw new NotImplementedException();
+            Task.FromResult(new ReconcileSummaryDto(1, 0, 0));
     }
 
     private sealed class StubTemplateProvider : ITransactionImportTemplateProvider
