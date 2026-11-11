@@ -224,9 +224,9 @@ Field definitions:
   `SUM` -> sum; `AVG` -> mean; `RATIO` -> sum(value)/sum(denominator), multiplied by 100 when the unit is `%`;
   `NO_AGGREGATION` -> `null`. `null` when there are no rows (or a zero ratio denominator).
   `achievementPercent` (nullable, never negative): `HIGHER_BETTER` -> actual/target*100;
-  `LOWER_BETTER` -> target/actual*100 (an actual of 0 is the best outcome and yields the cap below);
+  `LOWER_BETTER` -> the cap below (100 when none) once actual <= target, otherwise target/actual*100;
   `ON_TARGET` -> 100 - |actual-target|/target*100. Never below 0. Capped by the KPI's
-  `maxAchievementPercent` when set (for `LOWER_BETTER` with actual 0 and no maximum the value is 100).
+  `maxAchievementPercent` when set (for `LOWER_BETTER` meeting the target with no maximum the value is 100).
   `null` if `targetValue` is 0 or `actualValue` is `null`.
 - `workMix`: open works grouped by work type, count descending then name. Works without a work type are one
   entry with `workTypeId`, `code` and `name` all `null`.
