@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
+        services.AddScoped<IMyDashboardService, MyDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();
