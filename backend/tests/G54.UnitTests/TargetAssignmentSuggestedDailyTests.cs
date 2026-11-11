@@ -35,6 +35,7 @@ public sealed class TargetAssignmentSuggestedDailyTests : IDisposable
         new TargetAssignmentRepository(_db),
         new TargetAssignmentFeedbackRepository(_db),
         new Repository<EvaluationPeriod>(_db),
+        new Repository<Department>(_db),
         new FakePermissions(admin, _manager, _outsiderManager),
         new WeekdayWorkingDayCalendar(),
         new RecordingNotifier(),

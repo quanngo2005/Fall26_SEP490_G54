@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminAccountService, AdminAccountService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IWorkService, WorkService>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
@@ -64,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
+        services.AddScoped<IMyDashboardService, MyDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();

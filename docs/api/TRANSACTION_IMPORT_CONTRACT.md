@@ -72,7 +72,8 @@ Every row error is persisted per batch and readable through `GET /transaction-im
 
 ### GET /transaction-imports (implemented)
 
-Query `page`, `pageSize`. Returns `ApiResponse<PagedResult<ImportBatchDto>>` (without `errors`), newest first.
+Query `page` (default `1`), `pageSize` (default `20`, clamped to `1..200`). Returns
+`ApiResponse<PagedResult<ImportBatchDto>>` (without `errors`), sorted by `ImportedAt` descending (newest first).
 
 ### GET /transaction-imports/{id} (implemented)
 
