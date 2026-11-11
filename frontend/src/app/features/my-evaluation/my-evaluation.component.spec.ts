@@ -403,8 +403,8 @@ describe('MyEvaluationComponent', () => {
     i18n.setLanguage('en');
     try {
       expect(component.ledgerStatusLabel('MATCHED')).toBe('Matched');
-      expect(component.ledgerStatusLabel('IN_REVIEW')).toBe('Pending verification');
-      expect(component.ledgerStatusLabel('NOT_MATCHED')).toBe('Rejected');
+      expect(component.ledgerStatusLabel('IN_REVIEW')).toBe('In review');
+      expect(component.ledgerStatusLabel('NOT_MATCHED')).toBe('Not matched');
       expect(component.ledgerStatusClass('VALID')).toBe('ledger-status-ok');
       expect(component.ledgerStatusClass('IN_REVIEW')).toBe('ledger-status-review');
       expect(component.ledgerStatusClass('NOT_MATCHED')).toBe('ledger-status-rejected');
@@ -414,9 +414,9 @@ describe('MyEvaluationComponent', () => {
 
       const modalText = fixture.debugElement.query(By.css('.ledger-dialog')).nativeElement
         .textContent;
-      expect(modalText).toContain('Task');
-      expect(modalText).toContain('Open task');
-      expect(modalText).toContain('Direct progress');
+      expect(modalText).toContain('Work');
+      expect(modalText).toContain('View work progress');
+      expect(modalText).toContain('No linked work');
     } finally {
       i18n.setLanguage('vi');
     }
