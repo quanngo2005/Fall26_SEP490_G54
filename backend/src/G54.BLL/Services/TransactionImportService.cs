@@ -43,7 +43,7 @@ public sealed class TransactionImportService(IUnitOfWork uow, TimeProvider clock
                 await uow.SaveChangesAsync(ct);
                 return ToDto(batch, errors);
             }
-            catch (DbUpdateException ex) when (attempt == 0 && PostgresConflict.IsUniqueViolation(ex))
+            catch (DbUpdateException ex) when (attempt < 2 && PostgresConflict.IsUniqueViolation(ex))
             {
                 uow.ImportBatches.Remove(batch);
             }

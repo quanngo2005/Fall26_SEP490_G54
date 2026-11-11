@@ -65,7 +65,8 @@ public sealed class AdminAccountService(AppDbContext dbContext) : IAdminAccountS
         {
             query = filter.Status.ToUpperInvariant() switch
             {
-                "LOCKED" => query.Where(account => account.IsLocked),
+                "LOCKED" => query.Where(account => account.IsLocked
+                    && account.Employee.Status != EmployeeStatus.Terminated),
                 "ACTIVE" => query.Where(account => !account.IsLocked
                     && account.Employee.Status == EmployeeStatus.Active),
                 "EMPLOYEE_TERMINATED" => query.Where(account => account.Employee.Status == EmployeeStatus.Terminated),

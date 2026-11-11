@@ -111,7 +111,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
-                p.RejectReason,
+                p.Status == EvaluationProfileStatus.Rejected ? p.RejectReason : null,
                 p.PerformanceEvaluations.Count != 0,
                 p.EvaluationProfileItems.Where(i => i.ParentItemId == null).Sum(i => i.WeightPercent),
                 p.UpdatedAt,

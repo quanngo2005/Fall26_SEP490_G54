@@ -312,4 +312,29 @@ public sealed class KpiHttpTests(ObjectiveKpiTargetFixture api)
         Assert.Equal(403, outsider.Code);
         Assert.Equal(200, branchManager.Code);
     }
+
+    // Regression tests for defects found while writing the unit test report.
+    [Fact]
+    public async Task CreateKpi_WithAnExplicitNullCode_IsRejectedWith400NotAServerError()
+    {
+        var json = $$"""{"kpiGroupId":"{{api.GroupId}}","code":null,"name":"Tiền gửi không code {{api.Suffix}}","unit":"VND","aggregationType":"SUM","direction":"HIGHER_BETTER"}""";
+        var result = await api.SendAsync(null, HttpMethod.Post, "/kpi-definitions", "admin", json);
+        Assert.Equal(400, result.Code);
+        Assert.Equal("VALIDATION_ERROR", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ArchivingARejectedKpi_NoLongerReturnsItsRejectReason()
+    {
+        var id = await CreateAsync();
+        await SubmitAsync(id);
+        await api.SendAsync(null, HttpMethod.Post, $"/kpi-definitions/{id}/reject", "admin2", new { reason = "Công thức chưa rõ" });
+        var rejected = await api.SendAsync(null, HttpMethod.Get, $"/kpi-definitions/{id}", "admin");
+        var archived = await api.SendAsync(null, HttpMethod.Patch, $"/kpi-definitions/{id}/status", "admin", new { status = "ARCHIVED" });
+        var detail = await api.SendAsync(null, HttpMethod.Get, $"/kpi-definitions/{id}", "admin");
+        Assert.Equal("Công thức chưa rõ", rejected.Data.GetProperty("rejectReason").GetString());
+        Assert.Equal(200, archived.Code);
+        Assert.Equal("ARCHIVED", detail.Data.GetProperty("status").GetString());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, detail.Data.GetProperty("rejectReason").ValueKind);
+    }
 }
