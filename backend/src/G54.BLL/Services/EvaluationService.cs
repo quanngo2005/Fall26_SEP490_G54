@@ -124,8 +124,8 @@ public sealed partial class EvaluationService(
                     kpi.Name,
                     kpi.Unit,
                     Math.Round(kpi.SharePercent, 2),
-                    kpi.TargetValue,
-                    kpi.ActualValue,
+                    kpi.TargetValue is > 0m ? kpi.TargetValue : null,
+                    kpi.ResolvedActualValue ?? kpi.ActualValue,
                     kpi.AchievementPercentCapped,
                     kpi.ComponentScore))
                 .ToList();
@@ -2566,7 +2566,9 @@ public sealed partial class EvaluationService(
                         group.QualitativeScore ?? group.Score,
                         group.Score.HasValue ? Math.Round(group.Score.Value * group.WeightPercent / 100m, 1) : null,
                         HasDrilldown: false,
-                        KpiDefinitionId: null));
+                        KpiDefinitionId: null,
+                        TargetDisplay: "—",
+                        ActualDisplay: "—"));
                 }
                 else
                 {
@@ -2576,11 +2578,19 @@ public sealed partial class EvaluationService(
                             ? group.WeightPercent
                             : Math.Round(group.WeightPercent * kpi.SharePercent / 100m, 1);
 
-                        var actualTargetStr = kpi.TargetValue.HasValue || kpi.ActualValue.HasValue
-                            ? $"{(kpi.ActualValue ?? 0).ToString("N0", CultureInfo.InvariantCulture)} / {(kpi.TargetValue ?? 0).ToString("N0", CultureInfo.InvariantCulture)} {kpi.Unit}".Trim()
+                        var displayedTarget = kpi.TargetValue is > 0m ? kpi.TargetValue : null;
+                        var displayedActual = kpi.ResolvedActualValue ?? kpi.ActualValue;
+                        var targetDisplay = displayedTarget.HasValue
+                            ? FormatMetricDisplay(displayedTarget.Value, kpi.Unit)
+                            : "—";
+                        var actualDisplay = displayedActual.HasValue
+                            ? FormatMetricDisplay(displayedActual.Value, kpi.Unit)
+                            : "—";
+                        var actualTargetStr = displayedTarget.HasValue || displayedActual.HasValue
+                            ? $"{(displayedActual.HasValue ? FormatMetricValue(displayedActual.Value) : "—")} / {(displayedTarget.HasValue ? FormatMetricValue(displayedTarget.Value) : "—")} {kpi.Unit}".Trim()
                             : "—";
 
-                        var kpiScore = kpi.ComponentScore ?? group.Score;
+                        var kpiScore = kpi.ComponentScore;
                         var weightedScore = kpiScore.HasValue
                             ? Math.Round(kpiScore.Value * effectiveWeight / 100m, 1)
                             : (decimal?)null;
@@ -2592,8 +2602,10 @@ public sealed partial class EvaluationService(
                             actualTargetStr,
                             kpiScore,
                             weightedScore,
-                            HasDrilldown: kpi.HasContribution,
-                            KpiDefinitionId: kpi.KpiDefinitionId));
+                            HasDrilldown: kpi.ActualValue.HasValue,
+                            KpiDefinitionId: kpi.KpiDefinitionId,
+                            TargetDisplay: targetDisplay,
+                            ActualDisplay: actualDisplay));
                     }
                 }
             }
@@ -2695,6 +2707,15 @@ public sealed partial class EvaluationService(
                 .ThenInclude(wri => wri.VerifiedWorkResult)
                     .ThenInclude(vwr => vwr!.WorkTransaction)
                         .ThenInclude(wt => wt!.ImportedTransaction)
+            .Include(a => a.WorkResultItems)
+                .ThenInclude(wri => wri.VerifiedWorkResult)
+                    .ThenInclude(vwr => vwr!.WorkTransaction)
+                        .ThenInclude(wt => wt!.Work)
+            .Include(a => a.WorkResultItems)
+                .ThenInclude(wri => wri.VerifiedWorkResult)
+                    .ThenInclude(vwr => vwr!.Verification)
+                        .ThenInclude(v => v!.ResultSubmission)
+                            .ThenInclude(rs => rs.Work)
             .ToListAsync(cancellationToken);
 
         var items = new List<PersonalCriteriaLedgerItemDto>();
@@ -2707,27 +2728,29 @@ public sealed partial class EvaluationService(
                 {
                     var wt = wri.VerifiedWorkResult?.WorkTransaction;
                     var it = wt?.ImportedTransaction;
+                    var work = wt?.Work ?? wri.VerifiedWorkResult?.Verification?.ResultSubmission.Work;
 
                     var txCode = wt?.TransactionCode
                         ?? $"VR-{wri.VerifiedWorkResultId.ToString()[..8].ToUpperInvariant()}";
 
-                    var date = it?.TransactionDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
-                        ?? wri.VerifiedWorkResult?.VerifiedAt.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
-                        ?? ap.ProgressDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+                    var occurredOn = it?.TransactionDate
+                        ?? (wri.VerifiedWorkResult is { } vwr ? DateOnly.FromDateTime(vwr.VerifiedAt.UtcDateTime) : ap.ProgressDate);
 
                     var amount = it is not null
                         ? $"{it.Amount.ToString("N0", CultureInfo.InvariantCulture)} VND"
                         : wri.Value.ToString("N0", CultureInfo.InvariantCulture);
 
-                    var status = wt?.Status ?? wri.VerifiedWorkResult?.Status.ToString() ?? "VALID";
-
                     items.Add(new PersonalCriteriaLedgerItemDto(
                         Id: wri.Id,
                         TxCode: txCode,
-                        Date: date,
+                        Date: occurredOn.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
                         Amount: amount,
                         KpiContribution: wri.Value,
-                        Status: status));
+                        Status: wt?.Status ?? "VALID",
+                        OccurredOn: occurredOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        WorkId: work?.Id,
+                        WorkCode: work?.Code,
+                        WorkTitle: work?.Title));
                 }
             }
             else
@@ -2738,10 +2761,19 @@ public sealed partial class EvaluationService(
                     Date: ap.ProgressDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
                     Amount: ap.Value.ToString("N0", CultureInfo.InvariantCulture),
                     KpiContribution: ap.Value,
-                    Status: "VALID"));
+                    Status: "VALID",
+                    OccurredOn: ap.ProgressDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
             }
         }
 
         return items;
     }
+
+    private static string FormatMetricValue(decimal value) =>
+        Math.Round(value, 2, MidpointRounding.ToEven).ToString("#,##0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatMetricDisplay(decimal value, string? unit) =>
+        string.IsNullOrWhiteSpace(unit)
+            ? FormatMetricValue(value)
+            : $"{FormatMetricValue(value)} {unit.Trim()}";
 }

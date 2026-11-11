@@ -441,7 +441,7 @@ public sealed class EvaluationControllerTests
             LastPersonalLedgerRequest = (periodId, criteriaId, currentUserId);
             IReadOnlyList<PersonalCriteriaLedgerItemDto> items =
             [
-                new PersonalCriteriaLedgerItemDto(Guid.NewGuid(), "TX-001", "10/10/2026", "100,000 VND", 5m, "VALID")
+                new PersonalCriteriaLedgerItemDto(Guid.NewGuid(), "TX-001", "10/10/2026", "100,000 VND", 5m, "VALID", "2026-10-10")
             ];
             return Task.FromResult(items);
         }

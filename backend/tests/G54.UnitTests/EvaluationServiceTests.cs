@@ -2145,6 +2145,13 @@ public sealed class EvaluationServiceTests
         Assert.DoesNotContain("ngày", view.AppealDeadlineText);
         Assert.NotEmpty(view.Criteria);
         Assert.Contains(view.Criteria, c => c.HasDrilldown && c.KpiDefinitionId.HasValue);
+        Assert.All(view.Criteria, c =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.TargetDisplay));
+            Assert.False(string.IsNullOrWhiteSpace(c.ActualDisplay));
+        });
+        Assert.Contains(view.Criteria, c =>
+            c.HasDrilldown && c.TargetDisplay != "—" && c.ActualDisplay != "—");
     }
 
     [Fact]
@@ -2313,5 +2320,230 @@ public sealed class EvaluationServiceTests
         Assert.Equal("15/10/2026", items[0].Date);
         Assert.Equal("05/10/2026", items[1].Date);
         Assert.DoesNotContain(items, i => i.KpiContribution == 99m);
+    }
+
+    [Fact]
+    public async Task GetPersonalCriteriaLedgerAsync_ReturnsTheWorkBehindEachTransaction()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var kpiHdv = await context.KpiDefinitions.FirstAsync(k => k.Code == "HDV");
+        var now = DateTimeOffset.UtcNow;
+        var staffTarget = await context.TargetAssignments.FirstAsync(t => t.EmployeeId == staff.Id && t.KpiDefinitionId == kpiHdv.Id);
+
+        Work NewWork(string code) => new()
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            Title = $"Work {code}",
+            AssigneeEmployeeId = staff.Id,
+            CreatedBy = manager.Id,
+            Status = WorkStatus.Done,
+            Priority = WorkPriority.Medium,
+            UpdatedAt = now,
+        };
+
+        ActualProgress NewProgress() => new()
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = staffTarget.Id,
+            Value = 1m,
+            ProgressDate = new DateOnly(2026, 10, 7),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        };
+
+        var txWork = NewWork("W-TX");
+        var txProgress = NewProgress();
+        var txResult = new VerifiedWorkResult { Id = Guid.NewGuid(), VerifiedAt = now, UpdatedAt = now, Status = VerifiedResultStatus.Valid };
+        var transaction = new WorkTransaction
+        {
+            Id = Guid.NewGuid(),
+            WorkId = txWork.Id,
+            TransactionCode = "TX-LINKED",
+            Status = WorkTransactionStatus.Matched,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        txResult.WorkTransactionId = transaction.Id;
+
+        var manualWork = NewWork("W-MANUAL");
+        var manualProgress = NewProgress();
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = manualWork.Id,
+            SubmitterEmployeeId = staff.Id,
+            SubmissionNo = 1,
+            SubmittedAt = now,
+            UpdatedAt = now,
+        };
+        var verification = new Verification
+        {
+            Id = Guid.NewGuid(),
+            ResultSubmissionId = submission.Id,
+            VerifierEmployeeId = manager.Id,
+            RoundNo = 1,
+            UpdatedAt = now,
+        };
+        var manualResult = new VerifiedWorkResult
+        {
+            Id = Guid.NewGuid(),
+            VerificationId = verification.Id,
+            VerifiedAt = now,
+            UpdatedAt = now,
+            Status = VerifiedResultStatus.Valid,
+        };
+
+        context.Works.AddRange(txWork, manualWork);
+        context.WorkTransactions.Add(transaction);
+        context.ResultSubmissions.Add(submission);
+        context.Verifications.Add(verification);
+        context.VerifiedWorkResults.AddRange(txResult, manualResult);
+        context.ActualProgresses.AddRange(txProgress, manualProgress);
+        context.WorkResultItems.AddRange(
+            new WorkResultItem { Id = Guid.NewGuid(), VerifiedWorkResultId = txResult.Id, ActualProgressId = txProgress.Id, EmployeeId = staff.Id, Value = 1m, RawValue = 1m, UpdatedAt = now },
+            new WorkResultItem { Id = Guid.NewGuid(), VerifiedWorkResultId = manualResult.Id, ActualProgressId = manualProgress.Id, EmployeeId = staff.Id, Value = 1m, RawValue = 1m, UpdatedAt = now });
+        await context.SaveChangesAsync();
+
+        var items = await service.GetPersonalCriteriaLedgerAsync(period.Id, kpiHdv.Id, staff.Account!.Id);
+
+        var linked = Assert.Single(items, i => i.TxCode == "TX-LINKED");
+        Assert.Equal(txWork.Id, linked.WorkId);
+        Assert.Equal("W-TX", linked.WorkCode);
+        Assert.Equal("MATCHED", linked.Status);
+        var manual = Assert.Single(items, i => i.WorkCode == "W-MANUAL");
+        Assert.Equal(manualWork.Id, manual.WorkId);
+        Assert.Equal("Work W-MANUAL", manual.WorkTitle);
+        Assert.Equal("VALID", manual.Status);
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_ThrowsNotFound_WhenPeriodDoesNotExist()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, _, _, staff) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetPersonalEvaluationAsync(Guid.NewGuid(), staff.Account!.Id));
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_DisplaysResolvedRatioAndBlankTarget_WhenTargetMissingWithBaseline()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, _, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var cldvGroup = await context.KpiGroups.FirstAsync(g => g.Code == "CLDV");
+        var kpiCsat = await context.KpiDefinitions.FirstAsync(k => k.Code == "CSAT");
+        var kpiError = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = cldvGroup.Id,
+            Code = "TY_LE_LOI",
+            Name = "Tỷ lệ lỗi giao dịch",
+            Unit = "%",
+            AggregationType = KpiAggregationType.Ratio,
+            Direction = KpiDirection.LowerBetter,
+            MaxAchievementPercent = 100m,
+            BaselineValue = 2m,
+            Status = KpiStatus.Active,
+            UpdatedAt = now,
+        };
+        await context.KpiDefinitions.AddAsync(kpiError);
+
+        var profile = await context.EvaluationProfiles.FirstAsync();
+        var cldvItem = await context.EvaluationProfileItems
+            .FirstAsync(i => i.EvaluationProfileId == profile.Id && i.ParentItemId == null && i.Name == "Chat luong dich vu");
+        await context.EvaluationProfileItems.AddAsync(new EvaluationProfileItem
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profile.Id,
+            ParentItemId = cldvItem.Id,
+            KpiDefinitionId = kpiError.Id,
+            WeightPercent = 50m,
+            DisplayOrder = 2,
+            UpdatedAt = now,
+        });
+
+        var otherPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-Q4",
+            Name = "Quý 4/2026",
+            PeriodType = PeriodType.Quarter,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        };
+        await context.EvaluationPeriods.AddAsync(otherPeriod);
+
+        // Targets exist only in Q4, not in the requested monthly period; progress occurs inside the month.
+        var errorTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            DepartmentId = dept.Id,
+            EvaluationPeriodId = otherPeriod.Id,
+            KpiDefinitionId = kpiError.Id,
+            TargetValue = 2m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        var csatTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            DepartmentId = dept.Id,
+            EvaluationPeriodId = otherPeriod.Id,
+            KpiDefinitionId = kpiCsat.Id,
+            TargetValue = 4.5m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        await context.TargetAssignments.AddRangeAsync(errorTarget, csatTarget);
+
+        await context.ActualProgresses.AddRangeAsync(
+            new ActualProgress
+            {
+                Id = Guid.NewGuid(),
+                TargetAssignmentId = errorTarget.Id,
+                Value = 15m,
+                Denominator = 300m,
+                ProgressDate = new DateOnly(2026, 10, 15),
+                Status = ActualProgressStatus.Valid,
+                UpdatedAt = now,
+            },
+            new ActualProgress
+            {
+                Id = Guid.NewGuid(),
+                TargetAssignmentId = csatTarget.Id,
+                Value = 4.25m,
+                ProgressDate = new DateOnly(2026, 10, 15),
+                Status = ActualProgressStatus.Valid,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var view = await service.GetPersonalEvaluationAsync(period.Id, staff.Account!.Id);
+
+        var errorRow = Assert.Single(view.Criteria, c => c.Id == kpiError.Id);
+        Assert.Equal("—", errorRow.TargetDisplay);
+        Assert.Equal("5 %", errorRow.ActualDisplay);
+        Assert.Equal(97m, errorRow.Score);
+        Assert.True(errorRow.HasDrilldown);
+
+        var csatRow = Assert.Single(view.Criteria, c => c.Id == kpiCsat.Id);
+        Assert.Equal("—", csatRow.TargetDisplay);
+        Assert.Equal("4.25 điểm", csatRow.ActualDisplay);
+        Assert.Null(csatRow.Score);
+        Assert.Null(csatRow.WeightedScore);
+        Assert.True(csatRow.HasDrilldown);
     }
 }

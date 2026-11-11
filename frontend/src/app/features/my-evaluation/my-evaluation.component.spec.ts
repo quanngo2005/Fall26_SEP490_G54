@@ -51,6 +51,8 @@ describe('MyEvaluationComponent', () => {
         name: 'Sales – Tiền gửi – xử lý',
         weightPercent: 40,
         actualTargetDisplay: '4.920.000.000 / 5.500.000.000 VND',
+        targetDisplay: '5.500.000.000 VND',
+        actualDisplay: '4.920.000.000 VND',
         score: 89.5,
         weightedScore: 35.8,
         hasDrilldown: true,
@@ -61,6 +63,8 @@ describe('MyEvaluationComponent', () => {
         name: 'Sales – Mở thẻ – xử lý',
         weightPercent: 20,
         actualTargetDisplay: '40 / 42 hợp đồng',
+        targetDisplay: '42 hợp đồng',
+        actualDisplay: '40 hợp đồng',
         score: 95.2,
         weightedScore: 19.0,
         hasDrilldown: true,
@@ -71,6 +75,8 @@ describe('MyEvaluationComponent', () => {
         name: 'Chất lượng dịch vụ',
         weightPercent: 20,
         actualTargetDisplay: '4,3 / 4,5 điểm',
+        targetDisplay: '4,5 điểm',
+        actualDisplay: '4,3 điểm',
         score: 95.6,
         weightedScore: 19.1,
         hasDrilldown: true,
@@ -81,6 +87,8 @@ describe('MyEvaluationComponent', () => {
         name: 'Đánh giá định tính (Trưởng phòng)',
         weightPercent: 20,
         actualTargetDisplay: '—',
+        targetDisplay: '—',
+        actualDisplay: '—',
         score: 86.0,
         weightedScore: 17.2,
         hasDrilldown: false,
@@ -145,6 +153,19 @@ describe('MyEvaluationComponent', () => {
       amount: '1.500.000.000 VND',
       kpiContribution: 10.5,
       status: 'MATCHED',
+      occurredOn: '2026-04-05',
+      workId: 'work-1',
+      workCode: 'W-TX-1',
+      workTitle: 'Giao dich tiet kiem',
+    },
+    {
+      id: 'tx-2',
+      txCode: 'AP-0000002',
+      date: '20/04/2026',
+      amount: '2',
+      kpiContribution: 2,
+      status: 'VALID',
+      occurredOn: '2026-04-20',
     },
   ];
 
@@ -214,20 +235,35 @@ describe('MyEvaluationComponent', () => {
 
     const heroTier = fixture.debugElement.query(By.css('.tier-hero-pill'));
     expect(heroTier.nativeElement.textContent.trim()).toBe('A2');
-
-    const activeTierPill = fixture.debugElement.query(By.css('.tier-pill-active'));
-    expect(activeTierPill.nativeElement.textContent.trim()).toBe('A2');
+    expect(heroTier.classes['tier-a2']).toBeTrue();
+    expect(fixture.debugElement.query(By.css('.tier-track'))).toBeNull();
 
     const rankingVal = fixture.debugElement.query(By.css('.ranking-hero-val'));
     expect(rankingVal.nativeElement.textContent.trim()).toBe('Top 40%');
   });
 
-  it('renders all KPI criteria table rows and modifiers', () => {
+  it('renders all KPI criteria table rows, 6 ordered columns, and modifiers', () => {
+    const headers = fixture.debugElement.queryAll(By.css('.evaluation-table thead th'));
+    expect(headers.map((h) => h.nativeElement.className)).toEqual([
+      'th-criteria',
+      'th-target',
+      'th-actual',
+      'th-score',
+      'th-weight',
+      'th-weighted-score',
+    ]);
+
     const rows = fixture.debugElement.queryAll(By.css('.criteria-row'));
     expect(rows.length).toBe(4);
 
     const firstRowCriteria = rows[0].query(By.css('.criteria-link-btn'));
     expect(firstRowCriteria.nativeElement.textContent).toContain('Sales – Tiền gửi – xử lý');
+    expect(rows[0].query(By.css('.col-target')).nativeElement.textContent.trim()).toBe(
+      '5.500.000.000 VND',
+    );
+    expect(rows[0].query(By.css('.col-actual')).nativeElement.textContent.trim()).toBe(
+      '4.920.000.000 VND',
+    );
 
     const modifierRows = fixture.debugElement.queryAll(By.css('.modifier-row'));
     expect(modifierRows.length).toBe(2);
@@ -245,6 +281,7 @@ describe('MyEvaluationComponent', () => {
 
     const heroTier = fixture.debugElement.query(By.css('.tier-hero-pill'));
     expect(heroTier.nativeElement.textContent.trim()).toBe('B');
+    expect(heroTier.classes['tier-b']).toBeTrue();
   });
 
   it('opens acknowledge modal and confirms acknowledgment (UC108)', () => {
@@ -297,6 +334,92 @@ describe('MyEvaluationComponent', () => {
     component.onEscape();
     fixture.detectChanges();
     expect(fixture.debugElement.query(By.css('.ledger-dialog'))).toBeFalsy();
+  });
+
+  it('filters the ledger by keyword, status and date', () => {
+    component.openDrilldown(component['evaluation']()!.criteria[0]);
+    fixture.detectChanges();
+    expect(component.filteredLedgerItems().length).toBe(2);
+
+    component.ledgerKeyword.set('tiet kiem');
+    expect(component.filteredLedgerItems().map((tx) => tx.id)).toEqual(['tx-1']);
+    component.ledgerKeyword.set('ap-000');
+    expect(component.filteredLedgerItems().map((tx) => tx.id)).toEqual(['tx-2']);
+
+    component.ledgerKeyword.set('');
+    component.ledgerStatus.set('MATCHED');
+    expect(component.filteredLedgerItems().map((tx) => tx.id)).toEqual(['tx-1']);
+
+    component.ledgerStatus.set('');
+    component.ledgerDateFrom.set('2026-04-10');
+    expect(component.filteredLedgerItems().map((tx) => tx.id)).toEqual(['tx-2']);
+    component.ledgerDateFrom.set('');
+    component.ledgerDateTo.set('2026-04-10');
+    expect(component.filteredLedgerItems().map((tx) => tx.id)).toEqual(['tx-1']);
+
+    component.ledgerKeyword.set('zzz');
+    fixture.detectChanges();
+    expect(fixture.debugElement.query(By.css('.ledger-dialog .muted-empty'))).toBeTruthy();
+  });
+
+  it('opens the work of a ledger transaction with its code searched', () => {
+    component.openDrilldown(component['evaluation']()!.criteria[0]);
+    fixture.detectChanges();
+
+    const [linked, unlinked] = component.ledgerItems();
+    component.openLedgerWork(unlinked);
+    expect(router.navigate).not.toHaveBeenCalled();
+
+    component.openLedgerWork(linked);
+    expect(router.navigate).toHaveBeenCalledWith(['/my-work'], {
+      queryParams: { keyword: 'W-TX-1', workId: 'work-1' },
+    });
+    expect(component.selectedDrilldownCriteria()).toBeNull();
+  });
+
+  it('maps tier color classes and splits legacy actualTargetDisplay fallback cleanly', () => {
+    expect(component.tierBadgeClass('A1')).toBe('tier-a1');
+    expect(component.tierBadgeClass('a2')).toBe('tier-a2');
+    expect(component.tierBadgeClass('A3')).toBe('tier-a3');
+    expect(component.tierBadgeClass('B')).toBe('tier-b');
+    expect(component.tierBadgeClass('C')).toBe('tier-c');
+    expect(component.tierBadgeClass(null)).toBe('tier-default');
+
+    const legacyItem = {
+      id: 'legacy',
+      name: 'Legacy KPI',
+      weightPercent: 10,
+      actualTargetDisplay: '91 / 100 tỷ VND',
+      score: 91,
+      weightedScore: 9.1,
+      hasDrilldown: false,
+    };
+    expect(component.formatTarget(legacyItem)).toBe('100 tỷ VND');
+    expect(component.formatActual(legacyItem)).toBe('91 tỷ VND');
+  });
+
+  it('localizes ledger status badges and renders work column in English', () => {
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLanguage('en');
+    try {
+      expect(component.ledgerStatusLabel('MATCHED')).toBe('Matched');
+      expect(component.ledgerStatusLabel('IN_REVIEW')).toBe('Pending verification');
+      expect(component.ledgerStatusLabel('NOT_MATCHED')).toBe('Rejected');
+      expect(component.ledgerStatusClass('VALID')).toBe('ledger-status-ok');
+      expect(component.ledgerStatusClass('IN_REVIEW')).toBe('ledger-status-review');
+      expect(component.ledgerStatusClass('NOT_MATCHED')).toBe('ledger-status-rejected');
+
+      component.openDrilldown(component['evaluation']()!.criteria[0]);
+      fixture.detectChanges();
+
+      const modalText = fixture.debugElement.query(By.css('.ledger-dialog')).nativeElement
+        .textContent;
+      expect(modalText).toContain('Task');
+      expect(modalText).toContain('Open task');
+      expect(modalText).toContain('Direct progress');
+    } finally {
+      i18n.setLanguage('vi');
+    }
   });
 
   it('does not open drilldown for qualitative criteria', () => {
@@ -395,6 +518,8 @@ describe('MyEvaluationComponent', () => {
           {
             ...mockEvalData.criteria[0],
             actualTargetDisplay: '261 / 450 tỷ VND',
+            targetDisplay: '450 tỷ VND',
+            actualDisplay: '261 tỷ VND',
           },
         ],
       }),
@@ -413,7 +538,9 @@ describe('MyEvaluationComponent', () => {
         .nativeElement.textContent;
       const rankingText = fixture.debugElement.query(By.css('.ranking-sub-text')).nativeElement
         .textContent;
-      const targetText = fixture.debugElement.query(By.css('.col-actual-target')).nativeElement
+      const targetText = fixture.debugElement.query(By.css('.col-target')).nativeElement
+        .textContent;
+      const actualText = fixture.debugElement.query(By.css('.col-actual')).nativeElement
         .textContent;
 
       expect(titleText).toContain('Q2/2026');
@@ -422,7 +549,8 @@ describe('MyEvaluationComponent', () => {
       expect(deadlineText).not.toContain('ngày');
       expect(rankingText).toContain('Sales Officer in department');
       expect(rankingText).not.toContain('trong phòng');
-      expect(targetText).toContain('261 / 450 B VND');
+      expect(targetText).toContain('450 B VND');
+      expect(actualText).toContain('261 B VND');
     } finally {
       i18n.setLanguage('vi');
     }

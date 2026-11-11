@@ -10,7 +10,9 @@ public sealed record PersonalEvaluationCriteriaItemDto(
     decimal? Score,
     decimal? WeightedScore,
     bool HasDrilldown,
-    Guid? KpiDefinitionId = null);
+    Guid? KpiDefinitionId = null,
+    string TargetDisplay = "—",
+    string ActualDisplay = "—");
 
 public sealed record PersonalEvaluationViewDto(
     Guid PeriodId,
@@ -51,5 +53,9 @@ public sealed record PersonalCriteriaLedgerItemDto(
     string Date,
     string Amount,
     decimal KpiContribution,
-    string Status);
+    string Status,
+    string OccurredOn,
+    Guid? WorkId = null,
+    string? WorkCode = null,
+    string? WorkTitle = null);
 

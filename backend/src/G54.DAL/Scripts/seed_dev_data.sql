@@ -39,7 +39,7 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, 
  ('5eed0000-0000-0000-0005-000000000002', '5eed0000-0000-0000-0003-000000000001', 'KH_MOI',    'Khách hàng mới',             'Số khách hàng mở mới',           'COUNT(khách hàng mới)',          'khách hàng', 'SUM',   'HIGHER_BETTER', 150),
  ('5eed0000-0000-0000-0005-000000000003', '5eed0000-0000-0000-0003-000000000001', 'DU_NO',     'Giải ngân tín dụng',         'Dư nợ giải ngân mới',            'SUM(giải ngân)',                 'tỷ VND',     'SUM',   'HIGHER_BETTER', 150),
  ('5eed0000-0000-0000-0005-000000000004', '5eed0000-0000-0000-0003-000000000002', 'CSAT',      'Điểm hài lòng khách hàng',   'Điểm khảo sát CSAT (1-5)',       'AVG(điểm khảo sát)',             'điểm',       'AVG',   'HIGHER_BETTER', 100),
- ('5eed0000-0000-0000-0005-000000000005', '5eed0000-0000-0000-0003-000000000002', 'TY_LE_LOI', 'Tỷ lệ lỗi giao dịch',        'Giao dịch lỗi / tổng giao dịch', 'giao dịch lỗi / tổng giao dịch', '%',          'RATIO', 'LOWER_BETTER',  120),
+ ('5eed0000-0000-0000-0005-000000000005', '5eed0000-0000-0000-0003-000000000002', 'TY_LE_LOI', 'Tỷ lệ lỗi giao dịch',        'Giao dịch lỗi / tổng giao dịch', 'giao dịch lỗi / tổng giao dịch', '%',          'RATIO', 'LOWER_BETTER',  100),
  ('5eed0000-0000-0000-0005-000000000006', '5eed0000-0000-0000-0003-000000000003', 'TUAN_THU',  'Tỷ lệ hồ sơ đúng quy trình', 'Hồ sơ đạt / tổng hồ sơ',         'hồ sơ đạt / tổng hồ sơ',         '%',          'RATIO', 'HIGHER_BETTER', 100),
  -- BR-48 Task Multiplier: one KPI shared by every card tier; the tier's weight comes from
  -- work_type_kpi.multiplier below, not from a separate KPI per tier.
@@ -352,6 +352,17 @@ FROM (VALUES
 CROSS JOIN evaluation_period p
 WHERE p.code = '2026-Q1' AND k.code = v.code
   AND k.product_name IS NULL AND k.effective_from_period_id IS NULL;
+
+UPDATE kpi_definition k
+SET baseline_value = v.baseline,
+    max_achievement_percent = v.max_percent
+FROM (VALUES
+    ('CSAT',      5::numeric,   100::numeric),
+    ('TY_LE_LOI', 0::numeric,   100::numeric),
+    ('TUAN_THU',  100::numeric, 100::numeric)
+) AS v(code, baseline, max_percent)
+WHERE k.code = v.code
+  AND (k.baseline_value IS NULL OR (k.code = 'TY_LE_LOI' AND k.max_achievement_percent = 120));
 
 INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, formula, unit, aggregation_type, direction,
                             status, credit_role, data_source, product_name, effective_from_period_id, submitted_at, request_note)
@@ -872,16 +883,16 @@ JOIN evaluation_period ep ON ep.code = month_sample.code;
 -- and progress. NV010 deliberately has no DU_NO target to exercise the N/A state.
 CREATE TEMP TABLE seed_evaluation_metric ON COMMIT DROP AS
 SELECT c.*, k.id AS kpi_id, k.code AS kpi_code, k.aggregation_type,
-       metric.target_value,
-        round(CASE WHEN k.code = 'CSAT' THEN LEAST(metric.target_value * fluctuation.factor, 5)
-            WHEN k.code = 'TUAN_THU' THEN LEAST(metric.target_value * fluctuation.factor, 100)
-            WHEN k.code = 'KH_MOI' THEN round(metric.target_value * fluctuation.factor)
+       goal.target_value,
+        round(CASE WHEN k.code = 'CSAT' THEN LEAST(goal.target_value * fluctuation.factor, 5)
+            WHEN k.code = 'TUAN_THU' THEN LEAST(goal.target_value * fluctuation.factor, 100)
+            WHEN k.code = 'KH_MOI' THEN round(goal.target_value * fluctuation.factor)
             WHEN k.direction = 'LOWER_BETTER'
-            THEN metric.target_value / fluctuation.factor
-            ELSE metric.target_value * fluctuation.factor END, 4) AS actual_value,
+            THEN goal.target_value / fluctuation.factor
+            ELSE goal.target_value * fluctuation.factor END, 4) AS actual_value,
        CASE WHEN k.aggregation_type = 'RATIO' THEN 100::numeric END AS denominator,
        wt.id AS work_type_id,
-       md5('evaluation-demo-target-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS target_id,
+       COALESCE(existing.id, md5('evaluation-demo-target-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid) AS target_id,
        md5('evaluation-demo-progress-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS progress_id,
        md5('evaluation-demo-work-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS work_id,
        md5('evaluation-demo-submission-' || c.employee_id::text || '-' || c.period_id::text || '-' || k.id::text)::uuid AS submission_id,
@@ -921,6 +932,12 @@ CROSS JOIN LATERAL (
 ) fluctuation
 JOIN kpi_definition k ON k.code = metric.kpi_code
 JOIN work_type wt ON wt.code = metric.work_type_code
+-- Only one ACTIVE target may exist per KPI / employee / period. Reuse one created earlier (e.g. the month split of
+-- the Q4 targets) instead of inserting a second that the unique index would silently skip, dropping its progress.
+LEFT JOIN target_assignment existing ON existing.kpi_definition_id = k.id
+    AND existing.employee_id = c.employee_id AND existing.evaluation_period_id = c.period_id
+    AND existing.status = 'ACTIVE'
+CROSS JOIN LATERAL (SELECT COALESCE(existing.target_value, metric.target_value) AS target_value) goal
 WHERE NOT (c.employee_code = 'NV010' AND k.code = 'DU_NO');
 
 INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id,

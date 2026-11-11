@@ -27,6 +27,7 @@
     font-weight: 700;
     color: #475569;
     text-transform: uppercase;
+    white-space: nowrap;
   }
 
   tbody tr {
@@ -46,20 +47,26 @@
     text-align: left;
   }
 
-  .th-weight,
-  .col-weight {
-    text-align: center;
-    width: 110px;
+  .th-target,
+  .col-target {
+    text-align: right;
+    width: 170px;
   }
 
-  .th-actual-target,
-  .col-actual-target {
+  .th-actual,
+  .col-actual {
     text-align: right;
-    width: 300px;
+    width: 170px;
   }
 
   .th-score,
   .col-score {
+    text-align: right;
+    width: 130px;
+  }
+
+  .th-weight,
+  .col-weight {
     text-align: right;
     width: 110px;
   }
@@ -67,7 +74,7 @@
   .th-weighted-score,
   .col-weighted-score {
     text-align: right;
-    width: 160px;
+    width: 150px;
   }
 
   .criteria-link-btn {

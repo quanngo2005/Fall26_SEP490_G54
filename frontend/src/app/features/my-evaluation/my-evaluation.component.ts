@@ -44,6 +44,18 @@ const STATUS_KEY_MAP: Readonly<Record<string, string>> = {
   PUBLISHED: 'statusPublished',
 };
 
+const LEDGER_STATUS_KEY_MAP: Readonly<Record<string, string>> = {
+  VALID: 'ledgerVerified',
+  MATCHED: 'ledgerStatusMatched',
+  IN_REVIEW: 'ledgerStatusInReview',
+  NOT_MATCHED: 'ledgerStatusNotMatched',
+};
+
+const LEDGER_STATUS_CLASS_MAP: Readonly<Record<string, string>> = {
+  IN_REVIEW: 'ledger-status-review',
+  NOT_MATCHED: 'ledger-status-rejected',
+};
+
 const ROLE_TITLE_EN: Readonly<Record<string, string>> = {
   'Chuyên viên Kinh doanh': 'Sales Officer',
   'Giao dịch viên': 'Teller',
@@ -57,6 +69,14 @@ const UNIT_REPLACEMENTS_EN: readonly [RegExp, string][] = [
   [/\bhợp đồng\b/g, 'contracts'],
   [/\bđiểm\b/g, 'pts'],
 ];
+
+const TIER_CLASS_MAP: Readonly<Record<string, string>> = {
+  A1: 'tier-a1',
+  A2: 'tier-a2',
+  A3: 'tier-a3',
+  B: 'tier-b',
+  C: 'tier-c',
+};
 
 function periodMonth(period: EvaluationPeriodOption): number {
   return Number(period.startDate.slice(5, 7));
@@ -109,6 +129,29 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
   readonly ledgerItems = signal<readonly PersonalCriteriaLedgerItem[]>([]);
   readonly ledgerLoading = signal<boolean>(false);
   readonly ledgerError = signal<boolean>(false);
+  readonly ledgerKeyword = signal('');
+  readonly ledgerStatus = signal('');
+  readonly ledgerDateFrom = signal('');
+  readonly ledgerDateTo = signal('');
+
+  readonly ledgerStatuses = computed(() => [...new Set(this.ledgerItems().map((tx) => tx.status))]);
+
+  readonly filteredLedgerItems = computed(() => {
+    const keyword = this.ledgerKeyword().trim().toLowerCase();
+    const status = this.ledgerStatus();
+    const from = this.ledgerDateFrom();
+    const to = this.ledgerDateTo();
+    return this.ledgerItems().filter(
+      (tx) =>
+        (!keyword ||
+          [tx.txCode, tx.workCode, tx.workTitle].some((text) =>
+            text?.toLowerCase().includes(keyword),
+          )) &&
+        (!status || tx.status === status) &&
+        (!from || tx.occurredOn >= from) &&
+        (!to || tx.occurredOn <= to),
+    );
+  });
 
   private evalSubscription?: Subscription;
   private ledgerSubscription?: Subscription;
@@ -371,6 +414,7 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     this.ledgerLoading.set(true);
     this.ledgerError.set(false);
     this.ledgerItems.set([]);
+    this.resetLedgerFilters();
 
     const periodId = this.selectedPeriodId();
     const criteriaId = crit.kpiDefinitionId ?? crit.id;
@@ -397,6 +441,34 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     this.ledgerItems.set([]);
     this.ledgerError.set(false);
     this.ledgerLoading.set(false);
+    this.resetLedgerFilters();
+  }
+
+  openLedgerWork(tx: PersonalCriteriaLedgerItem): void {
+    if (!tx.workId) {
+      return;
+    }
+    this.closeDrilldown();
+    void this.router.navigate(['/my-work'], {
+      queryParams: { keyword: tx.workCode, workId: tx.workId },
+    });
+  }
+
+  ledgerStatusLabel(status: string): string {
+    const key = LEDGER_STATUS_KEY_MAP[status];
+    const myEval = this.localization.myEvaluation as Record<string, string>;
+    return (key && myEval[key]) || status;
+  }
+
+  ledgerStatusClass(status: string): string {
+    return LEDGER_STATUS_CLASS_MAP[status] ?? 'ledger-status-ok';
+  }
+
+  private resetLedgerFilters(): void {
+    this.ledgerKeyword.set('');
+    this.ledgerStatus.set('');
+    this.ledgerDateFrom.set('');
+    this.ledgerDateTo.set('');
   }
 
   absValue(value: number): number {
@@ -450,6 +522,40 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       return display;
     }
     return UNIT_REPLACEMENTS_EN.reduce((acc, [pattern, en]) => acc.replace(pattern, en), display);
+  }
+
+  formatTarget(crit: PersonalEvaluationCriteriaItem): string {
+    if (crit.targetDisplay) {
+      return this.formatActualTarget(crit.targetDisplay);
+    }
+    return this.formatActualTarget(this.splitActualTarget(crit.actualTargetDisplay).target);
+  }
+
+  formatActual(crit: PersonalEvaluationCriteriaItem): string {
+    if (crit.actualDisplay) {
+      return this.formatActualTarget(crit.actualDisplay);
+    }
+    return this.formatActualTarget(this.splitActualTarget(crit.actualTargetDisplay).actual);
+  }
+
+  tierBadgeClass(tier: string | null | undefined): string {
+    const key = tier?.trim().toUpperCase() ?? '';
+    return TIER_CLASS_MAP[key] ?? 'tier-default';
+  }
+
+  private splitActualTarget(display?: string): { actual: string; target: string } {
+    if (!display || display.trim() === '—') {
+      return { actual: '—', target: '—' };
+    }
+    const match = /^\s*(.+?)\s*\/\s*(\S+)(?:\s+(.+))?\s*$/.exec(display);
+    if (!match) {
+      return { actual: display, target: '—' };
+    }
+    const unitSuffix = match[3] ? ` ${match[3].trim()}` : '';
+    return {
+      actual: `${match[1].trim()}${unitSuffix}`,
+      target: `${match[2].trim()}${unitSuffix}`,
+    };
   }
 
   formatRatio(val: number | null | undefined): string {

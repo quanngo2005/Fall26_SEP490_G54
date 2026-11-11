@@ -368,7 +368,9 @@ export interface PersonalEvaluationCriteriaItem {
   id: string;
   name: string;
   weightPercent: number;
-  actualTargetDisplay: string;
+  actualTargetDisplay?: string;
+  targetDisplay?: string;
+  actualDisplay?: string;
   score: number | null;
   weightedScore: number | null;
   hasDrilldown: boolean;
@@ -418,4 +420,8 @@ export interface PersonalCriteriaLedgerItem {
   amount: string;
   kpiContribution: number;
   status: string;
+  occurredOn: string;
+  workId?: string | null;
+  workCode?: string | null;
+  workTitle?: string | null;
 }

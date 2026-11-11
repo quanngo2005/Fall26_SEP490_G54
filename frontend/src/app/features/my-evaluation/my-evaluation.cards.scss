@@ -64,41 +64,49 @@
     gap: 12px;
 
     .tier-hero-pill {
-      min-width: 44px;
-      height: 32px;
-      background: #e8f0fe;
-      color: #1a73e8;
+      min-width: 56px;
+      height: 36px;
+      padding: 0 14px;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
       font:
-        700 16px/1 Inter,
+        700 17px/1 Inter,
+        system-ui,
         sans-serif;
-      border-radius: 6px;
+      border-radius: 8px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-    }
 
-    .tier-track {
-      display: flex;
-      gap: 5px;
+      &.tier-a1 {
+        background: #dcfce7;
+        color: #15803d;
+        border-color: #15803d;
+      }
 
-      .tier-pill {
-        min-width: 28px;
-        height: 26px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 600;
-        color: #94a3b8;
-        border: 1px solid #f1f5f9;
-        background: #f8fafc;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+      &.tier-a2 {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-color: #1d4ed8;
+      }
 
-        &.tier-pill-active {
-          background: #e8f0fe;
-          color: #1a73e8;
-          border-color: #d2e3fc;
-        }
+      &.tier-a3 {
+        background: #cffafe;
+        color: #0e7490;
+        border-color: #0e7490;
+      }
+
+      &.tier-b {
+        background: #e2e8f0;
+        color: #475569;
+        border-color: #475569;
+      }
+
+      &.tier-c {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #b45309;
       }
     }
   }
