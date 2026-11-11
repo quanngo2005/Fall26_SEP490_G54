@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Admin;
 using G54.DAL;
@@ -43,11 +44,11 @@ public sealed class AdminAccountService(AppDbContext dbContext) : IAdminAccountS
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
             // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
-            var pattern = ContainsPattern(filter.Keyword.Trim());
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(account =>
-                EF.Functions.ILike(account.Username, pattern, "\\")
-                || EF.Functions.ILike(account.Employee.EmployeeCode, pattern, "\\")
-                || EF.Functions.ILike(account.Employee.FullName, pattern, "\\"));
+                EF.Functions.ILike(account.Username, pattern, LikePattern.Escape)
+                || EF.Functions.ILike(account.Employee.EmployeeCode, pattern, LikePattern.Escape)
+                || EF.Functions.ILike(account.Employee.FullName, pattern, LikePattern.Escape));
         }
 
         if (filter.RoleId.HasValue)
@@ -104,8 +105,4 @@ public sealed class AdminAccountService(AppDbContext dbContext) : IAdminAccountS
         return new PagedResult<UserAccountSummaryDto>(items, totalCount, page, pageSize);
     }
 
-    private static string ContainsPattern(string text) =>
-        "%" + text.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
 }

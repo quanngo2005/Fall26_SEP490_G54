@@ -32,7 +32,7 @@ data the frontend already has (names, codes, units, aggregation type, allocated/
 | KPI is ACTIVE, period is OPEN, owner is a branch / ACTIVE, one level below, employee is working, no duplicate rows, row limits, `SUM` preview, decimal places | frontend |
 | Names, codes, units, `allocatedValue` / `remainingValue` | frontend (from the KPI, period, department and employee lookups it already loads) |
 
-A database rule violation surfaces as an unhandled database error (HTTP 500); the frontend must validate first. There
+A database rule violation (hierarchy, `SUM` total, value range, unknown KPI/period/department, duplicate owner) is turned into a 4xx answer (see "Errors"); the frontend still validates first. There
 is no request cancellation: the frontend blocks repeated requests.
 
 ## Authorization
@@ -68,8 +68,7 @@ database call (so a bad row is `400`/`404`, not an unhandled `500`):
 | The employee's `status` must be `ACTIVE` | 400 `VALIDATION_ERROR` |
 | The employee's department must be the parent's department or a descendant of it | 400 `VALIDATION_ERROR` |
 
-The `SUM`-equals-parent check, value range and uniqueness constraints remain database-enforced (500 on violation,
-unchanged from the existing behavior).
+The `SUM`-equals-parent check, value range and uniqueness constraints remain database-enforced; a violation is answered with 400 `VALIDATION_ERROR` (409 `CONFLICT` for uniqueness), never 500.
 
 ## Common rules
 
@@ -88,6 +87,8 @@ Assigns the root target of a KPI and period to a **branch**. Returns **201** wit
 | `departmentId` | GUID | required; the branch |
 | `targetValue` | decimal | required |
 | `changeReason` | string or null | optional, at most 1000 characters |
+
+The department must exist (404 `NOT_FOUND`) and be a **branch** (`levelType = BRANCH`); any other level is 400 `VALIDATION_ERROR` ("Target gốc chỉ được giao cho chi nhánh.").
 
 ```json
 {
@@ -150,8 +151,8 @@ Changes the values of the children that `POST .../allocations` created, for exam
   confirms or comments again. Feedback on the superseded version stays under its own id.
 - Authorization and period lock are the same as for the split (the caller's department owns `{id}`; `PERIOD_LOCKED` otherwise).
 - 400 `VALIDATION_ERROR` when an allocated owner is left out, a row has both or neither owner, an owner repeats, or
-  `changeReason` is missing. As for the split, a `SUM` KPI must still total the parent: the database enforces it (500 on a
-  violation) and the frontend validates it first.
+  `changeReason` is missing. As for the split, a `SUM` KPI must still total the parent: the database enforces it (400 `VALIDATION_ERROR`,
+  the trigger text in `errors`) and the frontend validates it first.
 
 ```json
 {
@@ -428,4 +429,4 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
 | 404 | `NOT_FOUND` | unknown assignment id; unknown `departmentId` in GET list; unknown `evaluationPeriodId` in period-allocations |
 | 409 | `PERIOD_LOCKED` | the target's period (create, split), the parent's period or any `evaluationPeriodId` in period-allocations has status `LOCKED` or `CLOSED` (see `PERIOD_LOCK_CONTRACT.md`) |
 | 409 | `CONFLICT` | allocation to a department or employee that already has an ACTIVE target for the same KPI and period; confirming a target already confirmed since its last change |
-| 500 | `INTERNAL_ERROR` | a database rule was violated (hierarchy, `SUM` total, value range, unknown KPI/period/department) |
+| 400 | `VALIDATION_ERROR` | a database rule was violated: hierarchy or `SUM` total (the trigger text is in `errors`), negative or too precise value, unknown KPI/period/department/employee |
