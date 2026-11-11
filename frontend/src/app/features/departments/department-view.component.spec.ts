@@ -6,7 +6,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { DepartmentService } from '../../core/department.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { memberFixture, overviewFixture } from '../performance-dashboard/perf-fixtures.spec';
+import { memberFixture, overviewFixture } from '../performance-dashboard/performance-fixtures.spec';
 import { DepartmentViewComponent } from './department-view.component';
 
 @Component({ selector: 'app-header', template: '' })

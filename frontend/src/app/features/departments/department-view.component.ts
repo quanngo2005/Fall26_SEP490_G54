@@ -18,21 +18,21 @@ import {
   MemberStatus,
   PerformanceCompareMode,
 } from '../../core/department.models';
-import { PerfAttentionComponent } from '../performance-dashboard/perf-attention.component';
+import { PerfAttentionComponent } from '../performance-dashboard/performance-attention.component';
 import {
   formatArrow,
   formatValue,
   NOT_AVAILABLE,
   toneOf,
-} from '../performance-dashboard/perf-display';
-import { PerfKpiBelowPlanComponent } from '../performance-dashboard/perf-kpi-below-plan.component';
-import { PerfKpiGroupTableComponent } from '../performance-dashboard/perf-kpi-group-table.component';
-import { PerfMemberTableComponent } from '../performance-dashboard/perf-member-table.component';
-import { PerfMetricCardComponent } from '../performance-dashboard/perf-metric-card.component';
-import { PerfProfileGroupsComponent } from '../performance-dashboard/perf-profile-groups.component';
-import { PerfTrendChartComponent } from '../performance-dashboard/perf-trend-chart.component';
-import { PerfWorkProgressComponent } from '../performance-dashboard/perf-work-progress.component';
-import { kpiOnPlan, saveFile } from '../performance-dashboard/perf-page';
+} from '../performance-dashboard/performance-display';
+import { PerfKpiBelowPlanComponent } from '../performance-dashboard/performance-kpi-below-plan.component';
+import { PerfKpiGroupTableComponent } from '../performance-dashboard/performance-kpi-group-table.component';
+import { PerfMemberTableComponent } from '../performance-dashboard/performance-member-table.component';
+import { PerfMetricCardComponent } from '../performance-dashboard/performance-metric-card.component';
+import { PerfProfileGroupsComponent } from '../performance-dashboard/performance-profile-groups.component';
+import { PerfTrendChartComponent } from '../performance-dashboard/performance-trend-chart.component';
+import { PerfWorkProgressComponent } from '../performance-dashboard/performance-work-progress.component';
+import { kpiOnPlan, saveFile } from '../performance-dashboard/performance-page';
 
 /**
  * SCR-PRF-02 Department performance (department manager). Every figure comes from

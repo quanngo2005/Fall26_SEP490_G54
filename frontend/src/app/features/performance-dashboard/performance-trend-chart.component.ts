@@ -1,7 +1,7 @@
 import { Component, computed, input } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentTrendPoint } from '../../core/department.models';
-import { formatValue } from './perf-display';
+import { formatValue } from './performance-display';
 
 const WIDTH = 340;
 const HEIGHT = 220;
@@ -74,7 +74,7 @@ const TICKS = 4;
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     svg {
       display: block;

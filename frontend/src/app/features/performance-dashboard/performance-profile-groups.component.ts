@@ -1,7 +1,7 @@
 import { Component, computed, input } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentPosition } from '../../core/department.models';
-import { barWidth, formatValue, TRACK_HEADROOM } from './perf-display';
+import { barWidth, formatValue, TRACK_HEADROOM } from './performance-display';
 
 /**
  * "Điểm theo nhóm đánh giá": for each root group of the profiles, the average group score of every job position with
@@ -44,7 +44,7 @@ import { barWidth, formatValue, TRACK_HEADROOM } from './perf-display';
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .hint {
       margin: 2px 0 0;

@@ -10,7 +10,7 @@ import { EvaluationService } from '../../core/evaluation.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { NavigationService, ROLE_MENUS } from '../../shared/layout/navigation.service';
-import { overviewFixture } from '../performance-dashboard/perf-fixtures.spec';
+import { overviewFixture } from '../performance-dashboard/performance-fixtures.spec';
 import { BranchPerformanceComponent } from './branch-performance.component';
 
 @Component({ selector: 'app-header', template: '' })

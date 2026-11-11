@@ -1,7 +1,7 @@
 import { Component, computed, input, output } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentGroupKpi, DepartmentKpiGroup } from '../../core/department.models';
-import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './perf-display';
+import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './performance-display';
 
 /** "KPI chưa đạt kế hoạch": the KPIs whose achievement is below 100 %, lowest first. */
 @Component({
@@ -38,7 +38,7 @@ import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './pe
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .kpi {
       margin-bottom: 14px;

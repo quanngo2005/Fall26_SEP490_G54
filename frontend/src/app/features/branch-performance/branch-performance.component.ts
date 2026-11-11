@@ -16,20 +16,20 @@ import {
 } from '../../core/department.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
-import { PerfCampaignPaceComponent } from '../performance-dashboard/perf-campaign-pace.component';
-import { PerfChildUnitsComponent } from '../performance-dashboard/perf-child-units.component';
+import { PerfCampaignPaceComponent } from '../performance-dashboard/performance-campaign-pace.component';
+import { PerfChildUnitsComponent } from '../performance-dashboard/performance-child-units.component';
 import {
   formatArrow,
   formatValue,
   NOT_AVAILABLE,
   toneOf,
-} from '../performance-dashboard/perf-display';
-import { PerfEvaluationPeriodComponent } from '../performance-dashboard/perf-evaluation-period.component';
-import { PerfKpiBelowPlanComponent } from '../performance-dashboard/perf-kpi-below-plan.component';
-import { PerfKpiGroupTableComponent } from '../performance-dashboard/perf-kpi-group-table.component';
-import { PerfMetricCardComponent } from '../performance-dashboard/perf-metric-card.component';
-import { kpiOnPlan, saveFile } from '../performance-dashboard/perf-page';
-import { PerfTrendChartComponent } from '../performance-dashboard/perf-trend-chart.component';
+} from '../performance-dashboard/performance-display';
+import { PerfEvaluationPeriodComponent } from '../performance-dashboard/performance-evaluation-period.component';
+import { PerfKpiBelowPlanComponent } from '../performance-dashboard/performance-kpi-below-plan.component';
+import { PerfKpiGroupTableComponent } from '../performance-dashboard/performance-kpi-group-table.component';
+import { PerfMetricCardComponent } from '../performance-dashboard/performance-metric-card.component';
+import { kpiOnPlan, saveFile } from '../performance-dashboard/performance-page';
+import { PerfTrendChartComponent } from '../performance-dashboard/performance-trend-chart.component';
 
 /** Display size of the running-campaign card; the full list is one click away at /campaigns. */
 const CAMPAIGN_CARD_SIZE = 5;

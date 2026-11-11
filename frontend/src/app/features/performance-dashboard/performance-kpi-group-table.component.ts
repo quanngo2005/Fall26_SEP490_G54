@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentGroupKpi, DepartmentKpiGroup } from '../../core/department.models';
-import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './perf-display';
+import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './performance-display';
 
 /**
  * "KPI theo nhóm đánh giá": KPIs under the root groups of the evaluation profiles, with the weight of each group per
@@ -9,8 +9,8 @@ import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './pe
  */
 @Component({
   selector: 'app-perf-kpi-group-table',
-  templateUrl: './perf-kpi-group-table.component.html',
-  styleUrls: ['./perf-card.scss', './perf-kpi-group-table.component.scss'],
+  templateUrl: './performance-kpi-group-table.component.html',
+  styleUrls: ['./performance-card.scss', './performance-kpi-group-table.component.scss'],
 })
 export class PerfKpiGroupTableComponent extends LocalizedComponent {
   readonly groups = input.required<DepartmentKpiGroup[]>();

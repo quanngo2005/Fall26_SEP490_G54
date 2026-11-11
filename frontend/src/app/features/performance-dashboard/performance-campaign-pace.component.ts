@@ -2,7 +2,7 @@ import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { CampaignSummary } from '../../core/campaign.models';
-import { formatArrow, formatValue, toneOf } from './perf-display';
+import { formatArrow, formatValue, toneOf } from './performance-display';
 
 /**
  * "Campaign đang chạy": progress of each running campaign against the time elapsed, and the pace gap (all three
@@ -56,7 +56,7 @@ import { formatArrow, formatValue, toneOf } from './perf-display';
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .row {
       display: grid;

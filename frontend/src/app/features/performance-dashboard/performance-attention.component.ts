@@ -2,7 +2,7 @@ import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentAttentionMember } from '../../core/department.models';
-import { formatArrow, formatValue, toneOf } from './perf-display';
+import { formatArrow, formatValue, toneOf } from './performance-display';
 
 /**
  * "Cán bộ cần chú ý": the API's attention list (rules and size are system parameters on the API), each row opening the
@@ -76,7 +76,7 @@ import { formatArrow, formatValue, toneOf } from './perf-display';
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     table {
       position: relative;

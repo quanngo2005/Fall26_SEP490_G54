@@ -2,7 +2,7 @@ import { Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentChildUnit, PerformanceCompareMode } from '../../core/department.models';
-import { barWidth, formatArrow, formatValue, toneOf } from './perf-display';
+import { barWidth, formatArrow, formatValue, toneOf } from './performance-display';
 
 /** Visual only: room right of the longest bar for its value label. */
 const LABEL_HEADROOM = 1.25;
@@ -64,7 +64,7 @@ const LABEL_HEADROOM = 1.25;
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .legend {
       display: flex;

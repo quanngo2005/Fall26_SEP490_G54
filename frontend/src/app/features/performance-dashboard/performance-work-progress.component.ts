@@ -10,8 +10,8 @@ import { DepartmentOverview } from '../../core/department.models';
 @Component({
   selector: 'app-perf-work-progress',
   imports: [RouterLink],
-  templateUrl: './perf-work-progress.component.html',
-  styleUrls: ['./perf-card.scss', './perf-work-progress.component.scss'],
+  templateUrl: './performance-work-progress.component.html',
+  styleUrls: ['./performance-card.scss', './performance-work-progress.component.scss'],
 })
 export class PerfWorkProgressComponent extends LocalizedComponent {
   readonly operational = input.required<DepartmentOverview['operational']>();

@@ -2,7 +2,7 @@ import { Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentMember, DepartmentPosition, MemberStatus } from '../../core/department.models';
-import { barWidth, formatSigned, formatValue, initials, toneOf } from './perf-display';
+import { barWidth, formatSigned, formatValue, initials, toneOf } from './performance-display';
 
 /**
  * The member table of SCR-PRF-02: one header row per job position (count, average, change and the weight of every
@@ -12,8 +12,8 @@ import { barWidth, formatSigned, formatValue, initials, toneOf } from './perf-di
 @Component({
   selector: 'app-perf-member-table',
   imports: [RouterLink],
-  templateUrl: './perf-member-table.component.html',
-  styleUrl: './perf-member-table.component.scss',
+  templateUrl: './performance-member-table.component.html',
+  styleUrl: './performance-member-table.component.scss',
 })
 export class PerfMemberTableComponent extends LocalizedComponent {
   readonly members = input.required<DepartmentMember[]>();

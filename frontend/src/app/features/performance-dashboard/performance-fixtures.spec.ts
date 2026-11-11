@@ -7,7 +7,7 @@ import {
   initials,
   NOT_AVAILABLE,
   toneOf,
-} from './perf-display';
+} from './performance-display';
 
 /** API-shaped test data (docs/api/DEPARTMENT_CONTRACT.md); the names are deliberately not the seed's. */
 export function overviewFixture(patch: Partial<DepartmentOverview> = {}): DepartmentOverview {

@@ -1,5 +1,5 @@
 import { Component, input, output } from '@angular/core';
-import { Tone } from './perf-display';
+import { Tone } from './performance-display';
 
 /**
  * One of the four summary tiles. A tile with `clickable` gets the blue frame and the › button, behaves like a link
@@ -31,7 +31,7 @@ import { Tone } from './perf-display';
   </div>
 </article>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .metric {
       padding: 16px 20px;

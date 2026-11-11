@@ -60,7 +60,7 @@ export const PERIOD_LIFECYCLE: readonly EvaluationPeriodDisplayStatus[] = [
   }
 </section>
   `,
-  styleUrl: './perf-card.scss',
+  styleUrl: './performance-card.scss',
   styles: `
     .badge {
       display: inline-block;
