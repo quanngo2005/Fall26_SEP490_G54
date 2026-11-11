@@ -73,15 +73,15 @@ public sealed class KpiFormulaEdgeCaseTests
     // ----- Direction edge cases -------------------------------------------------------------
 
     [Fact]
-    public void CalculateKpi_OnTargetWithANegativeTarget_MeasuresTheDistanceAgainstItsMagnitude()
+    public void CalculateKpi_OnTargetWithANegativeTargetAndNoBaseline_HasNoScore()
     {
         var onTarget = _formula.CalculateKpi(Kpi(KpiDirection.OnTarget, -100m, -100m));
         var tenPercentOff = _formula.CalculateKpi(Kpi(KpiDirection.OnTarget, -100m, -90m));
         var farAway = _formula.CalculateKpi(Kpi(KpiDirection.OnTarget, -100m, 500m));
 
-        Assert.Equal(100m, onTarget.AchievementPercentRaw);
-        Assert.Equal(90m, tenPercentOff.AchievementPercentRaw);
-        Assert.Equal(0m, farAway.AchievementPercentRaw); // never negative
+        Assert.Null(onTarget.AchievementPercentRaw);
+        Assert.Null(tenPercentOff.AchievementPercentRaw);
+        Assert.Null(farAway.AchievementPercentRaw);
     }
 
     [Fact]
@@ -104,11 +104,27 @@ public sealed class KpiFormulaEdgeCaseTests
     }
 
     [Fact]
-    public void CalculateKpi_LowerBetterBeatingTheTargetIsCappedButKeepsItsRawValue()
+    public void CalculateKpi_ATargetlessKpiFallsBackToItsBaseline()
+    {
+        var input = Kpi(KpiDirection.HigherBetter, 0m, 50m) with { TargetValue = null, BaselineValue = 100m };
+
+        Assert.Equal(50m, _formula.CalculateKpi(input).AchievementPercentRaw);
+        Assert.Null(_formula.CalculateKpi(input with { BaselineValue = null }).AchievementPercentRaw);
+    }
+
+    [Fact]
+    public void CalculateKpi_LowerBetterWithAZeroBaselineLosesAPointForEveryUnitOver()
+    {
+        var result = _formula.CalculateKpi(Kpi(KpiDirection.LowerBetter, 0m, 3m) with { BaselineValue = 0m });
+
+        Assert.Equal(97m, result.AchievementPercentRaw);
+    }
+    [Fact]
+    public void CalculateKpi_LowerBetterMeetingTheTargetEarnsTheMaximum()
     {
         var result = _formula.CalculateKpi(Kpi(KpiDirection.LowerBetter, 10m, 2m, max: 150m));
 
-        Assert.Equal(500m, result.AchievementPercentRaw);
+        Assert.Equal(150m, result.AchievementPercentRaw);
         Assert.Equal(150m, result.AchievementPercentCapped);
     }
 
@@ -127,11 +143,11 @@ public sealed class KpiFormulaEdgeCaseTests
     [Fact]
     public void CalculateKpi_RatioInPercentWithLowerBetter_ComparesTheScaledRatioInverted()
     {
-        // 5 / 50 = 10 % against a 5 % target: the rate is twice the allowed rate, so half the score.
+        // 5 / 50 = 10 % against a 5 % target: each point over the target costs one point of the maximum.
         var result = _formula.CalculateKpi(Kpi(
             KpiDirection.LowerBetter, 5m, 5m, aggregation: KpiAggregationType.Ratio, denominator: 50m, unit: "%"));
 
-        Assert.Equal(50m, result.AchievementPercentRaw);
+        Assert.Equal(95m, result.AchievementPercentRaw);
     }
 
     [Fact]

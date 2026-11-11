@@ -128,3 +128,22 @@ Notes:
 - "Quality ratio" and the "History" link have no data source or target screen yet (waiting for confirmation);
   the form does not show them. The transaction-trace links (SCR-PRF-05) are not part of this scope.
 - Whether HR holds `evaluation:read` depends on the role grants in the database; this task does not change them.
+
+## My performance: criterion ledger (`/my-evaluation`)
+
+### `GET /evaluations/personal/ledger`
+
+Permission: any signed-in employee with a personal evaluation (own data only). Query: `periodId`, `criteriaId` (GUID, required; `criteriaId` is the KPI definition id or the target assignment id). `data` is an array (no paging) of the caller's valid progress entries of the criterion inside the period, newest first:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | GUID | work result item id (or the progress id when there is none) |
+| `txCode` | string | transaction code; `VR-xxxxxxxx` / `AP-xxxxxxxx` generated when the entry has no work transaction |
+| `date` | string | `dd/MM/yyyy` display date |
+| `occurredOn` | string | same date as `yyyy-MM-dd`, used by the date filter |
+| `amount` | string | formatted transaction amount |
+| `kpiContribution` | number | value counted for the KPI |
+| `status` | string | work transaction status `MATCHED` / `IN_REVIEW` / `NOT_MATCHED`; `VALID` when there is no work transaction |
+| `workId`, `workCode`, `workTitle` | GUID / string / string, nullable | the work behind the entry: the work of the work transaction, else the work of the verified submission; null when neither exists |
+
+The modal searches (transaction code, work code or title), filters by status and by date range in the browser on this array. A row with `workId` opens `/my-work?keyword=<workCode>&workId=<workId>`: the work board on the caller's own work, searched by the work code, with the detail drawer of that work open. Errors: 404 unknown period or employee.
