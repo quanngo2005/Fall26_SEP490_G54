@@ -93,7 +93,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             var tokenType = context.Principal?.FindFirst("token_type")?.Value;
             var tokenId = context.Principal?.FindFirst("jti")?.Value;
-            if (tokenType != "access" || !Guid.TryParse(tokenId, out var parsedTokenId))
+            var subject = context.Principal?.FindFirst("sub")?.Value;
+            var issuedAt = context.Principal?.FindFirst("issued_at_ms")?.Value;
+            if (tokenType != "access"
+                || !Guid.TryParse(tokenId, out var parsedTokenId)
+                || !Guid.TryParse(subject, out var accountId)
+                || !long.TryParse(issuedAt, out var issuedAtMilliseconds))
             {
                 context.Fail("Invalid access token.");
                 return;
@@ -104,6 +109,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 is not null)
             {
                 context.Fail("Access token has been revoked.");
+                return;
+            }
+
+            var revokedBefore = await cache.GetStringAsync(
+                AuthService.CreateAccessRevokedBeforeKey(accountId),
+                context.HttpContext.RequestAborted);
+            if (long.TryParse(revokedBefore, out var revokedBeforeMilliseconds)
+                && issuedAtMilliseconds <= revokedBeforeMilliseconds)
+            {
+                context.Fail("Access token was issued before the latest password change.");
             }
         },
         OnChallenge = async context =>
