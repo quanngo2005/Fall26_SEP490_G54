@@ -125,6 +125,15 @@ export const routes: Routes = [
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
   },
   {
+    path: 'branch-performance',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Hiệu suất chi nhánh',
+    loadComponent: () =>
+      import('./features/branch-performance/branch-performance.component').then(
+        (module) => module.BranchPerformanceComponent,
+      ),
+  },
+  {
     path: 'branch-performance/evaluations',
     canActivate: [authGuard, branchEvaluationGuard],
     title: 'Kỳ đánh giá chi nhánh',

@@ -1,0 +1,94 @@
+/* Card frame shared by the SCR-PRF-02 / SCR-PRF-03 cards (DESIGN.md surfaces, blue frame when clickable). */
+:host {
+  display: block;
+  min-width: 0;
+}
+.card {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 18px 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 3px 0 rgb(15 23 42 / 5%);
+}
+.card.is-clickable {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 6px 0 rgb(37 99 235 / 10%);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.card-head h2,
+.card-head h3 {
+  margin: 0;
+  color: #0f172a;
+  font:
+    600 16px Manrope,
+    sans-serif;
+}
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #1d4ed8;
+  font:
+    500 13px Inter,
+    sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+}
+.chevron {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #e0ecff;
+  color: #1d4ed8;
+  font-size: 16px;
+  line-height: 1;
+}
+.card-link:focus-visible,
+.row-link:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.eyebrow {
+  margin: 0 0 8px;
+  color: #475569;
+  font:
+    600 12px Inter,
+    sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.muted {
+  color: #64748b;
+}
+.empty {
+  margin: 0;
+  padding: 16px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.up {
+  color: #047857;
+}
+.down {
+  color: #be123c;
+}
+.warn {
+  color: #c2410c;
+}
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}

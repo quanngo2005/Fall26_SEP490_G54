@@ -6,4 +6,7 @@ public sealed record DepartmentMetricsDto(
     int OnLeaveEmployeeCount,
     int OpenWorkCount,
     int AttentionWorkCount,
-    int PendingReviewCount);
+    int PendingReviewCount,
+    int? DeclinedEmployeeCount = null,
+    int? ComparedEmployeeCount = null,
+    int? DeclinedChildUnitCount = null);

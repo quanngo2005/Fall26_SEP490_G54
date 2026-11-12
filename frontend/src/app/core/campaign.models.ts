@@ -27,6 +27,17 @@ export interface CampaignSummary {
   generatedWorksCount: number;
   completedWorksCount: number;
   updatedAt: string;
+  /** Completed / generated works x 100 (same as the detail metrics). */
+  progressPercent: number;
+  /** Share of the campaign days elapsed, 0..100. */
+  timeElapsedPercent: number;
+  /** progressPercent - timeElapsedPercent; negative = behind schedule. */
+  paceGap: number;
+  kpiCode: string | null;
+  kpiName: string | null;
+  targetUnit: string | null;
+  targetValue: number | null;
+  actualValue: number | null;
 }
 
 export interface CampaignOverviewMetrics {
@@ -36,6 +47,8 @@ export interface CampaignOverviewMetrics {
   completedCampaigns: number;
   totalTasksGenerated: number;
   totalCompletedTasks: number;
+  /** Campaigns of the filtered list (all pages) whose paceGap is below 0. */
+  slowCampaignCount: number;
 }
 
 export interface CampaignListOverview {
