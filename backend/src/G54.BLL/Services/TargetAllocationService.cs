@@ -32,6 +32,9 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
         if (branchYearTarget.EvaluationPeriod?.Status != PeriodStatus.Open)
             throw new ConflictException("Evaluation period is not open.", ErrorCodes.TargetPeriodNotOpen);
 
+        if (dto.Items is not { Count: > 0 })
+            throw new ValidationException("Danh sách phân bổ phải có ít nhất một phòng ban.");
+
         var deptIds = dto.Items.Select(i => i.DepartmentId).Distinct().ToList();
         var depts = await uow.Departments.ListAsync(d => deptIds.Contains(d.Id), ct);
 

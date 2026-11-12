@@ -316,7 +316,16 @@ public sealed class CampaignService(
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            // Two requests raced past the duplicate check above; the unique index decides.
+            throw new ConflictException($"Mã chiến dịch '{code}' đã tồn tại trong hệ thống.");
+        }
+
         LogCampaignCreated(logger, campaign.Code, campaign.Id, null);
 
         return await GetCampaignByIdAsync(campaignId, cancellationToken);

@@ -1,8 +1,7 @@
 # Role Permission Matrix Contract (SCR-ADM-03-M2)
 
-Status: **proposed** — consumed by `frontend/src/app/core/role-permission.service.ts`; backend not implemented yet.
-
-Until the backend ships, the frontend serves these routes from `frontend/src/app/core/mock-api/roles.mock.ts` when `useMockApi` is `true` (on in development, `USE_MOCK_API` in Docker, off by default). Remove the routes from `MOCK_ROUTES` once the API is implemented.
+Status: **partially implemented** — `GET /roles` is available from the backend;
+the permission-matrix routes remain planned.
 
 All endpoints require `[HasPermission("role", "update", "System")]` (SYSTEM_ADMIN) and use the standard `ApiResponse<T>` envelope (see `API_CONVENTIONS.md`).
 
@@ -64,7 +63,7 @@ Only changed cells are sent. `scope: null` revokes. Returns the updated `RolePer
 
 ## Role list (SCR-ADM-03)
 
-Status: **proposed** — consumed by `features/role-permissions/role-list.component.ts`.
+Status: **implemented** for the list endpoint.
 
 `GET /roles` returns `RoleSummary[]`, a superset of `RoleOption` (the matrix selector ignores the extra fields):
 

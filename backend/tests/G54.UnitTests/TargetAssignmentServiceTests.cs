@@ -33,6 +33,7 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         new TargetAssignmentRepository(_db),
         new TargetAssignmentFeedbackRepository(_db),
         new Repository<EvaluationPeriod>(_db),
+        new Repository<Department>(_db),
         new FakePermissions(admin, managerAccountId),
         new WeekdayWorkingDayCalendar(),
         notifier ?? new RecordingNotifier(),
@@ -171,6 +172,31 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         await SeedAsync();
 
         await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).CreateRootAsync(_manager, Root()));
+
+        Assert.Empty(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task CreateRoot_ForADepartmentThatIsNotABranch_IsRejectedAndStoresNothing()
+    {
+        await SeedAsync();
+        var dto = Root();
+        dto.DepartmentId = _dept.Id;
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).CreateRootAsync(_admin, dto));
+
+        Assert.Contains("chi nhánh", ex.Message);
+        Assert.Empty(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task CreateRoot_ForAnUnknownDepartment_ThrowsNotFoundAndStoresNothing()
+    {
+        await SeedAsync();
+        var dto = Root();
+        dto.DepartmentId = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => Service(admin: true).CreateRootAsync(_admin, dto));
 
         Assert.Empty(_db.TargetAssignments);
     }
@@ -935,6 +961,7 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             new TargetAssignmentRepository(_db),
             new TargetAssignmentFeedbackRepository(_db),
             new Repository<EvaluationPeriod>(_db),
+            new Repository<Department>(_db),
             new FakePermissions(admin: false, managerAccountId: _manager),
             new WeekdayWorkingDayCalendar(),
             new RecordingNotifier(),
@@ -959,6 +986,7 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             new TargetAssignmentRepository(_db),
             new TargetAssignmentFeedbackRepository(_db),
             new Repository<EvaluationPeriod>(_db),
+            new Repository<Department>(_db),
             new FakePermissions(admin: false, managerAccountId: _manager),
             new WeekdayWorkingDayCalendar(),
             new RecordingNotifier(),

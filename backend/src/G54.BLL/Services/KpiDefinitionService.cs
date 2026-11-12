@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -46,7 +47,7 @@ public sealed partial class KpiDefinitionService(
         kpi.MaxAchievementPercent,
         kpi.Status.ToEnumString(),
         kpi.UpdatedAt,
-        kpi.RejectReason,
+        kpi.Status == KpiStatus.Rejected ? kpi.RejectReason : null,
         kpi.RequestNote,
         kpi.RequestedBy,
         kpi.CreditRole.ToEnumString(),
@@ -78,11 +79,12 @@ public sealed partial class KpiDefinitionService(
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(kpi =>
-                kpi.Code.Contains(keyword) ||
-                kpi.Name.Contains(keyword) ||
-                (kpi.Description != null && kpi.Description.Contains(keyword)));
+                EF.Functions.ILike(kpi.Code, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(kpi.Name, pattern, LikePattern.Escape) ||
+                (kpi.Description != null && EF.Functions.ILike(kpi.Description, pattern, LikePattern.Escape)));
         }
 
         if (status.HasValue)
@@ -400,7 +402,7 @@ public sealed partial class KpiDefinitionService(
 
     private static (KpiAggregationType AggregationType, KpiDirection Direction) Validate(KpiDefinitionSaveDto dto, bool requireCode = true)
     {
-        if (dto.KpiGroupId == Guid.Empty || (requireCode && string.IsNullOrWhiteSpace(dto.Code)) || dto.Code.Trim().Length > 50 ||
+        if (dto.KpiGroupId == Guid.Empty || (requireCode && string.IsNullOrWhiteSpace(dto.Code)) || (dto.Code ?? string.Empty).Trim().Length > 50 ||
             string.IsNullOrWhiteSpace(dto.Name) || dto.Name.Trim().Length > 255 ||
             string.IsNullOrWhiteSpace(dto.Unit) || dto.Unit.Trim().Length > 50)
         {

@@ -107,10 +107,20 @@ internal static class VerifiedResultRecorder
         CancellationToken cancellationToken)
     {
         var progressDate = imported.TransactionDate;
-        var mappings = InEffectMappings(work.WorkType, progressDate)
+        var inEffect = InEffectMappings(work.WorkType, progressDate)
             .GroupBy(k => k.KpiDefinitionId)
             .Select(g => g.OrderByDescending(k => k.EffectiveFrom).ThenBy(k => k.Id).First())
             .ToList();
+
+        // BR-09: an imported transaction is a quantitative measure. KPIs fed by another file (service ratings) are not
+        // credited from it; when the work type maps only such KPIs the automatic mapping is blocked (MSG13) and left
+        // to the manager.
+        var mappings = inEffect.Where(k => k.KpiDefinition.DataSource == KpiDataSource.Transaction).ToList();
+        if (inEffect.Count > 0 && mappings.Count == 0)
+        {
+            throw new BusinessRuleException(ErrorCodes.MetricTypeMismatch, statusCode: StatusCodes.Status409Conflict);
+        }
+
         var handover = await db.TaskHandovers
             .AsNoTracking()
             .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)

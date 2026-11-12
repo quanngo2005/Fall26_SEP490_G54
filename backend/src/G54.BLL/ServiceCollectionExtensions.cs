@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPasswordEncoder, PasswordEncoder>();
         services.AddSingleton<JwtTokenProvider>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminAccountService, AdminAccountService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IWorkService, WorkService>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
@@ -38,6 +39,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
+        services.AddScoped<IMySubmissionService, MySubmissionService>();
         services.AddScoped<IVerificationService, VerificationService>();
         services.AddScoped<IAppealService, AppealService>();
         services.AddScoped<IRiskEventService, RiskEventService>();
@@ -45,6 +47,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IQaSamplingPolicy, RandomQaSamplingPolicy>();
         services.AddScoped<IQualityAssuranceService, QualityAssuranceService>();
         services.AddScoped<IQaQueueService, QaQueueService>();
+        services.AddScoped<IQaDashboardService, QaDashboardService>();
         services.AddScoped<IEvaluationPeriodService, EvaluationPeriodService>();
         services.AddScoped<IHandoverService, HandoverService>();
         services.AddScoped<INotifier, Notifier>();
@@ -63,6 +66,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();
         services.AddScoped<IPerformanceDashboardService, PerformanceDashboardService>();
+        services.AddScoped<IMyDashboardService, MyDashboardService>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();
@@ -70,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
+        services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
         services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();

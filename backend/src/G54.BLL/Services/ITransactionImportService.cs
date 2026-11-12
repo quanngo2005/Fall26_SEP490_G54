@@ -11,6 +11,8 @@ public interface ITransactionImportService
 
     Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default);
 
+    Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(Guid batchId, int page, int pageSize, CancellationToken ct = default);
+
     Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
         Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default);
 }

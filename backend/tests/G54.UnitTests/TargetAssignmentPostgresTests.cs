@@ -1,4 +1,5 @@
 using G54.BLL.Common;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
@@ -277,11 +278,11 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task ASumMismatch_IsRejectedByTheDatabaseAndLeavesNothingBehind()
+    public async Task ASumMismatch_IsRejectedWith400AndLeavesNothingBehind()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
 
-        await Assert.ThrowsAsync<PostgresException>(
+        await Assert.ThrowsAsync<ValidationException>(
             () => RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 600m), (_deptB, null, 300m)))));
 
         await using var scope = _provider.CreateAsyncScope();
@@ -290,20 +291,20 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task AChildOutsideTheParentsOrganisation_IsRejectedByTheDatabase()
+    public async Task AChildOutsideTheParentsOrganisation_IsRejectedWithA4xxError()
     {
         var root = await RunAsync(s => s.CreateRootAsync(_adminAccount, Root(1000)));
         var level2 = await RunAsync(s => s.AllocateAsync(_adminAccount, root.Id, Split((_deptA, null, 1000m))));
 
-        await Assert.ThrowsAsync<DbUpdateException>(
+        await Assert.ThrowsAsync<ValidationException>(
             () => RunAsync(s => s.AllocateAsync(_adminAccount, level2[0].Id, Split((_deptB, null, 1000m)))));
     }
     [PostgresFact]
-    public async Task ADuplicateRoot_IsRejectedByTheDatabase()
+    public async Task ADuplicateRoot_IsRejectedWithA4xxError()
     {
         await RunAsync(s => s.CreateRootAsync(_adminAccount, Root()));
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
+        await Assert.ThrowsAsync<ConflictException>(() => RunAsync(s => s.CreateRootAsync(_adminAccount, Root(5))));
     }
 
     private sealed class AdminPermissions : IPermissionService

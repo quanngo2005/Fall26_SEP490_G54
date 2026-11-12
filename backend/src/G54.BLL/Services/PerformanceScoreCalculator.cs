@@ -223,7 +223,9 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
         // Rounded to the column's own precision (numeric(18,4)): a day-fraction multiplication otherwise leaves
         // decimal residue (e.g. 310m * 15m / 31m) that a single-segment target (fraction == 1) never had.
         var targetValue = segment is { } s ? Math.Round(s.Target.TargetValue * s.Fraction, 4, MidpointRounding.ToEven) : (decimal?)null;
-        var score = targetValue is not null && actual is not null
+        var resolvedActual = RoundScore(
+            PerformanceScoreFormula.ResolveActual(kpi.AggregationType, kpi.Unit, actual?.Value, actual?.Denominator));
+        var score = actual is not null
             ? RoundScore(formula.CalculateKpi(new KpiScoreInput(
                 kpi.Id,
                 kpi.Code,
@@ -231,9 +233,10 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 kpi.Direction,
                 kpi.AggregationType,
                 kpi.MaxAchievementPercent,
-                targetValue.Value,
+                targetValue,
                 weightedActual!.Value,
-                actual.Denominator)))
+                actual.Denominator,
+                kpi.BaselineValue)))
             : null;
 
         // The KPI is identified through its progress; the latest row anchors the aggregate.
@@ -259,7 +262,8 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             anchor?.ProgressId,
             score?.AchievementPercentRaw,
             score?.AchievementPercentCapped,
-            score?.ComponentScore);
+            score?.ComponentScore,
+            resolvedActual);
     }
 
     // ----- Data (one query per table for all subjects) --------------------------------------
@@ -391,9 +395,10 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 return new ActualAggregate(rows.Sum(r => r.Value), null);
             case KpiAggregationType.Avg:
                 // A day row stores the sum of its entries and their count; a row without a count is one entry.
-                return new ActualAggregate(
-                    Math.Round(rows.Sum(r => r.Value) / rows.Sum(r => r.Denominator ?? 1m), ScoreDecimals, MidpointRounding.ToEven),
-                    null);
+                var entryCount = rows.Sum(r => r.Denominator ?? 1m);
+                return entryCount > 0m
+                    ? new ActualAggregate(Math.Round(rows.Sum(r => r.Value) / entryCount, ScoreDecimals, MidpointRounding.ToEven), null)
+                    : null;
             case KpiAggregationType.Ratio:
                 var denominator = rows.Sum(r => r.Denominator ?? 0m);
                 return denominator > 0m ? new ActualAggregate(rows.Sum(r => r.Value), denominator) : null;

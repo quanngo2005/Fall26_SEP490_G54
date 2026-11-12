@@ -18,8 +18,18 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
 public sealed class TransactionImportsController(
-    ITransactionImportService service, IWorkTransactionService workTransactions, IOptions<SystemParametersOptions> parameters) : ControllerBase
+    ITransactionImportService service,
+    IWorkTransactionService workTransactions,
+    IOptions<SystemParametersOptions> parameters,
+    ITransactionImportTemplateProvider templateProvider) : ControllerBase
 {
+    private const string XlsxExtension = ".xlsx";
+
+    [HttpGet("template")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult GetTemplate() =>
+        File(templateProvider.GetTemplate(), EvidenceFileValidator.ContentTypeFor(XlsxExtension), "transaction-import-template.xlsx");
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10 * 1024 * 1024)]
@@ -40,8 +50,16 @@ public sealed class TransactionImportsController(
 
         await using var stream = file.OpenReadStream();
         var result = await service.ImportAsync(file.FileName, stream, User.GetRequiredUserId(), cancellationToken);
-        await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken);
-        return Created($"/transaction-imports/{result.Id}", ApiResponse.Ok(result, SuccessMessages.Created, HttpContext.TraceIdentifier));
+        result = result with { Reconcile = await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken) };
+        // ApiResponse.Ok fixes the envelope status at 200; keep it in step with the 201 HTTP status.
+        return Created($"/transaction-imports/{result.Id}", new ApiResponse<ImportBatchDto>
+        {
+            Success = true,
+            Status = StatusCodes.Status201Created,
+            Data = result,
+            Message = SuccessMessages.Created,
+            TraceId = HttpContext.TraceIdentifier,
+        });
     }
 
     [HttpGet]
@@ -58,6 +76,15 @@ public sealed class TransactionImportsController(
     public async Task<ActionResult<ApiResponse<ImportBatchDto>>> Get(Guid id, CancellationToken cancellationToken)
     {
         var result = await service.GetBatchAsync(id, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:guid}/errors")]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<PagedResult<ImportRowErrorDto>>>> ListErrors(
+        Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        var result = await service.ListErrorsAsync(id, page, pageSize, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
