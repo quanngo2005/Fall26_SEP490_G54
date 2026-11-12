@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -57,12 +58,13 @@ public sealed class EmployeeService(
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(e =>
-                e.EmployeeCode.Contains(keyword) ||
-                e.FullName.Contains(keyword) ||
-                e.Email.Contains(keyword) ||
-                (e.Phone != null && e.Phone.Contains(keyword)));
+                EF.Functions.ILike(e.EmployeeCode, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(e.FullName, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(e.Email, pattern, LikePattern.Escape) ||
+                (e.Phone != null && EF.Functions.ILike(e.Phone, pattern, LikePattern.Escape)));
         }
 
         if (filter.DepartmentId.HasValue)

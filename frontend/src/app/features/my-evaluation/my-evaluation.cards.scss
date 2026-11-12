@@ -1,0 +1,113 @@
+.summary-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 90px;
+
+  .card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 6px;
+  }
+
+  .card-body-row,
+  .ranking-card-body {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .card-hero-score,
+  .ranking-hero-val {
+    font:
+      700 24px/28px Inter,
+      system-ui,
+      sans-serif;
+    color: #0f172a;
+  }
+
+  .card-delta-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: #16a34a;
+
+    &.text-negative {
+      color: #dc2626;
+    }
+  }
+
+  .ranking-sub-text {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .tier-card-body {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    .tier-hero-pill {
+      min-width: 56px;
+      height: 36px;
+      padding: 0 14px;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1.5px solid #cbd5e1;
+      font:
+        700 17px/1 Inter,
+        system-ui,
+        sans-serif;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      &.tier-a1 {
+        background: #dcfce7;
+        color: #15803d;
+        border-color: #15803d;
+      }
+
+      &.tier-a2 {
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-color: #1d4ed8;
+      }
+
+      &.tier-a3 {
+        background: #cffafe;
+        color: #0e7490;
+        border-color: #0e7490;
+      }
+
+      &.tier-b {
+        background: #e2e8f0;
+        color: #475569;
+        border-color: #475569;
+      }
+
+      &.tier-c {
+        background: #fef3c7;
+        color: #b45309;
+        border-color: #b45309;
+      }
+    }
+  }
+}

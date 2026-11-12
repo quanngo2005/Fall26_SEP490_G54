@@ -1,0 +1,76 @@
+:host {
+  display: block;
+  height: 100vh;
+  width: 100%;
+}
+
+/*
+ * The webfonts named in DESIGN.md are not loaded by the app, so the browser falls back. The shared appeals rule
+ * ends in plain `monospace` (Courier New on Windows); use the same fallback stack as styles.scss for codes, and
+ * leave plain numbers like the version in the normal text font.
+ */
+.font-code {
+  font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+}
+
+.col-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.page-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .period-summary {
+    font-size: 13px;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.status-badge {
+  &.tone-green {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+
+  &.tone-red {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fecaca;
+  }
+
+  &.tone-gray {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #cbd5e1;
+  }
+
+  &.tone-amber {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+  }
+}
+
+.table-container .data-table tbody tr {
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+  }
+
+  &.selected-row {
+    background: #eff6ff !important;
+
+    td:first-child {
+      border-left: 3px solid #2563eb;
+    }
+  }
+}

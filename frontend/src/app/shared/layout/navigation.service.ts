@@ -14,6 +14,7 @@ export type MenuKey =
   | 'overview'
   | 'myWork'
   | 'mySubmissions'
+  | 'myTargets'
   | 'myPerformance'
   | 'notifications'
   | 'myProfile'
@@ -86,6 +87,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myWork',
     'mySubmissions',
     'myPerformance',
+    'myTargets',
     'appeals',
     'notifications',
     'myProfile',
@@ -155,8 +157,9 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
-  { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
+  { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
+  { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
   { id: 'notifications', icon: 'notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
@@ -254,6 +257,7 @@ export class NavigationService {
     '/home',
     '/my-work',
     '/my-targets',
+    '/my-evaluation',
     '/departments',
     '/department-performance',
     '/employee-detail',

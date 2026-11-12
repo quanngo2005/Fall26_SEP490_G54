@@ -341,8 +341,10 @@ public sealed class EvaluationServiceTests
             PeriodId: period.Id,
             Comment: "Attempt on locked period");
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.SubmitEvaluationAsync(request, manager.Id));
+
+        Assert.Equal(409, ex.StatusCode);
     }
 
     [Fact]
@@ -871,6 +873,32 @@ public sealed class EvaluationServiceTests
         Assert.NotEmpty(overview.Departments);
         Assert.Contains(overview.Departments, d => d.DepartmentId == dept.Id);
         Assert.True(overview.TotalEvaluated >= 1);
+    }
+
+    [Fact]
+    public async Task RejectDepartmentCalibrationAsync_DoesNotReopenAnApprovedEvaluation()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id).Id,
+            TotalScore = 90m,
+            Status = PerformanceEvaluationStatus.Approved,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        await service.RejectDepartmentCalibrationAsync(dept.Id, new RejectCalibrationRequestDto(period.Id, "Cần hiệu chuẩn lại"), manager.Id);
+
+        var stored = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.Equal(PerformanceEvaluationStatus.Approved, stored!.Status);
+        Assert.DoesNotContain("RECALIBRATION_REASON", stored.Comment ?? string.Empty);
     }
 
     [Fact]
@@ -2085,5 +2113,465 @@ public sealed class EvaluationServiceTests
         var disputeItem = check.Items.Single(i => i.Code == "OPEN_DISPUTES");
         Assert.False(disputeItem.IsPassed);
         Assert.Equal(1, disputeItem.RemainingCount);
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_ReturnsCriteriaScoresTierAndPreviousComparison()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, _, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var prevPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-09",
+            Name = "Tháng 09/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 9, 1),
+            EndDate = new DateOnly(2026, 9, 30),
+            Status = PeriodStatus.Closed,
+            UpdatedAt = now,
+        };
+        await context.EvaluationPeriods.AddAsync(prevPeriod);
+
+        await context.PerformanceEvaluations.AddRangeAsync(
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = staff.Id,
+                EvaluationPeriodId = prevPeriod.Id,
+                Status = PerformanceEvaluationStatus.Final,
+                TotalScore = 75m,
+                CalculatedAt = now,
+                UpdatedAt = now,
+            },
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = staff.Id,
+                EvaluationPeriodId = period.Id,
+                Status = PerformanceEvaluationStatus.Approved,
+                TotalScore = 88m,
+                Comment = "Hoàn thành tốt chỉ tiêu tháng.",
+                CalculatedAt = now,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var view = await service.GetPersonalEvaluationAsync(period.Id, staff.Account!.Id);
+
+        Assert.Equal(period.Id, view.PeriodId);
+        Assert.Equal("APPROVED", view.Status);
+        Assert.Equal(88m, view.TotalPeScore);
+        Assert.Equal(13m, view.ScoreDelta);
+        Assert.Equal("Tháng 09/2026", view.PreviousPeriodName);
+        Assert.Equal(75m, view.PreviousPeriodScore);
+        Assert.Equal("Hoàn thành tốt chỉ tiêu tháng.", view.ManagerFeedback);
+        Assert.False(view.IsAcknowledged);
+        Assert.Equal("Giao dịch viên", view.RankingRoleTitle);
+        Assert.DoesNotContain("ngày", view.AppealDeadlineText);
+        Assert.NotEmpty(view.Criteria);
+        Assert.Contains(view.Criteria, c => c.HasDrilldown && c.KpiDefinitionId.HasValue);
+        Assert.All(view.Criteria, c =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.TargetDisplay));
+            Assert.False(string.IsNullOrWhiteSpace(c.ActualDisplay));
+        });
+        Assert.Contains(view.Criteria, c =>
+            c.HasDrilldown && c.TargetDisplay != "—" && c.ActualDisplay != "—");
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_CalculatesDeterministicPeerRanking_OnTiedScores()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        // manager has same Dept & Position in SeedBaseScenarioAsync; add a 3rd peer tied with staff
+        var tiedPeer = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV002",
+            FullName = "Lê Văn Đồng Hạng",
+            Email = "peer2@progest.local",
+            DepartmentId = dept.Id,
+            JobPositionId = position.Id,
+            ManagerId = manager.Id,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Employees.AddAsync(tiedPeer);
+
+        await context.PerformanceEvaluations.AddRangeAsync(
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = manager.Id,
+                EvaluationPeriodId = period.Id,
+                Status = PerformanceEvaluationStatus.Final,
+                TotalScore = 95m,
+                CalculatedAt = now,
+                UpdatedAt = now,
+            },
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = staff.Id,
+                EvaluationPeriodId = period.Id,
+                Status = PerformanceEvaluationStatus.Final,
+                TotalScore = 82m,
+                CalculatedAt = now,
+                UpdatedAt = now,
+            },
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = tiedPeer.Id,
+                EvaluationPeriodId = period.Id,
+                Status = PerformanceEvaluationStatus.Final,
+                TotalScore = 82m,
+                CalculatedAt = now,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var staffView = await service.GetPersonalEvaluationAsync(period.Id, staff.Id);
+        var tiedPeerView = await service.GetPersonalEvaluationAsync(period.Id, tiedPeer.Id);
+
+        Assert.Equal(3, staffView.RankingTotalEmployees);
+        Assert.Equal(2, staffView.RankingPosition);
+        Assert.Equal(2, tiedPeerView.RankingPosition);
+    }
+
+    [Fact]
+    public async Task AcknowledgePersonalEvaluationAsync_PersistsTimestampAndIsIdempotent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, _, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        await context.PerformanceEvaluations.AddAsync(new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.Approved,
+            TotalScore = 85m,
+            Comment = "Nhận xét ban đầu",
+            CalculatedAt = now,
+            UpdatedAt = now,
+        });
+        await context.SaveChangesAsync();
+
+        var first = await service.AcknowledgePersonalEvaluationAsync(
+            new AcknowledgePersonalEvaluationRequestDto(period.Id),
+            staff.Account!.Id);
+
+        Assert.True(first.Success);
+
+        var view = await service.GetPersonalEvaluationAsync(period.Id, staff.Account.Id);
+        Assert.True(view.IsAcknowledged);
+        Assert.Equal(first.AcknowledgedAt, view.AcknowledgedAt);
+        Assert.Equal("Nhận xét ban đầu", view.ManagerFeedback);
+
+        var second = await service.AcknowledgePersonalEvaluationAsync(
+            new AcknowledgePersonalEvaluationRequestDto(period.Id),
+            staff.Account.Id);
+
+        Assert.True(second.Success);
+        Assert.Equal(first.AcknowledgedAt, second.AcknowledgedAt);
+    }
+
+    [Fact]
+    public async Task AcknowledgePersonalEvaluationAsync_ThrowsNotFound_WhenEvaluationDoesNotExist()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, _, staff) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => service.AcknowledgePersonalEvaluationAsync(
+            new AcknowledgePersonalEvaluationRequestDto(period.Id),
+            staff.Account!.Id));
+    }
+
+    [Fact]
+    public async Task GetPersonalCriteriaLedgerAsync_ReturnsOnlyOwnProgressItems_SortedByDateDesc()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var kpiHdv = await context.KpiDefinitions.FirstAsync(k => k.Code == "HDV");
+        var now = DateTimeOffset.UtcNow;
+
+        // Add another actual progress for staff on an earlier date
+        var staffTarget = await context.TargetAssignments.FirstAsync(t => t.EmployeeId == staff.Id && t.KpiDefinitionId == kpiHdv.Id);
+        var earlierAp = new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = staffTarget.Id,
+            Value = 2.5m,
+            ProgressDate = new DateOnly(2026, 10, 5),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        };
+
+        // Add another employee's progress on the same KPI/period (must NOT leak to staff)
+        var otherTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = manager.Id,
+            EvaluationPeriodId = period.Id,
+            KpiDefinitionId = kpiHdv.Id,
+            TargetValue = 10m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        var otherAp = new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = otherTarget.Id,
+            Value = 99m,
+            ProgressDate = new DateOnly(2026, 10, 20),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        };
+        await context.TargetAssignments.AddAsync(otherTarget);
+        await context.ActualProgresses.AddRangeAsync(earlierAp, otherAp);
+        await context.SaveChangesAsync();
+
+        var items = await service.GetPersonalCriteriaLedgerAsync(period.Id, kpiHdv.Id, staff.Account!.Id);
+
+        Assert.Equal(2, items.Count);
+        Assert.Equal("15/10/2026", items[0].Date);
+        Assert.Equal("05/10/2026", items[1].Date);
+        Assert.DoesNotContain(items, i => i.KpiContribution == 99m);
+    }
+
+    [Fact]
+    public async Task GetPersonalCriteriaLedgerAsync_ReturnsTheWorkBehindEachTransaction()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var kpiHdv = await context.KpiDefinitions.FirstAsync(k => k.Code == "HDV");
+        var now = DateTimeOffset.UtcNow;
+        var staffTarget = await context.TargetAssignments.FirstAsync(t => t.EmployeeId == staff.Id && t.KpiDefinitionId == kpiHdv.Id);
+
+        Work NewWork(string code) => new()
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            Title = $"Work {code}",
+            AssigneeEmployeeId = staff.Id,
+            CreatedBy = manager.Id,
+            Status = WorkStatus.Done,
+            Priority = WorkPriority.Medium,
+            UpdatedAt = now,
+        };
+
+        ActualProgress NewProgress() => new()
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = staffTarget.Id,
+            Value = 1m,
+            ProgressDate = new DateOnly(2026, 10, 7),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        };
+
+        var txWork = NewWork("W-TX");
+        var txProgress = NewProgress();
+        var txResult = new VerifiedWorkResult { Id = Guid.NewGuid(), VerifiedAt = now, UpdatedAt = now, Status = VerifiedResultStatus.Valid };
+        var transaction = new WorkTransaction
+        {
+            Id = Guid.NewGuid(),
+            WorkId = txWork.Id,
+            TransactionCode = "TX-LINKED",
+            Status = WorkTransactionStatus.Matched,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        txResult.WorkTransactionId = transaction.Id;
+
+        var manualWork = NewWork("W-MANUAL");
+        var manualProgress = NewProgress();
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = manualWork.Id,
+            SubmitterEmployeeId = staff.Id,
+            SubmissionNo = 1,
+            SubmittedAt = now,
+            UpdatedAt = now,
+        };
+        var verification = new Verification
+        {
+            Id = Guid.NewGuid(),
+            ResultSubmissionId = submission.Id,
+            VerifierEmployeeId = manager.Id,
+            RoundNo = 1,
+            UpdatedAt = now,
+        };
+        var manualResult = new VerifiedWorkResult
+        {
+            Id = Guid.NewGuid(),
+            VerificationId = verification.Id,
+            VerifiedAt = now,
+            UpdatedAt = now,
+            Status = VerifiedResultStatus.Valid,
+        };
+
+        context.Works.AddRange(txWork, manualWork);
+        context.WorkTransactions.Add(transaction);
+        context.ResultSubmissions.Add(submission);
+        context.Verifications.Add(verification);
+        context.VerifiedWorkResults.AddRange(txResult, manualResult);
+        context.ActualProgresses.AddRange(txProgress, manualProgress);
+        context.WorkResultItems.AddRange(
+            new WorkResultItem { Id = Guid.NewGuid(), VerifiedWorkResultId = txResult.Id, ActualProgressId = txProgress.Id, EmployeeId = staff.Id, Value = 1m, RawValue = 1m, UpdatedAt = now },
+            new WorkResultItem { Id = Guid.NewGuid(), VerifiedWorkResultId = manualResult.Id, ActualProgressId = manualProgress.Id, EmployeeId = staff.Id, Value = 1m, RawValue = 1m, UpdatedAt = now });
+        await context.SaveChangesAsync();
+
+        var items = await service.GetPersonalCriteriaLedgerAsync(period.Id, kpiHdv.Id, staff.Account!.Id);
+
+        var linked = Assert.Single(items, i => i.TxCode == "TX-LINKED");
+        Assert.Equal(txWork.Id, linked.WorkId);
+        Assert.Equal("W-TX", linked.WorkCode);
+        Assert.Equal("MATCHED", linked.Status);
+        var manual = Assert.Single(items, i => i.WorkCode == "W-MANUAL");
+        Assert.Equal(manualWork.Id, manual.WorkId);
+        Assert.Equal("Work W-MANUAL", manual.WorkTitle);
+        Assert.Equal("VALID", manual.Status);
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_ThrowsNotFound_WhenPeriodDoesNotExist()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, _, _, staff) = await SeedBaseScenarioAsync(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetPersonalEvaluationAsync(Guid.NewGuid(), staff.Account!.Id));
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluationAsync_DisplaysResolvedRatioAndBlankTarget_WhenTargetMissingWithBaseline()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, _, period, _, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var cldvGroup = await context.KpiGroups.FirstAsync(g => g.Code == "CLDV");
+        var kpiCsat = await context.KpiDefinitions.FirstAsync(k => k.Code == "CSAT");
+        var kpiError = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = cldvGroup.Id,
+            Code = "TY_LE_LOI",
+            Name = "Tỷ lệ lỗi giao dịch",
+            Unit = "%",
+            AggregationType = KpiAggregationType.Ratio,
+            Direction = KpiDirection.LowerBetter,
+            MaxAchievementPercent = 100m,
+            BaselineValue = 2m,
+            Status = KpiStatus.Active,
+            UpdatedAt = now,
+        };
+        await context.KpiDefinitions.AddAsync(kpiError);
+
+        var profile = await context.EvaluationProfiles.FirstAsync();
+        var cldvItem = await context.EvaluationProfileItems
+            .FirstAsync(i => i.EvaluationProfileId == profile.Id && i.ParentItemId == null && i.Name == "Chat luong dich vu");
+        await context.EvaluationProfileItems.AddAsync(new EvaluationProfileItem
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = profile.Id,
+            ParentItemId = cldvItem.Id,
+            KpiDefinitionId = kpiError.Id,
+            WeightPercent = 50m,
+            DisplayOrder = 2,
+            UpdatedAt = now,
+        });
+
+        var otherPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-Q4",
+            Name = "Quý 4/2026",
+            PeriodType = PeriodType.Quarter,
+            StartDate = new DateOnly(2026, 10, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        };
+        await context.EvaluationPeriods.AddAsync(otherPeriod);
+
+        // Targets exist only in Q4, not in the requested monthly period; progress occurs inside the month.
+        var errorTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            DepartmentId = dept.Id,
+            EvaluationPeriodId = otherPeriod.Id,
+            KpiDefinitionId = kpiError.Id,
+            TargetValue = 2m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        var csatTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            DepartmentId = dept.Id,
+            EvaluationPeriodId = otherPeriod.Id,
+            KpiDefinitionId = kpiCsat.Id,
+            TargetValue = 4.5m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        await context.TargetAssignments.AddRangeAsync(errorTarget, csatTarget);
+
+        await context.ActualProgresses.AddRangeAsync(
+            new ActualProgress
+            {
+                Id = Guid.NewGuid(),
+                TargetAssignmentId = errorTarget.Id,
+                Value = 15m,
+                Denominator = 300m,
+                ProgressDate = new DateOnly(2026, 10, 15),
+                Status = ActualProgressStatus.Valid,
+                UpdatedAt = now,
+            },
+            new ActualProgress
+            {
+                Id = Guid.NewGuid(),
+                TargetAssignmentId = csatTarget.Id,
+                Value = 4.25m,
+                ProgressDate = new DateOnly(2026, 10, 15),
+                Status = ActualProgressStatus.Valid,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var view = await service.GetPersonalEvaluationAsync(period.Id, staff.Account!.Id);
+
+        var errorRow = Assert.Single(view.Criteria, c => c.Id == kpiError.Id);
+        Assert.Equal("—", errorRow.TargetDisplay);
+        Assert.Equal("5 %", errorRow.ActualDisplay);
+        Assert.Equal(97m, errorRow.Score);
+        Assert.True(errorRow.HasDrilldown);
+
+        var csatRow = Assert.Single(view.Criteria, c => c.Id == kpiCsat.Id);
+        Assert.Equal("—", csatRow.TargetDisplay);
+        Assert.Equal("4.25 điểm", csatRow.ActualDisplay);
+        Assert.Null(csatRow.Score);
+        Assert.Null(csatRow.WeightedScore);
+        Assert.True(csatRow.HasDrilldown);
     }
 }
