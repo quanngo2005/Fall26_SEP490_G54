@@ -179,7 +179,7 @@ public sealed partial class WorkService
 
         if (newPriority is { } priority && priority != work.Priority)
         {
-            changes.Add($"ưu tiên {work.Priority.ToEnumString()} → {priority.ToEnumString()}");
+            changes.Add($"ưu tiên {PriorityLabel(work.Priority)} → {PriorityLabel(priority)}");
             work.Priority = priority;
         }
 
@@ -432,6 +432,14 @@ public sealed partial class WorkService
             },
             cancellationToken);
     }
+
+    private static string PriorityLabel(WorkPriority priority) => priority switch
+    {
+        WorkPriority.Low => "Thấp",
+        WorkPriority.High => "Cao",
+        WorkPriority.Critical => "Khẩn",
+        _ => "Thường",
+    };
 
     private static string FormatDate(DateOnly date) => date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
 }

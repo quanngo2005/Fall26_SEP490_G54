@@ -14,7 +14,7 @@ public sealed record WorkActivityDto(Guid Id, string Action, string Message, Gui
 /// <summary><c>PATCH /works/{id}/checklist-items/{itemId}</c> body.</summary>
 public sealed record WorkChecklistItemStateDto
 {
-    [Required]
+    [Required(ErrorMessage = "Trạng thái hoàn thành của mục kiểm tra là bắt buộc.")]
     public bool? IsDone { get; init; }
 }
 
@@ -23,8 +23,8 @@ public sealed record WorkPlanChecklistItemDto
 {
     public Guid? Id { get; init; }
 
-    [Required]
-    [StringLength(200)]
+    [Required(ErrorMessage = "Tên mục kiểm tra là bắt buộc.")]
+    [StringLength(200, ErrorMessage = "Tên mục kiểm tra tối đa 200 ký tự.")]
     public string Title { get; init; } = string.Empty;
 }
 
@@ -32,7 +32,7 @@ public sealed record WorkPlanChecklistItemDto
 public sealed record UpdateWorkPlanDto
 {
     /// <summary>The new deadline (<c>YYYY-MM-DD</c>); required.</summary>
-    [Required]
+    [Required(ErrorMessage = "Hạn hoàn thành là bắt buộc.")]
     public DateOnly? PlannedEndDate { get; init; }
 
     /// <summary><c>Low | Medium | High | Critical</c>; null keeps the current priority.</summary>
@@ -45,6 +45,6 @@ public sealed record UpdateWorkPlanDto
     public IReadOnlyList<WorkPlanChecklistItemDto>? Checklist { get; init; }
 
     /// <summary>A note for the assignee, kept in the activity log and the notification; at most 1000 characters.</summary>
-    [StringLength(1000)]
+    [StringLength(1000, ErrorMessage = "Ghi chú không được vượt quá 1000 ký tự.")]
     public string? Note { get; init; }
 }
