@@ -994,3 +994,364 @@ app-department-ranking-approval {
     }
   }
 }
+
+/* ==========================================================================
+   Global motion layer
+   - Enter animations for pages, cards, modals, drawers, toasts.
+   - Low specificity (:where) so any component that defines its own
+     animation/transition keeps winning.
+   - Exit animations are not covered (elements are removed by @if).
+   ========================================================================== */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 360ms;
+}
+
+@keyframes g54-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes g54-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes g54-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+
+@keyframes g54-slide-in-right {
+  from {
+    opacity: 0.6;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes g54-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+/* Routed pages: only the content area fades. Each page renders its own
+   sidebar + header, so animating the whole page would make them flash. */
+.workspace-content {
+  animation: g54-fade-in var(--dur-base) var(--ease-out);
+}
+
+/* Backdrops */
+:where(
+  .modal-backdrop,
+  .dialog-backdrop,
+  .drawer-backdrop,
+  .pre-close-modal-backdrop,
+  .confirm-backdrop,
+  .reverse-backdrop,
+  .submission-overlay,
+  .overlay
+) {
+  animation: g54-fade-in var(--dur-base) var(--ease-out);
+}
+
+/* Dialogs */
+:where(
+  .modal-dialog,
+  .modal-window,
+  .dialog,
+  .confirm-dialog,
+  .plan-dialog,
+  .submission-dialog,
+  .pre-close-modal
+) {
+  animation: g54-pop-in var(--dur-base) var(--ease-out);
+}
+
+/* Drawers */
+:where(.drawer) {
+  animation: g54-slide-in-right 300ms var(--ease-out);
+}
+
+/* Toasts (centered with translateX(-50%)) */
+:where(.toast) {
+  animation: g54-toast-in var(--dur-base) var(--ease-out);
+}
+:where(.toast-banner, .detail-slot) {
+  animation: g54-rise-in var(--dur-base) var(--ease-out);
+}
+
+/* Cards / panels: fade-up on enter */
+:where(
+  .table-card,
+  .card,
+  .metric-card,
+  .stat-card,
+  .summary-card,
+  .kpi-card,
+  .section-card,
+  .target-card,
+  .manager-card,
+  .state-card,
+  .master-panel,
+  .department-panel,
+  .side-panel
+) {
+  animation: g54-rise-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+/* Stagger cards laid out in a grid/list */
+:where(.stat-cards-grid, .metric-cards-grid) > * {
+  animation: g54-rise-in var(--dur-slow) var(--ease-out) backwards;
+}
+:where(.stat-cards-grid, .metric-cards-grid) > :nth-child(2) {
+  animation-delay: 50ms;
+}
+:where(.stat-cards-grid, .metric-cards-grid) > :nth-child(3) {
+  animation-delay: 100ms;
+}
+:where(.stat-cards-grid, .metric-cards-grid) > :nth-child(4) {
+  animation-delay: 150ms;
+}
+:where(.stat-cards-grid, .metric-cards-grid) > :nth-child(n + 5) {
+  animation-delay: 200ms;
+}
+
+/* Hover lift for compact cards */
+:where(.metric-card, .stat-card, .summary-card, .target-card, .manager-card) {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+:where(.metric-card, .stat-card, .summary-card, .target-card, .manager-card):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgb(15 23 42 / 10%);
+}
+
+/* Interactive controls */
+:where(button, a, input, select, textarea) {
+  transition:
+    background-color var(--dur-fast) ease-in-out,
+    border-color var(--dur-fast) ease-in-out,
+    color var(--dur-fast) ease-in-out,
+    box-shadow var(--dur-fast) ease-in-out,
+    opacity var(--dur-fast) ease-in-out;
+}
+:where(button):not(:disabled):active {
+  transform: scale(0.97);
+}
+:where(tbody tr) {
+  transition: background-color var(--dur-fast) ease-in-out;
+}
+
+/* --- Additional coverage ------------------------------------------------ */
+@keyframes g54-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes g54-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* Inline feedback: banners, alerts, notices, errors, empty & state blocks */
+:where(
+  .sync-banner,
+  .banner,
+  .banner-success,
+  .banner-error,
+  .banner-alert,
+  .alert-banner,
+  .notice,
+  .warn,
+  .field-error,
+  .form-error,
+  .inline-error,
+  .action-error,
+  .state-error,
+  .check-warning,
+  .check-error,
+  .empty,
+  .empty-cell,
+  .tab-state,
+  .drawer-state
+) {
+  animation: g54-rise-in var(--dur-base) var(--ease-out) backwards;
+}
+
+/* Tables: rows fade in with a light stagger (first 10 rows) */
+:where(tbody) > :where(tr) {
+  animation: g54-fade-in var(--dur-base) var(--ease-out) backwards;
+}
+:where(tbody) > tr:nth-child(2) {
+  animation-delay: 25ms;
+}
+:where(tbody) > tr:nth-child(3) {
+  animation-delay: 50ms;
+}
+:where(tbody) > tr:nth-child(4) {
+  animation-delay: 75ms;
+}
+:where(tbody) > tr:nth-child(5) {
+  animation-delay: 100ms;
+}
+:where(tbody) > tr:nth-child(6) {
+  animation-delay: 125ms;
+}
+:where(tbody) > tr:nth-child(7) {
+  animation-delay: 150ms;
+}
+:where(tbody) > tr:nth-child(8) {
+  animation-delay: 175ms;
+}
+:where(tbody) > tr:nth-child(9) {
+  animation-delay: 200ms;
+}
+:where(tbody) > tr:nth-child(n + 10) {
+  animation-delay: 225ms;
+}
+
+/* Progress bars: grow from the left, then glide when the value changes */
+:where(.progress-fill, .progress-bar-fill) {
+  transform-origin: left center;
+  animation: g54-grow-x 600ms var(--ease-out) backwards;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+:where(.progress-track > span, .progress-wrap > span > span, .seg) {
+  transform-origin: left center;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.seg {
+  animation: g54-grow-x 600ms var(--ease-out) backwards;
+}
+
+/* Menus, dropdowns & popovers */
+:where(.mobile-menu, .dropdown-menu, .dropdown-panel, .menu, .popover, .select-menu) {
+  transform-origin: top center;
+  animation: g54-drop-in var(--dur-fast) var(--ease-out);
+}
+
+/* Tabs, chips, badges, pills */
+:where(.tab, .chip, .tab-count, .status-badge, .status-pill, .badge-warning) {
+  transition:
+    background-color var(--dur-fast) ease-in-out,
+    border-color var(--dur-fast) ease-in-out,
+    color var(--dur-fast) ease-in-out,
+    box-shadow var(--dur-fast) ease-in-out,
+    transform var(--dur-fast) ease-in-out;
+}
+:where(.chip, .status-badge, .status-pill):not(:disabled):hover {
+  transform: translateY(-1px);
+}
+:where(.tab-panel, .tab-content) {
+  animation: g54-fade-in var(--dur-base) var(--ease-out);
+}
+
+/* Wizard stepper & list items */
+:where(.wizard-stepper) > * {
+  transition: all var(--dur-base) var(--ease-out);
+}
+
+/* Focus ring glides in */
+:where(input, select, textarea):focus-visible,
+:where(button, a):focus-visible {
+  transition: box-shadow var(--dur-fast) ease-in-out;
+}
+
+/* --- Exit animations ------------------------------------------------------
+   Applied through Angular's  animate.leave="g54-leave-*"  on the element.
+   Angular keeps the node in the DOM until the animation finishes.
+   Kinds: fade (backdrops/panels), pop (dialogs), drawer, toast, rise.
+   ------------------------------------------------------------------------- */
+@keyframes g54-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes g54-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes g54-slide-out-right {
+  to {
+    opacity: 0.6;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes g54-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes g54-toast-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+
+.g54-leave-fade {
+  animation: g54-fade-out var(--dur-fast) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.g54-leave-pop {
+  animation: g54-pop-out var(--dur-fast) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.g54-leave-drawer {
+  animation: g54-slide-out-right 220ms var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.g54-leave-rise {
+  animation: g54-rise-out var(--dur-fast) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+.g54-leave-toast {
+  animation: g54-toast-out var(--dur-fast) var(--ease-in-out) forwards;
+  pointer-events: none;
+}
+
+/* Enter animations for the remaining overlay / panel / toast class names */
+:where(.pre-close-modal-dialog, .reverse-dialog) {
+  animation: g54-pop-in var(--dur-base) var(--ease-out);
+}
+:where(.quarter-toast) {
+  animation: g54-rise-in var(--dur-base) var(--ease-out);
+}
+:where(.appeal-drawer, .employee-detail-drawer, .detail-drawer, .detail-panel) {
+  animation: g54-slide-in-right 300ms var(--ease-out);
+}
+:where(.backdrop, .sidebar-backdrop) {
+  animation: g54-fade-in var(--dur-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}

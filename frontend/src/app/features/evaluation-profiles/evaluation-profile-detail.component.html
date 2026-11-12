@@ -200,8 +200,9 @@
     </main>
 
     @if (rejecting()) {
-      <div class="modal-backdrop">
+      <div animate.leave="g54-leave-fade" class="modal-backdrop">
         <div
+          animate.leave="g54-leave-pop"
           class="modal-dialog reject-dialog"
           role="dialog"
           aria-modal="true"

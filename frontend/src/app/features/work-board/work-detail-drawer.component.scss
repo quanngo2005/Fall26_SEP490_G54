@@ -13,7 +13,6 @@
   background: rgb(15 23 42 / 28%);
   cursor: default;
   pointer-events: auto;
-  animation: fade-in 0.15s ease;
 }
 
 .drawer {
@@ -23,11 +22,10 @@
   bottom: 0;
   display: flex;
   flex-direction: column;
-  width: min(480px, 100%);
+  width: min(560px, 100%);
   background: #fff;
   box-shadow: -8px 0 24px -4px rgb(15 23 42 / 12%);
   pointer-events: auto;
-  animation: slide-in 0.18s ease;
 }
 
 .drawer-head {
@@ -177,29 +175,6 @@
   overflow-wrap: anywhere;
 }
 
-.description {
-  border-top: 1px solid #f1f5f9;
-  padding-top: 16px;
-}
-
-.description h3 {
-  margin: 0 0 8px;
-  color: #64748b;
-  font:
-    600 11px Inter,
-    sans-serif;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.description p {
-  margin: 0;
-  color: #1e293b;
-  font-size: 13px;
-  line-height: 20px;
-  white-space: pre-wrap;
-}
-
 .drawer-state {
   display: flex;
   flex-direction: column;
@@ -234,22 +209,7 @@
   }
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes slide-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .drawer,
-  .drawer-backdrop,
   .spinner {
     animation-duration: 0ms;
   }

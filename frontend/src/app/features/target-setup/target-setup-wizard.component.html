@@ -102,8 +102,9 @@
         </section>
 
         @if (confirmingPublish()) {
-          <div class="confirm-backdrop">
+          <div animate.leave="g54-leave-fade" class="confirm-backdrop">
             <div
+              animate.leave="g54-leave-pop"
               class="confirm-dialog"
               role="alertdialog"
               aria-modal="true"

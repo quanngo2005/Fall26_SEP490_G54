@@ -414,6 +414,7 @@
 
 @if (notice(); as n) {
   <div
+    animate.leave="g54-leave-toast"
     class="toast"
     [class.toast-error]="n.kind === 'error'"
     [attr.role]="n.kind === 'error' ? 'alert' : 'status'"

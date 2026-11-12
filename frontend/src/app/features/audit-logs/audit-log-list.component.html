@@ -182,7 +182,12 @@
   </div>
 
   @if (selectedId()) {
-    <aside class="drawer" role="dialog" [attr.aria-label]="t.detail.title">
+    <aside
+      animate.leave="g54-leave-drawer"
+      class="drawer"
+      role="dialog"
+      [attr.aria-label]="t.detail.title"
+    >
       <header class="drawer-head">
         <div>
           <h2>{{t.detail.title}}</h2>
