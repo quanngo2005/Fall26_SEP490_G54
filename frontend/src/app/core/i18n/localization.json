@@ -2542,7 +2542,11 @@
           "department": "Phòng ban",
           "assigned": "Được giao",
           "done": "Hoàn thành",
-          "noParticipants": "Chưa có người tham gia."
+          "noParticipants": "Chưa có người tham gia.",
+          "home": "Trang chủ",
+          "tabWorks": "Công việc",
+          "total": "Tổng số",
+          "completion": "Tiến độ"
         },
         "form": {
           "title": "Tạo kế hoạch chiến dịch",
@@ -5284,7 +5288,11 @@
           "department": "Department",
           "assigned": "Assigned",
           "done": "Completed",
-          "noParticipants": "No participants yet."
+          "noParticipants": "No participants yet.",
+          "home": "Home",
+          "tabWorks": "Works",
+          "total": "Total",
+          "completion": "Progress"
         },
         "form": {
           "title": "Create campaign plan",

@@ -17,6 +17,7 @@
         </div>
       } @else if (campaign(); as c) {
         <p class="breadcrumb">
+          <a routerLink="/home">{{localization.campaign.detail.home}}</a> /
           <a routerLink="/campaigns">{{localization.campaign.title}}</a> / {{c.code}}
         </p>
         <div class="page-toolbar">
@@ -137,7 +138,19 @@
             [attr.aria-selected]="tab() === 'participants'"
             (click)="tab.set('participants')"
           >
-            {{localization.campaign.detail.tabParticipants}} {{c.participants.length}}
+            {{localization.campaign.detail.tabParticipants}}
+            <span class="tab-count">{{c.participants.length}}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.is-active]="tab() === 'works'"
+            [attr.aria-selected]="tab() === 'works'"
+            (click)="tab.set('works')"
+          >
+            {{localization.campaign.detail.tabWorks}}
+            <span class="tab-count">{{c.metrics.totalWorksCount}}</span>
           </button>
         </div>
 
@@ -155,22 +168,7 @@
               </dl>
             </section>
             <section class="panel surface-card">
-              <h2>{{localization.campaign.detail.metrics}}</h2>
-              <ul class="metrics">
-                <li>
-                  <span>{{localization.campaign.detail.completed}}</span>
-                  <strong>{{c.metrics.completedWorksCount}}</strong>
-                </li>
-                <li>
-                  <span>{{localization.campaign.detail.inExecution}}</span>
-                  <strong>{{c.metrics.inExecutionWorksCount}}</strong>
-                </li>
-                <li>
-                  <span>{{localization.campaign.detail.pending}}</span>
-                  <strong>{{c.metrics.pendingWorksCount}}</strong>
-                </li>
-              </ul>
-              <h3>{{localization.campaign.detail.workTypes}}</h3>
+              <h2>{{localization.campaign.detail.workTypes}}</h2>
               <ul class="chips">
                 @for (workType of c.workTypes; track workType.workTypeId) {
                   <li class="chip">
@@ -182,6 +180,28 @@
               </ul>
             </section>
           </div>
+        } @else if (tab() === 'works') {
+          <section class="panel surface-card">
+            <h2>{{localization.campaign.detail.metrics}}</h2>
+            <ul class="metrics">
+              <li>
+                <span>{{localization.campaign.detail.total}}</span>
+                <strong>{{c.metrics.totalWorksCount}}</strong>
+              </li>
+              <li>
+                <span>{{localization.campaign.detail.completed}}</span>
+                <strong>{{c.metrics.completedWorksCount}}</strong>
+              </li>
+              <li>
+                <span>{{localization.campaign.detail.inExecution}}</span>
+                <strong>{{c.metrics.inExecutionWorksCount}}</strong>
+              </li>
+              <li>
+                <span>{{localization.campaign.detail.pending}}</span>
+                <strong>{{c.metrics.pendingWorksCount}}</strong>
+              </li>
+            </ul>
+          </section>
         } @else {
           <section class="panel surface-card">
             <div class="table-wrap">
@@ -193,6 +213,7 @@
                     <th>{{localization.campaign.detail.department}}</th>
                     <th class="num">{{localization.campaign.detail.assigned}}</th>
                     <th class="num">{{localization.campaign.detail.done}}</th>
+                    <th>{{localization.campaign.detail.completion}}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -206,10 +227,21 @@
                       <td>{{participant.departmentName ?? localization.campaign.noValue}}</td>
                       <td class="num">{{participant.assignedTasksCount}}</td>
                       <td class="num">{{participant.completedTasksCount}}</td>
+                      <td>
+                        @let share =
+                          progress(
+                            participant.assignedTasksCount,
+                            participant.completedTasksCount
+                          ) ?? 0;
+                        <span class="progress-track">
+                          <span class="progress-fill" [style.width.%]="share"></span>
+                        </span>
+                        <span class="muted">{{share}}%</span>
+                      </td>
                     </tr>
                   } @empty {
                     <tr>
-                      <td class="empty-cell" colspan="5">
+                      <td class="empty-cell" colspan="6">
                         {{localization.campaign.detail.noParticipants}}
                       </td>
                     </tr>
