@@ -83,6 +83,7 @@ typed in a tab that never opened a form, has nothing stored and shows "not found
 | --- | --- | --- |
 | `GET /evaluations/form` | `evaluation:read` | `Own` or higher |
 | `POST /evaluations/submit` | `evaluation:submit` | `Dept` or higher |
+| `POST /evaluations/personal/acknowledge` | `evaluation:read` | `Own` or higher (the result acknowledged is always the caller's own) |
 
 A caller reads their own form with `Own`; any other employee needs `evaluation:read` covering the employee's
 department (403 `FORBIDDEN` otherwise). Submitting needs `evaluation:submit` covering the department, and the
@@ -100,8 +101,9 @@ Query: `employeeId`, `periodId` (GUID, required). `data` (`EvaluationFormDto`):
 | `criteriaGroups[].isQualitative` | bool | the group owns no active KPI (none at all, or all inactive); its score is the qualitative score the reviewer enters (`evaluationProfileItemId` is the key of the submit input) and counts as 0 until one is saved. A group with an active KPI is scored from its KPIs only; a qualitative score stored for it earlier is kept but ignored |
 | `riskEvents[]` | array | risk events of the period that were not dismissed, with `penaltyPoints` |
 | `summary` | object | `weightedScore` (weighted group scores before the penalty), `totalRiskPenalty`, `totalScore`, `proposedTier`, `businessScore`, `serviceQualityScore`, `operationsScore`. The scores are produced by the same calculation as `POST /performance-evaluations/{id}/calculate` (see `PERFORMANCE_EVALUATION_CONTRACT.md`), so the group scores add up to the total. For an evaluation that is `DRAFT` or `CALCULATED` (or not stored yet) they are calculated on every request; from `IN_REVIEW` on, `totalScore` (and the `proposedTier` derived from it) is the stored score, which is never replaced by a recalculation, while the group scores, `weightedScore` and the Business / Service / Operations scores are still calculated from the current data, so for such an evaluation they may not add up to `totalScore` if the targets or progress changed after it was stored. `totalScore`, `proposedTier` and `weightedScore` are null only when no group has a score (a profile without any root group); a KPI group without target or progress scores 0 |
-| `currentEvaluation` | object | stored state: `id`, `totalScore`, `status` (`DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL`, `DRAFT` when nothing is stored), `comment`, `coachingPlan`, `coachingRequired` |
+| `currentEvaluation` | object | stored state: `id`, `totalScore`, `status` (`DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL`, `DRAFT` when nothing is stored), `comment`, `coachingPlan`, `coachingRequired`, `generalQualitativeScore`, `acknowledgedAt` (ISO-8601 timestamp when the evaluated employee acknowledged the result via `POST /evaluations/personal/acknowledge`, or null) |
 | `canEdit` | bool | period is `OPEN`/`IN_REVIEW`, the evaluation is not yet `IN_REVIEW` or later, the caller is not the employee, there is no open dispute, and the caller holds `evaluation:submit` covering the department |
+| `canAcknowledge` | bool | evaluation exists, is not `DRAFT`, has a `totalScore`, the caller is the evaluated employee (`employee.id == callerEmployeeId`), `hasOpenDispute` is false, and `currentEvaluation.acknowledgedAt` is null |
 | `pendingSubmissionCount` | number | result submissions of the employee in `SUBMITTED`/`UNDER_REVIEW` inside the period |
 | `openAppealCount` | number | appeals on the stored evaluation in `OPEN`/`UNDER_REVIEW` |
 | `hasOpenDispute` | bool | evaluation is `DISPUTED` or `openAppealCount > 0` |
@@ -128,6 +130,19 @@ Notes:
 - "Quality ratio" and the "History" link have no data source or target screen yet (waiting for confirmation);
   the form does not show them. The transaction-trace links (SCR-PRF-05) are not part of this scope.
 - Whether HR holds `evaluation:read` depends on the role grants in the database; this task does not change them.
+
+### `POST /evaluations/personal/acknowledge` (UC105, SCR-EVL-04)
+
+Body (`AcknowledgePersonalEvaluationRequestDto`): `periodId` (GUID, required). The result acknowledged is the caller's own evaluation in that period, so there is no way to acknowledge someone else's (no 403 case).
+`data` (`AcknowledgePersonalEvaluationResultDto`): `success` (always true on 200), `acknowledgedAt` (ISO-8601 timestamp), `message`.
+
+Rules:
+- An evaluation under dispute (`DISPUTED` or with an `OPEN`/`UNDER_REVIEW` appeal) cannot be acknowledged and returns 409 `EVALUATION_DISPUTE_PENDING` (BR-31). A closed appeal (`ACCEPTED` / `REJECTED` / `WITHDRAWN`) does not block.
+- An evaluation in `DRAFT` or without a `totalScore` cannot be acknowledged and returns 409 `PERFORMANCE_EVALUATION_INVALID_STATE`.
+- Idempotent: acknowledging an already-acknowledged evaluation returns 200 with the original `acknowledgedAt` unchanged (the check runs before the dispute and state checks, so an acknowledged result stays acknowledged).
+- Two requests saving at once: the one that loses is a 409 `CONFLICT` and nothing is overwritten.
+- Re-saving or recalculating a `DRAFT`/`CALCULATED` evaluation clears `acknowledgedAt` so the employee must acknowledge the updated result.
+- Errors: 400 `VALIDATION_ERROR` (missing `periodId`); 401 `UNAUTHORIZED`; 404 `NOT_FOUND` (no evaluation of the caller in the period); 409 `EVALUATION_DISPUTE_PENDING`; 409 `PERFORMANCE_EVALUATION_INVALID_STATE`; 409 `CONFLICT`.
 
 ## My performance: criterion ledger (`/my-evaluation`)
 

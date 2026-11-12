@@ -91,7 +91,8 @@ public sealed record PerformanceEvaluationStateDto(
     string? Comment,
     string? CoachingPlan,
     bool CoachingRequired,
-    decimal? GeneralQualitativeScore = null);
+    decimal? GeneralQualitativeScore = null,
+    DateTimeOffset? AcknowledgedAt = null);
 
 public sealed record PreviousPeriodSummaryDto(
     string PeriodCode,
@@ -111,7 +112,8 @@ public sealed record EvaluationFormDto(
     int PendingSubmissionCount,
     int OpenAppealCount,
     bool HasOpenDispute,
-    PreviousPeriodSummaryDto? PreviousPeriod);
+    PreviousPeriodSummaryDto? PreviousPeriod,
+    bool CanAcknowledge = false);
 
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,
