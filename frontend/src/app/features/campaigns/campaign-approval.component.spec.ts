@@ -31,6 +31,14 @@ const summary = (id: string, code: string): CampaignSummary => ({
   generatedWorksCount: 0,
   completedWorksCount: 0,
   updatedAt: '2026-10-20T10:00:00Z',
+  progressPercent: 0,
+  timeElapsedPercent: 0,
+  paceGap: 0,
+  kpiCode: null,
+  kpiName: null,
+  targetUnit: null,
+  targetValue: null,
+  actualValue: null,
 });
 
 const detail = (id: string, overrides: Partial<CampaignDetail> = {}): CampaignDetail => ({

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
-public sealed class CampaignService(
+public sealed partial class CampaignService(
     AppDbContext db,
     ILogger<CampaignService> logger,
     TimeProvider time) : ICampaignService
@@ -67,14 +67,6 @@ public sealed class CampaignService(
             w => w.BusinessCampaignId != null && WorkStatusGroups.Completed.Contains(w.Status),
             cancellationToken);
 
-        var metrics = new CampaignOverviewMetricsDto(
-            totalCampaigns,
-            runningCampaigns,
-            plannedCampaigns,
-            completedCampaigns,
-            totalTasksGenerated,
-            totalCompletedTasks);
-
         var query = allCampaigns;
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -94,6 +86,15 @@ public sealed class CampaignService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var today = time.GetBusinessToday();
+        var metrics = new CampaignOverviewMetricsDto(
+            totalCampaigns,
+            runningCampaigns,
+            plannedCampaigns,
+            completedCampaigns,
+            totalTasksGenerated,
+            totalCompletedTasks,
+            await CountSlowCampaignsAsync(query, today, cancellationToken));
 
         var items = await query
             .OrderByDescending(c => c.UpdatedAt)
@@ -115,8 +116,17 @@ public sealed class CampaignService(
                 c.CampaignWorkTypes.Count,
                 c.Works.Count,
                 c.Works.Count(w => WorkStatusGroups.Completed.Contains(w.Status)),
-                c.UpdatedAt))
+                c.UpdatedAt,
+                0m,
+                0m,
+                0m,
+                null,
+                null,
+                null,
+                null,
+                null))
             .ToListAsync(cancellationToken);
+        items = await AddPaceAsync(items, today, cancellationToken);
 
         return new CampaignListOverviewDto(
             metrics,

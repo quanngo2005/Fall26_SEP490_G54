@@ -68,6 +68,13 @@ function member(n: number, prefix = 'E'): DepartmentMember {
     status: 'ACTIVE',
     openWorkCount: 0,
     performanceScore: null,
+    evaluationStatus: null,
+    previousPerformanceScore: null,
+    changeFromPrevious: null,
+    groups: [],
+    weakestProfileItemId: null,
+    overdueWorkCount: 0,
+    pendingReviewCount: 0,
   };
 }
 
