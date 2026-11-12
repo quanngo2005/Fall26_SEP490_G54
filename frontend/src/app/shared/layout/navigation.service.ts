@@ -99,6 +99,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'handoverDelegation',
     'reviewVerify',
     'teamPerformance',
+    'departmentPerformance',
     'targetOverview',
     'targetsAndCampaigns',
     'appeals',
@@ -199,8 +200,9 @@ const ITEMS: readonly NavigationItem[] = [
   {
     id: 'branchPerformance',
     icon: 'branchPerformance',
-    route: '/branch-performance/evaluations',
-    permission: 'EVALUATION_FINALIZE',
+    route: '/branch-performance',
+    // SCR-PRF-03 reads the branch overview, so it needs what its route guard needs (organizationGuard).
+    permission: 'ORGANIZATION_READ',
   },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
   {
@@ -260,6 +262,7 @@ export class NavigationService {
     '/my-evaluation',
     '/departments',
     '/department-performance',
+    '/branch-performance',
     '/employee-detail',
     '/work-types',
     '/evaluation-profiles',

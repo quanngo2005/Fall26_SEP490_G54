@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Department;
 using G54.BLL.Dtos.Permission;
@@ -5,6 +6,7 @@ using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.UnitTests;
 
@@ -19,7 +21,7 @@ public sealed class DepartmentManagementTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private DepartmentService Service() => new(_db, new AllPermissions(), new FixedTime());
+    private DepartmentService Service() => new(_db, new AllPermissions(), new FixedTime(), Options.Create(new SystemParametersOptions()));
 
     private async Task<Department> SeedAsync(
         string code,
@@ -445,7 +447,7 @@ public sealed class DepartmentManagementTests : IDisposable
         var employee = await SeedEmployeeAsync(department.Id);
         _db.Accounts.Add(new Account { Id = _adminAccount, EmployeeId = employee.Id, Username = "a", PasswordHash = "h", LastSyncAt = Now, UpdatedAt = Now });
         await _db.SaveChangesAsync();
-        var service = new DepartmentService(_db, new AllPermissions("Department"), new FixedTime());
+        var service = new DepartmentService(_db, new AllPermissions("Department"), new FixedTime(), Options.Create(new SystemParametersOptions()));
 
         var tree = await service.GetTreeAsync(_adminAccount);
 
