@@ -1,6 +1,6 @@
 @let wt = workType();
 @let t = localization.workTypes;
-<aside class="drawer" [attr.aria-label]="t.drawerTitle">
+<aside animate.leave="g54-leave-drawer" class="drawer" [attr.aria-label]="t.drawerTitle">
   <header class="drawer-header">
     <div>
       <h2>{{wt.name}}</h2>

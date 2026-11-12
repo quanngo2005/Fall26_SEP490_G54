@@ -333,12 +333,14 @@
 @if (showAcknowledgeModal()) {
   @if (evaluation(); as evalData) {
     <div
+      animate.leave="g54-leave-fade"
       class="modal-backdrop"
       role="presentation"
       (click)="closeAcknowledgeModal()"
       (keydown.escape)="closeAcknowledgeModal()"
     >
       <div
+        animate.leave="g54-leave-pop"
         class="modal-dialog ack-dialog"
         role="dialog"
         aria-modal="true"
@@ -391,12 +393,14 @@
 <!-- Modal Drilldown Ledger Drawer -->
 @if (selectedDrilldownCriteria(); as crit) {
   <div
+    animate.leave="g54-leave-fade"
     class="modal-backdrop"
     role="presentation"
     (click)="closeDrilldown()"
     (keydown.escape)="closeDrilldown()"
   >
     <div
+      animate.leave="g54-leave-pop"
       class="modal-dialog ledger-dialog"
       role="dialog"
       aria-modal="true"

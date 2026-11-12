@@ -197,7 +197,12 @@
   </div>
 
   @if (selectedId()) {
-    <aside class="drawer" role="dialog" [attr.aria-label]="detail()?.username ?? t.title">
+    <aside
+      animate.leave="g54-leave-drawer"
+      class="drawer"
+      role="dialog"
+      [attr.aria-label]="detail()?.username ?? t.title"
+    >
       @if (detail(); as account) {
         <header class="drawer-head">
           <div>

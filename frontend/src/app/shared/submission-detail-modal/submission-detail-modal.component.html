@@ -1,6 +1,12 @@
 @if (open()) {
-  <div class="submission-overlay" (click)="closeOnBackdrop($event)" role="presentation">
+  <div
+    animate.leave="g54-leave-fade"
+    class="submission-overlay"
+    (click)="closeOnBackdrop($event)"
+    role="presentation"
+  >
     <section
+      animate.leave="g54-leave-pop"
       class="submission-dialog"
       role="dialog"
       aria-modal="true"
