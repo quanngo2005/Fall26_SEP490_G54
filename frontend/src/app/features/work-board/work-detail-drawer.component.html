@@ -81,13 +81,7 @@
             </button>
           }
           @if (canSubmit()) {
-            <button
-              type="button"
-              class="drawer-action is-primary"
-              disabled
-              [title]="text.actions.submitSoon"
-              [attr.aria-label]="text.actions.submit + '. ' + text.actions.submitSoon"
-            >
+            <button type="button" class="drawer-action is-primary" (click)="submitOpen.set(true)">
               {{text.actions.submit}}
             </button>
           }
@@ -295,6 +289,13 @@
         [work]="w"
         (closed)="planOpen.set(false)"
         (saved)="onPlanSaved($event)"
+      />
+    }
+    @if (submitOpen() && work(); as w) {
+      <app-submit-result-dialog
+        [work]="w"
+        (closed)="submitOpen.set(false)"
+        (submittedResult)="onResultSubmitted($event)"
       />
     }
     @if (handoverOpen() && work(); as w) {

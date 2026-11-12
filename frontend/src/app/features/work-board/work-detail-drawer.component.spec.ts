@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentRef } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { EmployeeService } from '../../core/employee.service';
@@ -7,6 +8,7 @@ import { HandoverService } from '../../core/handover.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { MySubmissionService } from '../../core/my-submission.service';
 import { ResultSubmissionService } from '../../core/result-submission.service';
+import { SubmitResultDialogComponent } from '../work-detail/submit-result-dialog.component';
 import { WorkDetail } from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
@@ -59,7 +61,12 @@ describe('WorkDetailDrawerComponent', () => {
     activities: jasmine.createSpy('activities'),
     setChecklistItem: jasmine.createSpy('setChecklistItem'),
   };
-  const submissions = { getSubmissionsByWork: jasmine.createSpy('getSubmissionsByWork') };
+  const submissions = {
+    getSubmissionsByWork: jasmine.createSpy('getSubmissionsByWork'),
+    getSubmissionContext: jasmine.createSpy('getSubmissionContext'),
+    createSubmission: jasmine.createSpy('createSubmission'),
+    addTransactionCodes: jasmine.createSpy('addTransactionCodes'),
+  };
   const mySubmissions = { detail: jasmine.createSpy('detail') };
   const employees = { me: jasmine.createSpy('me') };
   let fixture: ComponentFixture<WorkDetailDrawerComponent>;
@@ -96,6 +103,31 @@ describe('WorkDetailDrawerComponent', () => {
       ]),
     );
     submissions.getSubmissionsByWork.and.returnValue(of([]));
+    submissions.getSubmissionContext.and.returnValue(
+      of({
+        workId: 'w1',
+        workCode: 'WK-1038',
+        workTitle: 'E-banking - Đăng ký',
+        workStatus: 'IN_PROGRESS',
+        assigneeEmployeeId: 'emp-a',
+        assigneeEmployeeName: 'Nguyễn Văn A',
+        assigneeEmployeeCode: 'NV001',
+        workTypeId: null,
+        workTypeName: null,
+        nextSubmissionNo: 1,
+        previousSubmissionsCount: 0,
+        kpiCriteria: [],
+        allowedFileTypes: ['.pdf'],
+        maxFileSizeBytes: 10485760,
+        maxFileCount: 10,
+      }),
+    );
+    submissions.createSubmission.and.returnValue(
+      of({ submissionId: 's1', workId: 'w1', status: 'SUBMITTED' }),
+    );
+    submissions.addTransactionCodes.and.returnValue(
+      of({ workId: 'w1', workStatus: 'SUBMITTED', items: [] }),
+    );
     employees.me.and.returnValue(of({ id: options.me ?? 'emp-a' }));
     changed = 0;
 
@@ -150,6 +182,66 @@ describe('WorkDetailDrawerComponent', () => {
 
     expect(buttons()).toEqual(['Chuyển giao việc', 'Nộp kết quả']);
     expect(element.textContent).toContain('không cần chấp nhận hay từ chối');
+  });
+
+  it('opens the submit dialog from "Nộp kết quả" and keeps the panel open on Escape', async () => {
+    await setup();
+    let panelClosed = 0;
+    fixture.componentInstance.closed.subscribe(() => panelClosed++);
+
+    const submit = Array.from(
+      element.querySelectorAll<HTMLButtonElement>('.drawer-actions button'),
+    ).find((b) => b.textContent?.includes('Nộp kết quả'));
+    expect(submit?.disabled).toBeFalse();
+    submit?.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('app-submit-result-dialog')).not.toBeNull();
+    expect(submissions.getSubmissionContext).toHaveBeenCalledWith('w1');
+    // The dialog takes Escape first: the panel behind it must not close.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(panelClosed).toBe(0);
+  });
+
+  it('refreshes the work and shows a success notice after the result is submitted', async () => {
+    await setup();
+    element
+      .querySelectorAll<HTMLButtonElement>('.drawer-actions button')
+      .forEach((b) => b.textContent?.includes('Nộp kết quả') && b.click());
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const detailCalls = works.detail.calls.count();
+
+    const dialog = fixture.debugElement.query(By.directive(SubmitResultDialogComponent))
+      .componentInstance as SubmitResultDialogComponent;
+    dialog.submittedResult.emit({ submissionId: 's1', codesFailed: false });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(works.detail.calls.count()).toBe(detailCalls + 1);
+    expect(changed).toBe(1);
+    expect(element.textContent).toContain('Đã nộp kết quả');
+  });
+
+  it('warns when the result was saved but the transaction codes were not', async () => {
+    await setup();
+    element
+      .querySelectorAll<HTMLButtonElement>('.drawer-actions button')
+      .forEach((b) => b.textContent?.includes('Nộp kết quả') && b.click());
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const dialog = fixture.debugElement.query(By.directive(SubmitResultDialogComponent))
+      .componentInstance as SubmitResultDialogComponent;
+    dialog.submittedResult.emit({ submissionId: 's1', codesFailed: true });
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('chưa lưu được mã giao dịch');
   });
 
   it('gives the manager "Sửa kế hoạch" and a read-only checklist', async () => {
@@ -243,7 +335,7 @@ describe('WorkDetailDrawerComponent', () => {
     expect(rows.length).toBe(2);
     expect(rows[0]).toContain('GD-778899');
     expect(rows[0]).toContain('Đã khớp');
-    expect(rows[1]).toContain('Chưa khớp');
+    expect(rows[1]).toContain('Không khớp');
   });
 
   it('closes on Escape, but leaves the panel open while a dialog is open', async () => {
