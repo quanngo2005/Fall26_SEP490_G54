@@ -245,7 +245,7 @@ public sealed class PerformanceScoreCalculatorTests
     // ----- calculator: total ----------------------------------------------------------------------------
 
     [Fact]
-    public async Task Calculate_Total_IsTheWeightedGroupsMinusRiskPlusAppealAdjustments()
+    public async Task Calculate_Total_IsTheWeightedGroupsMinusRisk()
     {
         using var w = await World.CreateAsync();
         w.AddTarget(w.Hdv, 100m);
@@ -254,7 +254,6 @@ public sealed class PerformanceScoreCalculatorTests
         w.AddProgress(w.Csat, 100m);
         w.QualitativeScore = 50m;
         w.AddRisk(RiskEventSeverity.Medium);
-        w.AddLedgerEntry(w.Staff1, 3m);
 
         var result = await w.ScoreAsync(w.Staff1);
 
@@ -262,7 +261,7 @@ public sealed class PerformanceScoreCalculatorTests
         // Service 100 x 40% = 40; qualitative 50 x 20% = 10; weighted score 70.
         Assert.Equal(70m, result.WeightedScore);
         Assert.Equal(EvaluationService.MapRiskPenalty(RiskEventSeverity.Medium), result.RiskPenalty);
-        Assert.Equal(70m - result.RiskPenalty + 3m, result.TotalScore);
+        Assert.Equal(70m - result.RiskPenalty, result.TotalScore);
     }
 
     [Fact]
@@ -340,7 +339,6 @@ public sealed class PerformanceScoreCalculatorTests
         w.AddProgress(w.Hdv, 100m, owner: w.Staff1);
         w.AddProgress(w.Hdv, 40m, owner: w.Staff2);
         w.AddRisk(RiskEventSeverity.High, owner: w.Staff2);
-        w.AddLedgerEntry(w.Staff1, 2m);
 
         var scored = await w.ScoreManyAsync(w.Staff1, w.Staff2, w.Staff3);
 
@@ -351,7 +349,7 @@ public sealed class PerformanceScoreCalculatorTests
         Assert.Equal(0m, scored[w.Staff3.Id].Groups.Single(g => g.Name == "Sales").Score);
         Assert.Empty(scored[w.Staff1.Id].RiskEvents);
         Assert.Single(scored[w.Staff2.Id].RiskEvents);
-        Assert.Equal(2m, scored[w.Staff1.Id].TotalScore - scored[w.Staff1.Id].WeightedScore);
+        Assert.Equal(scored[w.Staff1.Id].WeightedScore, scored[w.Staff1.Id].TotalScore);
     }
 
     [Fact]
@@ -376,7 +374,6 @@ public sealed class PerformanceScoreCalculatorTests
         w.AddTarget(w.Csat, 50m);
         w.AddProgress(w.Csat, 40m);
         w.AddRisk(RiskEventSeverity.Low);
-        w.AddLedgerEntry(w.Staff1, 1.5m);
         await w.Db.SaveChangesAsync();
 
         var saved = await w.SubmitAsync(w.Staff1, isDraft: false);
@@ -792,14 +789,13 @@ public sealed class PerformanceScoreCalculatorTests
     }
 
     [Fact]
-    public async Task CalculateEndpoint_SubtractsTheRiskPenaltyAndAddsTheAppealAdjustmentsLikeTheForm()
+    public async Task CalculateEndpoint_SubtractsTheRiskPenaltyLikeTheForm()
     {
         using var w = await World.CreateAsync();
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 100m);
         w.AddRisk(RiskEventSeverity.Medium);
         var evaluation = w.AddEvaluation(w.Staff1, null, PerformanceEvaluationStatus.Draft);
-        w.AddLedgerEntry(w.Staff1, 4m, evaluation);
         await w.Db.SaveChangesAsync();
         var form = await w.FormAsync(w.Staff1);
 
@@ -1307,24 +1303,6 @@ public sealed class PerformanceScoreCalculatorTests
             };
             Db.PerformanceEvaluations.Add(evaluation);
             return evaluation;
-        }
-
-        public void AddLedgerEntry(Employee employee, decimal points, PerformanceEvaluation? evaluation = null)
-        {
-            evaluation ??= Db.PerformanceEvaluations.Local.FirstOrDefault(e => e.EmployeeId == employee.Id)
-                ?? AddEvaluation(employee, null, PerformanceEvaluationStatus.Draft);
-            Db.ScoreEntries.Add(new ScoreEntry
-            {
-                Id = Guid.NewGuid(),
-                EvaluationId = evaluation.Id,
-                EmployeeId = employee.Id,
-                RecordedByEmployeeId = Manager.Id,
-                Points = points,
-                Kind = ScoreEntryKind.TaskDeduction,
-                Source = ScoreEntrySource.Manager,
-                Reason = "test",
-                CreatedAt = Now,
-            });
         }
 
         public void Dispose() => Db.Dispose();

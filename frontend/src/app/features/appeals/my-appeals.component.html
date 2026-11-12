@@ -99,18 +99,6 @@
                 />
               </div>
 
-              <div class="select-dropdown">
-                <select
-                  [ngModel]="typeFilter()"
-                  (ngModelChange)="setType($event)"
-                  [attr.aria-label]="localization.appeals.filterType"
-                >
-                  <option value="ALL">{{localization.appeals.allTypes}}</option>
-                  <option value="RESULT">{{localization.appeals.resultAppeal}}</option>
-                  <option value="SCORE">{{localization.appeals.scoreAppeal}}</option>
-                </select>
-              </div>
-
               @if (!selectedAppeal()) {
                 <div class="select-dropdown period-select">
                   <select
@@ -150,7 +138,6 @@
                 <thead>
                   <tr>
                     <th class="col-code">{{localization.appeals.code | uppercase}}</th>
-                    <th class="col-kind">{{localization.appeals.type | uppercase}}</th>
                     @if (!selectedAppeal()) {
                       <th class="col-subject">{{localization.appeals.subject | uppercase}}</th>
                     }
@@ -172,7 +159,6 @@
                       (click)="selectAppeal(item)"
                     >
                       <td class="col-code cell-bold font-code">{{code(item)}}</td>
-                      <td class="col-kind">{{kindLabel(item.type)}}</td>
                       @if (!selectedAppeal()) {
                         <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
                       }
@@ -195,7 +181,7 @@
                     </tr>
                   } @empty {
                     <tr>
-                      <td [attr.colspan]="selectedAppeal() ? 4 : 7" class="empty-state">
+                      <td [attr.colspan]="selectedAppeal() ? 3 : 6" class="empty-state">
                         {{loading() ? localization.appeals.loading : localization.appeals.empty}}
                       </td>
                     </tr>

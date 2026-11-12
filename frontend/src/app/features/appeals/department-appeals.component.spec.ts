@@ -17,11 +17,11 @@ class SidebarStub {}
 const url = `${environment.apiUrl}/appeals`;
 const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   id: '9a8b7c6d-1111-2222-3333-444455556666',
-  resultSubmissionId: null,
-  workId: null,
-  workCode: null,
-  workTitle: null,
-  submissionNo: null,
+  resultSubmissionId: 's1',
+  workId: 'w1',
+  workCode: 'WRK-1',
+  workTitle: 'Mở thẻ',
+  submissionNo: 1,
   employeeId: 'e2',
   employeeCode: 'NV002',
   employeeName: 'Lê Thị Mai',
@@ -29,13 +29,9 @@ const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   filedAt: '2026-10-24T10:00:00+00:00',
   decidedAt: null,
   updatedAt: '2026-10-24T10:00:00+00:00',
-  type: 'SCORE',
-  performanceEvaluationId: 'pe1',
-  periodCode: '2026-Q2',
   jobPositionTitle: 'Giao dịch viên',
   resolvedByEmployeeName: null,
   note: null,
-  evaluationScore: null,
   ...over,
 });
 const page = (items: AppealListItem[], totalCount = items.length) => ({
@@ -106,7 +102,7 @@ describe('DepartmentAppealsComponent', () => {
     expect(rows[0].textContent).toContain('9A8B7C6D');
     expect(rows[0].textContent).toContain('Lê Thị Mai');
     expect(rows[0].textContent).toContain('Giao dịch viên');
-    expect(rows[0].textContent).toContain('2026-Q2');
+    expect(rows[0].textContent).toContain('WRK-1 · v1');
     expect(root.textContent).not.toContain('APL-0418');
     const counts = Array.from(root.querySelectorAll('.tab-count')).map((e) =>
       e.textContent?.trim(),
@@ -134,19 +130,6 @@ describe('DepartmentAppealsComponent', () => {
     expect(escalated?.querySelector('.tab-count')?.textContent?.trim()).toBe('N/A');
   });
 
-  it('shows the current score next to the period of a score appeal', () => {
-    const fixture = open();
-    flushLookups();
-    flushList([item({ evaluationScore: 87.2 }), item({ id: 'b-2', evaluationScore: null })]);
-    fixture.detectChanges();
-    const root: HTMLElement = fixture.nativeElement;
-    const subjects = Array.from(root.querySelectorAll<HTMLElement>('tbody td.col-subject')).map(
-      (cell) => cell.textContent?.trim(),
-    );
-    expect(subjects[0]).toContain('2026-Q2 · 87');
-    expect(subjects[1]).toBe('2026-Q2');
-  });
-
   it('shows N/A for the due date because the API has no processing deadline', () => {
     const fixture = open();
     flushLookups();
@@ -157,31 +140,21 @@ describe('DepartmentAppealsComponent', () => {
     );
   });
 
-  it('sends the period, position and type filters to the API', () => {
+  it('sends the period and position filters to the API', () => {
     const fixture = open();
     flushLookups();
     flushList([]);
     fixture.detectChanges();
     const selects = fixture.nativeElement.querySelectorAll('select');
-    selects[0].value = 'SCORE';
+    selects[0].value = 'p1';
     selects[0].dispatchEvent(new Event('change'));
-    const first = http.match((r) => r.url === url);
-    expect(
-      first.find((r) => r.request.params.get('pageSize') !== '1')?.request.params.get('type'),
-    ).toBe('SCORE');
-    for (const request of first) request.flush(page([]));
-    fixture.detectChanges();
-
-    selects[1].value = 'p1';
+    selects[1].value = 'j1';
     selects[1].dispatchEvent(new Event('change'));
-    selects[2].value = 'j1';
-    selects[2].dispatchEvent(new Event('change'));
     // Each change cancels the requests of the one before it; only the last set is still live.
     const later = http.match((r) => r.url === url).filter((r) => !r.cancelled);
     const main = later.find((r) => r.request.params.get('pageSize') !== '1');
     expect(main?.request.params.get('periodId')).toBe('p1');
     expect(main?.request.params.get('jobPositionId')).toBe('j1');
-    expect(main?.request.params.get('type')).toBe('SCORE');
     for (const request of later) request.flush(page([]));
   });
 
@@ -205,7 +178,9 @@ describe('DepartmentAppealsComponent', () => {
     fixture.detectChanges();
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     fixture.nativeElement.querySelector('tbody tr').click();
-    expect(navigate).toHaveBeenCalledWith(['/appeals/department', item().id]);
+    expect(navigate).toHaveBeenCalledWith(['/appeals/department/detail'], {
+      state: { appealId: item().id },
+    });
   });
 
   it('shows an error with a retry button instead of fallback rows', () => {

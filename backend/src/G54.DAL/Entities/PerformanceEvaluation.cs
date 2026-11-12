@@ -36,7 +36,6 @@ public partial class PerformanceEvaluation
     /// <summary>When the score became disputed (pending); null otherwise.</summary>
     public DateTimeOffset? DisputedAt { get; set; }
 
-    public virtual ICollection<Appeal> Appeals { get; set; } = new List<Appeal>();
 
     public virtual Employee Employee { get; set; } = null!;
 

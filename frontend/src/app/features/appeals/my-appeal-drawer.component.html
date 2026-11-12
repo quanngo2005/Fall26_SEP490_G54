@@ -2,7 +2,7 @@
   <header class="drawer-header">
     <div class="header-top-line">
       <div class="header-title-group">
-        <h2 class="appeal-title">{{code()}} · {{kindLabel()}}</h2>
+        <h2 class="appeal-title">{{code()}} · {{localization.appeals.resultAppeal}}</h2>
       </div>
       <div class="header-actions">
         <span class="status-badge" [class]="'status-' + appeal().status.toLowerCase()">
@@ -32,29 +32,21 @@
         <h3 class="section-label">{{localization.appeals.subject}}</h3>
         <div class="target-grid">
           <div class="grid-item">
-            <span class="field-label">
-              {{appeal().type === 'SCORE'
-                  ? localization.appeals.period
-                  : localization.appeals.submission}}
-            </span>
+            <span class="field-label">{{localization.appeals.submission}}</span>
             <span class="field-value">{{subject()}}</span>
           </div>
-          @if (appeal().type === 'RESULT') {
-            <div class="grid-item">
-              <span class="field-label">{{localization.appeals.work}}</span>
-              <span class="field-value">
-                {{appeal().workTitle ?? localization.appeals.notAvailable}}
-              </span>
-            </div>
-            <div class="grid-item">
-              <span class="field-label">{{localization.appeals.transactionCode}}</span>
-              <span class="field-value font-code">{{localization.appeals.notAvailable}}</span>
-            </div>
-            <div class="grid-item">
-              <span class="field-label">{{localization.appeals.reconciliation}}</span>
-              <span class="field-value">{{localization.appeals.notAvailable}}</span>
-            </div>
-          }
+          <div class="grid-item">
+            <span class="field-label">{{localization.appeals.work}}</span>
+            <span class="field-value">{{appeal().workTitle}}</span>
+          </div>
+          <div class="grid-item">
+            <span class="field-label">{{localization.appeals.transactionCode}}</span>
+            <span class="field-value font-code">{{localization.appeals.notAvailable}}</span>
+          </div>
+          <div class="grid-item">
+            <span class="field-label">{{localization.appeals.reconciliation}}</span>
+            <span class="field-value">{{localization.appeals.notAvailable}}</span>
+          </div>
         </div>
       </section>
 

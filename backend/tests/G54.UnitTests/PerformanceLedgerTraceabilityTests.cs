@@ -14,21 +14,19 @@ public sealed class PerformanceLedgerTraceabilityTests
     private static readonly DateTimeOffset Now = new(2026, 10, 22, 7, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Ledger_ListsResultRiskPenaltyAndScoreEntriesWithASummary()
+    public async Task Ledger_ListsResultAndRiskPenaltyWithASummary()
     {
         using var world = await World.CreateAsync();
         var result = world.AddMatchedResult(world.Employee, rawValue: 10m, multiplier: 1.5m);
         var risk = world.AddRisk(world.Employee, RiskEventSeverity.Medium);
-        var hold = world.AddScoreEntry(world.Employee, -5m, ScoreEntryKind.Hold);
         await world.SaveAsync();
 
         var dto = await world.Service(PermissionScopes.Own).GetEmployeeLedgerAsync(
             world.EmployeeAccount.Id, world.Employee.Id, world.October.Id, null, 1, 20);
 
-        Assert.Equal(3, dto.Entries.TotalCount);
+        Assert.Equal(2, dto.Entries.TotalCount);
         Assert.Equal(15m, dto.Summary.ResultPoints);
         Assert.Equal(-5m, dto.Summary.RiskPenaltyPoints);
-        Assert.Equal(-5m, dto.Summary.ScoreEntryPoints);
         var line = Assert.Single(dto.Entries.Items, e => e.Id == result.Item.Id);
         Assert.Equal("RESULT", line.Type);
         Assert.Equal(10m, line.RawValue);
@@ -37,7 +35,6 @@ public sealed class PerformanceLedgerTraceabilityTests
         Assert.Equal("HDV", line.KpiCode);
         Assert.Equal(result.Work.Id, line.WorkId);
         Assert.Equal("RISK_PENALTY", Assert.Single(dto.Entries.Items, e => e.Id == risk.Id).Type);
-        Assert.Equal("HOLD", Assert.Single(dto.Entries.Items, e => e.Id == hold.Id).Type);
     }
 
     [Fact]
@@ -155,7 +152,6 @@ public sealed class PerformanceLedgerTraceabilityTests
         Assert.Equal("APPROVED", dto.Submission.Decision);
         Assert.Equal(world.Manager.FullName, dto.Submission.VerifierName);
         Assert.Null(dto.RiskEvent);
-        Assert.Null(dto.Appeal);
     }
 
     [Fact]
@@ -173,22 +169,6 @@ public sealed class PerformanceLedgerTraceabilityTests
         Assert.Equal("HIGH", dto.RiskEvent.Severity);
         Assert.Equal(world.Manager.FullName, dto.RecordedByName);
         Assert.Null(dto.Work);
-    }
-
-    [Fact]
-    public async Task Entry_ReturnsTheAppealBehindAScoreEntry()
-    {
-        using var world = await World.CreateAsync();
-        var appeal = world.AddAppeal(world.Employee);
-        var hold = world.AddScoreEntry(world.Employee, -5m, ScoreEntryKind.Hold, appeal.Id);
-        await world.SaveAsync();
-
-        var dto = await world.Service(PermissionScopes.Own).GetLedgerEntryAsync(world.EmployeeAccount.Id, hold.Id);
-
-        Assert.Equal("HOLD", dto.Entry.Type);
-        Assert.Equal(-5m, dto.Entry.Points);
-        Assert.Equal(appeal.Id, dto.Appeal!.Id);
-        Assert.Equal("Lý do", dto.Entry.Description);
     }
 
     [Fact]
@@ -271,7 +251,6 @@ public sealed class PerformanceLedgerTraceabilityTests
         public required WorkType WorkType { get; init; }
         public required EvaluationProfile Profile { get; init; }
         private readonly Dictionary<(Guid, Guid), TargetAssignment> _targets = [];
-        private readonly Dictionary<Guid, PerformanceEvaluation> _evaluations = [];
 
         public static async Task<World> CreateAsync()
         {
@@ -503,56 +482,6 @@ public sealed class PerformanceLedgerTraceabilityTests
             };
             Db.RiskEvents.Add(risk);
             return risk;
-        }
-
-        public Appeal AddAppeal(Employee employee)
-        {
-            var appeal = new Appeal
-            {
-                Id = Guid.NewGuid(),
-                EmployeeId = employee.Id,
-                Reason = "Khiếu nại",
-                FiledAt = Now,
-                UpdatedAt = Now,
-                Status = AppealStatus.Open,
-            };
-            Db.Appeals.Add(appeal);
-            return appeal;
-        }
-
-        public ScoreEntry AddScoreEntry(Employee employee, decimal points, ScoreEntryKind kind, Guid? appealId = null)
-        {
-            if (!_evaluations.TryGetValue(employee.Id, out var evaluation))
-            {
-                evaluation = new PerformanceEvaluation
-                {
-                    Id = Guid.NewGuid(),
-                    EmployeeId = employee.Id,
-                    EvaluationPeriodId = October.Id,
-                    EvaluationProfileId = Profile.Id,
-                    TotalScore = 80m,
-                    Status = PerformanceEvaluationStatus.Calculated,
-                    UpdatedAt = Now,
-                };
-                Db.PerformanceEvaluations.Add(evaluation);
-                _evaluations[employee.Id] = evaluation;
-            }
-
-            var entry = new ScoreEntry
-            {
-                Id = Guid.NewGuid(),
-                EvaluationId = evaluation.Id,
-                EmployeeId = employee.Id,
-                AppealId = appealId,
-                RecordedByEmployeeId = Manager.Id,
-                Points = points,
-                Kind = kind,
-                Source = ScoreEntrySource.Manager,
-                Reason = "Lý do",
-                CreatedAt = Now,
-            };
-            Db.ScoreEntries.Add(entry);
-            return entry;
         }
 
         private static Department Dept(string code, DepartmentLevelType level, Guid? parentId) => new()

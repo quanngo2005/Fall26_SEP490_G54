@@ -3,7 +3,7 @@ import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
-import { AppealDetail, AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
+import { AppealDetail, AppealListItem, AppealStatus } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
@@ -14,10 +14,8 @@ import {
   appealCode,
   appealErrorKey,
   appealSubject,
-  appealSubjectWithScore,
   OPEN_STATUSES,
   RESOLVED_STATUSES,
-  typeKey,
 } from './appeal-display';
 import { AppealSubmitModalComponent } from './appeal-submit-modal.component';
 import { MyAppealDrawerComponent } from './my-appeal-drawer.component';
@@ -59,7 +57,6 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
 
   protected readonly activeTab = signal<MineTab>('ALL');
   protected readonly searchQuery = signal('');
-  protected readonly typeFilter = signal<AppealType | 'ALL'>('ALL');
   protected readonly periodFilter = signal('ALL');
   protected readonly page = signal(1);
 
@@ -87,7 +84,7 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     const query = this.searchQuery().trim().toLowerCase();
     if (!query) return this.items();
     return this.items().filter((item) => {
-      const text = `${appealCode(item.id)} ${appealSubject(item) ?? ''}`.toLowerCase();
+      const text = `${appealCode(item.id)} ${appealSubject(item)}`.toLowerCase();
       return text.includes(query);
     });
   });
@@ -182,12 +179,6 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     this.reload.next();
   }
 
-  protected setType(type: AppealType | 'ALL'): void {
-    this.typeFilter.set(type);
-    this.page.set(1);
-    this.reload.next();
-  }
-
   protected setPeriod(periodId: string): void {
     this.periodFilter.set(periodId);
     this.page.set(1);
@@ -251,15 +242,8 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     return this.localization.appeals.status[status];
   }
 
-  protected kindLabel(type: AppealType): string {
-    return this.localization.appeals[typeKey(type)];
-  }
-
   protected subject(item: AppealListItem): string {
-    return (
-      appealSubjectWithScore(item, (score) => this.i18n.formatNumber(score)) ??
-      this.localization.appeals.notAvailable
-    );
+    return appealSubject(item);
   }
 
   protected code(item: AppealListItem): string {
@@ -287,11 +271,9 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     return key ? this.i18n.translate(key) : '';
   }
 
-  private baseFilter(): { type?: AppealType; periodId?: string } {
-    const type = this.typeFilter();
+  private baseFilter(): { periodId?: string } {
     const period = this.periodFilter();
     return {
-      ...(type !== 'ALL' ? { type } : {}),
       ...(period !== 'ALL' ? { periodId: period } : {}),
     };
   }

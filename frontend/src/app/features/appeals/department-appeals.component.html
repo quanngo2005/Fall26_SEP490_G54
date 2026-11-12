@@ -64,18 +64,6 @@
               />
             </div>
 
-            <div class="select-dropdown">
-              <select
-                [ngModel]="typeFilter()"
-                (ngModelChange)="setType($event)"
-                [attr.aria-label]="localization.appeals.filterType"
-              >
-                <option value="ALL">{{localization.appeals.allTypes}}</option>
-                <option value="RESULT">{{localization.appeals.resultAppeal}}</option>
-                <option value="SCORE">{{localization.appeals.scoreAppeal}}</option>
-              </select>
-            </div>
-
             <div class="select-dropdown period-select">
               <select
                 [ngModel]="periodFilter()"
@@ -120,7 +108,6 @@
                   <th class="col-code">{{localization.appeals.code | uppercase}}</th>
                   <th class="col-emp">{{localization.appeals.employee | uppercase}}</th>
                   <th class="col-pos">{{localization.appeals.position | uppercase}}</th>
-                  <th class="col-kind">{{localization.appeals.type | uppercase}}</th>
                   <th class="col-subject">{{localization.appeals.subject | uppercase}}</th>
                   <th class="col-date">{{localization.appeals.filedAt | uppercase}}</th>
                   <th class="col-deadline">{{localization.appeals.deadlineLabel | uppercase}}</th>
@@ -140,7 +127,6 @@
                     <td class="col-pos">
                       {{item.jobPositionTitle ?? localization.appeals.notAvailable}}
                     </td>
-                    <td class="col-kind">{{kindLabel(item.type)}}</td>
                     <td class="col-subject cell-subject font-code">{{subject(item)}}</td>
                     <td class="col-date">{{item.filedAt | appDate: 'DD/MM/YYYY'}}</td>
                     <td class="col-deadline">{{localization.appeals.notAvailable}}</td>
@@ -152,7 +138,7 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="8" class="empty-state">
+                    <td colspan="7" class="empty-state">
                       {{loading() ? localization.appeals.loading : localization.appeals.emptyQueue}}
                     </td>
                   </tr>

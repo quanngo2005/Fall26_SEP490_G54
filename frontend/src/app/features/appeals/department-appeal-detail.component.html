@@ -76,11 +76,7 @@
               <div class="card-header">
                 <span class="card-title">{{localization.appeals.submittedBy}}</span>
                 <span class="card-subtitle">
-                  @if (a.submittedAt) {
-                    {{a.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}
-                  } @else {
-                    {{localization.appeals.notAvailable}}
-                  }
+                  {{a.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}
                 </span>
               </div>
               <div class="reconcile-table">
@@ -93,44 +89,31 @@
                   <span class="row-val font-code highlight-agent">{{a.employeeCode}}</span>
                 </div>
                 <div class="reconcile-row">
-                  <span class="row-label">
-                    {{a.type === 'SCORE'
-                        ? localization.appeals.period
-                        : localization.appeals.submission}}
-                  </span>
+                  <span class="row-label">{{localization.appeals.submission}}</span>
                   <span class="row-val font-code">{{subject()}}</span>
                 </div>
-                @if (a.type === 'RESULT') {
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.work}}</span>
-                    <span class="row-val">
-                      {{a.workTitle ?? localization.appeals.notAvailable}}
-                    </span>
-                  </div>
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.transactionCode}}</span>
-                    <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
-                  </div>
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.cifCode}}</span>
-                    <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
-                  </div>
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.product}}</span>
-                    <span class="row-val">
-                      {{a.workTypeName ?? localization.appeals.notAvailable}}
-                    </span>
-                  </div>
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.referrer}}</span>
-                    <span class="row-val font-code">{{referrerText()}}</span>
-                  </div>
-                } @else {
-                  <div class="reconcile-row">
-                    <span class="row-label">{{localization.appeals.currentScore}}</span>
-                    <span class="row-val">{{scoreText()}}</span>
-                  </div>
-                }
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.work}}</span>
+                  <span class="row-val">{{a.workTitle}}</span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.transactionCode}}</span>
+                  <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.cifCode}}</span>
+                  <span class="row-val font-code">{{localization.appeals.notAvailable}}</span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.product}}</span>
+                  <span class="row-val">
+                    {{a.workTypeName ?? localization.appeals.notAvailable}}
+                  </span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.appeals.referrer}}</span>
+                  <span class="row-val font-code">{{referrerText()}}</span>
+                </div>
               </div>
             </div>
 
@@ -221,7 +204,7 @@
             </div>
             <div class="modal-body">
               <div class="decision-radios" role="radiogroup">
-                @for (option of decisions(); track option) {
+                @for (option of decisions; track option) {
                   <label class="radio-option" [class.radio-selected]="decisionType() === option">
                     <input
                       type="radio"
@@ -239,26 +222,6 @@
               </div>
               @if (showValidation() && !decisionType()) {
                 <p class="field-error" role="alert">{{localization.appeals.errors.validation}}</p>
-              }
-
-              @if (pointsNeeded()) {
-                <div class="note-field">
-                  <label for="decisionPoints">{{localization.appeals.decisionPoints}}</label>
-                  <input
-                    id="decisionPoints"
-                    type="number"
-                    min="0"
-                    step="any"
-                    [ngModel]="decisionPoints()"
-                    (ngModelChange)="decisionPoints.set($event)"
-                    [class.field-invalid]="showValidation() && !pointsValid()"
-                  />
-                  @if (showValidation() && !pointsValid()) {
-                    <p class="field-error" role="alert">
-                      {{localization.appeals.pointsRequired}}
-                    </p>
-                  }
-                </div>
               }
 
               <div class="note-field">

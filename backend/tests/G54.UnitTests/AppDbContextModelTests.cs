@@ -15,10 +15,8 @@ public sealed class AppDbContextModelTests
         using var context = new AppDbContext(options);
         var entityTypes = context.Model.GetEntityTypes();
 
-        Assert.Equal(51, entityTypes.Count());
-        Assert.Equal(48, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs"));
-        Assert.Equal("score_entry", context.Model.FindEntityType(typeof(ScoreEntry))?.GetTableName());
-        Assert.Equal("appeal_score_setting", context.Model.FindEntityType(typeof(AppealScoreSetting))?.GetTableName());
+        Assert.Equal(49, entityTypes.Count());
+        Assert.Equal(46, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs"));
         var sidebar = context.Model.FindEntityType(typeof(SidebarConfiguration));
         Assert.NotNull(sidebar);
         Assert.Equal("text[]", sidebar.FindProperty(nameof(SidebarConfiguration.ItemIds))?.GetColumnType());
@@ -26,7 +24,7 @@ public sealed class AppDbContextModelTests
         var enumProperties = entityTypes.SelectMany(entity => entity.GetProperties())
             .Where(property => (Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType).IsEnum)
             .ToArray();
-        Assert.Equal(44, enumProperties.Length);
+        Assert.Equal(42, enumProperties.Length);
         Assert.All(enumProperties, property => Assert.False(string.IsNullOrWhiteSpace(property.GetColumnType())));
 
         var account = context.Model.FindEntityType(typeof(Account));

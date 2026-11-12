@@ -260,7 +260,7 @@ public sealed class PerformanceDashboardControllerTests
             CancellationToken cancellationToken = default)
         {
             Record("ledger", accountId, employeeId, periodId);
-            return Task.FromResult(new EmployeeLedgerDto(null, new LedgerSummaryDto(0m, 0m, 0m), new(new List<LedgerEntryDto>(), 0, page, pageSize)));
+            return Task.FromResult(new EmployeeLedgerDto(null, new LedgerSummaryDto(0m, 0m), new(new List<LedgerEntryDto>(), 0, page, pageSize)));
         }
 
         public Task<LedgerEntryDetailDto> GetLedgerEntryAsync(Guid accountId, Guid entryId, CancellationToken cancellationToken = default)
@@ -268,7 +268,7 @@ public sealed class PerformanceDashboardControllerTests
             Record("entry", accountId, entryId, null);
             return Task.FromResult(new LedgerEntryDetailDto(
                 new LedgerEntryDto(entryId, "RESULT", DateTimeOffset.UnixEpoch, 0m, null, null, null, null, null, null, null),
-                Guid.NewGuid(), null, null, null, null, null));
+                Guid.NewGuid(), null, null, null, null));
         }
 
         public Task<LedgerTransactionsDto> GetLedgerEntryTransactionsAsync(Guid accountId, Guid entryId, CancellationToken cancellationToken = default)

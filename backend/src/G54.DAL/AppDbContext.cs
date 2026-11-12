@@ -213,12 +213,9 @@ public partial class AppDbContext : DbContext
             entity.ToTable("appeal", table =>
             {
                 table.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
-                table.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
             });
 
             entity.HasIndex(e => e.ResultSubmissionId, "ix_appeal_submission");
-
-            entity.HasIndex(e => e.PerformanceEvaluationId, "ix_appeal_evaluation");
 
             entity.HasIndex(e => e.ResolvedBy, "ix_appeal_resolved_by");
 
@@ -231,7 +228,6 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("filed_at");
             entity.Property(e => e.Note).HasColumnName("note");
-            entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
             entity.Property(e => e.Reason).HasColumnName("reason");
             entity.Property(e => e.ResolvedBy).HasColumnName("resolved_by");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");
@@ -243,11 +239,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_appeal_employee");
-
-            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.Appeals)
-                .HasForeignKey(d => d.PerformanceEvaluationId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_appeal_evaluation");
 
             entity.HasOne(d => d.ResolvedByNavigation).WithMany(p => p.AppealResolvedByNavigations)
                 .HasForeignKey(d => d.ResolvedBy)
@@ -1940,7 +1931,6 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_work_type_kpi_work_type");
         });
 
-        ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);

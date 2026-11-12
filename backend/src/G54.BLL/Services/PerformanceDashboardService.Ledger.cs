@@ -31,7 +31,7 @@ public sealed partial class PerformanceDashboardService
         var (period, _) = await ResolvePeriodAsync(periodId, cancellationToken);
         if (period is null)
         {
-            return new EmployeeLedgerDto(null, new LedgerSummaryDto(0m, 0m, 0m), new PagedResult<LedgerEntryDto>([], 0, page, pageSize));
+            return new EmployeeLedgerDto(null, new LedgerSummaryDto(0m, 0m), new PagedResult<LedgerEntryDto>([], 0, page, pageSize));
         }
 
         var rows = await LoadResultRowsAsync(
@@ -47,7 +47,6 @@ public sealed partial class PerformanceDashboardService
         var entries = rows.Select(r => r.Entry).ToList();
 
         var riskPenalty = 0m;
-        var scoreEntryPoints = 0m;
         if (kpiId is null)
         {
             var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -60,16 +59,9 @@ public sealed partial class PerformanceDashboardService
                     .ToListAsync(cancellationToken))
                 .Select(ToRiskEntry)
                 .ToList();
-            var scoreEntries = (await db.ScoreEntries.AsNoTracking()
-                    .Where(s => s.EmployeeId == employeeId && s.Evaluation.EvaluationPeriodId == period.Id)
-                    .ToListAsync(cancellationToken))
-                .Select(ToScoreEntry)
-                .ToList();
 
             riskPenalty = risks.Sum(r => r.Points);
-            scoreEntryPoints = scoreEntries.Sum(s => s.Points);
             entries.AddRange(risks);
-            entries.AddRange(scoreEntries);
         }
 
         var pageItems = entries
@@ -81,7 +73,7 @@ public sealed partial class PerformanceDashboardService
 
         return new EmployeeLedgerDto(
             ToDto(period),
-            new LedgerSummaryDto(Round(resultPoints), Round(riskPenalty), Round(scoreEntryPoints)),
+            new LedgerSummaryDto(Round(resultPoints), Round(riskPenalty)),
             new PagedResult<LedgerEntryDto>(pageItems, entries.Count, page, pageSize));
     }
 
@@ -132,13 +124,6 @@ public sealed partial class PerformanceDashboardService
             riskEvent = r is null ? null : new LedgerRiskEventDto(r.Id, r.Code, r.EventType, r.Severity.ToEnumString(), r.Status.ToEnumString(), r.Description);
         }
 
-        LedgerAppealDto? appeal = null;
-        if (context.AppealId is { } appealId)
-        {
-            var a = await db.Appeals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == appealId, cancellationToken);
-            appeal = a is null ? null : new LedgerAppealDto(a.Id, a.Status.ToEnumString(), a.Reason);
-        }
-
         var recordedBy = context.RecordedByEmployeeId is { } recorderId
             ? await db.Employees.AsNoTracking()
                 .Where(e => e.Id == recorderId)
@@ -146,7 +131,7 @@ public sealed partial class PerformanceDashboardService
                 .SingleOrDefaultAsync(cancellationToken)
             : null;
 
-        return new LedgerEntryDetailDto(context.Entry, context.EmployeeId, work, submission, riskEvent, appeal, recordedBy);
+        return new LedgerEntryDetailDto(context.Entry, context.EmployeeId, work, submission, riskEvent, recordedBy);
     }
 
     public async Task<LedgerTransactionsDto> GetLedgerEntryTransactionsAsync(
@@ -193,18 +178,12 @@ public sealed partial class PerformanceDashboardService
             .SingleOrDefault();
         if (result is not null)
         {
-            return new EntryContext(result.Entry, result.EmployeeId, result.WorkTransactionId, result.VerificationId, null, null, null);
+            return new EntryContext(result.Entry, result.EmployeeId, result.WorkTransactionId, result.VerificationId, null, null);
         }
 
-        var risk = await db.RiskEvents.AsNoTracking().SingleOrDefaultAsync(r => r.Id == entryId, cancellationToken);
-        if (risk is not null)
-        {
-            return new EntryContext(ToRiskEntry(risk), risk.EmployeeId, null, null, risk.Id, null, risk.RecordedBy);
-        }
-
-        var score = await db.ScoreEntries.AsNoTracking().SingleOrDefaultAsync(s => s.Id == entryId, cancellationToken)
+        var risk = await db.RiskEvents.AsNoTracking().SingleOrDefaultAsync(r => r.Id == entryId, cancellationToken)
             ?? throw new NotFoundException("Dòng sổ cái", entryId);
-        return new EntryContext(ToScoreEntry(score), score.EmployeeId, null, null, null, score.AppealId, score.RecordedByEmployeeId);
+        return new EntryContext(ToRiskEntry(risk), risk.EmployeeId, null, null, risk.Id, risk.RecordedBy);
     }
 
     private async Task<List<ResultRow>> LoadResultRowsAsync(IQueryable<WorkResultItem> items, CancellationToken cancellationToken)
@@ -253,10 +232,6 @@ public sealed partial class PerformanceDashboardService
         risk.Id, TypeRiskPenalty, risk.OccurredAt, -EvaluationService.RiskPenalty(risk),
         null, null, null, null, null, null, risk.Description);
 
-    private static LedgerEntryDto ToScoreEntry(ScoreEntry score) => new(
-        score.Id, score.Kind.ToEnumString(), score.CreatedAt, score.Points,
-        null, null, null, null, score.WorkId, null, score.Reason);
-
     private sealed record ResultRow(LedgerEntryDto Entry, Guid EmployeeId, Guid? WorkTransactionId, Guid? VerificationId);
 
     private sealed record EntryContext(
@@ -265,6 +240,5 @@ public sealed partial class PerformanceDashboardService
         Guid? WorkTransactionId,
         Guid? VerificationId,
         Guid? RiskEventId,
-        Guid? AppealId,
         Guid? RecordedByEmployeeId);
 }

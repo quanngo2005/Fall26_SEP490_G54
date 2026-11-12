@@ -265,7 +265,7 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'appeals/department/:id',
+    path: 'appeals/department/detail',
     canActivate: [authGuard, appealQueueGuard],
     title: 'Chi tiết khiếu nại',
     loadComponent: () =>

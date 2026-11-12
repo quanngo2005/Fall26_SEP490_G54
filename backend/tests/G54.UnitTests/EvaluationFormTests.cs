@@ -401,14 +401,38 @@ public sealed class EvaluationFormTests
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
-        var evaluation = await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        var submittedAt = new DateTimeOffset(2026, 10, 12, 9, 0, 0, TimeSpan.Zero);
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = "W-APPEAL",
+            Title = "Work",
+            AssigneeEmployeeId = s.Staff1.Id,
+            CreatedBy = s.Manager.Id,
+            Status = WorkStatus.Rejected,
+            Priority = WorkPriority.Medium,
+            UpdatedAt = submittedAt,
+        };
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = work.Id,
+            SubmitterEmployeeId = s.Staff1.Id,
+            SubmissionNo = 1,
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = submittedAt,
+            UpdatedAt = submittedAt,
+        };
+        context.Works.Add(work);
+        context.ResultSubmissions.Add(submission);
         foreach (var status in new[] { AppealStatus.Open, AppealStatus.UnderReview, AppealStatus.Withdrawn })
         {
             context.Appeals.Add(new Appeal
             {
                 Id = Guid.NewGuid(),
                 EmployeeId = s.Staff1.Id,
-                PerformanceEvaluationId = evaluation.Id,
+                ResultSubmissionId = submission.Id,
                 Reason = "Disagree",
                 Status = status,
                 FiledAt = DateTimeOffset.UtcNow,

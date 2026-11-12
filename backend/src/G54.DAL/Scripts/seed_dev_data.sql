@@ -1966,7 +1966,6 @@ SELECT e.id AS employee_id, e.employee_code, e.manager_id, e.job_position_id,
        CASE
            WHEN ep.code = '2026-09' THEN 'APPROVED'
            WHEN e.employee_code = 'NV005' THEN 'DRAFT'
-           WHEN e.employee_code = 'NV006' THEN 'DISPUTED'
            WHEN e.employee_code IN ('NV002', 'NV003', 'NV011') THEN 'IN_REVIEW'
            WHEN e.employee_code = 'NV009' THEN 'APPROVED'
            ELSE 'CALCULATED'
@@ -2178,14 +2177,11 @@ FROM (
 CREATE TEMP TABLE seed_evaluation_inserted (id uuid PRIMARY KEY) ON COMMIT DROP;
 WITH inserted AS (
     INSERT INTO performance_evaluation (id, employee_id, evaluation_period_id,
-        evaluation_profile_id, total_score, status, calculated_at, approved_at,
-        pre_dispute_status, disputed_at, comment)
+        evaluation_profile_id, total_score, status, calculated_at, approved_at, comment)
     SELECT c.evaluation_id, c.employee_id, c.period_id, totals.profile_id,
            GREATEST(totals.total_score - COALESCE(penalty.points, 0), 0),
            c.evaluation_status, c.calculated_at,
            CASE WHEN c.evaluation_status = 'APPROVED' THEN c.calculated_at + interval '1 day' END,
-           CASE WHEN c.evaluation_status = 'DISPUTED' THEN 'CALCULATED'::performance_evaluation_status END,
-           CASE WHEN c.evaluation_status = 'DISPUTED' THEN c.calculated_at + interval '1 day' END,
            'Đánh giá mẫu từ kết quả đã duyệt / ' || c.period_code ||
            CASE WHEN c.employee_code = 'NV007' THEN E'\n<!-- COACHING_PLAN: Đối chiếu hồ sơ hằng tuần và rà soát tiến độ với quản lý. -->' ELSE '' END
     FROM seed_evaluation_case c
@@ -2232,13 +2228,6 @@ JOIN risk_event r ON r.employee_id = c.employee_id AND r.code = 'EVL-RISK-' || c
 JOIN seed_evaluation_risk sample ON sample.employee_code = c.employee_code
 WHERE r.status = 'CONFIRMED' ON CONFLICT DO NOTHING;
 
-INSERT INTO appeal (id, employee_id, performance_evaluation_id, reason, status, filed_at)
-SELECT md5('evaluation-demo-appeal-' || c.evaluation_id::text)::uuid,
-       c.employee_id, c.evaluation_id, 'Đề nghị đối chiếu số liệu đánh giá mẫu với các kết quả đã duyệt.',
-       'OPEN', c.calculated_at + interval '1 day'
-FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
-WHERE c.evaluation_status = 'DISPUTED' ON CONFLICT DO NOTHING;
-
 INSERT INTO performance_evaluation_history (id, performance_evaluation_id, action,
     from_status, to_status, new_total_score, changed_by, comment, created_at)
 SELECT md5('evaluation-demo-history-' || c.evaluation_id::text)::uuid,
@@ -2279,9 +2268,9 @@ FROM seed_evaluation_case c
 WHERE c.employee_code IN ('NV004', 'NV005') AND c.period_code <> '2026-09'
 ON CONFLICT DO NOTHING;
 
--- Task-level appeal samples and an append-only hold/refund ledger. These belong
--- to NV012, independently of NV006's evaluation-level dispute above. The withdrawn
--- appeal has a fully offset hold; an in-progress one remains withheld.
+-- Result-appeal samples of NV012 against a rejected submission. The 2026-10 appeal is
+-- withdrawn; the in-progress ones freeze the evaluation as DISPUTED (BR-31) without
+-- changing its score. An accepted appeal would change the KPI actual, never the score.
 INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, status)
 SELECT md5('evaluation-demo-appeal-work-' || c.evaluation_id::text)::uuid,
        wt.id, c.employee_id, c.manager_id,
@@ -2319,43 +2308,17 @@ SELECT md5('evaluation-demo-task-appeal-' || c.evaluation_id::text)::uuid,
        c.calculated_at + interval '2 hours',
        CASE WHEN c.period_code = '2026-10' THEN c.calculated_at + interval '1 day' END,
        CASE WHEN c.period_code = '2026-10' THEN c.manager_id END,
-       'Dữ liệu mẫu kiểm tra lịch sử tạm giữ và hoàn điểm.'
+       'Dữ liệu mẫu kiểm tra khiếu nại kết quả.'
 FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
 WHERE c.employee_code = 'NV012' AND c.period_code <> '2026-09'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO score_entry (id, evaluation_id, employee_id, appeal_id, work_id,
-    recorded_by_employee_id, points, kind, source, reason, created_at)
-SELECT md5('evaluation-demo-hold-' || c.evaluation_id::text)::uuid,
-       c.evaluation_id, c.employee_id, md5('evaluation-demo-task-appeal-' || c.evaluation_id::text)::uuid,
-       md5('evaluation-demo-appeal-work-' || c.evaluation_id::text)::uuid,
-       c.manager_id, -setting.default_points, 'HOLD', 'SYSTEM',
-       'Tạm giữ điểm theo cấu hình khi rà soát khiếu nại mẫu.', c.calculated_at + interval '3 hours'
-FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
-CROSS JOIN appeal_score_setting setting
-WHERE c.employee_code = 'NV012' AND c.period_code <> '2026-09'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO score_entry (id, evaluation_id, employee_id, appeal_id, work_id,
-    recorded_by_employee_id, reverses_entry_id, points, kind, source, reason, created_at)
-SELECT md5('evaluation-demo-refund-' || c.evaluation_id::text)::uuid,
-       hold.evaluation_id, hold.employee_id, hold.appeal_id, hold.work_id,
-       c.manager_id, hold.id, -hold.points, 'REFUND', 'REVERSAL',
-       'Hoàn đúng khoản đã tạm giữ sau khi rút khiếu nại mẫu.', c.calculated_at + interval '1 day'
-FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
-JOIN score_entry hold ON hold.id = md5('evaluation-demo-hold-' || c.evaluation_id::text)::uuid
-WHERE c.employee_code = 'NV012' AND c.period_code = '2026-10'
-ON CONFLICT DO NOTHING;
-
--- Only these freshly seeded snapshots are adjusted. Never rewrite a historical
--- evaluation or an append-only entry on subsequent seed runs.
+-- Only these freshly seeded snapshots are frozen. The score itself is left as calculated.
 UPDATE performance_evaluation pe SET
-    total_score = pe.total_score + ledger.points,
     pre_dispute_status = pe.status,
     status = 'DISPUTED',
     disputed_at = c.calculated_at + interval '2 hours'
 FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
-JOIN LATERAL (SELECT sum(points) AS points FROM score_entry WHERE evaluation_id = c.evaluation_id) ledger ON true
 WHERE pe.id = c.evaluation_id AND c.employee_code = 'NV012'
     AND c.period_code IN ('2026-11', '2026-12');
 
@@ -2363,12 +2326,11 @@ INSERT INTO performance_evaluation_history (id, performance_evaluation_id, actio
     from_status, to_status, old_total_score, new_total_score, changed_by, comment, created_at)
 SELECT md5('evaluation-demo-hold-history-' || c.evaluation_id::text)::uuid,
        pe.id, 'DISPUTED', pe.pre_dispute_status, pe.status,
-       pe.total_score - hold.points, pe.total_score, c.manager_id,
-       'Tạm giữ điểm và chờ xử lý khiếu nại mẫu.', c.calculated_at + interval '3 hours'
+       pe.total_score, pe.total_score, c.manager_id,
+       'Chờ xử lý khiếu nại kết quả mẫu.', c.calculated_at + interval '3 hours'
 FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
 JOIN performance_evaluation pe ON pe.id = c.evaluation_id
-JOIN score_entry hold ON hold.id = md5('evaluation-demo-hold-' || c.evaluation_id::text)::uuid
-WHERE c.period_code IN ('2026-11', '2026-12') ON CONFLICT DO NOTHING;
+WHERE c.employee_code = 'NV012' AND c.period_code IN ('2026-11', '2026-12') ON CONFLICT DO NOTHING;
 
 -- Demo Employee (NV012) has one rejected submission that can still be appealed: rejected by the direct manager
 -- (NV011) inside the appeal window, with no appeal filed yet. The existing NV012 appeal samples above are filed or
@@ -2395,6 +2357,54 @@ SELECT '5eed0000-0000-0000-0018-0000000000a1', '5eed0000-0000-0000-0017-00000000
 FROM employee m WHERE m.employee_code = 'NV011'
   AND EXISTS (SELECT 1 FROM result_submission s WHERE s.id = '5eed0000-0000-0000-0017-0000000000a1')
   AND NOT EXISTS (SELECT 1 FROM verification v WHERE v.result_submission_id = '5eed0000-0000-0000-0017-0000000000a1')
+ON CONFLICT DO NOTHING;
+
+-- Accept-appeal KPI check: two rejected works of NV012 whose submitted metrics feed the KPI of HUY_DONG.
+-- DEMO-APPEAL-KPI-NEW has no actual yet; DEMO-APPEAL-KPI-ACTUAL starts on top of a 40 actual already in 2026-Q4.
+-- Accepting either appeal must add the submitted value to the KPI actual and leave the score to recalculation.
+INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title, description, status)
+SELECT w.id::uuid, wt.id, e.id, m.id, w.code, w.title, w.description, 'REJECTED'
+FROM (VALUES
+    ('5eed0000-0000-0000-0016-0000000000a2', 'DEMO-APPEAL-KPI-NEW', 'Hồ sơ KPI chưa được cộng actual (demo khiếu nại)',
+     'Đợt nộp có số liệu KPI, chưa cộng vào actual. Dùng để thử ACCEPT khiếu nại.'),
+    ('5eed0000-0000-0000-0016-0000000000a3', 'DEMO-APPEAL-KPI-ACTUAL', 'Hồ sơ KPI đã có actual sẵn (demo khiếu nại)',
+     'Đợt nộp có số liệu KPI; KPI đã có actual 40 trước khi ACCEPT.')
+) AS w(id, code, title, description)
+JOIN employee e ON e.employee_code = 'NV012'
+JOIN employee m ON m.employee_code = 'NV011'
+JOIN work_type wt ON wt.code = 'HUY_DONG'
+ON CONFLICT DO NOTHING;
+
+-- The marker JSON is built with jsonb_build_array: EF's ExecuteSqlRaw treats literal braces in the script as parameters.
+INSERT INTO result_submission (id, work_id, submitter_employee_id, submission_no, submitted_at, status, comment)
+SELECT s.id::uuid, s.work_id::uuid, e.id, 1, now() - interval '5 hours', 'REJECTED',
+       'Đã nộp đủ chứng từ huy động theo yêu cầu. <!-- METRICS_JSON: '
+           || jsonb_build_array(jsonb_build_object('kpiDefinitionId', '5eed0000-0000-0000-0005-000000000001', 'value', s.value))::text
+           || ' -->'
+FROM (VALUES
+    ('5eed0000-0000-0000-0017-0000000000a2', '5eed0000-0000-0000-0016-0000000000a2', 25),
+    ('5eed0000-0000-0000-0017-0000000000a3', '5eed0000-0000-0000-0016-0000000000a3', 15)
+) AS s(id, work_id, value)
+JOIN employee e ON e.employee_code = 'NV012'
+WHERE EXISTS (SELECT 1 FROM work w WHERE w.id = s.work_id::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO verification (id, result_submission_id, verifier_employee_id, round_no, decision, verified_at, comment)
+SELECT v.id::uuid, v.submission_id::uuid, m.id, 1, 'REJECTED', now() - interval '2 hours', 'Thiếu chứng từ đối chiếu.'
+FROM (VALUES
+    ('5eed0000-0000-0000-0018-0000000000a2', '5eed0000-0000-0000-0017-0000000000a2'),
+    ('5eed0000-0000-0000-0018-0000000000a3', '5eed0000-0000-0000-0017-0000000000a3')
+) AS v(id, submission_id)
+JOIN employee m ON m.employee_code = 'NV011'
+WHERE EXISTS (SELECT 1 FROM result_submission s WHERE s.id = v.submission_id::uuid)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT '5eed0000-0000-0000-0045-000000000002', ta.id, DATE '2026-11-02', 40, 'VALID'
+FROM target_assignment ta
+WHERE ta.kpi_definition_id = '5eed0000-0000-0000-0005-000000000001'
+  AND ta.employee_id = '5eed0000-0000-0000-0007-00000000000c'
+  AND ta.evaluation_period_id = '5eed0000-0000-0000-000f-000000000003' AND ta.status = 'ACTIVE'
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================

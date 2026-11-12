@@ -1,18 +1,17 @@
 /** Mirrors G54.BLL.Dtos.Appeal (docs/api/APPEAL_CONTRACT.md). Enums are UPPER_SNAKE strings. */
 export type AppealStatus = 'OPEN' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
-export type AppealType = 'RESULT' | 'SCORE';
 /** `MINE` only the caller's own appeals, `TEAM` only the other employees' appeals the caller may see. */
 export type AppealScope = 'MINE' | 'TEAM';
-/** `ACCEPT`, `ADJUST` and `REJECT` decide a result appeal; `ADJUST` and `UPHOLD` decide a score appeal. */
-export type AppealDecision = 'ACCEPT' | 'ADJUST' | 'REJECT' | 'UPHOLD';
+/** An appeal never changes a score directly: `ACCEPT` adds the verified KPI contribution, the system recalculates. */
+export type AppealDecision = 'ACCEPT' | 'ADJUST' | 'REJECT';
 
 export interface AppealListItem {
   id: string;
-  resultSubmissionId: string | null;
-  workId: string | null;
-  workCode: string | null;
-  workTitle: string | null;
-  submissionNo: number | null;
+  resultSubmissionId: string;
+  workId: string;
+  workCode: string;
+  workTitle: string;
+  submissionNo: number;
   employeeId: string;
   employeeCode: string;
   employeeName: string;
@@ -20,14 +19,9 @@ export interface AppealListItem {
   filedAt: string;
   decidedAt: string | null;
   updatedAt: string;
-  type: AppealType;
-  performanceEvaluationId: string | null;
-  periodCode: string | null;
   jobPositionTitle: string | null;
   resolvedByEmployeeName: string | null;
   note: string | null;
-  /** Current score of a score appeal; null for a result appeal or when the score is not calculated. */
-  evaluationScore: number | null;
 }
 
 export interface AppealEvidence {
@@ -48,9 +42,7 @@ export interface AppealDetail extends Omit<
   resolvedByEmployeeId: string | null;
   resolvedByEmployeeName: string | null;
   evidences: AppealEvidence[];
-  scoreDisputeReason: string | null;
-  /** Result appeal only; null when the work or the handover is unknown. */
-  submittedAt: string | null;
+  submittedAt: string;
   workTypeName: string | null;
   referrerEmployeeCode: string | null;
   referrerEmployeeName: string | null;
@@ -59,7 +51,6 @@ export interface AppealDetail extends Omit<
 export interface AppealFilter {
   /** One or more statuses; sent as a comma separated list, empty means every status. */
   status?: readonly AppealStatus[];
-  type?: AppealType;
   scope?: AppealScope;
   periodId?: string;
   jobPositionId?: string;
@@ -70,17 +61,14 @@ export interface AppealFilter {
 export interface DecideAppealRequest {
   decision: AppealDecision;
   note: string | null;
-  /** Only with `ACCEPT` on a result appeal. */
+  /** Only with `ACCEPT`. */
   verifiedValue?: number | null;
-  /** Points added by `ADJUST` on a score appeal. */
-  points?: number | null;
 }
 
 export interface AppealDecisionResult {
   appeal: AppealDetail;
   decision: AppealDecision;
-  submissionStatus: string | null;
-  workStatus: string | null;
+  submissionStatus: string;
+  workStatus: string;
   verificationId: string | null;
-  scoreEntryId: string | null;
 }

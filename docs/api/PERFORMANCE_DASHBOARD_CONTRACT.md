@@ -52,7 +52,7 @@ The BLL also requires an active, unlocked account. A department or employee outs
 - **Scored evaluation:** an evaluation counts only when its status is not `DRAFT` and its `totalScore` is not `null`.
   A `DRAFT` evaluation is treated as not evaluated: no score, no groups, no KPIs.
 - **Disputed (BR-31):** on the department and branch routes an evaluation with status `DISPUTED` (Disputed_Pending, see
-  `APPEAL_CONTRACT.md` 2.5) is not scored: it is left out of `evaluatedEmployeeCount`, `averageScore`,
+  `APPEAL_CONTRACT.md` 2.6) is not scored: it is left out of `evaluatedEmployeeCount`, `averageScore`,
   `previousAverageScore`, `groups`, `kpis` and `childUnits`. In `members` it keeps `evaluationStatus: "DISPUTED"` and
   `totalScore: null`. The personal routes still return the caller's own stored score.
 - **N/A rule:** a value with no data is `null` (never `0`). Counts are `0` when there is genuinely nothing to count.

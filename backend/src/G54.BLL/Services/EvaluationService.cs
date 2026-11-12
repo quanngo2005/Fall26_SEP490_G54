@@ -201,12 +201,8 @@ public sealed partial class EvaluationService(
         var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
             .GetValueOrDefault(employeeId);
 
-        var openAppealCount = existingEvaluation is null
-            ? 0
-            : await db.Appeals
-                .AsNoTracking()
-                .CountAsync(a => a.PerformanceEvaluationId == existingEvaluation.Id
-                    && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview), cancellationToken);
+        var openAppealCount = (await LoadOpenAppealEmployeesAsync([employeeId], period, cancellationToken))
+            .Count(id => id == employeeId);
         var hasOpenDispute = existingEvaluation?.IsDisputedPending() == true || openAppealCount > 0;
 
         var previousPeriod = await LoadPreviousPeriodSummaryAsync(
@@ -480,14 +476,7 @@ public sealed partial class EvaluationService(
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(employeeIds, period, cancellationToken);
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
-        var evaluationIds = evaluations.Select(pe => pe.Id).ToList();
-        var employeesWithOpenAppeal = (await db.Appeals
-            .AsNoTracking()
-            .Where(a => a.PerformanceEvaluationId.HasValue
-                && evaluationIds.Contains(a.PerformanceEvaluationId.Value)
-                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview))
-            .Select(a => a.EmployeeId)
-            .ToListAsync(cancellationToken)).ToHashSet();
+        var employeesWithOpenAppeal = (await LoadOpenAppealEmployeesAsync(employeeIds, period, cancellationToken)).ToHashSet();
 
         var pendingSubmissions = await LoadPendingSubmissionCountsAsync(employeeIds, period, cancellationToken);
         var quantitativeScores = await LoadQuantitativeScoresAsync(employees, period, cancellationToken);
@@ -579,6 +568,29 @@ public sealed partial class EvaluationService(
         return previousPeriod is null
             ? []
             : await LoadQuantitativeScoresAsync(employees, previousPeriod, cancellationToken);
+    }
+
+    /// <summary>The employee of every appeal still in progress against a result submitted inside the period (one entry per appeal).</summary>
+    private async Task<List<Guid>> LoadOpenAppealEmployeesAsync(
+        List<Guid> employeeIds,
+        EvaluationPeriod? period,
+        CancellationToken cancellationToken)
+    {
+        if (period is null || employeeIds.Count == 0)
+        {
+            return [];
+        }
+
+        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        return await db.Appeals
+            .AsNoTracking()
+            .Where(a => employeeIds.Contains(a.EmployeeId)
+                && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
+                && a.ResultSubmission.SubmittedAt >= periodStart
+                && a.ResultSubmission.SubmittedAt <= periodEnd)
+            .Select(a => a.EmployeeId)
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>Submitted or under-review result submissions of each employee that were submitted inside the period.</summary>

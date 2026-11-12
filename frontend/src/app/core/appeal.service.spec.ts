@@ -24,7 +24,6 @@ describe('AppealService', () => {
     service
       .list({
         status: ['OPEN', 'UNDER_REVIEW'],
-        type: 'SCORE',
         scope: 'TEAM',
         periodId: 'p1',
         jobPositionId: 'j1',
@@ -35,7 +34,6 @@ describe('AppealService', () => {
     const request = http.expectOne((r) => r.url === base);
     expect(request.request.method).toBe('GET');
     expect(request.request.params.get('status')).toBe('OPEN,UNDER_REVIEW');
-    expect(request.request.params.get('type')).toBe('SCORE');
     expect(request.request.params.get('scope')).toBe('TEAM');
     expect(request.request.params.get('periodId')).toBe('p1');
     expect(request.request.params.get('jobPositionId')).toBe('j1');
@@ -45,7 +43,7 @@ describe('AppealService', () => {
   });
 
   it('sends no query parameter for an empty filter, an empty status list or a blank value', () => {
-    service.list({ status: [], type: undefined, periodId: '' }).subscribe();
+    service.list({ status: [], periodId: '' }).subscribe();
     const request = http.expectOne((r) => r.url === base);
     expect(request.request.params.keys()).toEqual([]);
     request.flush(envelope({ items: [], totalCount: 0, page: 1, pageSize: 20 }));
@@ -77,12 +75,12 @@ describe('AppealService', () => {
 
   it('posts a decision with its note', () => {
     service
-      .decide('a1', { decision: 'UPHOLD', note: 'Giữ nguyên điểm' })
-      .subscribe((result) => expect(result.decision).toBe('UPHOLD'));
+      .decide('a1', { decision: 'REJECT', note: 'Kết quả đúng' })
+      .subscribe((result) => expect(result.decision).toBe('REJECT'));
     const request = http.expectOne(`${base}/a1/decision`);
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ decision: 'UPHOLD', note: 'Giữ nguyên điểm' });
-    request.flush(envelope({ decision: 'UPHOLD', appeal: { id: 'a1' } }));
+    expect(request.request.body).toEqual({ decision: 'REJECT', note: 'Kết quả đúng' });
+    request.flush(envelope({ decision: 'REJECT', appeal: { id: 'a1' } }));
   });
 
   it('fetches evidence as a blob from the API origin so the bearer token is attached', () => {

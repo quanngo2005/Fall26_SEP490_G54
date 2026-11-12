@@ -5,7 +5,7 @@ import { AppealService } from '../../core/appeal.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { displayBytes } from '../../shared/ui/display';
 import { AppDatePipe } from '../../shared/pipes';
-import { appealCode, appealSubjectWithScore, openBlob, typeKey } from './appeal-display';
+import { appealCode, appealSubject, openBlob } from './appeal-display';
 
 @Component({
   selector: 'app-my-appeal-drawer',
@@ -49,15 +49,8 @@ export class MyAppealDrawerComponent extends LocalizedComponent {
     return appealCode(this.appeal().id);
   }
 
-  protected kindLabel(): string {
-    return this.localization.appeals[typeKey(this.appeal().type)];
-  }
-
   protected subject(): string {
-    return (
-      appealSubjectWithScore(this.appeal(), (score) => this.i18n.formatNumber(score)) ??
-      this.localization.appeals.notAvailable
-    );
+    return appealSubject(this.appeal());
   }
 
   protected subtitle(): string {

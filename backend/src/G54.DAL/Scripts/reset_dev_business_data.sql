@@ -9,7 +9,6 @@
 BEGIN;
 
 TRUNCATE TABLE
-    score_entry,
     appeal,
     performance_evaluation_history,
     performance_contribution,

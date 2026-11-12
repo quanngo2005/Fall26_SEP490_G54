@@ -2,8 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AppealDetail } from '../../core/appeal.models';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -31,10 +30,6 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
   filedAt: '2026-10-24T10:00:00+00:00',
   decidedAt: null,
   updatedAt: '2026-10-24T10:00:00+00:00',
-  type: 'RESULT',
-  performanceEvaluationId: null,
-  periodCode: null,
-  evaluationScore: null,
   reason: 'Giao dịch do tôi xử lý',
   note: null,
   resolvedByEmployeeId: null,
@@ -49,44 +44,24 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
       downloadUrl: '/evidence/ev1/download',
     },
   ],
-  scoreDisputeReason: null,
   submittedAt: '2026-10-24T09:00:00+00:00',
   workTypeName: 'Thẻ tín dụng',
   referrerEmployeeCode: 'NV009',
   referrerEmployeeName: 'Phạm Văn Giới',
   ...over,
 });
-const scoreDetail = (over: Partial<AppealDetail> = {}) =>
-  detail({
-    type: 'SCORE',
-    resultSubmissionId: null,
-    workId: null,
-    workCode: null,
-    workTitle: null,
-    submissionNo: null,
-    submittedAt: null,
-    workTypeName: null,
-    referrerEmployeeCode: null,
-    referrerEmployeeName: null,
-    performanceEvaluationId: 'pe1',
-    periodCode: '2026-Q2',
-    evaluationScore: 87.2,
-    ...over,
-  });
 const ok = (data: unknown) => ({ success: true, status: 200, data });
 const decided = (appeal: AppealDetail, decisionValue: string) =>
   ok({
     appeal,
     decision: decisionValue,
-    submissionStatus: null,
-    workStatus: null,
+    submissionStatus: 'APPROVED',
+    workStatus: 'APPROVED',
     verificationId: null,
-    scoreEntryId: null,
   });
 
 describe('DepartmentAppealDetailComponent', () => {
   let http: HttpTestingController;
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   const open = (data: AppealDetail = detail()) => {
     const fixture = TestBed.createComponent(DepartmentAppealDetailComponent);
@@ -109,16 +84,10 @@ describe('DepartmentAppealDetailComponent', () => {
     fixture.nativeElement.querySelector('.modal-footer .btn-primary')?.click();
     fixture.detectChanges();
   };
-  const decide = (
-    fixture: ReturnType<typeof open>,
-    value: string,
-    note: string,
-    points?: string,
-  ) => {
+  const decide = (fixture: ReturnType<typeof open>, value: string, note: string) => {
     openModal(fixture);
     fixture.nativeElement.querySelector(`input[type="radio"][value="${value}"]`)?.click();
     fixture.detectChanges();
-    if (points !== undefined) type(fixture, '#decisionPoints', points);
     type(fixture, '#decisionNote', note);
     confirm(fixture);
   };
@@ -136,15 +105,10 @@ describe('DepartmentAppealDetailComponent', () => {
   };
 
   beforeEach(async () => {
-    params = new BehaviorSubject(convertToParamMap({ id }));
+    history.replaceState({ appealId: id }, '');
     await TestBed.configureTestingModule({
       imports: [DepartmentAppealDetailComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params } },
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     })
       .overrideComponent(DepartmentAppealDetailComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent] },
@@ -155,7 +119,10 @@ describe('DepartmentAppealDetailComponent', () => {
     TestBed.inject(I18nService).setLanguage('vi');
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    history.replaceState(null, '');
+    http.verify();
+  });
 
   it('loads the appeal by the id in the route and shows the real data', () => {
     const fixture = open();
@@ -183,7 +150,6 @@ describe('DepartmentAppealDetailComponent', () => {
   it('shows N/A for the data the API does not have yet instead of sample values', () => {
     const fixture = open(
       detail({
-        submittedAt: null,
         workTypeName: null,
         referrerEmployeeCode: null,
         referrerEmployeeName: null,
@@ -195,7 +161,6 @@ describe('DepartmentAppealDetailComponent', () => {
     }
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('.sla-tag')?.textContent).toContain('N/A');
-    expect(root.querySelector('.card-subtitle')?.textContent?.trim()).toBe('N/A');
     expect(root.textContent).not.toContain('TX-20260715');
     expect(root.textContent).not.toContain('IMP-');
   });
@@ -205,21 +170,13 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(rows.get('Mã giới thiệu')).toBe('NV009');
   });
 
-  it('shows the current score of a score appeal instead of the submission rows', () => {
-    const rows = rowValues(open(scoreDetail()));
-    expect(rows.get('Kỳ đánh giá')).toBe('2026-Q2');
-    expect(rows.get('Điểm hiện tại')).toBe(TestBed.inject(I18nService).formatNumber(87.2));
-    expect(rows.has('Mã giao dịch')).toBeFalse();
-    expect(rowValues(open(scoreDetail({ evaluationScore: null }))).get('Điểm hiện tại')).toBe(
-      'N/A',
-    );
-  });
-
-  it('does not request anything when the route has no id', () => {
-    params.next(convertToParamMap({}));
+  it('goes back to the list without a request when the navigation state has no id', () => {
+    history.replaceState(null, '');
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     const fixture = TestBed.createComponent(DepartmentAppealDetailComponent);
     fixture.detectChanges();
     http.expectNone(() => true);
+    expect(navigate).toHaveBeenCalledWith(['/appeals/department']);
     expect(fixture.nativeElement.querySelector('.action-header')).toBeNull();
   });
 
@@ -251,7 +208,6 @@ describe('DepartmentAppealDetailComponent', () => {
       fixture.nativeElement.querySelectorAll('input[type="radio"]'),
     ).map((radio) => radio.value);
     expect(values).toEqual(['ACCEPT', 'ADJUST', 'REJECT']);
-    expect(fixture.nativeElement.querySelector('#decisionPoints')).toBeNull();
 
     fixture.nativeElement.querySelector('input[value="ACCEPT"]').click();
     type(fixture, '#decisionNote', ' Chứng từ đối soát hợp lệ ');
@@ -267,43 +223,7 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(root.querySelector<HTMLButtonElement>('.btn-primary')?.disabled).toBeTrue();
   });
 
-  it('offers only adjust and keep for a score appeal', () => {
-    const fixture = open(scoreDetail());
-    openModal(fixture);
-    const values = Array.from<HTMLInputElement>(
-      fixture.nativeElement.querySelectorAll('input[type="radio"]'),
-    ).map((radio) => radio.value);
-    expect(values).toEqual(['ADJUST', 'UPHOLD']);
-  });
-
-  it('sends the points with adjusting a score appeal and requires them to be positive', () => {
-    const fixture = open(scoreDetail());
-    decide(fixture, 'ADJUST', 'Điều chỉnh tăng điểm kinh doanh', '0');
-    http.expectNone(`${url}/decision`);
-    expect(fixture.nativeElement.querySelector('.modal-window').textContent).toContain(
-      'phải lớn hơn 0',
-    );
-
-    type(fixture, '#decisionPoints', '2.5');
-    confirm(fixture);
-    const request = http.expectOne(`${url}/decision`);
-    expect(request.request.body).toEqual({
-      decision: 'ADJUST',
-      note: 'Điều chỉnh tăng điểm kinh doanh',
-      points: 2.5,
-    });
-    request.flush(decided(scoreDetail({ status: 'ACCEPTED' }), 'ADJUST'));
-  });
-
-  it('sends keeping the score without points', () => {
-    const fixture = open(scoreDetail());
-    decide(fixture, 'UPHOLD', 'Điểm đã đúng quy định');
-    const request = http.expectOne(`${url}/decision`);
-    expect(request.request.body).toEqual({ decision: 'UPHOLD', note: 'Điểm đã đúng quy định' });
-    request.flush(decided(scoreDetail({ status: 'REJECTED' }), 'UPHOLD'));
-  });
-
-  it('does not send points with adjusting a result appeal', () => {
+  it('sends adjusting a result appeal with its note only', () => {
     const fixture = open();
     decide(fixture, 'ADJUST', 'Bổ sung chứng từ đối soát');
     const request = http.expectOne(`${url}/decision`);
@@ -377,11 +297,10 @@ describe('DepartmentAppealDetailComponent', () => {
   });
 
   it('switches language live', () => {
-    const fixture = open(scoreDetail());
+    const fixture = open();
     TestBed.inject(I18nService).setLanguage('en');
     fixture.detectChanges();
-    const rows = rowValues(fixture);
-    expect(rows.get('Current score')).toBe(TestBed.inject(I18nService).formatNumber(87.2));
+    expect(rowValues(fixture).has('Submission')).toBeTrue();
     expect(fixture.nativeElement.querySelector('.sla-tag').textContent).toContain('Due');
     openModal(fixture);
     expect(fixture.nativeElement.querySelector('.modal-footer').textContent).toContain(

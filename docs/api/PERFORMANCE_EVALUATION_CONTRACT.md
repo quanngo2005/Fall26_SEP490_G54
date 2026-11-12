@@ -88,7 +88,7 @@ For one KPI, with `target` (when the target is missing or 0, the KPI's `baseline
   and normalised over the parts that have a score: `Σ(score × weight) / Σ(weight of parts with a score)`. Because
   an active KPI always has a score (0 when it cannot be scored), only a group without any active KPI has none.
 - `totalScore` is the sum over root groups of `group score × weightPercent / 100` (the weighted score), minus the
-  risk penalty (never below 0), plus the appeal adjustments of the period (`score_entry`). Every root group has a score
+  risk penalty (never below 0). Appeals never add or deduct points: an accepted one records a verified result and the score is recalculated from `actual`. Every root group has a score
   (a KPI group scores 0 when none of its KPIs can be scored, a qualitative group the reviewer has not scored counts as 0,
   the same rule as above), so the total is `null` only when the profile has no root group.
 - The risk penalty is the sum of the penalty of every risk event of the employee inside the period that was not
