@@ -1,4 +1,9 @@
-<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<div
+  animate.leave="g54-leave-fade"
+  class="dialog-backdrop"
+  (click)="close()"
+  aria-hidden="true"
+></div>
 <form
   class="dialog"
   role="dialog"
@@ -86,12 +91,22 @@
         }
       </div>
       <div class="field">
-        <label for="assign-priority">{{localization.work.assign.priority}}</label>
-        <select id="assign-priority" name="priority" class="select" [(ngModel)]="priority">
+        <span class="label" id="assign-priority-label">{{localization.work.assign.priority}}</span>
+        <div class="choice-group" role="radiogroup" aria-labelledby="assign-priority-label">
           @for (level of priorities; track level) {
-            <option [value]="level">{{localization.work.priority[level]}}</option>
+            <button
+              type="button"
+              role="radio"
+              class="choice"
+              [attr.data-level]="level"
+              [class.on]="priority() === level"
+              [attr.aria-checked]="priority() === level"
+              (click)="priority.set(level)"
+            >
+              {{localization.work.priority[level]}}
+            </button>
           }
-        </select>
+        </div>
       </div>
     </div>
 
@@ -126,11 +141,6 @@
       >
         {{localization.work.assign.checklistAdd}}
       </button>
-    </div>
-
-    <div class="notice" role="note">
-      <strong>{{localization.work.assign.noticeTitle}}</strong>
-      <span>{{localization.work.assign.noticeBody}}</span>
     </div>
 
     @if (errorText(); as text) {

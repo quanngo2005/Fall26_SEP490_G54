@@ -148,6 +148,16 @@ $checks = @(
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-03"; Severity = "Gate"; Name = "Unit tests (with coverage collection)"; Test = {
+            # BE-04 (format) and BE-08 (EF model) do not depend on the test run, so they start now and run while the
+            # tests do; their checks only collect the result. Both use only Debug output / design-time builds, the
+            # tests use the Release output, so they do not touch each other's files.
+            $script:formatJob = Start-BackgroundCommand "dotnet" @("format", $solution, "--verify-no-changes", "--no-restore")
+            dotnet ef --version *> $null
+            $script:efAvailable = ($LASTEXITCODE -eq 0)
+            if ($script:efAvailable) {
+                $dalProject = Join-Path $backend "src/G54.DAL"
+                $script:efJob = Start-BackgroundCommand "dotnet" @("ef", "migrations", "has-pending-model-changes", "--project", $dalProject, "--startup-project", $dalProject, "--context", "AppDbContext")
+            }
             $run = Invoke-Logged { dotnet test $solution -c Release --no-build --settings (Join-Path $backend "coverlet.runsettings") --collect:"XPlat Code Coverage" --logger "trx;LogFileName=tests.trx" --results-directory $testResults }
             $script:cobertura = Get-ChildItem -Path $testResults -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
             $trxFile = Get-ChildItem -Path $testResults -Recurse -Filter "tests.trx" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -164,7 +174,7 @@ $checks = @(
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-04"; Severity = "Gate"; Name = "Formatting (dotnet format)"; Test = {
-            $run = Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore }
+            $run = if ($script:formatJob) { Receive-BackgroundCommand $script:formatJob } else { Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore } }
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings -GroupByFile
             if ($run.ExitCode -ne 0) { Add-Finding "fix with: dotnet format backend/G54.sln" }
             $run.ExitCode -eq 0 } },
@@ -188,13 +198,16 @@ $checks = @(
             }
             $clean } },
     @{ Id = "BE-08"; Severity = "Gate"; Name = "EF model has no changes missing a migration"; Test = {
-            dotnet ef --version *> $null
-            if ($LASTEXITCODE -ne 0) {
+            if ($null -eq $script:efAvailable) {
+                dotnet ef --version *> $null
+                $script:efAvailable = ($LASTEXITCODE -eq 0)
+            }
+            if (-not $script:efAvailable) {
                 if ($env:CI -eq "true") { Add-Finding "dotnet-ef is not installed on the CI runner"; return $false }
                 return (Skip-Check "dotnet-ef is not installed (dotnet tool install -g dotnet-ef --version 8.*)")
             }
             $dal = Join-Path $backend "src/G54.DAL"
-            $run = Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext }
+            $run = if ($script:efJob) { Receive-BackgroundCommand $script:efJob } else { Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext } }
             if ($run.ExitCode -ne 0 -and ($run.Lines -join "`n") -match 'Changes have been made to the model') {
                 Add-Finding "the EF model changed without a migration: run dotnet ef migrations add <Name> --project backend/src/G54.DAL"
             }

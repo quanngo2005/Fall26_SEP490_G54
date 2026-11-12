@@ -75,7 +75,8 @@ Gets paginated list of campaigns with summary metrics.
       "plannedCampaigns": 1,
       "completedCampaigns": 0,
       "totalTasksGenerated": 1420,
-      "totalCompletedTasks": 972
+      "totalCompletedTasks": 972,
+      "slowCampaignCount": 1
     },
     "campaigns": {
       "items": [
@@ -94,6 +95,14 @@ Gets paginated list of campaigns with summary metrics.
           "workTypesCount": 2,
           "generatedWorksCount": 650,
           "completedWorksCount": 490,
+          "progressPercent": 75.4,
+          "timeElapsedPercent": 88.0,
+          "paceGap": -12.6,
+          "kpiCode": "HDV",
+          "kpiName": "Huy động vốn",
+          "targetUnit": "tỷ VND",
+          "targetValue": 300,
+          "actualValue": 66,
           "updatedAt": "2026-10-20T10:00:00Z"
         }
       ],
@@ -106,6 +115,10 @@ Gets paginated list of campaigns with summary metrics.
   "traceId": "trace-1234"
 }
 ```
+
+`progressPercent`, `timeElapsedPercent`, `paceGap`, `kpiCode`, `kpiName`, `targetUnit`, `targetValue`, `actualValue` and
+`metrics.slowCampaignCount` serve the SCR-PRF-03 campaign card; their definitions are in
+`BRANCH_DASHBOARD_CONTRACT.md` section 3 (nullable fields are `null` when the source data is missing, never `0`).
 
 ---
 

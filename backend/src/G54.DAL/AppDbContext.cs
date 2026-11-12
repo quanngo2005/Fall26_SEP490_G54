@@ -1854,11 +1854,20 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.AssigneeEmployeeId).HasColumnName("assignee_employee_id");
+            entity.Property(e => e.AssignedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("assigned_at");
             entity.Property(e => e.BusinessCampaignId).HasColumnName("business_campaign_id");
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
             entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CustomerCif)
+                .HasMaxLength(50)
+                .HasColumnName("customer_cif");
+            entity.Property(e => e.CustomerName)
+                .HasMaxLength(200)
+                .HasColumnName("customer_name");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.EstimatedHours)
                 .HasPrecision(10, 2)
@@ -2048,6 +2057,7 @@ public partial class AppDbContext : DbContext
 
         ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        ConfigureWorkDetail(modelBuilder);
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);

@@ -15,10 +15,20 @@ public interface IDepartmentService
         Guid departmentId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>SCR-PRF-02/03 overview; <paramref name="compare"/> is PREVIOUS (default) or SAME_LAST_YEAR.</summary>
     Task<DepartmentOverviewDto> GetOverviewAsync(
         Guid accountId,
         Guid departmentId,
         Guid? periodId,
+        string? compare = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The overview and the full member list as an Excel workbook (same rules and access as the overview).</summary>
+    Task<DepartmentOverviewExportDto> ExportOverviewAsync(
+        Guid accountId,
+        Guid departmentId,
+        Guid? periodId,
+        string? compare = null,
         CancellationToken cancellationToken = default);
 
     Task<PagedResult<DepartmentMemberDto>> GetMembersAsync(

@@ -10,4 +10,11 @@ public sealed record DepartmentMemberDto(
     string JobPositionTitle,
     string Status,
     int OpenWorkCount,
-    decimal? PerformanceScore);
+    decimal? PerformanceScore,
+    string? EvaluationStatus,
+    decimal? PreviousPerformanceScore,
+    decimal? ChangeFromPrevious,
+    IReadOnlyList<DepartmentMemberGroupDto> Groups,
+    Guid? WeakestProfileItemId,
+    int OverdueWorkCount,
+    int PendingReviewCount);
