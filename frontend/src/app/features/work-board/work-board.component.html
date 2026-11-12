@@ -521,7 +521,7 @@
 }
 
 @if (selectedId(); as id) {
-  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" />
+  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" (changed)="applyServerFilters()" />
 }
 
 @if (handoverOpen()) {

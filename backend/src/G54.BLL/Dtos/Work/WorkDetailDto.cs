@@ -17,4 +17,15 @@ public sealed record WorkDetailDto(
     DateOnly? PlannedStartDate,
     DateOnly? PlannedEndDate,
     decimal? EstimatedHours,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? CustomerName = null,
+    string? CustomerCif = null,
+    DateTimeOffset? AssignedAt = null,
+    Guid? AssignedByEmployeeId = null,
+    string? AssignedByName = null,
+    string? AssignedByPositionTitle = null,
+    IReadOnlyList<WorkChecklistItemDto>? ChecklistItems = null,
+    int? ProgressPercent = null,
+    IReadOnlyList<WorkKpiDto>? RelatedKpis = null,
+    bool CanEditPlan = false,
+    bool CanUpdateChecklist = false);

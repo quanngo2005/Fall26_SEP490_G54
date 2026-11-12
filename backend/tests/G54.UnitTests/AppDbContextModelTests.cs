@@ -15,8 +15,8 @@ public sealed class AppDbContextModelTests
         using var context = new AppDbContext(options);
         var entityTypes = context.Model.GetEntityTypes();
 
-        Assert.Equal(55, entityTypes.Count());
-        Assert.Equal(51, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs" and not "system_parameters"));
+        Assert.Equal(57, entityTypes.Count());
+        Assert.Equal(53, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs" and not "system_parameters"));
         Assert.Equal("score_entry", context.Model.FindEntityType(typeof(ScoreEntry))?.GetTableName());
         Assert.Equal("appeal_score_setting", context.Model.FindEntityType(typeof(AppealScoreSetting))?.GetTableName());
         var sidebar = context.Model.FindEntityType(typeof(SidebarConfiguration));

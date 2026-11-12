@@ -75,6 +75,25 @@ internal static class AutomaticNotifications
         return drafts;
     }
 
+    /// <summary>A manager changed the plan of a work: the assignee is told what changed and any note.</summary>
+    public static NotificationDraft WorkPlanUpdated(Work work, Employee assignee, Employee manager, string summary, string? note)
+    {
+        var body = $"{manager.FullName} đã sửa kế hoạch công việc {Describe(work)}: {summary}.";
+        if (!string.IsNullOrWhiteSpace(note))
+        {
+            body += $" Ghi chú: {note}";
+        }
+
+        return new NotificationDraft(
+            assignee.Id,
+            NotificationType.WorkPlanUpdated,
+            "Kế hoạch công việc được cập nhật",
+            body.Length > 2000 ? body[..2000] : body,
+            NotificationSeverity.Important,
+            NotificationRelatedType.Work,
+            work.Id);
+    }
+
     private static string Describe(Work work) => $"{work.Code} - {work.Title}";
 
     private static NotificationDraft ForHandover(Guid recipientId, NotificationType type, string title, string body, NotificationSeverity severity, TaskHandover handover)

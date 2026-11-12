@@ -102,5 +102,14 @@ public sealed class WorkOverdueBackgroundServiceTests
 
         public Task<WorkDetailDto> ChangeStatusAsync(Guid id, Guid userId, WorkStatusDto dto, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not exercised by the overdue sweep.");
+
+        public Task<IReadOnlyList<WorkActivityDto>?> GetActivitiesAsync(Guid id, Guid accountId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not exercised by the overdue sweep.");
+
+        public Task<WorkDetailDto> SetChecklistItemAsync(Guid id, Guid itemId, Guid userId, WorkChecklistItemStateDto dto, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not exercised by the overdue sweep.");
+
+        public Task<WorkDetailDto> UpdatePlanAsync(Guid id, Guid userId, UpdateWorkPlanDto dto, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not exercised by the overdue sweep.");
     }
 }

@@ -53,6 +53,10 @@ public sealed partial class WorkService(
             throw new ValidationException("Số giờ dự kiến không được âm.");
         }
 
+        var checklistTitles = NormalizeChecklistTitles(request.ChecklistItems);
+        var customerName = NormalizeOptional(request.CustomerName, 200, "Tên khách hàng");
+        var customerCif = NormalizeOptional(request.CustomerCif, 50, "Mã CIF");
+
         var workType = await unitOfWork.WorkTypes.GetByIdAsync(request.WorkTypeId, cancellationToken);
         if (workType is null || workType.Status != RecordStatus.Active)
         {
@@ -150,14 +154,26 @@ public sealed partial class WorkService(
             PlannedStartDate = startDate,
             PlannedEndDate = request.PlannedEndDate,
             UpdatedAt = time.GetUtcNow(),
+            AssignedAt = time.GetUtcNow(),
+            CustomerName = customerName,
+            CustomerCif = customerCif,
         };
 
         await unitOfWork.Works.AddAsync(work, cancellationToken);
+        for (var index = 0; index < checklistTitles.Count; index++)
+        {
+            await unitOfWork.Repository<WorkChecklistItem>().AddAsync(
+                new WorkChecklistItem { Id = Guid.NewGuid(), WorkId = work.Id, Title = checklistTitles[index], SortOrder = index, CreatedAt = work.AssignedAt },
+                cancellationToken);
+        }
+
+        await AddActivityAsync(work.Id, creator.Id, "ASSIGNED", "Việc được giao", cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         LogWorkCreated(logger, work.Code, assignee.Id, null);
 
-        return MapToDetail(work, workType.Name, campaign?.Name, assignee.FullName, assignee.EmployeeCode);
+        var saved = await unitOfWork.Works.GetWithDetailsAsync(work.Id, cancellationToken) ?? work;
+        return await BuildDetailAsync(saved, currentUserId, creator.Id, creator.DepartmentId, cancellationToken);
     }
 
     /// <summary>
@@ -167,37 +183,10 @@ public sealed partial class WorkService(
     public async Task<WorkDetailDto?> GetByIdAsync(Guid id, Guid accountId, CancellationToken cancellationToken = default)
     {
         var caller = await ResolveCallerAsync(accountId, cancellationToken);
-        var work = await unitOfWork.Works.GetWithDetailsAsync(id, cancellationToken);
-        if (work is null)
-        {
-            return null;
-        }
-
-        var assignee = work.AssigneeEmployee;
-        var isAssigneeOrManager = work.AssigneeEmployeeId == caller.EmployeeId || assignee?.ManagerId == caller.EmployeeId;
-        var hierarchy = await DepartmentHierarchy.LoadAsync(unitOfWork.Departments.Query(), cancellationToken);
-        var visibleDepartments = AccessScope.DepartmentsInScope(caller.Level, caller.DepartmentId, hierarchy);
-        var inScope = caller.Level >= AccessScope.AllLevel
-            || isAssigneeOrManager
-            || (assignee is not null && visibleDepartments is not null && visibleDepartments.Contains(assignee.DepartmentId));
-
-        if (!inScope)
-        {
-            return null;
-        }
-
-        return MapToDetail(work, work.WorkType?.Name, work.BusinessCampaign?.Name, assignee?.FullName, assignee?.EmployeeCode);
-    }
-
-    private async Task<WorkDetailDto?> LoadDetailAsync(Guid id, CancellationToken cancellationToken)
-    {
-        var work = await unitOfWork.Works.GetWithDetailsAsync(id, cancellationToken);
-        if (work is null)
-        {
-            return null;
-        }
-
-        return MapToDetail(work, work.WorkType?.Name, work.BusinessCampaign?.Name, work.AssigneeEmployee?.FullName, work.AssigneeEmployee?.EmployeeCode);
+        var work = await FindVisibleWorkAsync(id, caller, cancellationToken);
+        return work is null
+            ? null
+            : await BuildDetailAsync(work, accountId, caller.EmployeeId, caller.DepartmentId, cancellationToken);
     }
 
     public async Task<WorkDetailDto> ChangeStatusAsync(
@@ -226,11 +215,12 @@ public sealed partial class WorkService(
         work.Status = nextStatus;
         work.UpdatedAt = time.GetUtcNow();
         unitOfWork.Works.Update(work);
+        await AddActivityAsync(work.Id, actor.Id, "STATUS_CHANGED", DescribeStatusChange(action, dto.Reason), cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         LogWorkStatusChanged(logger, work.Code, work.Id, fromStatus, nextStatus, actor.Id, null);
 
-        return (await LoadDetailAsync(work.Id, cancellationToken))!;
+        return await LoadDetailForAsync(work.Id, userId, actor, cancellationToken);
     }
 
     public async Task<int> MarkOverdueAsync(DateOnly today, CancellationToken cancellationToken = default)
@@ -256,6 +246,7 @@ public sealed partial class WorkService(
             work.Status = nextStatus;
             work.UpdatedAt = now;
             marked++;
+            await AddActivityAsync(work.Id, null, "STATUS_CHANGED", "Công việc quá hạn", cancellationToken);
             LogWorkStatusChanged(logger, work.Code, work.Id, fromStatus, nextStatus, null, null);
             drafts.AddRange(AutomaticNotifications.WorkOverdue(work, work.AssigneeEmployee));
         }
@@ -338,7 +329,8 @@ public sealed partial class WorkService(
         string? workTypeName,
         string? campaignName,
         string? assigneeName,
-        string? assigneeCode) =>
+        string? assigneeCode,
+        DetailExtras? extras = null) =>
         new(
             Id: work.Id,
             Code: work.Code,
@@ -356,7 +348,77 @@ public sealed partial class WorkService(
             PlannedStartDate: work.PlannedStartDate,
             PlannedEndDate: work.PlannedEndDate,
             EstimatedHours: work.EstimatedHours,
-            UpdatedAt: work.UpdatedAt);
+            UpdatedAt: work.UpdatedAt,
+            CustomerName: work.CustomerName,
+            CustomerCif: work.CustomerCif,
+            AssignedAt: work.AssignedAt == default ? null : work.AssignedAt,
+            AssignedByEmployeeId: work.CreatedBy,
+            AssignedByName: extras?.AssignedByName,
+            AssignedByPositionTitle: extras?.AssignedByPosition,
+            ChecklistItems: extras?.Checklist,
+            ProgressPercent: ProgressOf(work, extras),
+            RelatedKpis: extras?.Kpis,
+            CanEditPlan: extras?.CanEditPlan ?? false,
+            CanUpdateChecklist: extras?.CanUpdateChecklist ?? false);
+
+    /// <summary>The share of done checklist items; a work without a checklist is 100% once done and unknown before.</summary>
+    private static int? ProgressOf(Work work, DetailExtras? extras)
+    {
+        if (extras is { Checklist.Count: > 0 })
+        {
+            return (int)Math.Round(extras.Checklist.Count(c => c.IsDone) * 100.0 / extras.Checklist.Count, MidpointRounding.AwayFromZero);
+        }
+
+        return work.Status is WorkStatus.Done or WorkStatus.Verified ? 100 : null;
+    }
+
+    private static string DescribeStatusChange(WorkAction action, string? reason) => action switch
+    {
+        WorkAction.Start => "Chuyển sang Đang thực hiện",
+        WorkAction.Complete => "Hoàn tất công việc",
+        WorkAction.Cancel => string.IsNullOrWhiteSpace(reason) ? "Hủy công việc" : $"Hủy công việc: {reason.Trim()}",
+        _ => "Cập nhật trạng thái",
+    };
+
+    private static List<string> NormalizeChecklistTitles(IReadOnlyList<string>? titles)
+    {
+        var result = new List<string>();
+        foreach (var title in titles ?? [])
+        {
+            var trimmed = title?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                continue;
+            }
+
+            if (trimmed.Length > MaxChecklistTitleLength)
+            {
+                throw new ValidationException($"Tên mục kiểm tra tối đa {MaxChecklistTitleLength} ký tự.");
+            }
+
+            result.Add(trimmed);
+        }
+
+        if (result.Count > MaxChecklistItems)
+        {
+            throw new ValidationException($"Danh mục kiểm tra tối đa {MaxChecklistItems} mục.");
+        }
+
+        return result;
+    }
+
+    private static string? NormalizeOptional(string? value, int maxLength, string field)
+    {
+        var trimmed = value?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        return trimmed.Length > maxLength
+            ? throw new ValidationException($"{field} tối đa {maxLength} ký tự.")
+            : trimmed;
+    }
 
     private static string? NormalizeStatusInput(string? status)
     {

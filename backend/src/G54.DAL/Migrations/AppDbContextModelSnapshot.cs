@@ -3128,6 +3128,12 @@ namespace G54.DAL.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at")
+                        .HasDefaultValueSql("now()");
+
                     b.Property<Guid>("AssigneeEmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("assignee_employee_id");
@@ -3145,6 +3151,16 @@ namespace G54.DAL.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("created_by");
+
+                    b.Property<string>("CustomerCif")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("customer_cif");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("customer_name");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
@@ -3222,6 +3238,94 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_work_target_value", "target_value IS NULL OR target_value >= 0");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.WorkActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_employee_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)")
+                        .HasColumnName("message");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorEmployeeId");
+
+                    b.HasIndex("WorkId", "CreatedAt")
+                        .HasDatabaseName("ix_work_activity_work");
+
+                    b.ToTable("work_activity", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.WorkChecklistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("DoneAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("done_at");
+
+                    b.Property<bool>("IsDone")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_done");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkId", "SortOrder")
+                        .HasDatabaseName("ix_work_checklist_item_work");
+
+                    b.ToTable("work_checklist_item", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.WorkResultItem", b =>
@@ -4415,6 +4519,38 @@ namespace G54.DAL.Migrations
                     b.Navigation("WorkType");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.WorkActivity", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "ActorEmployee")
+                        .WithMany()
+                        .HasForeignKey("ActorEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_work_activity_actor");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany("Activities")
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_activity_work");
+
+                    b.Navigation("ActorEmployee");
+
+                    b.Navigation("Work");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.WorkChecklistItem", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany("ChecklistItems")
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_checklist_item_work");
+
+                    b.Navigation("Work");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.WorkResultItem", b =>
                 {
                     b.HasOne("G54.DAL.Entities.ActualProgress", "ActualProgress")
@@ -4715,6 +4851,10 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.Work", b =>
                 {
+                    b.Navigation("Activities");
+
+                    b.Navigation("ChecklistItems");
+
                     b.Navigation("InverseParentWork");
 
                     b.Navigation("ResultSubmissions");
