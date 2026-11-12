@@ -13,7 +13,6 @@
   background: rgb(15 23 42 / 28%);
   cursor: default;
   pointer-events: auto;
-  animation: fade-in 0.15s ease;
 }
 
 .drawer {
@@ -27,7 +26,6 @@
   background: #fff;
   box-shadow: -8px 0 24px -4px rgb(15 23 42 / 12%);
   pointer-events: auto;
-  animation: slide-in 0.18s ease;
 }
 
 .drawer-head {
@@ -211,22 +209,7 @@
   }
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes slide-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .drawer,
-  .drawer-backdrop,
   .spinner {
     animation-duration: 0ms;
   }
