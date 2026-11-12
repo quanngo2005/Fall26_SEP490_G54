@@ -1056,7 +1056,7 @@
           "matched": "Khớp",
           "notMatched": "Không khớp",
           "inReview": "Chờ đối chiếu",
-          "manual": "Chờ duyệt thủ công",
+          "manual": "Chờ quản lý duyệt",
           "approved": "Đã duyệt",
           "rejected": "Bị từ chối",
           "withdrawn": "Đã thu hồi"
@@ -1065,9 +1065,9 @@
           "kpiCounted": "Đã tính KPI",
           "waitingData": "Chờ dữ liệu",
           "partial": "{matched}/{total} mã khớp",
-          "waitingReviewer": "Chờ người duyệt xét",
+          "waitingReviewer": "Chờ quản lý xem xét",
           "appealLeft": "Còn {hours} giờ để khiếu nại",
-          "none": "N/A"
+          "none": "—"
         },
         "transactionCell": {
           "more": "{code} +{count}",
@@ -1075,12 +1075,12 @@
           "noCode": "Chưa có mã giao dịch"
         },
         "showing": "{from}–{to} trong {total} · {size} dòng/trang",
-        "loading": "Đang tải bài nộp...",
-        "loadError": "Không thể tải lịch sử nộp kết quả.",
+        "loading": "Đang tải bài nộp…",
+        "loadError": "Chưa tải được lịch sử nộp. Bạn thử lại.",
         "retry": "Thử lại",
-        "empty": "Chưa có bài nộp nào phù hợp.",
-        "hintTitle": "Về kết quả đối soát",
-        "hint": "Hệ thống tự so khớp mã giao dịch bạn khai báo với dữ liệu đã nhập. Khi dữ liệu mới về, kết quả được cập nhật. Chỉ bài nộp bị từ chối mới khiếu nại được.",
+        "empty": "Chưa có bài nộp nào phù hợp với bộ lọc.",
+        "hintTitle": "Đối soát hoạt động thế nào?",
+        "hint": "Hệ thống tự so mã giao dịch bạn nộp với dữ liệu đã nhập, và cập nhật lại mỗi khi có dữ liệu mới. Chỉ bài nộp bị từ chối mới khiếu nại được.",
         "drawer": {
           "title": "{code} · Phiên bản {no}",
           "submittedOn": "Nộp lúc {time}",
@@ -1093,33 +1093,33 @@
           "evidence": "Minh chứng",
           "noEvidence": "Chưa có minh chứng.",
           "preview": "Xem",
-          "previewFailed": "Không mở được tệp minh chứng.",
+          "previewFailed": "Chưa mở được tệp minh chứng.",
           "compareTitle": "So khớp với giao dịch đã nhập",
           "fieldColumn": "Trường",
           "declaredColumn": "Bài nộp",
-          "importedColumn": "Dữ liệu hệ thống",
+          "importedColumn": "Dữ liệu đã nhập",
           "matchColumn": "Khớp",
           "matchedAria": "Khớp",
           "mismatchAria": "Không khớp",
           "notCompared": "—",
-          "waitingImport": "Chưa có dữ liệu giao dịch để so khớp.",
-          "noTransactions": "Việc này chưa gắn mã giao dịch nên không có gì để so khớp.",
+          "waitingImport": "Chưa có dữ liệu nhập về để so khớp.",
+          "noTransactions": "Việc này chưa có mã giao dịch nên chưa có gì để so khớp.",
           "versionsTitle": "Các phiên bản",
           "currentVersion": "Đang xem",
           "versionLine": "v{no}",
-          "loading": "Đang tải chi tiết...",
-          "loadError": "Không thể tải chi tiết bài nộp.",
+          "loading": "Đang tải chi tiết…",
+          "loadError": "Chưa tải được chi tiết bài nộp. Bạn thử lại.",
           "keyboardHint": "Esc để đóng · ↑↓ chuyển dòng",
           "appealButton": "Khiếu nại kết quả",
           "viewAppeal": "Xem khiếu nại",
           "notMatchedTitle": "Dữ liệu chưa khớp",
-          "notMatchedText": "Một số mã giao dịch chưa khớp dữ liệu hệ thống. Bạn có thể kiểm tra lại mã giao dịch ở màn Công việc của tôi.",
+          "notMatchedText": "Có mã giao dịch chưa khớp với dữ liệu đã nhập. Bạn kiểm tra lại mã trong màn Công việc của tôi.",
           "availableTitle": "Bạn có thể khiếu nại kết quả này",
-          "availableText": "Bài nộp bị từ chối. Nếu bạn cho rằng kết quả chưa đúng, hãy gửi khiếu nại kèm bằng chứng. Còn {hours} giờ.",
+          "availableText": "Bài nộp này bị từ chối. Nếu thấy chưa đúng, bạn có thể gửi khiếu nại kèm bằng chứng trong {hours} giờ tới.",
           "expiredTitle": "Đã hết thời hạn khiếu nại",
-          "expiredText": "Bài nộp này không còn khiếu nại được nữa.",
+          "expiredText": "Bài nộp này đã quá hạn khiếu nại.",
           "inProgressTitle": "Khiếu nại đang được xử lý",
-          "inProgressText": "Bạn đã gửi khiếu nại cho bài nộp này. Theo dõi tại mục Khiếu nại & Phúc khảo."
+          "inProgressText": "Bạn đã gửi khiếu nại cho bài nộp này. Có thể theo dõi tiến độ ở mục Khiếu nại & Phúc khảo."
         },
         "field": {
           "TRANSACTION_CODE": "Mã giao dịch",
@@ -1129,9 +1129,9 @@
         },
         "reason": {
           "EMPLOYEE_MISMATCH": "Giao dịch thuộc nhân viên khác.",
-          "PRODUCT_MISMATCH": "Sản phẩm không đúng với loại việc.",
-          "KPI_TARGET_NOT_ASSIGNED": "Chưa có chỉ tiêu KPI để tính điểm.",
-          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI này chưa hỗ trợ tính tự động."
+          "PRODUCT_MISMATCH": "Sản phẩm của giao dịch không đúng với loại việc.",
+          "KPI_TARGET_NOT_ASSIGNED": "Bạn chưa được giao chỉ tiêu KPI nên chưa tính điểm được.",
+          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI này chưa tính điểm tự động được."
         },
         "appealSent": "Đã gửi khiếu nại."
       },
@@ -1756,7 +1756,6 @@
           "actions": {
             "handover": "Chuyển giao việc",
             "submit": "Nộp kết quả",
-            "submitSoon": "Phần nộp kết quả chưa có trên màn hình này, sẽ được bổ sung ở bản cập nhật tới.",
             "editPlan": "Sửa kế hoạch"
           },
           "request": {
@@ -1781,7 +1780,7 @@
             "summary": "{done}/{total} mục đã xong",
             "empty": "Công việc này chưa có danh mục kiểm tra.",
             "emptyManager": "Công việc này chưa có danh mục kiểm tra. Bạn có thể thêm khi sửa kế hoạch.",
-            "tickError": "Chưa cập nhật được mục này. Bạn thử lại nhé.",
+            "tickError": "Chưa cập nhật được mục này. Bạn thử lại.",
             "listLabel": "Danh mục kiểm tra"
           },
           "activity": {
@@ -1803,14 +1802,14 @@
             "error": "Chưa tải được danh sách bài nộp.",
             "match": {
               "MATCHED": "Đã khớp",
-              "NOT_MATCHED": "Chưa khớp",
-              "IN_REVIEW": "Đang đối soát",
-              "NONE": "Không có mã giao dịch"
+              "NOT_MATCHED": "Không khớp",
+              "IN_REVIEW": "Chờ đối chiếu",
+              "NONE": "Chưa có mã giao dịch"
             },
             "status": {
               "DRAFT": "Bản nháp",
               "SUBMITTED": "Đã nộp",
-              "UNDER_REVIEW": "Đang xem xét",
+              "UNDER_REVIEW": "Đang được duyệt",
               "APPROVED": "Đã duyệt",
               "REJECTED": "Bị từ chối",
               "WITHDRAWN": "Đã thu hồi"
@@ -1818,10 +1817,12 @@
           },
           "notes": {
             "employee": "Việc này do quản lý giao nên bạn không cần chấp nhận hay từ chối. Bạn chỉ cần làm theo danh mục kiểm tra và nộp kết quả đúng hạn.",
-            "manager": "Bạn có thể đổi hạn, mức ưu tiên và danh mục kiểm tra. Nhân viên tự nộp kết quả; việc có mã giao dịch sẽ được hệ thống đối soát với dữ liệu đã nhập."
+            "manager": "Bạn có thể đổi hạn, mức ưu tiên và danh mục kiểm tra. Nhân viên tự nộp kết quả; với việc có mã giao dịch, hệ thống sẽ tự đối soát với dữ liệu đã nhập."
           },
           "toast": {
-            "planSaved": "Đã lưu kế hoạch mới. Nhân viên sẽ nhận được thông báo."
+            "planSaved": "Đã lưu kế hoạch mới. Nhân viên sẽ nhận được thông báo.",
+            "resultSubmitted": "Đã nộp kết quả. Hệ thống đang đối soát mã giao dịch.",
+            "resultSubmittedCodesFailed": "Đã nộp kết quả, nhưng chưa lưu được mã giao dịch. Bạn kiểm tra lại mã rồi báo quản lý."
           },
           "plan": {
             "title": "Sửa kế hoạch",
@@ -1845,13 +1846,57 @@
             "cancel": "Hủy",
             "save": "Lưu thay đổi",
             "saving": "Đang lưu…",
-            "dueRequired": "Bạn chọn hạn hoàn thành giúp mình nhé.",
+            "dueRequired": "Bạn chọn hạn hoàn thành giúp mình.",
             "titleRequired": "Tên đầu việc không được để trống.",
             "tooMany": "Danh mục kiểm tra chỉ có tối đa 30 mục.",
             "errorForbidden": "Bạn không có quyền sửa kế hoạch của công việc này.",
             "errorClosed": "Công việc này đã nộp hoặc đã đóng nên không sửa kế hoạch được nữa.",
-            "errorInvalid": "Thông tin chưa hợp lệ. Bạn kiểm tra lại giúp mình nhé.",
-            "errorGeneric": "Chưa lưu được. Bạn thử lại sau một lúc nhé."
+            "errorInvalid": "Thông tin chưa hợp lệ. Bạn kiểm tra lại giúp mình.",
+            "errorGeneric": "Chưa lưu được. Bạn thử lại sau một lúc."
+          },
+          "submit": {
+            "title": "Nộp kết quả · {code}",
+            "subtitle": "{type} · Phiên bản {no}",
+            "noWorkType": "Ngoài loại việc",
+            "loading": "Đang tải thông tin nộp…",
+            "loadError": "Chưa tải được thông tin nộp kết quả. Bạn đóng lại rồi thử lại.",
+            "deadline": "Hạn nộp {date}.",
+            "deadlineLate": "Việc này đã quá hạn nộp ({date}).",
+            "codesTitle": "Mã đối soát",
+            "codesLabel": "Mã giao dịch",
+            "codesPlaceholder": "Ví dụ: TXN-88342, TXN-88343",
+            "codesHint": "Tối đa 10 mã, cách nhau bằng dấu phẩy hoặc khoảng trắng. Hệ thống sẽ so các mã này với dữ liệu giao dịch đã nhập.",
+            "metricsTitle": "Số liệu KPI bắt buộc",
+            "denominator": "Mẫu số",
+            "result": "Kết quả",
+            "resultPlaceholder": "Bạn đã làm được gì? Ví dụ: Đã đăng ký và kích hoạt E-banking cho khách hàng.",
+            "evidence": "Minh chứng",
+            "dropHint": "Kéo thả tệp vào đây hoặc",
+            "dropPick": "chọn tệp",
+            "dropLimit": "{types} tối đa {size} MB",
+            "removeFile": "Bỏ tệp {name}",
+            "infoTitle": "Hệ thống tự đối soát",
+            "infoBody": "Sau khi nộp, việc chuyển sang Đã nộp. Mã giao dịch nào khớp với dữ liệu đã nhập thì được tính KPI ngay, không cần quản lý duyệt. Mã nào chưa có trong dữ liệu sẽ giữ ở trạng thái Chờ đối chiếu.",
+            "escHint": "Esc để đóng",
+            "cancel": "Hủy",
+            "submit": "Nộp kết quả",
+            "submitting": "Đang nộp…",
+            "errors": {
+              "resultRequired": "Bạn nhập kết quả đã làm giúp mình.",
+              "nothingToCheck": "Bạn nhập mã giao dịch hoặc đính kèm minh chứng để quản lý có cái để kiểm tra.",
+              "tooManyCodes": "Chỉ nhập tối đa {max} mã giao dịch.",
+              "codeTooLong": "Mỗi mã giao dịch tối đa 100 ký tự.",
+              "metric": "Bạn nhập số liệu từ 0 trở lên.",
+              "ratio": "Bạn nhập cả tử số và mẫu số (mẫu số lớn hơn 0).",
+              "fileType": "Tệp {name} không đúng định dạng cho phép.",
+              "fileEmpty": "Tệp {name} đang trống.",
+              "fileSize": "Tệp {name} lớn hơn {max} MB.",
+              "fileCount": "Bạn chỉ đính kèm được tối đa {max} tệp.",
+              "forbidden": "Chỉ người được giao việc mới nộp được kết quả.",
+              "conflict": "Việc này không còn ở trạng thái nộp được nữa. Bạn tải lại trang để xem tình trạng mới.",
+              "invalid": "Thông tin nộp chưa hợp lệ. Bạn kiểm tra lại giúp mình.",
+              "generic": "Chưa nộp được. Bạn thử lại sau một lúc."
+            }
           }
         },
         "team": {
@@ -4737,7 +4782,6 @@
           "actions": {
             "handover": "Hand over",
             "submit": "Submit result",
-            "submitSoon": "Submitting a result is not available on this screen yet. It will come in an upcoming update.",
             "editPlan": "Edit plan"
           },
           "request": {
@@ -4785,13 +4829,13 @@
             "match": {
               "MATCHED": "Matched",
               "NOT_MATCHED": "Not matched",
-              "IN_REVIEW": "Being checked",
-              "NONE": "No transaction code"
+              "IN_REVIEW": "Waiting for matching",
+              "NONE": "No transaction code yet"
             },
             "status": {
               "DRAFT": "Draft",
               "SUBMITTED": "Submitted",
-              "UNDER_REVIEW": "Under review",
+              "UNDER_REVIEW": "Being reviewed",
               "APPROVED": "Approved",
               "REJECTED": "Rejected",
               "WITHDRAWN": "Withdrawn"
@@ -4799,10 +4843,12 @@
           },
           "notes": {
             "employee": "This work was assigned by your manager, so there is nothing to accept or decline. Follow the checklist and submit your result on time.",
-            "manager": "You can change the due date, the priority and the checklist. The employee submits the result; work with a transaction code is checked by the system against the imported data."
+            "manager": "You can change the deadline, priority and checklist. The employee submits the result; for works with transaction codes, the system reconciles them with the imported data automatically."
           },
           "toast": {
-            "planSaved": "The new plan is saved. The employee will be notified."
+            "planSaved": "The new plan is saved. The employee will be notified.",
+            "resultSubmitted": "Result submitted. The system is reconciling the transaction codes.",
+            "resultSubmittedCodesFailed": "Result submitted, but the transaction codes could not be saved. Please check them and tell your manager."
           },
           "plan": {
             "title": "Edit plan",
@@ -4833,6 +4879,50 @@
             "errorClosed": "This work is already submitted or closed, so its plan can no longer be edited.",
             "errorInvalid": "Some details are not valid. Please check and try again.",
             "errorGeneric": "Could not save. Please try again in a moment."
+          },
+          "submit": {
+            "title": "Submit result · {code}",
+            "subtitle": "{type} · Version {no}",
+            "noWorkType": "Outside work types",
+            "loading": "Loading…",
+            "loadError": "Could not load the submission details. Please close this and try again.",
+            "deadline": "Due {date}.",
+            "deadlineLate": "This work is past its due date ({date}).",
+            "codesTitle": "Reconciliation code",
+            "codesLabel": "Transaction code",
+            "codesPlaceholder": "For example: TXN-88342, TXN-88343",
+            "codesHint": "Up to 10 codes, separated by commas or spaces. The system compares them with the imported transactions.",
+            "metricsTitle": "Required KPI values",
+            "denominator": "Denominator",
+            "result": "Result",
+            "resultPlaceholder": "What did you get done? For example: E-banking registered and activated for the customer.",
+            "evidence": "Evidence",
+            "dropHint": "Drag files here or",
+            "dropPick": "choose files",
+            "dropLimit": "{types}, up to {size} MB each",
+            "removeFile": "Remove {name}",
+            "infoTitle": "Reconciled automatically",
+            "infoBody": "After you submit, the work moves to Submitted. Codes that match the imported data are credited to your KPI right away, with no manager approval. Codes that are not in the data yet stay as Waiting for matching.",
+            "escHint": "Esc to close",
+            "cancel": "Cancel",
+            "submit": "Submit result",
+            "submitting": "Submitting…",
+            "errors": {
+              "resultRequired": "Please describe the result.",
+              "nothingToCheck": "Add a transaction code or attach evidence so your manager has something to check.",
+              "tooManyCodes": "You can enter at most {max} transaction codes.",
+              "codeTooLong": "A transaction code can have at most 100 characters.",
+              "metric": "Enter a value of 0 or more.",
+              "ratio": "Enter both the numerator and a denominator greater than 0.",
+              "fileType": "{name} is not an allowed file type.",
+              "fileEmpty": "{name} is empty.",
+              "fileSize": "{name} is larger than {max} MB.",
+              "fileCount": "You can attach at most {max} files.",
+              "forbidden": "Only the person the work is assigned to can submit a result.",
+              "conflict": "This work can no longer be submitted. Reload the page to see its current state.",
+              "invalid": "Some details are not valid. Please check and try again.",
+              "generic": "Could not submit. Please try again in a moment."
+            }
           }
         },
         "team": {
@@ -6397,7 +6487,7 @@
           "matched": "Matched",
           "notMatched": "Not matched",
           "inReview": "Awaiting reconciliation",
-          "manual": "Awaiting manual review",
+          "manual": "Waiting for manager approval",
           "approved": "Approved",
           "rejected": "Rejected",
           "withdrawn": "Withdrawn"
@@ -6406,9 +6496,9 @@
           "kpiCounted": "KPI counted",
           "waitingData": "Waiting for data",
           "partial": "{matched}/{total} codes matched",
-          "waitingReviewer": "Waiting for a reviewer",
+          "waitingReviewer": "Waiting for the manager",
           "appealLeft": "{hours} h left to appeal",
-          "none": "N/A"
+          "none": "—"
         },
         "transactionCell": {
           "more": "{code} +{count}",
@@ -6416,12 +6506,12 @@
           "noCode": "No transaction code"
         },
         "showing": "{from}–{to} of {total} · {size} rows per page",
-        "loading": "Loading submissions...",
-        "loadError": "Could not load the submission history.",
+        "loading": "Loading submissions…",
+        "loadError": "Could not load your submissions. Please try again.",
         "retry": "Retry",
-        "empty": "No matching submissions.",
-        "hintTitle": "About reconciliation",
-        "hint": "The system matches the transaction codes you declared against the imported data and updates the result when new data arrives. Only rejected submissions can be appealed.",
+        "empty": "No submissions match these filters.",
+        "hintTitle": "How does reconciliation work?",
+        "hint": "The system matches the transaction codes you submitted against the imported data and updates the result whenever new data arrives. Only rejected submissions can be appealed.",
         "drawer": {
           "title": "{code} · Version {no}",
           "submittedOn": "Submitted at {time}",
@@ -6438,29 +6528,29 @@
           "compareTitle": "Comparison with imported transactions",
           "fieldColumn": "Field",
           "declaredColumn": "Submission",
-          "importedColumn": "System data",
+          "importedColumn": "Imported data",
           "matchColumn": "Match",
           "matchedAria": "Matched",
           "mismatchAria": "Not matched",
           "notCompared": "—",
-          "waitingImport": "No imported transaction data to compare yet.",
-          "noTransactions": "This work has no transaction codes, so there is nothing to compare.",
+          "waitingImport": "No imported data to compare with yet.",
+          "noTransactions": "This work has no transaction code yet, so there is nothing to compare.",
           "versionsTitle": "Versions",
           "currentVersion": "Viewing",
           "versionLine": "v{no}",
-          "loading": "Loading details...",
-          "loadError": "Could not load the submission details.",
+          "loading": "Loading details…",
+          "loadError": "Could not load the submission details. Please try again.",
           "keyboardHint": "Esc to close · ↑↓ to switch rows",
           "appealButton": "Appeal result",
           "viewAppeal": "View appeal",
           "notMatchedTitle": "Data does not match",
-          "notMatchedText": "Some transaction codes do not match the system data. You can review them in My Work.",
+          "notMatchedText": "Some transaction codes do not match the imported data. Please check the codes in My work.",
           "availableTitle": "You can appeal this result",
-          "availableText": "This submission was rejected. If you believe the result is wrong, file an appeal with evidence. {hours} h left.",
+          "availableText": "This submission was rejected. If you think that is wrong, you can appeal with evidence within the next {hours} hours.",
           "expiredTitle": "The appeal period has ended",
-          "expiredText": "This submission can no longer be appealed.",
+          "expiredText": "The appeal window for this submission has closed.",
           "inProgressTitle": "Your appeal is being processed",
-          "inProgressText": "You have already appealed this submission. Follow it under Appeals & Inquiries."
+          "inProgressText": "You have already appealed this submission. You can follow it under Appeals & Re-reviews."
         },
         "field": {
           "TRANSACTION_CODE": "Transaction code",
@@ -6470,9 +6560,9 @@
         },
         "reason": {
           "EMPLOYEE_MISMATCH": "The transaction belongs to another employee.",
-          "PRODUCT_MISMATCH": "The product does not match the work type.",
-          "KPI_TARGET_NOT_ASSIGNED": "No KPI target is assigned yet.",
-          "KPI_AGGREGATION_NOT_SUPPORTED": "This KPI cannot be credited automatically."
+          "PRODUCT_MISMATCH": "The product of the transaction does not match the work type.",
+          "KPI_TARGET_NOT_ASSIGNED": "You have no KPI target yet, so no score can be given.",
+          "KPI_AGGREGATION_NOT_SUPPORTED": "This KPI cannot be scored automatically yet."
         },
         "appealSent": "Appeal submitted."
       },

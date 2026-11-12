@@ -128,7 +128,7 @@ describe('WorkPlanDialogComponent', () => {
     submit();
 
     expect(api.updatePlan).not.toHaveBeenCalled();
-    expect(element.textContent).toContain('Bạn chọn hạn hoàn thành giúp mình nhé.');
+    expect(element.textContent).toContain('Bạn chọn hạn hoàn thành giúp mình.');
     expect(element.textContent).toContain('Tên đầu việc không được để trống.');
   });
 

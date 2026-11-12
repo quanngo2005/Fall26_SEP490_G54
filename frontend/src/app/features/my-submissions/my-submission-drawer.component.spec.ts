@@ -90,14 +90,14 @@ describe('MySubmissionDrawerComponent', () => {
   it('shows the list row data while the detail loads, and the loading text', () => {
     const root = open(null, { loading: true });
     expect(root.querySelector('h2')?.textContent).toContain('WK-1 · Phiên bản 2');
-    expect(root.textContent).toContain('Đang tải chi tiết...');
+    expect(root.textContent).toContain('Đang tải chi tiết…');
     expect(root.querySelector('.drawer-footer button')).toBeNull();
   });
 
   it('shows an error text when the detail failed', () => {
     const root = open(null, { failed: true });
     expect(root.querySelector('[role="alert"]')?.textContent).toContain(
-      'Không thể tải chi tiết bài nộp.',
+      'Chưa tải được chi tiết bài nộp. Bạn thử lại.',
     );
   });
 
@@ -141,7 +141,7 @@ describe('MySubmissionDrawerComponent', () => {
     root.querySelector<HTMLButtonElement>('.preview-btn')?.click();
     http.expectOne(`${environment.apiUrl}/evidence/e1/preview`).error(new ProgressEvent('error'));
     fixture.detectChanges();
-    expect(root.textContent).toContain('Không mở được tệp minh chứng.');
+    expect(root.textContent).toContain('Chưa mở được tệp minh chứng.');
   });
 
   it('shows no appeal action for a submission that cannot be appealed', () => {

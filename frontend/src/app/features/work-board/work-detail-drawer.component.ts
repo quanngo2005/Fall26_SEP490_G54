@@ -21,6 +21,10 @@ import { ResultSubmissionService } from '../../core/result-submission.service';
 import { WorkActivity, WorkChecklistItem, WorkDetail, WorkListItem } from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
 import { OPEN_FOR_ASSIGNEE, deadlineSpan, spanParts } from '../work-detail/work-detail.utils';
+import {
+  ResultSubmitted,
+  SubmitResultDialogComponent,
+} from '../work-detail/submit-result-dialog.component';
 import { WorkPlanDialogComponent } from '../work-detail/work-plan-dialog.component';
 import { HandoverDialogComponent } from './handover-dialog.component';
 import { dateOnly } from './work-board.utils';
@@ -56,7 +60,7 @@ const HANDOVER_STATUSES: readonly string[] = ['New', 'InProgress'];
 @Component({
   selector: 'app-work-detail-drawer',
   standalone: true,
-  imports: [HandoverDialogComponent, WorkPlanDialogComponent],
+  imports: [HandoverDialogComponent, SubmitResultDialogComponent, WorkPlanDialogComponent],
   templateUrl: './work-detail-drawer.component.html',
   styleUrls: ['./work-detail-drawer.component.scss', './work-detail-drawer.component.part2.scss'],
 })
@@ -84,6 +88,7 @@ export class WorkDetailDrawerComponent extends LocalizedComponent {
   protected readonly isAssignee = signal(false);
   protected readonly planOpen = signal(false);
   protected readonly handoverOpen = signal(false);
+  protected readonly submitOpen = signal(false);
   protected readonly savingItem = signal<string | null>(null);
   protected readonly notice = signal<Notice | null>(null);
   private readonly now = signal(new Date());
@@ -144,7 +149,7 @@ export class WorkDetailDrawerComponent extends LocalizedComponent {
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     // An open dialog takes the key first; the panel stays until it is closed.
-    if (this.planOpen() || this.handoverOpen()) return;
+    if (this.planOpen() || this.handoverOpen() || this.submitOpen()) return;
     this.closed.emit();
   }
 
@@ -275,6 +280,26 @@ export class WorkDetailDrawerComponent extends LocalizedComponent {
     this.changed.emit();
   }
 
+  protected onResultSubmitted(outcome: ResultSubmitted): void {
+    this.submitOpen.set(false);
+    const toast = this.localization.work.detail.toast;
+    this.showNotice(
+      outcome.codesFailed ? 'error' : 'success',
+      outcome.codesFailed ? toast.resultSubmittedCodesFailed : toast.resultSubmitted,
+    );
+    // The status, progress and the submissions list changed: refresh them without blanking the panel.
+    this.works
+      .detail(this.workId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (work) => {
+          this.work.set(work);
+          this.loadSideData(work);
+        },
+      });
+    this.changed.emit();
+  }
+
   protected onHandoverRequested(handover: HandoverDetail): void {
     this.handoverOpen.set(false);
     this.showNotice(
@@ -305,6 +330,7 @@ export class WorkDetailDrawerComponent extends LocalizedComponent {
     this.isAssignee.set(false);
     this.planOpen.set(false);
     this.handoverOpen.set(false);
+    this.submitOpen.set(false);
     this.notice.set(null);
   }
 

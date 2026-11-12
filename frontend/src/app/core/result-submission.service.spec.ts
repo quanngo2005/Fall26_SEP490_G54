@@ -54,18 +54,44 @@ describe('ResultSubmissionService', () => {
       workId: 'w1',
       workCode: 'WRK-1',
       workTitle: 'Quarterly report',
-      status: 'OPEN',
-      allowResubmission: true,
-      assignedEmployeeId: 'e1',
-      assignedEmployeeName: 'Test User',
-      kpis: [],
+      workStatus: 'IN_PROGRESS',
+      assigneeEmployeeId: 'e1',
+      assigneeEmployeeName: 'Test User',
+      assigneeEmployeeCode: 'NV001',
+      workTypeId: null,
+      workTypeName: null,
+      nextSubmissionNo: 2,
+      previousSubmissionsCount: 1,
+      kpiCriteria: [],
+      allowedFileTypes: ['.pdf'],
+      maxFileSizeBytes: 26214400,
+      maxFileCount: 10,
     };
-    service
-      .getSubmissionContext('w1')
-      .subscribe((value) => expect(value.allowResubmission).toBeTrue());
+    service.getSubmissionContext('w1').subscribe((value) => expect(value.nextSubmissionNo).toBe(2));
     const request = http.expectOne(`${environment.apiUrl}/works/w1/submission-context`);
     expect(request.request.method).toBe('GET');
     request.flush({ success: true, status: 200, data: context });
+  });
+
+  it('attaches transaction codes to the work', () => {
+    service
+      .addTransactionCodes('w1', ['TXN-1', 'TXN-2'])
+      .subscribe((result) => expect(result.items.length).toBe(2));
+    const request = http.expectOne(`${environment.apiUrl}/works/w1/transactions`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ transactionCodes: ['TXN-1', 'TXN-2'] });
+    request.flush({
+      success: true,
+      status: 200,
+      data: {
+        workId: 'w1',
+        workStatus: 'SUBMITTED',
+        items: [
+          { id: 'a', transactionCode: 'TXN-1', status: 'IN_REVIEW', reason: null, updatedAt: '' },
+          { id: 'b', transactionCode: 'TXN-2', status: 'IN_REVIEW', reason: null, updatedAt: '' },
+        ],
+      },
+    });
   });
 
   it('posts the multipart form to the work submissions endpoint', () => {

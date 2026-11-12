@@ -169,7 +169,7 @@ describe('MySubmissionsComponent', () => {
   it('shows the empty state and an accurate footer when there is nothing', () => {
     const fixture = open([], 0);
     const text: string = fixture.nativeElement.textContent;
-    expect(text).toContain('Chưa có bài nộp nào phù hợp.');
+    expect(text).toContain('Chưa có bài nộp nào phù hợp với bộ lọc.');
     expect(text).toContain('0–0 trong 0');
   });
 
@@ -209,12 +209,12 @@ describe('MySubmissionsComponent', () => {
     select(fixture, detail());
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('.appeal-drawer')?.textContent).toContain('WK-1018 · Phiên bản 2');
-    expect(root.textContent).toContain('Sản phẩm không đúng với loại việc.');
+    expect(root.textContent).toContain('Sản phẩm của giao dịch không đúng với loại việc.');
     expect(root.querySelectorAll('.compare-table tr.mismatch').length).toBe(1);
     expect(root.querySelector('.mark.bad')?.getAttribute('aria-label')).toBe('Không khớp');
     expect(root.querySelector('.mark.ok')?.getAttribute('aria-label')).toBe('Khớp');
     // A code with no import yet has nothing to compare.
-    expect(root.textContent).toContain('Chưa có dữ liệu giao dịch để so khớp.');
+    expect(root.textContent).toContain('Chưa có dữ liệu nhập về để so khớp.');
     expect(root.textContent).toContain('95.000.000');
     expect(root.textContent).not.toContain('BR-31');
   });
