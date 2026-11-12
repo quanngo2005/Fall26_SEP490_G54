@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, output, signal } from '@angular/core';
+import { Component, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, forkJoin, map, of, switchMap } from 'rxjs';
@@ -36,6 +36,8 @@ export class AppealSubmitModalComponent extends LocalizedComponent implements On
   private readonly employees = inject(EmployeeService);
   private readonly destroyRef = inject(DestroyRef);
 
+  /** Preselects this rejected submission when the modal is opened from its own detail. */
+  readonly submissionId = input<string | null>(null);
   readonly submitted = output<void>();
   readonly dismissed = output<void>();
 
@@ -93,6 +95,10 @@ export class AppealSubmitModalComponent extends LocalizedComponent implements On
                 : [];
             }),
           );
+          const preselected = this.submissionId();
+          if (preselected && this.options().some((option) => option.id === preselected)) {
+            this.selectedId.set(preselected);
+          }
           this.loading.set(false);
         },
         error: () => {

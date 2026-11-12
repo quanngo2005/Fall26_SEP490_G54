@@ -202,6 +202,20 @@ public sealed class AdminAccountServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LockedFilterLeavesOutTerminatedEmployeesBecauseTheyAreDisplayedAsTerminated()
+    {
+        var service = await SeedAsync();
+        AddAccount("E005", "Eve Left", "eve", _otherDept, _staff, locked: true, status: EmployeeStatus.Terminated);
+        await _db.SaveChangesAsync();
+
+        var locked = await service.GetAccountsAsync(new UserAccountFilterDto(Status: "LOCKED"));
+        var terminated = await service.GetAccountsAsync(new UserAccountFilterDto(Status: "EMPLOYEE_TERMINATED"));
+
+        Assert.Equal(["E002"], locked.Items.Select(i => i.EmployeeCode));
+        Assert.Contains("E005", terminated.Items.Select(i => i.EmployeeCode));
+    }
+
+    [Fact]
     public async Task PagingIsClampedAndSkipsEarlierPages()
     {
         var service = await SeedAsync();

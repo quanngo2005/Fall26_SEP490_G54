@@ -51,6 +51,10 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
 
     public Guid GroupId { get; private set; }
 
+    public Guid WorkTypeId { get; private set; }
+
+    public Guid InactiveEmployeeId { get; private set; }
+
     public Guid PeriodId { get; private set; }
 
     public string Suffix { get; } = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
@@ -230,6 +234,55 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
         await action(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
+    /// <summary>The employee id of one of the seeded accounts (admin, admin2, bm, outsider, mgr, emp1, emp2, emp3).</summary>
+    public Guid EmployeeIdOf(string who) => _accounts[who].EmployeeId;
+
+    /// <summary>Stores a work assigned to <paramref name="assignee"/>, created by the manager account.</summary>
+    public async Task<Guid> NewWorkAsync(string assignee, WorkStatus status = WorkStatus.New, DateOnly? plannedEnd = null, Guid? workType = null)
+    {
+        var id = Guid.NewGuid();
+        await WithDbAsync(async db =>
+        {
+            db.Works.Add(new Work
+            {
+                Id = id,
+                WorkTypeId = workType ?? WorkTypeId,
+                AssigneeEmployeeId = _accounts[assignee].EmployeeId,
+                CreatedBy = _accounts["mgr"].EmployeeId,
+                Code = $"W-{Guid.NewGuid():N}"[..14].ToUpperInvariant(),
+                Title = "Liên hệ khách hàng tiềm năng",
+                Priority = WorkPriority.Medium,
+                Status = status,
+                PlannedStartDate = new DateOnly(2031, 1, 1),
+                PlannedEndDate = plannedEnd ?? new DateOnly(2031, 12, 31),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        });
+        return id;
+    }
+
+    public async Task<Guid> NewPendingHandoverAsync(Guid workId, string from, string to)
+    {
+        var id = Guid.NewGuid();
+        await WithDbAsync(async db =>
+        {
+            db.TaskHandovers.Add(new TaskHandover
+            {
+                Id = id,
+                WorkId = workId,
+                FromEmployeeId = _accounts[from].EmployeeId,
+                ToEmployeeId = _accounts[to].EmployeeId,
+                Reason = "Khách hàng ở khu vực nhóm 2",
+                Status = HandoverStatus.Pending,
+                HandoverAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        });
+        return id;
+    }
+
     public async Task<Guid> NewKpiAsync(KpiStatus status = KpiStatus.Active)
     {
         var id = Guid.NewGuid();
@@ -321,6 +374,7 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
             _accounts[who] = account;
         }
 
+        await SeedWorkWorldAsync(db, deptA.Id, job.Id, now);
         var member = Person($"UMEM-{Suffix}", deptA.Id, job.Id, now);
         var inactive = Person($"UINA-{Suffix}", deptA.Id, job.Id, now);
         inactive.Employee.Status = EmployeeStatus.Terminated;
@@ -329,6 +383,69 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
         await db.SaveChangesAsync();
         (BranchId, DeptAId, DeptBId, GroupId, PeriodId) = (branch.Id, deptA.Id, deptB.Id, group.Id, period.Id);
         (MemberId, InactiveMemberId, OtherBranchMemberId) = (member.EmployeeId, inactive.EmployeeId, foreign.EmployeeId);
+    }
+
+    /// <summary>
+    /// Work and handover world: manager mgr (direct manager of emp1) and employees emp1 (assignee), emp2, emp3 in one department,
+    /// each with a role that carries the permissions the migrations define for it.
+    /// </summary>
+    private async Task SeedWorkWorldAsync(AppDbContext db, Guid departmentId, Guid jobId, DateTimeOffset now)
+    {
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = $"WT-{Suffix}", Name = "Chăm sóc khách hàng", Status = RecordStatus.Active, UpdatedAt = now };
+        db.WorkTypes.Add(workType);
+        WorkTypeId = workType.Id;
+        db.JobPositionWorkTypes.Add(new JobPositionWorkType { Id = Guid.NewGuid(), JobPositionId = jobId, WorkTypeId = workType.Id, UpdatedAt = now });
+
+        var employeeRole = new Role { Id = Guid.NewGuid(), Code = $"WH_EMP_{Suffix}", Name = "WH employee", Status = RecordStatus.Active, UpdatedAt = now };
+        var managerRole = new Role { Id = Guid.NewGuid(), Code = $"WH_MGR_{Suffix}", Name = "WH manager", Status = RecordStatus.Active, UpdatedAt = now };
+        db.Roles.AddRange(employeeRole, managerRole);
+        foreach (var (role, resource, action, scope) in new[]
+        {
+            (employeeRole, "work", "read", "Own"), (employeeRole, "work", "update", "Own"),
+            (employeeRole, "handover", "create", "Own"), (employeeRole, "handover", "respond", "Own"),
+            (managerRole, "work", "create", "Department"), (managerRole, "work", "read", "Department"), (managerRole, "work", "update", "Department"),
+            (managerRole, "handover", "create", "Own"), (managerRole, "handover", "set_share", "Own"),
+            (managerRole, "handover", "respond", "Own"), (managerRole, "handover", "manage", "Own"),
+        })
+        {
+            var permission = await db.Permissions.FirstOrDefaultAsync(p => p.Resource == resource && p.Action == action);
+            if (permission is null)
+            {
+                permission = new PermissionRecord
+                {
+                    Id = Guid.NewGuid(),
+                    Code = $"{resource}_{action}".ToUpperInvariant().Replace('-', '_'),
+                    Name = $"{resource}:{action}",
+                    Resource = resource,
+                    Action = action,
+                };
+                db.Permissions.Add(permission);
+                await db.SaveChangesAsync();
+            }
+
+            db.RolePermissions.Add(new RolePermissionAssignment { Id = Guid.NewGuid(), RoleId = role.Id, PermissionId = permission.Id, Scope = scope });
+        }
+
+        await db.SaveChangesAsync();
+        var manager = Person($"UMGR-{Suffix}", departmentId, jobId, now);
+        db.Accounts.Add(manager);
+        _accounts["mgr"] = manager;
+        db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), AccountId = manager.Id, RoleId = managerRole.Id, UpdatedAt = now });
+        await db.SaveChangesAsync();
+        foreach (var who in new[] { "emp1", "emp2", "emp3" })
+        {
+            var account = Person($"U{who.ToUpperInvariant()}-{Suffix}", departmentId, jobId, now);
+            account.Employee.ManagerId = who == "emp1" ? manager.EmployeeId : null;
+            db.Accounts.Add(account);
+            _accounts[who] = account;
+            db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), AccountId = account.Id, RoleId = employeeRole.Id, UpdatedAt = now });
+        }
+
+        var inactive = Person($"UWHINA-{Suffix}", departmentId, jobId, now);
+        inactive.Employee.Status = EmployeeStatus.Terminated;
+        db.Accounts.Add(inactive);
+        InactiveEmployeeId = inactive.EmployeeId;
+        await db.SaveChangesAsync();
     }
 
     private static async Task<Role> RoleAsync(AppDbContext db, string code, DateTimeOffset now)

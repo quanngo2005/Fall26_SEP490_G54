@@ -250,7 +250,7 @@ public sealed partial class PerformanceDashboardService
     }
 
     private static LedgerEntryDto ToRiskEntry(RiskEvent risk) => new(
-        risk.Id, TypeRiskPenalty, risk.OccurredAt, -EvaluationService.MapRiskPenalty(risk.Severity),
+        risk.Id, TypeRiskPenalty, risk.OccurredAt, -EvaluationService.RiskPenalty(risk),
         null, null, null, null, null, null, risk.Description);
 
     private static LedgerEntryDto ToScoreEntry(ScoreEntry score) => new(

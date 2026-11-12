@@ -547,7 +547,8 @@ public sealed partial class DepartmentService(
             case KpiAggregationType.Sum:
                 return Round(rows.Sum(r => r.Value));
             case KpiAggregationType.Avg:
-                return Round(rows.Sum(r => r.Value) / rows.Sum(r => r.Denominator ?? 1m));
+                var entryCount = rows.Sum(r => r.Denominator ?? 1m);
+                return entryCount == 0m ? null : Round(rows.Sum(r => r.Value) / entryCount);
             case KpiAggregationType.Ratio:
                 var denominator = rows.Sum(r => r.Denominator ?? 0m);
                 if (denominator == 0m)
@@ -577,7 +578,8 @@ public sealed partial class DepartmentService(
                 value = actual.Value / target * 100m;
                 break;
             case KpiDirection.LowerBetter:
-                value = actual.Value == 0m ? maxPercent ?? 100m : target / actual.Value * 100m;
+                var ceiling = maxPercent ?? 100m;
+                value = actual.Value <= target ? ceiling : target / actual.Value * 100m;
                 break;
             default:
                 value = 100m - Math.Abs(actual.Value - target) / Math.Abs(target) * 100m;

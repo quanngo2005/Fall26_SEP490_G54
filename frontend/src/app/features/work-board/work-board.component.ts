@@ -343,8 +343,15 @@ export class WorkBoardComponent extends LocalizedComponent {
             );
           }
           this.profileLoading.set(false);
-          const employeeCode = this.route.snapshot.queryParamMap.get('employeeCode');
-          if (manager && employeeCode) {
+          const query = this.route.snapshot.queryParamMap;
+          const employeeCode = query.get('employeeCode');
+          const linkedKeyword = query.get('keyword');
+          const linkedWorkId = query.get('workId');
+          if (linkedKeyword || linkedWorkId) {
+            this.keyword = linkedKeyword ?? '';
+            this.selectedId.set(linkedWorkId);
+            this.chooseScope('mine');
+          } else if (manager && employeeCode) {
             this.openTeamOfEmployee(employeeCode);
           } else {
             this.chooseScope(manager ? 'team' : 'mine');

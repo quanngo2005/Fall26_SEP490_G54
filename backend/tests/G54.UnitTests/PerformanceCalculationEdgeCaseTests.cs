@@ -150,6 +150,21 @@ public sealed class PerformanceCalculationEdgeCaseTests
         Assert.Equal(Parse(expected), Assert.Single(Assert.Single(dto.Groups).Kpis).ActualValue);
     }
 
+    [Fact]
+    public async Task Calculate_AnAverageWhoseEntryCountIsZero_HasNoActualInsteadOfThrowing()
+    {
+        using var rig = await Rig.CreateAsync([100m]);
+        var kpi = rig.AddKpi(0, "AVG", aggregation: KpiAggregationType.Avg);
+        rig.AddTarget(kpi, 1m);
+        rig.AddProgress(kpi, 5m, Day10).Denominator = 0m;
+        await rig.SaveAsync();
+
+        var dto = await rig.Service().CalculateAsync(rig.ManagerAccount.Id, rig.Evaluation.Id);
+
+        // Before the fix this threw DivideByZeroException; a KPI without an actual value is simply not listed.
+        Assert.All(dto.Groups, group => Assert.Empty(group.Kpis));
+    }
+
     // ----- Groups and total -----------------------------------------------------------------
 
     [Fact]

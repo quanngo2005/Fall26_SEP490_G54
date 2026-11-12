@@ -51,7 +51,15 @@ public sealed class TransactionImportsController(
         await using var stream = file.OpenReadStream();
         var result = await service.ImportAsync(file.FileName, stream, User.GetRequiredUserId(), cancellationToken);
         result = result with { Reconcile = await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken) };
-        return Created($"/transaction-imports/{result.Id}", ApiResponse.Ok(result, SuccessMessages.Created, HttpContext.TraceIdentifier));
+        // ApiResponse.Ok fixes the envelope status at 200; keep it in step with the 201 HTTP status.
+        return Created($"/transaction-imports/{result.Id}", new ApiResponse<ImportBatchDto>
+        {
+            Success = true,
+            Status = StatusCodes.Status201Created,
+            Data = result,
+            Message = SuccessMessages.Created,
+            TraceId = HttpContext.TraceIdentifier,
+        });
     }
 
     [HttpGet]

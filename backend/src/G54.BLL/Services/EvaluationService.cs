@@ -124,8 +124,8 @@ public sealed partial class EvaluationService(
                     kpi.Name,
                     kpi.Unit,
                     Math.Round(kpi.SharePercent, 2),
-                    kpi.TargetValue,
-                    kpi.ActualValue,
+                    kpi.TargetValue is > 0m ? kpi.TargetValue : null,
+                    kpi.ResolvedActualValue ?? kpi.ActualValue,
                     kpi.AchievementPercentCapped,
                     kpi.ComponentScore))
                 .ToList();
@@ -314,7 +314,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc cập nhật đánh giá.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc cập nhật đánh giá.", 409);
         }
 
         var profile = await FindProfileAsync(employee.JobPositionId, period, cancellationToken)
@@ -863,7 +863,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc điều chỉnh hiệu chuẩn.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể lưu hoặc điều chỉnh hiệu chuẩn.", 409);
         }
 
         var department = await db.Departments
@@ -1231,7 +1231,8 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, "finalize", reviewer, departmentId, cancellationToken);
 
         EnsureNoMarkerSyntax(request.Reason, "Reason");
 
@@ -1244,7 +1245,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể yêu cầu hiệu chuẩn lại.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể yêu cầu hiệu chuẩn lại.", 409);
         }
 
         var department = await db.Departments
@@ -1271,9 +1272,14 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var reasonTrimmed = request.Reason.Trim();
 
-        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending()))
+        // Only the evaluations under review go back to CALCULATED; an approved or final one is not reopened by a recalibration request.
+        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending() && e.Status is not (PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final)))
         {
-            pe.Status = PerformanceEvaluationStatus.Calculated;
+            if (pe.Status == PerformanceEvaluationStatus.InReview)
+            {
+                pe.Status = PerformanceEvaluationStatus.Calculated;
+            }
+
             pe.Comment = SetStoredMarker(pe.Comment, RecalibrationReasonMarkerRegex(), "RECALIBRATION_REASON", reasonTrimmed);
             pe.UpdatedAt = now;
         }
@@ -1308,7 +1314,7 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã khóa hoặc đóng, không thể phê duyệt kết quả xếp hạng.");
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể phê duyệt kết quả xếp hạng.", 409);
         }
 
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
@@ -2162,6 +2168,9 @@ public sealed partial class EvaluationService(
     [GeneratedRegex(@"<!--\s*APPROVAL_COMMENTS:\s*(.*?)\s*-->", RegexOptions.Singleline)]
     private static partial Regex ApprovalCommentsMarkerRegex();
 
+    [GeneratedRegex(@"<!--\s*ACKNOWLEDGED_AT:\s*(.*?)\s*-->", RegexOptions.Singleline)]
+    private static partial Regex AcknowledgedAtMarkerRegex();
+
     internal sealed record InternalCalibrationData(
         string CalibratedTier,
         string? Reason,
@@ -2174,7 +2183,10 @@ public sealed partial class EvaluationService(
         InternalCalibrationData? CalibrationData,
         string? RecalibrationReason,
         string? ApprovalComments,
-        decimal? GeneralQualitativeScore = null);
+        decimal? GeneralQualitativeScore = null)
+    {
+        public DateTimeOffset? AcknowledgedAt { get; init; }
+    }
 
     private static readonly Action<ILogger, Guid, Exception?> LogQualitativeEntryIgnored =
         LoggerMessage.Define<Guid>(
@@ -2375,6 +2387,18 @@ public sealed partial class EvaluationService(
             working = working.Replace(generalMatch.Value, "");
         }
 
+        DateTimeOffset? acknowledgedAt = null;
+        var ackMatch = AcknowledgedAtMarkerRegex().Match(working);
+        if (ackMatch.Success)
+        {
+            if (DateTimeOffset.TryParse(ackMatch.Groups[1].Value.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedAck))
+            {
+                acknowledgedAt = parsedAck;
+            }
+
+            working = working.Replace(ackMatch.Value, "");
+        }
+
         var clean = working.Trim();
         return new StoredComment(
             string.IsNullOrEmpty(clean) ? null : clean,
@@ -2383,6 +2407,379 @@ public sealed partial class EvaluationService(
             calibData,
             recalibrationReason,
             approvalComments,
-            generalQualitativeScore);
+            generalQualitativeScore)
+        {
+            AcknowledgedAt = acknowledgedAt
+        };
     }
+
+    public async Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
+        Guid? periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var userEmployee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var employee = await db.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .Include(e => e.JobPosition)
+            .FirstOrDefaultAsync(e => e.Id == userEmployee.Id, cancellationToken)
+            ?? throw new NotFoundException("Nhân viên", userEmployee.Id);
+
+        EvaluationPeriod? period = null;
+        if (periodId.HasValue)
+        {
+            period = await db.EvaluationPeriods
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == periodId.Value, cancellationToken)
+                ?? throw new NotFoundException("Kỳ đánh giá", periodId.Value);
+        }
+        else
+        {
+            var latestEvalPeriodId = await db.PerformanceEvaluations
+                .AsNoTracking()
+                .Where(pe => pe.EmployeeId == employee.Id)
+                .OrderByDescending(pe => pe.EvaluationPeriod.StartDate)
+                .Select(pe => (Guid?)pe.EvaluationPeriodId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latestEvalPeriodId.HasValue)
+            {
+                period = await db.EvaluationPeriods
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == latestEvalPeriodId.Value, cancellationToken);
+            }
+
+            period ??= await db.EvaluationPeriods
+                .AsNoTracking()
+                .Where(p => p.PeriodType != PeriodType.Day)
+                .OrderByDescending(p => p.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (period is null)
+            {
+                throw new NotFoundException("Kỳ đánh giá", Guid.Empty);
+            }
+        }
+
+        var profile = await FindProfileAsync(employee.JobPositionId, period, cancellationToken);
+
+        var existingEvaluation = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(pe => pe.EmployeeId == employee.Id && pe.EvaluationPeriodId == period.Id, cancellationToken);
+
+        var stored = ParseStoredComment(existingEvaluation?.Comment, logger);
+
+        PerformanceScoreResult? scored = null;
+        if (profile is not null)
+        {
+            var subjects = new[]
+            {
+                new PerformanceScoreSubject(employee.Id, employee.DepartmentId, profile, stored.QualitativeScores)
+            };
+            var scoredMap = await calculator.CalculateAsync(subjects, period, cancellationToken);
+            scoredMap.TryGetValue(employee.Id, out scored);
+        }
+
+        var keepsStoredScore = existingEvaluation is not null
+            && existingEvaluation.Status is not (PerformanceEvaluationStatus.Draft or PerformanceEvaluationStatus.Calculated);
+        var totalPeScore = keepsStoredScore ? existingEvaluation!.TotalScore : scored?.TotalScore;
+
+        var downgradeConfig = await LoadDowngradeConfigurationAsync(cancellationToken);
+        var proposedTier = totalPeScore.HasValue && scored is not null
+            ? TierDeterminer.DetermineTier(totalPeScore.Value, scored.RiskEvents, downgradeConfig)
+            : null;
+
+        var tier = stored.CalibrationData?.CalibratedTier ?? proposedTier;
+        var allTiers = downgradeConfig.Tiers.Select(t => t.TierCode).ToList();
+
+        // Anonymous Peer Ranking (BR-36, NFR-07)
+        var peerEmployees = await db.Employees
+            .AsNoTracking()
+            .Where(e => e.DepartmentId == employee.DepartmentId
+                && e.JobPositionId == employee.JobPositionId
+                && e.Status == EmployeeStatus.Active)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken);
+
+        var peerEvaluations = await db.PerformanceEvaluations
+            .AsNoTracking()
+            .Where(pe => pe.EvaluationPeriodId == period.Id && peerEmployees.Contains(pe.EmployeeId))
+            .Select(pe => new { pe.EmployeeId, pe.TotalScore })
+            .ToListAsync(cancellationToken);
+
+        var peerScoreMap = new Dictionary<Guid, decimal>(peerEmployees.Count);
+        foreach (var pe in peerEvaluations)
+        {
+            peerScoreMap[pe.EmployeeId] = pe.TotalScore ?? 0m;
+        }
+        if (totalPeScore.HasValue)
+        {
+            peerScoreMap[employee.Id] = totalPeScore.Value;
+        }
+
+        var totalPeers = Math.Max(1, peerEmployees.Count);
+        var myScore = peerScoreMap.TryGetValue(employee.Id, out var resolvedScore) ? resolvedScore : 0m;
+        var higherScoreCount = peerEmployees
+            .Where(empId => empId != employee.Id)
+            .Count(empId => (peerScoreMap.TryGetValue(empId, out var peerScore) ? peerScore : 0m) > myScore);
+        var rank = higherScoreCount + 1;
+        var percentile = (int)Math.Max(1, Math.Ceiling((decimal)rank / totalPeers * 100m));
+
+        var rankingPercentile = $"Top {percentile}%";
+        var rankingRoleTitle = employee.JobPosition?.Title ?? "Nhân viên";
+
+        // Previous period comparison
+        var previousPeriod = await db.EvaluationPeriods
+            .AsNoTracking()
+            .Where(p => p.PeriodType == period.PeriodType && p.StartDate < period.StartDate)
+            .OrderByDescending(p => p.StartDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        decimal? previousPeriodScore = null;
+        string? previousPeriodName = null;
+        decimal? scoreDelta = null;
+
+        if (previousPeriod is not null)
+        {
+            var prevPe = await db.PerformanceEvaluations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(pe => pe.EmployeeId == employee.Id && pe.EvaluationPeriodId == previousPeriod.Id, cancellationToken);
+            if (prevPe?.TotalScore.HasValue == true)
+            {
+                previousPeriodScore = prevPe.TotalScore.Value;
+                previousPeriodName = previousPeriod.Name;
+                if (totalPeScore.HasValue)
+                {
+                    scoreDelta = Math.Round(totalPeScore.Value - previousPeriodScore.Value, 1);
+                }
+            }
+        }
+
+        // Criteria mapping
+        var criteria = new List<PersonalEvaluationCriteriaItemDto>();
+        if (scored is not null)
+        {
+            foreach (var group in scored.Groups)
+            {
+                if (group.Kpis.Count == 0)
+                {
+                    criteria.Add(new PersonalEvaluationCriteriaItemDto(
+                        group.EvaluationProfileItemId,
+                        group.Name,
+                        group.WeightPercent,
+                        "—",
+                        group.QualitativeScore ?? group.Score,
+                        group.Score.HasValue ? Math.Round(group.Score.Value * group.WeightPercent / 100m, 1) : null,
+                        HasDrilldown: false,
+                        KpiDefinitionId: null,
+                        TargetDisplay: "—",
+                        ActualDisplay: "—"));
+                }
+                else
+                {
+                    foreach (var kpi in group.Kpis)
+                    {
+                        var effectiveWeight = group.Kpis.Count == 1
+                            ? group.WeightPercent
+                            : Math.Round(group.WeightPercent * kpi.SharePercent / 100m, 1);
+
+                        var displayedTarget = kpi.TargetValue is > 0m ? kpi.TargetValue : null;
+                        var displayedActual = kpi.ResolvedActualValue ?? kpi.ActualValue;
+                        var targetDisplay = displayedTarget.HasValue
+                            ? FormatMetricDisplay(displayedTarget.Value, kpi.Unit)
+                            : "—";
+                        var actualDisplay = displayedActual.HasValue
+                            ? FormatMetricDisplay(displayedActual.Value, kpi.Unit)
+                            : "—";
+                        var actualTargetStr = displayedTarget.HasValue || displayedActual.HasValue
+                            ? $"{(displayedActual.HasValue ? FormatMetricValue(displayedActual.Value) : "—")} / {(displayedTarget.HasValue ? FormatMetricValue(displayedTarget.Value) : "—")} {kpi.Unit}".Trim()
+                            : "—";
+
+                        var kpiScore = kpi.ComponentScore;
+                        var weightedScore = kpiScore.HasValue
+                            ? Math.Round(kpiScore.Value * effectiveWeight / 100m, 1)
+                            : (decimal?)null;
+
+                        criteria.Add(new PersonalEvaluationCriteriaItemDto(
+                            kpi.KpiDefinitionId,
+                            kpi.Name,
+                            effectiveWeight,
+                            actualTargetStr,
+                            kpiScore,
+                            weightedScore,
+                            HasDrilldown: kpi.ActualValue.HasValue,
+                            KpiDefinitionId: kpi.KpiDefinitionId,
+                            TargetDisplay: targetDisplay,
+                            ActualDisplay: actualDisplay));
+                    }
+                }
+            }
+        }
+
+        // Appeal deadline & status
+        var now = DateTimeOffset.UtcNow;
+        var deadlineDate = period.EndDate.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
+        var remainingDays = Math.Max(0, (int)Math.Ceiling((deadlineDate - now.UtcDateTime).TotalDays));
+        var evalStatus = (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToString().ToUpperInvariant();
+        var canAppeal = remainingDays > 0 && existingEvaluation?.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final;
+        var appealDeadlineText = remainingDays > 0
+            ? $"23:59 {period.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
+            : "—";
+
+        var isAcknowledged = stored.AcknowledgedAt.HasValue;
+        var managerFeedback = stored.Comment;
+        var riskPenalty = scored?.RiskPenalty ?? 0m;
+
+        return new PersonalEvaluationViewDto(
+            PeriodId: period.Id,
+            PeriodName: period.Name,
+            PeriodCode: period.Code,
+            Status: evalStatus,
+            AppealDeadlineText: appealDeadlineText,
+            AppealRemainingDays: remainingDays,
+            CanAppeal: canAppeal,
+            TotalPeScore: totalPeScore,
+            ScoreDelta: scoreDelta,
+            PreviousPeriodName: previousPeriodName,
+            PreviousPeriodScore: previousPeriodScore,
+            Tier: tier,
+            AllTiers: allTiers,
+            RankingPercentile: rankingPercentile,
+            RankingPosition: rank,
+            RankingTotalEmployees: totalPeers,
+            RankingRoleTitle: rankingRoleTitle,
+            Criteria: criteria,
+            QualityRatio: null,
+            RiskPenalty: riskPenalty,
+            ManagerFeedback: managerFeedback,
+            IsAcknowledged: isAcknowledged,
+            AcknowledgedAt: stored.AcknowledgedAt);
+    }
+
+    public async Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
+        AcknowledgePersonalEvaluationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var employee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var pe = await db.PerformanceEvaluations
+            .FirstOrDefaultAsync(p => p.EmployeeId == employee.Id && p.EvaluationPeriodId == request.PeriodId, cancellationToken)
+            ?? throw new NotFoundException("Kết quả đánh giá trong kỳ này", request.PeriodId);
+
+        var stored = ParseStoredComment(pe.Comment, logger);
+        if (stored.AcknowledgedAt.HasValue)
+        {
+            return new AcknowledgePersonalEvaluationResultDto(
+                Success: true,
+                AcknowledgedAt: stored.AcknowledgedAt.Value,
+                Message: "Bạn đã ghi nhận kết quả đánh giá này rồi.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        pe.Comment = SetStoredMarker(pe.Comment, AcknowledgedAtMarkerRegex(), "ACKNOWLEDGED_AT", now.ToString("O"));
+        pe.UpdatedAt = now;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new AcknowledgePersonalEvaluationResultDto(
+            Success: true,
+            AcknowledgedAt: now,
+            Message: "Ghi nhận kết quả đánh giá thành công.");
+    }
+
+    public async Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(
+        Guid periodId,
+        Guid criteriaId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var employee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var period = await db.EvaluationPeriods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", periodId);
+
+        var actualProgresses = await db.ActualProgresses
+            .AsNoTracking()
+            .Where(a => a.TargetAssignment.EmployeeId == employee.Id
+                && (a.TargetAssignment.KpiDefinitionId == criteriaId || a.TargetAssignmentId == criteriaId)
+                && a.Status == ActualProgressStatus.Valid
+                && a.ProgressDate >= period.StartDate
+                && a.ProgressDate <= period.EndDate)
+            .OrderByDescending(a => a.ProgressDate)
+            .ThenBy(a => a.Id)
+            .Include(a => a.WorkResultItems)
+                .ThenInclude(wri => wri.VerifiedWorkResult)
+                    .ThenInclude(vwr => vwr!.WorkTransaction)
+                        .ThenInclude(wt => wt!.ImportedTransaction)
+            .Include(a => a.WorkResultItems)
+                .ThenInclude(wri => wri.VerifiedWorkResult)
+                    .ThenInclude(vwr => vwr!.WorkTransaction)
+                        .ThenInclude(wt => wt!.Work)
+            .Include(a => a.WorkResultItems)
+                .ThenInclude(wri => wri.VerifiedWorkResult)
+                    .ThenInclude(vwr => vwr!.Verification)
+                        .ThenInclude(v => v!.ResultSubmission)
+                            .ThenInclude(rs => rs.Work)
+            .ToListAsync(cancellationToken);
+
+        var items = new List<PersonalCriteriaLedgerItemDto>();
+
+        foreach (var ap in actualProgresses)
+        {
+            if (ap.WorkResultItems.Count > 0)
+            {
+                foreach (var wri in ap.WorkResultItems)
+                {
+                    var wt = wri.VerifiedWorkResult?.WorkTransaction;
+                    var it = wt?.ImportedTransaction;
+                    var work = wt?.Work ?? wri.VerifiedWorkResult?.Verification?.ResultSubmission.Work;
+
+                    var txCode = wt?.TransactionCode
+                        ?? $"VR-{wri.VerifiedWorkResultId.ToString()[..8].ToUpperInvariant()}";
+
+                    var occurredOn = it?.TransactionDate
+                        ?? (wri.VerifiedWorkResult is { } vwr ? DateOnly.FromDateTime(vwr.VerifiedAt.UtcDateTime) : ap.ProgressDate);
+
+                    var amount = it is not null
+                        ? $"{it.Amount.ToString("N0", CultureInfo.InvariantCulture)} VND"
+                        : wri.Value.ToString("N0", CultureInfo.InvariantCulture);
+
+                    items.Add(new PersonalCriteriaLedgerItemDto(
+                        Id: wri.Id,
+                        TxCode: txCode,
+                        Date: occurredOn.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                        Amount: amount,
+                        KpiContribution: wri.Value,
+                        Status: wt?.Status ?? "VALID",
+                        OccurredOn: occurredOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        WorkId: work?.Id,
+                        WorkCode: work?.Code,
+                        WorkTitle: work?.Title));
+                }
+            }
+            else
+            {
+                items.Add(new PersonalCriteriaLedgerItemDto(
+                    Id: ap.Id,
+                    TxCode: $"AP-{ap.Id.ToString()[..8].ToUpperInvariant()}",
+                    Date: ap.ProgressDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+                    Amount: ap.Value.ToString("N0", CultureInfo.InvariantCulture),
+                    KpiContribution: ap.Value,
+                    Status: "VALID",
+                    OccurredOn: ap.ProgressDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+            }
+        }
+
+        return items;
+    }
+
+    private static string FormatMetricValue(decimal value) =>
+        Math.Round(value, 2, MidpointRounding.ToEven).ToString("#,##0.##", CultureInfo.InvariantCulture);
+
+    private static string FormatMetricDisplay(decimal value, string? unit) =>
+        string.IsNullOrWhiteSpace(unit)
+            ? FormatMetricValue(value)
+            : $"{FormatMetricValue(value)} {unit.Trim()}";
 }
