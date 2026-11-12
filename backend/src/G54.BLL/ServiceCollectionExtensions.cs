@@ -70,6 +70,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<IEvaluationService, EvaluationService>();
+        services.AddScoped<IRankingRecordService, RankingRecordService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();

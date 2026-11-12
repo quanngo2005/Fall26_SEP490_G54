@@ -2053,50 +2053,14 @@ public sealed partial class EvaluationService(
         _ => 0m,
     };
 
-    /// <summary>Reads the tier thresholds (best first) and the downgrade setting. Missing configuration is an error, never a guess.</summary>
-    private async Task<DowngradeConfiguration> LoadDowngradeConfigurationAsync(CancellationToken cancellationToken)
-    {
-        var tiers = await db.RankingTierThresholds
-            .AsNoTracking()
-            .OrderBy(t => t.RankOrder)
-            .ToListAsync(cancellationToken);
-        var downgrade = await db.Downgrades
-            .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken);
+    private Task<DowngradeConfiguration> LoadDowngradeConfigurationAsync(CancellationToken cancellationToken) =>
+        RankingInputs.LoadDowngradeConfigurationAsync(db, cancellationToken);
 
-        if (tiers.Count == 0 || downgrade is null)
-        {
-            throw new InvalidOperationException(
-                "Chưa cấu hình xếp loại (ranking_tier_threshold, downgrade). Hãy chạy DbMigrator.");
-        }
-
-        return new DowngradeConfiguration(tiers, downgrade.TriggerSeverity, downgrade.CapTierCode);
-    }
-
-    /// <summary>Risk events of the given employees that happened inside the period and were not dismissed, grouped by employee.</summary>
-    private async Task<Dictionary<Guid, List<RiskEvent>>> LoadRiskEventsByEmployeeAsync(
+    private Task<Dictionary<Guid, List<RiskEvent>>> LoadRiskEventsByEmployeeAsync(
         List<Guid> employeeIds,
         EvaluationPeriod? period,
-        CancellationToken cancellationToken)
-    {
-        if (period is null || employeeIds.Count == 0)
-        {
-            return [];
-        }
-
-        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
-
-        var riskEvents = await db.RiskEvents
-            .AsNoTracking()
-            .Where(re => employeeIds.Contains(re.EmployeeId)
-                && re.OccurredAt >= periodStart
-                && re.OccurredAt <= periodEnd
-                && re.Status != RiskEventStatus.Dismissed)
-            .ToListAsync(cancellationToken);
-
-        return riskEvents.GroupBy(re => re.EmployeeId).ToDictionary(g => g.Key, g => g.ToList());
-    }
+        CancellationToken cancellationToken) =>
+        RankingInputs.LoadRiskEventsByEmployeeAsync(db, employeeIds, period, cancellationToken);
 
     /// <summary>
     /// Content check of the free-text fields of the evaluation form, run before anything is read or saved. Their length is
