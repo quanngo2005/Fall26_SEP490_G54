@@ -202,8 +202,7 @@ public sealed partial class EvaluationService(
             stored.Comment,
             stored.CoachingPlan,
             !string.IsNullOrWhiteSpace(stored.CoachingPlan),
-            stored.GeneralQualitativeScore,
-            stored.AcknowledgedAt);
+            stored.GeneralQualitativeScore);
 
         var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
             .GetValueOrDefault(employeeId);
@@ -226,14 +225,6 @@ public sealed partial class EvaluationService(
             && !hasOpenDispute
             && await IsDepartmentInScopeAsync(currentUserId, "submit", reviewer, employee.DepartmentId, cancellationToken);
 
-        // UC105: Only the evaluated employee can acknowledge their own completed evaluation when no dispute is open and it is not yet acknowledged.
-        var canAcknowledge = existingEvaluation is not null
-            && existingEvaluation.Status != PerformanceEvaluationStatus.Draft
-            && existingEvaluation.TotalScore.HasValue
-            && employee.Id == reviewer.Id
-            && !hasOpenDispute
-            && stored.AcknowledgedAt is null;
-
         return new EvaluationFormDto(
             employeeDto,
             periodDto,
@@ -246,8 +237,7 @@ public sealed partial class EvaluationService(
             pendingSubmissionCount,
             openAppealCount,
             hasOpenDispute,
-            previousPeriod,
-            canAcknowledge);
+            previousPeriod);
     }
 
     /// <summary>
@@ -2185,7 +2175,7 @@ public sealed partial class EvaluationService(
     private static partial Regex ApprovalCommentsMarkerRegex();
 
     [GeneratedRegex(@"<!--\s*ACKNOWLEDGED_AT:\s*(.*?)\s*-->", RegexOptions.Singleline)]
-    internal static partial Regex AcknowledgedAtMarkerRegex();
+    private static partial Regex AcknowledgedAtMarkerRegex();
 
     internal sealed record InternalCalibrationData(
         string CalibratedTier,
