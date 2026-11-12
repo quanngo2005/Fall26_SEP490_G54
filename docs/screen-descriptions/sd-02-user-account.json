@@ -1,0 +1,386 @@
+[
+  {
+    "screen": "SCR-ADM-01 User Account List",
+    "preconditions": [
+      "The System Admin is signed in to BPMS.",
+      "The route is protected by the sign-in guard and the admin guard; other roles cannot open it.",
+      "Employees have been imported so that accounts can be linked to them."
+    ],
+    "process": [
+      {
+        "title": "Access Account Screen",
+        "detail": "The System Admin opens System admin > Accounts from the sidebar."
+      },
+      {
+        "title": "Load Data",
+        "detail": "The system sends requests to GET /user-accounts (page 1, 20 per page), GET /user-accounts/summary, and loads the role and department lists for the filters."
+      },
+      {
+        "title": "Retrieve Account Information",
+        "detail": "The server returns the accounts with username, employee code, full name, department, position, role, status and last login time, plus the count of active accounts, locked accounts and employees without an account."
+      },
+      {
+        "title": "Display Summary Cards",
+        "detail": "The system displays three cards: \"Active\", \"Locked\" and \"Employees without an account\"; clicking Active or Locked filters the list by that status, and \"View\" on the third card opens the create account dialog."
+      },
+      {
+        "title": "Display Account Table",
+        "detail": "The system displays the accounts in a table with the status shown as Active, Locked or Left company, a \"{from}–{to} / {total} accounts\" range, page numbers and a page size of 20, 50 or 100."
+      },
+      {
+        "title": "Search and Filter",
+        "detail": "The System Admin searches by username, employee code or name, or filters by role, department and status; the list reloads from page 1."
+      },
+      {
+        "title": "Select an Action",
+        "detail": "The System Admin clicks \"View\" to open the account details (SCR-ADM-02), \"Edit\" to change the role (SCR-ADM-02-M1), or \"+ Create account\" to open SCR-ADM-01-M1. Accounts of employees who left show only \"View\"."
+      }
+    ],
+    "postconditions": [
+      "The System Admin views the accounts that match the search and filters.",
+      "Selecting View, Edit or Create account opens the corresponding drawer or dialog.",
+      "Accounts cannot be deleted from this screen."
+    ],
+    "errors": [
+      {
+        "title": "No Matching Accounts",
+        "detail": "Display \"No matching accounts.\" in the table."
+      },
+      {
+        "title": "Accounts Could Not Be Loaded",
+        "detail": "Display \"Could not load accounts.\" with a \"Retry\" button."
+      },
+      {
+        "title": "Filters Could Not Be Loaded",
+        "detail": "Display \"Could not load roles or departments for filtering.\""
+      },
+      {
+        "title": "Summary Unavailable",
+        "detail": "The summary cards show \"—\" instead of a number."
+      },
+      {
+        "title": "Unauthorized Access",
+        "detail": "Users who are not signed in are redirected to the sign-in page; non-admin users are blocked by the admin guard."
+      }
+    ],
+    "security": [
+      "Only signed-in System Admins can open the screen (authGuard + adminGuard).",
+      "Account data, counts and statuses are always loaded from the server.",
+      "Accounts of employees who left the company are view-only and cannot be edited."
+    ],
+    "image": "docs/screen-descriptions/img/scr-adm-01.jpg"
+  },
+  {
+    "screen": "SCR-ADM-01-M1 Create Account",
+    "preconditions": [
+      "The System Admin is on the User Account List screen.",
+      "At least one active employee does not have an account yet."
+    ],
+    "process": [
+      {
+        "title": "Open Create Dialog",
+        "detail": "The System Admin clicks \"+ Create account\" (or \"View\" on the Employees without an account card)."
+      },
+      {
+        "title": "Load Eligible Employees",
+        "detail": "The system sends a request to GET /user-accounts/eligible-employees; only active employees without an account are listed."
+      },
+      {
+        "title": "Select Employee",
+        "detail": "The System Admin selects an employee; the system shows the department, position, email and source, and pre-fills the suggested username and the role suggested for the position."
+      },
+      {
+        "title": "Enter Account Information",
+        "detail": "The System Admin reviews or changes the username and role. \"Force password change at first sign-in (required)\" is always checked."
+      },
+      {
+        "title": "Submit",
+        "detail": "The System Admin clicks \"Create (Ctrl+S)\"; the system validates the form and sends POST /user-accounts with the employee, username, role and must-change-password flag."
+      },
+      {
+        "title": "Show Temporary Password",
+        "detail": "The system displays \"Account {username} created\" with the temporary password and a \"Copy\" button. The password is shown only once; the system does not send e-mail."
+      },
+      {
+        "title": "Finish",
+        "detail": "The System Admin clicks \"Done\"; the list and summary cards reload."
+      }
+    ],
+    "postconditions": [
+      "A new account linked to the selected employee is created with a temporary password.",
+      "The user must change the password at first sign-in.",
+      "Clicking \"Cancel\" or pressing Esc closes the dialog without saving."
+    ],
+    "errors": [
+      {
+        "title": "Required Fields",
+        "detail": "Display \"This field is required.\" under an empty employee, username or role."
+      },
+      {
+        "title": "Invalid Username",
+        "detail": "Display \"Username uses lowercase letters, digits, dot, underscore or hyphen (3–50 characters).\""
+      },
+      {
+        "title": "Username Already Exists",
+        "detail": "Display \"Username already exists.\" (USERNAME_EXISTS)."
+      },
+      {
+        "title": "Employee Already Has an Account",
+        "detail": "Display \"This employee already has an account.\" (ACCOUNT_EXISTS)."
+      },
+      {
+        "title": "No Eligible Employees",
+        "detail": "Display \"Every employee already has an account.\""
+      },
+      {
+        "title": "Save Failed",
+        "detail": "Display \"Could not save. Please try again.\""
+      }
+    ],
+    "security": [
+      "Only System Admins can create accounts.",
+      "Passwords are generated by the system, never typed by the admin, and the temporary password is displayed only once.",
+      "Uniqueness of username and one-account-per-employee is enforced on the server."
+    ],
+    "image": "docs/screen-descriptions/img/scr-adm-01-m1.jpg"
+  },
+  {
+    "screen": "SCR-ADM-02 User Account Details (hi-fi mockup)",
+    "preconditions": [
+      "The System Admin is on the User Account List screen.",
+      "The selected account exists."
+    ],
+    "process": [
+      {
+        "title": "Open Details",
+        "detail": "The System Admin clicks \"View\" on an account row."
+      },
+      {
+        "title": "Load Account Details",
+        "detail": "The system sends a request to GET /user-accounts/{id} and opens a drawer beside the list."
+      },
+      {
+        "title": "Display Information Tab",
+        "detail": "The system shows the username, status, the linked employee (name, employee code, department) with an \"Open profile\" link, and the account role, last login, creation date and creator, and password last changed date, plus the 3 most recent history entries."
+      },
+      {
+        "title": "Display History Tab",
+        "detail": "The System Admin opens \"History\" to see all events with time, event and actor."
+      },
+      {
+        "title": "Choose an Action",
+        "detail": "The System Admin can click \"Edit\" (SCR-ADM-02-M1), \"Reset password\" (SCR-ADM-02-M2) or \"Lock account\" (SCR-ADM-02-M3), or open the employee profile."
+      },
+      {
+        "title": "Close Drawer",
+        "detail": "The System Admin clicks × or presses Esc to close the drawer."
+      }
+    ],
+    "postconditions": [
+      "The System Admin views the full account information and history.",
+      "\"Open profile\" navigates to the employee detail page."
+    ],
+    "errors": [
+      {
+        "title": "Details Could Not Be Loaded",
+        "detail": "Display \"Could not load account details.\" with a \"Retry\" button."
+      },
+      {
+        "title": "No History",
+        "detail": "Display \"No change history yet.\""
+      }
+    ],
+    "security": [
+      "Only System Admins can view account details.",
+      "Accounts of employees who left are view-only: Edit and Lock are hidden."
+    ],
+    "image": "docs/screen-descriptions/img/hifi-scr-adm-02.png"
+  },
+  {
+    "screen": "SCR-ADM-02-M1 Edit Account (hi-fi mockup)",
+    "preconditions": [
+      "The System Admin has opened an account whose status is not Left company."
+    ],
+    "process": [
+      {
+        "title": "Open Edit Dialog",
+        "detail": "The System Admin clicks \"Edit\" on the list row or in the details drawer."
+      },
+      {
+        "title": "Display Current Account",
+        "detail": "The system shows the employee and username as read-only and the current role selected."
+      },
+      {
+        "title": "Change Role",
+        "detail": "The System Admin selects a new role; if it differs from the role suggested for the position, the system shows the warning \"Role does not match position\"."
+      },
+      {
+        "title": "Save",
+        "detail": "The System Admin clicks \"Save (Ctrl+S)\"; the system sends PUT /user-accounts/{id} with the new role."
+      },
+      {
+        "title": "Refresh",
+        "detail": "The dialog closes and the details, list and summary cards reload."
+      }
+    ],
+    "postconditions": [
+      "The account role is updated; the menu and KPIs the user sees follow the new role.",
+      "Department and position are not edited here; they only change through employee import."
+    ],
+    "errors": [
+      {
+        "title": "Role Not Selected",
+        "detail": "Display \"This field is required.\""
+      },
+      {
+        "title": "Save Failed",
+        "detail": "Display \"Could not save. Please try again.\""
+      }
+    ],
+    "security": [
+      "Only System Admins can change roles.",
+      "Accounts of employees who left cannot be edited."
+    ],
+    "image": "docs/screen-descriptions/img/hifi-scr-adm-02-m1.png"
+  },
+  {
+    "screen": "SCR-ADM-02-M2 Reset Password (hi-fi mockup)",
+    "preconditions": [
+      "The System Admin is signed in and has opened an account in the details drawer (SCR-ADM-02).",
+      "The account belongs to an employee who has not left the company."
+    ],
+    "process": [
+      {
+        "title": "Request Reset",
+        "detail": "The System Admin clicks \"Reset password\" in the drawer footer or in the row ⋯ menu."
+      },
+      {
+        "title": "Display Confirmation",
+        "detail": "The system opens the dialog at step 1 \"Confirm\" and explains the effect: the current password stops working immediately, all open sessions are signed out, and the user must change the password at the next sign-in."
+      },
+      {
+        "title": "Enter Reason",
+        "detail": "The System Admin enters a reason (required, up to 500 characters). \"Force password change at next sign-in\" is always checked and cannot be turned off."
+      },
+      {
+        "title": "Submit Reset",
+        "detail": "The System Admin clicks \"Reset password\"; the system sends the request with the reason to the server."
+      },
+      {
+        "title": "Generate Temporary Password",
+        "detail": "The server generates a new temporary password, invalidates the old password and open sessions, sets the must-change-password flag and writes an audit record with the reason."
+      },
+      {
+        "title": "Show Temporary Password",
+        "detail": "The dialog moves to step 2 and shows the temporary password once with a \"Copy\" button and the warning that it cannot be viewed again after closing; the system does not send e-mail."
+      },
+      {
+        "title": "Finish",
+        "detail": "The System Admin clicks \"Done\"; the dialog closes and the drawer history shows the reset event."
+      }
+    ],
+    "postconditions": [
+      "The account has a new temporary password and the old password no longer works.",
+      "The user is signed out everywhere and must change the password at the next sign-in.",
+      "The reset is recorded in the account history and the audit log with the actor and reason.",
+      "Clicking \"Cancel\" or pressing Esc at step 1 closes the dialog without any change."
+    ],
+    "errors": [
+      {
+        "title": "Reason Missing",
+        "detail": "Display \"This field is required.\" under the reason and keep the dialog open."
+      },
+      {
+        "title": "Account Not Eligible",
+        "detail": "If the employee has left the company, the Reset password button is not available."
+      },
+      {
+        "title": "Reset Failed",
+        "detail": "Display \"Could not reset the password. Please try again.\" and keep step 1 so the admin can retry; no password is shown."
+      },
+      {
+        "title": "Unauthorized or Forbidden",
+        "detail": "An expired session redirects to sign-in; a user without admin rights is rejected."
+      }
+    ],
+    "security": [
+      "Only System Admins can reset passwords; the check is enforced on the server.",
+      "The password is generated by the server, never typed by the admin, and returned only once in the response; it is not stored in plain text or written to logs.",
+      "All existing sessions and refresh tokens of the account are revoked on reset.",
+      "Every reset is audited with the actor, time and reason."
+    ],
+    "image": "docs/screen-descriptions/img/hifi-scr-adm-02-m2.png"
+  },
+  {
+    "screen": "SCR-ADM-02-M3 Lock / Unlock Account (hi-fi mockup)",
+    "preconditions": [
+      "The System Admin is signed in and has opened an account in the details drawer (SCR-ADM-02).",
+      "Lock is available for an active account; Unlock is available for a locked account. Accounts of employees who left cannot be locked or unlocked."
+    ],
+    "process": [
+      {
+        "title": "Request Lock",
+        "detail": "For an active account, the System Admin clicks \"Lock account\" in the drawer footer or in the row ⋯ menu."
+      },
+      {
+        "title": "Display Lock Dialog",
+        "detail": "The system shows the effect of locking: the user cannot sign in, open sessions are signed out immediately, and data and history are kept so the account can be unlocked later."
+      },
+      {
+        "title": "Choose Reason",
+        "detail": "The System Admin selects a reason (required): \"Suspected unauthorized access\", \"Long leave\" or \"Other\", and enters a note (required when \"Other\" is selected, up to 500 characters)."
+      },
+      {
+        "title": "Confirm Lock",
+        "detail": "The System Admin clicks \"Lock account\"; the server sets the status to Locked, revokes all sessions and writes an audit record with the reason and note."
+      },
+      {
+        "title": "Request Unlock",
+        "detail": "For a locked account, the System Admin clicks \"Unlock\"; the dialog shows when, by whom and why the account was locked."
+      },
+      {
+        "title": "Confirm Unlock",
+        "detail": "The System Admin enters the unlock reason (required), optionally keeps \"Reset password on unlock\" checked, and clicks \"Unlock\"; the server sets the status to Active and audits the change."
+      },
+      {
+        "title": "Refresh",
+        "detail": "The dialog closes; the status tag in the drawer and list, the Active and Locked summary cards and the history are updated. If a password reset was chosen, the temporary password is shown once as in SCR-ADM-02-M2."
+      }
+    ],
+    "postconditions": [
+      "After locking, the account status is Locked, sign-in is refused and all sessions are ended.",
+      "After unlocking, the account status is Active and the user can sign in again (with a new temporary password if reset was chosen).",
+      "Each lock and unlock is recorded in the account history and the audit log.",
+      "Clicking \"Cancel\" or pressing Esc closes the dialog without any change."
+    ],
+    "errors": [
+      {
+        "title": "Reason Missing",
+        "detail": "Display \"This field is required.\" when no lock reason is selected or the unlock reason is empty."
+      },
+      {
+        "title": "Note Missing for Other",
+        "detail": "Display \"Please enter a note when selecting Other.\""
+      },
+      {
+        "title": "Lock Own Account",
+        "detail": "The System Admin cannot lock the account they are signed in with; display \"You cannot lock your own account.\""
+      },
+      {
+        "title": "Status Changed",
+        "detail": "If another admin changed the status meanwhile, display \"The account status has changed. Please reload.\" and refresh the drawer."
+      },
+      {
+        "title": "Action Failed",
+        "detail": "Display \"Could not update the account status. Please try again.\""
+      }
+    ],
+    "security": [
+      "Only System Admins can lock or unlock accounts; the check is enforced on the server.",
+      "A locked account is rejected at sign-in and its sessions and refresh tokens are revoked immediately.",
+      "An admin cannot lock their own account, so the system is never left without an active administrator.",
+      "Every lock and unlock is audited with the actor, time, reason and note."
+    ],
+    "image": "docs/screen-descriptions/img/hifi-scr-adm-02-m3.png"
+  }
+]

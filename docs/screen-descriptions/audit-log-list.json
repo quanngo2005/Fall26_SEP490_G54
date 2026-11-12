@@ -1,0 +1,38 @@
+[{
+  "screen": "Audit Log List (SCR-ADM-05) and Audit Log Details (SCR-ADM-05-D1)",
+  "preconditions": [
+    "The Admin is logged in to BPMS.",
+    "The Admin's role has the \"audit_log:view\" permission with scope All.",
+    "Audit records exist, written automatically whenever business data is created, updated, deleted or soft-deleted."
+  ],
+  "process": [
+    {"title": "Access Audit Log Screen", "detail": "The Admin opens System administration > Audit log, or follows an \"View audit log\" link from another screen, which pre-fills the entity, entity ID, actor, action and date filters."},
+    {"title": "Load Audit Log List", "detail": "The system sends a request to GET /audit-logs with page 1, page size 20, the current filters and the sort order \"Newest first\"."},
+    {"title": "Retrieve Audit Records", "detail": "The server retrieves matching audit records from the database, including time, actor, action, entity name, entity ID, IP address and changed columns, together with the total record count."},
+    {"title": "Display Audit Log Table", "detail": "The system displays the records in a table with the columns Time, Actor, Action, Entity, Entity ID, IP address and Changed columns, and shows the total number of records and the current page (e.g. \"Page 1/5\"). Changes made by background jobs show \"System\" as the actor."},
+    {"title": "Filter and Sort Records", "detail": "The Admin can search by entity, ID or actor, enter an entity name, choose an action (Create, Update, Delete, Soft delete), choose a From date and To date, and select \"Newest first\" or \"Oldest first\", then click \"Apply\". \"Clear filters\" resets all filters and reloads the list from page 1."},
+    {"title": "Navigate Pages", "detail": "The Admin clicks \"Previous page\" or \"Next page\" to move between pages of 20 records."},
+    {"title": "View Audit Log Details", "detail": "The Admin clicks a row or \"View details\". The system sends a request to GET /audit-logs/{id} and opens the details drawer with three sections: General (time, actor, account ID, entity, entity ID, action), HTTP request (IP address, method, path, browser/client, trace ID) and Data changes (column, old value, new value)."},
+    {"title": "Close Details", "detail": "The Admin clicks the close button or presses Esc to close the drawer and return to the list."}
+  ],
+  "postconditions": [
+    "The Admin views the audit records that match the selected filters, sorted and paged as requested.",
+    "If the Admin opens a record, the system displays its full details, including the old and new values of each changed column.",
+    "No audit record is created, changed or deleted by this screen; it is read-only."
+  ],
+  "errors": [
+    {"title": "No Matching Records", "detail": "Display the message \"No matching audit records.\" in the table."},
+    {"title": "Invalid Date Range", "detail": "When the From date is after the To date, display \"The start date must be on or before the end date.\" and disable the \"Apply\" button."},
+    {"title": "Audit Log Could Not Be Loaded", "detail": "Display \"Could not load the audit log.\" with a \"Retry\" button that reloads the list."},
+    {"title": "Record No Longer Exists", "detail": "When the details request returns 404, display \"This audit record no longer exists.\" in the drawer."},
+    {"title": "Details Could Not Be Loaded", "detail": "Display \"Could not load the audit log details.\" in the drawer."},
+    {"title": "Unauthorized or Forbidden Access", "detail": "If the session has expired (401) the user is redirected to sign in; if the user lacks the \"audit_log:view\" permission (403) the request is rejected."}
+  ],
+  "security": [
+    "Both endpoints require authentication and the \"audit_log:view\" permission with scope All, enforced on the server.",
+    "The audit log is read-only: no API exists to edit or delete audit records.",
+    "Sensitive values such as passwords, tokens and secrets are masked as \"***\" in old and new values.",
+    "Filtering, paging and sorting are performed on the server, and page size is limited so the client cannot request unbounded data."
+  ],
+  "image": "docs/screen-descriptions/audit-log-list.jpg"
+}]

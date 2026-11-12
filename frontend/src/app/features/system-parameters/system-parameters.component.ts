@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { SystemParameterService } from '../../core/system-parameter.service';
@@ -72,6 +72,9 @@ const UNITS: Readonly<Partial<Record<SystemParameterKey, UnitId>>> = {
 export class SystemParametersComponent extends LocalizedComponent {
   private readonly api = inject(SystemParameterService);
 
+  /** CLR entity name AuditSaveChangesInterceptor records for this screen's writes. */
+  readonly auditEntityName = 'SystemParameter';
+
   readonly columns = COLUMNS;
   readonly parameters = signal<SystemParameter[]>([]);
   /** Raw digits typed by the admin, keyed by parameter; absent means unchanged. */
@@ -119,6 +122,15 @@ export class SystemParametersComponent extends LocalizedComponent {
   constructor() {
     super();
     this.load();
+  }
+
+  /** Ctrl+S / Cmd+S opens the confirm dialog, same as the Save button. */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      this.requestSave();
+    }
   }
 
   load(): void {
