@@ -1,3 +1,4 @@
+@let text = localization.work.detail;
 <button
   type="button"
   class="drawer-backdrop"
@@ -37,9 +38,25 @@
     } @else if (failed() || !work()) {
       <div class="drawer-state drawer-error" role="alert">
         <p>{{localization.work.drawer.error}}</p>
+        <button type="button" class="drawer-action" (click)="reload()">{{text.retry}}</button>
       </div>
     } @else {
       @let w = work()!;
+
+      @if (notice(); as message) {
+        <div class="notice-bar" [class.is-error]="message.kind === 'error'" role="status">
+          <span>{{message.text}}</span>
+          <button
+            type="button"
+            class="notice-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="dismissNotice()"
+          >
+            ×
+          </button>
+        </div>
+      }
+
       <h2 class="drawer-title">{{w.title}}</h2>
       <div class="drawer-badges">
         <span class="pill" [attr.data-status]="w.status">{{localization.work.status[w.status]}}</span>
@@ -47,47 +64,245 @@
           {{localization.work.priority[w.priority]}}
         </span>
       </div>
-      <dl class="detail-fields">
-        <div>
-          <dt>{{localization.work.drawer.workType}}</dt>
-          <dd>{{text(w.workTypeName)}}</dd>
+      <p class="meta">
+        <span>{{deadlineText(w)}}</span>
+        @if (timeText(w); as left) {
+          <span [class.is-late]="isLate(w)">{{left}}</span>
+        }
+        <span>{{byLine(w)}}</span>
+      </p>
+
+      @if (canHandover() || canSubmit() || w.canEditPlan) {
+        <div class="drawer-actions">
+          @if (canHandover()) {
+            <button type="button" class="drawer-action" (click)="handoverOpen.set(true)">
+              {{text.actions.handover}}
+            </button>
+          }
+          @if (canSubmit()) {
+            <button
+              type="button"
+              class="drawer-action is-primary"
+              disabled
+              [title]="text.actions.submitSoon"
+              [attr.aria-label]="text.actions.submit + '. ' + text.actions.submitSoon"
+            >
+              {{text.actions.submit}}
+            </button>
+          }
+          @if (w.canEditPlan) {
+            <button type="button" class="drawer-action is-primary" (click)="planOpen.set(true)">
+              {{text.actions.editPlan}}
+            </button>
+          }
         </div>
-        <div>
-          <dt>{{localization.work.drawer.campaign}}</dt>
-          <dd>{{text(w.businessCampaignName)}}</dd>
-        </div>
-        <div>
-          <dt>{{localization.work.drawer.assignee}}</dt>
-          <dd>
-            {{text(w.assigneeEmployeeName)}}
-            @if (w.assigneeEmployeeCode) {
-              <span class="mono muted">({{w.assigneeEmployeeCode}})</span>
-            }
-          </dd>
-        </div>
-        <div>
-          <dt>{{localization.work.drawer.estimatedHours}}</dt>
-          <dd class="mono">
-            {{w.estimatedHours === null ? localization.department.notAvailable : w.estimatedHours}}
-          </dd>
-        </div>
-        <div>
-          <dt>{{localization.work.drawer.plannedStart}}</dt>
-          <dd class="mono">{{day(w.plannedStartDate)}}</dd>
-        </div>
-        <div>
-          <dt>{{localization.work.drawer.plannedEnd}}</dt>
-          <dd class="mono">{{day(w.plannedEndDate)}}</dd>
-        </div>
-        <div>
-          <dt>{{localization.work.drawer.updatedAt}}</dt>
-          <dd class="mono">{{i18n.formatDate(w.updatedAt, 'DD/MM/YYYY HH:mm')}}</dd>
-        </div>
-      </dl>
-      <section class="description">
-        <h3>{{localization.work.drawer.description}}</h3>
-        <p>{{text(w.description)}}</p>
+      }
+
+      <section class="section" aria-labelledby="drawer-request">
+        <header class="section-head">
+          <h3 id="drawer-request">{{text.request.title}}</h3>
+          <span class="tag">{{assignedTag(w)}}</span>
+        </header>
+        <dl class="detail-fields">
+          <div>
+            <dt>{{localization.work.drawer.workType}}</dt>
+            <dd>{{orNone(w.workTypeName)}}</dd>
+          </div>
+          <div>
+            <dt>{{text.request.customer}}</dt>
+            <dd>{{orNone(w.customerName)}}</dd>
+          </div>
+          <div>
+            <dt>{{text.request.cif}}</dt>
+            <dd class="mono">{{orNone(w.customerCif)}}</dd>
+          </div>
+          <div>
+            <dt>{{text.request.kpi}}</dt>
+            <dd>
+              @for (kpi of w.relatedKpis ?? []; track kpi.code) {
+                <span class="kpi">
+                  <span class="mono">{{kpi.code}}</span> ·
+                  {{text.request.creditRole[kpi.creditRole] ?? kpi.creditRole}}
+                </span>
+              } @empty {
+                {{text.request.notProvided}}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.campaign}}</dt>
+            <dd>{{orNone(w.businessCampaignName)}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.assignee}}</dt>
+            <dd>
+              {{orNone(w.assigneeEmployeeName)}}
+              @if (w.assigneeEmployeeCode) {
+                <span class="mono muted">({{w.assigneeEmployeeCode}})</span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>{{text.request.assignedAt}}</dt>
+            <dd class="mono">{{when(w.assignedAt)}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.estimatedHours}}</dt>
+            <dd class="mono">
+              {{w.estimatedHours === null ? localization.department.notAvailable : w.estimatedHours}}
+            </dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.plannedStart}}</dt>
+            <dd class="mono">{{day(w.plannedStartDate)}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.plannedEnd}}</dt>
+            <dd class="mono">{{day(w.plannedEndDate)}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.drawer.updatedAt}}</dt>
+            <dd class="mono">{{when(w.updatedAt)}}</dd>
+          </div>
+        </dl>
+        <h4 class="sub-title">{{localization.work.drawer.description}}</h4>
+        <p class="description-text">{{w.description?.trim() || text.request.noDescription}}</p>
       </section>
+
+      <section class="section" aria-labelledby="drawer-progress">
+        <header class="section-head">
+          <h3 id="drawer-progress">{{text.progress.title}}</h3>
+          <span class="percent">{{progress()}}%</span>
+        </header>
+        <div
+          class="bar"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="progress()"
+          [attr.aria-label]="text.progress.title"
+        >
+          <span [style.width.%]="progress()"></span>
+        </div>
+        @if (checklist().length > 0) {
+          <p class="muted summary">
+            {{i18n.translate('work.detail.progress.summary', {
+                done: doneCount(),
+                total: checklist().length,
+              })}}
+          </p>
+          <ul class="checklist" [attr.aria-label]="text.progress.listLabel">
+            @for (item of checklist(); track item.id) {
+              <li>
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="item.isDone"
+                    [disabled]="!w.canUpdateChecklist || savingItem() !== null"
+                    (change)="tick(item, $event)"
+                  />
+                  <span [class.is-done]="item.isDone">{{item.title}}</span>
+                </label>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="muted summary">
+            {{teamView() ? text.progress.emptyManager : text.progress.empty}}
+          </p>
+        }
+      </section>
+
+      <section class="section" aria-labelledby="drawer-submissions">
+        <header class="section-head">
+          <h3 id="drawer-submissions">{{text.submissions.title}}</h3>
+          @if (submissionsState() === 'ready' && submissions().length === 0) {
+            <span class="muted">{{text.submissions.none}}</span>
+          }
+        </header>
+        @switch (submissionsState()) {
+          @case ('loading') {
+            <p class="muted" role="status">{{localization.work.drawer.loading}}</p>
+          }
+          @case ('error') {
+            <p class="drawer-error-text" role="alert">{{text.submissions.error}}</p>
+          }
+          @default {
+            @if (submissions().length > 0) {
+              <ul class="submission-list">
+                @for (row of submissions(); track row.id) {
+                  <li>
+                    <div class="submission-top">
+                      <strong>
+                        {{i18n.translate('work.detail.submissions.versionLabel', {
+                            n: row.versionNo,
+                          })}}
+                      </strong>
+                      <span class="badge" [attr.data-tone]="row.tone">{{row.label}}</span>
+                    </div>
+                    <p class="submission-meta">
+                      {{when(row.submittedAt)}}
+                      @if (row.codes) {
+                        · <span class="mono">{{row.codes}}</span>
+                      }
+                    </p>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="muted">
+                {{isAssignee() ? text.submissions.emptyEmployee : text.submissions.emptyManager}}
+              </p>
+            }
+          }
+        }
+      </section>
+
+      <section class="section" aria-labelledby="drawer-activity">
+        <header class="section-head">
+          <h3 id="drawer-activity">{{text.activity.title}}</h3>
+        </header>
+        @switch (activitiesState()) {
+          @case ('loading') {
+            <p class="muted" role="status">{{localization.work.drawer.loading}}</p>
+          }
+          @case ('error') {
+            <p class="drawer-error-text" role="alert">{{text.activity.error}}</p>
+          }
+          @default {
+            <ol class="timeline">
+              @for (entry of activities(); track entry.id) {
+                <li [class.is-first]="entry.action === 'ASSIGNED'">
+                  <p class="timeline-text">{{entry.message}}</p>
+                  <p class="timeline-meta">{{when(entry.createdAt)}} · {{actor(entry)}}</p>
+                </li>
+              } @empty {
+                <li class="muted">{{text.activity.empty}}</li>
+              }
+            </ol>
+          }
+        }
+      </section>
+
+      <p class="note" role="note">{{teamView() ? text.notes.manager : text.notes.employee}}</p>
+    }
+  </div>
+
+  <div class="dialog-layer">
+    @if (planOpen() && work(); as w) {
+      <app-work-plan-dialog
+        [work]="w"
+        (closed)="planOpen.set(false)"
+        (saved)="onPlanSaved($event)"
+      />
+    }
+    @if (handoverOpen() && work(); as w) {
+      <app-handover-dialog
+        [works]="handoverWorks()"
+        [initialWorkId]="w.id"
+        (closed)="handoverOpen.set(false)"
+        (requested)="onHandoverRequested($event)"
+      />
     }
   </div>
 </aside>

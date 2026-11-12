@@ -15,6 +15,7 @@ public enum NotificationType
     [PgName("KPI_REJECTED")] KpiRejected,
     [PgName("REWORK_REQUESTED")] ReworkRequested,
     [PgName("TARGET_REVISED")] TargetRevised,
+    [PgName("WORK_PLAN_UPDATED")] WorkPlanUpdated,
 }
 
 public enum NotificationSeverity
