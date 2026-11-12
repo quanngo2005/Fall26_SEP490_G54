@@ -1,0 +1,272 @@
+@let t = localization.auditLog;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [class.has-drawer]="selectedId()" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+
+      <div class="list-toolbar">
+        <div>
+          <h1>{{t.title}}</h1>
+          <p class="description">{{t.description}}</p>
+        </div>
+      </div>
+
+      <form class="list-filters" (ngSubmit)="applyFilters()">
+        <input
+          type="search"
+          name="keyword"
+          class="input search-input"
+          [ngModel]="keyword()"
+          (ngModelChange)="keyword.set($event)"
+          [placeholder]="t.search"
+          [attr.aria-label]="t.search"
+        />
+        <input
+          type="text"
+          name="entityName"
+          class="input entity-input"
+          [ngModel]="entityName()"
+          (ngModelChange)="entityName.set($event)"
+          [placeholder]="t.entityPlaceholder"
+          [attr.aria-label]="t.entity"
+        />
+        <select
+          name="action"
+          class="select action-select"
+          [ngModel]="action()"
+          (ngModelChange)="action.set($event)"
+          [attr.aria-label]="t.action"
+        >
+          <option value="">{{t.actionAll}}</option>
+          @for (item of actions; track item) {
+            <option [value]="item">{{t.actions[item]}}</option>
+          }
+        </select>
+        <label class="date-field">
+          <span>{{t.from}}</span>
+          <input
+            type="date"
+            name="from"
+            class="input"
+            [ngModel]="fromDate()"
+            (ngModelChange)="fromDate.set($event)"
+            [attr.aria-invalid]="rangeInvalid() ? 'true' : null"
+          />
+        </label>
+        <label class="date-field">
+          <span>{{t.to}}</span>
+          <input
+            type="date"
+            name="to"
+            class="input"
+            [ngModel]="toDate()"
+            (ngModelChange)="toDate.set($event)"
+            [attr.aria-invalid]="rangeInvalid() ? 'true' : null"
+          />
+        </label>
+        <select
+          name="sort"
+          class="select sort-select"
+          [ngModel]="sort()"
+          (ngModelChange)="setSort($event)"
+          [attr.aria-label]="t.sort"
+        >
+          <option value="occurredAt desc">{{t.sortNewest}}</option>
+          <option value="occurredAt asc">{{t.sortOldest}}</option>
+        </select>
+        <button type="submit" class="button button-primary" [disabled]="rangeInvalid()">
+          {{t.apply}}
+        </button>
+        @if (hasFilters()) {
+          <button type="button" class="button button-secondary" (click)="clearFilters()">
+            {{t.clear}}
+          </button>
+        }
+      </form>
+      @if (rangeInvalid()) {
+        <p class="field-error" role="alert">{{t.rangeInvalid}}</p>
+      }
+
+      @if (loading() && items().length === 0) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>{{t.loading}}</span>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="surface-card table-card">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th scope="col">{{t.colTime}}</th>
+                <th scope="col">{{t.colActor}}</th>
+                <th scope="col">{{t.colAction}}</th>
+                <th scope="col">{{t.colEntity}}</th>
+                <th scope="col">{{t.colEntityId}}</th>
+                <th scope="col">{{t.colIp}}</th>
+                <th scope="col">{{t.colChanged}}</th>
+                <th scope="col">
+                  <span class="visually-hidden">{{t.colView}}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr [class.is-selected]="item.id === selectedId()" (click)="open(item)">
+                  <td class="nowrap">{{time(item.occurredAt)}}</td>
+                  <td>{{actorLabel(item.actorName)}}</td>
+                  <td>
+                    <span class="tag" [attr.data-action]="item.action">
+                      {{actionLabel(item.action)}}
+                    </span>
+                  </td>
+                  <td class="entity">{{item.entityName}}</td>
+                  <td class="mono id-cell" [title]="item.entityId">{{item.entityId}}</td>
+                  <td class="mono">{{item.ipAddress ?? t.noValue}}</td>
+                  <td class="columns-cell">{{columnsText(item.changedColumns)}}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="link-button"
+                      [attr.aria-label]="
+                        i18n.translate('auditLog.viewFor', { entity: item.entityName })
+                      "
+                      (click)="open(item); $event.stopPropagation()"
+                    >
+                      {{t.view}}
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="empty">{{t.empty}}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="table-footer">
+            <span>{{i18n.translate('auditLog.totalCount', { count: totalCount() })}}</span>
+            <span class="pager">
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="page() <= 1 || loading()"
+                (click)="goToPage(page() - 1)"
+              >
+                {{t.previous}}
+              </button>
+              <span class="page-indicator">
+                {{i18n.translate('auditLog.pageOf', { page: page(), pages: pageCount() })}}
+              </span>
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="page() >= pageCount() || loading()"
+                (click)="goToPage(page() + 1)"
+              >
+                {{t.next}}
+              </button>
+            </span>
+          </div>
+        </div>
+      }
+    </main>
+  </div>
+
+  @if (selectedId()) {
+    <aside class="drawer" role="dialog" [attr.aria-label]="t.detail.title">
+      <header class="drawer-head">
+        <div>
+          <h2>{{t.detail.title}}</h2>
+          <p>SCR-ADM-05-D1</p>
+        </div>
+        <button
+          type="button"
+          class="icon-button"
+          (click)="close()"
+          [attr.aria-label]="t.detail.close"
+        >
+          ×
+        </button>
+      </header>
+      <div class="drawer-body">
+        @if (detailLoading()) {
+          <p role="status">{{t.detail.loading}}</p>
+        } @else if (detailError(); as error) {
+          <div class="state-error" role="alert">
+            <p>{{error === 'notFound' ? t.detail.notFound : t.detail.loadFailed}}</p>
+          </div>
+        } @else if (detail(); as log) {
+          <section aria-labelledby="audit-general">
+            <h3 id="audit-general">{{t.detail.general}}</h3>
+            <dl class="detail-grid">
+              <dt>{{t.detail.time}}</dt>
+              <dd>{{time(log.occurredAt)}}</dd>
+              <dt>{{t.detail.actor}}</dt>
+              <dd>{{actorLabel(log.actorName)}}</dd>
+              <dt>{{t.detail.actorId}}</dt>
+              <dd class="mono">{{log.actorId ?? t.noValue}}</dd>
+              <dt>{{t.detail.entityName}}</dt>
+              <dd>{{log.entityName}}</dd>
+              <dt>{{t.detail.entityId}}</dt>
+              <dd class="mono">{{log.entityId}}</dd>
+              <dt>{{t.detail.action}}</dt>
+              <dd>
+                <span class="tag" [attr.data-action]="log.action">{{actionLabel(log.action)}}</span>
+              </dd>
+            </dl>
+          </section>
+          <section aria-labelledby="audit-request">
+            <h3 id="audit-request">{{t.detail.request}}</h3>
+            <dl class="detail-grid">
+              <dt>{{t.detail.ip}}</dt>
+              <dd class="mono">{{log.ipAddress ?? t.noValue}}</dd>
+              <dt>{{t.detail.method}}</dt>
+              <dd class="mono">{{log.httpMethod ?? t.noValue}}</dd>
+              <dt>{{t.detail.path}}</dt>
+              <dd class="mono">{{log.requestPath ?? t.noValue}}</dd>
+              <dt>{{t.detail.userAgent}}</dt>
+              <dd>{{log.userAgent ?? t.noValue}}</dd>
+              <dt>{{t.detail.traceId}}</dt>
+              <dd class="mono">{{log.traceId ?? t.noValue}}</dd>
+            </dl>
+          </section>
+          <section aria-labelledby="audit-changes">
+            <h3 id="audit-changes">{{t.detail.changes}}</h3>
+            @if (changeRows().length === 0) {
+              <p class="muted">{{t.detail.noChanges}}</p>
+            } @else {
+              <table class="change-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{t.detail.column}}</th>
+                    <th scope="col">{{t.detail.oldValue}}</th>
+                    <th scope="col">{{t.detail.newValue}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of changeRows(); track row.column) {
+                    <tr>
+                      <td class="mono">{{row.column}}</td>
+                      <td class="value old">{{row.oldValue}}</td>
+                      <td class="value new">{{row.newValue}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              <p class="muted">{{t.detail.maskedNote}}</p>
+            }
+          </section>
+        }
+      </div>
+    </aside>
+  }
+</div>

@@ -20,4 +20,26 @@ internal static class PeriodLockGuard
                 ErrorCodes.PeriodLocked);
         }
     }
+
+    /// <summary>
+    /// Throws 409 <see cref="ErrorCodes.MonthHardLocked"/> (BR-29) when <paramref name="date"/> falls in or before
+    /// the hard-lock watermark month of <paramref name="period"/>. A target cannot be made effective in a month
+    /// that is already hard-locked.
+    /// </summary>
+    public static void EnsureMonthOpen(EvaluationPeriod? period, DateOnly date)
+    {
+        if (period?.HardLockedThrough is not { } lockedThrough)
+        {
+            return;
+        }
+
+        var dateMonth = date.Year * 12 + date.Month;
+        var lockedMonth = lockedThrough.Year * 12 + lockedThrough.Month;
+        if (dateMonth <= lockedMonth)
+        {
+            throw new ConflictException(
+                ErrorCodes.GetDefaultMessage(ErrorCodes.MonthHardLocked),
+                ErrorCodes.MonthHardLocked);
+        }
+    }
 }

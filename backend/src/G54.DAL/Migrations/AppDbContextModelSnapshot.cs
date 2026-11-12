@@ -732,6 +732,56 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.EvaluationComparisonSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Baseline")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("baseline");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<int>("LookbackPeriods")
+                        .HasColumnType("integer")
+                        .HasColumnName("lookback_periods");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("evaluation_comparison_setting_pkey");
+
+                    b.ToTable("evaluation_comparison_setting", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_evaluation_comparison_setting_baseline", "baseline IN ('PREVIOUS_PERIOD', 'SAME_PERIOD_LAST_YEAR', 'AVERAGE_LAST_N')");
+
+                            t.HasCheckConstraint("ck_evaluation_comparison_setting_lookback", "lookback_periods BETWEEN 2 AND 12");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.EvaluationPeriod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -749,6 +799,10 @@ namespace G54.DAL.Migrations
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date")
                         .HasColumnName("end_date");
+
+                    b.Property<DateOnly?>("HardLockedThrough")
+                        .HasColumnType("date")
+                        .HasColumnName("hard_locked_through");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2470,6 +2524,56 @@ namespace G54.DAL.Migrations
                     b.ToTable("sidebar_configurations", (string)null);
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.SystemParameter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("value");
+
+                    b.HasKey("Id")
+                        .HasName("system_parameters_pkey");
+
+                    b.HasIndex(new[] { "Key" }, "uq_system_parameters_key")
+                        .IsUnique();
+
+                    b.ToTable("system_parameters", (string)null);
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2494,6 +2598,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("text")
                         .HasColumnName("change_reason");
 
+                    b.Property<Guid?>("ChangedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by_employee_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2503,6 +2611,14 @@ namespace G54.DAL.Migrations
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uuid")
                         .HasColumnName("department_id");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
 
                     b.Property<Guid?>("EmployeeId")
                         .HasColumnType("uuid")
@@ -2519,6 +2635,10 @@ namespace G54.DAL.Migrations
                     b.Property<Guid?>("ParentAssignmentId")
                         .HasColumnType("uuid")
                         .HasColumnName("parent_assignment_id");
+
+                    b.Property<Guid?>("PreviousVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_version_id");
 
                     b.Property<int?>("SplitDimension")
                         .HasColumnType("target_split_dimension")
@@ -2548,6 +2668,8 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("target_assignment_pkey");
 
+                    b.HasIndex("ChangedByEmployeeId");
+
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("EmployeeId");
@@ -2559,6 +2681,8 @@ namespace G54.DAL.Migrations
                     b.HasIndex(new[] { "ParentAssignmentId" }, "ix_target_assignment_parent");
 
                     b.HasIndex(new[] { "EvaluationPeriodId" }, "ix_target_assignment_period");
+
+                    b.HasIndex(new[] { "PreviousVersionId" }, "ix_target_assignment_previous_version");
 
                     b.HasIndex(new[] { "KpiDefinitionId", "DepartmentId", "EvaluationPeriodId" }, "uq_target_assignment_active_department")
                         .IsUnique()
@@ -2583,6 +2707,8 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_target_assignment_approved_by_time", "approved_at IS NULL OR approved_at >= created_at");
 
                             t.HasCheckConstraint("ck_target_assignment_assigned_time", "assigned_at IS NULL OR assigned_at >= created_at");
+
+                            t.HasCheckConstraint("ck_target_assignment_effective_range", "effective_to IS NULL OR effective_to >= effective_from");
 
                             t.HasCheckConstraint("ck_target_assignment_owner_xor", "(department_id IS NOT NULL) <> (employee_id IS NOT NULL)");
 
@@ -2733,6 +2859,123 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_task_handover_referrer_share", "referrer_share_percent >= 0 AND referrer_share_percent <= 100");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TierCriterion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("metric");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<decimal>("Threshold")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("threshold");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("tier_criterion_pkey");
+
+                    b.HasIndex(new[] { "Code" }, "uq_tier_criterion_code")
+                        .IsUnique();
+
+                    b.ToTable("tier_criterion", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TierCriterionRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<Guid>("TierCriterionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tier_criterion_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("tier_criterion_requirement_pkey");
+
+                    b.HasIndex(new[] { "TierCriterionId", "TierCode" }, "uq_tier_criterion_requirement")
+                        .IsUnique();
+
+                    b.ToTable("tier_criterion_requirement", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.UserRole", b =>
@@ -3936,6 +4179,12 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_target_assignment_objective");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "ChangedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ChangedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_assignment_changed_by");
+
                     b.HasOne("G54.DAL.Entities.Department", "Department")
                         .WithMany("TargetAssignments")
                         .HasForeignKey("DepartmentId")
@@ -3969,6 +4218,8 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_target_assignment_parent");
 
                     b.Navigation("BusinessObjective");
+
+                    b.Navigation("ChangedByEmployee");
 
                     b.Navigation("Department");
 
@@ -4044,6 +4295,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("ToEmployee");
 
                     b.Navigation("Work");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TierCriterionRequirement", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.TierCriterion", "TierCriterion")
+                        .WithMany("Requirements")
+                        .HasForeignKey("TierCriterionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tier_criterion_requirement_criterion");
+
+                    b.Navigation("TierCriterion");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.UserRole", b =>
@@ -4433,6 +4696,11 @@ namespace G54.DAL.Migrations
                     b.Navigation("ActualProgresses");
 
                     b.Navigation("InverseParentAssignment");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TierCriterion", b =>
+                {
+                    b.Navigation("Requirements");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.Verification", b =>

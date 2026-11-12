@@ -220,7 +220,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
-  { id: 'systemAudit', icon: 'systemAudit' },
+  { id: 'systemAudit', icon: 'systemAudit', route: '/audit-logs' },
   // Legacy items for backward compat
   { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'personalKpis', icon: 'employeeData', permission: 'KPI_READ' },
@@ -273,8 +273,10 @@ export class NavigationService {
     '/campaigns',
     '/target-overview',
     '/sidebar-settings',
+    '/system-parameters',
     '/roles',
     '/user-accounts',
+    '/audit-logs',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);

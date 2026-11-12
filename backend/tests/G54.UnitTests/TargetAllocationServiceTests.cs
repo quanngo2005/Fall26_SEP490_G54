@@ -140,6 +140,7 @@ public sealed class TargetAllocationServiceTests
         var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
         Assert.Equal(1200m, deptYearTarget.TargetValue);
         Assert.Equal(TargetAssignmentStatus.Draft, deptYearTarget.Status);
+        Assert.Equal(new DateOnly(2026, 1, 1), deptYearTarget.EffectiveFrom);
     }
 
     [Fact]
@@ -189,6 +190,8 @@ public sealed class TargetAllocationServiceTests
         await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
         var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
         await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var quarterTargetBeforeConfirm = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == deptYearTarget.Id);
+        Assert.Equal(new DateOnly(2026, 1, 1), quarterTargetBeforeConfirm.EffectiveFrom);
 
         await f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid());
 
@@ -197,9 +200,21 @@ public sealed class TargetAllocationServiceTests
         var monthTargets = await f.Db.TargetAssignments.Where(t => t.ParentAssignmentId == quarterTarget.Id).ToListAsync();
         Assert.Equal(3, monthTargets.Count);
         Assert.Equal(1000m, monthTargets.Sum(t => t.TargetValue));
+        // Each month's EffectiveFrom must be that month period's own start date, not the quarter's.
+        foreach (var monthTarget in monthTargets)
+        {
+            var monthPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == monthTarget.EvaluationPeriodId);
+            Assert.Equal(monthPeriod.StartDate, monthTarget.EffectiveFrom);
+        }
         var monthTargetIds = monthTargets.Select(t => t.Id).ToList();
         var days = await f.Db.TargetAssignments.Where(t => t.ParentAssignmentId != null && monthTargetIds.Contains(t.ParentAssignmentId.Value)).ToListAsync();
         Assert.Equal(1000m, days.Sum(t => t.TargetValue));
+        // Each day's EffectiveFrom must be that day period's own start date.
+        foreach (var dayTarget in days)
+        {
+            var dayPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == dayTarget.EvaluationPeriodId);
+            Assert.Equal(dayPeriod.StartDate, dayTarget.EffectiveFrom);
+        }
     }
 
     [Theory]

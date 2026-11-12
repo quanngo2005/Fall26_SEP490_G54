@@ -4,11 +4,22 @@ using G54.BLL.Services;
 using G54.BLL.Services.Import.BranchYearTarget;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Makes <c>IOptions&lt;SystemParametersOptions&gt;</c> return the live snapshot (appsettings defaults overlaid with
+    /// administrator overrides). Call after binding the "SystemParameters" section.
+    /// </summary>
+    public static IServiceCollection AddLiveSystemParameters(this IServiceCollection services)
+    {
+        services.AddSingleton<IOptions<SystemParametersOptions>, LiveSystemParametersOptions>();
+        return services;
+    }
+
     public static IServiceCollection AddBusinessLogic(this IServiceCollection services)
     {
         services.AddScoped<IHelloService, HelloService>();
@@ -47,6 +58,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IJobPositionService, JobPositionService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<ISystemParameterService, SystemParameterService>();
+        services.AddScoped<IEvaluationSettingsService, EvaluationSettingsService>();
+        services.AddSingleton<SystemParameterStore>();
+        services.AddHostedService<SystemParameterLoader>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
         services.AddScoped<IPerformanceScoreCalculator, PerformanceScoreCalculator>();
         services.AddScoped<IPerformanceEvaluationService, PerformanceEvaluationService>();

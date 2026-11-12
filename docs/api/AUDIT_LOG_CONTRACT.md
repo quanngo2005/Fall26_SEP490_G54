@@ -1,7 +1,7 @@
 # Audit Log Contract
 
 Trạng thái: ghi log tự động (EF Core `SaveChangesInterceptor`) + API chỉ đọc (`GET` danh sách, `GET` chi tiết)
-**đã triển khai** (backend). Không có frontend, không có POST/PUT/DELETE.
+**đã triển khai** (backend + màn hình SCR-ADM-05 / SCR-ADM-05-D1). Không có POST/PUT/DELETE.
 
 Mọi response dùng envelope `ApiResponse` (xem `API_CONVENTIONS.md`). Entity: `audit_logs`.
 

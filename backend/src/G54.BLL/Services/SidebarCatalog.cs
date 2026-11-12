@@ -4,7 +4,7 @@ public static class SidebarCatalog
 {
     public static IReadOnlySet<string> Routes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        "", "/home", "/my-work", "/my-targets", "/my-evaluation", "/departments", "/department-performance", "/branch-performance", "/employee-profile", "/work-types", "/work-type-detail", "/review-verify", "/appeals", "/kpi-definitions", "/sidebar-settings",
+        "", "/home", "/my-work", "/my-targets", "/my-evaluation", "/departments", "/department-performance", "/branch-performance", "/employee-profile", "/work-types", "/work-type-detail", "/review-verify", "/appeals", "/kpi-definitions", "/sidebar-settings", "/audit-logs",
     };
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {

@@ -407,7 +407,9 @@ public sealed class BranchYearTargetImportDefinitionTests
 
         Assert.Equal(1, result.Committed);
         Assert.Equal(1, result.Skipped);
-        Assert.Equal(1, await f.Db.TargetAssignments.CountAsync());
+        var created = await f.Db.TargetAssignments.SingleAsync();
+        // A newly-created branch-year row's EffectiveFrom must be the year period's start date, not DateOnly default.
+        Assert.Equal(new DateOnly(2026, 1, 1), created.EffectiveFrom);
     }
 
     [Fact]
