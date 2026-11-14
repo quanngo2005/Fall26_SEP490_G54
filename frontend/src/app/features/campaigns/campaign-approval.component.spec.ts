@@ -136,6 +136,34 @@ describe('CampaignApprovalComponent', () => {
     expect(root.textContent).toContain('WT-S01');
   });
 
+  it('breaks participants down by job position', async () => {
+    const person = (employeeId: string, jobPositionTitle: string | null) => ({
+      employeeId,
+      employeeCode: employeeId,
+      fullName: employeeId,
+      jobPositionTitle,
+      departmentName: null,
+      assignedTasksCount: 0,
+      completedTasksCount: 0,
+    });
+    api.detail.and.callFake((id: string) =>
+      of(
+        detail(id, {
+          participants: [
+            person('a', 'SO'),
+            person('b', 'SO'),
+            person('c', 'Teller'),
+            person('d', null),
+          ],
+        }),
+      ),
+    );
+
+    const { root } = await open();
+
+    expect(root.querySelector('.facts')?.textContent).toContain('(2 SO, 1 Teller)');
+  });
+
   it('preselects the campaign from the id query parameter', async () => {
     await open('/campaigns/approval?id=c2');
 
