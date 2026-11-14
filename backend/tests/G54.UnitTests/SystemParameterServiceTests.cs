@@ -25,7 +25,7 @@ public sealed class SystemParameterServiceTests : IDisposable
         => new(items.Select(i => new SystemParameterChangeDto(i.Key, i.Value)).ToList());
 
     [Fact]
-    public async Task GetAll_ReturnsCatalogWithDefaultsWhenNothingSaved()
+    public async Task GB878_01_GetAll_ReturnsCatalogWithDefaultsWhenNothingSaved()
     {
         var result = await Service().GetAllAsync();
 
@@ -41,7 +41,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_PersistsValueAndPublishesToLiveOptions()
+    public async Task GB878_02_Update_PersistsValueAndPublishesToLiveOptions()
     {
         var live = new LiveSystemParametersOptions(_store);
 
@@ -55,7 +55,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_ReportsTheEditorUsername()
+    public async Task GB878_03_Update_ReportsTheEditorUsername()
     {
         var editor = new Account { Id = Guid.NewGuid(), Username = "sa.admin", PasswordHash = "x" };
         _db.Accounts.Add(editor);
@@ -69,7 +69,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_TwiceUpdatesTheSameRow()
+    public async Task GB878_04_Update_TwiceUpdatesTheSameRow()
     {
         await Service().UpdateAsync(Update(("appealWindowDays", 10)));
         await Service().UpdateAsync(Update(("appealWindowDays", 20)));
@@ -87,7 +87,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     [InlineData("appealRejectedHours", 24)]
     [InlineData("kpiLockTime", 1)]
     [InlineData("unknown", 1)]
-    public async Task Update_RejectsInvalidLockedOrUnknownWithoutSaving(string key, double value)
+    public async Task GB878_05_Update_RejectsInvalidLockedOrUnknownWithoutSaving(string key, double value)
     {
         var ex = await Assert.ThrowsAsync<ValidationException>(() => Service().UpdateAsync(Update((key, (decimal)value))));
 
@@ -97,7 +97,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_IsAtomicWhenOneChangeIsInvalid()
+    public async Task GB878_06_Update_IsAtomicWhenOneChangeIsInvalid()
     {
         await Assert.ThrowsAsync<ValidationException>(() =>
             Service().UpdateAsync(Update(("manualApprovalHours", 24), ("appealWindowDays", 99))));
@@ -106,7 +106,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Update_RejectsEmptyAndDuplicateRequests()
+    public async Task GB878_07_Update_RejectsEmptyAndDuplicateRequests()
     {
         await Assert.ThrowsAsync<ValidationException>(() => Service().UpdateAsync(new UpdateSystemParametersDto([])));
         await Assert.ThrowsAsync<ValidationException>(() =>
@@ -114,7 +114,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Refresh_IgnoresStoredValuesThatAreOutOfRangeOrLocked()
+    public async Task GB878_08_Refresh_IgnoresStoredValuesThatAreOutOfRangeOrLocked()
     {
         _db.SystemParameters.Add(new SystemParameter { Key = "importMaxFileMb", Value = "999" });
         _db.SystemParameters.Add(new SystemParameter { Key = "appealRejectedHours", Value = "1" });
@@ -129,7 +129,7 @@ public sealed class SystemParameterServiceTests : IDisposable
     }
 
     [Fact]
-    public void LiveOptions_ReflectTheLatestStoreSnapshot()
+    public void GB878_09_LiveOptions_ReflectTheLatestStoreSnapshot()
     {
         var live = new LiveSystemParametersOptions(_store);
         Assert.Equal(7, live.Value.AppealWindowDays);
