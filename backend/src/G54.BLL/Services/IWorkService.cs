@@ -38,17 +38,31 @@ public interface IWorkService
         WorkStatusDto dto,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Updates the completion percentage (0-100) reported by the current assignee.</summary>
-    Task<WorkDetailDto> UpdateProgressAsync(
-        Guid id,
-        Guid userId,
-        UpdateWorkProgressDto dto,
-        CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Moves New / InProgress / HandedOver work whose planned end date is before <paramref name="today"/>
     /// to Overdue. Returns the number of work items updated.
     /// </summary>
+    /// <summary>Null when the work does not exist or lies outside the caller's <c>work:read</c> scope.</summary>
+    Task<IReadOnlyList<WorkActivityDto>?> GetActivitiesAsync(
+        Guid id,
+        Guid accountId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The assignee ticks or unticks one checklist item of an open work.</summary>
+    Task<WorkDetailDto> SetChecklistItemAsync(
+        Guid id,
+        Guid itemId,
+        Guid userId,
+        WorkChecklistItemStateDto dto,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The assignee's manager changes the deadline, priority and checklist of an open work and may leave a note.</summary>
+    Task<WorkDetailDto> UpdatePlanAsync(
+        Guid id,
+        Guid userId,
+        UpdateWorkPlanDto dto,
+        CancellationToken cancellationToken = default);
+
     Task<int> MarkOverdueAsync(
         DateOnly today,
         CancellationToken cancellationToken = default);

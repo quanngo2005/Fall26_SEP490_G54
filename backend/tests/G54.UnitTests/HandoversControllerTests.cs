@@ -223,9 +223,6 @@ public sealed class HandoversControllerTests
 
         public List<HandoverRecipientDto> Recipients { get; } = [];
 
-        public Task<IReadOnlyList<HandoverDetailDto>> GetPoolAsync(Guid userId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<HandoverDetailDto>>([]);
-
         public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
             => Record("accept", handoverId, userId);
 

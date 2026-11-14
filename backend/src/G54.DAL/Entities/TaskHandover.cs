@@ -14,8 +14,7 @@ public partial class TaskHandover : IBaseEntity
 
     public Guid FromEmployeeId { get; set; }
 
-    /// <summary>The recipient; null while the work waits in the pool (<see cref="HandoverStatus.InPool"/>) for a manager to assign it.</summary>
-    public Guid? ToEmployeeId { get; set; }
+    public Guid ToEmployeeId { get; set; }
 
     public Guid? ApprovedBy { get; set; }
 
@@ -45,7 +44,7 @@ public partial class TaskHandover : IBaseEntity
 
     public virtual Employee FromEmployee { get; set; } = null!;
 
-    public virtual Employee? ToEmployee { get; set; }
+    public virtual Employee ToEmployee { get; set; } = null!;
 
     public virtual Work Work { get; set; } = null!;
 }

@@ -24,7 +24,7 @@
 
       <!-- Toast Notification -->
       @if (toastMessage(); as toast) {
-        <div class="toast-banner" role="status" aria-live="polite">
+        <div animate.leave="g54-leave-rise" class="toast-banner" role="status" aria-live="polite">
           <app-layout-icon name="check" class="toast-icon" />
           <span>{{toast}}</span>
         </div>
@@ -316,12 +316,14 @@
 <!-- Modal Khóa Kỳ (SCR-EVL-03-M1) -->
 @if (isLockModalOpen()) {
   <div
+    animate.leave="g54-leave-fade"
     class="modal-backdrop"
     role="presentation"
     (click)="closeLockModal()"
     (keydown.escape)="closeLockModal()"
   >
     <div
+      animate.leave="g54-leave-pop"
       class="modal-dialog"
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"

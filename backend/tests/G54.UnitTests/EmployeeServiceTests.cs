@@ -22,7 +22,7 @@ public sealed class EmployeeServiceTests
     private static (AppDbContext Context, EmployeeService Service) CreateTestEnvironment()
     {
         var context = CreateInMemoryDbContext();
-        var service = new EmployeeService(context, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll));
+        var service = new EmployeeService(context, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll), new PlainPasswordEncoder());
         return (context, service);
     }
 
@@ -55,7 +55,7 @@ public sealed class EmployeeServiceTests
         var position = new JobPosition
         {
             Id = Guid.NewGuid(),
-            Code = "POS-DEV",
+            Code = "SALES",
             Title = "Senior Backend Engineer",
             Status = RecordStatus.Active,
             LastSyncAt = now,
@@ -611,118 +611,253 @@ public sealed class EmployeeServiceTests
         }
     }
 
+    private static Employee NewEmployeeEntity(Department dept, JobPosition position, string code, Guid? managerId = null) => new()
+    {
+        Id = Guid.NewGuid(),
+        EmployeeCode = code,
+        FullName = "Name " + code,
+        Email = code.ToLowerInvariant() + "@company.com",
+        DepartmentId = dept.Id,
+        JobPositionId = position.Id,
+        ManagerId = managerId,
+        Status = EmployeeStatus.Active,
+        LastSyncAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow,
+    };
+
+    private static Account NewAccountFor(Employee employee) => new()
+    {
+        Id = Guid.NewGuid(),
+        EmployeeId = employee.Id,
+        Username = employee.Email,
+        PasswordHash = "hash",
+    };
+
     [Fact]
-    public async Task DeleteEmployeeAsync_WhenNoDependents_DeletesSuccessfully()
+    public async Task DeleteEmployeeAsync_MovesEmployeeToTerminatedAndLocksAccount_WithoutRemovingTheRow()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
             var (dept, position) = await SeedDepartmentAndPositionAsync(context);
-            var now = DateTimeOffset.UtcNow;
-
-            var employee = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "EMP-DEL",
-                FullName = "Delete Employee",
-                Email = "delete@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-            await context.Employees.AddAsync(employee);
+            var employee = NewEmployeeEntity(dept, position, "EMP-DEL");
+            var account = NewAccountFor(employee);
+            context.Employees.Add(employee);
+            context.Accounts.Add(account);
             await context.SaveChangesAsync();
 
             await service.DeleteEmployeeAsync(employee.Id);
 
-            var inDb = await context.Employees.FindAsync(employee.Id);
-            Assert.Null(inDb);
+            var inDb = await context.Employees.AsNoTracking().SingleAsync(e => e.Id == employee.Id);
+            Assert.Equal(EmployeeStatus.Terminated, inDb.Status);
+            Assert.True((await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == account.Id)).IsLocked);
         }
     }
 
     [Fact]
-    public async Task DeleteEmployeeAsync_WhenManagingOtherActiveEmployees_ThrowsConflictException()
+    public async Task DeleteEmployeeAsync_ForAManagerWithSubordinatesAndWork_StillTerminates()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
         {
             var (dept, position) = await SeedDepartmentAndPositionAsync(context);
-            var now = DateTimeOffset.UtcNow;
-
-            var manager = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "MGR-DEL",
-                FullName = "Manager Delete",
-                Email = "mgrdel@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-
-            var subordinate = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "SUB-DEL",
-                FullName = "Sub Delete",
-                Email = "subdel@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                ManagerId = manager.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-
-            await context.Employees.AddRangeAsync(manager, subordinate);
-            await context.SaveChangesAsync();
-
-            await Assert.ThrowsAsync<ConflictException>(() => service.DeleteEmployeeAsync(manager.Id));
-        }
-    }
-
-    [Fact]
-    public async Task DeleteEmployeeAsync_WhenAssignedWorks_ThrowsConflictException()
-    {
-        var (context, service) = CreateTestEnvironment();
-        using (context)
-        {
-            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
-            var now = DateTimeOffset.UtcNow;
-
-            var employee = new Employee
-            {
-                Id = Guid.NewGuid(),
-                EmployeeCode = "EMP-WRK",
-                FullName = "Work Assignee",
-                Email = "wrk@company.com",
-                DepartmentId = dept.Id,
-                JobPositionId = position.Id,
-                Status = EmployeeStatus.Active,
-                LastSyncAt = now,
-                UpdatedAt = now,
-            };
-            await context.Employees.AddAsync(employee);
-
-            var work = new Work
+            var manager = NewEmployeeEntity(dept, position, "MGR-DEL");
+            var subordinate = NewEmployeeEntity(dept, position, "SUB-DEL", manager.Id);
+            context.Employees.AddRange(manager, subordinate);
+            context.Works.Add(new Work
             {
                 Id = Guid.NewGuid(),
                 Code = "W-001",
                 Title = "Important Task",
-                AssigneeEmployeeId = employee.Id,
-                CreatedBy = employee.Id,
+                AssigneeEmployeeId = manager.Id,
+                CreatedBy = manager.Id,
                 Status = WorkStatus.InProgress,
                 Priority = WorkPriority.High,
-                UpdatedAt = now,
-            };
-            await context.Works.AddAsync(work);
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
             await context.SaveChangesAsync();
 
-            await Assert.ThrowsAsync<ConflictException>(() => service.DeleteEmployeeAsync(employee.Id));
+            await service.DeleteEmployeeAsync(manager.Id);
+
+            Assert.Equal(EmployeeStatus.Terminated, (await context.Employees.AsNoTracking().SingleAsync(e => e.Id == manager.Id)).Status);
+            Assert.Equal(EmployeeStatus.Active, (await context.Employees.AsNoTracking().SingleAsync(e => e.Id == subordinate.Id)).Status);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteEmployeeAsync_CalledTwice_IsIdempotent()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            var employee = NewEmployeeEntity(dept, position, "EMP-TWICE");
+            context.Employees.Add(employee);
+            await context.SaveChangesAsync();
+
+            await service.DeleteEmployeeAsync(employee.Id);
+            await service.DeleteEmployeeAsync(employee.Id);
+
+            Assert.Equal(EmployeeStatus.Terminated, (await context.Employees.AsNoTracking().SingleAsync(e => e.Id == employee.Id)).Status);
+        }
+    }
+
+    [Fact]
+    public async Task DeleteEmployeeAsync_UnknownId_ThrowsNotFound()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteEmployeeAsync(Guid.NewGuid()));
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ToTerminated_LocksTheAccount_ButOtherStatusesDoNot()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            var employee = NewEmployeeEntity(dept, position, "EMP-LOCK");
+            var account = NewAccountFor(employee);
+            context.Employees.Add(employee);
+            context.Accounts.Add(account);
+            await context.SaveChangesAsync();
+
+            await service.ChangeStatusAsync(employee.Id, new EmployeeStatusDto { Status = "INACTIVE" });
+            Assert.False((await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == account.Id)).IsLocked);
+
+            await service.ChangeStatusAsync(employee.Id, new EmployeeStatusDto { Status = "TERMINATED" });
+            Assert.True((await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == account.Id)).IsLocked);
+
+            // Like the import, going back to ACTIVE never unlocks the account.
+            await service.ChangeStatusAsync(employee.Id, new EmployeeStatusDto { Status = "ACTIVE" });
+            Assert.True((await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == account.Id)).IsLocked);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateEmployeeAsync_ToTerminated_LocksTheAccount()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            var employee = NewEmployeeEntity(dept, position, "EMP-UPD-T");
+            var account = NewAccountFor(employee);
+            context.Employees.Add(employee);
+            context.Accounts.Add(account);
+            await context.SaveChangesAsync();
+
+            await service.UpdateEmployeeAsync(employee.Id, new UpdateEmployeeDto
+            {
+                EmployeeCode = employee.EmployeeCode,
+                FullName = employee.FullName,
+                Email = employee.Email,
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+                Status = "TERMINATED",
+            });
+
+            Assert.True((await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == account.Id)).IsLocked);
+        }
+    }
+
+    [Fact]
+    public async Task CreateEmployeeAsync_CreatesAccountWithRoleAndOneTimePassword()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            var role = new Role { Id = Guid.NewGuid(), Code = "EMPLOYEE", Name = "Employee", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
+            context.Roles.Add(role);
+            await context.SaveChangesAsync();
+
+            var created = await service.CreateEmployeeAsync(new CreateEmployeeDto
+            {
+                EmployeeCode = "EMP-ACC",
+                FullName = "Account Owner",
+                Email = "Owner@Company.com",
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+            });
+
+            Assert.False(string.IsNullOrEmpty(created.TemporaryPassword));
+            Assert.Equal(16, created.TemporaryPassword!.Length);
+            var account = await context.Accounts.AsNoTracking().SingleAsync(a => a.EmployeeId == created.Id);
+            Assert.Equal("owner@company.com", account.Username);
+            Assert.False(account.IsLocked);
+            Assert.True(new PlainPasswordEncoder().Verify(created.TemporaryPassword, account.PasswordHash));
+            Assert.True(await context.UserRoles.AnyAsync(u => u.AccountId == account.Id && u.RoleId == role.Id));
+        }
+    }
+
+    [Fact]
+    public async Task CreateEmployeeAsync_AsTerminated_CreatesALockedAccount()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+
+            var created = await service.CreateEmployeeAsync(new CreateEmployeeDto
+            {
+                EmployeeCode = "EMP-TERM-NEW",
+                FullName = "Already Gone",
+                Email = "gone@company.com",
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+                Status = "TERMINATED",
+            });
+
+            Assert.True((await context.Accounts.AsNoTracking().SingleAsync(a => a.EmployeeId == created.Id)).IsLocked);
+        }
+    }
+
+    [Fact]
+    public async Task CreateEmployeeAsync_PositionWithoutRoleMapping_ThrowsValidation_AndCreatesNothing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            position.Code = "NO_ROLE_FOR_THIS";
+            await context.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<ValidationException>(() => service.CreateEmployeeAsync(new CreateEmployeeDto
+            {
+                EmployeeCode = "EMP-NOROLE",
+                FullName = "No Role",
+                Email = "norole@company.com",
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+            }));
+
+            Assert.False(await context.Employees.AnyAsync(e => e.EmployeeCode == "EMP-NOROLE"));
+            Assert.Empty(context.Accounts);
+        }
+    }
+
+    [Fact]
+    public async Task CreateEmployeeAsync_UsernameAlreadyTaken_ThrowsConflict()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (dept, position) = await SeedDepartmentAndPositionAsync(context);
+            context.Accounts.Add(new Account { Id = Guid.NewGuid(), EmployeeId = Guid.NewGuid(), Username = "taken@company.com", PasswordHash = "hash" });
+            await context.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<ConflictException>(() => service.CreateEmployeeAsync(new CreateEmployeeDto
+            {
+                EmployeeCode = "EMP-TAKEN",
+                FullName = "Taken",
+                Email = "taken@company.com",
+                DepartmentId = dept.Id,
+                JobPositionId = position.Id,
+            }));
         }
     }
 }

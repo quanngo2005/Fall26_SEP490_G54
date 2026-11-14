@@ -1,7 +1,8 @@
 # Target assignment (Branch / Department / Employee)
 
 Status: backend implemented (`POST /target-assignments`, `POST /target-assignments/{id}/allocations`,
-`GET /target-assignments/{id}`, `PUT /target-assignments/{id}/allocations`, `POST /target-assignments/{id}/period-allocations`,
+`GET /target-assignments/{id}`, `PUT /target-assignments/{id}/allocations`, `POST /target-assignments/{id}/revisions`,
+`POST /target-assignments/{id}/period-allocations`,
 `GET /target-assignments`, `GET /target-assignments/{id}/breakdown`, `GET /target-assignments/mine`,
 `POST /target-assignments/{id}/feedback/confirm`, `POST /target-assignments/{id}/feedback/comments`,
 `GET /target-assignments/{id}/feedback`). Frontend client: **planned, not implemented**. Routes use the backend
@@ -163,6 +164,59 @@ Changes the values of the children that `POST .../allocations` created, for exam
   "changeReason": "Adjusted after the employee's comment"
 }
 ```
+
+## `POST /target-assignments/{id}/revisions` (mid-period target change, BR-15)
+
+Changes the **value** of the ACTIVE target `{id}` partway through its period, instead of overwriting it: the current
+version is frozen (`SUPERSEDED`, `effectiveTo = effectiveDate - 1`) and a new version (`Version + 1`) takes over
+`ACTIVE` from `effectiveDate`. Returns **201** with a `Location` header pointing at `GET /target-assignments/{id}`
+using the **new** version's id; the envelope `status` is 201. `data`: `TargetAssignment[]`, the new version first,
+then its re-created direct children (if any), in request order.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `targetValue` | decimal | required, `>= 0` |
+| `effectiveDate` | date (`yyyy-MM-dd`) | required; must be strictly after the current version's `effectiveFrom` and at most the period's `endDate` |
+| `reason` | string | required, at most 500 characters |
+| `childAllocations` | array or absent | required (non-empty) when `{id}` has ACTIVE children; must be empty/absent otherwise |
+| `childAllocations[].departmentId` / `employeeId` | GUID or null | exactly one per row, as in the split |
+| `childAllocations[].targetValue` | decimal | required |
+
+```json
+{
+  "targetValue": 120,
+  "effectiveDate": "2026-11-15",
+  "reason": "Nghỉ phép",
+  "childAllocations": [
+    { "employeeId": "5eed0000-0000-0000-0007-000000000004", "targetValue": 60 },
+    { "employeeId": "5eed0000-0000-0000-0007-000000000005", "targetValue": 60 }
+  ]
+}
+```
+
+- Authorization and period lock are the same as the split/adjust (`target:manage`, caller's department owns `{id}`'s
+  department / the employee's department; `PERIOD_LOCKED` when the period is `LOCKED`/`CLOSED`).
+- **Hard lock (BR-29)**: when the evaluation period's month-granularity watermark (`hardLockedThrough`) is set and
+  `effectiveDate` falls in or before that watermark's month, the request is rejected with 409 `MONTH_HARD_LOCKED`
+  regardless of the period's own status.
+- `childAllocations` must list **every** owner that already has an ACTIVE child of `{id}`, each once, with its new
+  `targetValue` (owners not yet allocated may be added, validated like a split); the total must equal `targetValue`
+  exactly (BR-24), else 400 `VALIDATION_ERROR` / `TARGET_ALLOCATION_NOT_100_PERCENT`.
+- Every ACTIVE descendant of `{id}` (children **and everything below them**) is frozen the same way (`SUPERSEDED`,
+  `effectiveTo = effectiveDate - 1`). Only the **direct children** are re-created as new versions (`PreviousVersionId`
+  pointing at the child they replace, same owner, same `effectiveFrom`); grandchildren and below are **not**
+  re-created — whoever owns them must revise their own target again afterward.
+- The new version's `ChangedByEmployeeId` is the caller's own employee (null if the account has none); `ChangeReason`
+  is `reason` on both the new version and its re-created children.
+- A transaction dated **before** `effectiveDate` (e.g. a late-approved result) is still recorded against the version
+  that was in effect on that date, not the new one — see `VerifiedResultRecorder.FindActiveTargetAsync`.
+- After saving, every `employeeId` of the new version and of its new children is notified
+  (`NotificationType.TargetRevised`, `relatedType = TARGET`, `relatedId` = the new version's id); a department-owned
+  row is not translated to its manager (no such lookup exists yet).
+- 400 `VALIDATION_ERROR` when `effectiveDate` is not after the current `effectiveFrom` or past the period's
+  `endDate`, `reason` is missing/too long, `targetValue < 0`, `childAllocations` is missing/non-empty when it
+  shouldn't be, an allocated owner is left out, a row has both or neither owner, an owner repeats, or the total
+  does not equal `targetValue`. 409 `TARGET_INVALID_STATE` when `{id}` is not `ACTIVE`.
 
 ## `POST /target-assignments/{id}/period-allocations` (split by period)
 
@@ -407,7 +461,11 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
   "createdAt": "2026-10-23T08:00:00+00:00",
   "updatedAt": "2026-10-23T08:00:00+00:00",
   "feedbackStatus": null,
-  "feedbackAt": null
+  "feedbackAt": null,
+  "effectiveFrom": "2026-10-01",
+  "effectiveTo": null,
+  "previousVersionId": null,
+  "changedByEmployeeId": null
 }
 ```
 
@@ -418,15 +476,22 @@ Feedback history for a target, newest first. `data`: `TargetAssignmentFeedback[]
   only when that confirmation is newer than `updatedAt`), always `null` for department-owned rows. Populated by
   `GET /target-assignments` (so the DM grid can show per-row status) and `GET /target-assignments/mine`.
 - `feedbackAt`: ISO 8601 time of the latest feedback, set only when `feedbackStatus` is `CONFIRMED` or `COMMENTED`; `null` otherwise (`NOT_VIEWED`, a confirmation that predates the last update, and department-owned rows). Populated by the same endpoints as `feedbackStatus`.
+- `effectiveFrom` (date, BR-15): first day this version applies; `period.startDate` unless it was created by a mid-period revision.
+- `effectiveTo` (date or null): last day this version applied; `null` while `ACTIVE`, or on a row `SUPERSEDED` before
+  BR-15 existed (such a row is never used for scoring — see `FindActiveTargetAsync` / `LoadTargetsAsync`).
+- `previousVersionId` (GUID or null): the version this one replaced mid-period, set by `POST .../revisions`; otherwise `null`. Not a database foreign key (see the entity's doc comment for why).
+- `changedByEmployeeId` (GUID or null): the employee who requested the mid-period change; `null` for every row except one created by `POST .../revisions`.
 
 ## Errors
 
 | Status | `errorCode` | When |
 | --- | --- | --- |
-| 400 | `VALIDATION_ERROR` | malformed body; missing required field; `changeReason` too long; empty `allocations`; duplicate `evaluationPeriodId` in period-allocations; `evaluationPeriodId` is not a descendant of the parent period; `status` not UPPER_SNAKE |
+| 400 | `VALIDATION_ERROR` | malformed body; missing required field; `changeReason` too long; empty `allocations`; duplicate `evaluationPeriodId` in period-allocations; `evaluationPeriodId` is not a descendant of the parent period; `status` not UPPER_SNAKE; `POST .../revisions`: `effectiveDate` not after the current `effectiveFrom` or past the period end, `reason` missing/too long, `targetValue < 0`, `childAllocations` wrong shape for whether `{id}` has ACTIVE children, or its total does not equal `targetValue` |
 | 401 | `UNAUTHORIZED` | missing or invalid token |
 | 403 | `FORBIDDEN` | missing `target:manage`, root target without scope `All`, target outside the caller's department; `departmentId` outside the caller's accessible scope in GET list |
 | 404 | `NOT_FOUND` | unknown assignment id; unknown `departmentId` in GET list; unknown `evaluationPeriodId` in period-allocations |
-| 409 | `PERIOD_LOCKED` | the target's period (create, split), the parent's period or any `evaluationPeriodId` in period-allocations has status `LOCKED` or `CLOSED` (see `PERIOD_LOCK_CONTRACT.md`) |
+| 409 | `PERIOD_LOCKED` | the target's period (create, split, revise), the parent's period or any `evaluationPeriodId` in period-allocations has status `LOCKED` or `CLOSED` (see `PERIOD_LOCK_CONTRACT.md`) |
+| 409 | `MONTH_HARD_LOCKED` | `POST .../revisions`: `effectiveDate` falls in or before the period's hard-lock watermark month (BR-29) |
+| 409 | `TARGET_INVALID_STATE` | `POST .../revisions`: `{id}` is not `ACTIVE` |
 | 409 | `CONFLICT` | allocation to a department or employee that already has an ACTIVE target for the same KPI and period; confirming a target already confirmed since its last change |
 | 400 | `VALIDATION_ERROR` | a database rule was violated: hierarchy or `SUM` total (the trigger text is in `errors`), negative or too precise value, unknown KPI/period/department/employee |

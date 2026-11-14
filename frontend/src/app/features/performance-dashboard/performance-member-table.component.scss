@@ -1,0 +1,178 @@
+:host {
+  display: block;
+}
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+th,
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+  white-space: nowrap;
+}
+thead th {
+  white-space: normal;
+  background: #f8fafc;
+  color: #475569;
+  font:
+    600 12px Inter,
+    sans-serif;
+  text-transform: uppercase;
+}
+.num {
+  text-align: right;
+}
+.center {
+  text-align: center;
+}
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+.strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.position-row th,
+.position-row td {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.chip {
+  padding: 2px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 11px;
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.who small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0f2a44;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.is-disputed b,
+.is-disputed .strong {
+  color: #94a3b8;
+}
+.change {
+  min-width: 170px;
+}
+.diverge {
+  display: flex;
+  align-items: center;
+}
+.half {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+}
+.half.neg {
+  justify-content: flex-end;
+}
+.axis {
+  width: 1px;
+  height: 26px;
+  background: #94a3b8;
+}
+.bar {
+  height: 14px;
+  max-width: 70%;
+}
+.up .bar {
+  background: #059669;
+}
+.down .bar {
+  background: #e11d48;
+}
+.half i {
+  font-style: normal;
+  font-size: 12px;
+}
+.up {
+  color: #047857;
+}
+.down {
+  color: #be123c;
+}
+.warn {
+  color: #c2410c;
+}
+.link-blue {
+  color: #1d4ed8;
+}
+.muted {
+  color: #94a3b8;
+}
+.center-text {
+  display: block;
+  text-align: center;
+}
+.badge {
+  padding: 2px 10px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #047857;
+  font:
+    600 11px 'JetBrains Mono',
+    monospace;
+  text-transform: uppercase;
+}
+.badge.leave {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #475569;
+}
+.badge.disputed {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+.view {
+  color: #1d4ed8;
+  font-weight: 600;
+  text-decoration: none;
+}
+.view:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.empty {
+  padding: 24px;
+  color: #64748b;
+  text-align: center;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

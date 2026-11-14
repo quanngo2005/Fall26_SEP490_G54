@@ -3,7 +3,12 @@ import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
-import { SubmissionContext, SubmissionDetail, SubmissionResult } from './result-submission.models';
+import {
+  SubmissionContext,
+  SubmissionDetail,
+  SubmissionResult,
+  WorkTransactions,
+} from './result-submission.models';
 
 @Injectable({ providedIn: 'root' })
 export class ResultSubmissionService {
@@ -39,6 +44,16 @@ export class ResultSubmissionService {
       .post<ApiResponse<SubmissionResult>>(
         `${this.url}/works/${encodeURIComponent(workId)}/submissions`,
         formData,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** Attaches transaction codes to the work; the server reconciles them against the imported data. */
+  addTransactionCodes(workId: string, transactionCodes: string[]): Observable<WorkTransactions> {
+    return this.http
+      .post<ApiResponse<WorkTransactions>>(
+        `${this.url}/works/${encodeURIComponent(workId)}/transactions`,
+        { transactionCodes },
       )
       .pipe(map((response) => this.unwrap(response)));
   }

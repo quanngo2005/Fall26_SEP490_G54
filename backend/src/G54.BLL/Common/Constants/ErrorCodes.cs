@@ -57,8 +57,6 @@ public static class ErrorCodes
 
     // Handover (docs/api/HANDOVER_CONTRACT.md)
     public const string HandoverAmountExceedsThreshold = "HANDOVER_AMOUNT_EXCEEDS_THRESHOLD";
-    public const string HandoverProgressBelowThreshold = "HANDOVER_PROGRESS_BELOW_THRESHOLD";
-    public const string HandoverNoEligibleRecipient = "HANDOVER_NO_ELIGIBLE_RECIPIENT";
     public const string HandoverAlreadyPending = "HANDOVER_ALREADY_PENDING";
     public const string HandoverNotPending = "HANDOVER_NOT_PENDING";
 
@@ -77,6 +75,9 @@ public static class ErrorCodes
 
     // Locked evaluation periods (docs/api/PERIOD_LOCK_CONTRACT.md)
     public const string PeriodLocked = "PERIOD_LOCKED";
+
+    // Mid-period target change (docs/api/TARGET_ASSIGNMENT_CONTRACT.md, BR-15 / BR-29)
+    public const string MonthHardLocked = "MONTH_HARD_LOCKED";
 
     // Risk events (docs/api/RISK_EVENT_CONTRACT.md)
     public const string RiskEventInvalidState = "RISK_EVENT_INVALID_STATE";
@@ -161,8 +162,6 @@ public static class ErrorCodes
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
         [AppealScoreWindowExpired] = ("Đã quá thời hạn khiếu nại điểm đánh giá.", "The window to appeal an evaluation score has expired."),
         [HandoverAmountExceedsThreshold] = ("Giá trị giao dịch vượt ngưỡng cho phép bàn giao (BR-01).", "The amount exceeds the allowed handover threshold (BR-01)."),
-        [HandoverProgressBelowThreshold] = ("Tiến độ công việc chưa đạt ngưỡng tối thiểu để chuyển việc.", "Work progress has not reached the minimum threshold required for transfer."),
-        [HandoverNoEligibleRecipient] = ("Không tìm thấy nhân viên hợp lệ để nhận chuyển việc.", "No eligible employee found to receive the transferred work."),
         [HandoverAlreadyPending] = ("Công việc này đã có yêu cầu bàn giao đang chờ xử lý.", "This work already has a pending handover request."),
         [HandoverNotPending] = ("Yêu cầu bàn giao không còn ở trạng thái chờ xử lý.", "The handover request is no longer pending."),
         [EvaluationProfileInUse] = ("Hồ sơ đánh giá đã được dùng để tính điểm nên không thể đổi cấu trúc. Vui lòng tạo phiên bản mới.", "The evaluation profile is already used by performance evaluations and its structure cannot change. Create a new version instead."),
@@ -198,6 +197,7 @@ public static class ErrorCodes
         [EvaluationDisputePending] = ("Còn điểm đánh giá đang tranh chấp (Disputed_Pending) nên chưa thể khóa kỳ đánh giá (BR-31).", "Some scores are disputed (Disputed_Pending), so the evaluation period cannot be locked yet (BR-31)."),
         [EvaluationPeriodInvalidState] = ("Trạng thái hiện tại của kỳ đánh giá không cho phép thao tác này.", "The current state of the evaluation period does not allow this action."),
         [PeriodLocked] = ("Kỳ đánh giá đã bị khóa nên không thể thay đổi hoặc nhập dữ liệu KPI.", "The evaluation period is locked, so KPI data cannot be changed or imported."),
+        [MonthHardLocked] = ("Tháng này đã bị khóa cứng (hard-lock) nên không thể đổi target có hiệu lực trong tháng đó.", "This month is hard-locked, so a target cannot take effect within it."),
         [RiskEventInvalidState] = ("Trạng thái hiện tại của sự kiện rủi ro không cho phép thao tác này.", "The current state of the risk event does not allow this action."),
         [RiskEventPeriodUnavailable] = ("Không có kỳ đánh giá đang mở chứa ngày xảy ra sự kiện rủi ro nên không thể ghi điểm.", "No open evaluation period contains the risk event date, so the penalty cannot be recorded."),
         [TierAQuotaExceeded] = ("Tỷ lệ phân bổ xếp loại Tier A vượt quá hạn ngạch tối đa cho phép của đơn vị (BR-37).", "Tier A distribution exceeds department quota cap (BR-37)."),

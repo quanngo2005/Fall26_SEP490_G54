@@ -95,7 +95,12 @@
   </div>
 
   @if (selected(); as role) {
-    <aside class="drawer" role="dialog" [attr.aria-label]="role.code + ' · ' + role.name">
+    <aside
+      animate.leave="g54-leave-drawer"
+      class="drawer"
+      role="dialog"
+      [attr.aria-label]="role.code + ' · ' + role.name"
+    >
       <header class="drawer-head">
         <div>
           <h2>{{role.code}} · {{role.name}}</h2>

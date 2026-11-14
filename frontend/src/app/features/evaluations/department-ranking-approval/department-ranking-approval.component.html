@@ -16,7 +16,13 @@
 
       <!-- Toast Banner -->
       @if (toastMessage(); as toast) {
-        <div class="toast-banner" [ngClass]="toastType()" role="status" aria-live="polite">
+        <div
+          animate.leave="g54-leave-rise"
+          class="toast-banner"
+          [ngClass]="toastType()"
+          role="status"
+          aria-live="polite"
+        >
           <app-layout-icon name="check" class="toast-icon" />
           <span>{{toast}}</span>
         </div>
@@ -329,6 +335,7 @@
 <!-- Reject Modal (SCR-EVL-03-D1) -->
 @if (isRejectModalOpen()) {
   <div
+    animate.leave="g54-leave-fade"
     class="modal-backdrop"
     role="presentation"
     (click)="closeRejectModal()"
@@ -413,6 +420,7 @@
 <!-- Approve Modal -->
 @if (isApproveModalOpen()) {
   <div
+    animate.leave="g54-leave-fade"
     class="modal-backdrop"
     role="presentation"
     (click)="closeApproveModal()"
@@ -488,6 +496,7 @@
 <!-- Lock Period Modal -->
 @if (isLockModalOpen()) {
   <div
+    animate.leave="g54-leave-fade"
     class="modal-backdrop"
     role="presentation"
     (click)="closeLockModal()"

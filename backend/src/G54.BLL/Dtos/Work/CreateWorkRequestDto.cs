@@ -27,4 +27,10 @@ public sealed record CreateWorkRequestDto(
     [StringLength(2000)]
     string? Description = null,
 
-    IReadOnlyList<string>? ChecklistItems = null);
+    IReadOnlyList<string>? ChecklistItems = null,
+
+    [StringLength(200)]
+    string? CustomerName = null,
+
+    [StringLength(50)]
+    string? CustomerCif = null);

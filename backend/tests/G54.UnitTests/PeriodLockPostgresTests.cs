@@ -62,6 +62,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IPermissionService, AllPermissions>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
+        services.AddScoped<INotifier, RecordingNotifier>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped(provider => new VerificationService(

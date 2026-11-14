@@ -43,8 +43,8 @@ public sealed class PerformanceScoreFormulaTests
     [Theory]
     [InlineData(5, 10, 50)]
     [InlineData(5, 5, 100)]
-    [InlineData(10, 5, 200)]
-    public void CalculateKpi_LowerBetter_IsTargetOverActual(decimal target, decimal actual, decimal expected)
+    [InlineData(10, 5, 100)] // beating the target earns the maximum, not more
+    public void CalculateKpi_LowerBetter_IsTargetOverActualUntilTheTargetIsMet(decimal target, decimal actual, decimal expected)
     {
         var result = _formula.CalculateKpi(Kpi(KpiDirection.LowerBetter, target, actual));
 

@@ -10,7 +10,7 @@ import { AppDatePipe } from '../../shared/pipes';
 import { CampaignBatchModalComponent } from './campaign-batch-modal.component';
 import { statusBadgeClass, worksProgress } from './campaign.utils';
 
-type DetailTab = 'overview' | 'participants';
+type DetailTab = 'overview' | 'participants' | 'works';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

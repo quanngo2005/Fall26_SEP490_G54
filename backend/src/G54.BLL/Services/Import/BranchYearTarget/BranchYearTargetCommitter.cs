@@ -49,6 +49,7 @@ public sealed class BranchYearTargetCommitter(IUnitOfWork uow)
                     Status = TargetAssignmentStatus.Draft,
                     CreatedAt = now,
                     AssignedAt = now,
+                    EffectiveFrom = context.YearPeriod.StartDate,
                 }, ct);
                 created++;
                 continue;

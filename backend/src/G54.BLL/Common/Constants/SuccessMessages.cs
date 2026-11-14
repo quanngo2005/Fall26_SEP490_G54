@@ -12,7 +12,6 @@ public static class SuccessMessages
     public const string Created = "CREATED";                                 // MSG04
     public const string HandoverRequested = "HANDOVER_REQUESTED";            // MSG05
     public const string HandoverTransferred = "HANDOVER_TRANSFERRED";
-    public const string HandoverPooled = "HANDOVER_POOLED";
     public const string HandoverAccepted = "HANDOVER_ACCEPTED";
     public const string HandoverRejected = "HANDOVER_REJECTED";
     public const string WorkResultSubmitted = "WORK_RESULT_SUBMITTED";       // MSG06
@@ -26,7 +25,6 @@ public static class SuccessMessages
         [Created] = ("Tạo mới thành công.", "Create successfully."),
         [HandoverRequested] = ("Gửi yêu cầu bàn giao thành công.", "Handover request sent successfully."),
         [HandoverTransferred] = ("Đã chuyển công việc cho người nhận.", "Work transferred successfully."),
-        [HandoverPooled] = ("Đã đưa công việc vào hàng chờ phân công (pool).", "Work has been placed in the assignment pool."),
         [HandoverAccepted] = ("Đã nhận bàn giao công việc.", "Handover accepted successfully."),
         [HandoverRejected] = ("Đã từ chối yêu cầu bàn giao.", "Handover rejected successfully."),
         [WorkResultSubmitted] = ("Nộp kết quả công việc thành công. Đang chờ thẩm định.", "Work result submitted successfully. Awaiting verification."),

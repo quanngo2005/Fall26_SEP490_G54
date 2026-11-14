@@ -16,14 +16,13 @@ public sealed class HandoverEscalationService(AppDbContext db, TimeProvider time
             .Where(h => h.Status == HandoverStatus.Pending
                 && h.EscalatedAt == null
                 && h.HandoverAt <= cutoff
-                && h.ToEmployee != null
                 && h.ToEmployee.ManagerId != null)
             .ToListAsync(cancellationToken);
 
         foreach (var handover in overdue)
         {
             handover.EscalatedAt = now;
-            handover.EscalatedToEmployeeId = handover.ToEmployee!.ManagerId;
+            handover.EscalatedToEmployeeId = handover.ToEmployee.ManagerId;
             handover.UpdatedAt = now;
         }
 

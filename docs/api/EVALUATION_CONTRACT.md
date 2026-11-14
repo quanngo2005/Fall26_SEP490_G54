@@ -83,6 +83,7 @@ typed in a tab that never opened a form, has nothing stored and shows "not found
 | --- | --- | --- |
 | `GET /evaluations/form` | `evaluation:read` | `Own` or higher |
 | `POST /evaluations/submit` | `evaluation:submit` | `Dept` or higher |
+| `POST /evaluations/personal/acknowledge` | `evaluation:read` | `Own` or higher (the result acknowledged is always the caller's own) |
 
 A caller reads their own form with `Own`; any other employee needs `evaluation:read` covering the employee's
 department (403 `FORBIDDEN` otherwise). Submitting needs `evaluation:submit` covering the department, and the
@@ -128,3 +129,35 @@ Notes:
 - "Quality ratio" and the "History" link have no data source or target screen yet (waiting for confirmation);
   the form does not show them. The transaction-trace links (SCR-PRF-05) are not part of this scope.
 - Whether HR holds `evaluation:read` depends on the role grants in the database; this task does not change them.
+
+### `POST /evaluations/personal/acknowledge` (UC105, SCR-EVL-04)
+
+Body (`AcknowledgePersonalEvaluationRequestDto`): `periodId` (GUID, required). The result acknowledged is the caller's own evaluation in that period, so there is no way to acknowledge someone else's (no 403 case).
+`data` (`AcknowledgePersonalEvaluationResultDto`): `success` (always true on 200), `acknowledgedAt` (ISO-8601 timestamp), `message`.
+
+Rules:
+- An evaluation under dispute (`DISPUTED` or with an `OPEN`/`UNDER_REVIEW` appeal) cannot be acknowledged and returns 409 `EVALUATION_DISPUTE_PENDING` (BR-31). A closed appeal (`ACCEPTED` / `REJECTED` / `WITHDRAWN`) does not block.
+- An evaluation in `DRAFT` or without a `totalScore` cannot be acknowledged and returns 409 `PERFORMANCE_EVALUATION_INVALID_STATE`.
+- Idempotent: acknowledging an already-acknowledged evaluation returns 200 with the original `acknowledgedAt` unchanged (the check runs before the dispute and state checks, so an acknowledged result stays acknowledged).
+- Two requests saving at once: the one that loses is a 409 `CONFLICT` and nothing is overwritten.
+- Re-saving or recalculating a `DRAFT`/`CALCULATED` evaluation clears `acknowledgedAt` so the employee must acknowledge the updated result.
+- Errors: 400 `VALIDATION_ERROR` (missing `periodId`); 401 `UNAUTHORIZED`; 404 `NOT_FOUND` (no evaluation of the caller in the period); 409 `EVALUATION_DISPUTE_PENDING`; 409 `PERFORMANCE_EVALUATION_INVALID_STATE`; 409 `CONFLICT`.
+
+## My performance: criterion ledger (`/my-evaluation`)
+
+### `GET /evaluations/personal/ledger`
+
+Permission: any signed-in employee with a personal evaluation (own data only). Query: `periodId`, `criteriaId` (GUID, required; `criteriaId` is the KPI definition id or the target assignment id). `data` is an array (no paging) of the caller's valid progress entries of the criterion inside the period, newest first:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | GUID | work result item id (or the progress id when there is none) |
+| `txCode` | string | transaction code; `VR-xxxxxxxx` / `AP-xxxxxxxx` generated when the entry has no work transaction |
+| `date` | string | `dd/MM/yyyy` display date |
+| `occurredOn` | string | same date as `yyyy-MM-dd`, used by the date filter |
+| `amount` | string | formatted transaction amount |
+| `kpiContribution` | number | value counted for the KPI |
+| `status` | string | work transaction status `MATCHED` / `IN_REVIEW` / `NOT_MATCHED`; `VALID` when there is no work transaction |
+| `workId`, `workCode`, `workTitle` | GUID / string / string, nullable | the work behind the entry: the work of the work transaction, else the work of the verified submission; null when neither exists |
+
+The modal searches (transaction code, work code or title), filters by status and by date range in the browser on this array. A row with `workId` opens `/my-work?keyword=<workCode>&workId=<workId>`: the work board on the caller's own work, searched by the work code, with the detail drawer of that work open. Errors: 404 unknown period or employee.

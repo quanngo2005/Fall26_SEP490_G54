@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -7,47 +8,36 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace G54.BLL.Services;
 
 /// <summary>
-/// Handover requests. A request whose amount is above <c>Handover:AmountThreshold</c> (BR-01) is rejected. A request to a
-/// different role (<c>A -&gt; B</c>) needs the work progress to reach <c>Handover:TransferMinProgressPercent</c>, then goes to a
-/// random <c>B</c> at once or waits in the pool (<c>Handover:TransferAssignmentMode</c> = <c>ASSIGNED</c>).
+/// Handover requests. A request whose amount is above <c>SystemParameters:HandoverAmountThreshold</c> (SCR-ADM-04) (BR-01) is rejected.
 /// </summary>
 public sealed partial class HandoverService(
     AppDbContext db,
     IPermissionService permissions,
-    IConfiguration configuration,
     INotifier notifier,
+    IOptions<SystemParametersOptions> parameters,
     ILogger<HandoverService> logger,
     TimeProvider time) : IHandoverService
 {
-    /// <summary>Fallback when <c>Handover:AmountThreshold</c> is not configured.</summary>
-    private const decimal DefaultAmountThreshold = 500_000_000m;
-
-    /// <summary>Fallback when <c>Handover:TransferMinProgressPercent</c> is not configured: the progress a cross-role transfer (<c>A -&gt; B</c>) needs.</summary>
-    private const decimal DefaultTransferMinProgressPercent = 90m;
-
-    /// <summary>Value of <c>Handover:TransferAssignmentMode</c> that puts a cross-role transfer in the pool; anything else picks a random recipient.</summary>
-    private const string TransferModePool = "ASSIGNED";
-
     private const int MaxReasonLength = 2000;
 
     /// <summary>Referrer share when none is set: the recipient receives 100%.</summary>
     private const decimal DefaultReferrerSharePercent = 0m;
 
-    private static readonly Action<ILogger, Guid, Guid, Guid, Guid?, Exception?> LogHandoverRequested =
-        LoggerMessage.Define<Guid, Guid, Guid, Guid?>(
+    private static readonly Action<ILogger, Guid, Guid, Guid, Guid, Exception?> LogHandoverRequested =
+        LoggerMessage.Define<Guid, Guid, Guid, Guid>(
             LogLevel.Information,
             new EventId(1, "HandoverRequested"),
             "Handover audit: Action=REQUEST, HandoverId={HandoverId}, WorkId={WorkId}, FromEmployeeId={FromEmployeeId}, ToEmployeeId={ToEmployeeId}");
 
-    private static readonly Action<ILogger, string, Guid, Guid, Guid, Guid?, Exception?> LogHandoverDecided =
-        LoggerMessage.Define<string, Guid, Guid, Guid, Guid?>(
+    private static readonly Action<ILogger, string, Guid, Guid, Guid, Guid, Exception?> LogHandoverDecided =
+        LoggerMessage.Define<string, Guid, Guid, Guid, Guid>(
             LogLevel.Information,
             new EventId(2, "HandoverDecided"),
             "Handover audit: Action={Action}, HandoverId={HandoverId}, WorkId={WorkId}, FromEmployeeId={FromEmployeeId}, ToEmployeeId={ToEmployeeId}");
@@ -85,11 +75,6 @@ public sealed partial class HandoverService(
                 throw new ForbiddenException("Chỉ người đang được giao công việc hoặc quản lý trực tiếp của họ mới có quyền bàn giao công việc.");
             }
 
-            if (input.ToEmployeeId is null)
-            {
-                throw new ValidationException("Người nhận là bắt buộc.");
-            }
-
             from = assignee;
         }
 
@@ -100,7 +85,7 @@ public sealed partial class HandoverService(
                 ErrorCodes.WorkInvalidState);
         }
 
-        var threshold = configuration.GetValue("Handover:AmountThreshold", DefaultAmountThreshold);
+        var threshold = parameters.Value.HandoverAmountThreshold;
         if (input.Amount > threshold)
         {
             throw new BusinessRuleException(
@@ -114,40 +99,22 @@ public sealed partial class HandoverService(
             throw new ValidationException("Không thể bàn giao công việc cho người đang phụ trách nó.");
         }
 
-        Employee? recipient = null;
-        if (input.ToEmployeeId is { } recipientId)
+        var recipient = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == input.ToEmployeeId, cancellationToken)
+            ?? throw new NotFoundException("Nhân viên nhận bàn giao", input.ToEmployeeId);
+        if (recipient.Status != EmployeeStatus.Active)
         {
-            recipient = await db.Employees.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == recipientId, cancellationToken)
-                ?? throw new NotFoundException("Nhân viên nhận bàn giao", recipientId);
-            if (recipient.Status != EmployeeStatus.Active)
-            {
-                throw new ValidationException("Nhân viên nhận bàn giao không còn hoạt động.");
-            }
+            throw new ValidationException("Nhân viên nhận bàn giao không còn hoạt động.");
         }
 
         var hasPending = await db.TaskHandovers.AnyAsync(
-            h => h.WorkId == workId && (h.Status == HandoverStatus.Pending || h.Status == HandoverStatus.InPool),
+            h => h.WorkId == workId && h.Status == HandoverStatus.Pending,
             cancellationToken);
         if (hasPending)
         {
             throw new ConflictException(
                 ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverAlreadyPending),
                 ErrorCodes.HandoverAlreadyPending);
-        }
-
-        if (!transfer)
-        {
-            var (isCrossRoleTransfer, targetRoles) = await ResolveFlowAsync(from.Id, recipient, input.TargetRoleCode, cancellationToken);
-            if (isCrossRoleTransfer)
-            {
-                return await ExecuteCrossRoleTransferAsync(work, from, caller.Id, recipient, targetRoles, input, handedOverStatus, cancellationToken);
-            }
-        }
-
-        if (recipient is null)
-        {
-            throw new ValidationException("Người nhận là bắt buộc.");
         }
 
         var now = time.GetUtcNow();
@@ -173,7 +140,17 @@ public sealed partial class HandoverService(
             work.UpdatedAt = now;
         }
 
-        await SaveNewHandoverAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // A concurrent request created the pending handover between the check above and this insert.
+            throw new ConflictException(
+                ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverAlreadyPending),
+                ErrorCodes.HandoverAlreadyPending);
+        }
 
         if (transfer)
         {
@@ -187,171 +164,6 @@ public sealed partial class HandoverService(
         }
 
         return Map(handover, work, from, recipient);
-    }
-
-    private async Task<(bool IsCrossRoleTransfer, HashSet<string> TargetRoles)> ResolveFlowAsync(
-        Guid fromEmployeeId,
-        Employee? recipient,
-        string? targetRoleCode,
-        CancellationToken cancellationToken)
-    {
-        var fromRoles = await GetActiveRoleCodesAsync(fromEmployeeId, cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(targetRoleCode))
-        {
-            var normalizedRole = targetRoleCode.Trim().ToUpperInvariant();
-            var roleExists = await db.Roles.AsNoTracking()
-                .AnyAsync(r => r.Code == normalizedRole && r.Status == RecordStatus.Active, cancellationToken);
-            if (!roleExists)
-            {
-                throw new ValidationException("Vai trò nhận chuyển việc không hợp lệ.");
-            }
-
-            var targetRoles = new HashSet<string>([normalizedRole], StringComparer.OrdinalIgnoreCase);
-            return (!fromRoles.SetEquals(targetRoles), targetRoles);
-        }
-
-        if (recipient is null)
-        {
-            return (false, []);
-        }
-
-        var recipientRoles = await GetActiveRoleCodesAsync(recipient.Id, cancellationToken);
-        return (!fromRoles.SetEquals(recipientRoles), recipientRoles);
-    }
-
-    private async Task<HashSet<string>> GetActiveRoleCodesAsync(Guid employeeId, CancellationToken cancellationToken)
-    {
-        var codes = await db.UserRoles.AsNoTracking()
-            .Where(ur => ur.Account.EmployeeId == employeeId && ur.Role.Status == RecordStatus.Active)
-            .Select(ur => ur.Role.Code)
-            .ToListAsync(cancellationToken);
-
-        return new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
-    }
-
-    private async Task<HandoverDetailDto> ExecuteCrossRoleTransferAsync(
-        Work work,
-        Employee from,
-        Guid callerId,
-        Employee? explicitRecipient,
-        HashSet<string> targetRoles,
-        ValidInput input,
-        WorkStatus handedOverStatus,
-        CancellationToken cancellationToken)
-    {
-        var minProgress = configuration.GetValue("Handover:TransferMinProgressPercent", DefaultTransferMinProgressPercent);
-        if (work.ProgressPercent < minProgress)
-        {
-            throw new BusinessRuleException(
-                ErrorCodes.HandoverProgressBelowThreshold,
-                $"{ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverProgressBelowThreshold)} Tiến độ hiện tại: {work.ProgressPercent:0.##}%, ngưỡng tối thiểu: {minProgress:0.##}%.",
-                StatusCodes.Status422UnprocessableEntity);
-        }
-
-        var now = time.GetUtcNow();
-        if (string.Equals(configuration["Handover:TransferAssignmentMode"], TransferModePool, StringComparison.OrdinalIgnoreCase))
-        {
-            var pooled = new TaskHandover
-            {
-                Id = Guid.NewGuid(),
-                WorkId = work.Id,
-                FromEmployeeId = from.Id,
-                ToEmployeeId = null,
-                Reason = input.Reason,
-                ReferrerSharePercent = input.ReferrerSharePercent,
-                Status = HandoverStatus.InPool,
-                HandoverAt = now,
-                AcceptedAt = null,
-                ApprovedBy = null,
-                UpdatedAt = now,
-            };
-            db.TaskHandovers.Add(pooled);
-            await SaveNewHandoverAsync(cancellationToken);
-
-            LogHandoverRequested(logger, pooled.Id, work.Id, from.Id, null, null);
-            await notifier.TryPublishAsync(AutomaticNotifications.HandoverPooled(pooled, work, from), cancellationToken);
-
-            return Map(pooled, work, from, null);
-        }
-
-        var chosenRecipient = await SelectRandomRecipientAsync(from, explicitRecipient, targetRoles, cancellationToken);
-        var transferred = new TaskHandover
-        {
-            Id = Guid.NewGuid(),
-            WorkId = work.Id,
-            FromEmployeeId = from.Id,
-            ToEmployeeId = chosenRecipient.Id,
-            Reason = input.Reason,
-            ReferrerSharePercent = input.ReferrerSharePercent,
-            Status = HandoverStatus.Accepted,
-            HandoverAt = now,
-            AcceptedAt = now,
-            ApprovedBy = null,
-            UpdatedAt = now,
-        };
-        db.TaskHandovers.Add(transferred);
-        work.AssigneeEmployeeId = chosenRecipient.Id;
-        work.Status = handedOverStatus;
-        work.UpdatedAt = now;
-
-        await SaveNewHandoverAsync(cancellationToken);
-
-        LogHandoverDecided(logger, "TRANSFER", transferred.Id, work.Id, from.Id, chosenRecipient.Id, null);
-        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(transferred, work, from, chosenRecipient, callerId), cancellationToken);
-
-        return Map(transferred, work, from, chosenRecipient);
-    }
-
-    private async Task<Employee> SelectRandomRecipientAsync(
-        Employee from,
-        Employee? explicitRecipient,
-        HashSet<string> targetRoles,
-        CancellationToken cancellationToken)
-    {
-        if (targetRoles.Count > 0)
-        {
-            var upperRoles = targetRoles.Select(r => r.ToUpperInvariant()).ToList();
-            var candidates = await db.Employees.AsNoTracking()
-                .Where(e => e.Id != from.Id
-                    && e.Status == EmployeeStatus.Active
-                    && e.Account != null
-                    && e.Account.UserRoles.Any(ur => ur.Role.Status == RecordStatus.Active && upperRoles.Contains(ur.Role.Code)))
-                .ToListAsync(cancellationToken);
-
-            // The requester's own department first; the whole branch only when nobody there holds the role.
-            var sameDepartment = candidates.FindAll(e => e.DepartmentId == from.DepartmentId);
-            var eligible = sameDepartment.Count > 0 ? sameDepartment : candidates;
-            if (eligible.Count > 0)
-            {
-                return eligible[Random.Shared.Next(eligible.Count)];
-            }
-        }
-
-        if (explicitRecipient is not null)
-        {
-            return explicitRecipient;
-        }
-
-        throw new BusinessRuleException(
-            ErrorCodes.HandoverNoEligibleRecipient,
-            ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverNoEligibleRecipient),
-            StatusCodes.Status422UnprocessableEntity);
-    }
-
-    private async Task SaveNewHandoverAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
-        {
-            // A concurrent request created the pending/pooled handover between the check above and this insert.
-            throw new ConflictException(
-                ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverAlreadyPending),
-                ErrorCodes.HandoverAlreadyPending);
-        }
     }
 
     public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
@@ -403,7 +215,7 @@ public sealed partial class HandoverService(
         return Map(handover, work, handover.FromEmployee, handover.ToEmployee);
     }
 
-    /// <summary>Accepts a pending or pooled handover: the work moves to the recipient and becomes HANDED_OVER.</summary>
+    /// <summary>Accepts a pending handover: the work moves to the recipient and becomes HANDED_OVER.</summary>
     private static void AcceptInto(TaskHandover handover, Work work, DateTimeOffset now)
     {
         if (work.AssigneeEmployeeId != handover.FromEmployeeId
@@ -416,7 +228,7 @@ public sealed partial class HandoverService(
 
         handover.Status = HandoverStatus.Accepted;
         handover.AcceptedAt = now;
-        work.AssigneeEmployeeId = handover.ToEmployeeId!.Value;
+        work.AssigneeEmployeeId = handover.ToEmployeeId;
         work.Status = nextStatus;
         work.UpdatedAt = now;
     }
@@ -436,15 +248,15 @@ public sealed partial class HandoverService(
         }
     }
 
-    private static HandoverDetailDto Map(TaskHandover handover, Work work, Employee from, Employee? to) => new(
+    private static HandoverDetailDto Map(TaskHandover handover, Work work, Employee from, Employee to) => new(
         handover.Id,
         work.Id,
         work.Code,
         work.Title,
         from.Id,
         from.FullName,
-        to?.Id ?? handover.ToEmployeeId,
-        to?.FullName,
+        to.Id,
+        to.FullName,
         handover.Reason,
         handover.ReferrerSharePercent,
         handover.Status.ToEnumString(),
@@ -456,9 +268,7 @@ public sealed partial class HandoverService(
     {
         var errors = new List<string>();
 
-        var hasRecipient = request.ToEmployeeId is not null && request.ToEmployeeId != Guid.Empty;
-        var hasTargetRole = !string.IsNullOrWhiteSpace(request.TargetRoleCode);
-        if (request.ToEmployeeId == Guid.Empty || (!hasRecipient && !hasTargetRole))
+        if (request.ToEmployeeId is null || request.ToEmployeeId == Guid.Empty)
         {
             errors.Add("Người nhận là bắt buộc.");
         }
@@ -493,7 +303,7 @@ public sealed partial class HandoverService(
             throw new ValidationException(errors);
         }
 
-        return new ValidInput(hasRecipient ? request.ToEmployeeId : null, request.TargetRoleCode?.Trim(), reason!, request.Amount!.Value, share);
+        return new ValidInput(request.ToEmployeeId!.Value, reason!, request.Amount!.Value, share);
     }
 
     /// <summary>Manager/Admin (<c>handover:set_share</c>): may choose the referrer share and transfer a subordinate's work.</summary>
@@ -529,5 +339,5 @@ public sealed partial class HandoverService(
         return employee;
     }
 
-    private sealed record ValidInput(Guid? ToEmployeeId, string? TargetRoleCode, string Reason, decimal Amount, decimal ReferrerSharePercent);
+    private sealed record ValidInput(Guid ToEmployeeId, string Reason, decimal Amount, decimal ReferrerSharePercent);
 }

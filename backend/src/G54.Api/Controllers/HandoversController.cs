@@ -30,18 +30,6 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    /// <summary>Handover requests in the pool (<c>IN_POOL</c>) waiting for the caller (direct manager) to assign a recipient.</summary>
-    [HttpGet("handovers/pool")]
-    [HasPermission("handover", "manage", "Own")]
-    [ProducesResponseType<ApiResponse<IReadOnlyList<HandoverDetailDto>>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<HandoverDetailDto>>>> GetPool(
-        CancellationToken cancellationToken)
-    {
-        var result = await handoverService.GetPoolAsync(User.GetRequiredUserId(), cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
     [HttpPost("works/{workId:guid}/handovers")]
     [HasPermission("handover", "create", "Own")]
     [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status201Created)]
@@ -56,15 +44,9 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
         CancellationToken cancellationToken)
     {
         var result = await handoverService.CreateHandoverAsync(workId, User.GetRequiredUserId(), request, cancellationToken);
-        var messageKey = result.Status switch
-        {
-            "ACCEPTED" => SuccessMessages.HandoverTransferred,
-            "IN_POOL" => SuccessMessages.HandoverPooled,
-            _ => SuccessMessages.HandoverRequested,
-        };
         var response = ApiResponse.Ok(
             result,
-            SuccessMessages.GetMessage(messageKey),
+            SuccessMessages.GetMessage(result.Status == "ACCEPTED" ? SuccessMessages.HandoverTransferred : SuccessMessages.HandoverRequested),
             HttpContext.TraceIdentifier);
 
         return StatusCode(StatusCodes.Status201Created, response);
@@ -103,7 +85,6 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
     [HttpPost("handovers/{id:guid}/manager/approve")]
     [HasPermission("handover", "manage", "Own")]
     [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]

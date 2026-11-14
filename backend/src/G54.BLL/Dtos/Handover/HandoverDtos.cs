@@ -5,12 +5,6 @@ public sealed record CreateHandoverRequestDto
 {
     public Guid? ToEmployeeId { get; init; }
 
-    /// <summary>
-    /// Optional target role code when transferring work to another role (<c>A -&gt; B</c>) without specifying
-    /// <see cref="ToEmployeeId"/>.
-    /// </summary>
-    public string? TargetRoleCode { get; init; }
-
     public string? Reason { get; init; }
 
     /// <summary>Monetary value of the work being handed over; checked against the BR-01 threshold, not stored.</summary>
@@ -36,8 +30,8 @@ public sealed record HandoverDetailDto(
     string WorkTitle,
     Guid FromEmployeeId,
     string FromEmployeeName,
-    Guid? ToEmployeeId,
-    string? ToEmployeeName,
+    Guid ToEmployeeId,
+    string ToEmployeeName,
     string Reason,
     decimal ReferrerSharePercent,
     string Status,

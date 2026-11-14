@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-/// <summary>The direct manager of the requester settles a pending handover, or assigns a pooled one, without the recipient's say.</summary>
+/// <summary>The direct manager of the requester settles a pending handover without the recipient's say.</summary>
 public sealed partial class HandoverService
 {
     private enum ManagerAction
@@ -14,22 +14,6 @@ public sealed partial class HandoverService
         Approve,
         Reassign,
         Reject,
-    }
-
-    public async Task<IReadOnlyList<HandoverDetailDto>> GetPoolAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        var caller = await ResolveCallerAsync(userId, cancellationToken);
-        var items = await db.TaskHandovers.AsNoTracking()
-            .Include(h => h.Work)
-            .Include(h => h.FromEmployee)
-            .Include(h => h.ToEmployee)
-            .Where(h => h.Status == HandoverStatus.InPool && h.FromEmployee.ManagerId == caller.Id)
-            .OrderBy(h => h.HandoverAt)
-            .ToListAsync(cancellationToken);
-
-        return items.Select(h => Map(h, h.Work, h.FromEmployee, h.ToEmployee)).ToList();
     }
 
     public Task<HandoverDetailDto> ApproveByManagerAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
@@ -75,7 +59,7 @@ public sealed partial class HandoverService
             throw new ForbiddenException("Chỉ quản lý trực tiếp của người bàn giao mới có quyền xử lý yêu cầu này.");
         }
 
-        if (handover.Status is not (HandoverStatus.Pending or HandoverStatus.InPool))
+        if (handover.Status != HandoverStatus.Pending)
         {
             throw new ConflictException(
                 ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverNotPending),
@@ -93,10 +77,6 @@ public sealed partial class HandoverService
             if (action == ManagerAction.Reassign)
             {
                 await ReassignRecipientAsync(handover, work, newRecipientId!.Value, cancellationToken);
-            }
-            else if (handover.ToEmployeeId is null)
-            {
-                throw new ValidationException("Yêu cầu trong hàng chờ (pool) chưa có người nhận; vui lòng chỉ định người nhận.");
             }
 
             AcceptInto(handover, work, now);

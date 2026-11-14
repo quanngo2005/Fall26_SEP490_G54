@@ -215,11 +215,15 @@ internal static class VerifiedResultRecorder
         return
         [
             (handover.FromEmployeeId, referrerPoints),
-            (handover.ToEmployeeId!.Value, processorPoints),
+            (handover.ToEmployeeId, processorPoints),
         ];
     }
 
-    // A verified result item must feed an employee target's progress, so approval needs an active target for each recipient.
+    // A verified result item must feed an employee target's progress, so approval needs an active target for each
+    // recipient. A late result (its transaction date before the newer version's effective date, BR-15) is attributed
+    // to the version in effect on that date: the ACTIVE version if its EffectiveFrom is already past, otherwise the
+    // SUPERSEDED version whose [EffectiveFrom, EffectiveTo] window contains the date. A SUPERSEDED row with
+    // EffectiveTo == null was replaced before BR-15 existed and is never a candidate.
     private static Task<TargetAssignment?> FindActiveTargetAsync(
         AppDbContext db,
         Guid kpiDefinitionId,
@@ -230,10 +234,13 @@ internal static class VerifiedResultRecorder
             .Include(t => t.EvaluationPeriod)
             .Where(t => t.KpiDefinitionId == kpiDefinitionId
                 && t.EmployeeId == employeeId
-                && t.Status == TargetAssignmentStatus.Active
                 && t.EvaluationPeriod.StartDate <= progressDate
-                && t.EvaluationPeriod.EndDate >= progressDate)
+                && t.EvaluationPeriod.EndDate >= progressDate
+                && ((t.Status == TargetAssignmentStatus.Active && t.EffectiveFrom <= progressDate)
+                    || (t.Status == TargetAssignmentStatus.Superseded && t.EffectiveTo != null
+                        && t.EffectiveFrom <= progressDate && t.EffectiveTo >= progressDate)))
             .OrderBy(t => t.EvaluationPeriod.EndDate)
+            .ThenByDescending(t => t.Version)
             .FirstOrDefaultAsync(cancellationToken);
 
     private static async Task<BusinessRuleException> TargetNotAssignedAsync(

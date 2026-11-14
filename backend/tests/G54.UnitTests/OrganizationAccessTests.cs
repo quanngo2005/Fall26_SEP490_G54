@@ -323,7 +323,10 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         public Task<DepartmentDetailDto> GetDepartmentAsync(Guid accountId, Guid departmentId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Detail);
 
-        public Task<DepartmentOverviewDto> GetOverviewAsync(Guid accountId, Guid departmentId, Guid? periodId, CancellationToken cancellationToken = default) =>
+        public Task<DepartmentOverviewDto> GetOverviewAsync(Guid accountId, Guid departmentId, Guid? periodId, string? compare = null, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<DepartmentOverviewExportDto> ExportOverviewAsync(Guid accountId, Guid departmentId, Guid? periodId, string? compare = null, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<PagedResult<DepartmentMemberDto>> GetMembersAsync(Guid accountId, Guid departmentId, DepartmentMemberFilterDto filter, CancellationToken cancellationToken = default) =>

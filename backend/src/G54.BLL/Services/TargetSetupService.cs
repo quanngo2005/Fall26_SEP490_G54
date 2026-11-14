@@ -563,7 +563,8 @@ public sealed class TargetSetupService(IUnitOfWork uow, AppDbContext db, IPermis
                             Status = TargetAssignmentStatus.Draft,
                             Version = 1,
                             CreatedAt = now,
-                            AssignedAt = now
+                            AssignedAt = now,
+                            EffectiveFrom = quarter.StartDate
                         };
                         await uow.TargetAssignments.AddAsync(newChild, ct);
                     }
@@ -595,7 +596,8 @@ public sealed class TargetSetupService(IUnitOfWork uow, AppDbContext db, IPermis
                             Status = TargetAssignmentStatus.Draft,
                             Version = 1,
                             CreatedAt = now,
-                            AssignedAt = now
+                            AssignedAt = now,
+                            EffectiveFrom = quarter.StartDate
                         };
                         await uow.TargetAssignments.AddAsync(newChild, ct);
                     }
@@ -1048,7 +1050,8 @@ public sealed class TargetSetupService(IUnitOfWork uow, AppDbContext db, IPermis
                         Status = TargetAssignmentStatus.Draft,
                         Version = 1,
                         CreatedAt = now,
-                        AssignedAt = now
+                        AssignedAt = now,
+                        EffectiveFrom = yearStartDate
                     };
                     await uow.TargetAssignments.AddAsync(deptYearRow, ct);
                     deptYearByDeptId[deptReq.DepartmentId] = deptYearRow;
@@ -1082,7 +1085,8 @@ public sealed class TargetSetupService(IUnitOfWork uow, AppDbContext db, IPermis
                             Status = TargetAssignmentStatus.Draft,
                             Version = 1,
                             CreatedAt = now,
-                            AssignedAt = now
+                            AssignedAt = now,
+                            EffectiveFrom = quarter.StartDate
                         };
                         await uow.TargetAssignments.AddAsync(newQuarter, ct);
                     }

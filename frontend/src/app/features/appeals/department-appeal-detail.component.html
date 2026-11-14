@@ -193,12 +193,14 @@
       <!-- Decision Modal -->
       @if (showDecisionModal()) {
         <div
+          animate.leave="g54-leave-fade"
           class="modal-backdrop"
           role="presentation"
           (click)="closeDecision()"
           (keydown.escape)="closeDecision()"
         >
           <div
+            animate.leave="g54-leave-pop"
             class="modal-window"
             role="dialog"
             aria-modal="true"

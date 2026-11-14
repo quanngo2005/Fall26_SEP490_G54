@@ -18,10 +18,14 @@ public sealed record WorkDetailDto(
     DateOnly? PlannedEndDate,
     decimal? EstimatedHours,
     DateTimeOffset UpdatedAt,
-    decimal ProgressPercent = 0m);
-
-/// <summary>Body of <c>PATCH /works/{id}/progress</c>.</summary>
-public sealed record UpdateWorkProgressDto
-{
-    public decimal? ProgressPercent { get; init; }
-}
+    string? CustomerName = null,
+    string? CustomerCif = null,
+    DateTimeOffset? AssignedAt = null,
+    Guid? AssignedByEmployeeId = null,
+    string? AssignedByName = null,
+    string? AssignedByPositionTitle = null,
+    IReadOnlyList<WorkChecklistItemDto>? ChecklistItems = null,
+    int? ProgressPercent = null,
+    IReadOnlyList<WorkKpiDto>? RelatedKpis = null,
+    bool CanEditPlan = false,
+    bool CanUpdateChecklist = false);

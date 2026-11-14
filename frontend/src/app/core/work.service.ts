@@ -6,6 +6,8 @@ import { ApiResponse } from './api-response.model';
 import { PagedResult } from './paged-result.model';
 import {
   CreateWorkRequest,
+  UpdateWorkPlanRequest,
+  WorkActivity,
   WorkDetail,
   WorkFilter,
   WorkListItem,
@@ -32,6 +34,30 @@ export class WorkService {
   create(request: CreateWorkRequest): Observable<WorkDetail> {
     return this.http
       .post<ApiResponse<WorkDetail>>(this.url, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The activity log of one work, newest first. */
+  activities(id: string): Observable<WorkActivity[]> {
+    return this.http
+      .get<ApiResponse<WorkActivity[]>>(`${this.url}/${encodeURIComponent(id)}/activities`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The assignee ticks or unticks one checklist item; the response is the work with its new progress. */
+  setChecklistItem(id: string, itemId: string, isDone: boolean): Observable<WorkDetail> {
+    return this.http
+      .patch<ApiResponse<WorkDetail>>(
+        `${this.url}/${encodeURIComponent(id)}/checklist-items/${encodeURIComponent(itemId)}`,
+        { isDone },
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The assignee's manager changes the deadline, priority and checklist of an open work. */
+  updatePlan(id: string, request: UpdateWorkPlanRequest): Observable<WorkDetail> {
+    return this.http
+      .put<ApiResponse<WorkDetail>>(`${this.url}/${encodeURIComponent(id)}/plan`, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 
