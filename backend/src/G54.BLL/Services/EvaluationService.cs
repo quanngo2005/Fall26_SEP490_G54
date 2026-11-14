@@ -60,6 +60,12 @@ public sealed partial class EvaluationService(
             new EventId(4, "PeriodFinalized"),
             "Evaluation period {PeriodId} finalized and hard-locked: TotalFinalized={TotalFinalized}");
 
+    private static readonly Action<ILogger, Guid, Guid, DateTimeOffset, Exception?> LogEvaluationAcknowledged =
+        LoggerMessage.Define<Guid, Guid, DateTimeOffset>(
+            LogLevel.Information,
+            new EventId(6, "EvaluationAcknowledged"),
+            "Performance evaluation {EvaluationId} acknowledged by Employee {EmployeeId} at {AcknowledgedAt}");
+
     public async Task<EvaluationFormDto> GetEvaluationFormAsync(
         Guid employeeId,
         Guid periodId,
@@ -2676,11 +2682,34 @@ public sealed partial class EvaluationService(
                 Message: "Bạn đã ghi nhận kết quả đánh giá này rồi.");
         }
 
+        // BR-31: a score under dispute cannot be acknowledged until the appeal is resolved or withdrawn.
+        var hasOpenAppeal = await db.Appeals
+            .AsNoTracking()
+            .AnyAsync(
+                a => a.PerformanceEvaluationId == pe.Id
+                    && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview),
+                cancellationToken);
+        if (pe.IsDisputedPending() || hasOpenAppeal)
+        {
+            throw PerformanceEvaluationExtensions.DisputePendingConflict(
+                "Điểm đánh giá đang tranh chấp (Disputed_Pending) nên không thể xác nhận kết quả cho đến khi khiếu nại được xử lý hoặc rút lại.");
+        }
+
+        if (pe.Status == PerformanceEvaluationStatus.Draft || !pe.TotalScore.HasValue)
+        {
+            throw new ConflictException(
+                $"Đánh giá đang ở trạng thái {pe.Status.ToEnumString()}, chưa hoàn tất nên không thể xác nhận kết quả.",
+                ErrorCodes.PerformanceEvaluationInvalidState);
+        }
+
         var now = DateTimeOffset.UtcNow;
         pe.Comment = SetStoredMarker(pe.Comment, AcknowledgedAtMarkerRegex(), "ACKNOWLEDGED_AT", now.ToString("O"));
         pe.UpdatedAt = now;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await SaveEvaluationChangesAsync(
+            "Đánh giá hiệu suất vừa được cập nhật bởi một yêu cầu khác. Hãy tải lại rồi thử lại.",
+            cancellationToken);
+        LogEvaluationAcknowledged(logger, pe.Id, employee.Id, now, null);
 
         return new AcknowledgePersonalEvaluationResultDto(
             Success: true,

@@ -69,7 +69,7 @@ POST /notifications
 | Trường | Ghi chú |
 |---|---|
 | `id` | |
-| `type` | `ANNOUNCEMENT`, `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE` |
+| `type` | `ANNOUNCEMENT`, `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE`, `KPI_APPROVED`, `KPI_REJECTED`, `REWORK_REQUESTED`, `RATING_ONE_STAR`, `RESULT_PUBLISHED`. `RATING_ONE_STAR` và `RESULT_PUBLISHED` mới chỉ là loại thông báo (SCR-NTF-01), chưa có luồng nào phát hành. Không có loại thông báo escalation |
 | `severity` | `NORMAL`, `IMPORTANT`. Client dùng `IMPORTANT` để hiện popup nổi bật |
 | `title`, `body` | `body` có thể `null` |
 | `relatedType`, `relatedId` | `WORK`, `CAMPAIGN`, `HANDOVER` hoặc `null`; để mở bản ghi liên quan |
