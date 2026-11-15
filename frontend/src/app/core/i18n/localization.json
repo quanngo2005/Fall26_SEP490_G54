@@ -3487,6 +3487,7 @@
         "range": "{from}–{to} / {total} lô",
         "pagination": "Phân trang",
         "footnote": "Danh sách chỉ gồm các lô nhập giao dịch Core Banking. Bộ lọc và kỳ dữ liệu sẽ sẵn sàng khi API hỗ trợ."
+      },
       "myEvaluation": {
         "pageTitle": "Kết quả đánh giá của tôi",
         "breadcrumbHome": "Trang chủ",
@@ -7036,6 +7037,7 @@
         "range": "{from}–{to} / {total} batches",
         "pagination": "Pagination",
         "footnote": "This list covers Core Banking transaction import batches only. Filters and data period will be available once the API supports them."
+      },
       "myEvaluation": {
         "pageTitle": "My Evaluation Results",
         "breadcrumbHome": "Home",
