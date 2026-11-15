@@ -97,6 +97,50 @@ public sealed class VerifiedResultLedgerTests
         await rig.AssertApprovalRejectedForMissingTargetAsync(25m);
     }
 
+    // ----- BR-15 mid-period target change: a result is attributed to the version in effect on its date -----
+
+    [Fact]
+    public async Task Approve_OnOrAfterTheNewVersionsEffectiveDate_UsesTheActiveVersion()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-30), BusinessToday.AddDays(30));
+        var old = rig.AddTarget(kpi, period, TargetAssignmentStatus.Superseded);
+        old.EffectiveFrom = BusinessToday.AddDays(-30);
+        old.EffectiveTo = BusinessToday.AddDays(-1);
+        var active = rig.AddTarget(kpi, period);
+        active.EffectiveFrom = BusinessToday;
+        active.PreviousVersionId = old.Id;
+        active.Version = 2;
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(active.Id, progress.TargetAssignmentId);
+    }
+
+    [Fact]
+    public async Task Approve_BeforeTheNewVersionsEffectiveDate_FallsBackToTheFrozenVersionInEffectOnThatDate()
+    {
+        using var rig = await Rig.CreateAsync();
+        var kpi = rig.AddWorkTypeKpi();
+        var period = rig.AddPeriod("P", BusinessToday.AddDays(-30), BusinessToday.AddDays(30));
+        var old = rig.AddTarget(kpi, period, TargetAssignmentStatus.Superseded);
+        old.EffectiveFrom = BusinessToday.AddDays(-30);
+        old.EffectiveTo = BusinessToday.AddDays(5);
+        var active = rig.AddTarget(kpi, period);
+        active.EffectiveFrom = BusinessToday.AddDays(6); // starts after today: today's late result still belongs to "old"
+        active.PreviousVersionId = old.Id;
+        active.Version = 2;
+        await rig.SaveAsync();
+
+        await rig.ApproveAsync(25m);
+
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(old.Id, progress.TargetAssignmentId);
+    }
+
     [Fact]
     public async Task Approve_RejectsWhenTheOnlyTargetBelongsToAnotherEmployee()
     {

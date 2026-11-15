@@ -129,4 +129,13 @@ export class CampaignApprovalComponent extends LocalizedComponent {
   protected statusLabel(status: CampaignStatus): string {
     return this.localization.campaign.status[status] ?? status;
   }
+
+  /** Participant count per job position, e.g. "5 SO, 3 Teller"; empty when no position is known. */
+  protected positionBreakdown(campaign: CampaignDetail): string {
+    const counts = new Map<string, number>();
+    for (const { jobPositionTitle } of campaign.participants) {
+      if (jobPositionTitle) counts.set(jobPositionTitle, (counts.get(jobPositionTitle) ?? 0) + 1);
+    }
+    return [...counts].map(([title, count]) => `${count} ${title}`).join(', ');
+  }
 }

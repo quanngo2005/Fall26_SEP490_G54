@@ -1,6 +1,13 @@
 @let text = localization.importBranchTargetModal;
-<div class="modal-backdrop" (click)="close()" (keydown.escape)="close()" role="presentation">
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="close()"
+  (keydown.escape)="close()"
+  role="presentation"
+>
   <div
+    animate.leave="g54-leave-pop"
     class="modal-dialog import-dialog"
     role="dialog"
     aria-modal="true"

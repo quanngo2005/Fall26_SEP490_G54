@@ -1,4 +1,9 @@
-<aside class="employee-detail-drawer" role="region" [attr.aria-label]="employee().fullName">
+<aside
+  animate.leave="g54-leave-fade"
+  class="employee-detail-drawer"
+  role="region"
+  [attr.aria-label]="employee().fullName"
+>
   <header class="drawer-header">
     <div class="header-top-line">
       <h2 class="employee-title">{{employee().code}} · {{employee().fullName}}</h2>

@@ -47,6 +47,12 @@
   border-radius: 9999px;
   background: #e2e8f0;
 }
+td .progress-track {
+  display: inline-block;
+  width: 96px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
 .progress-fill {
   display: block;
   height: 100%;
@@ -99,6 +105,14 @@
 }
 .tab.is-active {
   border-bottom-color: #002b49;
+}
+.tab-count {
+  margin-left: 6px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  padding: 1px 8px;
 }
 .overview {
   display: grid;

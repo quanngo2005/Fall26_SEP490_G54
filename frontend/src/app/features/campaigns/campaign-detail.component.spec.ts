@@ -109,6 +109,19 @@ describe('CampaignDetailComponent', () => {
     harness.detectChanges();
 
     expect(root.querySelector('tbody')?.textContent).toContain('Phạm Thu Hà');
+    expect(root.querySelector('tbody')?.textContent).toContain('44%');
+  });
+
+  it('shows the work status breakdown on the works tab', async () => {
+    const { harness, root } = await open();
+
+    root.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2].click();
+    harness.detectChanges();
+
+    const metrics = root.querySelector('.metrics')?.textContent ?? '';
+    expect(metrics).toContain('96');
+    expect(metrics).toContain('30');
+    expect(metrics).toContain('25');
   });
 
   it('opens the batch work modal from the toolbar button', async () => {

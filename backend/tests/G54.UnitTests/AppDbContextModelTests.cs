@@ -15,8 +15,8 @@ public sealed class AppDbContextModelTests
         using var context = new AppDbContext(options);
         var entityTypes = context.Model.GetEntityTypes();
 
-        Assert.Equal(49, entityTypes.Count());
-        Assert.Equal(46, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs"));
+        Assert.Equal(55, entityTypes.Count());
+        Assert.Equal(51, entityTypes.Count(entity => entity.GetTableName() is not "auth_audit_log" and not "sidebar_configurations" and not "audit_logs" and not "system_parameters"));
         var sidebar = context.Model.FindEntityType(typeof(SidebarConfiguration));
         Assert.NotNull(sidebar);
         Assert.Equal("text[]", sidebar.FindProperty(nameof(SidebarConfiguration.ItemIds))?.GetColumnType());

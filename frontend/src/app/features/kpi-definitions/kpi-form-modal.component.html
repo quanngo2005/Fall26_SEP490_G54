@@ -1,6 +1,11 @@
 @let t = localization.kpiCatalog;
 @let e = errors();
-<div class="dialog-backdrop" (click)="close()" aria-hidden="true"></div>
+<div
+  animate.leave="g54-leave-fade"
+  class="dialog-backdrop"
+  (click)="close()"
+  aria-hidden="true"
+></div>
 <form
   class="dialog dialog-wide"
   role="dialog"

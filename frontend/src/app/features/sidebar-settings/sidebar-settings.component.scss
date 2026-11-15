@@ -80,20 +80,21 @@ h1 {
 .tabs {
   display: flex;
   gap: 4px;
+  border-bottom: 1px solid #cbd5e1;
 }
-.tabs button {
+.tabs a {
+  display: inline-flex;
+  align-items: center;
   min-height: 38px;
-  border: 0;
   border-bottom: 2px solid transparent;
-  background: transparent;
   color: #475569;
-  cursor: pointer;
   font:
     500 13px/20px Inter,
     sans-serif;
   padding: 0 12px;
+  text-decoration: none;
 }
-.tabs button.is-active {
+.tabs a.is-active {
   border-bottom-color: #2563eb;
   color: #2563eb;
   font-weight: 600;

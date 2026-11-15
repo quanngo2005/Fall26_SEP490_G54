@@ -118,6 +118,9 @@
                   <dd>
                     {{c.participants.length}}
                     {{localization.campaign.detail.statParticipantsUnit}}
+                    @if (positionBreakdown(c); as breakdown) {
+                      <span class="muted">({{breakdown}})</span>
+                    }
                   </dd>
                 </div>
                 <div>

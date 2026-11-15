@@ -1,5 +1,11 @@
-<div class="drawer-backdrop" role="presentation" (click)="close()"></div>
+<div
+  animate.leave="g54-leave-fade"
+  class="drawer-backdrop"
+  role="presentation"
+  (click)="close()"
+></div>
 <aside
+  animate.leave="g54-leave-drawer"
   class="drawer"
   role="dialog"
   aria-modal="true"
@@ -143,8 +149,14 @@
 </aside>
 
 @if (reversing()) {
-  <div class="reverse-backdrop" role="presentation" (click)="cancelReverse()">
+  <div
+    animate.leave="g54-leave-fade"
+    class="reverse-backdrop"
+    role="presentation"
+    (click)="cancelReverse()"
+  >
     <div
+      animate.leave="g54-leave-pop"
       class="reverse-dialog"
       role="alertdialog"
       aria-modal="true"

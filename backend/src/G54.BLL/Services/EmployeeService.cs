@@ -7,6 +7,7 @@ using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
 using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.Employee;
+using G54.BLL.Services.Import.EmployeeOrganization;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,8 @@ namespace G54.BLL.Services;
 public sealed class EmployeeService(
     AppDbContext db,
     ILogger<EmployeeService> logger,
-    IPermissionService permissions) : IEmployeeService
+    IPermissionService permissions,
+    IPasswordEncoder passwordEncoder) : IEmployeeService
 {
     private static readonly Action<ILogger, string, Guid, Exception?> LogEmployeeAudit =
         LoggerMessage.Define<string, Guid>(LogLevel.Information, new EventId(1, "EmployeeAudit"), "Employee audit: Action={Action}, EntityId={EntityId}");
@@ -212,7 +214,8 @@ public sealed class EmployeeService(
         await EnsureCodeUniqueAsync(code, null, cancellationToken);
         await EnsureEmailUniqueAsync(email, null, cancellationToken);
         await EnsureDepartmentActiveAsync(dto.DepartmentId, cancellationToken);
-        await EnsureJobPositionActiveAsync(dto.JobPositionId, cancellationToken);
+        var roleCode = await ResolveAccountRoleCodeAsync(dto.JobPositionId, cancellationToken);
+        await EnsureUsernameFreeAsync(email, cancellationToken);
 
         if (dto.ManagerId.HasValue && dto.ManagerId.Value != Guid.Empty)
         {
@@ -236,10 +239,31 @@ public sealed class EmployeeService(
         };
 
         db.Employees.Add(employee);
+
+        // Same as the employee import: every new employee gets an account (username = email) with a one-time
+        // password and the role of the job position. A terminated employee's account is locked (BR-22).
+        var temporaryPassword = TemporaryPassword.Generate();
+        var account = new Account
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            Username = email,
+            PasswordHash = passwordEncoder.Encode(temporaryPassword),
+            IsLocked = status == EmployeeStatus.Terminated,
+        };
+        db.Accounts.Add(account);
+
+        var role = await db.Roles.AsNoTracking().SingleOrDefaultAsync(r => r.Code == roleCode, cancellationToken);
+        if (role is not null)
+        {
+            db.UserRoles.Add(new UserRole { Id = Guid.NewGuid(), AccountId = account.Id, RoleId = role.Id });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         LogEmployeeAudit(logger, "CREATE_EMPLOYEE", employee.Id, null);
-        return await GetRequiredEmployeeAsync(employee.Id, cancellationToken);
+        var created = await GetRequiredEmployeeAsync(employee.Id, cancellationToken);
+        return created with { TemporaryPassword = temporaryPassword };
     }
 
     public async Task<EmployeeDetailDto> UpdateEmployeeAsync(
@@ -290,6 +314,7 @@ public sealed class EmployeeService(
         employee.ManagerId = managerId;
         employee.Status = status;
         employee.UpdatedAt = DateTimeOffset.UtcNow;
+        await LockAccountIfTerminatedAsync(id, status, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -309,47 +334,70 @@ public sealed class EmployeeService(
 
         employee.Status = status;
         employee.UpdatedAt = DateTimeOffset.UtcNow;
+        await LockAccountIfTerminatedAsync(id, status, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         LogEmployeeAudit(logger, "CHANGE_EMPLOYEE_STATUS", id, null);
     }
 
+    /// <summary>
+    /// Employees are never removed: "delete" moves the employee to TERMINATED and locks the account, exactly as an
+    /// import row with status TERMINATED does. Calling it again on a terminated employee changes nothing.
+    /// </summary>
     public async Task DeleteEmployeeAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        var employee = await db.Employees
-            .Include(e => e.InverseManager)
-            .SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
+        var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == id, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", id);
 
-        if (employee.InverseManager.Any(sub => sub.Status != EmployeeStatus.Terminated))
+        if (employee.Status != EmployeeStatus.Terminated)
         {
-            throw new ConflictException("Không thể xóa nhân viên đang là quản lý trực tiếp của nhân viên khác. Vui lòng chuyển giao quản lý trước.");
+            employee.Status = EmployeeStatus.Terminated;
+            employee.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
-        var hasWorks = await db.Works.AnyAsync(w => w.AssigneeEmployeeId == id || w.CreatedBy == id, cancellationToken);
-        if (hasWorks)
-        {
-            throw new ConflictException("Không thể xóa nhân viên đã được phân công công việc. Vui lòng chuyển trạng thái sang Thôi việc (Terminated) hoặc Không hoạt động (Inactive).");
-        }
-
-        var hasSubmissions = await db.ResultSubmissions.AnyAsync(s => s.SubmitterEmployeeId == id, cancellationToken);
-        if (hasSubmissions)
-        {
-            throw new ConflictException("Không thể xóa nhân viên đã nộp kết quả công việc. Vui lòng chuyển trạng thái sang Thôi việc (Terminated).");
-        }
-
-        var hasVerifications = await db.Verifications.AnyAsync(v => v.VerifierEmployeeId == id, cancellationToken);
-        if (hasVerifications)
-        {
-            throw new ConflictException("Không thể xóa nhân viên đã thực hiện thẩm định. Vui lòng chuyển trạng thái sang Thôi việc (Terminated).");
-        }
-
-        db.Employees.Remove(employee);
+        await LockAccountIfTerminatedAsync(id, EmployeeStatus.Terminated, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
-        LogEmployeeAudit(logger, "DELETE_EMPLOYEE", id, null);
+        LogEmployeeAudit(logger, "TERMINATE_EMPLOYEE", id, null);
+    }
+
+    /// <summary>BR-22: a terminated employee's account is locked. Like the import, this never unlocks an account.</summary>
+    private async Task LockAccountIfTerminatedAsync(Guid employeeId, EmployeeStatus status, CancellationToken cancellationToken)
+    {
+        if (status != EmployeeStatus.Terminated)
+        {
+            return;
+        }
+
+        var account = await db.Accounts.SingleOrDefaultAsync(a => a.EmployeeId == employeeId, cancellationToken);
+        if (account is not null)
+        {
+            account.IsLocked = true;
+        }
+    }
+
+    /// <summary>Validates the job position and returns the role its account must get (same mapping as the import).</summary>
+    private async Task<string> ResolveAccountRoleCodeAsync(Guid jobPositionId, CancellationToken cancellationToken)
+    {
+        await EnsureJobPositionActiveAsync(jobPositionId, cancellationToken);
+
+        var positionCode = await db.JobPositions.AsNoTracking()
+            .Where(j => j.Id == jobPositionId)
+            .Select(j => j.Code)
+            .SingleAsync(cancellationToken);
+
+        return PositionMapping.RoleCodeFor(positionCode)
+            ?? throw new ValidationException($"Vị trí công việc '{positionCode}' chưa được ánh xạ sang vai trò, không thể tạo tài khoản cho nhân viên.");
+    }
+
+    private async Task EnsureUsernameFreeAsync(string username, CancellationToken cancellationToken)
+    {
+        if (await db.Accounts.AnyAsync(a => a.Username == username, cancellationToken))
+        {
+            throw new ConflictException($"Tên đăng nhập '{username}' đã tồn tại trong hệ thống.");
+        }
     }
 
     private async Task EnsureCodeUniqueAsync(string code, Guid? excludeId, CancellationToken cancellationToken)

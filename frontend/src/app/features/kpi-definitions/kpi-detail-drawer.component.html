@@ -1,7 +1,8 @@
 @let t = localization.kpiCatalog;
 @let k = kpi();
-<div class="backdrop" (click)="close()" aria-hidden="true"></div>
+<div animate.leave="g54-leave-fade" class="backdrop" (click)="close()" aria-hidden="true"></div>
 <aside
+  animate.leave="g54-leave-drawer"
   class="drawer"
   role="dialog"
   aria-modal="true"

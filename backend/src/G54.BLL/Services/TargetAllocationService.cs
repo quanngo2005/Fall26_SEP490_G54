@@ -99,6 +99,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
                             Status = TargetAssignmentStatus.Draft,
                             AssignedAt = DateTimeOffset.UtcNow,
                             ChangeReason = dto.ChangeReason,
+                            EffectiveFrom = branchYearTarget.EvaluationPeriod!.StartDate,
                         };
                         await uow.TargetAssignments.AddAsync(newRow, transaction);
                     }
@@ -117,6 +118,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
                         Version = 1,
                         Status = TargetAssignmentStatus.Draft,
                         AssignedAt = DateTimeOffset.UtcNow,
+                        EffectiveFrom = branchYearTarget.EvaluationPeriod!.StartDate,
                     };
                     await uow.TargetAssignments.AddAsync(newRow, transaction);
                 }
@@ -202,6 +204,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
                             Status = TargetAssignmentStatus.Draft,
                             AssignedAt = DateTimeOffset.UtcNow,
                             ChangeReason = dto.ChangeReason,
+                            EffectiveFrom = quarterPeriod.StartDate,
                         };
                         await uow.TargetAssignments.AddAsync(newRow, transaction);
                     }
@@ -220,6 +223,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
                         Version = 1,
                         Status = TargetAssignmentStatus.Draft,
                         AssignedAt = DateTimeOffset.UtcNow,
+                        EffectiveFrom = quarterPeriod.StartDate,
                     };
                     await uow.TargetAssignments.AddAsync(newRow, transaction);
                 }
@@ -321,6 +325,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
                         Status = TargetAssignmentStatus.Active,
                         AssignedAt = DateTimeOffset.UtcNow,
                         ApprovedAt = DateTimeOffset.UtcNow,
+                        EffectiveFrom = months[i].StartDate,
                     };
                     await uow.TargetAssignments.AddAsync(monthTarget, transaction);
 
@@ -451,7 +456,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
     private static int NextVersion(Dictionary<Guid, int> versions, Guid periodId) =>
         versions.TryGetValue(periodId, out var v) ? v + 1 : 1;
 
-    private static TargetAssignment NewPeriodRow(TargetAssignment deptYearTarget, Guid periodId, Guid parentId, decimal value, int version) => new()
+    private static TargetAssignment NewPeriodRow(TargetAssignment deptYearTarget, Guid periodId, Guid parentId, decimal value, int version, DateOnly effectiveFrom) => new()
     {
         Id = Guid.NewGuid(),
         DepartmentId = deptYearTarget.DepartmentId,
@@ -465,6 +470,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
         Status = TargetAssignmentStatus.Active,
         AssignedAt = DateTimeOffset.UtcNow,
         ApprovedAt = DateTimeOffset.UtcNow,
+        EffectiveFrom = effectiveFrom,
     };
 
     private async Task AddDaysAsync(TargetAssignment deptYearTarget, TargetAssignment parent, DateOnly start, DateOnly end, Dictionary<Guid, int> versions, CancellationToken ct)
@@ -475,7 +481,7 @@ public sealed class TargetAllocationService(IUnitOfWork uow, IPermissionService 
 
         var values = SplitByWorkingDays(parent.TargetValue, days.Select(d => (d.StartDate, d.EndDate)).ToList());
         for (int k = 0; k < days.Count; k++)
-            await uow.TargetAssignments.AddAsync(NewPeriodRow(deptYearTarget, days[k].Id, parent.Id, values[k], NextVersion(versions, days[k].Id)), ct);
+            await uow.TargetAssignments.AddAsync(NewPeriodRow(deptYearTarget, days[k].Id, parent.Id, values[k], NextVersion(versions, days[k].Id), days[k].StartDate), ct);
     }
 
     private static int GetPeriodPosition(string code)

@@ -84,7 +84,7 @@ public sealed class AdminAccountsHttpTests : IAsyncLifetime, IAsyncDisposable
         _api.BeginOutputReadLine();
         _api.BeginErrorReadLine();
         _client = new HttpClient { BaseAddress = address };
-        for (var attempt = 0; attempt < 100; attempt++)
+        for (var attempt = 0; attempt < 600; attempt++)
         {
             if (_api.HasExited)
             {

@@ -197,7 +197,7 @@ public sealed class PerformanceEvaluationService(
     /// without a total score is always Draft; otherwise the evaluation becomes Calculated. Returns the row id of each KPI
     /// that has a detail row.
     /// </summary>
-    internal static async Task<IReadOnlyDictionary<Guid, Guid>> StageAsync(
+    internal static async Task<IReadOnlyDictionary<(Guid KpiDefinitionId, int TargetVersion), Guid>> StageAsync(
         AppDbContext db,
         PerformanceEvaluation evaluation,
         PerformanceScoreResult result,
@@ -226,7 +226,7 @@ public sealed class PerformanceEvaluationService(
     /// <summary>The KPI detail of the scored result as the calculation endpoint returns it.</summary>
     private static List<PerformanceGroupContributionDto> ToGroupDtos(
         PerformanceScoreResult result,
-        IReadOnlyDictionary<Guid, Guid> contributionIds) =>
+        IReadOnlyDictionary<(Guid KpiDefinitionId, int TargetVersion), Guid> contributionIds) =>
         result.Groups
             .Select(group => new PerformanceGroupContributionDto(
                 group.EvaluationProfileItemId,
@@ -236,8 +236,9 @@ public sealed class PerformanceEvaluationService(
                 group.Kpis
                     .Where(k => k.HasContribution)
                     .OrderBy(k => k.Code, StringComparer.Ordinal)
+                    .ThenBy(k => k.TargetVersion)
                     .Select(k => new PerformanceKpiContributionDto(
-                        contributionIds[k.KpiDefinitionId],
+                        contributionIds[(k.KpiDefinitionId, k.TargetVersion!.Value)],
                         k.KpiDefinitionId,
                         k.Code,
                         k.Name,
@@ -259,7 +260,7 @@ public sealed class PerformanceEvaluationService(
     /// progress, updated in place, and rows of KPIs that no longer qualify removed. Risk-event rows are owned by the risk
     /// workflow and are left alone. Returns the row id of each kept KPI.
     /// </summary>
-    private static async Task<IReadOnlyDictionary<Guid, Guid>> SyncAsync(
+    private static async Task<IReadOnlyDictionary<(Guid KpiDefinitionId, int TargetVersion), Guid>> SyncAsync(
         AppDbContext db,
         PerformanceEvaluation evaluation,
         PerformanceScoreResult result,
@@ -273,11 +274,17 @@ public sealed class PerformanceEvaluationService(
             .ToListAsync(cancellationToken);
 
         var keptIds = new HashSet<Guid>();
-        var idsByKpi = new Dictionary<Guid, Guid>();
+        var idsByTarget = new Dictionary<(Guid, int), Guid>();
         foreach (var kpi in result.Groups.SelectMany(g => g.Kpis).Where(k => k.HasContribution))
         {
+            var key = (kpi.KpiDefinitionId, kpi.TargetVersion!.Value);
+            // A mid-period target change (BR-15) can leave several rows for the same KPI (one per version/segment),
+            // so match on the KPI and the stored version, not just the KPI: the progress a contribution's anchor was
+            // last computed from may sit on an older carrier row that no longer resolves as a scoring segment itself.
             var contribution = existing.FirstOrDefault(c =>
-                !keptIds.Contains(c.Id) && c.ActualProgress?.TargetAssignment.KpiDefinitionId == kpi.KpiDefinitionId);
+                !keptIds.Contains(c.Id)
+                && c.ActualProgress?.TargetAssignment.KpiDefinitionId == kpi.KpiDefinitionId
+                && c.TargetVersionSnapshot == kpi.TargetVersion);
             if (contribution is null)
             {
                 contribution = new PerformanceContribution
@@ -292,7 +299,7 @@ public sealed class PerformanceEvaluationService(
             }
 
             keptIds.Add(contribution.Id);
-            idsByKpi[kpi.KpiDefinitionId] = contribution.Id;
+            idsByTarget[key] = contribution.Id;
             contribution.ActualProgressId = kpi.AnchorProgressId;
             contribution.WeightSnapshot = kpi.ItemWeightPercent;
             contribution.TargetValueSnapshot = kpi.TargetValue;
@@ -311,7 +318,7 @@ public sealed class PerformanceEvaluationService(
             db.PerformanceContributions.Remove(stale);
         }
 
-        return idsByKpi;
+        return idsByTarget;
     }
 
     private async Task SaveAsync(CancellationToken cancellationToken)

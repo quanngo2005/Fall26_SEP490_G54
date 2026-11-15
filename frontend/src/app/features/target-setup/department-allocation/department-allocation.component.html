@@ -135,7 +135,12 @@
         </div>
 
         @if (toast(); as message) {
-          <div class="quarter-toast" role="status" aria-live="polite">
+          <div
+            animate.leave="g54-leave-rise"
+            class="quarter-toast"
+            role="status"
+            aria-live="polite"
+          >
             <app-layout-icon name="check" class="toast-icon" />
             <span>{{message}}</span>
           </div>

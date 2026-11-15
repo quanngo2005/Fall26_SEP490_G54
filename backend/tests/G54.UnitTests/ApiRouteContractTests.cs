@@ -51,6 +51,17 @@ public sealed class ApiRouteContractTests
     }
 
     [Fact]
+    public void DepartmentsController_ExposesOverviewAndItsExcelExport()
+    {
+        Assert.Equal(
+            "{id:guid}/overview",
+            typeof(DepartmentsController).GetMethod(nameof(DepartmentsController.GetOverview))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+        Assert.Equal(
+            "{id:guid}/overview/export",
+            typeof(DepartmentsController).GetMethod(nameof(DepartmentsController.ExportOverview))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+    }
+
+    [Fact]
     public void AuditLogsController_ExposesListAndDetailGetRoutes()
     {
         Assert.Null(

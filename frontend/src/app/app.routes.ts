@@ -19,6 +19,22 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'system-parameters',
+    canActivate: [authGuard, adminGuard],
+    title: 'Tham số hệ thống',
+    loadComponent: () =>
+      import('./features/system-parameters/system-parameters.component').then(
+        (m) => m.SystemParametersComponent,
+      ),
+  },
+  {
+    path: 'audit-logs',
+    canActivate: [authGuard, adminGuard],
+    title: 'Nhật ký audit',
+    loadComponent: () =>
+      import('./features/audit-logs/audit-log-list.component').then((m) => m.AuditLogListComponent),
+  },
+  {
     path: 'roles',
     canActivate: [authGuard, adminGuard],
     title: 'Vai trò & quyền',
@@ -32,6 +48,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/user-accounts/user-account-list.component').then(
         (m) => m.UserAccountListComponent,
+      ),
+  },
+  {
+    path: 'import-history',
+    canActivate: [authGuard, adminGuard],
+    title: 'Lịch sử nhập',
+    loadComponent: () =>
+      import('./features/import-history/import-history-list.component').then(
+        (m) => m.ImportHistoryListComponent,
       ),
   },
   {
@@ -123,6 +148,15 @@ export const routes: Routes = [
     title: 'Đánh giá nhân viên',
     loadComponent: () =>
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
+  },
+  {
+    path: 'branch-performance',
+    canActivate: [authGuard, organizationGuard],
+    title: 'Hiệu suất chi nhánh',
+    loadComponent: () =>
+      import('./features/branch-performance/branch-performance.component').then(
+        (module) => module.BranchPerformanceComponent,
+      ),
   },
   {
     path: 'branch-performance/evaluations',
@@ -220,6 +254,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
         (m) => m.ReviewVerifyComponent,
+      ),
+  },
+  {
+    path: 'submissions',
+    canActivate: [authGuard],
+    title: 'Lịch sử nộp kết quả',
+    loadComponent: () =>
+      import('./features/my-submissions/my-submissions.component').then(
+        (m) => m.MySubmissionsComponent,
       ),
   },
   {

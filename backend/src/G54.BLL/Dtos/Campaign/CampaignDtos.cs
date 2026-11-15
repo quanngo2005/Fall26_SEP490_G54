@@ -22,7 +22,15 @@ public sealed record CampaignSummaryDto(
     int WorkTypesCount,
     int GeneratedWorksCount,
     int CompletedWorksCount,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    decimal ProgressPercent = 0m,
+    decimal TimeElapsedPercent = 0m,
+    decimal PaceGap = 0m,
+    string? KpiCode = null,
+    string? KpiName = null,
+    string? TargetUnit = null,
+    decimal? TargetValue = null,
+    decimal? ActualValue = null);
 
 public sealed record CampaignObjectiveDto(
     Guid Id,
@@ -77,7 +85,8 @@ public sealed record CampaignOverviewMetricsDto(
     int PlannedCampaigns,
     int CompletedCampaigns,
     int TotalTasksGenerated,
-    int TotalCompletedTasks);
+    int TotalCompletedTasks,
+    int SlowCampaignCount = 0);
 
 public sealed record CampaignListOverviewDto(
     CampaignOverviewMetricsDto Metrics,

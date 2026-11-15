@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, OnInit, inject, input, output, signal } from '@angular/core';
 import { A11yModule } from '@angular/cdk/a11y';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -23,11 +23,13 @@ const ERROR_CODES = {
   templateUrl: './handover-dialog.component.html',
   styleUrls: ['../../shared/ui/ui-controls.scss', '../../shared/ui/dialog.scss'],
 })
-export class HandoverDialogComponent extends LocalizedComponent {
+export class HandoverDialogComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(HandoverService);
 
   /** Works the caller can hand over (New or In progress, assigned to them). */
   readonly works = input.required<readonly WorkListItem[]>();
+  /** A work to select when the dialog opens, for callers that already know which one (the work detail page). */
+  readonly initialWorkId = input('');
   readonly closed = output<void>();
   readonly requested = output<HandoverDetail>();
 
@@ -51,6 +53,11 @@ export class HandoverDialogComponent extends LocalizedComponent {
         next: (list) => this.recipients.set(list),
         error: () => this.recipientsFailed.set(true),
       });
+  }
+
+  ngOnInit(): void {
+    const initial = this.initialWorkId();
+    if (initial && this.works().some((work) => work.id === initial)) this.workId = initial;
   }
 
   @HostListener('document:keydown.escape')

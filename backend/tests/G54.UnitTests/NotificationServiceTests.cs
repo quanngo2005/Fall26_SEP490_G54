@@ -256,6 +256,34 @@ public sealed class NotificationServiceTests : IDisposable
         Assert.False(page.Items[0].IsRead);
     }
 
+    [Theory]
+    [InlineData(NotificationType.RatingOneStar, "RATING_ONE_STAR")]
+    [InlineData(NotificationType.ResultPublished, "RESULT_PUBLISHED")]
+    [InlineData(NotificationType.HandoverRequested, "HANDOVER_REQUESTED")]
+    public async Task GetMine_ReturnsEveryNotificationTypeAsItsWireValue(NotificationType type, string wire)
+    {
+        await ArrangeAsync();
+        _db.Notifications.Add(new Notification
+        {
+            RecipientEmployeeId = _colleague.Id,
+            Type = type,
+            Severity = NotificationSeverity.Normal,
+            Title = "T",
+            CreatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
+
+        var page = await Service().GetMineAsync(_colleague.Id, new NotificationFilterDto());
+
+        Assert.Equal(wire, Assert.Single(page.Items).Type);
+    }
+
+    [Fact]
+    public void NotificationTypes_HaveNoEscalationType()
+    {
+        Assert.DoesNotContain(Enum.GetNames<NotificationType>(), name => name.Contains("Escalat", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public async Task GetMine_CanListOnlyUnread_AndPages()
     {

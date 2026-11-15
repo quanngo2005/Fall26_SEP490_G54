@@ -1,0 +1,144 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plan-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+
+  @media (width <= 560px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #191c1e;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 10px;
+  background: #fff;
+  border: 1px solid #c3c7ce;
+  border-radius: 6px;
+
+  &.is-locked {
+    background: #eef1f4;
+    border-color: #e2e8f0;
+    color: #475569;
+  }
+
+  &.is-new {
+    border-color: #2563eb;
+  }
+}
+
+.plan-title {
+  flex: 1;
+  font-size: 14px;
+}
+
+.plan-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 14px;
+  color: #191c1e;
+  background: transparent;
+  border: 0;
+  outline: none;
+
+  &.is-invalid {
+    box-shadow: 0 1px 0 0 #ba1a1a;
+  }
+}
+
+.plan-handle {
+  cursor: grab;
+  color: #73777e;
+  user-select: none;
+}
+
+.plan-tag {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+
+  &.is-new {
+    padding: 2px 8px;
+    font-weight: 600;
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-radius: 999px;
+  }
+}
+
+.plan-remove {
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+
+  &:hover {
+    color: #ba1a1a;
+    background: #fee2e2;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+  }
+}
+
+.plan-add {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.cdk-drag-preview {
+  box-shadow: 0 6px 18px rgb(15 23 42 / 18%);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.35;
+}

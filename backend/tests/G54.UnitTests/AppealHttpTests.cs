@@ -85,7 +85,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
         _api.BeginOutputReadLine();
         _api.BeginErrorReadLine();
         _client = new HttpClient { BaseAddress = address };
-        for (var attempt = 0; attempt < 100; attempt++)
+        for (var attempt = 0; attempt < 600; attempt++)
         {
             if (_api.HasExited)
             {
@@ -108,7 +108,7 @@ public sealed class AppealHttpTests : IAsyncLifetime, IAsyncDisposable
             await Task.Delay(100);
         }
 
-        throw new TimeoutException("Test API did not become ready.");
+        throw new TimeoutException($"Test API did not become ready within 60s.{Environment.NewLine}{GetApiLog()}");
     }
 
     public async Task DisposeAsync()

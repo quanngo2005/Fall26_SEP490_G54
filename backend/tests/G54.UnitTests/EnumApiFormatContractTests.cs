@@ -150,7 +150,7 @@ public sealed class EnumApiFormatContractTests
         var position = new JobPosition
         {
             Id = Guid.NewGuid(),
-            Code = "P1",
+            Code = "SALES",
             Title = "Pos",
             Status = RecordStatus.Active,
             LastSyncAt = now,
@@ -159,7 +159,7 @@ public sealed class EnumApiFormatContractTests
         profile.JobPositionId = position.Id;
         db.AddRange(profile, dept, position);
         await db.SaveChangesAsync();
-        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll)), dept, position);
+        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll), new PlainPasswordEncoder()), dept, position);
     }
 
     private static CreateEmployeeDto NewEmployee(Department dept, JobPosition position, string code, string? status) => new()

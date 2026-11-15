@@ -93,3 +93,6 @@ __pycache__/
 /docs/test
 /docs/figma-gb337
 /docs/testing
+
+# Local screen descriptions (not tracked)
+docs/screen-descriptions/

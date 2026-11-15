@@ -26,13 +26,13 @@ public sealed class EmployeeLookupTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private EmployeeService Service => new(_db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll));
+    private EmployeeService Service => new(_db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll), new PlainPasswordEncoder());
 
     private async Task SeedReferenceDataAsync()
     {
         var now = DateTimeOffset.UtcNow;
         _department = new Department { Id = Guid.NewGuid(), Code = "CN-HN-KD", Name = "Phòng Kinh doanh", LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active, LastSyncAt = now, UpdatedAt = now };
-        _position = new JobPosition { Id = Guid.NewGuid(), Code = "CV", Title = "Chuyên viên", Status = RecordStatus.Active, LastSyncAt = now, UpdatedAt = now };
+        _position = new JobPosition { Id = Guid.NewGuid(), Code = "SALES", Title = "Chuyên viên", Status = RecordStatus.Active, LastSyncAt = now, UpdatedAt = now };
         _db.AddRange(_department, _position);
         await _db.SaveChangesAsync();
         _seeded = true;

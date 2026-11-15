@@ -574,6 +574,19 @@ public sealed class TargetSetupServiceTests
                 && t.SplitDimension == TargetSplitDimension.Period)
             .ToListAsync();
         Assert.Equal(4, quarterRows.Count);
+
+        // The ratio KPI's quarter rows are freshly auto-filled (not pre-seeded like the non-ratio ones above), so
+        // this exercises the create path: each quarter row's EffectiveFrom must be that quarter period's own
+        // start date, not the branch-year's.
+        var ratioQuarterRows = await f.Db.TargetAssignments
+            .Where(t => t.ParentAssignmentId == f.BranchYearRatioId && t.SplitDimension == TargetSplitDimension.Period)
+            .ToListAsync();
+        Assert.Equal(4, ratioQuarterRows.Count);
+        foreach (var quarterRow in ratioQuarterRows)
+        {
+            var quarterPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == quarterRow.EvaluationPeriodId);
+            Assert.Equal(quarterPeriod.StartDate, quarterRow.EffectiveFrom);
+        }
     }
 
     [Fact]
@@ -1291,6 +1304,22 @@ public sealed class TargetSetupServiceTests
         Assert.Equal(250m, result.Departments[0].Q4);
         Assert.True(result.Departments[0].Matched);
         Assert.Equal(0m, result.Remaining.Year);
+
+        // Dept-year row's EffectiveFrom must be the branch-year period's own start date.
+        var deptYearRow = await f.Db.TargetAssignments.SingleAsync(
+            t => t.DepartmentId == dept.Id && t.EvaluationPeriodId == f.YearPeriodId);
+        Assert.Equal(new DateOnly(f.Year, 1, 1), deptYearRow.EffectiveFrom);
+
+        // Each dept-quarter row's EffectiveFrom must be that quarter period's own start date.
+        var deptQuarterRows = await f.Db.TargetAssignments
+            .Where(t => t.ParentAssignmentId == deptYearRow.Id && t.SplitDimension == TargetSplitDimension.Period)
+            .ToListAsync();
+        Assert.Equal(4, deptQuarterRows.Count);
+        foreach (var deptQuarterRow in deptQuarterRows)
+        {
+            var quarterPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == deptQuarterRow.EvaluationPeriodId);
+            Assert.Equal(quarterPeriod.StartDate, deptQuarterRow.EffectiveFrom);
+        }
     }
 
     [Fact]
