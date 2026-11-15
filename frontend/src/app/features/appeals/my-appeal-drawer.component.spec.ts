@@ -21,13 +21,9 @@ const listItem = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   filedAt: '2026-10-24T10:00:00+00:00',
   decidedAt: null,
   updatedAt: '2026-10-24T10:00:00+00:00',
-  type: 'RESULT',
-  performanceEvaluationId: null,
-  periodCode: null,
   jobPositionTitle: null,
   resolvedByEmployeeName: null,
   note: null,
-  evaluationScore: null,
   ...over,
 });
 const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
@@ -46,8 +42,7 @@ const detail = (over: Partial<AppealDetail> = {}): AppealDetail => ({
       downloadUrl: '/evidence/ev1/download',
     },
   ],
-  scoreDisputeReason: null,
-  submittedAt: null,
+  submittedAt: '2026-10-24T09:00:00+00:00',
   workTypeName: null,
   referrerEmployeeCode: null,
   referrerEmployeeName: null,
@@ -132,27 +127,6 @@ describe('MyAppealDrawerComponent', () => {
     expect(root.querySelector('.sla-deadline')?.textContent).toContain('N/A');
     expect(root.querySelector('.section-label + .evidence-list')).not.toBeNull();
     expect(root.textContent).not.toContain('ĐÃ KHÓA');
-  });
-
-  it('shows the current score next to the period of a score appeal', () => {
-    const root: HTMLElement = open((host) => {
-      host.appeal = listItem({
-        type: 'SCORE',
-        periodCode: '2026-Q2',
-        workCode: null,
-        evaluationScore: 87.2,
-      });
-    }).nativeElement;
-    expect(root.textContent).toContain('2026-Q2 · 87');
-  });
-
-  it('names the period of a score appeal and omits the work', () => {
-    const root: HTMLElement = open((host) => {
-      host.appeal = listItem({ type: 'SCORE', periodCode: '2026-Q2', workCode: null });
-    }).nativeElement;
-    expect(root.textContent).toContain('2026-Q2');
-    expect(root.textContent).toContain('Kỳ đánh giá');
-    expect(root.textContent).not.toContain('Mở thẻ');
   });
 
   it('closes on Escape and moves between rows with the arrow keys', () => {

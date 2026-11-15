@@ -38,7 +38,6 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             .ToLookup(row => row.EmployeeId);
         var risks = (await LoadRiskEventsAsync(period, employeeIds, cancellationToken))
             .ToLookup(risk => risk.EmployeeId);
-        var appealNet = await AppealScoreLedger.NetByEmployeeAsync(db, employeeIds, period.Id, cancellationToken);
 
         foreach (var subject in subjects)
         {
@@ -48,7 +47,6 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
                 targets,
                 progress[subject.EmployeeId].ToList(),
                 risks[subject.EmployeeId].OrderByDescending(r => r.OccurredAt).ToList(),
-                appealNet.GetValueOrDefault(subject.EmployeeId),
                 period);
         }
 
@@ -61,7 +59,6 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
         List<TargetRow> targets,
         List<ProgressRow> progress,
         List<RiskEvent> risks,
-        decimal appealNet,
         EvaluationPeriod period)
     {
         // Every version of a KPI in effect during the period is its own segment (BR-15): one ScoredKpi per segment,
@@ -136,7 +133,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
             groups.Select(g => new GroupScoreEntry(g.EvaluationProfileItemId, g.WeightPercent, g.Score)).ToList()));
         var penalty = risks.Sum(EvaluationService.RiskPenalty);
         decimal? total = weighted.HasValue
-            ? RoundScore(Math.Max(0m, weighted.Value - penalty) + appealNet)
+            ? RoundScore(Math.Max(0m, weighted.Value - penalty))
             : null;
 
         var quantitative = RoundScore(EvaluationProfileTree.WeightedMean(

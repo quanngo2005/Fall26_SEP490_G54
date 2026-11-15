@@ -29,13 +29,9 @@ const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   filedAt: '2026-10-24T10:00:00+00:00',
   decidedAt: null,
   updatedAt: '2026-10-24T10:00:00+00:00',
-  type: 'RESULT',
-  performanceEvaluationId: null,
-  periodCode: null,
   jobPositionTitle: 'Giao dịch viên',
   resolvedByEmployeeName: null,
   note: null,
-  evaluationScore: null,
   ...over,
 });
 const page = (items: AppealListItem[], totalCount = items.length) => ({
@@ -109,9 +105,9 @@ describe('MyAppealsComponent', () => {
     flushInitial([item()]);
     fixture.detectChanges();
     const cells = fixture.nativeElement.querySelectorAll('tbody td');
-    // Columns: code, type, subject, filed on, handler, status, outcome.
-    expect(cells[4].textContent.trim()).toBe('N/A');
-    expect(cells[6].textContent.trim()).toBe('N/A');
+    // Columns: code, subject, filed on, handler, status, outcome.
+    expect(cells[3].textContent.trim()).toBe('N/A');
+    expect(cells[5].textContent.trim()).toBe('N/A');
   });
 
   it('shows an error with a retry button instead of fallback rows', () => {
@@ -163,7 +159,7 @@ describe('MyAppealsComponent', () => {
     http.expectOne(`${url}/${id}`).flush({
       success: true,
       status: 200,
-      data: { ...item(), reason: 'Lý do khiếu nại', evidences: [], scoreDisputeReason: null },
+      data: { ...item(), reason: 'Lý do khiếu nại', evidences: [] },
     });
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
@@ -181,7 +177,6 @@ describe('MyAppealsComponent', () => {
         ...item({ status: 'WITHDRAWN' }),
         reason: 'x',
         evidences: [],
-        scoreDisputeReason: null,
       },
     });
   });
@@ -201,7 +196,6 @@ describe('MyAppealsComponent', () => {
         ...item({ status: 'ACCEPTED' }),
         reason: 'x',
         evidences: [],
-        scoreDisputeReason: null,
       },
     });
     fixture.detectChanges();
@@ -219,7 +213,7 @@ describe('MyAppealsComponent', () => {
     http.expectOne(`${url}/${item().id}`).flush({
       success: true,
       status: 200,
-      data: { ...item(), reason: 'x', evidences: [], scoreDisputeReason: null },
+      data: { ...item(), reason: 'x', evidences: [] },
     });
     fixture.detectChanges();
     spyOn(window, 'confirm').and.returnValue(true);

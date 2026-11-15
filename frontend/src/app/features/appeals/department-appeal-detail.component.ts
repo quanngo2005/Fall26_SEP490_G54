@@ -16,12 +16,10 @@ import {
   appealSubject,
   OPEN_STATUSES,
   openBlob,
-  typeKey,
 } from './appeal-display';
 
-/** The decisions the API accepts for each kind of appeal (docs/api/APPEAL_CONTRACT.md). */
-const RESULT_DECISIONS: readonly AppealDecision[] = ['ACCEPT', 'ADJUST', 'REJECT'];
-const SCORE_DECISIONS: readonly AppealDecision[] = ['ADJUST', 'UPHOLD'];
+/** The decisions the API accepts (docs/api/APPEAL_CONTRACT.md). */
+const DECISIONS: readonly AppealDecision[] = ['ACCEPT', 'ADJUST', 'REJECT'];
 
 @Component({
   selector: 'app-department-appeal-detail',
@@ -36,7 +34,7 @@ const SCORE_DECISIONS: readonly AppealDecision[] = ['ADJUST', 'UPHOLD'];
 })
 export class DepartmentAppealDetailComponent extends LocalizedComponent {
   private readonly api = inject(AppealService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly load = new Subject<string>();
@@ -51,7 +49,6 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   protected readonly showDecisionModal = signal(false);
   protected readonly decisionType = signal<AppealDecision | null>(null);
   protected readonly decisionNote = signal('');
-  protected readonly decisionPoints = signal<number | null>(null);
   protected readonly showValidation = signal(false);
   protected readonly submitting = signal(false);
   protected readonly errorKey = signal<string | null>(null);
@@ -61,22 +58,12 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     const id = this.id();
     return id ? appealCode(id) : '';
   });
-  protected readonly decisions = computed<readonly AppealDecision[]>(() =>
-    this.appeal()?.type === 'SCORE' ? SCORE_DECISIONS : RESULT_DECISIONS,
-  );
+  protected readonly decisions = DECISIONS;
   protected readonly canDecide = computed(() => {
     const appeal = this.appeal();
     return appeal !== null && OPEN_STATUSES.includes(appeal.status) && !this.submitting();
   });
   protected readonly noteValid = computed(() => this.decisionNote().trim().length > 0);
-  /** A score appeal adjusted with points needs a positive amount; every other decision sends none. */
-  protected readonly pointsNeeded = computed(
-    () => this.appeal()?.type === 'SCORE' && this.decisionType() === 'ADJUST',
-  );
-  protected readonly pointsValid = computed(() => {
-    const points = this.decisionPoints();
-    return !this.pointsNeeded() || (points !== null && points > 0);
-  });
 
   constructor() {
     super();
@@ -101,15 +88,41 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    this.route.paramMap
-      .pipe(
-        map((params) => params.get('id')),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe((id) => {
+    // Read id from route parameter (:id) or fallback to navigation state (appealId).
+    if (this.route) {
+      this.route.paramMap
+        .pipe(
+          map((params) => params.get('id') ?? this.resolveStateAppealId()),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((id) => {
+          if (id) {
+            this.id.set(id);
+            this.load.next(id);
+          } else {
+            this.goBack();
+          }
+        });
+    } else {
+      const id = this.resolveStateAppealId();
+      if (id) {
         this.id.set(id);
-        if (id) this.load.next(id);
-      });
+        this.load.next(id);
+      } else {
+        this.goBack();
+      }
+    }
+  }
+
+  private resolveStateAppealId(): string | null {
+    const state: unknown =
+      this.router.getCurrentNavigation()?.extras.state ?? (history.state as unknown);
+    return state &&
+      typeof state === 'object' &&
+      'appealId' in state &&
+      typeof state.appealId === 'string'
+      ? state.appealId
+      : null;
   }
 
   protected retry(): void {
@@ -124,7 +137,6 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
   protected openDecision(): void {
     this.decisionType.set(null);
     this.decisionNote.set('');
-    this.decisionPoints.set(null);
     this.showValidation.set(false);
     this.errorKey.set(null);
     this.showDecisionModal.set(true);
@@ -143,7 +155,7 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     this.showValidation.set(true);
     const appeal = this.appeal();
     const decision = this.decisionType();
-    if (!appeal || !decision || !this.noteValid() || !this.pointsValid() || this.submitting()) {
+    if (!appeal || !decision || !this.noteValid() || this.submitting()) {
       return;
     }
 
@@ -153,7 +165,6 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       .decide(appeal.id, {
         decision,
         note: this.decisionNote().trim(),
-        ...(this.pointsNeeded() ? { points: this.decisionPoints() } : {}),
       })
       .pipe(
         finalize(() => this.submitting.set(false)),
@@ -180,27 +191,17 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       });
   }
 
-  protected kindLabel(): string {
-    const appeal = this.appeal();
-    return appeal ? this.localization.appeals[typeKey(appeal.type)] : '';
-  }
-
   protected headline(): string {
     const appeal = this.appeal();
     return this.i18n.translate('appeals.detailHeadline', {
-      kind: this.kindLabel(),
+      kind: this.localization.appeals.resultAppeal,
       employee: appeal?.employeeName ?? '',
     });
   }
 
   protected subject(): string {
     const appeal = this.appeal();
-    return (appeal && appealSubject(appeal)) ?? this.localization.appeals.notAvailable;
-  }
-
-  protected scoreText(): string {
-    const score = this.appeal()?.evaluationScore;
-    return score == null ? this.localization.appeals.notAvailable : this.i18n.formatNumber(score);
+    return appeal ? appealSubject(appeal) : this.localization.appeals.notAvailable;
   }
 
   protected referrerText(): string {
@@ -211,37 +212,65 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       : appeal.referrerEmployeeCode;
   }
 
+  protected transactionCodesText(): string {
+    const txs = this.appeal()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    return txs.map((t) => t.transactionCode).join(', ');
+  }
+
+  protected coreBankingFileText(): string {
+    const txs = this.appeal()?.transactions;
+    const files = [
+      ...new Set(
+        (txs ?? [])
+          .map((t) => t.importBatchFileName)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    ];
+    return files.length > 0 ? files.join(', ') : this.localization.appeals.notAvailable;
+  }
+
+  protected reconciliationText(): string {
+    const txs = this.appeal()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    const labels = this.localization.qaQueue.transactionStatus;
+    return txs
+      .map((t) => {
+        const status = labels[t.status] ?? t.status;
+        return t.reason
+          ? `${t.transactionCode}: ${status} (${t.reason})`
+          : `${t.transactionCode}: ${status}`;
+      })
+      .join(' · ');
+  }
+
   protected decisionTitle(): string {
-    return this.i18n.translate('appeals.decisionTitle', { kind: this.kindLabel() });
+    return this.i18n.translate('appeals.decisionTitle', {
+      kind: this.localization.appeals.resultAppeal,
+    });
   }
 
   protected decisionLabel(decision: AppealDecision): string {
     const text = this.localization.appeals;
-    const score = this.appeal()?.type === 'SCORE';
     switch (decision) {
       case 'ACCEPT':
         return text.decisionAccept;
       case 'ADJUST':
-        return score ? text.decisionAdjustScore : text.decisionAdjust;
+        return text.decisionAdjust;
       case 'REJECT':
         return text.decisionReject;
-      case 'UPHOLD':
-        return text.decisionUphold;
     }
   }
 
   protected decisionHint(decision: AppealDecision): string {
     const text = this.localization.appeals;
-    const score = this.appeal()?.type === 'SCORE';
     switch (decision) {
       case 'ACCEPT':
         return text.decisionAcceptHint;
       case 'ADJUST':
-        return score ? text.decisionAdjustScoreHint : text.decisionAdjustHint;
+        return text.decisionAdjustHint;
       case 'REJECT':
         return text.decisionRejectHint;
-      case 'UPHOLD':
-        return text.decisionUpholdHint;
     }
   }
 

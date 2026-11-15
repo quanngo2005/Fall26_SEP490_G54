@@ -43,8 +43,9 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
         return period;
     }
 
-    private void AddSubmission(SubmissionStatus status, DateTimeOffset submittedAt) =>
-        _db.ResultSubmissions.Add(new ResultSubmission
+    private ResultSubmission AddSubmission(SubmissionStatus status, DateTimeOffset submittedAt)
+    {
+        var submission = new ResultSubmission
         {
             Id = Guid.NewGuid(),
             WorkId = Guid.NewGuid(),
@@ -53,14 +54,17 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
             Status = status,
             SubmittedAt = submittedAt,
             UpdatedAt = Now,
-        });
+        };
+        _db.ResultSubmissions.Add(submission);
+        return submission;
+    }
 
-    private void AddAppeal(AppealStatus status, Guid? evaluationId = null) =>
+    private void AddAppeal(AppealStatus status, ResultSubmission submission) =>
         _db.Appeals.Add(new Appeal
         {
             Id = Guid.NewGuid(),
             EmployeeId = Guid.NewGuid(),
-            PerformanceEvaluationId = evaluationId,
+            ResultSubmissionId = submission.Id,
             Reason = "reason",
             Status = status,
             FiledAt = Now,
@@ -140,23 +144,13 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
     public async Task Close_MovesToInReview_AndCountsPending()
     {
         var period = await AddPeriodAsync();
-        var evaluationId = Guid.NewGuid();
-        _db.PerformanceEvaluations.Add(new PerformanceEvaluation
-        {
-            Id = evaluationId,
-            EmployeeId = Guid.NewGuid(),
-            EvaluationPeriodId = period.Id,
-            EvaluationProfileId = Guid.NewGuid(),
-            Status = PerformanceEvaluationStatus.Disputed,
-            UpdatedAt = Now,
-        });
         AddSubmission(SubmissionStatus.UnderReview, Now);
         AddSubmission(SubmissionStatus.Submitted, Now);
-        AddSubmission(SubmissionStatus.Approved, Now);
-        AddSubmission(SubmissionStatus.Submitted, Now.AddMonths(-3));
-        AddAppeal(AppealStatus.Open, evaluationId);
-        AddAppeal(AppealStatus.Accepted, evaluationId);
-        AddAppeal(AppealStatus.Open);
+        var rejected = AddSubmission(SubmissionStatus.Rejected, Now);
+        var outside = AddSubmission(SubmissionStatus.Rejected, Now.AddMonths(-3));
+        AddAppeal(AppealStatus.Open, rejected);
+        AddAppeal(AppealStatus.Accepted, rejected);
+        AddAppeal(AppealStatus.Open, outside);
         await _db.SaveChangesAsync();
 
         var result = await Service.CloseAsync(period.Id);

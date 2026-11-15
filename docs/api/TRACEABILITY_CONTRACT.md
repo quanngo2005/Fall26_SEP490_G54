@@ -9,7 +9,7 @@ Routes sit under `/performance-dashboard`. Conventions: `docs/api/API_CONVENTION
 | Step | Endpoint | Permission |
 | --- | --- | --- |
 | Score -> ledger | `GET /performance-dashboard/employees/{employeeId}/ledger?periodId=&kpiId=&page=&pageSize=` | `evaluation:read` |
-| Ledger line -> work / submission / risk / appeal | `GET /performance-dashboard/ledger-entries/{entryId}` | `evaluation:read` |
+| Ledger line -> work / submission / risk | `GET /performance-dashboard/ledger-entries/{entryId}` | `evaluation:read` |
 | Ledger line -> transactions | `GET /performance-dashboard/ledger-entries/{entryId}/transactions` | `evaluation:read` |
 
 Scope is the same as `GET /performance-dashboard/employees/{employeeId}`: the caller's own id is always allowed;
@@ -28,17 +28,19 @@ Lines, newest `occurredAt` first:
 | --- | --- | --- |
 | `RESULT` | a verified work result item (manual approval or matched import) | real amount x multiplier |
 | `RISK_PENALTY` | a risk event of the period that is not `DISMISSED` | minus the severity penalty |
-| `HOLD`, `TASK_DEDUCTION`, `REFUND` | an appeal / manager score entry of the period | signed as stored |
 
-`kpiId` keeps only the `RESULT` lines of that KPI (risk and appeal lines belong to the total, not to a KPI), so
-`summary.riskPenaltyPoints` and `summary.scoreEntryPoints` are 0 with a `kpiId`.
+`kpiId` keeps only the `RESULT` lines of that KPI (risk lines belong to the total, not to a KPI), so
+`summary.riskPenaltyPoints` is 0 with a `kpiId`.
+
+An accepted appeal adds no line of its own: it records a verified result, which shows as a `RESULT` line (no points
+are ever added or deducted directly).
 
 ```json
 {
   "success": true,
   "data": {
     "period": { "id": "...", "code": "2026-10", "name": "2026-10", "periodType": "MONTH", "startDate": "2026-10-01", "endDate": "2026-10-31" },
-    "summary": { "resultPoints": 15.00, "riskPenaltyPoints": -5.00, "scoreEntryPoints": -5.00 },
+    "summary": { "resultPoints": 15.00, "riskPenaltyPoints": -5.00 },
     "entries": {
       "items": [
         {
@@ -55,20 +57,19 @@ Lines, newest `occurredAt` first:
 ```
 
 `rawValue` is the real amount, `multiplier` the product multiplier (BR-48) snapshotted at approval and `points` their
-product; the KPI is scored from points only for `SUM` KPIs. `RISK_PENALTY` and score entries have `rawValue`,
-`multiplier`, `kpiDefinitionId`, `kpiCode` null; `workId` is set on a score entry that came from a task deduction.
+product; the KPI is scored from points only for `SUM` KPIs. `RISK_PENALTY` has `rawValue`,
+`multiplier`, `kpiDefinitionId`, `kpiCode` null.
 `summary` covers all lines, not just the page. `period` is `null` (and no lines) when no period exists.
 
 ## Ledger entry
 
-`data` = `{ entry, employeeId, work, submission, riskEvent, appeal, recordedByName }`. `entry` is the list line.
+`data` = `{ entry, employeeId, work, submission, riskEvent, recordedByName }`. `entry` is the list line.
 
 - `work`: `{ id, code, title, workTypeCode, status }`, null when the line has no work.
 - `submission`: `{ id, submissionNo, status, submittedAt, comment, verifierName, decision, verifiedAt }`; only for a
   `RESULT` approved manually. A result written by an imported match has no submission, so it is null.
 - `riskEvent`: `{ id, code, eventType, severity, status, description }` for `RISK_PENALTY`.
-- `appeal`: `{ id, status, reason }` for a score entry that came from an appeal.
-- `recordedByName`: who recorded the risk event or score entry; null for a result.
+- `recordedByName`: who recorded the risk event; null for a result.
 
 ## Ledger entry transactions
 
@@ -80,7 +81,7 @@ importFileName, importedAt }`.
 - `isSource`: true for the code the verified result was written from.
 - `productCode`, `amount`, `transactionDate`, `referEmployeeCode`, `importFileName`, `importedAt` come from the
   imported file and are null for a code that matched nothing.
-- A line without a work (risk penalty, appeal hold) returns `workId: null` and `items: []`, not an error.
+- A line without a work (risk penalty) returns `workId: null` and `items: []`, not an error.
 
 ## Errors
 
@@ -93,8 +94,8 @@ importFileName, importedAt }`.
 
 ## Limits
 
-- The list reads the results, risk events and score entries directly, not the stored KPI rows; it shows lines even
+- The list reads the results and risk events directly, not the stored KPI rows; it shows lines even
   for an evaluation that was never calculated. Its `resultPoints` may differ from the calculated KPI score after a
   later approval until the next calculation.
-- Lines are not paged in the database; the three sources are merged in memory.
-- A result's `occurredAt` is the verification time; a risk event's is its `occurredAt`; a score entry's its `createdAt`.
+- Lines are not paged in the database; the two sources are merged in memory.
+- A result's `occurredAt` is the verification time; a risk event's is its `occurredAt`.

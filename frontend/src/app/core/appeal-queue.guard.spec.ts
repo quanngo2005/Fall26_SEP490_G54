@@ -62,7 +62,7 @@ describe('appeal queue guard', () => {
   });
 
   it('protects both department routes and redirects /appeals', () => {
-    for (const path of ['appeals/department', 'appeals/department/:id']) {
+    for (const path of ['appeals/department', 'appeals/department/detail']) {
       expect(routes.find((r) => r.path === path)?.canActivate).toContain(appealQueueGuard);
     }
     expect(routes.find((r) => r.path === 'appeals')?.redirectTo).toBe(appealsHomeRedirect);

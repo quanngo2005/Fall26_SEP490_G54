@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NpgsqlTypes;
 
 namespace G54.DAL;
 
@@ -221,12 +224,9 @@ public partial class AppDbContext : DbContext
             entity.ToTable("appeal", table =>
             {
                 table.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
-                table.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
             });
 
             entity.HasIndex(e => e.ResultSubmissionId, "ix_appeal_submission");
-
-            entity.HasIndex(e => e.PerformanceEvaluationId, "ix_appeal_evaluation");
 
             entity.HasIndex(e => e.ResolvedBy, "ix_appeal_resolved_by");
 
@@ -239,7 +239,6 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("filed_at");
             entity.Property(e => e.Note).HasColumnName("note");
-            entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
             entity.Property(e => e.Reason).HasColumnName("reason");
             entity.Property(e => e.ResolvedBy).HasColumnName("resolved_by");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");
@@ -251,11 +250,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_appeal_employee");
-
-            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.Appeals)
-                .HasForeignKey(d => d.PerformanceEvaluationId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_appeal_evaluation");
 
             entity.HasOne(d => d.ResolvedByNavigation).WithMany(p => p.AppealResolvedByNavigations)
                 .HasForeignKey(d => d.ResolvedBy)
@@ -2055,7 +2049,6 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_work_type_kpi_work_type");
         });
 
-        ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
         ConfigureWorkDetail(modelBuilder);
         ConfigureKpiCatalog(modelBuilder);
@@ -2134,6 +2127,17 @@ public partial class AppDbContext : DbContext
         });
 
         OnModelCreatingPartial(modelBuilder);
+    }
+
+    /// <summary>Maps an enum to its <c>[PgName]</c> text, so the stored values stay the UPPER_SNAKE strings the check constraints use.</summary>
+    private static ValueConverter<TEnum, string> PgNameConverter<TEnum>()
+        where TEnum : struct, Enum
+    {
+        var names = Enum.GetValues<TEnum>().ToDictionary(
+            value => value,
+            value => typeof(TEnum).GetField(value.ToString())!.GetCustomAttribute<PgNameAttribute>()!.PgName);
+        var values = names.ToDictionary(pair => pair.Value, pair => pair.Key);
+        return new ValueConverter<TEnum, string>(value => names[value], text => values[text]);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

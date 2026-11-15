@@ -308,6 +308,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'appeals/department/detail',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Chi tiết khiếu nại',
+    loadComponent: () =>
+      import('./features/appeals/department-appeal-detail.component').then(
+        (m) => m.DepartmentAppealDetailComponent,
+      ),
+  },
+  {
     path: 'appeals/department/:id',
     canActivate: [authGuard, appealQueueGuard],
     title: 'Chi tiết khiếu nại',

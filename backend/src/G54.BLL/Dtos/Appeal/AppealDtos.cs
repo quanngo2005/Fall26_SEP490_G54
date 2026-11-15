@@ -2,13 +2,6 @@ using Microsoft.AspNetCore.Http;
 
 namespace G54.BLL.Dtos.Appeal;
 
-/// <summary>What an appeal disputes, as exposed in the API <c>type</c> field.</summary>
-public static class AppealTypes
-{
-    public const string ResultAppeal = "RESULT";
-    public const string ScoreAppeal = "SCORE";
-}
-
 /// <summary>Whose appeals <c>GET /appeals</c> lists, as exposed in the API <c>scope</c> query.</summary>
 public static class AppealScopes
 {
@@ -22,35 +15,22 @@ public static class AppealDecisions
     public const string Accept = "ACCEPT";
     public const string Adjust = "ADJUST";
     public const string Reject = "REJECT";
-    public const string Uphold = "UPHOLD";
 }
-
-public sealed record ReviewAppealRequestDto(decimal? Points, string? Reason);
-public sealed record ScoreDisputeRequestDto(string? Reason);
-public sealed record AppealScoreSettingDto(decimal DefaultPoints);
-public sealed record ScoreEntryDto(Guid Id, Guid? AppealId, Guid? WorkId, Guid EvaluationId, decimal Points,
-    string Kind, string Source, string Reason, Guid RecordedByEmployeeId, DateTimeOffset CreatedAt, Guid? ReversesEntryId);
 
 public sealed record DecideAppealRequestDto
 {
     public string? Decision { get; init; }
 
     public string? Note { get; init; }
-
-    public decimal? VerifiedValue { get; init; }
-
-    /// <summary>Points added to the score, required (greater than 0) with <c>ADJUST</c> on a score appeal and not allowed otherwise.</summary>
-    public decimal? Points { get; init; }
 }
 
-/// <summary>Submission, work and verification fields are null for a score appeal; <c>ScoreEntryId</c> is set only when the score was adjusted.</summary>
+/// <summary><c>VerificationId</c> is null when the appeal was rejected.</summary>
 public sealed record AppealDecisionResultDto(
     AppealDetailDto Appeal,
     string Decision,
-    string? SubmissionStatus,
-    string? WorkStatus,
-    Guid? VerificationId,
-    Guid? ScoreEntryId = null);
+    string SubmissionStatus,
+    string WorkStatus,
+    Guid? VerificationId);
 
 /// <summary>Multipart form of <c>POST /submissions/{submissionId}/appeals</c>.</summary>
 public sealed class CreateAppealRequestDto
@@ -68,14 +48,11 @@ public sealed record AppealFilterDto
     /// </summary>
     public string? Status { get; init; }
 
-    /// <summary>Only appeals of this evaluation period: a score appeal of the period or a result submitted in it.</summary>
+    /// <summary>Only appeals of results submitted in this evaluation period.</summary>
     public Guid? PeriodId { get; init; }
 
     /// <summary>Only appeals of employees holding this job position.</summary>
     public Guid? JobPositionId { get; init; }
-
-    /// <summary>Kind filter (RESULT or SCORE, case-insensitive); empty means both; unknown value is 400.</summary>
-    public string? Type { get; init; }
 
     /// <summary>
     /// Whose appeals: <c>MINE</c> only the caller's own, <c>TEAM</c> only other employees' within the caller's scope;
@@ -90,11 +67,11 @@ public sealed record AppealFilterDto
 
 public sealed record AppealListItemDto(
     Guid Id,
-    Guid? ResultSubmissionId,
-    Guid? WorkId,
-    string? WorkCode,
-    string? WorkTitle,
-    int? SubmissionNo,
+    Guid ResultSubmissionId,
+    Guid WorkId,
+    string WorkCode,
+    string WorkTitle,
+    int SubmissionNo,
     Guid EmployeeId,
     string EmployeeCode,
     string EmployeeName,
@@ -102,13 +79,9 @@ public sealed record AppealListItemDto(
     DateTimeOffset FiledAt,
     DateTimeOffset? DecidedAt,
     DateTimeOffset UpdatedAt,
-    string Type,
-    Guid? PerformanceEvaluationId = null,
-    string? PeriodCode = null,
     string? JobPositionTitle = null,
     string? ResolvedByEmployeeName = null,
-    string? Note = null,
-    decimal? EvaluationScore = null);
+    string? Note = null);
 
 public sealed record AppealEvidenceDto(
     Guid Id,
@@ -118,13 +91,23 @@ public sealed record AppealEvidenceDto(
     string PreviewUrl,
     string DownloadUrl);
 
+/// <summary>The Core Banking transaction code(s) of the appealed work and their reconciliation outcome.</summary>
+public sealed record AppealTransactionDto(
+    string TransactionCode,
+    string Status,
+    string? Reason,
+    string? ImportBatchFileName = null,
+    string? ProductCode = null,
+    decimal? Amount = null,
+    DateOnly? TransactionDate = null);
+
 public sealed record AppealDetailDto(
     Guid Id,
-    Guid? ResultSubmissionId,
-    Guid? WorkId,
-    string? WorkCode,
-    string? WorkTitle,
-    int? SubmissionNo,
+    Guid ResultSubmissionId,
+    Guid WorkId,
+    string WorkCode,
+    string WorkTitle,
+    int SubmissionNo,
     Guid EmployeeId,
     string EmployeeCode,
     string EmployeeName,
@@ -137,12 +120,8 @@ public sealed record AppealDetailDto(
     Guid? ResolvedByEmployeeId,
     string? ResolvedByEmployeeName,
     IReadOnlyList<AppealEvidenceDto> Evidences,
-    string Type,
-    string? ScoreDisputeReason = null,
-    Guid? PerformanceEvaluationId = null,
-    string? PeriodCode = null,
-    DateTimeOffset? SubmittedAt = null,
+    DateTimeOffset SubmittedAt,
     string? WorkTypeName = null,
     string? ReferrerEmployeeCode = null,
     string? ReferrerEmployeeName = null,
-    decimal? EvaluationScore = null);
+    IReadOnlyList<AppealTransactionDto>? Transactions = null);
