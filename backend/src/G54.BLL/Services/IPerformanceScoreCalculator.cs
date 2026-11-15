@@ -54,7 +54,8 @@ public sealed record ScoredKpi(
     Guid? AnchorProgressId,
     decimal? AchievementPercentRaw,
     decimal? AchievementPercentCapped,
-    decimal? ComponentScore)
+    decimal? ComponentScore,
+    decimal? ResolvedActualValue = null)
 {
     /// <summary>Both a target and progress exist, so the KPI is recorded in the KPI detail table.</summary>
     public bool HasContribution => TargetAssignmentId.HasValue && ActualValue.HasValue;

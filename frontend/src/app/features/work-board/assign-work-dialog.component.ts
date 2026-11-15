@@ -17,7 +17,11 @@ const MAX_CHECKLIST_ITEMS = 20;
   standalone: true,
   imports: [A11yModule, FormsModule],
   templateUrl: './assign-work-dialog.component.html',
-  styleUrls: ['../../shared/ui/ui-controls.scss', '../../shared/ui/dialog.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/dialog.scss',
+    './assign-work-dialog.component.scss',
+  ],
 })
 export class AssignWorkDialogComponent extends LocalizedComponent {
   private readonly works = inject(WorkService);
@@ -27,14 +31,15 @@ export class AssignWorkDialogComponent extends LocalizedComponent {
   readonly closed = output<void>();
   readonly assigned = output<WorkDetail>();
 
-  protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
   protected readonly today = businessClock(new Date()).date;
   protected readonly maxItems = MAX_CHECKLIST_ITEMS;
 
   protected assigneeId = '';
   protected workTypeId = '';
   protected dueDate = '';
-  protected priority: WorkPriority = 'Medium';
+  /** Lowest first, so the four buttons read from calm to urgent. */
+  protected readonly priorities: readonly WorkPriority[] = ['Low', 'Medium', 'High', 'Critical'];
+  protected readonly priority = signal<WorkPriority>('Medium');
   protected readonly checklist = signal<string[]>([]);
 
   protected readonly submitted = signal(false);
@@ -84,7 +89,7 @@ export class AssignWorkDialogComponent extends LocalizedComponent {
         title: workType.name,
         workTypeId: workType.id,
         assigneeEmployeeId: this.assigneeId,
-        priority: this.priority,
+        priority: this.priority(),
         plannedEndDate: this.dueDate,
         ...(items.length > 0 ? { checklistItems: items } : {}),
       })

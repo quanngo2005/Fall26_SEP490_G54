@@ -1,0 +1,532 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content my-evaluation-container">
+      <!-- Breadcrumb navigation -->
+      <nav class="breadcrumb-trail" [attr.aria-label]="localization.myEvaluation.breadcrumbHome">
+        <a routerLink="/home" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbHome}}</a>
+        <span class="breadcrumb-separator">/</span>
+        <a routerLink="/my-evaluation" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbMyPerformance}}</a>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-current">{{localization.myEvaluation.breadcrumbCurrent}}</span>
+      </nav>
+
+      @if (loading()) {
+        <div class="loading-state" role="status">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>{{localization.myEvaluation.loading}}</p>
+        </div>
+      } @else if (loadFailed()) {
+        <div class="error-state" role="alert">
+          <p>{{localization.myEvaluation.error}}</p>
+          <button type="button" class="btn-primary" (click)="loadPeriodsAndEvaluation()">
+            {{localization.myEvaluation.retry}}
+          </button>
+        </div>
+      } @else if (evaluation(); as evalData) {
+        <!-- Page Head -->
+        <header class="eval-head">
+          <div class="head-info">
+            <div class="title-badge-row">
+              <h1 class="eval-title">
+                {{i18n.translate('myEvaluation.periodTitle', {
+                    period: formatPeriodName(evalData.periodName),
+                  })}}
+              </h1>
+              <span class="badge-published">{{statusLabel(evalData.status)}}</span>
+            </div>
+            @if (evalData.appealRemainingDays > 0) {
+              <p class="appeal-deadline-notice">
+                {{i18n.translate('myEvaluation.appealDeadlineNotice', {
+                    deadline: formatAppealDeadline(evalData.appealDeadlineText),
+                    remainingDays: evalData.appealRemainingDays,
+                  })}}
+              </p>
+            } @else {
+              <p class="appeal-deadline-notice text-muted">
+                {{localization.myEvaluation.appealExpiredNotice}}
+              </p>
+            }
+          </div>
+
+          <div class="head-actions">
+            <!-- Filter Năm / Quý / Tháng -->
+            <div class="filter-context-bar">
+              <!-- Năm -->
+              <div class="period-select-wrap">
+                <span class="period-label">{{localization.myEvaluation.yearLabel}}</span>
+                <select
+                  class="period-select year-select"
+                  [value]="year()"
+                  (change)="onYearChange($event)"
+                  [attr.aria-label]="localization.myEvaluation.yearAria"
+                >
+                  @for (item of years(); track item) {
+                    <option [value]="item" [selected]="item === year()">{{item}}</option>
+                  }
+                </select>
+                <app-layout-icon name="chevronDown" class="select-chevron" />
+              </div>
+
+              <!-- Quý -->
+              <div class="period-select-wrap">
+                <span class="period-label">{{localization.myEvaluation.quarterLabel}}</span>
+                <select
+                  class="period-select quarter-select"
+                  [value]="quarter()"
+                  (change)="onQuarterChange($event)"
+                  [attr.aria-label]="localization.myEvaluation.quarterAria"
+                >
+                  @if (hasYearPeriod()) {
+                    <option value="0" [selected]="quarter() === 0">
+                      {{localization.myEvaluation.wholeYear}}
+                    </option>
+                  }
+                  @for (item of quarterOptions(); track item) {
+                    <option [value]="item" [selected]="item === quarter()">
+                      {{quarterOptionText(item)}}
+                    </option>
+                  }
+                </select>
+                <app-layout-icon name="chevronDown" class="select-chevron" />
+              </div>
+
+              <!-- Tháng -->
+              <div class="period-select-wrap">
+                <span class="period-label">{{localization.myEvaluation.monthLabel}}</span>
+                <select
+                  class="period-select month-select"
+                  [value]="month()"
+                  (change)="onMonthChange($event)"
+                  [disabled]="quarter() === 0"
+                  [attr.aria-label]="localization.myEvaluation.monthAria"
+                >
+                  @if (hasQuarterPeriod()) {
+                    <option value="0" [selected]="month() === 0">
+                      {{localization.myEvaluation.wholeQuarter}}
+                    </option>
+                  }
+                  @for (item of monthOptions(); track item) {
+                    <option [value]="item" [selected]="item === month()">
+                      {{monthOptionText(item)}}
+                    </option>
+                  }
+                </select>
+                <app-layout-icon name="chevronDown" class="select-chevron" />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="btn-secondary appeal-btn"
+              [disabled]="!evalData.canAppeal"
+              (click)="openAppeal()"
+            >
+              {{localization.myEvaluation.appealButton}}
+            </button>
+
+            @if (evalData.isAcknowledged) {
+              <span class="badge-acknowledged">
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"
+                  />
+                </svg>
+                {{localization.myEvaluation.acknowledgedBadge}}
+              </span>
+            } @else {
+              <button type="button" class="btn-primary ack-btn" (click)="openAcknowledgeModal()">
+                {{localization.myEvaluation.acknowledgeButton}}
+              </button>
+            }
+          </div>
+        </header>
+
+        @if (acknowledgeSuccess()) {
+          <div class="alert-success" role="status">
+            <svg class="alert-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm-1-4 5-5-1.06-1.06L7 8.88 5.06 6.94 4 8l3 3Z"
+              />
+            </svg>
+            <span>{{localization.myEvaluation.acknowledgeSuccessMsg}}</span>
+          </div>
+        }
+
+        <!-- 3 Summary Metric Cards -->
+        <section class="summary-cards-grid" aria-label="Metric Summary">
+          <!-- Card 1: Tổng điểm PE -->
+          <article class="summary-card">
+            <span class="card-label">{{localization.myEvaluation.cardTotalScore}}</span>
+            <div class="card-body-row">
+              <span class="card-hero-score num">
+                @if (evalData.totalPeScore !== null) {
+                  {{evalData.totalPeScore | appNumber: 1}}
+                } @else {
+                  —
+                }
+              </span>
+              @if (evalData.previousPeriodName && evalData.scoreDelta !== null) {
+                <span
+                  class="card-delta-badge num"
+                  [class.text-positive]="evalData.scoreDelta >= 0"
+                  [class.text-negative]="evalData.scoreDelta < 0"
+                >
+                  {{i18n.translate(scoreTrendKey(evalData.scoreDelta), {
+                      diff: (absValue(evalData.scoreDelta) | appNumber: 1),
+                      prevPeriod: formatPeriodName(evalData.previousPeriodName),
+                      prevScore: (evalData.previousPeriodScore | appNumber: 1),
+                    })}}
+                </span>
+              }
+            </div>
+          </article>
+
+          <!-- Card 2: Tier -->
+          <article class="summary-card">
+            <span class="card-label">{{localization.myEvaluation.cardTier}}</span>
+            <div class="tier-card-body">
+              <span class="tier-hero-pill" [ngClass]="tierBadgeClass(evalData.tier)">
+                {{evalData.tier || '—'}}
+              </span>
+            </div>
+          </article>
+
+          <!-- Card 3: Xếp hạng (ẩn danh) -->
+          <article class="summary-card">
+            <span class="card-label">{{localization.myEvaluation.cardRanking}}</span>
+            <div class="ranking-card-body">
+              <span class="ranking-hero-val num">{{evalData.rankingPercentile}}</span>
+              <span class="ranking-sub-text">
+                {{i18n.translate('myEvaluation.cardRankingDetail', {
+                    rank: evalData.rankingPosition,
+                    total: evalData.rankingTotalEmployees,
+                    roleName: formatRoleTitle(evalData.rankingRoleTitle),
+                  })}}
+              </span>
+            </div>
+          </article>
+        </section>
+
+        <!-- Evaluation Data Table -->
+        <section class="table-card surface-card" aria-label="Performance Breakdown">
+          <div class="table-scroll-wrap">
+            <table class="evaluation-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="th-criteria">
+                    {{localization.myEvaluation.colCriteriaGroup}}
+                  </th>
+                  <th scope="col" class="th-target">{{localization.myEvaluation.colTarget}}</th>
+                  <th scope="col" class="th-actual">{{localization.myEvaluation.colActual}}</th>
+                  <th scope="col" class="th-score">{{localization.myEvaluation.colScore}}</th>
+                  <th scope="col" class="th-weight">{{localization.myEvaluation.colWeight}}</th>
+                  <th scope="col" class="th-weighted-score">
+                    {{localization.myEvaluation.colWeightedScore}}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (crit of evalData.criteria; track crit.id) {
+                  <tr class="criteria-row">
+                    <td class="col-criteria">
+                      @if (crit.hasDrilldown) {
+                        <button
+                          type="button"
+                          class="criteria-link-btn"
+                          (click)="openDrilldown(crit)"
+                        >
+                          <span class="criteria-link-label">{{crit.name}}</span>
+                          <span class="criteria-chevron" aria-hidden="true">›</span>
+                        </button>
+                      } @else {
+                        <span class="criteria-text">{{crit.name}}</span>
+                      }
+                    </td>
+                    <td class="col-target num">{{formatTarget(crit)}}</td>
+                    <td class="col-actual num">{{formatActual(crit)}}</td>
+                    <td class="col-score num">
+                      @if (crit.score !== null) {
+                        {{crit.score | appNumber: 1}}
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td class="col-weight num">{{crit.weightPercent}}%</td>
+                    <td class="col-weighted-score num">
+                      @if (crit.weightedScore !== null) {
+                        {{crit.weightedScore | appNumber: 1}}
+                      } @else {
+                        —
+                      }
+                    </td>
+                  </tr>
+                }
+
+                <!-- Modifier rows -->
+                <tr class="modifier-row">
+                  <td class="col-criteria modifier-label">
+                    {{localization.myEvaluation.rowQualityRatio}}
+                  </td>
+                  <td class="col-target"></td>
+                  <td class="col-actual"></td>
+                  <td class="col-score"></td>
+                  <td class="col-weight"></td>
+                  <td class="col-weighted-score modifier-val num">
+                    {{formatRatio(evalData.qualityRatio)}}
+                  </td>
+                </tr>
+                <tr class="modifier-row">
+                  <td class="col-criteria modifier-label">
+                    {{localization.myEvaluation.rowRiskPenalty}}
+                  </td>
+                  <td class="col-target"></td>
+                  <td class="col-actual"></td>
+                  <td class="col-score"></td>
+                  <td class="col-weight"></td>
+                  <td class="col-weighted-score modifier-val num">
+                    @if (evalData.riskPenalty > 0) {
+                      -{{evalData.riskPenalty | appNumber: 1}}
+                    } @else {
+                      0
+                    }
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td class="col-criteria total-label">{{localization.myEvaluation.rowTotal}}</td>
+                  <td class="col-target"></td>
+                  <td class="col-actual"></td>
+                  <td class="col-score"></td>
+                  <td class="col-weight total-weight num">100%</td>
+                  <td class="col-weighted-score total-score num">
+                    @if (evalData.totalPeScore !== null) {
+                      {{evalData.totalPeScore | appNumber: 1}}
+                    } @else {
+                      —
+                    }
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        <!-- Manager Feedback Card -->
+        <section class="manager-card surface-card" aria-label="Manager Feedback">
+          <h2 class="manager-title">{{localization.myEvaluation.managerNotesTitle}}</h2>
+          <p class="manager-body">{{evalData.managerFeedback || '—'}}</p>
+        </section>
+
+        <!-- Footnote notice -->
+        <footer class="eval-footnote">
+          <p>{{localization.myEvaluation.footnote}}</p>
+        </footer>
+      }
+    </main>
+  </div>
+</div>
+
+<!-- Modal Acknowledge Result (UC108) -->
+@if (showAcknowledgeModal()) {
+  @if (evaluation(); as evalData) {
+    <div
+      animate.leave="g54-leave-fade"
+      class="modal-backdrop"
+      role="presentation"
+      (click)="closeAcknowledgeModal()"
+      (keydown.escape)="closeAcknowledgeModal()"
+    >
+      <div
+        animate.leave="g54-leave-pop"
+        class="modal-dialog ack-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ack-dialog-title"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
+        <header class="modal-header">
+          <h3 id="ack-dialog-title" class="modal-title">
+            {{localization.myEvaluation.acknowledgeModalTitle}}
+          </h3>
+          <button
+            type="button"
+            class="modal-close-btn"
+            [attr.aria-label]="localization.myEvaluation.closeButton"
+            (click)="closeAcknowledgeModal()"
+          >
+            ×
+          </button>
+        </header>
+        <div class="modal-body">
+          <p class="modal-desc">
+            {{i18n.translate('myEvaluation.acknowledgeModalDesc', {
+                period: formatPeriodName(evalData.periodName),
+              })}}
+          </p>
+          @if (acknowledgeError()) {
+            <p class="modal-error" role="alert">{{localization.myEvaluation.acknowledgeError}}</p>
+          }
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="button button-secondary" (click)="closeAcknowledgeModal()">
+            {{localization.myEvaluation.acknowledgeModalCancel}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="acknowledging()"
+            (click)="confirmAcknowledge()"
+          >
+            {{localization.myEvaluation.acknowledgeModalConfirm}}
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+}
+
+<!-- Modal Drilldown Ledger Drawer -->
+@if (selectedDrilldownCriteria(); as crit) {
+  <div
+    animate.leave="g54-leave-fade"
+    class="modal-backdrop"
+    role="presentation"
+    (click)="closeDrilldown()"
+    (keydown.escape)="closeDrilldown()"
+  >
+    <div
+      animate.leave="g54-leave-pop"
+      class="modal-dialog ledger-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ledger-dialog-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <h3 id="ledger-dialog-title" class="modal-title">
+          {{i18n.translate('myEvaluation.ledgerDrawerTitle', { criteriaName: crit.name })}}
+        </h3>
+        <button
+          type="button"
+          class="modal-close-btn"
+          [attr.aria-label]="localization.myEvaluation.ledgerCloseAria"
+          (click)="closeDrilldown()"
+        >
+          ×
+        </button>
+      </header>
+      <div class="modal-body ledger-body">
+        @if (ledgerLoading()) {
+          <div class="loading-state" role="status">
+            <div class="spinner" aria-hidden="true"></div>
+            <p>{{localization.myEvaluation.loading}}</p>
+          </div>
+        } @else if (ledgerError()) {
+          <p class="modal-error" role="alert">{{localization.myEvaluation.ledgerError}}</p>
+        } @else if (ledgerItems().length > 0) {
+          <div class="ledger-filters">
+            <input
+              type="search"
+              class="ledger-filter-input ledger-filter-search"
+              [attr.aria-label]="localization.myEvaluation.ledgerSearchLabel"
+              [placeholder]="localization.myEvaluation.ledgerSearchPlaceholder"
+              [ngModel]="ledgerKeyword()"
+              (ngModelChange)="ledgerKeyword.set($event)"
+            />
+            <select
+              class="ledger-filter-input"
+              [attr.aria-label]="localization.myEvaluation.ledgerStatusFilterLabel"
+              [ngModel]="ledgerStatus()"
+              (ngModelChange)="ledgerStatus.set($event)"
+            >
+              <option value="">{{localization.myEvaluation.ledgerStatusAll}}</option>
+              @for (status of ledgerStatuses(); track status) {
+                <option [value]="status">{{ledgerStatusLabel(status)}}</option>
+              }
+            </select>
+            <label class="ledger-filter-date">
+              <span>{{localization.myEvaluation.ledgerDateFrom}}</span>
+              <input
+                type="date"
+                class="ledger-filter-input"
+                [max]="ledgerDateTo() || null"
+                [ngModel]="ledgerDateFrom()"
+                (ngModelChange)="ledgerDateFrom.set($event)"
+              />
+            </label>
+            <label class="ledger-filter-date">
+              <span>{{localization.myEvaluation.ledgerDateTo}}</span>
+              <input
+                type="date"
+                class="ledger-filter-input"
+                [min]="ledgerDateFrom() || null"
+                [ngModel]="ledgerDateTo()"
+                (ngModelChange)="ledgerDateTo.set($event)"
+              />
+            </label>
+          </div>
+          @if (filteredLedgerItems().length > 0) {
+            <table class="ledger-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{localization.myEvaluation.ledgerColTxCode}}</th>
+                  <th scope="col">{{localization.myEvaluation.ledgerColWork}}</th>
+                  <th scope="col">{{localization.myEvaluation.ledgerColDate}}</th>
+                  <th scope="col">{{localization.myEvaluation.ledgerColAmount}}</th>
+                  <th scope="col">{{localization.myEvaluation.ledgerColContribution}}</th>
+                  <th scope="col">{{localization.myEvaluation.ledgerColStatus}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (tx of filteredLedgerItems(); track tx.id) {
+                  <tr>
+                    <td class="font-mono">{{tx.txCode}}</td>
+                    <td>
+                      @if (tx.workId) {
+                        <button type="button" class="ledger-work-link" (click)="openLedgerWork(tx)">
+                          <span class="ledger-work-title">{{tx.workTitle}}</span>
+                          <span class="ledger-work-code font-mono">{{tx.workCode}}</span>
+                          <span class="ledger-work-action">
+                            {{localization.myEvaluation.ledgerOpenWork}}
+                          </span>
+                        </button>
+                      } @else {
+                        <span class="ledger-work-code">{{localization.myEvaluation.ledgerNoWork}}</span>
+                      }
+                    </td>
+                    <td>{{tx.date}}</td>
+                    <td class="font-mono">{{tx.amount}}</td>
+                    <td class="font-mono text-positive num">
+                      +{{tx.kpiContribution | appNumber: 1}}
+                    </td>
+                    <td>
+                      <span class="ledger-status" [class]="ledgerStatusClass(tx.status)">
+                        {{ledgerStatusLabel(tx.status)}}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="muted-empty">{{localization.myEvaluation.ledgerNoMatch}}</p>
+          }
+        } @else {
+          <p class="muted-empty">{{localization.myEvaluation.ledgerEmpty}}</p>
+        }
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="button button-secondary" (click)="closeDrilldown()">
+          {{localization.myEvaluation.closeButton}}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

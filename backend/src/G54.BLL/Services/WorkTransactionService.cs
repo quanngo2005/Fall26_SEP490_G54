@@ -2,6 +2,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Workflow;
+using G54.BLL.Dtos.TransactionImport;
 using G54.BLL.Dtos.WorkTransaction;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -103,7 +104,7 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
         return await ToDtoAsync(work, ct);
     }
 
-    public async Task ReconcileBatchAsync(Guid batchId, CancellationToken ct = default)
+    public async Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default)
     {
         var pending = await db.WorkTransactions
             .Where(w => w.Status == WorkTransactionStatus.InReview
@@ -116,6 +117,11 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
             await db.SaveChangesAsync(ct);
             await CompleteIfAllMatchedAsync(work, ct);
         }
+
+        return new ReconcileSummaryDto(
+            pending.Count(i => i.Status == WorkTransactionStatus.Matched),
+            pending.Count(i => i.Status == WorkTransactionStatus.NotMatched),
+            pending.Count(i => i.Status == WorkTransactionStatus.InReview));
     }
 
     // A code with no imported row yet, or one that cannot be credited yet (no target, locked period), stays IN_REVIEW
@@ -144,6 +150,11 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
                 await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, now, ct);
                 item.ImportedTransactionId = imported.Id;
                 Set(item, WorkTransactionStatus.Matched, null, now);
+            }
+            catch (AppException ex) when (ex.ErrorCode == ErrorCodes.MetricTypeMismatch)
+            {
+                // BR-09: automatic mapping is blocked and the result goes to the manager.
+                Set(item, WorkTransactionStatus.NotMatched, ex.ErrorCode, now);
             }
             catch (AppException ex)
             {

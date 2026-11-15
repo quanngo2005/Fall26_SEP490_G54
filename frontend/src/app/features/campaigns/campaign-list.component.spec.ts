@@ -33,6 +33,14 @@ const campaign = (overrides: Partial<CampaignSummary> = {}): CampaignSummary => 
   generatedWorksCount: 36,
   completedWorksCount: 9,
   updatedAt: '2026-10-20T10:00:00Z',
+  progressPercent: 0,
+  timeElapsedPercent: 0,
+  paceGap: 0,
+  kpiCode: null,
+  kpiName: null,
+  targetUnit: null,
+  targetValue: null,
+  actualValue: null,
   ...overrides,
 });
 
@@ -43,6 +51,7 @@ const overview = (items: CampaignSummary[], totalCount = items.length): Campaign
     plannedCampaigns: 1,
     completedCampaigns: 2,
     totalTasksGenerated: 54,
+    slowCampaignCount: 0,
     totalCompletedTasks: 20,
   },
   campaigns: { items, totalCount, page: 1, pageSize: 10 },

@@ -35,6 +35,9 @@ Nguồn tham chiếu quy ước chung: `docs/api/API_CONVENTIONS.md`.
 | `GET` | `/works` | `work:read` (scope `Own` trở lên) | Danh sách công việc: lọc theo trạng thái / người thực hiện / phòng ban, phân trang |
 | `GET` | `/works/{id}` | `[Authorize]` (Mọi tài khoản đã xác thực) | Lấy thông tin chi tiết công việc theo Id |
 | `PATCH` | `/works/{id}/status` | `[Authorize]` + kiểm tra assignee / quản lý trực tiếp tại service | Chuyển trạng thái công việc theo máy trạng thái (mục 7) |
+| `GET` | `/works/{id}/activities` | `work:read` (scope `Own` trở lên) | Nhật ký hoạt động, mới nhất trước (mục 3.4) |
+| `PATCH` | `/works/{id}/checklist-items/{itemId}` | `[Authorize]`; chỉ người được giao | Đánh dấu xong / bỏ đánh dấu một mục kiểm tra (mục 3.5) |
+| `PUT` | `/works/{id}/plan` | `[Authorize]`; quản lý trực tiếp của người được giao hoặc người có `work:create` phủ phòng ban của họ | Sửa hạn, ưu tiên, danh mục kiểm tra, ghi chú (mục 3.6) |
 
 ---
 
@@ -57,7 +60,9 @@ Khởi tạo một công việc mới trong hệ thống và giao cho nhân viê
 | `estimatedHours` | `number (decimal)` | Không | Từ `0` đến `9999.99` | `null` | Số giờ ước tính hoàn thành công việc. Không được âm. |
 | `businessCampaignId` | `string (uuid)` | Không | Phải tồn tại và ở trạng thái `Running` hoặc `Planned` | `null` | Id chiến dịch kinh doanh liên kết. Nếu truyền Id không tồn tại sẽ trả về lỗi 404 (`NOT_FOUND`). |
 | `description` | `string` | Không | Tối đa 2000 ký tự | `null` | Mô tả chi tiết nội dung công việc. |
-| `checklistItems` | `string[]` | Không | Danh sách chuỗi | `null` | Danh sách các đầu việc con. **Hiện tại server chưa xử lý và bỏ qua trường này.** |
+| `checklistItems` | `string[]` | Không | Tối đa 30 mục, mỗi mục tối đa 200 ký tự; mục rỗng bị bỏ qua | `null` | Danh mục kiểm tra, lưu theo thứ tự gửi. Tiến độ công việc là tỷ lệ mục đã xong. |
+| `customerName` | `string` | Không | Tối đa 200 ký tự | `null` | Tên khách hàng (văn bản tự do). |
+| `customerCif` | `string` | Không | Tối đa 50 ký tự | `null` | Mã CIF khách hàng, nhập tay. |
 
 #### Ví dụ Request Body
 
@@ -334,6 +339,20 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 | 404 | `NOT_FOUND` | Không tìm thấy công việc |
 | 409 | `WORK_INVALID_STATE` | Trạng thái hiện tại không cho phép chuyển sang trạng thái đích (kể cả khi đích trùng trạng thái hiện tại) |
 
+### 3.4. `GET /works/{id}/activities` - Nhật ký hoạt động
+
+Tối đa 200 dòng, mới nhất trước. Công việc không tồn tại hoặc ngoài phạm vi xem trả 404. Mỗi dòng: `id`, `action` (`ASSIGNED`, `STATUS_CHANGED`, `CHECKLIST_UPDATED`, `PLAN_UPDATED`), `message` (tiếng Việt, để hiển thị), `actorEmployeeId` và `actorName` (null khi hệ thống tự ghi), `createdAt`. Nhật ký chỉ thêm, không sửa hay xóa.
+
+### 3.5. `PATCH /works/{id}/checklist-items/{itemId}` - Đánh dấu mục kiểm tra
+
+Body `{ "isDone": true }` (bắt buộc), trả `WorkDetailDto` mới. Không phải người được giao: 403. Công việc không ở `New`, `InProgress`, `Rejected`, `Overdue`: 409 `WORK_INVALID_STATE`. Không có mục hoặc công việc: 404. Đặt lại đúng trạng thái hiện tại: 200 và không ghi thêm nhật ký.
+
+### 3.6. `PUT /works/{id}/plan` - Sửa kế hoạch
+
+Body: `plannedEndDate` (bắt buộc, `YYYY-MM-DD`, không nhỏ hơn ngày bắt đầu, không vượt ngày kết thúc chiến dịch), `priority` (tùy chọn, `Low|Medium|High|Critical`, giá trị lạ trả 400), `checklist` (tùy chọn, **toàn bộ** danh mục theo thứ tự mới: mục đã xong phải có mặt và giữ nguyên tên, mục chưa xong không được liệt kê sẽ bị xóa, mục không có `id` là mục mới, tối đa 30 mục), `note` (tùy chọn, tối đa 1000 ký tự).
+
+Chỉ sửa được khi công việc ở `New`, `InProgress`, `Rejected`, `Overdue`, `HandedOver` (ngược lại 409 `WORK_INVALID_STATE`). Người được phép: quản lý trực tiếp của người được giao, hoặc người có `work:create` phủ phòng ban của họ; người được giao không tự sửa (403). Có thay đổi hoặc ghi chú thì ghi nhật ký `PLAN_UPDATED` và gửi thông báo `WORK_PLAN_UPDATED` cho người được giao; không có gì thì không ghi. Công việc `Overdue` dời hạn sang ngày chưa qua sẽ trở lại `InProgress`.
+
 ---
 
 ## 4. Mô hình Dữ liệu Chi tiết (`WorkDetailDto`)
@@ -359,6 +378,13 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 | `plannedEndDate` | `string (date)` | Có | Hạn hoàn thành dự kiến (`YYYY-MM-DD`). |
 | `estimatedHours` | `number (decimal)` | Có | Số giờ ước tính hoàn thành công việc. |
 | `updatedAt` | `string (date-time)`| Không | Thời điểm cập nhật cuối cùng (ISO 8601 kèm múi giờ offset). |
+| `customerName`, `customerCif` | `string` | Có | Khách hàng và mã CIF nhập khi giao việc. |
+| `assignedAt` | `string (date-time)` | Có | Thời điểm giao việc (dữ liệu cũ: lần cập nhật cuối lúc migration). |
+| `assignedByEmployeeId`, `assignedByName`, `assignedByPositionTitle` | `uuid` / `string` | Có | Người giao việc và chức danh. |
+| `checklistItems` | `{ id, title, isDone, sortOrder, doneAt }[]` | Không | Danh mục kiểm tra theo `sortOrder`, rỗng khi chưa có. |
+| `progressPercent` | `number` | Có | Tỷ lệ mục đã xong (0 đến 100). Không có danh mục: 100 khi `Done`/`Verified`, ngược lại null. |
+| `relatedKpis` | `{ code, name, creditRole }[]` | Không | KPI mà loại công việc đóng góp; `creditRole` là `PROCESSOR` hoặc `REFERRER`. |
+| `canEditPlan`, `canUpdateChecklist` | `boolean` | Không | Người gọi được sửa kế hoạch / tick mục kiểm tra. |
 
 ---
 
@@ -386,7 +412,7 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 1. **Lệch HTTP Status và Body Status ở POST /works**: `POST /works` trả về mã HTTP là **201 Created** kèm header `Location`, nhưng trường `status` trong body JSON envelope là **200** do hàm `ApiResponse.Ok` khởi tạo mặc định. Client cần căn cứ vào HTTP Status Code làm nguồn chân lý.
 2. **Enum trả về PascalCase**: Mặc dù một số enum trong hệ thống dùng `UPPER_SNAKE` trên wire format, hai trường `priority` và `status` của Work API được chuyển thành chuỗi bằng `.ToString()` từ C# enum nên có định dạng **PascalCase** (`New`, `InProgress`, `High`...). Client cần xử lý chính xác định dạng này.
 3. **Mức ưu tiên không hợp lệ bị fallback về Medium**: Hàm `ParsePriority` xử lý case-insensitive (không phân biệt chữ hoa/thường): `"P1"` / `"Critical"` thành `Critical`, `"P2"` / `"High"` thành `High`, `"Low"` thành `Low`. Mọi giá trị khác (kể cả `"Medium"` hay chuỗi sai chính tả như `"Normal"`, `"abc"`) đều được âm thầm đưa về `Medium` mà **không báo lỗi**.
-4. **`checklistItems` chưa được lưu trữ**: Trường `checklistItems` có mặt trong request DTO nhưng service hiện tại chưa xử lý lưu vào cơ sở dữ liệu (bị bỏ qua).
+4. **`checklistItems` đã được lưu** (từ SCR-WRK-03): xem mục 3.5 và 3.6.
 5. **Ràng buộc `[Required]` với `Guid.Empty`**: Thuộc tính `[Required]` của DataAnnotations coi `Guid.Empty` (`00000000-0000-0000-0000-000000000000`) là giá trị hợp lệ. Tuy nhiên khi vào service, câu truy vấn tìm kiếm theo `Guid.Empty` sẽ không tìm thấy bản ghi và ném ra lỗi 400 (`VALIDATION_ERROR`).
 6. **Không tìm thấy WorkType hoặc Assignee trả 400, không phải 404**: Khác với chiến dịch (`businessCampaignId` không tồn tại trả 404), khi `workTypeId` hoặc `assigneeEmployeeId` không tồn tại (hoặc không ở trạng thái Active), service ném `ValidationException` dẫn tới mã HTTP trả về là **400** (`VALIDATION_ERROR`).
 7. **Lỗi gắn chiến dịch dùng mã chung**: chiến dịch không ở trạng thái `Running`/`Planned` trả 409 `CONFLICT`; hạn hoàn thành công việc vượt quá ngày kết thúc chiến dịch trả 400 `VALIDATION_ERROR`. Client phân biệt qua `message`, không qua `errorCode` (trước đây cả hai dùng chung `MSG18`).

@@ -137,7 +137,9 @@ public sealed class AuthService(
             return null;
         }
 
-        if (account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
+        // A lock with a LockedUntil in the past has expired, exactly as at login and password change.
+        var stillLocked = account.IsLocked && (account.LockedUntil is null || account.LockedUntil > DateTimeOffset.UtcNow);
+        if (stillLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             var revoked = await sessionStore.RevokeAsync(
                 currentToken.AccountId,
@@ -294,6 +296,11 @@ public sealed class AuthService(
 
         // Revoke first, then store the new session; the other order would delete the session that is meant to survive.
         await sessionStore.RevokeAllAsync(account.Id, cancellationToken);
+        await cache.SetStringAsync(
+            CreateAccessRevokedBeforeKey(account.Id),
+            now.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = AccessTokenLifetime },
+            cancellationToken);
         var remainingLifetime = currentSession.ExpiresAt - now;
         var issued = IssueTokens(account, currentSession.RememberMe, remainingLifetime);
         var sessionStored = await sessionStore.StoreAsync(
@@ -311,6 +318,8 @@ public sealed class AuthService(
     }
 
     public static string CreateAccessBlacklistKey(Guid tokenId) => $"auth:revoked:{tokenId}";
+
+    public static string CreateAccessRevokedBeforeKey(Guid accountId) => $"auth:revoked-before:{accountId}";
 
     private void RecordAudit(
         Guid? actorId,

@@ -147,7 +147,6 @@
   color: #fff;
   font-size: 13px;
   padding: 10px 14px;
-  animation: toast-in 0.2s ease;
 
   button {
     border: 0;
@@ -160,13 +159,6 @@
 
   &.toast-error {
     background: #9f1239;
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px);
   }
 }
 

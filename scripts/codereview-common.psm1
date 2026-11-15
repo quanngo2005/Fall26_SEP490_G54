@@ -85,6 +85,34 @@ function Invoke-Logged([scriptblock]$Command, [string]$WorkingDirectory = "") {
 }
 
 <# Adds one finding per regex hit, optionally ignoring hits marked with $AllowMarker on the same or previous line. #>
+function Start-BackgroundCommand([string]$FilePath, [string[]]$Arguments = @()) {
+    # Runs a native command in a background job so independent checks can overlap (e.g. dotnet format and
+    # dotnet ef while the unit tests run). Receive-BackgroundCommand collects it inside the check that owns it.
+    Start-Job -ScriptBlock {
+        param($file, $arguments, $directory)
+        Set-Location $directory
+        $global:LASTEXITCODE = 0
+        & $file @arguments *>&1 | ForEach-Object { "$_" }
+        "__EXIT__:$global:LASTEXITCODE"
+    } -ArgumentList $FilePath, $Arguments, (Get-Location).Path
+}
+
+function Receive-BackgroundCommand([object]$Job) {
+    # Same result shape as Invoke-Logged: the output is echoed, written to the check's own log, and kept for diagnostics.
+    $raw = @(Receive-Job -Job $Job -Wait -AutoRemoveJob)
+    $exit = 1
+    $lines = @()
+    foreach ($line in $raw) {
+        if ("$line" -match '^__EXIT__:(?<code>-?\d+)$') { $exit = [int]$Matches['code'] } else { $lines += "$line" }
+    }
+    $lines = @($lines | Where-Object { $null -ne $_ } | ForEach-Object { Remove-AnsiEscapes $_ })
+    $lines | Out-Host
+    $log = Join-Path $script:LogDir "$($script:Current.Id).log"
+    if ($lines.Count -gt 0) { Add-Content -LiteralPath $log -Value $lines -Encoding utf8 }
+    $script:Current.LastOutput = $lines
+    return @{ ExitCode = $exit; Lines = $lines }
+}
+
 function Find-Pattern([object[]]$Files, [string]$Pattern, [string]$Message = "", [string]$AllowMarker = "") {
     $hits = @($Files | Where-Object { $_ } | Select-String -Pattern $Pattern)
     if ($AllowMarker) {
@@ -275,4 +303,4 @@ function Invoke-Review([string]$Title, [object[]]$Checks, [string]$ReportPath) {
     return 0
 }
 
-Export-ModuleMember -Function Initialize-Review, ConvertTo-RepoPath, Add-Finding, Skip-Check, Add-Metric, Invoke-Logged, Find-Pattern, Find-PatternInContent, Add-MsBuildDiagnostics, Add-OutputExcerpt, Invoke-Review
+Export-ModuleMember -Function Initialize-Review, ConvertTo-RepoPath, Add-Finding, Skip-Check, Add-Metric, Invoke-Logged, Start-BackgroundCommand, Receive-BackgroundCommand, Find-Pattern, Find-PatternInContent, Add-MsBuildDiagnostics, Add-OutputExcerpt, Invoke-Review

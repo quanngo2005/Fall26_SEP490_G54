@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Employee;
@@ -22,4 +23,9 @@ public sealed record EmployeeDetailDto(
     int DirectReportsCount,
     DateTimeOffset LastSyncAt,
     DateTimeOffset UpdatedAt,
-    string? Username = null);
+    string? Username = null)
+{
+    /// <summary>Only set in the response of POST /employees: the one-time password of the account created with the employee.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TemporaryPassword { get; init; }
+}

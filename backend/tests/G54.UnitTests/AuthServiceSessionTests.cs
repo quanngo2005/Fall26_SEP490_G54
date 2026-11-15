@@ -122,6 +122,20 @@ public sealed class AuthServiceSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAsync_Succeeds_WhenTheLockHasExpired()
+    {
+        var account = await SeedAccountAsync(isLocked: true);
+        account.LockedUntil = DateTimeOffset.UtcNow.AddMinutes(-1);
+        await _db.SaveChangesAsync();
+        var refresh = await StoreSessionAsync(account, TimeSpan.FromHours(1));
+
+        var response = await Service().RefreshAsync(refresh, null, CancellationToken.None);
+
+        Assert.NotNull(response);
+        Assert.Equal(account.Id, response.User.Id);
+    }
+
+    [Fact]
     public async Task RefreshAsync_RevokesTheSessionAndAudits_WhenTheAccountIsLocked()
     {
         var account = await SeedAccountAsync(isLocked: true);

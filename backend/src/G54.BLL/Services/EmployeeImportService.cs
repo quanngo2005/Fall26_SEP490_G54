@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -28,8 +27,6 @@ public sealed class EmployeeImportService(
     IPasswordEncoder passwordEncoder,
     IOptions<SystemParametersOptions> parameters) : IEmployeeImportService
 {
-    private const string PasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-
     private const string BranchCodeHeader = "Mã chi nhánh*";
     private const string BranchNameHeader = "Tên chi nhánh*";
     private const string DeptCodeHeader = "Mã phòng ban*";
@@ -102,6 +99,11 @@ public sealed class EmployeeImportService(
     {
         var sheet = reader.Read(file, parameters.Value.ImportMaxRows);
         var headerIndex = Template.BuildHeaderIndex(sheet.Headers);
+
+        if (!sheet.Rows.Any())
+        {
+            throw new ValidationException("File không có dòng dữ liệu nào (chỉ có dòng tiêu đề hoặc để trống).");
+        }
 
         var rows = sheet.Rows
             .Select(raw =>
@@ -302,7 +304,7 @@ public sealed class EmployeeImportService(
             ctx.AccountsByEmployeeId.TryGetValue(employee.Id, out var account);
             if (account is null && !row.IsUpdate)
             {
-                var temporaryPassword = RandomNumberGenerator.GetString(PasswordAlphabet, 16);
+                var temporaryPassword = TemporaryPassword.Generate();
                 account = new Account
                 {
                     Id = Guid.NewGuid(),

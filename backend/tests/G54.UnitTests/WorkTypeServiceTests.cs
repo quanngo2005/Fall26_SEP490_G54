@@ -450,8 +450,9 @@ public sealed class WorkTypeServiceTests
         }
     }
 
+    // The keyword filter uses PostgreSQL ILike, so it is covered against a real database in WorkTypeHttpTests (UC83_02).
     [Fact]
-    public async Task GetWorkTypesAsync_FiltersByKeywordAndStatus()
+    public async Task GetWorkTypesAsync_FiltersByStatus()
     {
         var (context, service) = CreateTestEnvironment();
         using (context)
@@ -477,7 +478,6 @@ public sealed class WorkTypeServiceTests
 
             var filter = new WorkTypeFilterDto
             {
-                Keyword = "Consumer",
                 Status = "ACTIVE",
             };
 

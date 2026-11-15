@@ -194,6 +194,54 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetPersonalEvaluation_ForwardsPeriodIdWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+
+        var result = await controller.GetPersonalEvaluation(periodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, UserId), service.LastPersonalEvaluationRequest);
+        var data = Assert.IsType<ApiResponse<PersonalEvaluationViewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal(periodId, data.PeriodId);
+    }
+
+    [Fact]
+    public async Task AcknowledgePersonalEvaluation_ForwardsRequestWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var request = new AcknowledgePersonalEvaluationRequestDto(Guid.NewGuid());
+
+        var result = await controller.AcknowledgePersonalEvaluation(request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Same(request, service.LastAcknowledgeRequest);
+        Assert.Equal(UserId, service.LastAcknowledgeUserId);
+        Assert.True(Assert.IsType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(ok.Value).Data!.Success);
+    }
+
+    [Fact]
+    public async Task GetPersonalCriteriaLedger_ForwardsPeriodCriteriaAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var criteriaId = Guid.NewGuid();
+
+        var result = await controller.GetPersonalCriteriaLedger(periodId, criteriaId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, criteriaId, UserId), service.LastPersonalLedgerRequest);
+        var data = Assert.IsType<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Single(data);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -345,6 +393,57 @@ public sealed class EvaluationControllerTests
         {
             LastBranchPeriodsRequest = (year, periodType, status, currentUserId);
             return Task.FromResult(new BranchEvaluationPeriodsOverviewDto("Chi nhánh kiểm thử", "BR-TEST", [2026], []));
+        }
+
+        public (Guid? PeriodId, Guid UserId) LastPersonalEvaluationRequest { get; private set; }
+        public AcknowledgePersonalEvaluationRequestDto? LastAcknowledgeRequest { get; private set; }
+        public Guid LastAcknowledgeUserId { get; private set; }
+        public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
+
+        public Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(Guid? periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPersonalEvaluationRequest = (periodId, currentUserId);
+            return Task.FromResult(new PersonalEvaluationViewDto(
+                periodId ?? Guid.NewGuid(),
+                "Q3/2026",
+                "2026-Q3",
+                "FINAL",
+                "—",
+                0,
+                false,
+                85m,
+                null,
+                null,
+                null,
+                "A2",
+                ["A1", "A2", "A3", "B", "C"],
+                "Top 20%",
+                1,
+                5,
+                "Sales Officer",
+                [],
+                null,
+                0m,
+                null,
+                false,
+                null));
+        }
+
+        public Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(AcknowledgePersonalEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastAcknowledgeRequest = request;
+            LastAcknowledgeUserId = currentUserId;
+            return Task.FromResult(new AcknowledgePersonalEvaluationResultDto(true, DateTimeOffset.UtcNow, "ok"));
+        }
+
+        public Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(Guid periodId, Guid criteriaId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPersonalLedgerRequest = (periodId, criteriaId, currentUserId);
+            IReadOnlyList<PersonalCriteriaLedgerItemDto> items =
+            [
+                new PersonalCriteriaLedgerItemDto(Guid.NewGuid(), "TX-001", "10/10/2026", "100,000 VND", 5m, "VALID", "2026-10-10")
+            ];
+            return Task.FromResult(items);
         }
     }
 }

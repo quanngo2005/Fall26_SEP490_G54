@@ -63,7 +63,6 @@ public sealed class KpiDefinitionServiceTests
 
         var filter = new KpiFilterDto
         {
-            Keyword = "REV",
             Status = "ACTIVE",
             Page = 1,
             PageSize = 10,

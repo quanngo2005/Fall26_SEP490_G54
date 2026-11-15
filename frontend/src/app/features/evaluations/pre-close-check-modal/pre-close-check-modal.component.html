@@ -1,11 +1,13 @@
 @if (isOpen()) {
   <div
+    animate.leave="g54-leave-fade"
     class="pre-close-modal-backdrop"
     role="presentation"
     (click)="onClose()"
     (keydown.escape)="onClose()"
   >
     <div
+      animate.leave="g54-leave-pop"
       class="pre-close-modal-dialog"
       (click)="$event.stopPropagation()"
       (keydown)="$event.stopPropagation()"

@@ -13,6 +13,8 @@ namespace G54.Api.Controllers;
 [HasPermission(OrganizationAccessCodes.Resource, OrganizationAccessCodes.Read, "Dept")]
 public sealed class DepartmentsController(IDepartmentService service) : ControllerBase
 {
+    private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     [HttpGet]
     [ProducesResponseType<ApiResponse<PagedResult<DepartmentSummaryDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
@@ -113,10 +115,26 @@ public sealed class DepartmentsController(IDepartmentService service) : Controll
     public async Task<ActionResult<ApiResponse<DepartmentOverviewDto>>> GetOverview(
         Guid id,
         [FromQuery] Guid? periodId,
+        [FromQuery] string? compare,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetOverviewAsync(User.GetRequiredUserId(), id, periodId, cancellationToken);
+        var result = await service.GetOverviewAsync(User.GetRequiredUserId(), id, periodId, compare, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:guid}/overview/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExportOverview(
+        Guid id,
+        [FromQuery] Guid? periodId,
+        [FromQuery] string? compare,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportOverviewAsync(User.GetRequiredUserId(), id, periodId, compare, cancellationToken);
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     [HttpGet("{id:guid}/members")]

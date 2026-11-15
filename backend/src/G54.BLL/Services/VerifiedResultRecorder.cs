@@ -107,10 +107,20 @@ internal static class VerifiedResultRecorder
         CancellationToken cancellationToken)
     {
         var progressDate = imported.TransactionDate;
-        var mappings = InEffectMappings(work.WorkType, progressDate)
+        var inEffect = InEffectMappings(work.WorkType, progressDate)
             .GroupBy(k => k.KpiDefinitionId)
             .Select(g => g.OrderByDescending(k => k.EffectiveFrom).ThenBy(k => k.Id).First())
             .ToList();
+
+        // BR-09: an imported transaction is a quantitative measure. KPIs fed by another file (service ratings) are not
+        // credited from it; when the work type maps only such KPIs the automatic mapping is blocked (MSG13) and left
+        // to the manager.
+        var mappings = inEffect.Where(k => k.KpiDefinition.DataSource == KpiDataSource.Transaction).ToList();
+        if (inEffect.Count > 0 && mappings.Count == 0)
+        {
+            throw new BusinessRuleException(ErrorCodes.MetricTypeMismatch, statusCode: StatusCodes.Status409Conflict);
+        }
+
         var handover = await db.TaskHandovers
             .AsNoTracking()
             .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
@@ -209,7 +219,11 @@ internal static class VerifiedResultRecorder
         ];
     }
 
-    // A verified result item must feed an employee target's progress, so approval needs an active target for each recipient.
+    // A verified result item must feed an employee target's progress, so approval needs an active target for each
+    // recipient. A late result (its transaction date before the newer version's effective date, BR-15) is attributed
+    // to the version in effect on that date: the ACTIVE version if its EffectiveFrom is already past, otherwise the
+    // SUPERSEDED version whose [EffectiveFrom, EffectiveTo] window contains the date. A SUPERSEDED row with
+    // EffectiveTo == null was replaced before BR-15 existed and is never a candidate.
     private static Task<TargetAssignment?> FindActiveTargetAsync(
         AppDbContext db,
         Guid kpiDefinitionId,
@@ -220,10 +234,13 @@ internal static class VerifiedResultRecorder
             .Include(t => t.EvaluationPeriod)
             .Where(t => t.KpiDefinitionId == kpiDefinitionId
                 && t.EmployeeId == employeeId
-                && t.Status == TargetAssignmentStatus.Active
                 && t.EvaluationPeriod.StartDate <= progressDate
-                && t.EvaluationPeriod.EndDate >= progressDate)
+                && t.EvaluationPeriod.EndDate >= progressDate
+                && ((t.Status == TargetAssignmentStatus.Active && t.EffectiveFrom <= progressDate)
+                    || (t.Status == TargetAssignmentStatus.Superseded && t.EffectiveTo != null
+                        && t.EffectiveFrom <= progressDate && t.EffectiveTo >= progressDate)))
             .OrderBy(t => t.EvaluationPeriod.EndDate)
+            .ThenByDescending(t => t.Version)
             .FirstOrDefaultAsync(cancellationToken);
 
     private static async Task<BusinessRuleException> TargetNotAssignedAsync(

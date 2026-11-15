@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Dtos.TransactionImport;
 using G54.BLL.Dtos.WorkTransaction;
 using G54.BLL.Services;
 using G54.DAL;
@@ -190,6 +191,52 @@ public sealed class WorkTransactionServiceTests
         Assert.Equal("MATCHED", item.Status);
         Assert.Equal(WorkStatus.Done, (await rig.Db.Works.SingleAsync()).Status);
         Assert.Equal(1m, (await rig.Db.ActualProgresses.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task Add_WorkTypeMappingOnlyNonTransactionKpisBlocksAutomaticMappingAsMetricTypeMismatch()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Kpis[0].Kpi.DataSource = KpiDataSource.ServiceRating;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("NOT_MATCHED", item.Status);
+        Assert.Equal(ErrorCodes.MetricTypeMismatch, item.Reason);
+        Assert.NotEqual("DONE", result.WorkStatus);
+        Assert.Empty(rig.Db.ActualProgresses);
+    }
+
+    [Fact]
+    public async Task Add_MixedKpisCreditOnlyTheTransactionKpiAndMatch()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count), (KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Kpis[1].Kpi.DataSource = KpiDataSource.ServiceRating;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        Assert.Equal("MATCHED", Assert.Single(result.Items).Status);
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(rig.Kpis[0].Target.Id, progress.TargetAssignmentId);
+    }
+
+    [Fact]
+    public async Task ReconcileBatch_CountsMatchedNotMatchedAndStillInReviewCodes()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        await rig.AddAsync("T1");
+        await rig.AddAsync("T2");
+        rig.Import("T1");
+        rig.Import("T2", employee: rig.Other);
+
+        var summary = await rig.Service.ReconcileBatchAsync(rig.Db.ImportBatches.Single().Id);
+
+        Assert.Equal(new ReconcileSummaryDto(1, 1, 0), summary);
     }
 
     [Fact]

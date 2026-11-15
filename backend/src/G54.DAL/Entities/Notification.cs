@@ -14,6 +14,10 @@ public enum NotificationType
     [PgName("KPI_APPROVED")] KpiApproved,
     [PgName("KPI_REJECTED")] KpiRejected,
     [PgName("REWORK_REQUESTED")] ReworkRequested,
+    [PgName("TARGET_REVISED")] TargetRevised,
+    [PgName("RATING_ONE_STAR")] RatingOneStar,
+    [PgName("RESULT_PUBLISHED")] ResultPublished,
+    [PgName("WORK_PLAN_UPDATED")] WorkPlanUpdated,
 }
 
 public enum NotificationSeverity
@@ -29,6 +33,7 @@ public enum NotificationRelatedType
     [PgName("CAMPAIGN")] Campaign,
     [PgName("HANDOVER")] Handover,
     [PgName("KPI")] Kpi,
+    [PgName("TARGET")] Target,
 }
 
 /// <summary>One notification for one recipient; an announcement to many employees is one row each, so read state is per person.</summary>

@@ -1,0 +1,96 @@
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+th,
+td {
+  padding: 9px 8px;
+  text-align: left;
+}
+thead th {
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font:
+    600 12px Inter,
+    sans-serif;
+  text-transform: uppercase;
+}
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.group-row th {
+  padding-top: 14px;
+  color: #475569;
+  font:
+    700 13px Inter,
+    sans-serif;
+  text-transform: uppercase;
+}
+.group-row .weights {
+  padding-top: 14px;
+  color: #64748b;
+  font-size: 12px;
+  text-align: right;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: #1e3a8a;
+}
+.swatch[data-index='1'] {
+  background: #3b82f6;
+}
+.swatch[data-index='2'] {
+  background: #bfdbfe;
+}
+.kpi-name {
+  padding-left: 24px;
+  white-space: nowrap;
+  color: #0f172a;
+}
+.strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.achievement strong {
+  min-width: 44px;
+  text-align: right;
+}
+.track {
+  position: relative;
+  flex: 1;
+  min-width: 90px;
+  height: 8px;
+  border-radius: 4px;
+  background: #eef2f7;
+}
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: #0f2a44;
+}
+.fill.below {
+  background: #e11d48;
+}
+.marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  background: #0f172a;
+}

@@ -145,6 +145,7 @@ describe('TargetSetupWizardComponent', () => {
     });
 
     const fixture = TestBed.createComponent(TargetSetupWizardComponent);
+    TestBed.inject(I18nService).setLanguage('vi');
     fixture.detectChanges();
     return fixture;
   }

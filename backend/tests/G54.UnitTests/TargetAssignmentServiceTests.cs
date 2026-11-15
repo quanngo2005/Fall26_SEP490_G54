@@ -29,12 +29,14 @@ public sealed class TargetAssignmentServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private TargetAssignmentService Service(bool admin) => new(
+    private TargetAssignmentService Service(bool admin, RecordingNotifier? notifier = null, Guid? managerAccountId = null) => new(
         new TargetAssignmentRepository(_db),
         new TargetAssignmentFeedbackRepository(_db),
         new Repository<EvaluationPeriod>(_db),
-        new FakePermissions(admin),
+        new Repository<Department>(_db),
+        new FakePermissions(admin, managerAccountId),
         new WeekdayWorkingDayCalendar(),
+        notifier ?? new RecordingNotifier(),
         new FixedTime());
 
     /// <summary>BRANCH > (DEPT, DEPT_OTHER). The manager and the member belong to DEPT.</summary>
@@ -107,7 +109,7 @@ public sealed class TargetAssignmentServiceTests : IDisposable
     };
 
     /// <summary>Stores the Open period of <see cref="_periodId"/> (the repository joins it when listing children).</summary>
-    private async Task StorePeriodAsync()
+    private async Task StorePeriodAsync(PeriodStatus status = PeriodStatus.Open, DateOnly? hardLockedThrough = null)
     {
         _db.EvaluationPeriods.Add(new EvaluationPeriod
         {
@@ -117,7 +119,8 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             PeriodType = PeriodType.Quarter,
             StartDate = new DateOnly(2026, 10, 1),
             EndDate = new DateOnly(2026, 12, 31),
-            Status = PeriodStatus.Open,
+            Status = status,
+            HardLockedThrough = hardLockedThrough,
             UpdatedAt = Now,
         });
         await _db.SaveChangesAsync();
@@ -169,6 +172,31 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         await SeedAsync();
 
         await Assert.ThrowsAsync<ForbiddenException>(() => Service(admin: false).CreateRootAsync(_manager, Root()));
+
+        Assert.Empty(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task CreateRoot_ForADepartmentThatIsNotABranch_IsRejectedAndStoresNothing()
+    {
+        await SeedAsync();
+        var dto = Root();
+        dto.DepartmentId = _dept.Id;
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).CreateRootAsync(_admin, dto));
+
+        Assert.Contains("chi nhánh", ex.Message);
+        Assert.Empty(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task CreateRoot_ForAnUnknownDepartment_ThrowsNotFoundAndStoresNothing()
+    {
+        await SeedAsync();
+        var dto = Root();
+        dto.DepartmentId = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<NotFoundException>(() => Service(admin: true).CreateRootAsync(_admin, dto));
 
         Assert.Empty(_db.TargetAssignments);
     }
@@ -933,8 +961,10 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             new TargetAssignmentRepository(_db),
             new TargetAssignmentFeedbackRepository(_db),
             new Repository<EvaluationPeriod>(_db),
+            new Repository<Department>(_db),
             new FakePermissions(admin: false, managerAccountId: _manager),
             new WeekdayWorkingDayCalendar(),
+            new RecordingNotifier(),
             new FixedTime());
 
         var feedback = await service.GetFeedbackAsync(_manager, target.Id);
@@ -956,8 +986,10 @@ public sealed class TargetAssignmentServiceTests : IDisposable
             new TargetAssignmentRepository(_db),
             new TargetAssignmentFeedbackRepository(_db),
             new Repository<EvaluationPeriod>(_db),
+            new Repository<Department>(_db),
             new FakePermissions(admin: false, managerAccountId: _manager),
             new WeekdayWorkingDayCalendar(),
+            new RecordingNotifier(),
             new FixedTime());
 
         var feedback = await service.GetFeedbackAsync(_manager, target.Id);
@@ -983,6 +1015,191 @@ public sealed class TargetAssignmentServiceTests : IDisposable
         _db.TargetAssignments.Add(target);
         await _db.SaveChangesAsync();
         return target;
+    }
+
+    // ----- ReviseAsync (BR-15 mid-period target change) --------------------------------------
+
+    private static ReviseTargetAssignmentDto ReviseDto(
+        decimal targetValue,
+        DateOnly effectiveDate,
+        string? reason = "Nghỉ phép",
+        List<TargetAllocationItemDto>? childAllocations = null) => new()
+        {
+            TargetValue = targetValue,
+            EffectiveDate = effectiveDate,
+            Reason = reason,
+            ChildAllocations = childAllocations,
+        };
+
+    [Fact]
+    public async Task Revise_NoChildren_FreezesOldVersionAndActivatesTheNewOneFromTheEffectiveDate()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreDepartmentTargetAsync(_dept);
+        current.EffectiveFrom = new DateOnly(2026, 10, 1);
+        await _db.SaveChangesAsync();
+        var effectiveDate = new DateOnly(2026, 11, 15);
+
+        var result = await Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, effectiveDate));
+
+        await _db.Entry(current).ReloadAsync();
+        Assert.Equal(TargetAssignmentStatus.Superseded, current.Status);
+        Assert.Equal(effectiveDate.AddDays(-1), current.EffectiveTo);
+
+        var created = Assert.Single(result);
+        Assert.Equal("ACTIVE", created.Status);
+        Assert.Equal(current.Version + 1, created.Version);
+        Assert.Equal(900, created.TargetValue);
+        Assert.Equal(effectiveDate, created.EffectiveFrom);
+        Assert.Null(created.EffectiveTo);
+        Assert.Equal(current.Id, created.PreviousVersionId);
+        Assert.Equal("Nghỉ phép", created.ChangeReason);
+    }
+
+    [Fact]
+    public async Task Revise_WithActiveChildren_FreezesThemAndCreatesTheNextVersionOfEach()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_branch);
+        var child1 = await StoreDepartmentTargetAsync(_dept);
+        child1.ParentAssignmentId = parent.Id;
+        child1.SplitDimension = TargetSplitDimension.Org;
+        var child2 = await StoreDepartmentTargetAsync(_deptOther);
+        child2.ParentAssignmentId = parent.Id;
+        child2.SplitDimension = TargetSplitDimension.Org;
+        await _db.SaveChangesAsync();
+        var effectiveDate = new DateOnly(2026, 11, 15);
+
+        var dto = ReviseDto(900, effectiveDate, childAllocations:
+        [
+            new() { DepartmentId = _dept.Id, TargetValue = 500 },
+            new() { DepartmentId = _deptOther.Id, TargetValue = 400 },
+        ]);
+
+        var result = await Service(admin: true).ReviseAsync(_admin, parent.Id, dto);
+
+        Assert.Equal(3, result.Count);
+        await _db.Entry(child1).ReloadAsync();
+        await _db.Entry(child2).ReloadAsync();
+        Assert.Equal(TargetAssignmentStatus.Superseded, child1.Status);
+        Assert.Equal(TargetAssignmentStatus.Superseded, child2.Status);
+        Assert.Equal(effectiveDate.AddDays(-1), child1.EffectiveTo);
+
+        var newChild1 = result.Single(r => r.DepartmentId == _dept.Id);
+        Assert.Equal(child1.Id, newChild1.PreviousVersionId);
+        Assert.Equal(500, newChild1.TargetValue);
+        Assert.Equal("ACTIVE", newChild1.Status);
+    }
+
+    [Fact]
+    public async Task Revise_WhenThePeriodIsLocked_ThrowsConflictAndStoresNothing()
+    {
+        await SeedAsync();
+        await StorePeriodAsync(PeriodStatus.Locked);
+        var current = await StoreDepartmentTargetAsync(_dept);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, new DateOnly(2026, 11, 15))));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Single(_db.TargetAssignments);
+    }
+
+    [Fact]
+    public async Task Revise_WhenTheMonthIsHardLocked_ThrowsMonthHardLocked()
+    {
+        await SeedAsync();
+        await StorePeriodAsync(hardLockedThrough: new DateOnly(2026, 11, 10));
+        var current = await StoreDepartmentTargetAsync(_dept);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, new DateOnly(2026, 11, 15))));
+
+        Assert.Equal(ErrorCodes.MonthHardLocked, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Revise_EffectiveDateNotAfterTheCurrentEffectiveFrom_ThrowsValidation()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreDepartmentTargetAsync(_dept);
+        current.EffectiveFrom = new DateOnly(2026, 11, 1);
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, new DateOnly(2026, 11, 1))));
+    }
+
+    [Fact]
+    public async Task Revise_WithoutAReason_ThrowsValidation()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreDepartmentTargetAsync(_dept);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, new DateOnly(2026, 11, 15), reason: "")));
+    }
+
+    [Fact]
+    public async Task Revise_WhenChildAllocationsDoNotSumToTheNewTargetValue_ThrowsValidation()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var parent = await StoreDepartmentTargetAsync(_branch);
+        var child1 = await StoreDepartmentTargetAsync(_dept);
+        child1.ParentAssignmentId = parent.Id;
+        await _db.SaveChangesAsync();
+
+        var dto = ReviseDto(900, new DateOnly(2026, 11, 15), childAllocations:
+        [
+            new() { DepartmentId = _dept.Id, TargetValue = 500 },
+        ]);
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(admin: true).ReviseAsync(_admin, parent.Id, dto));
+    }
+
+    [Fact]
+    public async Task Revise_ByACallerOutsideTheOwningDepartment_IsForbidden()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreDepartmentTargetAsync(_deptOther);
+
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => Service(admin: false, managerAccountId: _manager).ReviseAsync(_manager, current.Id, ReviseDto(900, new DateOnly(2026, 11, 15))));
+    }
+
+    [Fact]
+    public async Task Revise_WhenTheTargetIsNotActive_ThrowsInvalidState()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreDepartmentTargetAsync(_dept);
+        current.Status = TargetAssignmentStatus.Superseded;
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(
+            () => Service(admin: true).ReviseAsync(_admin, current.Id, ReviseDto(900, new DateOnly(2026, 11, 15))));
+    }
+
+    [Fact]
+    public async Task Revise_Success_PublishesANotificationForTheOwningEmployee()
+    {
+        await SeedAsync();
+        await StorePeriodAsync();
+        var current = await StoreEmployeeTargetAsync(_member);
+        var notifier = new RecordingNotifier();
+
+        await Service(admin: true, notifier).ReviseAsync(_admin, current.Id, ReviseDto(150, new DateOnly(2026, 11, 15)));
+
+        var draft = Assert.Single(notifier.Drafts);
+        Assert.Equal(_member.Id, draft.RecipientEmployeeId);
+        Assert.Equal(NotificationType.TargetRevised, draft.Type);
+        Assert.Equal(NotificationRelatedType.Target, draft.RelatedType);
     }
 
     private sealed class FixedTime : TimeProvider

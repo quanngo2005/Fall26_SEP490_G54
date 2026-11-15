@@ -1,0 +1,213 @@
+<aside
+  animate.leave="g54-leave-fade"
+  class="appeal-drawer"
+  role="region"
+  [attr.aria-label]="title()"
+>
+  <header class="drawer-header">
+    <div class="header-top-line">
+      <div class="header-title-group">
+        <h2 class="appeal-title">{{title()}}</h2>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge" [class]="'tone-' + badge().tone">{{badgeLabel()}}</span>
+        <button
+          type="button"
+          class="close-button"
+          [attr.aria-label]="localization.submissions.drawer.close"
+          (click)="closeDrawer.emit()"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+      </div>
+    </div>
+    <p class="drawer-subtitle">{{subtitle()}}</p>
+  </header>
+
+  <div class="drawer-body">
+    @if (loading()) {
+      <p class="drawer-state" role="status">{{localization.submissions.drawer.loading}}</p>
+    } @else if (failed()) {
+      <p class="drawer-state" role="alert">{{localization.submissions.drawer.loadError}}</p>
+    } @else if (detail(); as d) {
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.submissions.drawer.sectionSubmission}}</h3>
+        <div class="target-grid">
+          <div class="grid-item">
+            <span class="field-label">{{localization.submissions.drawer.work}}</span>
+            <span class="field-value">{{d.workTitle}}</span>
+          </div>
+          <div class="grid-item">
+            <span class="field-label">{{localization.submissions.drawer.workType}}</span>
+            <span class="field-value">
+              {{d.workTypeName ?? localization.submissions.drawer.noWorkType}}
+            </span>
+          </div>
+          <div class="grid-item">
+            <span class="field-label">{{localization.submissions.drawer.transactionCount}}</span>
+            <span class="field-value">{{d.transactions.length}}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.submissions.drawer.compareTitle}}</h3>
+        @for (tx of d.transactions; track tx.transactionCode) {
+          <div class="compare-card">
+            <div class="compare-head">
+              <span class="font-code">{{tx.transactionCode}}</span>
+              @if (reasonText(tx.reason); as reason) {
+                <span class="compare-reason">{{reason}}</span>
+              }
+            </div>
+            @if (hasImport(tx.fields)) {
+              <table class="compare-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.submissions.drawer.fieldColumn}}</th>
+                    <th scope="col">{{localization.submissions.drawer.declaredColumn}}</th>
+                    <th scope="col">{{localization.submissions.drawer.importedColumn}}</th>
+                    <th scope="col" class="col-match">
+                      {{localization.submissions.drawer.matchColumn}}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (f of tx.fields; track f.field) {
+                    <tr [class.mismatch]="f.matched === false">
+                      <td>{{fieldLabel(f.field)}}</td>
+                      <td class="font-code">{{value(f, f.declared)}}</td>
+                      <td class="font-code">{{value(f, f.imported)}}</td>
+                      <td class="col-match">
+                        @if (f.matched === true) {
+                          <span
+                            class="mark ok"
+                            role="img"
+                            [attr.aria-label]="localization.submissions.drawer.matchedAria"
+                            >✓</span
+                          >
+                        } @else if (f.matched === false) {
+                          <span
+                            class="mark bad"
+                            role="img"
+                            [attr.aria-label]="localization.submissions.drawer.mismatchAria"
+                            >✗</span
+                          >
+                        } @else {
+                          <span aria-hidden="true">{{localization.submissions.drawer.notCompared}}</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <p class="drawer-state">{{localization.submissions.drawer.waitingImport}}</p>
+            }
+          </div>
+        } @empty {
+          <p class="drawer-state">{{localization.submissions.drawer.noTransactions}}</p>
+        }
+      </section>
+
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.submissions.drawer.evidence}}</h3>
+        <div class="evidence-list">
+          @for (file of d.evidences; track file.id) {
+            <div class="evidence-item">
+              <div class="evidence-info">
+                <span class="file-name">{{file.fileName}}</span>
+                <span class="file-size">· {{size(file.fileSize)}}</span>
+              </div>
+              <button type="button" class="preview-btn" (click)="preview(file)">
+                {{localization.submissions.drawer.preview}}
+              </button>
+            </div>
+          } @empty {
+            <p class="drawer-state">{{localization.submissions.drawer.noEvidence}}</p>
+          }
+        </div>
+        @if (previewFailed()) {
+          <p class="drawer-state" role="alert">
+            {{localization.submissions.drawer.previewFailed}}
+          </p>
+        }
+      </section>
+
+      <section class="drawer-section">
+        <h3 class="section-label">{{localization.submissions.drawer.versionsTitle}}</h3>
+        <ul class="version-list">
+          @for (v of d.versions; track v.submissionId) {
+            <li>
+              <button
+                type="button"
+                class="version-row"
+                [class.current]="v.submissionId === d.submissionId"
+                [attr.aria-current]="v.submissionId === d.submissionId ? 'true' : null"
+                (click)="selectVersion.emit(v.submissionId)"
+              >
+                <strong>{{i18n.translate('submissions.drawer.versionLine', { no: v.submissionNo })}}</strong>
+                <span>{{v.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}</span>
+                @let vb = versionBadge(v);
+                <span class="status-badge" [class]="'tone-' + vb.tone">{{vb.label}}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+
+      @switch (d.appeal.state) {
+        @case ('AVAILABLE') {
+          <div class="drawer-callout">
+            <h4 class="callout-heading">{{localization.submissions.drawer.availableTitle}}</h4>
+            <p class="callout-body">{{availableText(d.appeal.deadline ?? '')}}</p>
+          </div>
+        }
+        @case ('EXPIRED') {
+          <div class="drawer-callout muted">
+            <h4 class="callout-heading">{{localization.submissions.drawer.expiredTitle}}</h4>
+            <p class="callout-body">{{localization.submissions.drawer.expiredText}}</p>
+          </div>
+        }
+        @case ('IN_PROGRESS') {
+          <div class="drawer-callout muted">
+            <h4 class="callout-heading">{{localization.submissions.drawer.inProgressTitle}}</h4>
+            <p class="callout-body">{{localization.submissions.drawer.inProgressText}}</p>
+          </div>
+        }
+        @default {
+          @if (d.matchStatus === 'NOT_MATCHED') {
+            <div class="drawer-callout">
+              <h4 class="callout-heading">{{localization.submissions.drawer.notMatchedTitle}}</h4>
+              <p class="callout-body">{{localization.submissions.drawer.notMatchedText}}</p>
+            </div>
+          }
+        }
+      }
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="footer-hint">{{localization.submissions.drawer.keyboardHint}}</span>
+    @if (detail(); as d) {
+      @if (d.appeal.state === 'IN_PROGRESS') {
+        <a
+          class="appeal-button"
+          routerLink="/appeals/mine"
+          [queryParams]="d.appeal.appealId ? { appeal: d.appeal.appealId } : null"
+        >
+          {{localization.submissions.drawer.viewAppeal}}
+        </a>
+      } @else if (d.appeal.state === 'AVAILABLE' || d.appeal.state === 'EXPIRED') {
+        <button
+          type="button"
+          class="appeal-button"
+          [disabled]="d.appeal.state !== 'AVAILABLE'"
+          (click)="appeal.emit(d.submissionId)"
+        >
+          {{localization.submissions.drawer.appealButton}}
+        </button>
+      }
+    }
+  </footer>
+</aside>

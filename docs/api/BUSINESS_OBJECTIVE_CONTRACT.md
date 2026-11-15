@@ -30,7 +30,7 @@ missing) with 403, for the list and the detail alike.
 | PUT | `/business-objectives/{id}` | `BusinessObjectiveSave` (full replacement) | 200 `BusinessObjective` (400, 404, 409) |
 | DELETE | `/business-objectives/{id}` | — | 200 (404, 409 `BUSINESS_OBJECTIVE_IN_USE`) |
 
-The list is not paged and is ordered by `code`. `keyword` matches code or name. Without `status` the list leaves out
+The list is not paged and is ordered by `code`. `keyword` matches code or name, case-insensitively (a part of the text is enough). Without `status` the list leaves out
 `CANCELLED` objectives (the campaign dropdown rule). `status` is UPPER_SNAKE (`DRAFT | ACTIVE | CLOSED | CANCELLED`),
 parsed with `EnumApiFormat.ParseEnum()`; an unknown value or an ordinal is 400 `VALIDATION_ERROR`.
 

@@ -4,6 +4,8 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
+  AcknowledgePersonalEvaluationRequest,
+  AcknowledgePersonalEvaluationResult,
   ApproveDepartmentRankingRequest,
   BranchApprovalOverview,
   BranchEvaluationPeriodsOverview,
@@ -16,6 +18,8 @@ import {
   EvaluationResult,
   FinalizePeriodRequest,
   FinalizePeriodResult,
+  PersonalCriteriaLedgerItem,
+  PersonalEvaluationView,
   PreCloseCheckOverview,
   RejectDepartmentRequest,
   SubmitEvaluationRequest,
@@ -127,6 +131,36 @@ export class EvaluationService {
   submit(request: SubmitEvaluationRequest): Observable<EvaluationResult> {
     return this.http
       .post<ApiResponse<EvaluationResult>>(`${this.url}/submit`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getPersonalEvaluation(periodId?: string): Observable<PersonalEvaluationView> {
+    let params = new HttpParams();
+    if (periodId) {
+      params = params.set('periodId', periodId);
+    }
+    return this.http
+      .get<ApiResponse<PersonalEvaluationView>>(`${this.url}/personal`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  acknowledgePersonalEvaluation(periodId: string): Observable<AcknowledgePersonalEvaluationResult> {
+    const request: AcknowledgePersonalEvaluationRequest = { periodId };
+    return this.http
+      .post<ApiResponse<AcknowledgePersonalEvaluationResult>>(
+        `${this.url}/personal/acknowledge`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getPersonalCriteriaLedger(
+    periodId: string,
+    criteriaId: string,
+  ): Observable<PersonalCriteriaLedgerItem[]> {
+    const params = new HttpParams().set('periodId', periodId).set('criteriaId', criteriaId);
+    return this.http
+      .get<ApiResponse<PersonalCriteriaLedgerItem[]>>(`${this.url}/personal/ledger`, { params })
       .pipe(map((response) => this.unwrap(response)));
   }
 

@@ -38,7 +38,7 @@ ADMIN passes every permission policy.
 | POST | `/kpi-definitions/{id}/approve` | — | 200 (404, 409, 422 `MAKER_CANNOT_BE_CHECKER`) |
 | POST | `/kpi-definitions/{id}/reject` | `{ "reason": ... }` | 200 (400, 404, 409, 422 `MAKER_CANNOT_BE_CHECKER`) |
 
-`page` default 1; `pageSize` default 20, clamped 1..100. `keyword` matches code/name.
+`page` default 1; `pageSize` default 20, clamped 1..100. `keyword` matches code/name/description, case-insensitively.
 Duplicate `code` is a 409 `CONFLICT`; the client branches on the HTTP status / `errorCode`, never on
 the message.
 

@@ -69,4 +69,20 @@ public interface IEvaluationService
         string? status,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
+
+    Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
+        Guid? periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
+        AcknowledgePersonalEvaluationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(
+        Guid periodId,
+        Guid criteriaId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
 }

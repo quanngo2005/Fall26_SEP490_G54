@@ -4,6 +4,21 @@ Status: backend implemented (read endpoints used by the frontend). Typed client:
 `frontend/src/app/core/employee.service.ts`. Routes use the backend origin, no API prefix; all
 responses use `ApiResponse<T>` (see `API_CONVENTIONS.md`). Write endpoints
 (`POST/PUT/PATCH/DELETE /employees...`) exist but are not used by the read-only list or detail page.
+They need `employee:manage` (scope All) and follow the same account rules as the Excel import
+(`DATA_IMPORT_CONTRACT.md`), so an employee changed by hand and one changed by import end up the same:
+
+- `POST /employees` creates the employee **and its account** in one save: username = the employee's email
+  (lower-cased), role = the one mapped from the job position (`TELLER`/`SALES` -> `EMPLOYEE`, `DEPT_MANAGER`,
+  `BRANCH_MANAGER`, `QA` -> `VERIFIER`, `HR_OFFICER`, `SYS_ADMIN` -> `SYSTEM_ADMIN`), and a random 16-character
+  one-time password. The password is returned **once**, as `data.temporaryPassword` of the 201 response, with
+  `Cache-Control: no-store`; no other endpoint returns it and it cannot be read again. A job position with no
+  role mapping is rejected (400 `VALIDATION_ERROR`); a username that already exists is 409. An employee created
+  as `TERMINATED` gets a locked account.
+- Moving an employee to `TERMINATED` (`PUT /employees/{id}`, `PATCH /employees/{id}/status` or `DELETE`) **locks
+  the account** (BR-22). Like the import, nothing ever unlocks it again, including a later change back to `ACTIVE`.
+- `DELETE /employees/{id}` never removes the row: it moves the employee to `TERMINATED` and locks the account
+  (200, idempotent; 404 for an unknown id). Employees with direct reports, work, submissions or verifications are
+  terminated like any other (the former 409 conflicts no longer exist); direct reports keep their `managerId`.
 The list at `/employees` also uses the department and job-position option lookups below.
 
 ## Authorization

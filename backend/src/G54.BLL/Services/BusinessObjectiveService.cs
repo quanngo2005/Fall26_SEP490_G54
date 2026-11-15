@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -53,8 +54,10 @@ public sealed class BusinessObjectiveService(AppDbContext db, IPermissionService
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
-            query = query.Where(o => o.Code.Contains(keyword) || o.Name.Contains(keyword));
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
+            query = query.Where(o => EF.Functions.ILike(o.Code, pattern, LikePattern.Escape)
+                || EF.Functions.ILike(o.Name, pattern, LikePattern.Escape));
         }
 
         return await query

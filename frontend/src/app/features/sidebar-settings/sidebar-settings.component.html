@@ -21,6 +21,12 @@
           </button>
         </div>
       </div>
+      <nav class="tabs" [attr.aria-label]="localization.systemParameters.tabsLabel">
+        <a routerLink="/sidebar-settings" class="is-active" aria-current="page">
+          {{localization.systemParameters.tabNavigation}}
+        </a>
+        <a routerLink="/system-parameters">{{localization.systemParameters.tabParameters}}</a>
+      </nav>
 
       <div>
         @if (loading()) {

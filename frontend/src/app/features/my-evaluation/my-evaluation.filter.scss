@@ -1,0 +1,54 @@
+.filter-context-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.period-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0 8px;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: #94a3b8;
+  }
+}
+
+.period-label {
+  font-size: 13px;
+  color: #475569;
+  margin-right: 4px;
+}
+
+.period-select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  padding-right: 18px;
+  cursor: pointer;
+  outline: none;
+
+  &:disabled {
+    cursor: not-allowed;
+    color: #94a3b8;
+  }
+}
+
+.select-chevron {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  color: #8494a9;
+  width: 14px;
+  height: 14px;
+}

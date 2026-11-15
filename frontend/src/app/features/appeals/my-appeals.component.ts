@@ -2,6 +2,7 @@ import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { AppealDetail, AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
@@ -54,6 +55,7 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(AppealService);
   private readonly evaluations = inject(EvaluationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly reload = new Subject<void>();
   private readonly loadDetail = new Subject<string>();
 
@@ -79,9 +81,17 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   protected readonly notice = signal<string | null>(null);
   protected readonly errorKey = signal<string | null>(null);
 
-  protected readonly selectedAppeal = computed(
-    () => this.items().find((item) => item.id === this.selectedId()) ?? null,
-  );
+  /**
+   * The appeal whose drawer is open. It normally comes from the list; an appeal opened by link (?appeal=) may be
+   * outside the page or filter on screen, so its loaded detail stands in for the list row.
+   */
+  protected readonly selectedAppeal = computed<AppealListItem | null>(() => {
+    const id = this.selectedId();
+    const fromList = this.items().find((item) => item.id === id);
+    if (fromList) return fromList;
+    const loaded = this.detail();
+    return loaded && loaded.id === id ? { ...loaded, jobPositionTitle: null } : null;
+  });
 
   protected readonly filteredItems = computed(() => {
     const query = this.searchQuery().trim().toLowerCase();
@@ -170,6 +180,13 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
       )
       .subscribe((periods) => this.periods.set(periods));
     this.reload.next();
+
+    // Deep link from "View appeal" in the submission history: /appeals/mine?appeal=<id> opens that appeal.
+    const linked = this.route.snapshot.queryParamMap.get('appeal');
+    if (linked) {
+      this.selectedId.set(linked);
+      this.loadDetail.next(linked);
+    }
   }
 
   protected retry(): void {
