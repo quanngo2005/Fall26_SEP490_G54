@@ -22,8 +22,6 @@ public sealed record DecideAppealRequestDto
     public string? Decision { get; init; }
 
     public string? Note { get; init; }
-
-    public decimal? VerifiedValue { get; init; }
 }
 
 /// <summary><c>VerificationId</c> is null when the appeal was rejected.</summary>
@@ -93,6 +91,16 @@ public sealed record AppealEvidenceDto(
     string PreviewUrl,
     string DownloadUrl);
 
+/// <summary>The Core Banking transaction code(s) of the appealed work and their reconciliation outcome.</summary>
+public sealed record AppealTransactionDto(
+    string TransactionCode,
+    string Status,
+    string? Reason,
+    string? ImportBatchFileName = null,
+    string? ProductCode = null,
+    decimal? Amount = null,
+    DateOnly? TransactionDate = null);
+
 public sealed record AppealDetailDto(
     Guid Id,
     Guid ResultSubmissionId,
@@ -115,4 +123,5 @@ public sealed record AppealDetailDto(
     DateTimeOffset SubmittedAt,
     string? WorkTypeName = null,
     string? ReferrerEmployeeCode = null,
-    string? ReferrerEmployeeName = null);
+    string? ReferrerEmployeeName = null,
+    IReadOnlyList<AppealTransactionDto>? Transactions = null);

@@ -2,8 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { catchError, EMPTY, finalize, Subject, switchMap, tap } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { catchError, EMPTY, finalize, map, Subject, switchMap, tap } from 'rxjs';
 import { AppealDecision, AppealDetail, AppealEvidence } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -34,6 +34,7 @@ const DECISIONS: readonly AppealDecision[] = ['ACCEPT', 'ADJUST', 'REJECT'];
 })
 export class DepartmentAppealDetailComponent extends LocalizedComponent {
   private readonly api = inject(AppealService);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly load = new Subject<string>();
@@ -87,23 +88,41 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    // The id travels in the navigation state so it stays out of the address bar; the browser keeps
-    // the history state across a reload, and a direct link without it goes back to the list.
+    // Read id from route parameter (:id) or fallback to navigation state (appealId).
+    if (this.route) {
+      this.route.paramMap
+        .pipe(
+          map((params) => params.get('id') ?? this.resolveStateAppealId()),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe((id) => {
+          if (id) {
+            this.id.set(id);
+            this.load.next(id);
+          } else {
+            this.goBack();
+          }
+        });
+    } else {
+      const id = this.resolveStateAppealId();
+      if (id) {
+        this.id.set(id);
+        this.load.next(id);
+      } else {
+        this.goBack();
+      }
+    }
+  }
+
+  private resolveStateAppealId(): string | null {
     const state: unknown =
       this.router.getCurrentNavigation()?.extras.state ?? (history.state as unknown);
-    const id =
-      state &&
+    return state &&
       typeof state === 'object' &&
       'appealId' in state &&
       typeof state.appealId === 'string'
-        ? state.appealId
-        : null;
-    if (id) {
-      this.id.set(id);
-      this.load.next(id);
-    } else {
-      this.goBack();
-    }
+      ? state.appealId
+      : null;
   }
 
   protected retry(): void {
@@ -191,6 +210,38 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
     return appeal.referrerEmployeeName
       ? `${appeal.referrerEmployeeCode} · ${appeal.referrerEmployeeName}`
       : appeal.referrerEmployeeCode;
+  }
+
+  protected transactionCodesText(): string {
+    const txs = this.appeal()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    return txs.map((t) => t.transactionCode).join(', ');
+  }
+
+  protected coreBankingFileText(): string {
+    const txs = this.appeal()?.transactions;
+    const files = [
+      ...new Set(
+        (txs ?? [])
+          .map((t) => t.importBatchFileName)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    ];
+    return files.length > 0 ? files.join(', ') : this.localization.appeals.notAvailable;
+  }
+
+  protected reconciliationText(): string {
+    const txs = this.appeal()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    const labels = this.localization.qaQueue.transactionStatus;
+    return txs
+      .map((t) => {
+        const status = labels[t.status] ?? t.status;
+        return t.reason
+          ? `${t.transactionCode}: ${status} (${t.reason})`
+          : `${t.transactionCode}: ${status}`;
+      })
+      .join(' · ');
   }
 
   protected decisionTitle(): string {

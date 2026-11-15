@@ -20,18 +20,21 @@ public partial class RemoveDirectScoreAppeals : Migration
         migrationBuilder.DropTable(
             name: "appeal_score_setting");
 
-        // Score appeals no longer exist: give back the score they froze (unless a result appeal still does), then remove them.
+        // Score appeals no longer exist: give back the score they froze (unless a result appeal in the same period still does), then remove them.
         migrationBuilder.Sql("""
             UPDATE performance_evaluation pe
             SET status = COALESCE(pe.pre_dispute_status, 'CALCULATED'::performance_evaluation_status),
                 pre_dispute_status = NULL,
                 disputed_at = NULL
-            WHERE pe.status = 'DISPUTED'::performance_evaluation_status
+            FROM evaluation_period ep
+            WHERE pe.evaluation_period_id = ep.id
+              AND pe.status = 'DISPUTED'::performance_evaluation_status
               AND pe.id IN (SELECT performance_evaluation_id FROM appeal WHERE performance_evaluation_id IS NOT NULL)
               AND NOT EXISTS (SELECT 1 FROM appeal r
+                              JOIN result_submission rs ON rs.id = r.result_submission_id
                               WHERE r.employee_id = pe.employee_id
-                                AND r.result_submission_id IS NOT NULL
-                                AND r.status::text IN ('OPEN', 'UNDER_REVIEW'));
+                                AND r.status::text IN ('OPEN', 'UNDER_REVIEW')
+                                AND (rs.submitted_at AT TIME ZONE 'UTC+7')::date BETWEEN ep.start_date AND ep.end_date);
             DELETE FROM evidence
             WHERE appeal_id IN (SELECT id FROM appeal WHERE result_submission_id IS NULL);
             DELETE FROM appeal WHERE result_submission_id IS NULL;
@@ -62,7 +65,6 @@ public partial class RemoveDirectScoreAppeals : Migration
             table: "appeal",
             type: "uuid",
             nullable: false,
-            defaultValue: new Guid("00000000-0000-0000-0000-000000000000"),
             oldClrType: typeof(Guid),
             oldType: "uuid",
             oldNullable: true);
@@ -165,9 +167,6 @@ public partial class RemoveDirectScoreAppeals : Migration
                     principalColumn: "id",
                     onDelete: ReferentialAction.Restrict);
             });
-
-        // Raw SQL: the entity of this table no longer exists, so InsertData has no model to read.
-        migrationBuilder.Sql("INSERT INTO appeal_score_setting (id, default_points) VALUES (1, 5);");
 
         migrationBuilder.CreateIndex(
             name: "ix_appeal_evaluation",

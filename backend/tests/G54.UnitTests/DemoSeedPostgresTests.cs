@@ -271,6 +271,12 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             JOIN employee e ON e.id = a.employee_id WHERE e.employee_code = 'NV002'
             """));
 
+        // Simulate an appealed submission whose appeal was accepted (marking the submission APPROVED) before re-seeding.
+        await ExecuteAsync("""
+            UPDATE result_submission SET status = 'APPROVED'
+            WHERE id = '5eed0000-0000-0000-0017-0000000000a2'
+            """);
+
         await using (var scope = fixture.Provider!.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync("demo-password-hash");

@@ -581,14 +581,14 @@ public sealed partial class EvaluationService(
             return [];
         }
 
-        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var periodStart = StartOfBusinessDay(period.StartDate);
+        var periodEndExclusive = StartOfBusinessDay(period.EndDate.AddDays(1));
         return await db.Appeals
             .AsNoTracking()
             .Where(a => employeeIds.Contains(a.EmployeeId)
                 && (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
                 && a.ResultSubmission.SubmittedAt >= periodStart
-                && a.ResultSubmission.SubmittedAt <= periodEnd)
+                && a.ResultSubmission.SubmittedAt < periodEndExclusive)
             .Select(a => a.EmployeeId)
             .ToListAsync(cancellationToken);
     }
@@ -604,20 +604,23 @@ public sealed partial class EvaluationService(
             return [];
         }
 
-        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var periodStart = StartOfBusinessDay(period.StartDate);
+        var periodEndExclusive = StartOfBusinessDay(period.EndDate.AddDays(1));
 
         var submitters = await db.ResultSubmissions
             .AsNoTracking()
             .Where(rs => employeeIds.Contains(rs.SubmitterEmployeeId)
                 && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview)
                 && rs.SubmittedAt >= periodStart
-                && rs.SubmittedAt <= periodEnd)
+                && rs.SubmittedAt < periodEndExclusive)
             .Select(rs => rs.SubmitterEmployeeId)
             .ToListAsync(cancellationToken);
 
         return submitters.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
     }
+
+    private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
+        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime();
 
     /// <summary>
     /// Weighted mean (by profile weight) of the achievement-based score of the profile groups that own active KPIs.

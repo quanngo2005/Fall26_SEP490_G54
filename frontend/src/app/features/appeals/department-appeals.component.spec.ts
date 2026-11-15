@@ -178,7 +178,7 @@ describe('DepartmentAppealsComponent', () => {
     fixture.detectChanges();
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     fixture.nativeElement.querySelector('tbody tr').click();
-    expect(navigate).toHaveBeenCalledWith(['/appeals/department/detail'], {
+    expect(navigate).toHaveBeenCalledWith(['/appeals/department', item().id], {
       state: { appealId: item().id },
     });
   });

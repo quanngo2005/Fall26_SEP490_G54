@@ -53,6 +53,26 @@ export class MyAppealDrawerComponent extends LocalizedComponent {
     return appealSubject(this.appeal());
   }
 
+  protected transactionCodesText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    return txs.map((t) => t.transactionCode).join(', ');
+  }
+
+  protected reconciliationText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    const labels = this.localization.qaQueue.transactionStatus;
+    return txs
+      .map((t) => {
+        const status = labels[t.status] ?? t.status;
+        return t.reason
+          ? `${t.transactionCode}: ${status} (${t.reason})`
+          : `${t.transactionCode}: ${status}`;
+      })
+      .join(' · ');
+  }
+
   protected subtitle(): string {
     const appeal = this.appeal();
     return this.i18n.translate('appeals.filedOn', {

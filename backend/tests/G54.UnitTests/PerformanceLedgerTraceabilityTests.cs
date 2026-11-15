@@ -221,6 +221,19 @@ public sealed class PerformanceLedgerTraceabilityTests
     }
 
     [Fact]
+    public async Task Detail_DismissedRiskEvent_ThrowsNotFound()
+    {
+        using var world = await World.CreateAsync();
+        var dismissed = world.AddRisk(world.Employee, RiskEventSeverity.High, RiskEventStatus.Dismissed);
+        await world.SaveAsync();
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            world.Service(PermissionScopes.Own).GetLedgerEntryAsync(world.EmployeeAccount.Id, dismissed.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            world.Service(PermissionScopes.Own).GetLedgerEntryTransactionsAsync(world.EmployeeAccount.Id, dismissed.Id));
+    }
+
+    [Fact]
     public async Task Transactions_FollowTheScopeOfTheEntrysEmployee()
     {
         using var world = await World.CreateAsync();
@@ -465,7 +478,10 @@ public sealed class PerformanceLedgerTraceabilityTests
             return transaction;
         }
 
-        public RiskEvent AddRisk(Employee employee, RiskEventSeverity severity)
+        public RiskEvent AddRisk(
+            Employee employee,
+            RiskEventSeverity severity,
+            RiskEventStatus status = RiskEventStatus.Confirmed)
         {
             var risk = new RiskEvent
             {
@@ -477,7 +493,7 @@ public sealed class PerformanceLedgerTraceabilityTests
                 Description = "Risk event",
                 OccurredAt = new DateTimeOffset(2026, 10, 15, 0, 0, 0, TimeSpan.Zero),
                 Severity = severity,
-                Status = RiskEventStatus.Confirmed,
+                Status = status,
                 UpdatedAt = Now,
             };
             Db.RiskEvents.Add(risk);

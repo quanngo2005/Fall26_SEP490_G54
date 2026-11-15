@@ -154,6 +154,17 @@ Khi `ACCEPT`, điểm được tính lại từ `actual` mới; việc tính l�
       "previewUrl": "/evidence/{id}/preview",
       "downloadUrl": "/evidence/{id}/download"
     }
+  ],
+  "transactions": [
+    {
+      "transactionCode": "TX-DEMO-001",
+      "status": "MATCHED",
+      "reason": null,
+      "importBatchFileName": "demo-transactions.xlsx",
+      "productCode": "TD_CLASSIC",
+      "amount": 1500000,
+      "transactionDate": "2026-11-02"
+    }
   ]
 }
 ```
@@ -162,8 +173,9 @@ Các trường chỉ có ở chi tiết:
 - `submittedAt`: thời điểm nộp của đợt nộp bị khiếu nại (`ResultSubmission.SubmittedAt`), luôn có giá trị.
 - `workTypeName`: tên loại công việc (`WorkType.Name`) của công việc chứa đợt nộp; `null` khi công việc không có loại (FE hiển thị N/A).
 - `referrerEmployeeCode` / `referrerEmployeeName`: nhân viên chuyển giao (`FromEmployee`) của lần bàn giao `ACCEPTED` mới nhất của công việc; `null` khi công việc chưa có bàn giao được chấp nhận.
+- `transactions`: danh sách mã giao dịch gắn với công việc (`WorkTransaction`) và kết quả đối soát với lô import Core Banking (`MATCHED` / `NOT_MATCHED` / `IN_REVIEW`).
 
-Chưa có dữ liệu ở backend nên API không trả: mã giao dịch, mã CIF, dữ liệu đối soát Core Banking, hạn xử lý khiếu nại, trạng thái chuyển cấp lên Giám đốc chi nhánh. FE hiển thị N/A cho các mục này đến khi backend bổ sung.
+Chưa có dữ liệu ở backend nên API không trả: mã CIF, hạn xử lý khiếu nại, trạng thái chuyển cấp lên Giám đốc chi nhánh. FE hiển thị N/A cho các mục này đến khi backend bổ sung.
 
 File bằng chứng của khiếu nại tải qua `GET /evidence/{id}/download` và `/preview` (mục 2.2.1 contract Submission). Xem được: người nộp khiếu nại; người có `verification:decide` với phạm vi bao phủ phòng ban của người nộp khiếu nại; ADMIN.
 

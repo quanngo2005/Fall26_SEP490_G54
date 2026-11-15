@@ -33,6 +33,18 @@ export interface AppealEvidence {
   downloadUrl: string;
 }
 
+export type AppealTransactionStatus = 'MATCHED' | 'NOT_MATCHED' | 'IN_REVIEW';
+
+export interface AppealTransaction {
+  transactionCode: string;
+  status: AppealTransactionStatus;
+  reason: string | null;
+  importBatchFileName?: string | null;
+  productCode?: string | null;
+  amount?: number | null;
+  transactionDate?: string | null;
+}
+
 export interface AppealDetail extends Omit<
   AppealListItem,
   'jobPositionTitle' | 'resolvedByEmployeeName' | 'note'
@@ -46,6 +58,7 @@ export interface AppealDetail extends Omit<
   workTypeName: string | null;
   referrerEmployeeCode: string | null;
   referrerEmployeeName: string | null;
+  transactions?: AppealTransaction[];
 }
 
 export interface AppealFilter {
@@ -61,8 +74,6 @@ export interface AppealFilter {
 export interface DecideAppealRequest {
   decision: AppealDecision;
   note: string | null;
-  /** Only with `ACCEPT`. */
-  verifiedValue?: number | null;
 }
 
 export interface AppealDecisionResult {

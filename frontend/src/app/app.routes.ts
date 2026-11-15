@@ -274,6 +274,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'appeals/department/:id',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Chi tiết khiếu nại',
+    loadComponent: () =>
+      import('./features/appeals/department-appeal-detail.component').then(
+        (m) => m.DepartmentAppealDetailComponent,
+      ),
+  },
+  {
     path: 'my-evaluation',
     canActivate: [authGuard, personalEvaluationGuard],
     title: 'Kết quả đánh giá của tôi',

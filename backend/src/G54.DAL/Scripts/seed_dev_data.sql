@@ -2284,7 +2284,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO result_submission (id, work_id, submitter_employee_id, submitted_at, status, comment)
 SELECT md5('evaluation-demo-appeal-submission-' || c.evaluation_id::text)::uuid,
        md5('evaluation-demo-appeal-work-' || c.evaluation_id::text)::uuid,
-       c.employee_id, c.calculated_at, 'SUBMITTED', 'Kết quả mẫu thiếu thông tin đối chiếu.'
+       c.employee_id, c.calculated_at, 'REJECTED',
+       'Kết quả mẫu thiếu thông tin đối chiếu. <!-- METRICS_JSON: '
+           || jsonb_build_array(jsonb_build_object('kpiDefinitionId', '5eed0000-0000-0000-0005-000000000001', 'value', 10))::text
+           || ' -->'
 FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
 WHERE c.employee_code = 'NV012' AND c.period_code <> '2026-09'
 ON CONFLICT DO NOTHING;
@@ -2297,6 +2300,10 @@ SELECT md5('evaluation-demo-appeal-verification-' || c.evaluation_id::text)::uui
        'Thiếu chứng từ đối chiếu; không tạo kết quả KPI từ lần nộp bị từ chối.'
 FROM seed_evaluation_case c JOIN seed_evaluation_inserted fresh ON fresh.id = c.evaluation_id
 WHERE c.employee_code = 'NV012' AND c.period_code <> '2026-09'
+  AND NOT EXISTS (
+      SELECT 1 FROM verification v
+      WHERE v.result_submission_id = md5('evaluation-demo-appeal-submission-' || c.evaluation_id::text)::uuid
+  )
 ON CONFLICT DO NOTHING;
 
 INSERT INTO appeal (id, employee_id, result_submission_id, reason, status, filed_at,
@@ -2397,6 +2404,7 @@ FROM (VALUES
 ) AS v(id, submission_id)
 JOIN employee m ON m.employee_code = 'NV011'
 WHERE EXISTS (SELECT 1 FROM result_submission s WHERE s.id = v.submission_id::uuid)
+  AND NOT EXISTS (SELECT 1 FROM verification vx WHERE vx.result_submission_id = v.submission_id::uuid)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)

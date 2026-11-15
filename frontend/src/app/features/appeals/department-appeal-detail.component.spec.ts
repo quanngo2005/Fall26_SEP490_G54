@@ -135,11 +135,26 @@ describe('DepartmentAppealDetailComponent', () => {
     expect(root.textContent).not.toContain('NV0261');
   });
 
-  it('shows the submission time, product and referrer of the API', () => {
-    const rows = rowValues(open());
+  it('shows the submission time, product, referrer and Core Banking transactions of the API', () => {
+    const rows = rowValues(
+      open(
+        detail({
+          transactions: [
+            {
+              transactionCode: 'TX-DEMO-001',
+              status: 'MATCHED',
+              reason: null,
+              importBatchFileName: 'demo-transactions.xlsx',
+            },
+          ],
+        }),
+      ),
+    );
     expect(rows.get('Sản phẩm')).toBe('Thẻ tín dụng');
     expect(rows.get('Mã giới thiệu')).toBe('NV009 · Phạm Văn Giới');
     expect(rows.get('Bài nộp')).toBe('WRK-1 · v2');
+    expect(rows.get('Mã giao dịch')).toBe('TX-DEMO-001');
+    expect(rows.get('Đối soát')).toBe('TX-DEMO-001: Đã khớp');
   });
 
   it('shows the submission time in the card header', () => {

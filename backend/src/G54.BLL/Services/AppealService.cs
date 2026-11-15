@@ -63,10 +63,6 @@ public sealed partial class AppealService(
                 $"Ghi chú tối đa {MaxReasonLength} ký tự; yêu cầu bổ sung hoặc từ chối phải có lý do tối thiểu {MinReasonLength} ký tự.");
         }
 
-        if (request.VerifiedValue is < 0 || (decision != AppealDecisions.Accept && request.VerifiedValue.HasValue))
-        {
-            throw new ValidationException($"Sản lượng công nhận phải không âm và chỉ được gửi khi {AppealDecisions.Accept}.");
-        }
         var caller = await ResolveCallerAsync(userId, cancellationToken);
         var visibility = await ResolveVisibilityAsync(caller, cancellationToken);
         // Serializable isolation prevents competing appeal decisions from both committing.
@@ -311,8 +307,7 @@ public sealed partial class AppealService(
 
         LogAppealFiled(logger, appeal.Id, submissionId, caller.Employee.Id, null);
 
-        var created = await LoadAppealAsync(appeal.Id, cancellationToken);
-        return MapDetail(created!);
+        return await ReloadDetailAsync(appeal.Id, cancellationToken);
     }
 
     public async Task<AppealDetailDto> WithdrawAppealAsync(
@@ -506,7 +501,8 @@ public sealed partial class AppealService(
             throw new ForbiddenException("Bạn không có quyền xem khiếu nại này.");
         }
 
-        return MapDetail(appeal);
+        var transactions = await LoadTransactionsAsync(appeal.ResultSubmission.WorkId, cancellationToken);
+        return MapDetail(appeal, transactions);
     }
 
     /// <summary>
@@ -620,9 +616,34 @@ public sealed partial class AppealService(
 
     /// <summary>The detail as the read endpoints shape it, loaded again after a change was saved.</summary>
     private async Task<AppealDetailDto> ReloadDetailAsync(Guid appealId, CancellationToken cancellationToken)
-        => MapDetail((await LoadAppealAsync(appealId, cancellationToken))!);
+    {
+        var appeal = (await LoadAppealAsync(appealId, cancellationToken))!;
+        var transactions = await LoadTransactionsAsync(appeal.ResultSubmission.WorkId, cancellationToken);
+        return MapDetail(appeal, transactions);
+    }
 
-    private static AppealDetailDto MapDetail(Appeal appeal)
+    private async Task<IReadOnlyList<AppealTransactionDto>> LoadTransactionsAsync(Guid workId, CancellationToken cancellationToken)
+    {
+        var items = await db.WorkTransactions.AsNoTracking()
+            .Include(t => t.ImportedTransaction)
+                .ThenInclude(i => i!.ImportBatch)
+            .Where(t => t.WorkId == workId)
+            .OrderBy(t => t.TransactionCode)
+            .ToListAsync(cancellationToken);
+
+        return items
+            .Select(t => new AppealTransactionDto(
+                t.TransactionCode,
+                t.Status,
+                t.Reason,
+                t.ImportedTransaction?.ImportBatch.FileName,
+                t.ImportedTransaction?.ProductCode,
+                t.ImportedTransaction?.Amount,
+                t.ImportedTransaction?.TransactionDate))
+            .ToList();
+    }
+
+    private static AppealDetailDto MapDetail(Appeal appeal, IReadOnlyList<AppealTransactionDto> transactions)
     {
         var submission = appeal.ResultSubmission;
         var referrer = submission.Work.TaskHandovers.FirstOrDefault()?.FromEmployee;
@@ -660,7 +681,8 @@ public sealed partial class AppealService(
             submission.SubmittedAt,
             submission.Work.WorkType?.Name,
             referrer?.EmployeeCode,
-            referrer?.FullName);
+            referrer?.FullName,
+            transactions);
     }
 
     private async Task<Caller> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)

@@ -181,7 +181,8 @@ public sealed partial class PerformanceDashboardService
             return new EntryContext(result.Entry, result.EmployeeId, result.WorkTransactionId, result.VerificationId, null, null);
         }
 
-        var risk = await db.RiskEvents.AsNoTracking().SingleOrDefaultAsync(r => r.Id == entryId, cancellationToken)
+        var risk = await db.RiskEvents.AsNoTracking()
+            .SingleOrDefaultAsync(r => r.Id == entryId && r.Status != RiskEventStatus.Dismissed, cancellationToken)
             ?? throw new NotFoundException("Dòng sổ cái", entryId);
         return new EntryContext(ToRiskEntry(risk), risk.EmployeeId, null, null, risk.Id, risk.RecordedBy);
     }
