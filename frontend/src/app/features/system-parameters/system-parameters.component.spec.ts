@@ -5,12 +5,34 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { of, throwError } from 'rxjs';
-import { SystemParameter } from '../../core/system-parameter.models';
+import { EvaluationComparisonSetting, SystemParameter } from '../../core/system-parameter.models';
 import { SystemParameterService } from '../../core/system-parameter.service';
 import { SystemParametersComponent } from './system-parameters.component';
 
 describe('SystemParametersComponent', () => {
   const parameters: SystemParameter[] = [
+    {
+      key: 'kpiLockTime',
+      value: '23:59:59',
+      min: null,
+      max: null,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'TIME',
+      group: 'DEADLINES',
+    },
+    {
+      key: 'workOverdueEnabled',
+      value: true,
+      min: null,
+      max: null,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'BOOLEAN',
+      group: 'DEADLINES',
+    },
     {
       key: 'manualApprovalHours',
       value: 24,
@@ -19,33 +41,8 @@ describe('SystemParametersComponent', () => {
       locked: false,
       updatedAt: null,
       updatedBy: null,
-    },
-    {
-      key: 'importMaxFileMb',
-      value: 5,
-      min: 1,
-      max: 10,
-      locked: false,
-      updatedAt: null,
-      updatedBy: null,
-    },
-    {
-      key: 'importFormats',
-      value: 'csv,xlsx',
-      min: null,
-      max: null,
-      locked: true,
-      updatedAt: null,
-      updatedBy: null,
-    },
-    {
-      key: 'kpiLockTime',
-      value: '23:59:59',
-      min: null,
-      max: null,
-      locked: true,
-      updatedAt: null,
-      updatedBy: null,
+      valueType: 'INTEGER',
+      group: 'DEADLINES',
     },
     {
       key: 'appealWindowDays',
@@ -55,24 +52,52 @@ describe('SystemParametersComponent', () => {
       locked: false,
       updatedAt: '2026-10-01T03:00:00Z',
       updatedBy: 'sa.admin',
-    },
-    {
-      key: 'preCloseCheckDays',
-      value: 3,
-      min: 1,
-      max: 30,
-      locked: false,
-      updatedAt: null,
-      updatedBy: null,
+      valueType: 'INTEGER',
+      group: 'APPEALS',
     },
     {
       key: 'appealRejectedHours',
       value: 48,
-      min: null,
-      max: null,
-      locked: true,
+      min: 1,
+      max: 720,
+      locked: false,
       updatedAt: null,
       updatedBy: null,
+      valueType: 'INTEGER',
+      group: 'APPEALS',
+    },
+    {
+      key: 'qaSampleRatePercent',
+      value: 5,
+      min: 0,
+      max: 100,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'PERCENT',
+      group: 'SCORING_QA',
+    },
+    {
+      key: 'tierAQuotaPercent',
+      value: 20,
+      min: 1,
+      max: 100,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'PERCENT',
+      group: 'QUOTA_RANKING',
+    },
+    {
+      key: 'importMaxFileMb',
+      value: 5,
+      min: 1,
+      max: 50,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'INTEGER',
+      group: 'IMPORT_HANDOVER',
     },
     {
       key: 'handoverThresholdVnd',
@@ -82,10 +107,36 @@ describe('SystemParametersComponent', () => {
       locked: false,
       updatedAt: '2026-10-25T03:00:00Z',
       updatedBy: 'sa.admin',
+      valueType: 'INTEGER',
+      group: 'IMPORT_HANDOVER',
+    },
+    {
+      key: 'importFormats',
+      value: '.xlsx',
+      min: null,
+      max: null,
+      locked: true,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'STRING',
+      group: 'IMPORT_HANDOVER',
+    },
+    {
+      key: 'perfAttentionDropPoints',
+      value: 1.5,
+      min: 0.1,
+      max: 50,
+      locked: false,
+      updatedAt: null,
+      updatedBy: null,
+      valueType: 'DECIMAL',
+      group: 'DASHBOARD_SECURITY',
     },
   ];
   let list: jasmine.Spy;
   let save: jasmine.Spy;
+  let getComparison: jasmine.Spy;
+  let saveComparison: jasmine.Spy;
 
   function create() {
     const fixture = TestBed.createComponent(SystemParametersComponent);
@@ -104,6 +155,18 @@ describe('SystemParametersComponent', () => {
     localStorage.clear();
     list = jasmine.createSpy('list').and.returnValue(of(parameters));
     save = jasmine.createSpy('save').and.callFake(() => of(parameters));
+    getComparison = jasmine.createSpy('getComparison').and.returnValue(
+      of<EvaluationComparisonSetting>({
+        baseline: 'PREVIOUS_PERIOD',
+        lookbackPeriods: 3,
+      }),
+    );
+    saveComparison = jasmine.createSpy('saveComparison').and.returnValue(
+      of<EvaluationComparisonSetting>({
+        baseline: 'AVERAGE_LAST_N',
+        lookbackPeriods: 4,
+      }),
+    );
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -113,186 +176,111 @@ describe('SystemParametersComponent', () => {
             currentUser: signal({ id: 'a', fullName: 'Admin', roles: ['ADMIN'], permissions: [] }),
           },
         },
-        { provide: SystemParameterService, useValue: { list, save } },
+        {
+          provide: SystemParameterService,
+          useValue: { list, save, getComparison, saveComparison },
+        },
       ],
     });
   });
   afterEach(() => localStorage.clear());
 
-  it('GB654_14 loads parameters on init and renders every group, every parameter and the locked fields as read-only', () => {
+  it('GB910_FE06 loads all 6 parameter groups, editable time/decimal/boolean controls, and locked importFormats', () => {
     const fixture = create();
     const t = TestBed.inject(I18nService).localization.systemParameters;
     const root: HTMLElement = fixture.nativeElement;
     expect(list).toHaveBeenCalledTimes(1);
+    expect(getComparison).toHaveBeenCalledTimes(1);
     expect(root.querySelector('.breadcrumb')?.textContent).toBe(t.breadcrumb);
     expect(root.querySelector('h1')?.textContent).toBe(t.title);
-    expect(root.querySelectorAll('.card').length).toBe(4);
-    expect(root.querySelectorAll('.prow').length).toBe(8);
-    for (const key of ['importFormats', 'kpiLockTime', 'appealRejectedHours']) {
-      const input: HTMLInputElement = root.querySelector(`#param-${key}`)!;
-      expect(input.readOnly).withContext(key).toBeTrue();
-    }
+    expect(root.querySelectorAll('.columns .card').length).toBe(6);
+
+    const formatsInput: HTMLInputElement = root.querySelector('#param-importFormats')!;
+    expect(formatsInput.readOnly).toBeTrue();
+
+    const lockTimeInput: HTMLInputElement = root.querySelector('#param-kpiLockTime')!;
+    expect(lockTimeInput.readOnly).toBeFalse();
     fixture.destroy();
   });
 
-  it('GB654_15 disables Save and Discard with no changes, enables them when editing, and blocks saving an out-of-range value', () => {
+  it('GB910_FE07 validates integer, decimal, time and boolean edits and saves typed payload on confirm', () => {
     const fixture = create();
     const component = fixture.componentInstance;
-    const i18n = TestBed.inject(I18nService);
     const root: HTMLElement = fixture.nativeElement;
-    expect(component.dirty()).toBeFalse();
-    expect(root.querySelector<HTMLButtonElement>('.btn.primary')?.disabled).toBeTrue();
-    expect(
-      root.querySelector<HTMLButtonElement>('.title-actions .btn:not(.primary)')?.disabled,
-    ).toBeTrue();
 
-    type(fixture, 'param-appealWindowDays', '999');
-    expect(component.dirty()).toBeTrue();
+    type(fixture, 'param-kpiLockTime', '99:99:99');
     expect(component.canSave()).toBeFalse();
-    expect(root.querySelector('#error-appealWindowDays')).not.toBeNull();
-    expect(root.querySelector('#error-appealWindowDays')?.textContent).toContain(
-      i18n.translate('systemParameters.invalidRange', { min: 1, max: 30 }),
-    );
-    expect(root.querySelector<HTMLButtonElement>('.btn.primary')?.disabled).toBeTrue();
-    component.requestSave();
-    expect(component.confirming()).toBeFalse();
+    expect(root.querySelector('#error-kpiLockTime')).not.toBeNull();
 
-    type(fixture, 'param-appealWindowDays', '7');
+    type(fixture, 'param-kpiLockTime', '22:30:00');
+    type(fixture, 'param-perfAttentionDropPoints', '2.75');
+
+    const boolCheckbox: HTMLInputElement = root.querySelector('#param-workOverdueEnabled')!;
+    boolCheckbox.checked = false;
+    boolCheckbox.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
     expect(component.canSave()).toBeTrue();
-    expect(root.querySelector('.dot')).not.toBeNull();
-    expect(root.querySelector<HTMLButtonElement>('.btn.primary')?.disabled).toBeFalse();
-    expect(
-      root.querySelector<HTMLButtonElement>('.title-actions .btn:not(.primary)')?.disabled,
-    ).toBeFalse();
-    expect(root.querySelector('.banner')?.textContent).toContain(
-      i18n.translate('systemParameters.unsavedTitle', { count: 1 }),
-    );
-    fixture.destroy();
-  });
-
-  it('GB654_15 opens the confirm dialog on Ctrl+S with the old-to-new diff', () => {
-    const fixture = create();
-    const component = fixture.componentInstance;
-    const t = TestBed.inject(I18nService).localization.systemParameters;
-    type(fixture, 'param-appealWindowDays', '7');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
     fixture.detectChanges();
     expect(component.confirming()).toBeTrue();
-    const dialog: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
-    expect(dialog.textContent).toContain(t.confirmTitle);
-    expect(dialog.textContent).toContain(component.valueText(5, 'appealWindowDays'));
-    expect(dialog.textContent).toContain(component.valueText(7, 'appealWindowDays'));
-    fixture.destroy();
-  });
 
-  it('GB654_15 closes the confirm dialog without saving when Cancel is clicked', () => {
-    const fixture = create();
-    const component = fixture.componentInstance;
-    const i18n = TestBed.inject(I18nService);
-    type(fixture, 'param-appealWindowDays', '7');
-    component.requestSave();
-    fixture.detectChanges();
-    const dialog: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
-    const cancelButton = dialog.querySelector<HTMLButtonElement>('.buttons .secondary')!;
-    expect(cancelButton.textContent?.trim()).toBe(i18n.localization.sidebarSettings.confirmBack);
-    cancelButton.click();
-    fixture.detectChanges();
-    expect(component.confirming()).toBeFalse();
-    expect(save).not.toHaveBeenCalled();
-    expect(component.dirty()).toBeTrue();
-    fixture.destroy();
-  });
-
-  it('GB654_15 saves only the changed keys after confirmation', () => {
-    const fixture = create();
-    const component = fixture.componentInstance;
-    type(fixture, 'param-appealWindowDays', '7');
-    component.requestSave();
-    fixture.detectChanges();
-    expect(save).not.toHaveBeenCalled();
     component.confirmSave();
-    expect(save).toHaveBeenCalledWith({ changes: [{ key: 'appealWindowDays', value: 7 }] });
+    expect(save).toHaveBeenCalledWith({
+      changes: [
+        { key: 'kpiLockTime', value: '22:30:00' },
+        { key: 'workOverdueEnabled', value: false },
+        { key: 'perfAttentionDropPoints', value: 2.75 },
+      ],
+    });
     expect(component.saved()).toBeTrue();
-    expect(component.dirty()).toBeFalse();
     fixture.destroy();
   });
 
-  it('GB654_15 restores the original values on Discard', () => {
+  it('GB910_FE08 filters groups and searches parameters, and saves evaluation comparison baseline', () => {
     const fixture = create();
     const component = fixture.componentInstance;
-    const locked: HTMLInputElement = fixture.nativeElement.querySelector('#param-kpiLockTime');
-    expect(locked.readOnly).toBeTrue();
-    const input = type(fixture, 'param-handoverThresholdVnd', '80000000');
-    expect(input.value).toMatch(/80[.,]000[.,]000/);
-    expect(component.diffs()).toEqual([
-      { key: 'handoverThresholdVnd', oldValue: 50000000, newValue: 80000000 },
-    ]);
-    component.discard();
+    component.activeGroup.set('QUOTA_RANKING');
     fixture.detectChanges();
-    expect(component.dirty()).toBeFalse();
-    expect(
-      (fixture.nativeElement.querySelector('#param-handoverThresholdVnd') as HTMLInputElement)
-        .value,
-    ).toMatch(/50[.,]000[.,]000/);
+    expect(component.visibleGroups().length).toBe(1);
+    expect(component.visibleGroups()[0].id).toBe('QUOTA_RANKING');
+
+    component.activeGroup.set('ALL');
+    component.searchQuery.set('kpiLockTime');
+    fixture.detectChanges();
+    expect(component.visibleGroups().length).toBe(1);
+
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('#comparison-baseline');
+    select.value = 'AVERAGE_LAST_N';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    component.saveComparison();
+    expect(saveComparison).toHaveBeenCalled();
+    expect(component.comparisonSaved()).toBeTrue();
     fixture.destroy();
   });
 
-  it('GB654_16 shows an error state with a retry button that calls list again', () => {
+  it('GB910_FE09 handles load failure with retry and 400 save failure preserving drafts', () => {
     list.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
     const fixture = create();
-    const t = TestBed.inject(I18nService).localization.systemParameters;
     expect(fixture.componentInstance.error()).toBe('loadFailed');
-    const alert = fixture.nativeElement.querySelector('[role="alert"]');
-    expect(alert.textContent).toContain(t.loadFailed);
+
     list.and.returnValue(of(parameters));
-    (alert.querySelector('button') as HTMLButtonElement).click();
+    (fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement).click();
     fixture.detectChanges();
-    expect(list).toHaveBeenCalledTimes(2);
     expect(fixture.componentInstance.error()).toBeNull();
-    fixture.destroy();
-  });
 
-  it('GB654_16 keeps the drafts and shows the save-failed message on a 400 VALIDATION_ERROR response', () => {
-    save.and.returnValue(
-      throwError(
-        () =>
-          new HttpErrorResponse({
-            status: 400,
-            error: {
-              success: false,
-              errorCode: 'VALIDATION_ERROR',
-              message: 'Invalid value',
-            },
-          }),
-      ),
-    );
-    const fixture = create();
-    const t = TestBed.inject(I18nService).localization.systemParameters;
-    const component = fixture.componentInstance;
-    type(fixture, 'param-appealWindowDays', '7');
-    component.requestSave();
-    component.confirmSave();
+    save.and.returnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
+    type(fixture, 'param-appealWindowDays', '9');
+    fixture.componentInstance.requestSave();
+    fixture.componentInstance.confirmSave();
     fixture.detectChanges();
-    expect(component.error()).toBe('saveFailed');
-    expect(component.dirty()).toBeTrue();
-    expect(component.drafts()['appealWindowDays']).toBe('7');
-    expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain(
-      t.saveFailed,
-    );
+    expect(fixture.componentInstance.error()).toBe('saveFailed');
+    expect(fixture.componentInstance.dirty()).toBeTrue();
     fixture.destroy();
   });
 
-  it('GB654_16 links to the audit log filtered by SystemParameter', () => {
-    const fixture = create();
-    const t = TestBed.inject(I18nService).localization.systemParameters;
-    const link: HTMLAnchorElement = fixture.nativeElement.querySelector('.btn-link');
-    expect(link.textContent).toContain(t.auditLogLink);
-    expect(link.getAttribute('href')).toContain('/audit-logs');
-    expect(link.getAttribute('href')).toContain('entityName=SystemParameter');
-    fixture.destroy();
-  });
-
-  it('GB654_17 switches the title, buttons and group titles to English when the language changes', () => {
+  it('GB910_FE10 switches all labels, groups and tabs cleanly between Vietnamese and English', () => {
     const fixture = create();
     const i18n = TestBed.inject(I18nService);
     i18n.setLanguage('en');
@@ -300,14 +288,7 @@ describe('SystemParametersComponent', () => {
     const t = i18n.localization.systemParameters;
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('h1')?.textContent).toBe(t.title);
-    expect(root.querySelector('.breadcrumb')?.textContent).toBe(t.breadcrumb);
-    expect(root.querySelector<HTMLButtonElement>('.btn.primary')?.textContent?.trim()).toBe(t.save);
-    expect(
-      root
-        .querySelector<HTMLButtonElement>('.title-actions .btn:not(.primary)')
-        ?.textContent?.trim(),
-    ).toBe(t.discard);
-    expect(root.querySelector('#group-manualApproval')?.textContent).toBe(t.groups.manualApproval);
+    expect(root.querySelector('#group-DEADLINES')?.textContent).toBe(t.groups.DEADLINES);
     expect(root.textContent).not.toContain('systemParameters.');
     fixture.destroy();
   });

@@ -1,11 +1,16 @@
+using G54.BLL.Common;
 using G54.BLL.Dtos.Evaluation;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScoreFormula formula) : IPerformanceScoreCalculator
+public sealed class PerformanceScoreCalculator(
+    AppDbContext db,
+    IPerformanceScoreFormula formula,
+    IOptions<SystemParametersOptions>? parameters = null) : IPerformanceScoreCalculator
 {
     /// <summary>Decimal places of the score columns (numeric(10,4)); every score is rounded to it once, here.</summary>
     internal const int ScoreDecimals = 4;
@@ -131,7 +136,7 @@ public sealed class PerformanceScoreCalculator(AppDbContext db, IPerformanceScor
 
         var weighted = RoundScore(formula.CalculateTotal(
             groups.Select(g => new GroupScoreEntry(g.EvaluationProfileItemId, g.WeightPercent, g.Score)).ToList()));
-        var penalty = risks.Sum(EvaluationService.RiskPenalty);
+        var penalty = risks.Sum(r => EvaluationService.RiskPenalty(r, parameters?.Value));
         decimal? total = weighted.HasValue
             ? RoundScore(Math.Max(0m, weighted.Value - penalty))
             : null;

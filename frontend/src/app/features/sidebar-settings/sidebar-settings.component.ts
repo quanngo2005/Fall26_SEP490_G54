@@ -226,7 +226,7 @@ export class SidebarSettingsComponent extends LocalizedComponent {
       return;
     if (
       (route && !this.navigation.routeOptions.includes(route)) ||
-      (route === '/sidebar-settings' && this.selectedRole() !== 'admin')
+      (this.navigation.adminOnlyRoutes.includes(route) && this.selectedRole() !== 'admin')
     ) {
       input.value = this.routeFor(id);
       return;

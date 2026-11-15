@@ -1,4 +1,5 @@
 using System.Globalization;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -8,6 +9,7 @@ using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -16,14 +18,15 @@ public sealed class RiskEventScreenService(
     TimeProvider time,
     IPermissionService permissions,
     IStorageService storage,
-    ILogger<RiskEventScreenService> logger) : IRiskEventScreenService
+    ILogger<RiskEventScreenService> logger,
+    IOptions<SystemParametersOptions>? parameters = null) : IRiskEventScreenService
 {
     public const string RecordedState = "RECORDED";
     public const string ReversedState = "REVERSED";
 
     private const int MaxPageSize = 100;
-    private const int MinReasonLength = 10;
     private const int MaxReasonLength = 2000;
+    private int MinReasonLength => Math.Max(1, parameters?.Value.MinReasonLength ?? 10);
     private static readonly TimeSpan BusinessOffset = TimeSpan.FromHours(7);
 
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogAction =
@@ -247,7 +250,7 @@ public sealed class RiskEventScreenService(
         .Select(e => new RiskEventAttachmentDto(e.Id, e.FileName, e.FileSize ?? 0, e.MimeType ?? "application/octet-stream"))
         .ToList();
 
-    private static RiskEventListItemDto ToItem(RiskEvent e) => new(
+    private RiskEventListItemDto ToItem(RiskEvent e) => new(
         e.Id,
         Code(e.CodeNo),
         e.OccurredAt,
@@ -258,7 +261,7 @@ public sealed class RiskEventScreenService(
         e.Employee.Department.Name,
         e.EventType,
         e.Severity.ToEnumString(),
-        EvaluationService.RiskPenalty(e),
+        EvaluationService.RiskPenalty(e, parameters?.Value),
         e.WorkId,
         e.Work?.Code,
         e.Status.ToEnumString(),

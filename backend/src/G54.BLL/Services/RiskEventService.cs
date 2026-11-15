@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -6,10 +7,15 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> logger, TimeProvider time) : IRiskEventService
+public sealed class RiskEventService(
+    AppDbContext db,
+    ILogger<RiskEventService> logger,
+    TimeProvider time,
+    IOptions<SystemParametersOptions>? parameters = null) : IRiskEventService
 {
     private const int MaxEventTypeLength = 50;
     private const int MaxDescriptionLength = 2000;
@@ -166,7 +172,7 @@ public sealed class RiskEventService(AppDbContext db, ILogger<RiskEventService> 
             EmployeeId = riskEvent.EmployeeId,
             EvaluationPeriodId = period.Id,
             PerformanceEvaluationId = evaluationId,
-            ComponentScore = -EvaluationService.RiskPenalty(riskEvent),
+            ComponentScore = -EvaluationService.RiskPenalty(riskEvent, parameters?.Value),
             UpdatedAt = now,
         };
         db.PerformanceContributions.Add(contribution);

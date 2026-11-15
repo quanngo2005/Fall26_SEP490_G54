@@ -85,6 +85,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Downgrade> Downgrades { get; set; }
 
+    public virtual DbSet<RankingPolicy> RankingPolicies { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<RolePermissionAssignment> RolePermissions { get; set; }
@@ -572,6 +574,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ParentPeriodId).HasColumnName("parent_period_id");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
             entity.Property(e => e.HardLockedThrough).HasColumnName("hard_locked_through");
+            entity.Property(e => e.RankingPolicySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("ranking_policy_snapshot_json");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1416,6 +1421,39 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<RankingPolicy>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_policy_pkey");
+
+            entity.ToTable("ranking_policy", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_policy_version", "version >= 1");
+            });
+
+            entity.HasIndex(e => e.Code, "uq_ranking_policy_code").IsUnique();
+            entity.HasIndex(e => e.EvaluationPeriodId, "uq_ranking_policy_period").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(200).HasColumnName("name");
+            entity.Property(e => e.Description).HasMaxLength(1000).HasColumnName("description");
+            entity.Property(e => e.Version).HasDefaultValue(1).IsConcurrencyToken().HasColumnName("version");
+            entity.Property(e => e.IsActive).HasDefaultValue(true).HasColumnName("is_active");
+            entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
+            entity.Property(e => e.PolicyJson).HasColumnType("jsonb").HasDefaultValue("{}").HasColumnName("policy_json");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(e => e.EvaluationPeriod)
+                .WithMany()
+                .HasForeignKey(e => e.EvaluationPeriodId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_policy_period");
         });
 
         modelBuilder.Entity<Role>(entity =>

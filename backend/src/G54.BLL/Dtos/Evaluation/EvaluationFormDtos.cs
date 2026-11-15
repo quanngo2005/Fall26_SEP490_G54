@@ -78,7 +78,8 @@ public sealed record EvaluationCalculationSummaryDto(
     decimal TotalRiskPenalty,
     decimal? TotalScore,
     string? ProposedTier,
-    decimal? WeightedScore);
+    decimal? WeightedScore,
+    IReadOnlyList<string>? ProposedTierExplanation = null);
 
 public sealed record PerformanceEvaluationStateDto(
     Guid? Id,
@@ -167,4 +168,5 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     int PendingSubmissionCount,
     bool CanEvaluate,
     DateTimeOffset? UpdatedAt,
-    decimal? QuantitativeScoreChange);
+    decimal? QuantitativeScoreChange,
+    IReadOnlyList<string>? ProposedTierExplanation = null);

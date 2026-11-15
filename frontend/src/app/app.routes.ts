@@ -28,6 +28,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'ranking-studio',
+    canActivate: [authGuard, adminGuard],
+    title: 'Thiết kế gợi ý xếp hạng',
+    loadComponent: () =>
+      import('./features/system-parameters/ranking-studio.component').then(
+        (m) => m.RankingStudioComponent,
+      ),
+  },
+  {
     path: 'audit-logs',
     canActivate: [authGuard, adminGuard],
     title: 'Nhật ký audit',
