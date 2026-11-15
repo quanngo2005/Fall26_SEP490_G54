@@ -100,7 +100,7 @@ public sealed class EmployeeImportService(
         var sheet = reader.Read(file, parameters.Value.ImportMaxRows);
         var headerIndex = Template.BuildHeaderIndex(sheet.Headers);
 
-        if (!sheet.Rows.Any())
+        if (sheet.Rows.Count == 0)
         {
             throw new ValidationException("File không có dòng dữ liệu nào (chỉ có dòng tiêu đề hoặc để trống).");
         }
