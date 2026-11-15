@@ -68,7 +68,7 @@ export interface DepartmentGroupKpi extends DepartmentKpi {
   previousAchievementPercent: number | null;
   /** achievementPercent - previousAchievementPercent (computed by the API). */
   achievementChange: number | null;
-  /** Campaign part of a SUM actual (BR-26); null otherwise. */
+  /** Campaign part of a SUM actual; null otherwise. */
   campaignActualValue: number | null;
 }
 export interface DepartmentKpiGroup {

@@ -1,14 +1,19 @@
 using System.Globalization;
+using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Quality;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class QaDashboardService(AppDbContext db, TimeProvider? timeProvider = null) : IQaDashboardService
+public sealed class QaDashboardService(
+    AppDbContext db,
+    TimeProvider? timeProvider = null,
+    IOptions<SystemParametersOptions>? parameters = null) : IQaDashboardService
 {
     private static readonly TimeSpan BusinessOffset = TimeSpan.FromHours(7);
     private readonly TimeProvider _time = timeProvider ?? TimeProvider.System;
@@ -24,7 +29,8 @@ public sealed class QaDashboardService(AppDbContext db, TimeProvider? timeProvid
         var period = await ResolvePeriodAsync(filter.PeriodId, today, cancellationToken);
         var periodStartOffset = new DateTimeOffset(period.StartDate.ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime();
         var periodEndOffset = new DateTimeOffset(period.EndDate.AddDays(1).ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime();
-        var lockDeadline = new DateTimeOffset(period.EndDate.ToDateTime(new TimeOnly(23, 59, 59)), BusinessOffset);
+        var lockTime = parameters?.Value.ResolveKpiLockTimeOnly() ?? new TimeOnly(23, 59, 59);
+        var lockDeadline = new DateTimeOffset(period.EndDate.ToDateTime(lockTime), BusinessOffset);
         var isLocked = now >= lockDeadline || period.Status is PeriodStatus.Locked or PeriodStatus.Closed;
 
         var periodDto = new QaDashboardPeriodDto(
@@ -75,7 +81,7 @@ public sealed class QaDashboardService(AppDbContext db, TimeProvider? timeProvid
         var banner = new QaDashboardBannerDto(
             inReviewCount,
             $"Còn {inReviewCount} kết quả In Review chưa có giao dịch import",
-            $"Tháng {periodDto.Name} khóa KPI lúc 23:59:59 {period.EndDate:dd/MM/yyyy} (BR-29). Sau thời điểm này không import lại được giao dịch của tháng.",
+            $"Tháng {periodDto.Name} khóa KPI lúc {lockTime:HH:mm:ss} {period.EndDate:dd/MM/yyyy} (BR-29). Sau thời điểm này không import lại được giao dịch của tháng.",
             inReviewCount > 0);
 
         // 5. Not Matched Card
@@ -168,7 +174,7 @@ public sealed class QaDashboardService(AppDbContext db, TimeProvider? timeProvid
         }
 
         var riskEvents = await riskQuery.ToListAsync(cancellationToken);
-        var totalPenalty = riskEvents.Sum(EvaluationService.RiskPenalty);
+        var totalPenalty = riskEvents.Sum(r => EvaluationService.RiskPenalty(r, parameters?.Value));
 
         var riskEventsCard = new QaDashboardRiskEventsCardDto(
             riskEvents.Count,

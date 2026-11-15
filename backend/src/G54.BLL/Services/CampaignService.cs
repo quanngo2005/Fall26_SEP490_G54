@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -9,13 +10,15 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
 public sealed partial class CampaignService(
     AppDbContext db,
     ILogger<CampaignService> logger,
-    TimeProvider time) : ICampaignService
+    TimeProvider time,
+    IOptions<SystemParametersOptions>? parameters = null) : ICampaignService
 {
     /// <summary>Largest value <c>work.target_value</c> (numeric(18,4)) can hold.</summary>
     private const decimal MaxTargetValue = 9_999_999_999_999m;
@@ -703,8 +706,9 @@ public sealed partial class CampaignService(
             : (await GetTargetUnitsAsync([request.WorkTypeId], cancellationToken)).GetValueOrDefault(request.WorkTypeId);
         var generatedWorks = new List<Work>(totalLeads);
         var todayStr = time.GetBusinessToday().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-        var exclusivityEnd = startDate.AddDays(7);
-        var exclusivityNote = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
+        var exclusivityDays = Math.Max(1, parameters?.Value.CampaignExclusivityDays ?? 7);
+        var exclusivityEnd = startDate.AddDays(exclusivityDays);
+        var exclusivityNote = $"Khóa độc quyền {exclusivityDays} ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 
         for (var i = 0; i < totalLeads; i++)
         {

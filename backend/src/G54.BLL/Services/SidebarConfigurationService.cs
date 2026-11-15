@@ -60,7 +60,7 @@ public sealed class SidebarConfigurationService(AppDbContext db) : ISidebarConfi
         }
         if (routes.Count > 64 || routes.Any(pair => !ids.Contains(pair.Key, StringComparer.Ordinal)
             || pair.Key == "organization" || pair.Value is null || !SidebarCatalog.Routes.Contains(pair.Value)
-            || (pair.Value == "/sidebar-settings" && role != "admin")
+            || (SidebarCatalog.AdminOnlyRoutes.Contains(pair.Value) && role != "admin")
             || (pair.Key == "systemConfiguration" && role == "admin" && pair.Value != "/sidebar-settings")))
         {
             throw new ValidationException("Invalid sidebar route configuration.");
