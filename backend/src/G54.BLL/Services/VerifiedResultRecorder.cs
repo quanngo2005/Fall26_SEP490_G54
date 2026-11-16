@@ -94,19 +94,46 @@ internal static class VerifiedResultRecorder
     }
 
     /// <summary>
+    /// The period each work's latest carried-over result now belongs to, keyed by work id (works without one are
+    /// absent). One query for a whole import instead of one per transaction.
+    /// </summary>
+    public static async Task<Dictionary<Guid, EvaluationPeriod>> CarriedOverPeriodsAsync(
+        AppDbContext db, IReadOnlyCollection<Guid> workIds, CancellationToken cancellationToken)
+    {
+        var rows = await db.ResultSubmissions
+            .AsNoTracking()
+            .Where(r => workIds.Contains(r.WorkId) && r.CarriedOverToPeriodId != null)
+            .Select(r => new { r.WorkId, r.SubmissionNo, Period = r.CarriedOverToPeriod! })
+            .ToListAsync(cancellationToken);
+        return rows.GroupBy(r => r.WorkId).ToDictionary(g => g.Key, g => g.MaxBy(r => r.SubmissionNo)!.Period);
+    }
+
+    /// <summary>
     /// Credits every KPI mapped to the work type for one matched imported transaction (docs/api/WORK_TRANSACTION_CONTRACT.md).
     /// COUNT mappings credit 1, AMOUNT mappings credit the file's amount. Throws before writing anything when a KPI cannot be credited.
     /// </summary>
     /// <param name="work">The work, with <c>WorkType.WorkTypeKpis.KpiDefinition</c> loaded.</param>
+    /// <param name="carriedOverToPeriod">The work's entry from <see cref="CarriedOverPeriodsAsync"/>, or <c>null</c>.</param>
     public static async Task RecordImportedAsync(
         AppDbContext db,
         WorkTransaction workTransaction,
         Work work,
         ImportedTransaction imported,
+        EvaluationPeriod? carriedOverToPeriod,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var progressDate = imported.TransactionDate;
+
+        // A result carried over to the next period (FinalizeAndLockPeriodAsync) when its own period locked while it
+        // was still SUBMITTED/UNDER_REVIEW now belongs to that next period; a late-arriving transaction dated before
+        // the next period started is attributed to the next period's start instead, so the lookup below (and the
+        // period-lock check on the resolved target) is against the period the result actually lives in now.
+        if (carriedOverToPeriod is not null && progressDate < carriedOverToPeriod.StartDate)
+        {
+            progressDate = carriedOverToPeriod.StartDate;
+        }
+
         var inEffect = InEffectMappings(work.WorkType, progressDate)
             .GroupBy(k => k.KpiDefinitionId)
             .Select(g => g.OrderByDescending(k => k.EffectiveFrom).ThenBy(k => k.Id).First())

@@ -69,10 +69,10 @@ POST /notifications
 | Trường | Ghi chú |
 |---|---|
 | `id` | |
-| `type` | `ANNOUNCEMENT`, `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE`, `KPI_APPROVED`, `KPI_REJECTED`, `REWORK_REQUESTED`, `RATING_ONE_STAR`, `RESULT_PUBLISHED`. `RATING_ONE_STAR` và `RESULT_PUBLISHED` mới chỉ là loại thông báo (SCR-NTF-01), chưa có luồng nào phát hành. Không có loại thông báo escalation |
+| `type` | `ANNOUNCEMENT`, `HANDOVER_REQUESTED`, `HANDOVER_ACCEPTED`, `HANDOVER_REJECTED`, `HANDOVER_TRANSFERRED`, `WORK_OVERDUE`, `KPI_APPROVED`, `KPI_REJECTED`, `REWORK_REQUESTED`, `RATING_ONE_STAR`, `RESULT_PUBLISHED`, `RESULT_CARRIED_OVER`. `RATING_ONE_STAR` và `RESULT_PUBLISHED` mới chỉ là loại thông báo (SCR-NTF-01), chưa có luồng nào phát hành. Không có loại thông báo escalation |
 | `severity` | `NORMAL`, `IMPORTANT`. Client dùng `IMPORTANT` để hiện popup nổi bật |
 | `title`, `body` | `body` có thể `null` |
-| `relatedType`, `relatedId` | `WORK`, `CAMPAIGN`, `HANDOVER` hoặc `null`; để mở bản ghi liên quan |
+| `relatedType`, `relatedId` | `WORK`, `CAMPAIGN`, `HANDOVER`, `EVALUATION_PERIOD` hoặc `null`; để mở bản ghi liên quan |
 | `senderEmployeeId`, `senderName` | Chỉ có với thông cáo; `null` với thông báo của hệ thống |
 | `createdAt`, `isRead`, `readAt` | |
 
@@ -85,6 +85,7 @@ POST /notifications
 | Quản lý duyệt, đổi người nhận, hoặc chuyển ngay | Người giao (`HANDOVER_ACCEPTED`) và người nhận mới (`HANDOVER_TRANSFERRED`, `IMPORTANT`); người ra quyết định không nhận | |
 | Quản lý từ chối | Người giao và người nhận (`HANDOVER_REJECTED`) | |
 | Job quá hạn chuyển công việc sang `OVERDUE` | Người thực hiện (`IMPORTANT`) và quản lý trực tiếp của họ | `WORK_OVERDUE`, `relatedType = WORK`. Mỗi công việc chỉ báo một lần, lúc nó chuyển sang quá hạn |
+| Kỳ đánh giá bị khóa khi kết quả còn `SUBMITTED` / `UNDER_REVIEW`, kết quả được chuyển sang kỳ kế tiếp | Người nộp kết quả (`IMPORTANT`), mỗi người một thông báo | `RESULT_CARRIED_OVER`, `relatedType = EVALUATION_PERIOD` (kỳ nhận kết quả) |
 
 Thông báo tự động là **best effort**: nếu không ghi được thì chỉ log cảnh báo và **không** làm hỏng thao tác chính đã lưu.
 

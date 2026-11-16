@@ -51,7 +51,8 @@ public sealed class EvaluationFormTests
             context,
             NullLogger<EvaluationService>.Instance,
             new FakePermissionService(null, grants.ToArray()),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier());
     }
 
     private static async Task<Scenario> SeedAsync(AppDbContext context)

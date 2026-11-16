@@ -5,6 +5,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.Appeal;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -456,11 +457,10 @@ public sealed partial class AppealService(
             var period = await db.EvaluationPeriods.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
                 ?? throw new NotFoundException("Kỳ đánh giá", periodId);
-            var from = StartOfBusinessDay(period.StartDate);
-            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
+            var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(db.ResultSubmissions, period.Id, period.StartDate, period.EndDate);
             query = query.Where(a =>
                 (a.PerformanceEvaluation != null && a.PerformanceEvaluation.EvaluationPeriodId == periodId)
-                || (a.ResultSubmission != null && a.ResultSubmission.SubmittedAt >= from && a.ResultSubmission.SubmittedAt < to));
+                || (a.ResultSubmissionId != null && submissionsInPeriod.Contains(a.ResultSubmissionId.Value)));
         }
 
         if (type == AppealTypes.ScoreAppeal)
@@ -641,8 +641,6 @@ public sealed partial class AppealService(
             .ToListAsync(cancellationToken);
     }
 
-    private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
-        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime(); // Npgsql only writes UTC offsets.
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 

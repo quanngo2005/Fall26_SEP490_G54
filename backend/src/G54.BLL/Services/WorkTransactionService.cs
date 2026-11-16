@@ -66,9 +66,10 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
         }
 
         await db.SaveChangesAsync(ct);
+        var carriedOver = await VerifiedResultRecorder.CarriedOverPeriodsAsync(db, [work.Id], ct);
         foreach (var item in added)
         {
-            await ReconcileAsync(item, work, ct);
+            await ReconcileAsync(item, work, carriedOver.GetValueOrDefault(work.Id), ct);
             await db.SaveChangesAsync(ct);
         }
 
@@ -110,10 +111,11 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
             .Where(w => w.Status == WorkTransactionStatus.InReview
                 && db.ImportedTransactions.Any(t => t.ImportBatchId == batchId && t.TransactionCode == w.TransactionCode))
             .ToListAsync(ct);
+        var carriedOver = await VerifiedResultRecorder.CarriedOverPeriodsAsync(db, pending.Select(i => i.WorkId).Distinct().ToList(), ct);
         foreach (var item in pending)
         {
             var work = await LoadWorkAsync(item.WorkId, ct);
-            await ReconcileAsync(item, work, ct);
+            await ReconcileAsync(item, work, carriedOver.GetValueOrDefault(work.Id), ct);
             await db.SaveChangesAsync(ct);
             await CompleteIfAllMatchedAsync(work, ct);
         }
@@ -126,7 +128,7 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
 
     // A code with no imported row yet, or one that cannot be credited yet (no target, locked period), stays IN_REVIEW
     // with the error code as reason so it is retried by the next import; a mismatch is final.
-    private async Task ReconcileAsync(WorkTransaction item, Work work, CancellationToken ct)
+    private async Task ReconcileAsync(WorkTransaction item, Work work, EvaluationPeriod? carriedOverToPeriod, CancellationToken ct)
     {
         var now = time.GetUtcNow();
         var imported = await db.ImportedTransactions.FirstOrDefaultAsync(t => t.TransactionCode == item.TransactionCode, ct);
@@ -147,7 +149,7 @@ public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) :
         {
             try
             {
-                await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, now, ct);
+                await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, carriedOverToPeriod, now, ct);
                 item.ImportedTransactionId = imported.Id;
                 Set(item, WorkTransactionStatus.Matched, null, now);
             }

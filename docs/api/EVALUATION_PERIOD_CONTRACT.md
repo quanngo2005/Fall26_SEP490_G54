@@ -1,6 +1,6 @@
 # Evaluation Period Contract
 
-Trạng thái: Tạo kỳ, đóng kỳ (pre-close) và truy vấn danh sách/chi tiết kỳ (`GET /evaluation-periods`) **đã triển khai** (backend). Khóa kỳ vẫn là `POST /evaluations/approvals/finalize` (xem `EVALUATION_CONTRACT.md`). Chưa có sửa/xóa kỳ, chưa có carry-over kết quả In Review sang kỳ sau, chưa có màn hình frontend.
+Trạng thái: Tạo kỳ, đóng kỳ (pre-close) và truy vấn danh sách/chi tiết kỳ (`GET /evaluation-periods`) **đã triển khai** (backend). Khóa kỳ vẫn là `POST /evaluations/approvals/finalize` (xem `EVALUATION_CONTRACT.md`), và khi khóa kỳ sẽ carry-over kết quả In Review sang kỳ sau (xem mục 7 dưới đây). Chưa có sửa/xóa kỳ, chưa có màn hình frontend.
 
 Mọi response dùng envelope `ApiResponse` (xem `API_CONVENTIONS.md`). Entity: `evaluation_period`.
 
@@ -130,3 +130,19 @@ Không có body. Chuyển `OPEN` → `IN_REVIEW` và trả kết quả pre-close
 | `openDisputes` | appeal `OPEN` / `UNDER_REVIEW` gắn với evaluation của kỳ, hoặc với result nộp trong kỳ. Không chặn việc đóng kỳ, nhưng lock vẫn bị chặn bởi BR-31 (409 `EVALUATION_DISPUTE_PENDING`) cho đến khi xử lý hết |
 
 Lỗi: 404 không có kỳ; 409 `EVALUATION_PERIOD_INVALID_STATE`.
+
+## 7. Carry-over kết quả In Review & quy tắc "thuộc kỳ nào"
+
+Khi `POST /evaluations/approvals/finalize` khóa một kỳ (xem `CALIBRATION_APPROVAL_CONTRACT.md` 2.5), mọi
+`result_submission` còn `SUBMITTED`/`UNDER_REVIEW` **của kỳ đó** được chuyển (`carried_over_to_period_id`) sang kỳ
+tiếp theo cùng `period_type` có `start_date` sau `end_date` của kỳ đang khóa và chưa `LOCKED`/`CLOSED` (gần nhất theo
+`start_date`; không yêu cầu liên tục). Không chặn việc khóa kỳ khi chưa có kỳ tiếp theo.
+
+Một `result_submission` thuộc về kỳ nào (dùng cho `pendingInReviewResults` ở mục 6, `IN_REVIEW_SUBMISSIONS` và
+`inReviewCount` trong pre-close check, và việc đếm pending của màn đánh giá) được xác định bằng:
+- Nếu `carried_over_to_period_id = <periodId>`: thuộc kỳ đó (bất kể `submitted_at`).
+- Nếu `carried_over_to_period_id IS NULL`: thuộc kỳ mà `submitted_at` nằm trong khoảng ngày của kỳ, tính theo
+  **ngày làm việc UTC+7** (`[StartDate 00:00 UTC+7, EndDate+1 00:00 UTC+7)`), không phải UTC midnight.
+
+Một kết quả có thể bị carry-over nhiều lần liên tiếp (kỳ A khóa → carry sang B; B khóa → carry sang B tiếp theo,
+C) — `carried_over_to_period_id` luôn trỏ tới kỳ đang sở hữu kết quả hiện tại.

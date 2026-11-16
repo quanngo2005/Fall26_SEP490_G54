@@ -19,7 +19,7 @@ description: Use when reviewing G54 backend or frontend code, running codereview
    - `./scripts/codereview-backend.ps1`
    - `./scripts/codereview-frontend.ps1`
 4. Read the generated report. It groups results into Quality Gates, Security - Critical, Security - High, with a summary table.
-5. Fix every failed item, then rerun until the report ends with `## ALL CHECKS PASSED`.
+5. Fix every failed item, then rerun until the report ends with `## PASSED`.
 6. Walk the `[manual]` items and report findings with `file:line`, severity, risk, and fix. Fix them yourself and rerun the script.
 6a. Manually test the change against the running app/API (happy path plus invalid, auth and not-found cases), fix failures, and report what was exercised.
 6b. Check `docs/BE_STATUS.md` / `docs/FE_STATUS.md` were updated for the task; flag it if not.

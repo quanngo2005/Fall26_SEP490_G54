@@ -291,6 +291,80 @@ public sealed class WorkTransactionServiceTests
         await Assert.ThrowsAsync<ValidationException>(() => other.AddAsync());
     }
 
+    // ----- Carry-over (FinalizeAndLockPeriodAsync moves a pending result to the next period) -----------------
+
+    [Fact]
+    public async Task Add_TransactionDatedInALockedPeriod_WithCarriedOverResult_CreditsTheNewPeriodInstead()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var oldPeriod = await rig.Db.EvaluationPeriods.SingleAsync();
+        oldPeriod.Status = PeriodStatus.Locked;
+
+        var newPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "P2",
+            Name = "P2",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 12, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = Now,
+        };
+        rig.Db.EvaluationPeriods.Add(newPeriod);
+        var newTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = rig.Kpis[0].Kpi.Id,
+            EmployeeId = rig.Owner.Id,
+            EvaluationPeriodId = newPeriod.Id,
+            Version = 1,
+            TargetValue = 100m,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        };
+        rig.Db.TargetAssignments.Add(newTarget);
+        // The work's result submission was carried over to the new period when the old period locked.
+        rig.Db.ResultSubmissions.Add(new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = rig.Work.Id,
+            SubmitterEmployeeId = rig.Owner.Id,
+            SubmissionNo = 1,
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = Now,
+            UpdatedAt = Now,
+            CarriedOverToPeriodId = newPeriod.Id,
+        });
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1"); // TransactionDate = Day, inside the now-locked old period.
+
+        var result = await rig.AddAsync("T1");
+
+        Assert.Equal("MATCHED", Assert.Single(result.Items).Status);
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(newTarget.Id, progress.TargetAssignmentId);
+        Assert.Equal(newPeriod.StartDate, progress.ProgressDate);
+    }
+
+    [Fact]
+    public async Task Add_TransactionDatedInALockedPeriod_WithoutACarriedOverResult_StaysBlockedByPeriodLock()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var oldPeriod = await rig.Db.EvaluationPeriods.SingleAsync();
+        oldPeriod.Status = PeriodStatus.Locked;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("IN_REVIEW", item.Status);
+        Assert.Equal(ErrorCodes.PeriodLocked, item.Reason);
+        Assert.Empty(rig.Db.ActualProgresses);
+    }
+
     [Fact]
     public async Task Add_ByAnotherEmployeeIsForbidden_AndRemoveDeletesOnlyUnmatchedCodes()
     {

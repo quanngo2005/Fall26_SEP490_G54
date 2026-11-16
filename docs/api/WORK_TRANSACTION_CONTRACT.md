@@ -19,6 +19,14 @@ Follows `API_CONVENTIONS.md`. Imports are described in `TRANSACTION_IMPORT_CONTR
 - A matched code credits **every** KPI mapped to the work type, each with its own value: `work_type_kpi.value_source` = `COUNT` (default, credits 1) or `AMOUNT` (credits the file's `amount`). The multiplier is applied only when the KPI is scored. SUM, RATIO (uses the file's `denominator`) and AVG are supported; `NO_AGGREGATION` is never credited (code stays `IN_REVIEW`, reason `KPI_AGGREGATION_NOT_SUPPORTED`).
 - Reconcile runs when a code is added and after every `POST /transaction-imports` (all `IN_REVIEW` codes that appear in the new batch). It is idempotent: one matched code writes one ledger entry.
 - A handed-over work keeps the 30/70 split.
+- **Late import of a carried-over result** (see `EVALUATION_PERIOD_CONTRACT.md` §7): when the work's latest
+  `result_submission` has `carried_over_to_period_id` set (its original period locked while the result was still
+  `SUBMITTED`/`UNDER_REVIEW`), the credit uses the carried-over period's `StartDate` as the progress/target-lookup
+  date instead of the imported transaction's own date, whenever the transaction date falls before that period's
+  start. This lets the ledger post into the period the result now belongs to instead of its original (now locked)
+  period, so matching a code for such a work does **not** fail with 409 `PERIOD_LOCKED`. A transaction for a work
+  with no carried-over result is unaffected: still credited (or blocked) against its own transaction date, and
+  still 409 `PERIOD_LOCKED` when that period is `LOCKED`/`CLOSED`.
 
 ## Endpoints (authenticated; only the work's assignee, otherwise 403)
 

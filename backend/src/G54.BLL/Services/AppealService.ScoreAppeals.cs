@@ -314,17 +314,15 @@ public sealed partial class AppealService
     /// <summary>True when the employee has another appeal in progress on this score or on a result submitted in its period.</summary>
     private Task<bool> AnotherAppealInProgressAsync(Guid appealId, PerformanceEvaluation evaluation, CancellationToken cancellationToken)
     {
-        var from = StartOfBusinessDay(evaluation.EvaluationPeriod.StartDate);
-        var to = StartOfBusinessDay(evaluation.EvaluationPeriod.EndDate.AddDays(1));
+        var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(
+            db.ResultSubmissions, evaluation.EvaluationPeriodId, evaluation.EvaluationPeriod.StartDate, evaluation.EvaluationPeriod.EndDate);
         return db.Appeals
             .Where(InProgress)
             .AnyAsync(
                 a => a.Id != appealId
                     && a.EmployeeId == evaluation.EmployeeId
                     && (a.PerformanceEvaluationId == evaluation.Id
-                        || (a.ResultSubmissionId != null
-                            && a.ResultSubmission!.SubmittedAt >= from
-                            && a.ResultSubmission.SubmittedAt < to)),
+                        || (a.ResultSubmissionId != null && submissionsInPeriod.Contains(a.ResultSubmissionId.Value))),
                 cancellationToken);
     }
 

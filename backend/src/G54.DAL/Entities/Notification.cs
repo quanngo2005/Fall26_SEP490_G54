@@ -18,6 +18,7 @@ public enum NotificationType
     [PgName("RATING_ONE_STAR")] RatingOneStar,
     [PgName("RESULT_PUBLISHED")] ResultPublished,
     [PgName("WORK_PLAN_UPDATED")] WorkPlanUpdated,
+    [PgName("RESULT_CARRIED_OVER")] ResultCarriedOver,
 }
 
 public enum NotificationSeverity
@@ -34,6 +35,7 @@ public enum NotificationRelatedType
     [PgName("HANDOVER")] Handover,
     [PgName("KPI")] Kpi,
     [PgName("TARGET")] Target,
+    [PgName("EVALUATION_PERIOD")] EvaluationPeriod,
 }
 
 /// <summary>One notification for one recipient; an announcement to many employees is one row each, so read state is per person.</summary>
