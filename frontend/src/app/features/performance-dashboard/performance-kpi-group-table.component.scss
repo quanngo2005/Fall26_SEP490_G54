@@ -9,16 +9,21 @@ table {
 }
 th,
 td {
-  padding: 9px 8px;
+  padding: 8px 14px;
   text-align: left;
 }
 thead th {
+  height: 36px;
+  box-sizing: border-box;
   border-bottom: 1px solid #e2e8f0;
-  color: #475569;
+  background: #f8fafc;
+  color: #64748b;
   font:
-    600 12px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  padding: 0 14px 2px;
+  vertical-align: middle;
 }
 .num {
   text-align: right;
@@ -28,9 +33,8 @@ thead th {
   padding-top: 14px;
   color: #475569;
   font:
-    700 13px Inter,
+    700 13px 'Nunito Sans',
     sans-serif;
-  text-transform: uppercase;
 }
 .group-row .weights {
   padding-top: 14px;

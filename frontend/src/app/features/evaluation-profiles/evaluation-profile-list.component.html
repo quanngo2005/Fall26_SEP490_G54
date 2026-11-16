@@ -1,122 +1,115 @@
+@let t = localization.evaluationProfiles;
 <div class="workspace-layout">
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content" [attr.aria-busy]="loading()">
-      <p class="breadcrumb">
-        {{localization.evaluationProfiles.breadcrumbHome}} /
-        {{localization.evaluationProfiles.breadcrumbConfig}} /
-        {{localization.evaluationProfiles.breadcrumbCurrent}}
-      </p>
-      <div class="list-toolbar">
-        <div>
-          <h1>{{localization.evaluationProfiles.title}}</h1>
-          <p class="subtitle">{{subtitleText()}}</p>
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <p class="ui-breadcrumb">
+            {{t.breadcrumbHome}} / {{t.breadcrumbConfig}} / {{t.breadcrumbCurrent}}
+          </p>
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{t.title}}</h1>
+          </div>
+          <p class="ui-page-subtitle">{{subtitleText()}}</p>
         </div>
-        <button
-          type="button"
-          class="button button-primary"
-          [disabled]="!canManage()"
-          [title]="canManage() ? '' : localization.evaluationProfiles.unavailable"
-          (click)="openForm(null)"
-        >
-          + {{localization.evaluationProfiles.create}}
-        </button>
-      </div>
+        <div class="ui-page-actions">
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!canManage()"
+            [title]="canManage() ? '' : t.unavailable"
+            (click)="openForm(null)"
+          >
+            + {{t.create}}
+          </button>
+        </div>
+      </header>
 
       @if (pendingProfiles().length > 0) {
-        <div class="info-banner" role="note">
+        <div class="ui-banner tone-info" role="note">
           <strong>{{pendingBannerText()}}</strong>
-          <span>{{localization.evaluationProfiles.bannerBody}}</span>
+          <span>{{t.bannerBody}}</span>
         </div>
       }
 
-      <div class="list-filters">
-        <input
-          type="search"
-          class="input search-input"
-          [(ngModel)]="keyword"
-          (input)="applyFilter()"
-          (change)="applyFilter()"
-          [placeholder]="localization.evaluationProfiles.search"
-          [attr.aria-label]="localization.evaluationProfiles.search"
+      <div class="ui-filter-bar">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="search"
+            class="input"
+            name="keyword"
+            [class.has-clear]="!!keyword"
+            [(ngModel)]="keyword"
+            (ngModelChange)="applyFilter()"
+            [placeholder]="t.search"
+            [attr.aria-label]="t.search"
+          />
+          @if (keyword) {
+            <button
+              type="button"
+              class="ui-search-clear"
+              [attr.aria-label]="t.clearSearch"
+              (click)="clearKeyword()"
+            >
+              ×
+            </button>
+          }
+        </div>
+        <app-ui-select
+          [options]="positionSelectOptions()"
+          [value]="position"
+          [placeholder]="t.positionAll"
+          [ariaLabel]="t.colPosition"
+          (valueChange)="onPositionFilter($event)"
         />
-        <select
-          class="select filter-select"
-          [(ngModel)]="position"
-          (ngModelChange)="applyFilter()"
-          [attr.aria-label]="localization.evaluationProfiles.colPosition"
-        >
-          <option value="">{{localization.evaluationProfiles.positionAll}}</option>
-          @for (pos of positionOptions(); track pos.id) {
-            <option [value]="pos.id">
-              {{localization.evaluationProfiles.positionPrefix}}{{pos.title}}
-            </option>
-          }
-        </select>
-        <select
-          class="select filter-select"
-          [(ngModel)]="period"
-          (ngModelChange)="applyFilter()"
-          [attr.aria-label]="localization.evaluationProfiles.colPeriod"
-        >
-          <option value="">{{localization.evaluationProfiles.periodAll}}</option>
-          @for (label of periodOptions(); track label) {
-            <option [value]="label">
-              {{localization.evaluationProfiles.periodPrefix}}{{label}}
-            </option>
-          }
-        </select>
-        <select
-          class="select filter-select"
-          [(ngModel)]="status"
-          (ngModelChange)="applyFilter()"
-          [attr.aria-label]="localization.evaluationProfiles.colStatus"
-        >
-          <option value="">{{localization.evaluationProfiles.statusAll}}</option>
-          @for (item of statuses; track item) {
-            <option [value]="item">
-              {{localization.evaluationProfiles.statusPrefix}}{{statusLabel(item)}}
-            </option>
-          }
-        </select>
-        <button type="button" class="link-button" (click)="clearFilter()">
-          {{localization.evaluationProfiles.clearFilter}}
+        <app-ui-select
+          [options]="periodSelectOptions()"
+          [value]="period"
+          [placeholder]="t.periodAll"
+          [ariaLabel]="t.colPeriod"
+          (valueChange)="onPeriodFilter($event)"
+        />
+        <app-ui-select
+          [options]="statusSelectOptions()"
+          [value]="status"
+          [placeholder]="t.statusAll"
+          [ariaLabel]="t.colStatus"
+          (valueChange)="onStatusFilter($event)"
+        />
+        <button type="button" class="ui-filter-clear" (click)="clearFilter()">
+          {{t.clearFilter}}
         </button>
       </div>
 
       @if (loading() && profiles().length === 0) {
         <div class="state-card" role="status">
           <span class="spinner" aria-hidden="true"></span>
-          <p>{{localization.evaluationProfiles.loading}}</p>
+          <p>{{t.loading}}</p>
         </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
-          <p>{{localization.evaluationProfiles.loadError}}</p>
+          <p>{{t.loadError}}</p>
           <button type="button" class="button button-secondary" (click)="load()">
-            {{localization.evaluationProfiles.retry}}
+            {{t.retry}}
           </button>
         </div>
       } @else {
-        <div class="table-card">
-          <div class="table-wrap">
-            <table class="work-type-table">
+        <div class="ui-table-card">
+          <div class="ui-table-wrap is-sticky">
+            <table class="ui-table profile-table">
               <thead>
                 <tr>
-                  <th scope="col">{{localization.evaluationProfiles.colName}}</th>
-                  <th scope="col">{{localization.evaluationProfiles.colPosition}}</th>
-                  <th scope="col">{{localization.evaluationProfiles.colPeriod}}</th>
-                  <th scope="col" class="col-num">
-                    {{localization.evaluationProfiles.colGroups}}
-                  </th>
-                  <th scope="col" class="col-num">
-                    {{localization.evaluationProfiles.colWeight}}
-                  </th>
-                  <th scope="col" class="col-num">
-                    {{localization.evaluationProfiles.colQualityRatio}}
-                  </th>
-                  <th scope="col">{{localization.evaluationProfiles.colStatus}}</th>
-                  <th scope="col">{{localization.evaluationProfiles.colUpdated}}</th>
+                  <th scope="col">{{t.colName}}</th>
+                  <th scope="col">{{t.colPosition}}</th>
+                  <th scope="col">{{t.colPeriod}}</th>
+                  <th scope="col" class="col-num">{{t.colGroups}}</th>
+                  <th scope="col" class="col-num">{{t.colWeight}}</th>
+                  <th scope="col" class="col-num">{{t.colQualityRatio}}</th>
+                  <th scope="col">{{t.colStatus}}</th>
+                  <th scope="col">{{t.colUpdated}}</th>
                   <th scope="col">
                     <span class="visually-hidden">{{localization.common.actions}}</span>
                   </th>
@@ -125,103 +118,67 @@
               <tbody>
                 @for (item of profiles(); track item.id) {
                   <tr
-                    class="work-type-row"
+                    class="is-clickable"
                     tabindex="0"
                     [class.is-inactive]="item.status === 'ARCHIVED'"
                     (click)="openDetail(item)"
                     (keydown.enter)="openDetail(item)"
                   >
-                    <td class="col-code">{{item.name}}</td>
+                    <td class="col-primary">{{item.name}}</td>
                     <td>
-                      <span class="position-badge">{{item.jobPositionTitle}}</span>
+                      <span class="ui-chip">{{item.jobPositionTitle}}</span>
                     </td>
-                    <td class="col-date">
+                    <td class="col-mono">
                       {{periodLabel(item)}}
                       @if (isLocked(item)) {
-                        <strong class="locked-tag">{{localization.evaluationProfiles.locked}}</strong>
+                        <span class="ui-chip locked-chip">{{t.locked}}</span>
                       }
                     </td>
                     <td class="col-num">{{item.itemCount}}</td>
                     <td class="col-num">{{weightText(item.totalWeightPercent)}}</td>
-                    <td class="col-num muted">
-                      {{localization.evaluationProfiles.notAvailable}}
-                    </td>
+                    <td class="col-num muted">{{t.notAvailable}}</td>
                     <td>
-                      <span
-                        class="status-pill"
-                        [class.is-active]="item.status === 'ACTIVE'"
-                        [class.is-pending]="item.status === 'PENDING_APPROVAL'"
-                        [class.is-rejected]="item.status === 'REJECTED'"
-                      >
+                      <app-status-badge [tone]="statusTone(item.status)">
                         {{statusLabel(item.status)}}
-                      </span>
+                      </app-status-badge>
                     </td>
-                    <td class="col-date">
+                    <td class="col-mono">
                       {{i18n.formatDate(item.updatedAt, 'DD/MM/YYYY HH:mm')}}
                     </td>
                     <td class="col-action">
                       <button
                         type="button"
-                        class="link-button row-action"
+                        class="ui-action-btn"
                         (click)="$event.stopPropagation(); openRowAction(item)"
                         (keydown.enter)="$event.stopPropagation()"
                       >
-                        {{isViewOnly(item)
-                            ? localization.common.view
-                            : localization.evaluationProfiles.edit}}
+                        {{isViewOnly(item) ? localization.common.view : t.edit}}
                       </button>
                     </td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="9" class="empty-cell">
-                      {{localization.evaluationProfiles.empty}}
-                    </td>
+                    <td colspan="9" class="ui-empty-cell">{{t.empty}}</td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
-          <div class="pager">
-            <span>{{rangeText()}}</span>
-            <div class="pager-controls">
-              <button
-                type="button"
-                class="page-button"
-                [disabled]="currentPage() <= 1"
-                [attr.aria-label]="localization.evaluationProfiles.previous"
-                (click)="goToPage(currentPage() - 1)"
-              >
-                ‹
-              </button>
-              <span class="page-button is-current">{{currentPage()}} / {{totalPages()}}</span>
-              <button
-                type="button"
-                class="page-button"
-                [disabled]="currentPage() >= totalPages()"
-                [attr.aria-label]="localization.evaluationProfiles.next"
-                (click)="goToPage(currentPage() + 1)"
-              >
-                ›
-              </button>
-              <select
-                class="select page-size"
-                [(ngModel)]="pageSize"
-                (ngModelChange)="applyFilter()"
-                [attr.aria-label]="localization.evaluationProfiles.pageSize"
-              >
-                @for (size of pageSizes; track size) {
-                  <option [ngValue]="size">
-                    {{size}} / {{localization.evaluationProfiles.perPage}}
-                  </option>
-                }
-              </select>
-            </div>
-          </div>
-        </div>
-      }
 
-      <p class="footnote">{{localization.evaluationProfiles.footnote}}</p>
+          <app-table-pagination
+            [page]="currentPage()"
+            [pageSize]="currentPageSize()"
+            [totalCount]="totalCount()"
+            [rangeTemplate]="t.range"
+            [pageSizeOptions]="pageSizes"
+            [pageSizeTemplate]="'{size} / ' + t.perPage"
+            [pageSizeAriaLabel]="t.pageSize"
+            (pageChange)="goToPage($event)"
+            (pageSizeChange)="onPageSizeChange($event)"
+          />
+        </div>
+        <p class="ui-table-footnote">{{t.footnote}}</p>
+      }
     </main>
     @if (formOpen()) {
       <app-evaluation-profile-form-dialog

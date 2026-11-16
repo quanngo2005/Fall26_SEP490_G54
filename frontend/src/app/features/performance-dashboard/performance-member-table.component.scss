@@ -13,19 +13,23 @@ table {
 }
 th,
 td {
-  padding: 10px 8px;
+  padding: 8px 14px;
   border-bottom: 1px solid #f1f5f9;
   text-align: left;
   white-space: nowrap;
 }
 thead th {
+  height: 36px;
+  box-sizing: border-box;
   white-space: normal;
   background: #f8fafc;
-  color: #475569;
+  color: #64748b;
   font:
-    600 12px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  padding: 0 14px 2px;
+  vertical-align: middle;
 }
 .num {
   text-align: right;
@@ -34,7 +38,8 @@ thead th {
   text-align: center;
 }
 .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Nunito Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 .strong {
   color: #0f172a;
@@ -46,14 +51,20 @@ thead th {
   color: #0f172a;
   font-size: 13px;
   font-weight: 700;
-  text-transform: uppercase;
 }
 .chip {
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  box-sizing: border-box;
+  padding: 0 9px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-  font-size: 11px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
 }
 .who {
   display: flex;
@@ -135,25 +146,44 @@ thead th {
   text-align: center;
 }
 .badge {
-  padding: 2px 10px;
-  border: 1px solid #bbf7d0;
-  border-radius: 12px;
-  background: #f0fdf4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  box-sizing: border-box;
+  /* Healthy state: a quiet dot and plain text, no fill (matches StatusBadgeComponent). */
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   color: #047857;
   font:
-    600 11px 'JetBrains Mono',
-    monospace;
-  text-transform: uppercase;
+    500 13px/18px 'Nunito Sans',
+    sans-serif;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentcolor;
+  }
 }
 .badge.leave {
   border-color: #e2e8f0;
   background: #f1f5f9;
-  color: #475569;
+  color: #334155;
+  font-weight: 600;
+  padding: 0 9px;
 }
 .badge.disputed {
   border-color: #fde68a;
   background: #fffbeb;
   color: #b45309;
+  font-weight: 600;
+  padding: 0 9px;
 }
 .view {
   color: #1d4ed8;

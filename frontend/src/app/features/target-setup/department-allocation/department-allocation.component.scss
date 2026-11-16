@@ -16,7 +16,7 @@
   margin: 0;
   color: #334155;
   font:
-    600 12px Inter,
+    600 12px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.48px;
   text-transform: uppercase;
@@ -52,7 +52,7 @@
 .kpi-card-name {
   color: #0f172a;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
 }
 .kpi-card.is-unavailable .kpi-card-name {
@@ -84,7 +84,7 @@
   color: #fff;
   cursor: pointer;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
 }
 .publish-button:disabled {
@@ -125,7 +125,7 @@
   color: #475569;
   cursor: pointer;
   font:
-    500 13px Inter,
+    500 13px 'Nunito Sans',
     sans-serif;
   padding: 0 12px;
 }
@@ -153,7 +153,7 @@
   background: none;
   color: #0f172a;
   font:
-    400 13px Inter,
+    400 13px 'Nunito Sans',
     sans-serif;
   outline: none;
 }
@@ -172,7 +172,7 @@
   color: #0f172a;
   cursor: text;
   font:
-    400 13px Inter,
+    400 13px 'Nunito Sans',
     sans-serif;
   padding: 0;
 }

@@ -60,8 +60,6 @@ const SEARCH_DEBOUNCE_MS = 300;
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
-    '../../shared/ui/data-table.scss',
-    '../../shared/ui/drawer.scss',
     './user-account-list.component.scss',
   ],
 })
@@ -327,7 +325,9 @@ export class UserAccountListComponent extends LocalizedComponent {
       this.api
         .detail(id)
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (fresh) => this.detail.update((cur) => (cur?.id === id ? fresh : cur)) });
+        .subscribe({
+          next: (fresh) => this.detail.update((cur) => (cur?.id === id ? fresh : cur)),
+        });
     }
     this.loadCounts();
     this.load();

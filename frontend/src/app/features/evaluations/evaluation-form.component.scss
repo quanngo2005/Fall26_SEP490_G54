@@ -26,7 +26,7 @@
 .employee-name {
   margin: 0;
   font:
-    700 24px/32px Inter,
+    700 24px/32px 'Nunito Sans',
     system-ui,
     sans-serif;
   color: #0f172a;
@@ -57,7 +57,7 @@
 
 .metric-value {
   font:
-    700 26px/32px Inter,
+    700 26px/32px 'Nunito Sans',
     system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;
@@ -201,7 +201,7 @@
   border: none;
   outline: none;
   font:
-    700 16px Inter,
+    700 16px 'Nunito Sans',
     system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;
@@ -283,7 +283,7 @@
 
 .prev-score {
   font:
-    700 24px/30px Inter,
+    700 24px/30px 'Nunito Sans',
     system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;

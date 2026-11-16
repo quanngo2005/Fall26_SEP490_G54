@@ -10,7 +10,15 @@ import { AuthenticatedUser } from './core/auth.models';
 describe('AppComponent', () => {
   function create(user: Partial<AuthenticatedUser> | null) {
     const currentUser = signal(
-      user && ({ id: 'u1', email: 'u@test.local', fullName: 'U', roles: [], permissions: [], ...user } as AuthenticatedUser),
+      user &&
+        ({
+          id: 'u1',
+          email: 'u@test.local',
+          fullName: 'U',
+          roles: [],
+          permissions: [],
+          ...user,
+        } as AuthenticatedUser),
     );
     const fixture = TestBed.configureTestingModule({
       imports: [AppComponent],

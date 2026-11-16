@@ -33,7 +33,11 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
+            "styles": [
+              "src/styles.scss",
+              "src/app/shared/ui/data-table.scss",
+              "src/app/shared/ui/drawer.scss"
+            ],
             "scripts": []
           },
           "configurations": {
@@ -99,7 +103,11 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
+            "styles": [
+              "src/styles.scss",
+              "src/app/shared/ui/data-table.scss",
+              "src/app/shared/ui/drawer.scss"
+            ],
             "scripts": []
           }
         }

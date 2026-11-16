@@ -69,6 +69,35 @@ describe('QaQueueComponent', () => {
   const listRequest = () => http.expectOne((r) => r.url === url);
   const text = (fixture: { nativeElement: HTMLElement }) =>
     (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
+  /** Filters are `app-ui-select` dropdowns: index 0 kind, 1 department, 2 period. */
+  const trigger = (fixture: { nativeElement: HTMLElement }, index: number) =>
+    fixture.nativeElement.querySelectorAll('.ui-select-trigger')[index] as HTMLButtonElement;
+  const optionsOf = (
+    fixture: { nativeElement: HTMLElement; detectChanges(): void },
+    index: number,
+  ) => {
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('.ui-select-option') as NodeListOf<HTMLElement>,
+    ).map((option) => option.textContent?.trim() ?? '');
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    return labels;
+  };
+  const choose = (
+    fixture: { nativeElement: HTMLElement; detectChanges(): void },
+    index: number,
+    label: string,
+  ) => {
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    const option = Array.from(
+      fixture.nativeElement.querySelectorAll('.ui-select-option') as NodeListOf<HTMLElement>,
+    ).find((el) => el.textContent?.includes(label));
+    option?.click();
+    fixture.detectChanges();
+  };
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -165,25 +194,18 @@ describe('QaQueueComponent', () => {
     const fixture = open();
     listRequest().flush(queue([item()]));
     fixture.detectChanges();
-    const selects = fixture.nativeElement.querySelectorAll(
-      'select',
-    ) as NodeListOf<HTMLSelectElement>;
-    expect(selects[1].textContent).toContain('Phòng Bán lẻ');
-    expect(selects[2].textContent).toContain('2026-10');
+    expect(optionsOf(fixture, 1).join(' ')).toContain('Phòng Bán lẻ');
+    expect(optionsOf(fixture, 2).join(' ')).toContain('2026-10');
 
-    const choose = (select: HTMLSelectElement, value: string) => {
-      select.value = value;
-      select.dispatchEvent(new Event('change'));
-    };
-    choose(selects[0], 'SAMPLE');
+    choose(fixture, 0, 'Mẫu 5%');
     expect(listRequest().request.params.get('kind')).toBe('SAMPLE');
     http.match((r) => r.url === url);
-    choose(selects[1], 'd1');
+    choose(fixture, 1, 'Phòng Bán lẻ');
     const byDepartment = listRequest();
     expect(byDepartment.request.params.get('departmentId')).toBe('d1');
     expect(byDepartment.request.params.get('kind')).toBe('SAMPLE');
     byDepartment.flush(queue([]));
-    choose(selects[2], 'p1');
+    choose(fixture, 2, '2026-10');
     expect(listRequest().request.params.get('periodId')).toBe('p1');
   });
 
@@ -215,9 +237,10 @@ describe('QaQueueComponent', () => {
     listRequest().flush(queue([item()], { totalCount: 45, pageSize: 20 }));
     fixture.detectChanges();
 
-    const pages = fixture.nativeElement.querySelectorAll(
-      '.page-box',
-    ) as NodeListOf<HTMLButtonElement>;
+    // The pager also holds the previous and next buttons; only the numbered ones count.
+    const pages = (
+      Array.from(fixture.nativeElement.querySelectorAll('.ui-page-btn')) as HTMLButtonElement[]
+    ).filter((button) => /^\d+$/.test(button.textContent?.trim() ?? ''));
     expect(pages.length).toBe(3);
     pages[2].click();
     expect(listRequest().request.params.get('page')).toBe('3');
@@ -244,7 +267,7 @@ describe('QaQueueComponent', () => {
     fixture.detectChanges();
 
     expect(text(fixture)).toContain('Không tải được hàng chờ QA');
-    (fixture.nativeElement.querySelector('.state-block button') as HTMLButtonElement).click();
+    (fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement).click();
     listRequest().flush(queue([item()]));
     fixture.detectChanges();
     expect(text(fixture)).toContain('QA-0331');
@@ -275,7 +298,7 @@ describe('QaQueueComponent', () => {
     ];
   };
 
-  it('opens on the current period, newest first, instead of every period', async () => {
+  it('opens on the current period, newest first, instead of every period', () => {
     const fixture = TestBed.createComponent(QaQueueComponent);
     fixture.detectChanges();
     http
@@ -287,16 +310,9 @@ describe('QaQueueComponent', () => {
     expect(request.request.params.get('periodId')).toBe('month');
     request.flush(queue([]));
     fixture.detectChanges();
-    const options = Array.from(
-      fixture.nativeElement.querySelectorAll(
-        '.period-select option',
-      ) as NodeListOf<HTMLOptionElement>,
-    );
-    expect(options.map((o) => o.value)).toEqual(['ALL', 'month', 'year']);
-    await fixture.whenStable();
-    expect(
-      (fixture.nativeElement.querySelector('.period-select select') as HTMLSelectElement).value,
-    ).toBe('month');
+    // The trigger shows the current period; the menu lists "all" first, then the newest periods.
+    expect(trigger(fixture, 2).textContent?.trim()).toBe('M');
+    expect(optionsOf(fixture, 2).length).toBe(3);
   });
 
   it('sorts by the clicked header, reverses on a second click and starts over at the first page', () => {
@@ -307,25 +323,25 @@ describe('QaQueueComponent', () => {
       (Array.from(fixture.nativeElement.querySelectorAll('th')) as HTMLElement[]).find((th) =>
         th.textContent?.includes(label),
       );
-    expect(header('HẠN')?.getAttribute('aria-sort') === 'ascending').toBeTrue();
+    expect(header('Hạn xử lý')?.getAttribute('aria-sort') === 'ascending').toBeTrue();
 
-    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Mã')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const first = listRequest();
     expect(first.request.params.get('sortBy')).toBe('code');
     expect(first.request.params.get('sortDir')).toBe('asc');
     expect(first.request.params.get('page')).toBe('1');
     first.flush(queue([item()]));
     fixture.detectChanges();
-    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('ascending');
+    expect(header('Mã')?.getAttribute('aria-sort')).toBe('ascending');
 
-    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Mã')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const second = listRequest();
     expect(second.request.params.get('sortDir')).toBe('desc');
     second.flush(queue([item()]));
     fixture.detectChanges();
-    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('descending');
+    expect(header('Mã')?.getAttribute('aria-sort')).toBe('descending');
 
-    (header('NGÀY TẠO')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Ngày tạo')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const date = listRequest();
     expect(date.request.params.get('sortBy')).toBe('created');
     expect(date.request.params.get('sortDir')).toBe('desc');

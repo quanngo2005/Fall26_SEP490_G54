@@ -10,10 +10,17 @@ import {
   EmployeeDepartmentOption,
   EmployeeDetail,
   EmployeeJobPositionOption,
+  EmployeeStatus,
 } from '../../core/employee.models';
 import { PagedResult } from '../../core/paged-result.model';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { EmployeeDetailDrawerComponent } from './employee-detail-drawer.component';
 import { EmployeeListItem } from '../../core/employee-management.models';
 
@@ -26,10 +33,17 @@ import { EmployeeListItem } from '../../core/employee-management.models';
     SidebarComponent,
     HeaderComponent,
     LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     EmployeeDetailDrawerComponent,
   ],
   templateUrl: './employee-list.component.html',
-  styleUrls: ['./employee-list.component.scss', './employee-list.layout.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
+    './employee-list.component.scss',
+  ],
 })
 export class EmployeeListComponent extends LocalizedComponent {
   private readonly api = inject(EmployeeService);
@@ -48,17 +62,33 @@ export class EmployeeListComponent extends LocalizedComponent {
   protected readonly failure = signal<'offline' | 'forbidden' | 'error' | null>(null);
   protected readonly optionsLoading = signal(false);
   protected readonly optionsFailed = signal(false);
+
   protected readonly page = computed(() => this.result()?.page ?? 1);
+  protected readonly pageSize = computed(() => this.result()?.pageSize ?? 20);
+  protected readonly totalCount = computed(() => this.result()?.totalCount ?? 0);
   protected readonly pageCount = computed(() => {
     const result = this.result();
     return result ? Math.ceil(result.totalCount / result.pageSize) : 0;
   });
-  protected readonly paginationPages = computed(() => {
-    const count = this.pageCount();
-    if (!count) return [];
-    // Keep the existing two button slots; both navigation directions stay reachable.
-    return [...new Set([Math.max(1, this.page() - 1), Math.min(count, this.page() + 1)])];
-  });
+
+  protected readonly departmentSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.employeeList.filterDepartment },
+    ...this.departments().map((dept) => ({
+      value: dept.id,
+      label: dept.name,
+      sublabel: dept.code,
+    })),
+  ]);
+
+  protected readonly positionSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.employeeList.filterPosition },
+    ...this.positions().map((pos) => ({
+      value: pos.id,
+      label: pos.title,
+      sublabel: pos.code,
+    })),
+  ]);
+
   protected readonly allEmployees = computed<EmployeeListItem[]>(() => {
     const text = this.localization;
     return (this.result()?.items ?? []).map((employee) => ({
@@ -199,11 +229,25 @@ export class EmployeeListComponent extends LocalizedComponent {
   }
 
   protected selectEmployee(employee: EmployeeListItem): void {
-    this.selectedEmployeeId.set(employee.id);
+    this.selectedEmployeeId.set(this.selectedEmployeeId() === employee.id ? null : employee.id);
   }
 
   protected closeDrawer(): void {
     this.selectedEmployeeId.set(null);
+  }
+
+  protected statusTone(status: EmployeeStatus | string): StatusBadgeTone {
+    switch (status) {
+      case 'ACTIVE':
+        return 'success';
+      case 'MISSING_IN_FILE':
+      case 'ON_LEAVE':
+        return 'warning';
+      case 'TERMINATED':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 
   protected navigateEmployee(direction: 'previous' | 'next'): void {
@@ -239,7 +283,7 @@ export class EmployeeListComponent extends LocalizedComponent {
       const target = event.target;
       if (
         target instanceof Element &&
-        target.closest('input, select, textarea, [contenteditable="true"]')
+        target.closest('input, select, textarea, app-ui-select, [contenteditable="true"]')
       )
         return;
       event.preventDefault();

@@ -10,63 +10,63 @@ import { SelectOption, UiSelectComponent } from './ui-select.component';
   imports: [UiSelectComponent],
   template: `
     <footer class="ui-pagination-footer">
-      <span class="ui-pagination-range">{{ summary() }}</span>
+  <span class="ui-pagination-range">{{summary()}}</span>
 
-      <div class="ui-pagination-controls">
-        @if (pageCount() > 1 || alwaysShowPages()) {
-          <nav class="ui-pagination-pages" [attr.aria-label]="ariaLabel()">
+  <div class="ui-pagination-controls">
+    @if (pageCount() > 1 || alwaysShowPages()) {
+      <nav class="ui-pagination-pages" [attr.aria-label]="ariaLabel()">
+        <button
+          type="button"
+          class="ui-page-btn"
+          [disabled]="disabled() || page() <= 1"
+          (click)="selectPage(page() - 1)"
+          aria-label="Previous page"
+        >
+          ‹
+        </button>
+
+        @for (item of pageItems(); track $index) {
+          @if (item === 'ellipsis') {
+            <span class="ui-page-ellipsis" aria-hidden="true">…</span>
+          } @else {
             <button
               type="button"
               class="ui-page-btn"
-              [disabled]="disabled() || page() <= 1"
-              (click)="selectPage(page() - 1)"
-              aria-label="Previous page"
+              [class.is-active]="item === page()"
+              [disabled]="disabled()"
+              [attr.aria-current]="item === page() ? 'page' : null"
+              (click)="selectPage(item)"
             >
-              ‹
+              {{item}}
             </button>
-
-            @for (item of pageItems(); track $index) {
-              @if (item === 'ellipsis') {
-                <span class="ui-page-ellipsis" aria-hidden="true">…</span>
-              } @else {
-                <button
-                  type="button"
-                  class="ui-page-btn"
-                  [class.is-active]="item === page()"
-                  [disabled]="disabled()"
-                  [attr.aria-current]="item === page() ? 'page' : null"
-                  (click)="selectPage(item)"
-                >
-                  {{ item }}
-                </button>
-              }
-            }
-
-            <button
-              type="button"
-              class="ui-page-btn"
-              [disabled]="disabled() || page() >= pageCount()"
-              (click)="selectPage(page() + 1)"
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </nav>
+          }
         }
 
-        @if (sizeSelectOptions().length > 0) {
-          <app-ui-select
-            class="ui-size-dropdown"
-            size="sm"
-            [options]="sizeSelectOptions()"
-            [value]="pageSize()"
-            [disabled]="disabled()"
-            [ariaLabel]="pageSizeAriaLabel()"
-            (valueChange)="onSizeChange($event)"
-          />
-        }
-      </div>
-    </footer>
+        <button
+          type="button"
+          class="ui-page-btn"
+          [disabled]="disabled() || page() >= pageCount()"
+          (click)="selectPage(page() + 1)"
+          aria-label="Next page"
+        >
+          ›
+        </button>
+      </nav>
+    }
+
+    @if (sizeSelectOptions().length > 0) {
+      <app-ui-select
+        class="ui-size-dropdown"
+        size="sm"
+        [options]="sizeSelectOptions()"
+        [value]="pageSize()"
+        [disabled]="disabled()"
+        [ariaLabel]="pageSizeAriaLabel()"
+        (valueChange)="onSizeChange($event)"
+      />
+    }
+  </div>
+</footer>
   `,
   styles: [
     `

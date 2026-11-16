@@ -146,8 +146,8 @@ describe('MyAppealsComponent', () => {
     flushInitial([]);
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('.page-title-row a')).toBeNull();
-    expect(root.querySelector('.page-title-row h1')?.textContent).toContain('Khiếu nại của tôi');
+    expect(root.querySelector('.ui-page-header a')).toBeNull();
+    expect(root.querySelector('.ui-page-title')?.textContent).toContain('Khiếu nại của tôi');
   });
 
   it('opens the drawer with the detail of the clicked appeal and withdraws only an open one', () => {

@@ -115,7 +115,7 @@ describe('DepartmentAppealsComponent', () => {
     flushLookups();
     flushList([item()]);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.page-title-row a')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.ui-page-header a')).toBeNull();
   });
 
   it('keeps the escalated tab disabled with N/A because the API has no escalation', () => {
@@ -145,11 +145,17 @@ describe('DepartmentAppealsComponent', () => {
     flushLookups();
     flushList([]);
     fixture.detectChanges();
-    const selects = fixture.nativeElement.querySelectorAll('select');
-    selects[0].value = 'p1';
-    selects[0].dispatchEvent(new Event('change'));
-    selects[1].value = 'j1';
-    selects[1].dispatchEvent(new Event('change'));
+    // Filters are `app-ui-select` dropdowns; option 0 is "all", option 1 the first real choice.
+    const pick = (trigger: number, option: number) => {
+      (
+        fixture.nativeElement.querySelectorAll('.ui-select-trigger')[trigger] as HTMLButtonElement
+      ).click();
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelectorAll('.ui-select-option')[option] as HTMLElement).click();
+      fixture.detectChanges();
+    };
+    pick(0, 1);
+    pick(1, 1);
     // Each change cancels the requests of the one before it; only the last set is still live.
     const later = http.match((r) => r.url === url).filter((r) => !r.cancelled);
     const main = later.find((r) => r.request.params.get('pageSize') !== '1');
@@ -204,7 +210,7 @@ describe('DepartmentAppealsComponent', () => {
     flushLookups();
     flushList([], 0, 0);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.empty-state').textContent).toContain(
+    expect(fixture.nativeElement.querySelector('.ui-empty-cell').textContent).toContain(
       'Không có khiếu nại nào cần xử lý',
     );
   });

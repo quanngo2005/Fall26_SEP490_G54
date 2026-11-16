@@ -121,7 +121,7 @@ describe('CampaignListComponent', () => {
   it('filters by the selected status tab and returns to page 1', async () => {
     const fixture = await create();
     const root: HTMLElement = fixture.nativeElement;
-    const next = root.querySelectorAll<HTMLButtonElement>('.pager-buttons button')[1];
+    const next = root.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!;
     next.click();
     fixture.detectChanges();
     expect(api.list.calls.mostRecent().args[0].page).toBe(2);
@@ -169,7 +169,7 @@ describe('CampaignListComponent', () => {
     const root: HTMLElement = fixture.nativeElement;
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
 
-    root.querySelector<HTMLButtonElement>('.page-toolbar .button-primary')!.click();
+    root.querySelector<HTMLButtonElement>('.ui-page-actions .button-primary')!.click();
     fixture.detectChanges();
     expect(root.querySelector('app-campaign-create-modal')).not.toBeNull();
 

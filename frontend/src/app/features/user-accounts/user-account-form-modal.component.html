@@ -91,9 +91,12 @@
             </div>
           } @else {
             <div class="field">
-              <label>{{t.employee}} <span class="req">*</span></label>
+              <label for="account-employee-trigger"
+                >{{t.employee}} <span class="req">*</span></label
+              >
               <app-ui-select
                 id="account-employee"
+                triggerId="account-employee-trigger"
                 class="full-select"
                 [options]="employeeSelectOptions()"
                 [value]="employeeId()"
@@ -160,9 +163,10 @@
               </div>
             }
             <div class="field" [class.full]="isEdit()">
-              <label>{{t.role}} <span class="req">*</span></label>
+              <label for="account-role-trigger">{{t.role}} <span class="req">*</span></label>
               <app-ui-select
                 id="account-role"
+                triggerId="account-role-trigger"
                 class="full-select"
                 [options]="roleSelectOptions()"
                 [value]="roleId()"

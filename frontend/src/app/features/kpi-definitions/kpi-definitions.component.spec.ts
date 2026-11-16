@@ -163,12 +163,10 @@ describe('KpiDefinitionsComponent', () => {
     fixture.detectChanges();
   };
 
-  /** A select whose options are bound with ngValue is chosen by position. */
-  const pick = (fixture: ComponentFixture<unknown>, selector: string, index: number) => {
-    const field = root(fixture).querySelector<HTMLSelectElement>(selector)!;
-    field.selectedIndex = index;
-    field.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+  /** The page size is an app-ui-select in the pagination bar: open it and choose the option at the index. */
+  const pickPageSize = (fixture: ComponentFixture<unknown>, index: number) => {
+    click(fixture, '.ui-size-dropdown .ui-select-trigger');
+    click(fixture, '.ui-size-dropdown .ui-select-option', index);
   };
 
   const ADMIN = ['KPI_MANAGE'];
@@ -234,16 +232,16 @@ describe('KpiDefinitionsComponent', () => {
       const fixture = await create(ADMIN);
 
       expect(Array.from(root(fixture).querySelectorAll('thead th')).map((th) => text(th))).toEqual([
-        'MÃ',
-        'TÊN KPI',
-        'VỊ TRÍ',
-        'CREDIT',
-        'NGUỒN',
-        'TỔNG HỢP',
-        'TRẦN',
-        'HIỆU LỰC',
-        'TRẠNG THÁI',
-        'THAO TÁC',
+        'Mã',
+        'Tên KPI',
+        'Vị trí',
+        'Credit',
+        'Nguồn',
+        'Tổng hợp',
+        'Trần',
+        'Hiệu lực',
+        'Trạng thái',
+        'Thao tác',
       ]);
       expect(Array.from(root(fixture).querySelectorAll('.group-row')).map((r) => text(r))).toEqual([
         'Sản phẩm: Thẻ / E-banking',
@@ -263,13 +261,13 @@ describe('KpiDefinitionsComponent', () => {
       const fixture = await create(ADMIN);
 
       expect(Array.from(root(fixture).querySelectorAll('.tab')).map((tab) => text(tab))).toEqual([
-        'Tất cả · 24',
-        'Chờ duyệt · 2',
-        'Active · 18',
-        'Draft · 1',
-        'Inactive · 3',
+        'Tất cả 24',
+        'Chờ duyệt 2',
+        'Active 18',
+        'Draft 1',
+        'Inactive 3',
       ]);
-      expect(text(root(fixture).querySelector('.tab.is-active'))).toBe('Tất cả · 24');
+      expect(text(root(fixture).querySelector('.tab.is-active'))).toBe('Tất cả 24');
     });
 
     it('shows a Rejected tab only when something was rejected', async () => {
@@ -277,7 +275,7 @@ describe('KpiDefinitionsComponent', () => {
       const fixture = await create(ADMIN);
 
       expect(Array.from(root(fixture).querySelectorAll('.tab')).map((tab) => text(tab))).toContain(
-        'Từ chối · 2',
+        'Từ chối 2',
       );
     });
 
@@ -481,13 +479,14 @@ describe('KpiDefinitionsComponent', () => {
       api.list.and.callFake(() => of({ items: rows, totalCount: 45, page: 1, pageSize: 20 }));
       const fixture = await create(ADMIN);
 
-      expect(text(root(fixture).querySelector('.pager .num'))).toBe('1–20 / 45');
-      expect(root(fixture).querySelectorAll('.page-button').length).toBe(3);
+      expect(text(root(fixture).querySelector('.ui-pagination-range'))).toBe('1–20 / 45');
+      // Previous, the three pages and next.
+      expect(root(fixture).querySelectorAll('.ui-page-btn').length).toBe(5);
 
-      click(fixture, '.page-button', 1);
+      click(fixture, '.ui-page-btn', 2);
       expect(lastList()).toEqual(jasmine.objectContaining({ page: 2, pageSize: 20 }));
 
-      pick(fixture, 'select[name="pageSize"]', 1);
+      pickPageSize(fixture, 1);
       expect(lastList()).toEqual(jasmine.objectContaining({ page: 1, pageSize: 50 }));
     });
 
@@ -513,7 +512,7 @@ describe('KpiDefinitionsComponent', () => {
       const fixture = await create(MANAGER);
 
       expect(lastList().status).toBe('PENDING_APPROVAL');
-      expect(text(root(fixture).querySelector('.tab.is-active'))).toBe('Chờ duyệt · 2');
+      expect(text(root(fixture).querySelector('.tab.is-active'))).toBe('Chờ duyệt 2');
       expect(root(fixture).querySelector('#kpi-create')).toBeNull();
       expect(text(root(fixture).querySelector('#kpi-request'))).toBe('Yêu cầu KPI mới');
       expect(text(root(fixture).querySelector('.breadcrumb'))).toContain('Chỉ tiêu & chiến dịch');
@@ -524,14 +523,14 @@ describe('KpiDefinitionsComponent', () => {
       const fixture = await create(MANAGER);
 
       expect(Array.from(root(fixture).querySelectorAll('thead th')).map((th) => text(th))).toEqual([
-        'MÃ',
-        'TÊN KPI',
-        'VỊ TRÍ',
-        'CREDIT',
-        'TỔNG HỢP',
-        'HIỆU LỰC',
-        'GỬI LÚC',
-        'THAO TÁC',
+        'Mã',
+        'Tên KPI',
+        'Vị trí',
+        'Credit',
+        'Tổng hợp',
+        'Hiệu lực',
+        'Gửi lúc',
+        'Thao tác',
       ]);
       const pending = root(fixture).querySelectorAll('.kpi-row')[0];
       expect(text(pending)).toContain('22/10/2026');
@@ -542,7 +541,9 @@ describe('KpiDefinitionsComponent', () => {
       expect(root(fixture).querySelectorAll('.kpi-row')[1].querySelectorAll('button').length).toBe(
         0,
       );
-      expect(text(root(fixture).querySelector('.pager .num'))).toContain('2 KPI chờ duyệt');
+      expect(text(root(fixture).querySelector('.ui-pagination-range'))).toContain(
+        '2 KPI chờ duyệt',
+      );
     });
 
     it('has fewer filters', async () => {

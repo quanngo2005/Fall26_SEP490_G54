@@ -19,6 +19,8 @@ export interface SelectOption<T = string> {
   readonly disabled?: boolean;
 }
 
+let nextSelectId = 0;
+
 /**
  * Custom styled enterprise dropdown replacing native Windows `<select>` popups.
  * Follows DESIGN.md: 8px rounded floating panel, active/dropdown elevation shadow,
@@ -35,87 +37,92 @@ export interface SelectOption<T = string> {
   ],
   template: `
     <div
-      class="ui-select-root"
-      [class.is-open]="open()"
-      [class.is-compact]="size() === 'sm'"
-      [class.is-disabled]="isDisabled()"
+  class="ui-select-root"
+  [class.is-open]="open()"
+  [class.is-compact]="size() === 'sm'"
+  [class.is-disabled]="isDisabled()"
+>
+  <button
+    #triggerBtn
+    type="button"
+    class="ui-select-trigger"
+    role="combobox"
+    [attr.id]="triggerId() || null"
+    [attr.aria-controls]="listboxId"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="listbox"
+    [attr.aria-label]="ariaLabel() || null"
+    [disabled]="isDisabled()"
+    (click)="toggle()"
+    (keydown)="onTriggerKeydown($event)"
+  >
+    <span class="ui-select-value" [class.is-placeholder]="isPlaceholder()">
+      {{selectedLabel()}}
+    </span>
+    <svg
+      class="ui-select-chevron"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
     >
-      <button
-        #triggerBtn
-        type="button"
-        class="ui-select-trigger"
-        role="combobox"
-        [attr.aria-expanded]="open()"
-        aria-haspopup="listbox"
-        [attr.aria-label]="ariaLabel() || null"
-        [disabled]="isDisabled()"
-        (click)="toggle()"
-        (keydown)="onTriggerKeydown($event)"
-      >
-        <span class="ui-select-value" [class.is-placeholder]="isPlaceholder()">
-          {{ selectedLabel() }}
-        </span>
-        <svg
-          class="ui-select-chevron"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  </button>
 
-      @if (open()) {
-        <ul
-          #menuEl
-          class="ui-select-menu select-menu"
-          [class.is-drop-up]="dropUp()"
-          role="listbox"
+  @if (open()) {
+    <ul
+      #menuEl
+      [id]="listboxId"
+      class="ui-select-menu select-menu"
+      [class.is-drop-up]="dropUp()"
+      role="listbox"
+      tabindex="-1"
+      [attr.aria-label]="ariaLabel() || null"
+      (keydown)="onMenuKeydown($event)"
+    >
+      @for (opt of options(); track opt.value; let idx = $index) {
+        <li
+          role="option"
           tabindex="-1"
-          [attr.aria-label]="ariaLabel() || null"
-          (keydown)="onMenuKeydown($event)"
+          class="ui-select-option"
+          [class.is-selected]="opt.value === currentValue()"
+          [class.is-focused]="idx === activeIndex()"
+          [class.is-disabled]="opt.disabled"
+          [attr.aria-selected]="opt.value === currentValue()"
+          (mouseenter)="setActiveIndex(idx)"
+          (mousedown)="$event.preventDefault()"
+          (click)="choose(opt)"
+          (keydown.enter)="choose(opt)"
         >
-          @for (opt of options(); track opt.value; let idx = $index) {
-            <li
-              role="option"
-              class="ui-select-option"
-              [class.is-selected]="opt.value === value()"
-              [class.is-focused]="idx === activeIndex()"
-              [class.is-disabled]="opt.disabled"
-              [attr.aria-selected]="opt.value === value()"
-              (mouseenter)="setActiveIndex(idx)"
-              (mousedown)="$event.preventDefault()"
-              (click)="choose(opt)"
+          <span class="ui-option-text">
+            <span class="ui-option-label">{{opt.label}}</span>
+            @if (opt.sublabel) {
+              <span class="ui-option-sub">{{opt.sublabel}}</span>
+            }
+          </span>
+          @if (opt.value === currentValue()) {
+            <svg
+              class="ui-option-check"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
             >
-              <span class="ui-option-text">
-                <span class="ui-option-label">{{ opt.label }}</span>
-                @if (opt.sublabel) {
-                  <span class="ui-option-sub">{{ opt.sublabel }}</span>
-                }
-              </span>
-              @if (opt.value === value()) {
-                <svg
-                  class="ui-option-check"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              }
-            </li>
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
           }
-        </ul>
+        </li>
       }
-    </div>
+    </ul>
+  }
+</div>
   `,
   styles: [
     `
@@ -208,7 +215,6 @@ export interface SelectOption<T = string> {
         transform: rotate(180deg);
       }
 
-      /* Floating menu panel (DESIGN.md: Active / Dropdown Level + 8px radius) */
       .ui-select-menu {
         position: absolute;
         top: calc(100% + 5px);
@@ -329,12 +335,15 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
   private readonly triggerBtn = viewChild<ElementRef<HTMLButtonElement>>('triggerBtn');
   private readonly menuEl = viewChild<ElementRef<HTMLUListElement>>('menuEl');
 
+  protected readonly listboxId = `ui-select-list-${++nextSelectId}`;
+
   readonly options = input.required<readonly SelectOption<T>[]>();
   readonly placeholder = input<string>('');
   readonly ariaLabel = input<string>('');
+  readonly triggerId = input<string>('');
   readonly size = input<'md' | 'sm'>('md');
   readonly disabled = input<boolean>(false);
-  readonly valueInput = input<T | undefined>(undefined, { alias: 'value' });
+  readonly value = input<T | undefined>(undefined);
 
   readonly valueChange = output<T>();
 
@@ -347,15 +356,15 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
   private onChange: (val: T) => void = () => {};
   private onTouched: () => void = () => {};
 
-  protected readonly value = computed<T | undefined>(() => {
-    const direct = this.valueInput();
+  protected readonly currentValue = computed<T | undefined>(() => {
+    const direct = this.value();
     return direct !== undefined ? direct : this.cvaValue();
   });
 
   protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 
   protected readonly selectedOption = computed(() =>
-    this.options().find((o) => o.value === this.value()),
+    this.options().find((o) => o.value === this.currentValue()),
   );
 
   protected readonly selectedLabel = computed(
@@ -407,7 +416,9 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
     const spaceBelow = window.innerHeight - rect.bottom;
     this.dropUp.set(spaceBelow < 240 && rect.top > spaceBelow);
 
-    const currentIdx = this.options().findIndex((o) => o.value === this.value() && !o.disabled);
+    const currentIdx = this.options().findIndex(
+      (o) => o.value === this.currentValue() && !o.disabled,
+    );
     const firstEnabled = this.options().findIndex((o) => !o.disabled);
     this.activeIndex.set(currentIdx >= 0 ? currentIdx : firstEnabled);
     this.open.set(true);
@@ -435,7 +446,7 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
 
   protected choose(option: SelectOption<T>): void {
     if (option.disabled) return;
-    const changed = option.value !== this.value();
+    const changed = option.value !== this.currentValue();
     this.cvaValue.set(option.value);
     if (changed) {
       this.onChange(option.value);
@@ -508,9 +519,7 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
   private jumpToEdge(direction: 1 | -1): void {
     const list = this.options();
     const indices =
-      direction === 1
-        ? list.map((_, i) => i)
-        : list.map((_, i) => list.length - 1 - i);
+      direction === 1 ? list.map((_, i) => i) : list.map((_, i) => list.length - 1 - i);
     const target = indices.find((i) => !list[i].disabled);
     if (target !== undefined) {
       this.activeIndex.set(target);

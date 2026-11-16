@@ -53,9 +53,11 @@ describe('RoleListComponent', () => {
     const fixture = setup();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelectorAll('tbody tr').length).toBe(2);
-    const select = el.querySelector('select.type-select') as HTMLSelectElement;
-    select.value = 'custom';
-    select.dispatchEvent(new Event('change'));
+    const trigger = el.querySelector('.type-select .ui-select-trigger') as HTMLButtonElement;
+    trigger.click();
+    fixture.detectChanges();
+    const customOption = el.querySelectorAll<HTMLElement>('.ui-select-option')[2];
+    customOption.click();
     fixture.detectChanges();
     expect(el.querySelectorAll('tbody tr').length).toBe(1);
     expect(el.textContent).toContain('AUDIT_VIEW');

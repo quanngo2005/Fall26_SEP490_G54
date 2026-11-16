@@ -23,13 +23,13 @@
   margin-bottom: 8px;
   color: #0f172a;
   font:
-    700 28px Manrope,
+    700 28px 'Nunito Sans',
     sans-serif;
 }
 .stat-value small {
   color: #64748b;
   font:
-    400 13px Inter,
+    400 13px 'Nunito Sans',
     sans-serif;
 }
 .stat-value.is-overdue small {
@@ -74,7 +74,7 @@ td .progress-track {
   background: #0e7490;
   color: #fff;
   font:
-    600 11px Inter,
+    600 11px 'Nunito Sans',
     sans-serif;
   place-items: center;
 }
@@ -95,7 +95,7 @@ td .progress-track {
   color: #64748b;
   cursor: pointer;
   font:
-    500 14px Inter,
+    500 14px 'Nunito Sans',
     sans-serif;
   padding: 10px 14px;
 }
@@ -135,7 +135,7 @@ h3 {
   margin: 20px 0 8px;
   color: #475569;
   font:
-    600 12px Inter,
+    600 12px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;

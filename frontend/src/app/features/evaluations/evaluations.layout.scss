@@ -11,15 +11,13 @@
 .filter-toolbar,
 .context-left,
 .context-right,
-.progress-wrap,
-.table-footer {
+.progress-wrap {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
 }
 
-.context-bar,
-.table-footer {
+.context-bar {
   justify-content: space-between;
 }
 
@@ -38,48 +36,11 @@
   gap: 8px;
 }
 
-.stat-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.table-card {
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.table-container {
-  overflow-x: auto;
-}
-
-.table-footer {
-  padding: 12px 16px;
-  border-top: 1px solid #eef2f6;
-  background: #fff;
-  gap: 10px;
-}
-
-.pagination-wrap {
-  display: flex;
-  gap: 6px;
-}
-
-@media (max-width: 1024px) {
-  .stat-cards-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
+/* The stat strip and the table card come from the shared Common UI Kit (data-table.scss). */
 
 @media (max-width: 768px) {
   .evaluation-page {
     padding: 16px;
-  }
-  .stat-cards-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
   .context-bar {
     flex-direction: column;

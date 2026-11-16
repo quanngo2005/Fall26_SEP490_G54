@@ -12,10 +12,20 @@ import {
 } from '../../core/audit-log.models';
 import { AuditLogService } from '../../core/audit-log.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 
 const PAGE_SIZE = 20;
 const DATE_TIME = 'DD/MM/YYYY HH:mm:ss';
+
+/** Slightly longer than the 180ms exit animation so the drawer is removed only once it is transparent. */
+const DRAWER_EXIT_MS = 200;
 
 type Sort = 'occurredAt desc' | 'occurredAt asc';
 
@@ -28,7 +38,15 @@ interface ChangeRow {
 /** SCR-ADM-05 (list) and SCR-ADM-05-D1 (details drawer). Contract: docs/api/AUDIT_LOG_CONTRACT.md. */
 @Component({
   selector: 'app-audit-log-list',
-  imports: [FormsModule, HeaderComponent, SidebarComponent],
+  imports: [
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+  ],
   templateUrl: './audit-log-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -42,6 +60,7 @@ export class AuditLogListComponent extends LocalizedComponent {
   private readonly route = inject(ActivatedRoute);
   private listRequest?: Subscription;
   private detailRequest?: Subscription;
+  private closeTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly actions = AUDIT_ACTIONS;
   readonly pageSize = PAGE_SIZE;
@@ -63,9 +82,26 @@ export class AuditLogListComponent extends LocalizedComponent {
   readonly failed = signal(false);
 
   readonly selectedId = signal<string | null>(null);
+  readonly closing = signal(false);
   readonly detail = signal<AuditLogDetail | null>(null);
   readonly detailLoading = signal(false);
   readonly detailError = signal<'loadFailed' | 'notFound' | null>(null);
+
+  readonly actionOptions = computed<SelectOption<AuditAction | ''>[]>(() => {
+    const t = this.localization.auditLog;
+    return [
+      { value: '', label: t.actionAll },
+      ...AUDIT_ACTIONS.map((action) => ({ value: action, label: t.actions[action] })),
+    ];
+  });
+
+  readonly sortOptions = computed<SelectOption<Sort>[]>(() => {
+    const t = this.localization.auditLog;
+    return [
+      { value: 'occurredAt desc', label: t.sortNewest },
+      { value: 'occurredAt asc', label: t.sortOldest },
+    ];
+  });
 
   readonly rangeInvalid = computed(() => {
     const from = this.fromDate();
@@ -104,6 +140,7 @@ export class AuditLogListComponent extends LocalizedComponent {
     this.destroyRef.onDestroy(() => {
       this.listRequest?.unsubscribe();
       this.detailRequest?.unsubscribe();
+      clearTimeout(this.closeTimer);
     });
     this.applyInitialQueryParams();
     this.load();
@@ -178,7 +215,17 @@ export class AuditLogListComponent extends LocalizedComponent {
       });
   }
 
+  toggleRow(item: AuditLogListItem): void {
+    if (item.id === this.selectedId()) {
+      this.close();
+      return;
+    }
+    this.open(item);
+  }
+
   open(item: AuditLogListItem): void {
+    clearTimeout(this.closeTimer);
+    this.closing.set(false);
     this.selectedId.set(item.id);
     this.detail.set(null);
     this.detailError.set(null);
@@ -203,14 +250,34 @@ export class AuditLogListComponent extends LocalizedComponent {
   close(): void {
     if (!this.selectedId()) return;
     this.detailRequest?.unsubscribe();
+    // Keep the drawer mounted (with its content) until the exit animation has finished.
     this.selectedId.set(null);
-    this.detail.set(null);
-    this.detailError.set(null);
-    this.detailLoading.set(false);
+    this.closing.set(true);
+    clearTimeout(this.closeTimer);
+    this.closeTimer = setTimeout(() => {
+      this.closing.set(false);
+      this.detail.set(null);
+      this.detailError.set(null);
+      this.detailLoading.set(false);
+    }, DRAWER_EXIT_MS);
   }
 
   actionLabel(action: string): string {
     return this.localization.auditLog.actions[action as AuditAction] ?? action;
+  }
+
+  actionTone(action: string): StatusBadgeTone {
+    switch (action) {
+      case 'Create':
+        return 'success';
+      case 'Update':
+        return 'info';
+      case 'Delete':
+      case 'SoftDelete':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 
   actorLabel(name: string | null): string {
