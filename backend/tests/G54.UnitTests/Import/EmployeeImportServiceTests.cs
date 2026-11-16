@@ -39,7 +39,7 @@ public sealed class EmployeeImportServiceTests
             db.Roles.Add(new Role { Id = Guid.NewGuid(), Code = code, Name = code, Status = RecordStatus.Active });
         }
 
-        var branch = new Department { Id = Guid.NewGuid(), Code = "HN01", Name = "CN Hà Nội", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active };
+        var branch = new Department { Id = Guid.NewGuid(), Code = "CN-T01", Name = "Chi nhánh Thử nghiệm", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active };
         db.Departments.Add(branch);
 
         if (seedUnrelatedEmployee)
@@ -90,7 +90,7 @@ public sealed class EmployeeImportServiceTests
             var e = employees[i];
             string[] cells =
             [
-                "hn01", "CN Hà Nội", "", "PGD-HK", "Phòng giao dịch Hoàng Kiếm", "",
+                "cn-t01", "Chi nhánh Thử nghiệm", "", "PGD-T1", "Phòng Giao dịch T1", "",
                 e.Code, e.Name, e.Email, e.Position, e.Manager, e.Status,
             ];
             for (var c = 0; c < cells.Length; c++)
@@ -105,11 +105,12 @@ public sealed class EmployeeImportServiceTests
         return stream;
     }
 
-    [SampleFileFact("02_Nhan_su_To_chuc.xlsx")]
-    public async Task PreviewAsync_RealSampleFile_Returns21Total17ValidAnd4ExpectedInvalidRows()
+    [Theory]
+    [MemberData(nameof(SampleFiles.Sources), SampleFiles.EmployeeOrg, MemberType = typeof(SampleFiles))]
+    public async Task PreviewAsync_SampleWorkbook_Returns21Total17ValidAnd4ExpectedInvalidRows(string source)
     {
         var (_, service) = Create(seedUnrelatedEmployee: false);
-        await using var file = EmployeeOrgSampleWorkbook.OpenRealFile();
+        await using var file = SampleFiles.Open(SampleFiles.EmployeeOrg, source);
 
         var preview = await service.PreviewAsync("02_Nhan_su_To_chuc.xlsx", file, CancellationToken.None);
 
@@ -135,11 +136,12 @@ public sealed class EmployeeImportServiceTests
         Assert.Equal("NV005", row9.Data["Mã NV*"]);
     }
 
-    [SampleFileFact("02_Nhan_su_To_chuc.xlsx")]
-    public async Task CommitAsync_RealSampleFile_Commits17ValidRowsSkips4AndLocksTerminatedAccountOnly()
+    [Theory]
+    [MemberData(nameof(SampleFiles.Sources), SampleFiles.EmployeeOrg, MemberType = typeof(SampleFiles))]
+    public async Task CommitAsync_SampleWorkbook_Commits17ValidRowsSkips4AndLocksTerminatedAccountOnly(string source)
     {
         var (db, service) = Create(seedUnrelatedEmployee: false);
-        await using var file = EmployeeOrgSampleWorkbook.OpenRealFile();
+        await using var file = SampleFiles.Open(SampleFiles.EmployeeOrg, source);
 
         var result = await service.CommitAsync(file, CancellationToken.None);
 
@@ -157,13 +159,17 @@ public sealed class EmployeeImportServiceTests
         Assert.Equal(EmployeeStatus.OnLeave, nv015.Status);
         Assert.False((await db.Accounts.SingleAsync(a => a.EmployeeId == nv015.Id)).IsLocked);
 
-        var nv005 = await db.Employees.SingleAsync(e => e.EmployeeCode == "NV005");
-        Assert.Equal("Vũ Thị Em", nv005.FullName);
-        Assert.Equal("em.vt@bank.vn", nv005.Email);
+        if (source == SampleFiles.Synthetic)
+        {
+            // The first NV005 row (row 9) is kept, the repeated row 21 is skipped.
+            var nv005 = await db.Employees.SingleAsync(e => e.EmployeeCode == "NV005");
+            Assert.Equal(EmployeeOrgSampleWorkbook.NameOf("NV005"), nv005.FullName);
+            Assert.Equal(EmployeeOrgSampleWorkbook.EmailOf("NV005"), nv005.Email);
+        }
     }
 
     [Fact]
-    public async Task PreviewAsync_SampleWorkbookBuilder_MatchesRealSampleInvalidRows()
+    public async Task PreviewAsync_SyntheticWorkbookBuilder_FlagsTheExpectedInvalidRows()
     {
         var (_, service) = Create(seedUnrelatedEmployee: false);
 
@@ -195,8 +201,8 @@ public sealed class EmployeeImportServiceTests
         var exception = await Assert.ThrowsAsync<BusinessRuleException>(
             () => service.CommitAsync(
                 Workbook(
-                    ("NV007", "Mai Thanh Long", "long.mt", "TELLER", "", "ACTIVE"),
-                    ("NV019", "Lâm Gia Yến", "yen.lg@bank.vn", "TELLER", "NV099", "ACTIVE")),
+                    ("NV007", "Nhân viên 007", "nv007.example.test", "TELLER", "", "ACTIVE"),
+                    ("NV019", "Nhân viên 019", "nv019@example.test", "TELLER", "NV099", "ACTIVE")),
                 CancellationToken.None));
 
         Assert.Equal("DATA_IMPORT_HAS_ERRORS", exception.ErrorCode);
@@ -209,10 +215,10 @@ public sealed class EmployeeImportServiceTests
         var (_, service) = Create(); // seeds NV888 with email/username unrelated@bank.local
 
         using var file = Workbook(
-            ("NV001", "Nguyễn Văn An", "an.nv@bank.vn", "TELLER", "", "ACTIVE"),
-            ("NV002", "Trần Thị Bình", "not-an-email", "TELLER", "", "ACTIVE"),
-            ("NV003", "Lê Hoàng Cường", "AN.NV@BANK.VN", "TELLER", "", "ACTIVE"),
-            ("NV004", "Phạm Minh Dũng", "unrelated@bank.local", "TELLER", "", "ACTIVE"));
+            ("NV001", "Nhân viên 001", "nv001@example.test", "TELLER", "", "ACTIVE"),
+            ("NV002", "Nhân viên 002", "not-an-email", "TELLER", "", "ACTIVE"),
+            ("NV003", "Nhân viên 003", "NV001@EXAMPLE.TEST", "TELLER", "", "ACTIVE"),
+            ("NV004", "Nhân viên 004", "unrelated@bank.local", "TELLER", "", "ACTIVE"));
 
         var preview = await service.PreviewAsync("emails.xlsx", file, CancellationToken.None);
 
@@ -235,9 +241,9 @@ public sealed class EmployeeImportServiceTests
 
         using var file = Workbook(
             ("NV010", "Quản lý lỗi email", "bad-email", "DEPT_MANAGER", "", "ACTIVE"),
-            ("NV001", "Nhân viên cấp 1", "nv001@bank.vn", "TELLER", "NV010", "ACTIVE"),
-            ("NV002", "Nhân viên cấp 2", "nv002@bank.vn", "TELLER", "NV001", "ACTIVE"),
-            ("NV003", "Nhân viên độc lập", "nv003@bank.vn", "TELLER", "", "ACTIVE"));
+            ("NV001", "Nhân viên cấp 1", "nv001@example.test", "TELLER", "NV010", "ACTIVE"),
+            ("NV002", "Nhân viên cấp 2", "nv002@example.test", "TELLER", "NV001", "ACTIVE"),
+            ("NV003", "Nhân viên độc lập", "nv003@example.test", "TELLER", "", "ACTIVE"));
 
         var preview = await service.PreviewAsync("cascade.xlsx", file, CancellationToken.None);
 
@@ -260,8 +266,8 @@ public sealed class EmployeeImportServiceTests
 
         var result = await service.CommitAsync(
             Workbook(
-                ("NV001", "Nguyễn Văn An", "An.Nguyen@Bank.Local", "BRANCH_MANAGER", "", "ACTIVE"),
-                ("NV002", "Trần Thị Bình", "binh.tran@bank.local", "TELLER", "NV001", "ACTIVE")),
+                ("NV001", "Nhân viên 001", "Nv001@Example.Test", "BRANCH_MANAGER", "", "ACTIVE"),
+                ("NV002", "Nhân viên 002", "nv002@example.test", "TELLER", "NV001", "ACTIVE")),
             CancellationToken.None);
 
         Assert.Equal(2, result.Created);
@@ -275,12 +281,12 @@ public sealed class EmployeeImportServiceTests
         Assert.Equal(manager.Id, employee.ManagerId);
 
         var account = db.Accounts.Single(a => a.EmployeeId == manager.Id);
-        Assert.Equal("an.nguyen@bank.local", account.Username);
+        Assert.Equal("nv001@example.test", account.Username);
         Assert.False(account.IsLocked);
         Assert.Single(db.UserRoles.Where(ur => ur.AccountId == account.Id));
 
-        var dept = db.Departments.Single(d => d.Code == "PGD-HK");
-        Assert.Equal(db.Departments.Single(d => d.Code == "HN01").Id, dept.ParentDepartmentId);
+        var dept = db.Departments.Single(d => d.Code == "PGD-T1");
+        Assert.Equal(db.Departments.Single(d => d.Code == "CN-T01").Id, dept.ParentDepartmentId);
         Assert.Equal(dept.Id, employee.DepartmentId);
     }
 

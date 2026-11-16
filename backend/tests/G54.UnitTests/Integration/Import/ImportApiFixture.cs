@@ -25,19 +25,6 @@ public sealed class ImportIntegrationFactAttribute : FactAttribute
             Skip = $"{TestPostgres.SkipReason} {TestRedis.SkipReason}";
         }
     }
-
-    /// <summary>A real sample workbook the test needs in <c>TestData/</c> (not committed); skipped when it is absent.</summary>
-    public string? SampleFile
-    {
-        get => null;
-        init
-        {
-            if (Skip is null && value is not null && SampleFiles.MissingReason(value) is { } reason)
-            {
-                Skip = reason;
-            }
-        }
-    }
 }
 
 /// <summary>Theory variant of <see cref="ImportIntegrationFactAttribute"/>.</summary>
@@ -74,7 +61,6 @@ public sealed class ImportApiFixture : IAsyncLifetime
 
     public HttpClient Client { get; private set; } = null!;
 
-    public static string SamplePath(string fileName) => SampleFiles.PathOf(fileName);
 
     public async Task InitializeAsync()
     {

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using G54.DAL.Entities;
+using G54.UnitTests.Import;
 using Microsoft.EntityFrameworkCore;
 using static G54.UnitTests.Integration.Import.XlsxBuilder;
 
@@ -18,16 +19,16 @@ public sealed class EmployeeImportIntegrationTests(ImportApiFixture api) : IClas
     private const string Staff = "NV004";
     private const string Preview = "/data-imports/employees/preview";
     private const string Commit = "/data-imports/employees/commit";
-    private static readonly string[] SampleDepartments = ["HN01", "PGD-HK", "PGD-BD", "BGD", "KSNB", "HCNS"];
+    private static readonly string[] SampleDepartments = [EmployeeOrgSampleWorkbook.BranchCode, .. EmployeeOrgSampleWorkbook.DepartmentCodes];
     private static readonly string[] SampleEmployees = ["NV001", "NV005", "NV006", "NV010", "NV014", "NV015", "NV007"];
 
-    private static byte[] Sample => File.ReadAllBytes(ImportApiFixture.SamplePath("02_Nhan_su_To_chuc.xlsx"));
+    private static byte[] Sample => SampleFiles.Read(SampleFiles.EmployeeOrg);
 
     private static string NewSuffix() => Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
 
     // A1
-    [ImportIntegrationFact(SampleFile = "02_Nhan_su_To_chuc.xlsx")]
-    public async Task A1_PreviewRealSample_Reports21Total17Valid4InvalidAndWritesNothing()
+    [ImportIntegrationFact]
+    public async Task A1_PreviewSample_Reports21Total17Valid4InvalidAndWritesNothing()
     {
         var before = await api.QueryAsync(db => db.Employees.CountAsync());
 
@@ -50,8 +51,8 @@ public sealed class EmployeeImportIntegrationTests(ImportApiFixture api) : IClas
     }
 
     // A2 + A4
-    [ImportIntegrationFact(SampleFile = "02_Nhan_su_To_chuc.xlsx")]
-    public async Task A2_CommitRealSample_Writes17RowsBuildsOrgTreeLinksManagersAndLocksOnlyTerminated()
+    [ImportIntegrationFact]
+    public async Task A2_CommitSample_Writes17RowsBuildsOrgTreeLinksManagersAndLocksOnlyTerminated()
     {
         var result = await api.PostFileAsync(Commit, Sample, Admin, "02_Nhan_su_To_chuc.xlsx");
 
@@ -66,22 +67,22 @@ public sealed class EmployeeImportIntegrationTests(ImportApiFixture api) : IClas
                 .Where(d => SampleDepartments.Contains(d.Code))
                 .ToDictionaryAsync(d => d.Code);
             Assert.Equal(6, departments.Count);
-            Assert.Equal(DepartmentLevelType.Branch, departments["HN01"].LevelType);
-            Assert.Equal(departments["HN01"].Id, departments["PGD-HK"].ParentDepartmentId);
+            Assert.Equal(DepartmentLevelType.Branch, departments[EmployeeOrgSampleWorkbook.BranchCode].LevelType);
+            Assert.Equal(departments[EmployeeOrgSampleWorkbook.BranchCode].Id, departments["PGD-T1"].ParentDepartmentId);
 
             var employees = await db.Employees.AsNoTracking().Include(e => e.Account)
                 .Where(e => SampleEmployees.Contains(e.EmployeeCode))
                 .ToDictionaryAsync(e => e.EmployeeCode);
             Assert.Equal(employees["NV010"].Id, employees["NV001"].ManagerId);
-            Assert.Equal("an.nv@bank.vn", employees["NV001"].Email);
-            Assert.Equal("Vũ Thị Em", employees["NV005"].FullName); // first NV005 row kept, duplicate row 21 skipped
+            Assert.Equal(EmployeeOrgSampleWorkbook.EmailOf("NV001"), employees["NV001"].Email);
+            Assert.Equal(EmployeeOrgSampleWorkbook.NameOf("NV005"), employees["NV005"].FullName); // first NV005 row kept, duplicate row 21 skipped
             Assert.Equal(EmployeeStatus.Terminated, employees["NV006"].Status);
             Assert.True(employees["NV006"].Account!.IsLocked);
             Assert.Equal(EmployeeStatus.OnLeave, employees["NV015"].Status);
             Assert.False(employees["NV015"].Account?.IsLocked ?? false);
             Assert.Equal(EmployeeStatus.PendingResignation, employees["NV014"].Status);
             Assert.False(employees["NV014"].Account?.IsLocked ?? false);
-            Assert.NotEqual("long.mt", employees["NV007"].Email); // the bad-email row was skipped
+            Assert.NotEqual("nv007.example.test", employees["NV007"].Email); // the bad-email row was skipped
         });
     }
 

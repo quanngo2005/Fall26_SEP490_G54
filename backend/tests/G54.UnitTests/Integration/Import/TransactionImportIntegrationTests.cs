@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using G54.DAL.Entities;
+using G54.UnitTests.Import;
 using Microsoft.EntityFrameworkCore;
 using static G54.UnitTests.Integration.Import.XlsxBuilder;
 
@@ -28,14 +29,14 @@ public sealed class TransactionImportIntegrationTests(ImportApiFixture api) : IC
         api.QueryAsync(db => db.ImportedTransactions.AsNoTracking().Include(t => t.Employee).SingleOrDefaultAsync(t => t.TransactionCode == code));
 
     // B1 + B2 + B3 (one test: the sample's codes are fixed, so import and re-import must run in this order)
-    [ImportIntegrationFact(SampleFile = "06_Giao_dich.xlsx")]
-    public async Task B1_RealSample_Imports18Flags5StoresValuesThenReimportIsAllDuplicates()
+    [ImportIntegrationFact]
+    public async Task B1_Sample_Imports18Flags5StoresValuesThenReimportIsAllDuplicates()
     {
         await api.SetEmployeeStatusAsync("NV006", EmployeeStatus.Terminated);
         var september = await api.QueryAsync(db => db.EvaluationPeriods
             .Where(p => p.PeriodType == PeriodType.Month && p.StartDate == new DateOnly(2026, 9, 1)).Select(p => p.Id).SingleAsync());
         await api.SetPeriodStatusAsync(september, PeriodStatus.Locked);
-        var sample = await File.ReadAllBytesAsync(ImportApiFixture.SamplePath("06_Giao_dich.xlsx"));
+        var sample = SampleFiles.Read(SampleFiles.Transactions);
 
         var result = await api.PostFileAsync(Url, sample, Admin, "06_Giao_dich.xlsx");
 
@@ -51,16 +52,16 @@ public sealed class TransactionImportIntegrationTests(ImportApiFixture api) : IC
         Assert.Equal("Số tiền (VND)*", errors[3].GetProperty("field").GetString());
 
         // B2: stored values and the batch listings
-        var stored = await StoredAsync("GD2610001");
+        var stored = await StoredAsync("TXS0001");
         Assert.NotNull(stored);
-        Assert.Equal(new DateOnly(2026, 10, 5), stored.TransactionDate);
-        Assert.Equal(15000000m, stored.Amount);
-        Assert.Equal("KH10021", stored.CustomerCode);
+        Assert.Equal(new DateOnly(2026, 10, 1), stored.TransactionDate);
+        Assert.Equal(1000000m, stored.Amount);
+        Assert.Equal("KHS001", stored.CustomerCode);
         Assert.Equal("NV001", stored.Employee.EmployeeCode);
         var batchId = result.Data.GetProperty("id").GetGuid();
         var filtered = await api.SendAsync(HttpMethod.Get, $"{Url}/{batchId}/transactions?employeeCode=NV012&pageSize=50", Admin);
         api.AssertStatus(filtered, HttpStatusCode.OK);
-        Assert.Equal(["GD2610014", "GD2610015", "GD2610016"],
+        Assert.Equal(["TXS0012", "TXS0013", "TXS0014"],
             filtered.Data.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("transactionCode").GetString()));
         var listedErrors = await api.SendAsync(HttpMethod.Get, $"{Url}/{batchId}/errors", Admin);
         Assert.Equal(5, listedErrors.Data.GetProperty("totalCount").GetInt32());
@@ -70,7 +71,7 @@ public sealed class TransactionImportIntegrationTests(ImportApiFixture api) : IC
         api.AssertStatus(again, HttpStatusCode.Created);
         Assert.Equal(0, again.Data.GetProperty("importedRows").GetInt32());
         Assert.Equal(18, again.Data.GetProperty("duplicateRows").GetInt32());
-        Assert.Equal(18, await api.QueryAsync(db => db.ImportedTransactions.CountAsync(t => t.TransactionCode.StartsWith("GD26"))));
+        Assert.Equal(18, await api.QueryAsync(db => db.ImportedTransactions.CountAsync(t => t.TransactionCode.StartsWith(TransactionSampleWorkbook.CodePrefix))));
     }
 
     // B4
