@@ -10,11 +10,13 @@ public sealed class TemplateBuilder<TRow>
         string header,
         Action<TRow, string?> apply,
         bool required = true,
-        IReadOnlyList<string>? dropdown = null)
+        IReadOnlyList<string>? dropdown = null,
+        IReadOnlyList<string>? aliases = null)
     {
         _columns.Add(new ImportColumn<TRow>
         {
             Header = header,
+            Aliases = aliases ?? [],
             Apply = apply,
             Required = required,
             DropdownValues = dropdown,

@@ -31,7 +31,8 @@ public sealed class TransactionImportsControllerTests
         service,
         workService ?? new StubWorkTransactionService(),
         Options.Create(options ?? new SystemParametersOptions()),
-        templateProvider ?? new StubTemplateProvider())
+        templateProvider ?? new StubTemplateProvider(),
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<G54.Api.Controllers.TransactionImportsController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -154,6 +155,24 @@ public sealed class TransactionImportsControllerTests
         Assert.Equal(batchId, envelope.Data!.Id);
         Assert.NotNull(envelope.Data.Reconcile);
         Assert.Equal(8, envelope.Data.Reconcile.Matched);
+    }
+
+    [Fact]
+    public async Task Import_WhenReconcileFails_StillReturns201ForTheSavedBatchWithNullReconcile()
+    {
+        var batchId = Guid.NewGuid();
+        var batch = new ImportBatchDto(
+            batchId, "transactions.xlsx", "COMPLETED", 1, 1, 0, 0, null, DateTimeOffset.UtcNow, UserId);
+        var controller = CreateController(
+            new StubService { BatchToImport = batch },
+            workService: new StubWorkTransactionService { ThrowOnReconcile = true });
+
+        var result = await controller.Import(MakeXlsxFile("transactions.xlsx", length: 100), CancellationToken.None);
+
+        var created = Assert.IsType<CreatedResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<ImportBatchDto>>(created.Value);
+        Assert.Equal(batchId, envelope.Data!.Id);
+        Assert.Null(envelope.Data.Reconcile);
     }
 
     [Fact]
@@ -285,8 +304,10 @@ public sealed class TransactionImportsControllerTests
         public Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
+        public bool ThrowOnReconcile { get; set; }
+
         public Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default) =>
-            Task.FromResult(ReconcileSummary);
+            ThrowOnReconcile ? throw new InvalidOperationException("db down") : Task.FromResult(ReconcileSummary);
     }
 
     private sealed class StubTemplateProvider : ITransactionImportTemplateProvider

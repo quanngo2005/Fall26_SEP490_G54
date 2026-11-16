@@ -1130,6 +1130,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("amount");
 
+                    b.Property<string>("CustomerCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("customer_code");
+
                     b.Property<decimal?>("Denominator")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")

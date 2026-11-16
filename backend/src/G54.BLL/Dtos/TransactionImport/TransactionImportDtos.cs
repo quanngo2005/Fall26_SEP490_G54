@@ -27,4 +27,5 @@ public sealed record ImportedTransactionDto(
     DateOnly TransactionDate,
     decimal Amount,
     decimal? Denominator,
-    string? ReferEmployeeCode);
+    string? ReferEmployeeCode,
+    string? CustomerCode = null);

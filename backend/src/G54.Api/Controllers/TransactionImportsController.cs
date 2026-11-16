@@ -6,6 +6,7 @@ using G54.BLL.Dtos.TransactionImport;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace G54.Api.Controllers;
@@ -17,11 +18,12 @@ namespace G54.Api.Controllers;
 [HasPermission("transaction-import", "manage", PermissionScopes.All)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-public sealed class TransactionImportsController(
+public sealed partial class TransactionImportsController(
     ITransactionImportService service,
     IWorkTransactionService workTransactions,
     IOptions<SystemParametersOptions> parameters,
-    ITransactionImportTemplateProvider templateProvider) : ControllerBase
+    ITransactionImportTemplateProvider templateProvider,
+    ILogger<TransactionImportsController> logger) : ControllerBase
 {
     private const string XlsxExtension = ".xlsx";
 
@@ -50,7 +52,16 @@ public sealed class TransactionImportsController(
 
         await using var stream = file.OpenReadStream();
         var result = await service.ImportAsync(file.FileName, stream, User.GetRequiredUserId(), cancellationToken);
-        result = result with { Reconcile = await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken) };
+        try
+        {
+            result = result with { Reconcile = await workTransactions.ReconcileBatchAsync(result.Id, cancellationToken) };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The batch is already saved: report it as created with "reconcile": null. Codes left IN_REVIEW are
+            // retried by the next import (WORK_TRANSACTION_CONTRACT.md).
+            LogReconcileFailed(logger, ex, result.Id);
+        }
         // ApiResponse.Ok fixes the envelope status at 200; keep it in step with the 201 HTTP status.
         return Created($"/transaction-imports/{result.Id}", new ApiResponse<ImportBatchDto>
         {
@@ -97,4 +108,7 @@ public sealed class TransactionImportsController(
         var result = await service.ListTransactionsAsync(id, employeeCode, productCode, page, pageSize, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Reconcile failed after transaction import batch {BatchId}")]
+    private static partial void LogReconcileFailed(ILogger logger, Exception exception, Guid batchId);
 }

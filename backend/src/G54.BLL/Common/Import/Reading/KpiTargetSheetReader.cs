@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Text;
-using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -15,7 +13,7 @@ namespace G54.BLL.Common.Import.Reading;
 /// code column is a data row. Formula cells use the value Excel last cached - re-evaluating them is unreliable
 /// across sheets.
 /// </summary>
-public static partial class KpiTargetSheetReader
+public static class KpiTargetSheetReader
 {
     /// <summary>A formula cell with no cached value is reported as this row's raw text, never as 0 (section 1.3).</summary>
     public const string FormulaNotCalculatedMarker = "#FORMULA_NOT_CALCULATED#";
@@ -211,28 +209,7 @@ public static partial class KpiTargetSheetReader
         return null;
     }
 
-    /// <summary>Lower-case, accent-free, single-spaced text without "(...)" notes, "*" or ":", so
-    /// "Mã KPI (*)", "MA  KPI" and "Mã KPI:" all compare equal.</summary>
-    private static string Normalize(string text)
-    {
-        var stripped = NoteOrMarker().Replace(text, " ").Replace('đ', 'd').Replace('Đ', 'D').Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(stripped.Length);
-        foreach (var ch in stripped)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(char.ToLowerInvariant(ch));
-            }
-        }
-
-        return Whitespace().Replace(builder.ToString(), " ").Trim();
-    }
-
-    [GeneratedRegex(@"\([^)]*\)|[*:]")]
-    private static partial Regex NoteOrMarker();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex Whitespace();
+    private static string Normalize(string text) => Template.ImportHeaderNormalizer.Normalize(text);
 
     /// <summary>Literal cells use <see cref="IXLCell.GetString"/>; formula cells use the cached value only
     /// (never ClosedXML's evaluator), per section 1.3. A formula with no cache yields <see cref="FormulaNotCalculatedMarker"/>.</summary>

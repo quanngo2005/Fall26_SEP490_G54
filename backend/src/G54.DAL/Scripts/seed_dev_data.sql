@@ -374,7 +374,21 @@ INSERT INTO work_type (id, code, name, description, product_code) VALUES
  -- transaction matcher (BR-09) will require to match, and its own multiplier on the KPI mapping below.
  ('5eed0000-0000-0000-000c-000000000005', 'THE_TD_CLASSIC',  'Mở thẻ tín dụng Classic',  'Thẻ tín dụng hạng Classic',  'TD_CLASSIC'),
  ('5eed0000-0000-0000-000c-000000000006', 'THE_TD_GOLD',     'Mở thẻ tín dụng Gold',     'Thẻ tín dụng hạng Gold',     'TD_GOLD'),
- ('5eed0000-0000-0000-000c-000000000007', 'THE_TD_PLATINUM', 'Mở thẻ tín dụng Platinum', 'Thẻ tín dụng hạng Platinum', 'TD_PLATINUM')
+ ('5eed0000-0000-0000-000c-000000000007', 'THE_TD_PLATINUM', 'Mở thẻ tín dụng Platinum', 'Thẻ tín dụng hạng Platinum', 'TD_PLATINUM'),
+ -- Core Banking product catalog (01_Danh_muc_ma.xlsx / 06_Giao_dich.xlsx):
+ ('5eed0000-0000-0000-000c-000000000008', 'WT_DEPOSIT',          'Nộp tiền mặt/chuyển khoản vào TK thanh toán', NULL, 'DEPOSIT'),
+ ('5eed0000-0000-0000-000c-000000000009', 'WT_TERM_DEPOSIT',     'Mở sổ tiết kiệm / tiền gửi có kỳ hạn',        NULL, 'TERM_DEPOSIT'),
+ ('5eed0000-0000-0000-000c-00000000000a', 'WT_WITHDRAWAL',       'Rút tiền mặt tại quầy',                       NULL, 'WITHDRAWAL'),
+ ('5eed0000-0000-0000-000c-00000000000b', 'WT_TRANSFER',         'Chuyển tiền trong/ngoài hệ thống',            NULL, 'TRANSFER'),
+ ('5eed0000-0000-0000-000c-00000000000c', 'WT_ACCOUNT_OPEN',     'Mở tài khoản thanh toán mới',                 NULL, 'ACCOUNT_OPEN'),
+ ('5eed0000-0000-0000-000c-00000000000d', 'WT_CARD_DEBIT_STD',   'Phát hành thẻ ghi nợ Chuẩn',                  NULL, 'CARD_DEBIT_STD'),
+ ('5eed0000-0000-0000-000c-00000000000e', 'WT_CARD_DEBIT_GOLD',  'Phát hành thẻ ghi nợ Vàng',                   NULL, 'CARD_DEBIT_GOLD'),
+ ('5eed0000-0000-0000-000c-00000000000f', 'WT_CARD_CREDIT_STD',  'Phát hành thẻ tín dụng Chuẩn',                NULL, 'CARD_CREDIT_STD'),
+ ('5eed0000-0000-0000-000c-000000000010', 'WT_CARD_CREDIT_PLAT', 'Phát hành thẻ tín dụng Platinum',             NULL, 'CARD_CREDIT_PLAT'),
+ ('5eed0000-0000-0000-000c-000000000011', 'WT_EBANKING',         'Đăng ký và kích hoạt eBanking',               NULL, 'EBANKING'),
+ ('5eed0000-0000-0000-000c-000000000012', 'WT_SMS_BANKING',      'Đăng ký SMS biến động số dư',                 NULL, 'SMS_BANKING'),
+ ('5eed0000-0000-0000-000c-000000000013', 'WT_QR_MERCHANT',      'Mở điểm chấp nhận thanh toán QR',             NULL, 'QR_MERCHANT'),
+ ('5eed0000-0000-0000-000c-000000000014', 'WT_INSURANCE',        'Hợp đồng bảo hiểm liên kết ngân hàng',        NULL, 'INSURANCE')
 ON CONFLICT DO NOTHING;
 
 -- Fixed ids are required: the overlap trigger excludes rows with the same id.

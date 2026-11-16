@@ -23,7 +23,7 @@ public sealed class DataImportsControllerTests
             Task.FromResult(new ImportPreviewDto(fileName, new ImportSummaryDto(0, 0, 0, 0, 0), []));
 
         public Task<ImportCommitResultDto> CommitAsync(Stream file, CancellationToken cancellationToken) =>
-            Task.FromResult(new ImportCommitResultDto(1, 0, [new ImportNewAccountDto("NV001", "nv001@bank.local", "Temp#1")]));
+            Task.FromResult(new ImportCommitResultDto(1, 0, 0, [new ImportNewAccountDto("NV001", "nv001@bank.local", "Temp#1")], []));
     }
 
     private static DataImportsController ControllerFor(IEmployeeImportService service) => new(

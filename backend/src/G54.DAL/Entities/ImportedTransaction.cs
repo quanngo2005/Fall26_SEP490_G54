@@ -5,6 +5,7 @@ public sealed class ImportedTransaction
     public Guid Id { get; set; }
     public Guid ImportBatchId { get; set; }
     public string TransactionCode { get; set; } = null!;
+    public string? CustomerCode { get; set; }
     public Guid EmployeeId { get; set; }
     public string ProductCode { get; set; } = null!;
     public DateOnly TransactionDate { get; set; }

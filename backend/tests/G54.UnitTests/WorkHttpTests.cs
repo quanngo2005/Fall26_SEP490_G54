@@ -257,7 +257,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
     public async Task UC75_01_AssigneeAddsCodes_WorkMovesToSubmitted()
     {
         var id = await api.NewWorkAsync("emp1", WorkStatus.InProgress);
-        var code = $"TX{Guid.NewGuid():N}"[..14];
+        var code = $"TX{Guid.NewGuid():N}"[..14].ToUpperInvariant(); // codes are stored upper-cased
         var result = await api.SendAsync("UC75-01", HttpMethod.Post, $"/works/{id}/transactions", "emp1", new { transactionCodes = new[] { code } });
         Assert.Equal(200, result.Code);
         Assert.Equal("SUBMITTED", result.Data.GetProperty("workStatus").GetString());
@@ -270,7 +270,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
     public async Task UC75_02_ListCodesOfAWork()
     {
         var id = await api.NewWorkAsync("emp1");
-        var code = $"TX{Guid.NewGuid():N}"[..14];
+        var code = $"TX{Guid.NewGuid():N}"[..14].ToUpperInvariant(); // codes are stored upper-cased
         await api.SendAsync(null, HttpMethod.Post, $"/works/{id}/transactions", "emp1", new { transactionCodes = new[] { code } });
         var result = await api.SendAsync("UC75-02", HttpMethod.Get, $"/works/{id}/transactions", "emp1");
         Assert.Equal(200, result.Code);

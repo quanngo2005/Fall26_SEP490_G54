@@ -28,7 +28,16 @@ public sealed class TransactionImportTemplateTests
 {
     private static readonly string[] ExpectedHeaders =
     [
-        "transaction_code", "employee_code", "product_code", "transaction_date", "amount", "denominator", "refer_employee_code"
+        "Mã giao dịch*",
+        "Ngày GD*",
+        "Mã khách hàng*",
+        "Mã NV*",
+        "Mã sản phẩm*",
+        "Tên sản phẩm",
+        "Số tiền (VND)*",
+        "Mẫu số",
+        "Refer ID",
+        "Ghi chú (demo)",
     ];
 
     [Fact]
@@ -42,14 +51,16 @@ public sealed class TransactionImportTemplateTests
             Assert.Equal(ExpectedHeaders[i], columns[i].Header);
         }
 
-        // First 5 required, last 2 optional
-        for (var i = 0; i < 5; i++)
-        {
-            Assert.True(columns[i].Required, $"Column {columns[i].Header} should be required.");
-        }
-
-        Assert.False(columns[5].Required, "denominator should be optional.");
-        Assert.False(columns[6].Required, "refer_employee_code should be optional.");
+        Assert.True(columns[0].Required);
+        Assert.True(columns[1].Required);
+        Assert.False(columns[2].Required); // Optional column on legacy English files, required row-value when present
+        Assert.True(columns[3].Required);
+        Assert.True(columns[4].Required);
+        Assert.False(columns[5].Required);
+        Assert.True(columns[6].Required);
+        Assert.False(columns[7].Required);
+        Assert.False(columns[8].Required);
+        Assert.False(columns[9].Required);
     }
 
     [Fact]
@@ -76,12 +87,14 @@ public sealed class TransactionImportTemplateTests
 
         // Example row (row 2)
         Assert.Equal("TX-SAMPLE-0001", dataSheet.Cell(2, 1).GetString().Trim());
-        Assert.Equal("NV001", dataSheet.Cell(2, 2).GetString().Trim());
-        Assert.Equal("TD_CLASSIC", dataSheet.Cell(2, 3).GetString().Trim());
-        Assert.Equal("2026-11-01", dataSheet.Cell(2, 4).GetString().Trim());
-        Assert.Equal(10000000m, dataSheet.Cell(2, 5).GetValue<decimal>());
-        Assert.Equal(1m, dataSheet.Cell(2, 6).GetValue<decimal>());
-        Assert.Equal("NV002", dataSheet.Cell(2, 7).GetString().Trim());
+        Assert.Equal("05/10/2026", dataSheet.Cell(2, 2).GetString().Trim());
+        Assert.Equal("KH10001", dataSheet.Cell(2, 3).GetString().Trim());
+        Assert.Equal("NV001", dataSheet.Cell(2, 4).GetString().Trim());
+        Assert.Equal("TD_CLASSIC", dataSheet.Cell(2, 5).GetString().Trim());
+        Assert.Equal("Mở thẻ tín dụng Classic", dataSheet.Cell(2, 6).GetString().Trim());
+        Assert.Equal(10000000m, dataSheet.Cell(2, 7).GetValue<decimal>());
+        Assert.Equal(1m, dataSheet.Cell(2, 8).GetValue<decimal>());
+        Assert.Equal("NV002", dataSheet.Cell(2, 9).GetString().Trim());
 
         // Notes sheet
         var notesSheet = workbook.Worksheet("Notes");
@@ -106,7 +119,7 @@ public sealed class TransactionImportTemplateTests
             .Options;
         await using var db = new AppDbContext(options);
 
-        // Seed the employee referenced in the example row
+        // Seed the employees and WorkType referenced in the example row
         var employee = new Employee
         {
             Id = Guid.NewGuid(),
@@ -119,13 +132,33 @@ public sealed class TransactionImportTemplateTests
             UpdatedAt = DateTimeOffset.UtcNow,
             LastSyncAt = DateTimeOffset.UtcNow,
         };
-        db.Employees.Add(employee);
+        var referEmployee = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV002",
+            FullName = "Trần Thị Bình",
+            Email = "binh.tran@bank.local",
+            DepartmentId = Guid.NewGuid(),
+            JobPositionId = Guid.NewGuid(),
+            Status = EmployeeStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastSyncAt = DateTimeOffset.UtcNow,
+        };
+        db.Employees.AddRange(employee, referEmployee);
+        db.WorkTypes.Add(new WorkType
+        {
+            Id = Guid.NewGuid(),
+            Code = "WT_TD_CLASSIC",
+            Name = "Mở thẻ tín dụng Classic",
+            ProductCode = "TD_CLASSIC",
+            Status = RecordStatus.Active,
+        });
         await db.SaveChangesAsync();
 
         var provider = new TransactionImportTemplateProvider();
         var templateBytes = provider.GetTemplate();
 
-        var service = new TransactionImportService(new UnitOfWork(db), TimeProvider.System);
+        var service = new TransactionImportService(new UnitOfWork(db), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions()));
         using var stream = new MemoryStream(templateBytes);
 
         var batch = await service.ImportAsync("transaction-import-template.xlsx", stream, Guid.NewGuid(), CancellationToken.None);
@@ -139,8 +172,9 @@ public sealed class TransactionImportTemplateTests
         var stored = await db.ImportedTransactions.FirstOrDefaultAsync(t => t.TransactionCode == "TX-SAMPLE-0001");
         Assert.NotNull(stored);
         Assert.Equal(employee.Id, stored.EmployeeId);
+        Assert.Equal("KH10001", stored.CustomerCode);
         Assert.Equal("TD_CLASSIC", stored.ProductCode);
-        Assert.Equal(new DateOnly(2026, 11, 1), stored.TransactionDate);
+        Assert.Equal(new DateOnly(2026, 10, 5), stored.TransactionDate);
         Assert.Equal(10000000m, stored.Amount);
         Assert.Equal(1m, stored.Denominator);
         Assert.Equal("NV002", stored.ReferEmployeeCode);
@@ -187,7 +221,8 @@ public sealed class TransactionImportTemplateTests
             new FakeTransactionImportService(),
             new FakeWorkTransactionService(),
             Options.Create(new SystemParametersOptions()),
-            provider);
+            provider,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<G54.Api.Controllers.TransactionImportsController>.Instance);
 
         var result = controller.GetTemplate();
 
