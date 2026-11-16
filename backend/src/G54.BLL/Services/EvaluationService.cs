@@ -1734,7 +1734,7 @@ public sealed partial class EvaluationService(
                 .AsNoTracking()
                 .Where(p => p.PeriodType == period.PeriodType
                     && p.StartDate > period.EndDate
-                    && p.Status != PeriodStatus.Locked && p.Status != PeriodStatus.Closed)
+                    && p.Status == PeriodStatus.Open)
                 .OrderBy(p => p.StartDate)
                 .FirstOrDefaultAsync(cancellationToken);
 

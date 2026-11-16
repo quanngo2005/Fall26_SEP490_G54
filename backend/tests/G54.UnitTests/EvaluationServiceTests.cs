@@ -1085,6 +1085,24 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
+    public async Task FinalizeAndLockPeriodAsync_SkipsAnInReviewPeriod_AndCarriesOverToTheNextOpenOne()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var inReview = MonthPeriod("2026-11-review", period.EndDate.AddDays(1), period.EndDate.AddDays(30));
+        inReview.Status = PeriodStatus.InReview;
+        var open = MonthPeriod("2026-12-open", period.EndDate.AddDays(31), period.EndDate.AddDays(61));
+        context.EvaluationPeriods.AddRange(inReview, open);
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal(open.Id, result.CarriedOverToPeriodId);
+        Assert.Equal(1, result.CarriedOverResults);
+    }
+
+    [Fact]
     public async Task FinalizeAndLockPeriodAsync_WithNoNextPeriod_StillLocks_AndLeavesPendingResultsUnchanged()
     {
         var (context, service) = CreateTestEnvironment();

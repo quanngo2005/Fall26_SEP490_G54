@@ -380,7 +380,7 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 - **Carry-over**: a `result_submission` still `SUBMITTED` or `UNDER_REVIEW` for this period (see
   `EVALUATION_PERIOD_CONTRACT.md` for the exact period-membership rule, including carry-over chaining) is moved to
   the next `evaluation_period` of the same `period_type` whose `start_date` is after this period's `end_date` and
-  whose status is not `LOCKED`/`CLOSED` (nearest by `start_date`; gap between periods is fine) by setting its
+  whose status is `OPEN` (an `IN_REVIEW` period no longer takes results and is skipped; nearest by `start_date`; gap between periods is fine) by setting its
   `carried_over_to_period_id`. This is **not a blocking condition**: when no such next period exists yet, the lock
   still proceeds and the pending results are left as-is (`pendingWithoutTargetPeriod` reports how many). A late
   transaction import for a carried-over result's work still posts into the new period instead of 409
