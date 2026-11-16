@@ -145,6 +145,8 @@
         "rolesPermissions": "Vai trò & Phân quyền",
         "accessPolicies": "Chính sách truy cập",
         "systemConfiguration": "Cấu hình hệ thống",
+        "systemParameters": "Tham số & Trọng số",
+        "rankingStudio": "Thiết kế gợi ý xếp hạng",
         "systemAudit": "Nhật ký kiểm toán hệ thống",
         "tasks": "Công việc",
         "personalKpis": "KPI cá nhân",
@@ -838,8 +840,8 @@
         "loading": "Đang tải...",
         "loadError": "Không tải được hàng chờ QA. Vui lòng thử lại.",
         "retry": "Thử lại",
-        "sampleNoticeTitle": "Cần xác nhận với nhóm nghiệp vụ: lấy mẫu 5% (BR-32)",
-        "sampleNoticeText": "Sau bản chốt ngày 23/10, kết quả có mã giao dịch/CIF không còn được duyệt thủ công. Loại \"Mẫu 5%\" chỉ giữ lại nếu BR-32 vẫn áp dụng.",
+        "sampleNoticeTitle": "Cần xác nhận với nhóm nghiệp vụ: lấy mẫu 5%",
+        "sampleNoticeText": "Theo quy định hiện hành, kết quả có mã giao dịch/CIF không còn được duyệt thủ công. Loại \"Mẫu 5%\" chỉ giữ lại nếu quy định lấy mẫu vẫn áp dụng.",
         "breadcrumb": "Điều hướng",
         "previous": "‹ Mục trước",
         "next": "Mục sau ›",
@@ -876,7 +878,7 @@
         "commentRequired": "Lý do bác bỏ là bắt buộc, tối thiểu 10 ký tự.",
         "severityLabel": "Mức độ của cờ chất lượng",
         "requestRework": "Yêu cầu nhân viên làm lại ngay",
-        "rejectNoteRework": "Khi bác bỏ, kết quả này bị vô hiệu, điểm KPI của công việc được trừ lại và công việc được mở lại để nhân viên làm lại. Hệ thống chưa có bút toán đảo (BR-16) nên kỳ đã khóa sẽ không thực hiện được.",
+        "rejectNoteRework": "Khi bác bỏ, kết quả này bị vô hiệu, điểm KPI của công việc được trừ lại và công việc được mở lại để nhân viên làm lại. Hệ thống chưa có bút toán đảo nên kỳ đã khóa sẽ không thực hiện được.",
         "rejectNoteFlag": "Khi bác bỏ, hệ thống tạo một cờ chất lượng ở trạng thái chờ xử lý; kết quả vẫn được giữ cho đến khi bạn yêu cầu làm lại.",
         "dismissNote": "Khi xác nhận đúng, cờ chất lượng được đóng và kết quả được giữ nguyên.",
         "cancel": "Hủy",
@@ -1148,15 +1150,12 @@
         "needsAction": "Cần xử lý",
         "searchMine": "Mã khiếu nại / mã bài nộp",
         "searchManager": "Mã / nhân viên",
-        "filterType": "Loại",
         "filterPeriod": "Kỳ",
         "filterPosition": "Vị trí",
-        "allTypes": "Loại ∨",
         "allPeriods": "Kỳ ∨",
         "allPositions": "Vị trí ∨",
         "submitAppeal": "+ Gửi khiếu nại",
         "code": "Mã",
-        "type": "Loại",
         "subject": "Đối tượng",
         "filedAt": "Ngày gửi",
         "handler": "Người xử lý",
@@ -1166,7 +1165,6 @@
         "position": "Vị trí",
         "deadlineLabel": "Hạn xử lý",
         "resultAppeal": "Khiếu nại kết quả",
-        "scoreAppeal": "Khiếu nại điểm",
         "notAvailable": "N/A",
         "loading": "Đang tải khiếu nại...",
         "loadError": "Không thể tải danh sách khiếu nại.",
@@ -1178,7 +1176,6 @@
         "filedOn": "Gửi {time} · Xử lý: {handler}",
         "submission": "Bài nộp",
         "work": "Việc",
-        "period": "Kỳ đánh giá",
         "reasonTitle": "Lý do",
         "evidenceTitle": "Bằng chứng",
         "noEvidence": "Không có tệp đính kèm",
@@ -1245,15 +1242,8 @@
         "cifCode": "Mã CIF",
         "product": "Sản phẩm",
         "referrer": "Mã giới thiệu",
-        "currentScore": "Điểm hiện tại",
         "reconciliation": "Đối soát",
         "impactTitle": "Ảnh hưởng nếu chấp nhận",
-        "decisionAdjustScore": "Điều chỉnh điểm",
-        "decisionAdjustScoreHint": "Cộng thêm điểm vào điểm đánh giá của nhân viên",
-        "decisionUphold": "Giữ nguyên điểm",
-        "decisionUpholdHint": "Không đổi điểm đánh giá, khiếu nại không được chấp nhận",
-        "decisionPoints": "Số điểm cộng thêm",
-        "pointsRequired": "Số điểm cộng thêm phải lớn hơn 0.",
         "notFound": "Không tìm thấy khiếu nại.",
         "status": {
           "OPEN": "Đang mở",
@@ -1268,7 +1258,6 @@
           "notFound": "Không tìm thấy khiếu nại.",
           "validation": "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.",
           "windowExpired": "Đã quá thời hạn khiếu nại kết quả bị từ chối.",
-          "scoreWindowExpired": "Đã quá thời hạn khiếu nại điểm đánh giá.",
           "alreadyOpen": "Đã có khiếu nại đang được xử lý cho mục này.",
           "invalidState": "Khiếu nại hoặc hồ sơ không còn ở trạng thái cho phép thao tác này.",
           "periodLocked": "Kỳ đánh giá đã khóa, không thể thực hiện thao tác này.",
@@ -1586,7 +1575,7 @@
         "saving": "Đang lưu…",
         "searchResource": "Tìm resource",
         "moduleAll": "Module: Tất cả",
-        "modulePrefix": "Module: ",
+        "modulePrefix": "Module:",
         "grantedOnly": "Chỉ hiện ô đã cấp quyền",
         "scopeLegend": "Phạm vi:",
         "resource": "Resource",
@@ -2015,7 +2004,7 @@
         "createUnavailable": "Chức năng tạo role chưa được hỗ trợ",
         "search": "Mã hoặc tên role",
         "typeAll": "Loại: Tất cả",
-        "typePrefix": "Loại: ",
+        "typePrefix": "Loại:",
         "code": "Mã",
         "name": "Tên",
         "type": "Loại",
@@ -2042,7 +2031,7 @@
         "action": "Action",
         "scope": "Phạm vi",
         "noPermissions": "Role chưa được cấp quyền nào.",
-        "permissionsNote": "Chỉ hiện quyền đã cấp. Biểu tượng khóa: quyền cố định theo nghiệp vụ (BR-36: nhân viên chỉ xem điểm của mình).",
+        "permissionsNote": "Chỉ hiện quyền đã cấp. Biểu tượng khóa: quyền cố định theo nghiệp vụ (nhân viên chỉ xem điểm của mình).",
         "employeeCode": "Mã NV",
         "fullName": "Họ tên",
         "department": "Phòng ban",
@@ -2064,7 +2053,7 @@
         "roleAll": "Role",
         "departmentAll": "Phòng",
         "statusAll": "Trạng thái: Tất cả",
-        "statusPrefix": "Trạng thái: ",
+        "statusPrefix": "Trạng thái:",
         "username": "Username",
         "employeeCode": "Mã NV",
         "fullName": "Họ tên",
@@ -2145,81 +2134,235 @@
         "done": "Xong"
       },
       "systemParameters": {
-        "description": "Tham số vận hành toàn chi nhánh. Mọi thay đổi có hiệu lực ngay và được ghi audit log.",
+        "description": "Toàn bộ trọng số, hạn mức, thời hạn đóng kỳ và bảo mật vận hành. Lưu trực tiếp vào cơ sở dữ liệu, đồng bộ tức thời qua Redis và ghi nhật ký kiểm toán.",
         "unsavedTitle": "{count} thay đổi chưa lưu",
-        "unsavedNote": "Các trường đã sửa được đánh dấu chấm xanh.",
+        "unsavedNote": "Các tham số vừa chỉnh sửa được đánh dấu chấm xanh.",
         "loading": "Đang tải tham số hệ thống…",
         "loadFailed": "Không thể tải tham số hệ thống.",
-        "saveFailed": "Không thể lưu tham số. Vui lòng thử lại.",
+        "saveFailed": "Không thể lưu tham số. Vui lòng kiểm tra lại giá trị và thử lại.",
         "saving": "Đang lưu…",
-        "saved": "Đã lưu tham số hệ thống.",
+        "saved": "Đã lưu cấu hình tham số hệ thống thành công.",
         "retry": "Thử lại",
         "changed": "Đã sửa",
-        "locked": "Cố định theo quy định",
+        "locked": "Cố định kỹ thuật",
+        "searchPlaceholder": "Tìm nhanh tên hoặc mã tham số…",
+        "filterAllGroups": "Tất cả nhóm",
+        "boolOn": "Đang bật",
+        "boolOff": "Đang tắt",
         "invalidRange": "Nhập số nguyên từ {min} đến {max}.",
+        "invalidDecimalRange": "Nhập số từ {min} đến {max} (tối đa 4 chữ số thập phân).",
         "invalidPositive": "Nhập số nguyên lớn hơn 0.",
+        "invalidTime": "Nhập giờ hợp lệ định dạng HH:mm:ss (00:00:00 – 23:59:59).",
+        "comparisonTitle": "Mốc so sánh kỳ đánh giá",
+        "comparisonHelp": "Quy định kỳ gốc dùng để tính biến động điểm của nhân viên và phòng ban.",
+        "comparisonBaselineLabel": "Phương pháp so sánh",
+        "comparisonLookbackLabel": "Số kỳ lấy trung bình (2–12)",
+        "comparisonSave": "Lưu mốc so sánh",
+        "comparisonSaved": "Đã cập nhật mốc so sánh kỳ đánh giá.",
+        "baselines": {
+          "PREVIOUS_PERIOD": "Kỳ liền trước cùng loại",
+          "SAME_PERIOD_LAST_YEAR": "Cùng kỳ năm trước",
+          "AVERAGE_LAST_N": "Trung bình N kỳ gần nhất"
+        },
         "groups": {
-          "manualApproval": "Duyệt tay việc ngoài Loại việc",
-          "importData": "Import dữ liệu",
-          "evaluationAppeal": "Đánh giá & Khiếu nại",
-          "handover": "Chuyển khách (Handover)"
+          "DEADLINES": "Kỳ đánh giá, Chốt sổ & Thời hạn",
+          "APPEALS": "Khiếu nại & Phúc khảo",
+          "SCORING_QA": "Trọng số Chấm điểm, Rủi ro & QA",
+          "QUOTA_RANKING": "Hạn ngạch Xếp hạng & Phân phối chuẩn",
+          "IMPORT_HANDOVER": "Import dữ liệu, Giao dịch & Bàn giao",
+          "DASHBOARD_SECURITY": "Cảnh báo Hiệu suất & Bảo mật đăng nhập"
         },
         "units": {
           "hours": "giờ",
-          "megabytes": "MB",
+          "minutes": "phút",
           "days": "ngày",
+          "hourOfDay": "giờ (0–23h)",
+          "megabytes": "MB",
+          "rows": "dòng",
+          "codes": "mã",
+          "files": "tệp",
+          "chars": "ký tự",
+          "percent": "%",
+          "points": "điểm",
+          "multiplier": "hệ số",
+          "employees": "nhân sự",
+          "periods": "kỳ",
+          "attempts": "lần",
+          "perMinute": "lần/phút",
+          "time": "HH:mm:ss",
           "vnd": "VND"
         },
         "params": {
-          "manualApprovalHours": {
-            "label": "Thời hạn duyệt tay",
-            "help": "Từ 1 đến 168 giờ"
-          },
-          "importMaxFileMb": {
-            "label": "Dung lượng file tối đa",
-            "help": "Từ 1 đến 10 MB"
-          },
-          "importFormats": {
-            "label": "Định dạng chấp nhận",
-            "help": "Cố định theo quy định chung"
-          },
           "kpiLockTime": {
-            "label": "Giờ khóa KPI tháng",
-            "help": "BR-29 · cố định"
-          },
-          "appealWindowDays": {
-            "label": "Thời hạn khiếu nại",
-            "help": "Sau khi công bố kết quả · 1–30 ngày"
+            "label": "Giờ khóa sổ KPI cuối kỳ",
+            "help": "Định dạng HH:mm:ss ngày cuối kỳ"
           },
           "preCloseCheckDays": {
-            "label": "Hạn kiểm tra trước khi đóng kỳ",
-            "help": "Số ngày trước ngày đóng kỳ"
+            "label": "Cảnh báo trước ngày đóng kỳ",
+            "help": "Số ngày nhắc rà soát trước khi kết thúc quý/tháng (1–30 ngày)"
+          },
+          "preCloseDeadlineDays": {
+            "label": "Hạn hoàn tất Pre-close sau kết thúc kỳ",
+            "help": "Số ngày gia hạn đối soát sau ngày cuối kỳ (1–60 ngày)"
+          },
+          "preCloseDeadlineHour": {
+            "label": "Giờ chốt hạn Pre-close trong ngày",
+            "help": "Khung giờ chốt sổ ngày hạn Pre-close (0–23 giờ)"
+          },
+          "manualApprovalHours": {
+            "label": "SLA duyệt tay việc ngoài danh mục",
+            "help": "Thời hạn quản lý phê duyệt công việc ngoài WorkType (1–168 giờ)"
+          },
+          "workOverdueEnabled": {
+            "label": "Tự động quét công việc quá hạn",
+            "help": "Bật/tắt tiến trình nền tự động chuyển trạng thái việc quá hạn"
+          },
+          "workOverdueSweepMinutes": {
+            "label": "Chu kỳ quét việc quá hạn",
+            "help": "Khoảng cách giữa hai lần quét tự động (1–1440 phút)"
+          },
+          "campaignExclusivityDays": {
+            "label": "Thời gian giữ độc quyền khách hàng chiến dịch",
+            "help": "Số ngày khóa quyền tiếp cận Lead cho chuyên viên (1–90 ngày)"
           },
           "appealRejectedHours": {
             "label": "Hạn khiếu nại kết quả bị từ chối",
-            "help": "BR-31 · cố định"
+            "help": "Số giờ cho phép gửi khiếu nại sau khi kết quả bị bác (1–720 giờ)"
+          },
+          "appealWindowDays": {
+            "label": "Thời gian mở cửa sổ phúc khảo kỳ",
+            "help": "Số ngày mở phúc khảo sau khi công bố kết quả toàn chi nhánh (1–30 ngày)"
+          },
+          "minReasonLength": {
+            "label": "Độ dài tối thiểu lý do giải trình / đảo bút toán",
+            "help": "Số ký tự tối thiểu bắt buộc khi nhập lý do khiếu nại hoặc gỡ phạt (5–200)"
+          },
+          "maxEvidenceFiles": {
+            "label": "Số tệp minh chứng đính kèm tối đa",
+            "help": "Giới hạn số file đính kèm trên mỗi hồ sơ khiếu nại (1–20 tệp)"
+          },
+          "qaSampleRatePercent": {
+            "label": "Tỷ lệ lấy mẫu hậu kiểm ngẫu nhiên QA",
+            "help": "Phần trăm kết quả duyệt tay được rút mẫu kiểm tra lại (0–100%)"
+          },
+          "riskPenaltyLow": {
+            "label": "Điểm phạt rủi ro mức Thấp (LOW)",
+            "help": "Mức trừ điểm mặc định khi ghi nhận sự kiện rủi ro mức Low (0–100 điểm)"
+          },
+          "riskPenaltyMedium": {
+            "label": "Điểm phạt rủi ro mức Trung bình (MEDIUM)",
+            "help": "Mức trừ điểm mặc định khi ghi nhận sự kiện rủi ro mức Medium (0–100 điểm)"
+          },
+          "riskPenaltyHigh": {
+            "label": "Điểm phạt rủi ro mức Cao (HIGH)",
+            "help": "Mức trừ điểm mặc định khi ghi nhận sự kiện rủi ro mức High (0–100 điểm)"
+          },
+          "riskPenaltyCritical": {
+            "label": "Điểm phạt rủi ro Nghiêm trọng (CRITICAL)",
+            "help": "Mức trừ điểm mặc định khi ghi nhận sự kiện rủi ro mức Critical (0–100 điểm)"
+          },
+          "unitUnderperformanceThresholdPercent": {
+            "label": "Ngưỡng hoàn thành tối thiểu của Đơn vị",
+            "help": "Ngưỡng % điểm phòng ban để xét hệ số điều chỉnh cá nhân (0–100%)"
+          },
+          "unitPenaltyMultiplier": {
+            "label": "Hệ số nhân điểm khi Đơn vị dưới ngưỡng",
+            "help": "Hệ số điều chỉnh điểm cá nhân khi đơn vị không đạt chỉ tiêu (0.1–1.0)"
+          },
+          "tierAQuotaPercent": {
+            "label": "Trần hạn ngạch nhóm Hạng A (A1/A2/A3)",
+            "help": "Tỷ lệ tối đa nhân sự đạt nhóm hạng xuất sắc A trong phòng/chi nhánh (1–100%)"
+          },
+          "tierBTargetPercent": {
+            "label": "Tỷ lệ chuẩn phân phối Hạng B (Bell Curve)",
+            "help": "Tỷ lệ tham chiếu đường cong chuẩn cho Hạng B (0–100%)"
+          },
+          "tierCTargetPercent": {
+            "label": "Tỷ lệ chuẩn phân phối Hạng C (Bell Curve)",
+            "help": "Tỷ lệ tham chiếu đường cong chuẩn cho Hạng C (0–100%)"
+          },
+          "tierDTargetPercent": {
+            "label": "Tỷ lệ chuẩn phân phối Hạng D (Bell Curve)",
+            "help": "Tỷ lệ tham chiếu đường cong chuẩn cho Hạng D (0–100%)"
+          },
+          "minDeptSizeForOwnQuota": {
+            "label": "Quy mô phòng tối thiểu tính hạn ngạch riêng",
+            "help": "Số nhân sự tối thiểu trước khi áp dụng quy tắc nhóm nhỏ (1–50 người)"
+          },
+          "importMaxFileMb": {
+            "label": "Dung lượng tối đa file Import giao dịch / nhân sự",
+            "help": "Giới hạn kích thước tệp Excel tải lên (1–50 MB)"
+          },
+          "targetImportMaxFileMb": {
+            "label": "Dung lượng tối đa file Import chỉ tiêu năm",
+            "help": "Giới hạn kích thước tệp Excel KPI Năm-Quý (1–50 MB)"
+          },
+          "importMaxRows": {
+            "label": "Số dòng dữ liệu tối đa mỗi lần Import",
+            "help": "Giới hạn bản ghi trong một tệp Excel (100–100.000 dòng)"
+          },
+          "maxTransactionsPerWork": {
+            "label": "Số mã giao dịch tối đa trên một công việc",
+            "help": "Số mã giao dịch Core Banking tối đa gắn vào 1 đầu việc (1–50 mã)"
           },
           "handoverThresholdVnd": {
-            "label": "Ngưỡng số tiền handover",
-            "help": "Giao dịch từ ngưỡng này trở lên, Giao dịch viên chuyển cho Chuyên viên bán hàng"
+            "label": "Ngưỡng giá trị giao dịch chuyển khách (Handover)",
+            "help": "Giao dịch từ mức này trở lên Giao dịch viên bàn giao cho CV QHKH"
+          },
+          "importFormats": {
+            "label": "Định dạng tệp Import chuẩn",
+            "help": "Cố định theo bộ đọc Excel chuẩn của hệ thống"
+          },
+          "perfAttentionDropPoints": {
+            "label": "Ngưỡng tụt điểm cảnh báo nhân sự",
+            "help": "Mức giảm điểm so với kỳ trước để gắn cờ cần lưu ý (0.1–50 điểm)"
+          },
+          "perfAttentionLowScore": {
+            "label": "Ngưỡng điểm thấp cần lưu ý",
+            "help": "Tổng điểm dưới ngưỡng này sẽ hiển thị cảnh báo trên Dashboard (0–100 điểm)"
+          },
+          "perfAttentionTopN": {
+            "label": "Số nhân sự hiển thị trên thẻ Cần lưu ý",
+            "help": "Số dòng tối đa trên bảng cảnh báo sớm của Quản lý (1–50 người)"
+          },
+          "perfWeakGroupScore": {
+            "label": "Ngưỡng điểm nhóm tiêu chí yếu",
+            "help": "Điểm nhóm tiêu chí dưới mức này được đánh dấu cần cải thiện (0–100 điểm)"
+          },
+          "perfTrendPeriodCount": {
+            "label": "Số kỳ hiển thị biểu đồ xu hướng hiệu suất",
+            "help": "Độ dài chuỗi thời gian trên biểu đồ xu hướng (2–24 kỳ)"
+          },
+          "authMaxFailedAttempts": {
+            "label": "Số lần đăng nhập sai tối đa trước khi khóa",
+            "help": "Số lần nhập sai mật khẩu liên tiếp làm khóa tài khoản tạm thời (3–20 lần)"
+          },
+          "authLockoutMinutes": {
+            "label": "Thời gian khóa tài khoản tạm thời",
+            "help": "Số phút khóa đăng nhập sau khi vượt quá số lần thử sai (1–1440 phút)"
+          },
+          "loginRateLimitPerMinute": {
+            "label": "Giới hạn tần suất đăng nhập theo IP",
+            "help": "Số yêu cầu đăng nhập tối đa mỗi phút trên một địa chỉ IP (3–120 lần/phút)"
           }
         },
-        "confirmTitle": "Xác nhận lưu tham số",
-        "confirmMeta": "SCR-ADM-04 · {count} thay đổi",
+        "confirmTitle": "Xác nhận lưu tham số hệ thống",
+        "confirmMeta": "{count} tham số thay đổi",
         "colParameter": "Tham số",
         "colOld": "Giá trị cũ",
         "colNew": "Giá trị mới",
-        "confirmWarnTitle": "Có hiệu lực ngay sau khi lưu",
-        "confirmWarnBody": "Thay đổi áp dụng cho mọi giao dịch và kỳ đang mở, được ghi audit log cùng tài khoản của bạn.",
+        "confirmWarnTitle": "Áp dụng tức thời trên toàn hệ thống",
+        "confirmWarnBody": "Thay đổi được lưu vào PostgreSQL, đồng bộ ngay qua Redis cho mọi dịch vụ và ghi nhận vào nhật ký kiểm toán.",
         "breadcrumb": "Trang chủ / Quản trị hệ thống / Cấu hình hệ thống",
-        "title": "Cấu hình hệ thống",
+        "title": "Cấu hình hệ thống & Chính sách Xếp hạng",
         "auditLogLink": "Xem audit log",
-        "discard": "Hủy thay đổi",
-        "save": "Lưu",
+        "discard": "Hoàn tác",
+        "save": "Lưu thay đổi",
         "tabsLabel": "Nhóm cấu hình hệ thống",
         "tabNavigation": "Thanh điều hướng theo vai trò",
-        "tabParameters": "Tham số vận hành",
-        "handoverNote": "Số nguyên lớn hơn 0, đơn vị VND"
+        "tabParameters": "Tham số & Trọng số vận hành",
+        "tabRankingStudio": "Thiết kế Gợi ý Xếp hạng (Automation)",
+        "handoverNote": "Số nguyên dương, đơn vị VND (tự động phân tách hàng nghìn)."
       },
       "employeeList": {
         "title": "Nhân viên",
@@ -2261,7 +2404,7 @@
         "statusOnLeave": "Nghỉ phép",
         "accountNone": "Chưa có",
         "accountDisabled": "Vô hiệu",
-        "footnote": "\"Không có trong file\": vắng trong file import mới nhất, không bị xóa (BR-52). Chỉ \"Đã nghỉ việc\" (TERMINATED) mới vô hiệu tài khoản.",
+        "footnote": "\"Không có trong file\": vắng trong file import mới nhất, không bị xóa. Chỉ \"Đã nghỉ việc\" (TERMINATED) mới vô hiệu tài khoản.",
         "paginationInfo": "{from}–{to} / {total} nhân viên",
         "sectionInfo": "THÔNG TIN",
         "labelDepartment": "Phòng",
@@ -2499,7 +2642,7 @@
         "periodOrder": "Phải ≥ Từ kỳ; không chọn kỳ đã khóa (MSG27)",
         "moreFields": "Trần (%) · Baseline · Công thức · Mô tả",
         "fieldCeiling": "Trần (%)",
-        "ceilingHint": "Sales không trần (BR-40)",
+        "ceilingHint": "Sales không trần",
         "fieldBaseline": "Baseline",
         "fieldFormula": "Công thức",
         "fieldDescription": "Mô tả",
@@ -3014,7 +3157,7 @@
           "lockModalCancel": "Hủy bỏ",
           "lockSuccess": "Kỳ đánh giá đã được khóa cứng thành công.",
           "lockError": "Không thể khóa kỳ đánh giá. Vui lòng kiểm tra lại.",
-          "lockDisputePending": "Không thể khóa kỳ do vẫn còn khiếu nại chưa được xử lý (BR-31).",
+          "lockDisputePending": "Không thể khóa kỳ do vẫn còn khiếu nại chưa được xử lý.",
           "loading": "Đang tải danh sách kỳ đánh giá...",
           "emptyList": "Không tìm thấy kỳ đánh giá nào phù hợp với bộ lọc.",
           "retry": "Thử lại",
@@ -3174,8 +3317,8 @@
         "rowAllocated": "Tổng đã phân bổ",
         "rowBranch": "Chỉ tiêu chi nhánh",
         "rowRemaining": "Còn lại",
-        "mismatchPrefix": "Chưa khớp: ",
-        "mismatchSuffix": " (MSG14, BR-24).",
+        "mismatchPrefix": "Chưa khớp:",
+        "mismatchSuffix": ".",
         "mismatchQuarterShort": "Quý {quarter} còn thiếu {amount} {unit}",
         "mismatchQuarterExcess": "Quý {quarter} thừa {amount} {unit}",
         "mismatchYearShort": "Cả năm còn thiếu {amount} {unit}",
@@ -3258,7 +3401,7 @@
         "create": "Tạo WorkType",
         "subtitleCounts": "Danh mục loại việc chuẩn theo vị trí · {active} đang dùng · {inactive} ngưng sử dụng",
         "tabAll": "Tất cả",
-        "statusFilterPrefix": "Trạng thái: ",
+        "statusFilterPrefix": "Trạng thái:",
         "kpiFilterAll": "KPI item",
         "colPosition": "Vị trí",
         "colCif": "Mã GD/CIF",
@@ -3279,11 +3422,11 @@
         "unavailable": "Chưa khả dụng",
         "search": "Tên profile",
         "positionAll": "Vị trí: Tất cả",
-        "positionPrefix": "Vị trí: ",
+        "positionPrefix": "Vị trí:",
         "periodAll": "Kỳ: Tất cả",
-        "periodPrefix": "Kỳ: ",
+        "periodPrefix": "Kỳ:",
         "statusAll": "Trạng thái: Tất cả",
-        "statusPrefix": "Trạng thái: ",
+        "statusPrefix": "Trạng thái:",
         "clearFilter": "Xóa lọc",
         "colName": "Tên profile",
         "colPosition": "Vị trí",
@@ -3568,6 +3711,133 @@
         "yearAria": "Chọn năm đánh giá",
         "quarterAria": "Chọn quý đánh giá",
         "monthAria": "Chọn tháng đánh giá"
+      },
+      "rankingStudio": {
+        "breadcrumb": "Trang chủ / Quản trị hệ thống / Thiết kế Gợi ý Xếp hạng",
+        "title": "Trình thiết kế Quy tắc Gợi ý Xếp hạng (Automation Studio)",
+        "description": "Xây dựng công thức tính điểm xét hạng, bậc xếp loại, khối quy tắc tự động hóa IF / AND / OR → THEN và chạy thử nghiệm trực tiếp (Sandbox) cho từng quý.",
+        "loading": "Đang tải cấu hình quy tắc xếp hạng…",
+        "loadFailed": "Không thể tải chính sách gợi ý xếp hạng.",
+        "saveSuccess": "Đã lưu chính sách gợi ý xếp hạng (Phiên bản v{version}).",
+        "saveFailed": "Không thể lưu chính sách xếp hạng. Vui lòng kiểm tra các khối điều kiện.",
+        "simulateFailed": "Không thể chạy mô phỏng. Vui lòng kiểm tra cú pháp công thức hoặc điều kiện.",
+        "lockedBanner": "Kỳ đánh giá này đã Khóa sổ (LOCKED) — đang hiển thị bản chụp chính sách đóng băng tại thời điểm chốt kỳ (Chỉ xem).",
+        "overrideBadge": "Chính sách riêng của kỳ",
+        "defaultBadge": "Chính sách chuẩn toàn Chi nhánh",
+        "versionBadge": "Phiên bản v{version}",
+        "scopeLabel": "Phạm vi áp dụng chính sách",
+        "scopeGlobal": "Mặc định toàn Chi nhánh (Áp dụng cho mọi kỳ mở chưa có bản riêng)",
+        "policyNameLabel": "Tên chính sách",
+        "policyDescLabel": "Ghi chú chính sách quý",
+        "btnSimulate": "Chạy thử nghiệm (Sandbox)",
+        "btnSimulating": "Đang mô phỏng…",
+        "btnSavePolicy": "Lưu & Áp dụng chính sách",
+        "btnResetDefault": "Khôi phục mẫu chuẩn",
+        "sectionFormulaTitle": "1. Công thức Điểm xét hạng hiệu lực (Effective Score Formula)",
+        "sectionFormulaHelp": "Viết biểu thức toán học hoặc bấm chèn nhanh biến/hàm bên dưới. Tuyệt đối an toàn, không thực thi mã tùy ý.",
+        "formulaInsertVar": "Chèn biến:",
+        "formulaInsertFn": "Chèn hàm:",
+        "formulaPresetsLabel": "Mẫu nhanh:",
+        "presetStandard": "Chuẩn (TotalScore)",
+        "presetUnitPenalty": "Phạt đơn vị < 70đ",
+        "presetBalancedCap": "Khống chế theo Điểm định tính",
+        "sectionTiersTitle": "2. Thang điểm gốc các Bậc xếp hạng (Base Tiers)",
+        "sectionTiersHelp": "Điểm xét hạng đạt từ mức sàn nào sẽ nhận hạng gốc tương ứng trước khi chạy các khối quy tắc tự động hóa.",
+        "colTierOrder": "Thứ tự",
+        "colTierCode": "Mã hạng",
+        "colTierMinScore": "Điểm sàn (0–100)",
+        "btnAddTier": "+ Thêm bậc hạng",
+        "btnRemoveTier": "Xóa bậc",
+        "sectionTieBreakerTitle": "3. Thứ tự ưu tiên Phá đồng điểm (Tie-Breakers)",
+        "sectionTieBreakerHelp": "Khi hai nhân viên bằng điểm nhau, hệ thống lần lượt xét theo thứ tự từ trên xuống dưới.",
+        "btnMoveUp": "Lên",
+        "btnMoveDown": "Xuống",
+        "sectionRulesTitle": "4. Luồng Quy tắc Tự động hóa (Visual IF / AND / OR → THEN)",
+        "sectionRulesHelp": "Các khối quy tắc chạy tuần tự từ trên xuống dưới như Jira Automation / Scratch để kiểm soát trần hạng, điểm liệt, hạn ngạch Top % và gắn cờ kèm cặp.",
+        "btnAddRule": "+ Thêm khối quy tắc (Rule)",
+        "btnAddPresetRisk": "+ Mẫu: Hạ trần Rủi ro CRITICAL",
+        "btnAddPresetVeto": "+ Mẫu: Điểm liệt nhóm < 50",
+        "btnAddPresetQuota": "+ Mẫu: Cắt hạn ngạch Top 20% Hạng A",
+        "ruleEnabled": "Đang bật",
+        "ruleDisabled": "Tạm tắt",
+        "ruleStopOnMatch": "Dừng xét rule sau nếu khớp",
+        "whenBlock": "KHI (WHEN)",
+        "whenEvaluated": "Hệ thống tính gợi ý xếp hạng cuối kỳ cho nhân viên",
+        "ifBlock": "NẾU (IF)",
+        "matchAll": "Thỏa TẤT CẢ điều kiện (AND)",
+        "matchAny": "Thỏa MỘT TRONG CÁC điều kiện (OR)",
+        "btnAddCondition": "+ Thêm điều kiện",
+        "thenBlock": "THÌ THỰC HIỆN (THEN)",
+        "btnAddAction": "+ Thêm hành động",
+        "btnDeleteRule": "Xóa rule",
+        "placeholderTier": "Chọn hạng",
+        "placeholderValues": "Nhập danh sách cách nhau dấu phẩy (VD: A1, A2, A3)",
+        "placeholderMessage": "Thông điệp giải thích hiển thị cho Trưởng phòng…",
+        "sectionSandboxTitle": "5. Kết quả Chạy thử trực tiếp (Dry-Run Sandbox Preview)",
+        "sandboxEmpty": "Bấm «Chạy thử nghiệm (Sandbox)» để xem trước bảng biến động xếp hạng Trước & Sau khi áp dụng bộ quy tắc đang thiết kế.",
+        "sandboxSyntheticBadge": "Dữ liệu mẫu mô phỏng chuẩn Ngân hàng (Kỳ chưa có điểm thực)",
+        "sandboxRealBadge": "Dữ liệu điểm thực tế từ hệ thống",
+        "sandboxSummaryTotal": "Tổng nhân sự xét hạng",
+        "sandboxSummaryChanged": "Số nhân sự đổi hạng / thứ bậc",
+        "colSimTier": "Hạng",
+        "colSimBefore": "Trước khi sửa",
+        "colSimAfter": "Sau khi áp dụng Rule mới",
+        "colSimEmp": "Nhân viên",
+        "colSimPos": "Vị trí / Phòng",
+        "colSimScore": "Điểm gốc → Xét hạng",
+        "colSimRank": "Thứ hạng",
+        "colSimTierDiff": "Biến động Hạng",
+        "colSimTrace": "Giải thích tự động (Trace)",
+        "metrics": {
+          "TOTAL_SCORE": "Tổng điểm đánh giá (TotalScore)",
+          "EFFECTIVE_SCORE": "Điểm xét hạng sau công thức (EffectiveScore)",
+          "QUANTITATIVE_SCORE": "Điểm định lượng KPI (QuantitativeScore)",
+          "QUALITATIVE_SCORE": "Điểm định tính (QualitativeScore)",
+          "BUSINESS_SCORE": "Điểm nhóm Kinh doanh (BusinessScore)",
+          "SERVICE_QUALITY_SCORE": "Điểm Chất lượng dịch vụ (ServiceQualityScore)",
+          "OPERATIONS_SCORE": "Điểm Vận hành & Tuân thủ (OperationsScore)",
+          "MIN_COMPONENT_SCORE": "Điểm nhóm thấp nhất (Xét điểm liệt)",
+          "SCORE_CHANGE_VS_PREV": "Chênh lệch điểm so với kỳ trước",
+          "OPEN_RISK_EVENTS": "Số sự kiện rủi ro hiệu lực",
+          "MAX_RISK_SEVERITY": "Mức rủi ro cao nhất (0=Không, 1=Low..4=Critical)",
+          "CRITICAL_RISK_COUNT": "Số sự kiện rủi ro CRITICAL",
+          "HIGH_OR_ABOVE_RISK_COUNT": "Số sự kiện rủi ro từ HIGH trở lên",
+          "PERCENTILE_IN_GROUP": "Top % thứ hạng trong đơn vị",
+          "RANK_IN_GROUP": "Thứ hạng tuyệt đối trong đơn vị (#1, #2…)",
+          "GROUP_SIZE": "Tổng quân số đơn vị xét hạng",
+          "CURRENT_TIER": "Hạng đang giữ tạm tính (A1, A2, B…)",
+          "JOB_POSITION_CODE": "Mã vị trí công việc (TELLER, SALES_OFFICER)"
+        },
+        "operators": {
+          "GTE": "≥ (Lớn hơn hoặc bằng)",
+          "GT": "> (Lớn hơn)",
+          "LTE": "≤ (Nhỏ hơn hoặc bằng)",
+          "LT": "< (Nhỏ hơn)",
+          "EQ": "= (Bằng)",
+          "NEQ": "≠ (Khác)",
+          "BETWEEN": "Trong khoảng [A .. B]",
+          "IN": "Thuộc tập giá trị (IN)"
+        },
+        "actions": {
+          "CAP_MAX_TIER": "Khống chế trần hạng tối đa (Cap Max Tier)",
+          "SET_MIN_TIER": "Đảm bảo sàn hạng tối thiểu (Set Min Tier)",
+          "SET_EXACT_TIER": "Gán thẳng vào hạng chỉ định (Set Exact Tier)",
+          "DEMOTE_STEPS": "Hạ xuống N bậc hạng (Demote Steps)",
+          "PROMOTE_STEPS": "Nâng lên N bậc hạng (Promote Steps)",
+          "ENFORCE_GROUP_QUOTA_PERCENT": "Cắt ngọn hạn ngạch Top % đơn vị → đẩy phần dư xuống hạng",
+          "SET_COACHING_FLAG": "Bật cờ yêu cầu Kèm cặp (Coaching Flag)",
+          "SET_WARNING_LABEL": "Gắn nhãn cảnh báo kỷ luật / lưu ý"
+        },
+        "tieBreakers": {
+          "EFFECTIVE_SCORE_DESC": "Điểm xét hạng hiệu lực (Cao → Thấp)",
+          "TOTAL_SCORE_DESC": "Tổng điểm gốc (Cao → Thấp)",
+          "BUSINESS_SCORE_DESC": "Điểm Kinh doanh (Cao → Thấp)",
+          "SERVICE_QUALITY_SCORE_DESC": "Điểm Chất lượng dịch vụ (Cao → Thấp)",
+          "OPERATIONS_SCORE_DESC": "Điểm Vận hành (Cao → Thấp)",
+          "QUALITATIVE_SCORE_DESC": "Điểm Định tính (Cao → Thấp)",
+          "RISK_PENALTY_ASC": "Điểm phạt rủi ro (Ít phạt ưu tiên trước)",
+          "EMPLOYEE_CODE_ASC": "Mã nhân viên (A → Z)"
+        }
       }
     },
     "en": {
@@ -3695,6 +3965,8 @@
         "rolesPermissions": "Roles & Permissions",
         "accessPolicies": "Access Policies",
         "systemConfiguration": "System Configuration",
+        "systemParameters": "System Parameters",
+        "rankingStudio": "Ranking Policy Studio",
         "systemAudit": "System Audit",
         "tasks": "Work Tasks",
         "personalKpis": "Personal KPIs",
@@ -4648,7 +4920,7 @@
         "saving": "Saving…",
         "searchResource": "Search resource",
         "moduleAll": "Module: All",
-        "modulePrefix": "Module: ",
+        "modulePrefix": "Module:",
         "grantedOnly": "Only show granted cells",
         "scopeLegend": "Scope:",
         "resource": "Resource",
@@ -5077,7 +5349,7 @@
         "createUnavailable": "Creating roles is not supported yet",
         "search": "Role code or name",
         "typeAll": "Type: All",
-        "typePrefix": "Type: ",
+        "typePrefix": "Type:",
         "code": "Code",
         "name": "Name",
         "type": "Type",
@@ -5104,7 +5376,7 @@
         "action": "Action",
         "scope": "Scope",
         "noPermissions": "This role has no permissions.",
-        "permissionsNote": "Only granted permissions are shown. Lock icon: fixed by business rule (BR-36: employees only see their own scores).",
+        "permissionsNote": "Only granted permissions are shown. Lock icon: fixed by business rule (employees only see their own scores).",
         "employeeCode": "Employee code",
         "fullName": "Full name",
         "department": "Department",
@@ -5126,7 +5398,7 @@
         "roleAll": "Role",
         "departmentAll": "Department",
         "statusAll": "Status: All",
-        "statusPrefix": "Status: ",
+        "statusPrefix": "Status:",
         "username": "Username",
         "employeeCode": "Emp. code",
         "fullName": "Full name",
@@ -5207,81 +5479,235 @@
         "done": "Done"
       },
       "systemParameters": {
-        "description": "Branch-wide operating parameters. Every change takes effect immediately and is audit logged.",
+        "description": "Branch-wide weights, thresholds, period closing deadlines, and security limits. Persisted in PostgreSQL, synced instantly via Redis, and audit logged.",
         "unsavedTitle": "{count} unsaved changes",
-        "unsavedNote": "Edited fields are marked with a blue dot.",
+        "unsavedNote": "Modified parameters are marked with a blue indicator dot.",
         "loading": "Loading system parameters…",
         "loadFailed": "Unable to load system parameters.",
-        "saveFailed": "Unable to save parameters. Please try again.",
+        "saveFailed": "Unable to save parameters. Please review your inputs and try again.",
         "saving": "Saving…",
-        "saved": "System parameters saved.",
+        "saved": "System parameters saved successfully.",
         "retry": "Retry",
-        "changed": "Edited",
-        "locked": "Fixed by regulation",
+        "changed": "Modified",
+        "locked": "System constant",
+        "searchPlaceholder": "Filter by parameter name or key…",
+        "filterAllGroups": "All groups",
+        "boolOn": "Enabled",
+        "boolOff": "Disabled",
         "invalidRange": "Enter a whole number from {min} to {max}.",
+        "invalidDecimalRange": "Enter a number from {min} to {max} (up to 4 decimals).",
         "invalidPositive": "Enter a whole number greater than 0.",
+        "invalidTime": "Enter a valid time in HH:mm:ss format (00:00:00 – 23:59:59).",
+        "comparisonTitle": "Evaluation Comparison Baseline",
+        "comparisonHelp": "Defines which historical period is used to compute employee and unit score deltas.",
+        "comparisonBaselineLabel": "Comparison method",
+        "comparisonLookbackLabel": "Lookback periods for average (2–12)",
+        "comparisonSave": "Save baseline",
+        "comparisonSaved": "Evaluation comparison baseline updated.",
+        "baselines": {
+          "PREVIOUS_PERIOD": "Immediately preceding period",
+          "SAME_PERIOD_LAST_YEAR": "Same period last year",
+          "AVERAGE_LAST_N": "Average of last N periods"
+        },
         "groups": {
-          "manualApproval": "Manual approval outside Work types",
-          "importData": "Data import",
-          "evaluationAppeal": "Evaluation & Appeals",
-          "handover": "Customer handover"
+          "DEADLINES": "Evaluation Periods, Cutoffs & Deadlines",
+          "APPEALS": "Appeals & Score Disputes",
+          "SCORING_QA": "Scoring Weights, Risk Penalties & QA",
+          "QUOTA_RANKING": "Ranking Quotas & Bell Curve Targets",
+          "IMPORT_HANDOVER": "Data Import, Transactions & Handover",
+          "DASHBOARD_SECURITY": "Performance Alerts & Login Security"
         },
         "units": {
           "hours": "hours",
-          "megabytes": "MB",
+          "minutes": "min",
           "days": "days",
+          "hourOfDay": "hour (0–23h)",
+          "megabytes": "MB",
+          "rows": "rows",
+          "codes": "codes",
+          "files": "files",
+          "chars": "chars",
+          "percent": "%",
+          "points": "pts",
+          "multiplier": "multiplier",
+          "employees": "staff",
+          "periods": "periods",
+          "attempts": "attempts",
+          "perMinute": "req/min",
+          "time": "HH:mm:ss",
           "vnd": "VND"
         },
         "params": {
-          "manualApprovalHours": {
-            "label": "Manual approval deadline",
-            "help": "From 1 to 168 hours"
-          },
-          "importMaxFileMb": {
-            "label": "Maximum file size",
-            "help": "From 1 to 10 MB"
-          },
-          "importFormats": {
-            "label": "Accepted formats",
-            "help": "Fixed by general regulation"
-          },
           "kpiLockTime": {
-            "label": "Monthly KPI lock time",
-            "help": "BR-29 · fixed"
-          },
-          "appealWindowDays": {
-            "label": "Appeal deadline",
-            "help": "After results are published · 1–30 days"
+            "label": "End-of-period KPI lock time",
+            "help": "HH:mm:ss cutoff on period end date"
           },
           "preCloseCheckDays": {
-            "label": "Pre-close check deadline",
-            "help": "Days before the period closing date"
+            "label": "Pre-close reminder window",
+            "help": "Days before period end to trigger readiness review (1–30 days)"
+          },
+          "preCloseDeadlineDays": {
+            "label": "Post-period pre-close grace days",
+            "help": "Days after period end allowed for reconciliation completion (1–60 days)"
+          },
+          "preCloseDeadlineHour": {
+            "label": "Pre-close cutoff hour",
+            "help": "Hour of day for the pre-close deadline (0–23)"
+          },
+          "manualApprovalHours": {
+            "label": "Manual work approval SLA",
+            "help": "Deadline for managers to verify non-WorkType tasks (1–168 hours)"
+          },
+          "workOverdueEnabled": {
+            "label": "Automatic overdue work sweep",
+            "help": "Enable or pause background overdue task transitions"
+          },
+          "workOverdueSweepMinutes": {
+            "label": "Overdue work sweep interval",
+            "help": "Minutes between background overdue checks (1–1440 min)"
+          },
+          "campaignExclusivityDays": {
+            "label": "Campaign lead exclusivity window",
+            "help": "Days a campaign lead stays locked to assignee (1–90 days)"
           },
           "appealRejectedHours": {
-            "label": "Appeal deadline for rejected results",
-            "help": "BR-31 · fixed"
+            "label": "Rejected result appeal window",
+            "help": "Hours allowed to dispute a rejected submission (1–720 hours)"
+          },
+          "appealWindowDays": {
+            "label": "Published period appeal window",
+            "help": "Days open for appeals after period publication (1–30 days)"
+          },
+          "minReasonLength": {
+            "label": "Minimum justification / reversal length",
+            "help": "Minimum characters required for appeal or risk reversal notes (5–200)"
+          },
+          "maxEvidenceFiles": {
+            "label": "Maximum evidence attachments",
+            "help": "Maximum files allowed per appeal submission (1–20 files)"
+          },
+          "qaSampleRatePercent": {
+            "label": "QA random sampling rate",
+            "help": "Percentage of manually approved results sampled for QA (0–100%)"
+          },
+          "riskPenaltyLow": {
+            "label": "Default Low risk penalty",
+            "help": "Points deducted for a Low severity risk event (0–100 pts)"
+          },
+          "riskPenaltyMedium": {
+            "label": "Default Medium risk penalty",
+            "help": "Points deducted for a Medium severity risk event (0–100 pts)"
+          },
+          "riskPenaltyHigh": {
+            "label": "Default High risk penalty",
+            "help": "Points deducted for a High severity risk event (0–100 pts)"
+          },
+          "riskPenaltyCritical": {
+            "label": "Default Critical risk penalty",
+            "help": "Points deducted for a Critical severity risk event (0–100 pts)"
+          },
+          "unitUnderperformanceThresholdPercent": {
+            "label": "Unit minimum achievement threshold",
+            "help": "Unit score threshold before individual penalty applies (0–100%)"
+          },
+          "unitPenaltyMultiplier": {
+            "label": "Underperforming unit score multiplier",
+            "help": "Multiplier applied when unit falls below threshold (0.1–1.0)"
+          },
+          "tierAQuotaPercent": {
+            "label": "Tier A maximum quota (A1/A2/A3)",
+            "help": "Max share of employees allowed in Tier A (1–100%)"
+          },
+          "tierBTargetPercent": {
+            "label": "Bell curve target for Tier B",
+            "help": "Reference distribution target for Tier B (0–100%)"
+          },
+          "tierCTargetPercent": {
+            "label": "Bell curve target for Tier C",
+            "help": "Reference distribution target for Tier C (0–100%)"
+          },
+          "tierDTargetPercent": {
+            "label": "Bell curve target for Tier D",
+            "help": "Reference distribution target for Tier D (0–100%)"
+          },
+          "minDeptSizeForOwnQuota": {
+            "label": "Minimum department size for standalone quota",
+            "help": "Minimum headcount before small-team rule applies (1–50 staff)"
+          },
+          "importMaxFileMb": {
+            "label": "Maximum data import file size",
+            "help": "Upload limit for employee and transaction Excel files (1–50 MB)"
+          },
+          "targetImportMaxFileMb": {
+            "label": "Maximum annual target import file size",
+            "help": "Upload limit for branch annual/quarterly target Excel files (1–50 MB)"
+          },
+          "importMaxRows": {
+            "label": "Maximum rows per import file",
+            "help": "Maximum data rows accepted per Excel upload (100–100,000 rows)"
+          },
+          "maxTransactionsPerWork": {
+            "label": "Maximum transaction codes per work item",
+            "help": "Max Core Banking transaction codes linked to one task (1–50 codes)"
           },
           "handoverThresholdVnd": {
-            "label": "Handover amount threshold",
-            "help": "Transactions at or above this amount are handed from the Teller to the Sales specialist"
+            "label": "Customer handover amount threshold",
+            "help": "Transactions at or above this amount require Teller-to-Sales handover"
+          },
+          "importFormats": {
+            "label": "Accepted import file format",
+            "help": "Fixed by the standard Excel workbook parser"
+          },
+          "perfAttentionDropPoints": {
+            "label": "Score drop alert threshold",
+            "help": "Point decrease vs previous period that flags an employee (0.1–50 pts)"
+          },
+          "perfAttentionLowScore": {
+            "label": "Low total score alert threshold",
+            "help": "Scores below this threshold trigger dashboard attention flags (0–100 pts)"
+          },
+          "perfAttentionTopN": {
+            "label": "Employees shown in Needs Attention card",
+            "help": "Max rows displayed on manager early-warning cards (1–50 staff)"
+          },
+          "perfWeakGroupScore": {
+            "label": "Weak criterion group threshold",
+            "help": "Profile group scores below this level are highlighted (0–100 pts)"
+          },
+          "perfTrendPeriodCount": {
+            "label": "Performance trend period count",
+            "help": "Number of historical periods plotted on trend charts (2–24 periods)"
+          },
+          "authMaxFailedAttempts": {
+            "label": "Maximum failed login attempts",
+            "help": "Consecutive wrong passwords before temporary lockout (3–20 attempts)"
+          },
+          "authLockoutMinutes": {
+            "label": "Account lockout duration",
+            "help": "Minutes an account stays locked after failed attempts (1–1440 min)"
+          },
+          "loginRateLimitPerMinute": {
+            "label": "Login rate limit per IP",
+            "help": "Maximum login requests per minute from a single IP (3–120 req/min)"
           }
         },
-        "confirmTitle": "Confirm saving parameters",
-        "confirmMeta": "SCR-ADM-04 · {count} changes",
+        "confirmTitle": "Confirm System Parameter Changes",
+        "confirmMeta": "{count} modified parameters",
         "colParameter": "Parameter",
-        "colOld": "Old value",
+        "colOld": "Previous value",
         "colNew": "New value",
-        "confirmWarnTitle": "Takes effect immediately after saving",
-        "confirmWarnBody": "Changes apply to all transactions and open periods, and are audit logged with your account.",
+        "confirmWarnTitle": "Applies immediately system-wide",
+        "confirmWarnBody": "Changes are stored in PostgreSQL, broadcast via Redis to all workers, and recorded in the system audit log.",
         "breadcrumb": "Home / System administration / System configuration",
-        "title": "System configuration",
+        "title": "System Configuration & Ranking Policy",
         "auditLogLink": "View audit log",
-        "discard": "Discard changes",
-        "save": "Save",
+        "discard": "Discard",
+        "save": "Save changes",
         "tabsLabel": "System configuration sections",
         "tabNavigation": "Role navigation",
-        "tabParameters": "Operating parameters",
-        "handoverNote": "Whole number greater than 0, in VND"
+        "tabParameters": "Operating parameters & weights",
+        "tabRankingStudio": "Ranking Suggestion Studio (Automation)",
+        "handoverNote": "Positive whole number in VND (thousands separators formatted automatically)."
       },
       "employeeList": {
         "title": "Employees",
@@ -5323,7 +5749,7 @@
         "statusOnLeave": "On leave",
         "accountNone": "None",
         "accountDisabled": "Disabled",
-        "footnote": "\"Missing in file\": absent in the latest import file, not deleted (BR-52). Only \"Terminated\" disables the account.",
+        "footnote": "\"Missing in file\": absent in the latest import file, not deleted. Only \"Terminated\" disables the account.",
         "paginationInfo": "{from}–{to} of {total} employees",
         "sectionInfo": "INFORMATION",
         "labelDepartment": "Department",
@@ -5561,7 +5987,7 @@
         "periodOrder": "Must be ≥ From; do not pick a locked period (MSG27)",
         "moreFields": "Cap (%) · Baseline · Formula · Description",
         "fieldCeiling": "Cap (%)",
-        "ceilingHint": "Sales has no cap (BR-40)",
+        "ceilingHint": "Sales has no cap",
         "fieldBaseline": "Baseline",
         "fieldFormula": "Formula",
         "fieldDescription": "Description",
@@ -6076,7 +6502,7 @@
           "lockModalCancel": "Cancel",
           "lockSuccess": "Evaluation period has been successfully finalized and locked.",
           "lockError": "Failed to lock evaluation period. Please try again.",
-          "lockDisputePending": "Cannot lock period because there are unresolved appeals (BR-31).",
+          "lockDisputePending": "Cannot lock period because there are unresolved appeals.",
           "loading": "Loading evaluation periods...",
           "emptyList": "No evaluation periods match the selected filters.",
           "retry": "Retry",
@@ -6236,8 +6662,8 @@
         "rowAllocated": "Allocated total",
         "rowBranch": "Branch target",
         "rowRemaining": "Remaining",
-        "mismatchPrefix": "Not matched: ",
-        "mismatchSuffix": " (MSG14, BR-24).",
+        "mismatchPrefix": "Not matched:",
+        "mismatchSuffix": ".",
         "mismatchQuarterShort": "Q{quarter} is short by {amount} {unit}",
         "mismatchQuarterExcess": "Q{quarter} is over by {amount} {unit}",
         "mismatchYearShort": "The full year is short by {amount} {unit}",
@@ -6309,8 +6735,8 @@
         "loading": "Loading...",
         "loadError": "The QA queue could not be loaded. Please try again.",
         "retry": "Retry",
-        "sampleNoticeTitle": "Needs team confirmation: 5% sampling (BR-32)",
-        "sampleNoticeText": "After the 23/10 freeze, results with a transaction/CIF code are no longer approved by hand. Keep the \"5% sample\" type only if BR-32 still applies.",
+        "sampleNoticeTitle": "Needs team confirmation: 5% sampling",
+        "sampleNoticeText": "After the 23/10 freeze, results with a transaction/CIF code are no longer approved by hand. Keep the \"5% sample\" type only if random sampling still applies.",
         "breadcrumb": "Navigation",
         "previous": "‹ Previous",
         "next": "Next ›",
@@ -6347,7 +6773,7 @@
         "commentRequired": "A reason of at least 10 characters is required to reject.",
         "severityLabel": "Severity of the quality flag",
         "requestRework": "Send the work back to the employee now",
-        "rejectNoteRework": "Reject: the result is invalidated, its KPI points are taken back and the work reopens for the employee to redo. There is no reversal entry yet (BR-16); a locked period is refused.",
+        "rejectNoteRework": "Reject: the result is invalidated, its KPI points are taken back and the work reopens for the employee to redo. There is no reversal entry yet; a locked period is refused.",
         "rejectNoteFlag": "Reject: the system raises a pending quality flag and keeps the result until you request rework.",
         "dismissNote": "Confirm correct: the quality flag is closed and the result stays as it is.",
         "cancel": "Cancel",
@@ -6619,15 +7045,12 @@
         "needsAction": "Needs action",
         "searchMine": "Appeal code / submission code",
         "searchManager": "Code / employee",
-        "filterType": "Type",
         "filterPeriod": "Period",
         "filterPosition": "Position",
-        "allTypes": "Type ∨",
         "allPeriods": "Period ∨",
         "allPositions": "Position ∨",
         "submitAppeal": "+ Submit appeal",
         "code": "Code",
-        "type": "Type",
         "subject": "Subject",
         "filedAt": "Filed on",
         "handler": "Handler",
@@ -6637,7 +7060,6 @@
         "position": "Position",
         "deadlineLabel": "Due",
         "resultAppeal": "Result appeal",
-        "scoreAppeal": "Score appeal",
         "notAvailable": "N/A",
         "loading": "Loading appeals...",
         "loadError": "The appeal list could not be loaded.",
@@ -6649,7 +7071,6 @@
         "filedOn": "Filed {time} · Handler: {handler}",
         "submission": "Submission",
         "work": "Work",
-        "period": "Evaluation period",
         "reasonTitle": "Reason",
         "evidenceTitle": "Evidence",
         "noEvidence": "No attachments",
@@ -6716,15 +7137,8 @@
         "cifCode": "CIF code",
         "product": "Product",
         "referrer": "Referrer code",
-        "currentScore": "Current score",
         "reconciliation": "Reconciliation",
         "impactTitle": "Impact if accepted",
-        "decisionAdjustScore": "Adjust the score",
-        "decisionAdjustScoreHint": "Add points to the employee's evaluation score",
-        "decisionUphold": "Keep the score",
-        "decisionUpholdHint": "Leave the evaluation score unchanged; the appeal is not accepted",
-        "decisionPoints": "Points to add",
-        "pointsRequired": "The points to add must be greater than 0.",
         "notFound": "The appeal was not found.",
         "status": {
           "OPEN": "Open",
@@ -6739,7 +7153,6 @@
           "notFound": "The appeal was not found.",
           "validation": "The data is not valid. Please check it and try again.",
           "windowExpired": "The window to appeal a rejected result has expired.",
-          "scoreWindowExpired": "The window to appeal an evaluation score has expired.",
           "alreadyOpen": "An appeal is already in progress for this item.",
           "invalidState": "The appeal or the record is no longer in a state that allows this action.",
           "periodLocked": "The evaluation period is locked, so this action is not allowed.",
@@ -6808,7 +7221,7 @@
         "create": "Create WorkType",
         "subtitleCounts": "Standard work type catalog by position · {active} active · {inactive} inactive",
         "tabAll": "All",
-        "statusFilterPrefix": "Status: ",
+        "statusFilterPrefix": "Status:",
         "kpiFilterAll": "KPI item",
         "colPosition": "Position",
         "colCif": "Txn/CIF code",
@@ -6829,11 +7242,11 @@
         "unavailable": "Not available yet",
         "search": "Profile name",
         "positionAll": "Position: All",
-        "positionPrefix": "Position: ",
+        "positionPrefix": "Position:",
         "periodAll": "Period: All",
-        "periodPrefix": "Period: ",
+        "periodPrefix": "Period:",
         "statusAll": "Status: All",
-        "statusPrefix": "Status: ",
+        "statusPrefix": "Status:",
         "clearFilter": "Clear filters",
         "colName": "Profile name",
         "colPosition": "Position",
@@ -7118,6 +7531,133 @@
         "yearAria": "Select evaluation year",
         "quarterAria": "Select evaluation quarter",
         "monthAria": "Select evaluation month"
+      },
+      "rankingStudio": {
+        "breadcrumb": "Home / System administration / Ranking Suggestion Studio",
+        "title": "Ranking Suggestion Automation Studio",
+        "description": "Configure effective score formulas, base tier thresholds, visual IF / AND / OR → THEN automation blocks, and run live Dry-Run Sandbox simulations per quarter.",
+        "loading": "Loading ranking policy studio…",
+        "loadFailed": "Unable to load ranking policy.",
+        "saveSuccess": "Ranking policy saved successfully (Version v{version}).",
+        "saveFailed": "Unable to save ranking policy. Please review formula and rule blocks.",
+        "simulateFailed": "Simulation failed. Please verify formula syntax and rule parameters.",
+        "lockedBanner": "This evaluation period is LOCKED — viewing the immutable policy snapshot captured at lock time (Read-only).",
+        "overrideBadge": "Period-specific override",
+        "defaultBadge": "Branch default policy",
+        "versionBadge": "Version v{version}",
+        "scopeLabel": "Policy target scope",
+        "scopeGlobal": "Branch-wide Default (Applies to all open periods without an override)",
+        "policyNameLabel": "Policy name",
+        "policyDescLabel": "Quarterly policy notes",
+        "btnSimulate": "Run Dry-Run Sandbox",
+        "btnSimulating": "Simulating…",
+        "btnSavePolicy": "Save & Activate Policy",
+        "btnResetDefault": "Restore standard template",
+        "sectionFormulaTitle": "1. Effective Ranking Score Formula",
+        "sectionFormulaHelp": "Write an arithmetic/conditional formula or click tokens below to insert. Evaluated safely via AST without dynamic code execution.",
+        "formulaInsertVar": "Insert variable:",
+        "formulaInsertFn": "Insert function:",
+        "formulaPresetsLabel": "Quick presets:",
+        "presetStandard": "Standard (TotalScore)",
+        "presetUnitPenalty": "Unit < 70 penalty",
+        "presetBalancedCap": "Qualitative ceiling guard",
+        "sectionTiersTitle": "2. Base Ranking Tier Thresholds",
+        "sectionTiersHelp": "Initial tier mapped from the Effective Score before visual automation rules run.",
+        "colTierOrder": "Order",
+        "colTierCode": "Tier code",
+        "colTierMinScore": "Min score (0–100)",
+        "btnAddTier": "+ Add tier",
+        "btnRemoveTier": "Remove",
+        "sectionTieBreakerTitle": "3. Tie-Breaker Priority Order",
+        "sectionTieBreakerHelp": "Evaluated top-to-bottom whenever two employees have identical scores.",
+        "btnMoveUp": "Up",
+        "btnMoveDown": "Down",
+        "sectionRulesTitle": "4. Visual Automation Pipeline (WHEN → IF / AND / OR → THEN)",
+        "sectionRulesHelp": "Rules execute sequentially top-to-bottom like Jira Automation / Scratch to enforce risk caps, minimum component floors, Top % quotas, and coaching flags.",
+        "btnAddRule": "+ Add automation rule",
+        "btnAddPresetRisk": "+ Preset: Cap CRITICAL Risk",
+        "btnAddPresetVeto": "+ Preset: Component < 50 Floor",
+        "btnAddPresetQuota": "+ Preset: Top 20% Tier A Quota",
+        "ruleEnabled": "Enabled",
+        "ruleDisabled": "Disabled",
+        "ruleStopOnMatch": "Stop subsequent rules on match",
+        "whenBlock": "WHEN",
+        "whenEvaluated": "System computes proposed ranking tier for an employee",
+        "ifBlock": "IF",
+        "matchAll": "Match ALL conditions (AND)",
+        "matchAny": "Match ANY condition (OR)",
+        "btnAddCondition": "+ Add condition",
+        "thenBlock": "THEN",
+        "btnAddAction": "+ Add action",
+        "btnDeleteRule": "Delete rule",
+        "placeholderTier": "Select tier",
+        "placeholderValues": "Comma-separated values (e.g. A1, A2, A3)",
+        "placeholderMessage": "Explanation trace shown to managers…",
+        "sectionSandboxTitle": "5. Live Dry-Run Sandbox Preview",
+        "sandboxEmpty": "Click «Run Dry-Run Sandbox» to preview Before vs After tier distribution and per-employee rule traces before saving.",
+        "sandboxSyntheticBadge": "Standard Banking Simulation Cohort (No live scores in period yet)",
+        "sandboxRealBadge": "Live Evaluation Data Cohort",
+        "sandboxSummaryTotal": "Evaluated staff",
+        "sandboxSummaryChanged": "Tier / rank changes",
+        "colSimTier": "Tier",
+        "colSimBefore": "Current policy",
+        "colSimAfter": "Draft policy",
+        "colSimEmp": "Employee",
+        "colSimPos": "Position / Dept",
+        "colSimScore": "Raw → Effective",
+        "colSimRank": "Rank",
+        "colSimTierDiff": "Tier impact",
+        "colSimTrace": "Rule trace explanation",
+        "metrics": {
+          "TOTAL_SCORE": "Total evaluation score (TotalScore)",
+          "EFFECTIVE_SCORE": "Effective formula score (EffectiveScore)",
+          "QUANTITATIVE_SCORE": "Quantitative KPI score (QuantitativeScore)",
+          "QUALITATIVE_SCORE": "Qualitative score (QualitativeScore)",
+          "BUSINESS_SCORE": "Business group score (BusinessScore)",
+          "SERVICE_QUALITY_SCORE": "Service quality score (ServiceQualityScore)",
+          "OPERATIONS_SCORE": "Operations & compliance score (OperationsScore)",
+          "MIN_COMPONENT_SCORE": "Lowest component group score (Veto check)",
+          "SCORE_CHANGE_VS_PREV": "Score delta vs previous period",
+          "OPEN_RISK_EVENTS": "Active risk event count",
+          "MAX_RISK_SEVERITY": "Highest risk severity (0=None, 1=Low..4=Critical)",
+          "CRITICAL_RISK_COUNT": "Critical risk event count",
+          "HIGH_OR_ABOVE_RISK_COUNT": "High or Critical risk event count",
+          "PERCENTILE_IN_GROUP": "Top % rank percentile in unit",
+          "RANK_IN_GROUP": "Rank position in unit (#1, #2…)",
+          "GROUP_SIZE": "Evaluated headcount in unit",
+          "CURRENT_TIER": "Current working tier (A1, A2, B…)",
+          "JOB_POSITION_CODE": "Job position code (TELLER, SALES_OFFICER)"
+        },
+        "operators": {
+          "GTE": "≥ (Greater than or equal)",
+          "GT": "> (Greater than)",
+          "LTE": "≤ (Less than or equal)",
+          "LT": "< (Less than)",
+          "EQ": "= (Equals)",
+          "NEQ": "≠ (Not equal)",
+          "BETWEEN": "Between [A .. B]",
+          "IN": "In list (IN)"
+        },
+        "actions": {
+          "CAP_MAX_TIER": "Cap maximum achievable tier",
+          "SET_MIN_TIER": "Guarantee minimum floor tier",
+          "SET_EXACT_TIER": "Assign exact tier directly",
+          "DEMOTE_STEPS": "Demote by N tier steps",
+          "PROMOTE_STEPS": "Promote by N tier steps",
+          "ENFORCE_GROUP_QUOTA_PERCENT": "Enforce Top % unit quota → demote excess to tier",
+          "SET_COACHING_FLAG": "Set Coaching Required flag",
+          "SET_WARNING_LABEL": "Attach disciplinary / warning badge"
+        },
+        "tieBreakers": {
+          "EFFECTIVE_SCORE_DESC": "Effective score (High → Low)",
+          "TOTAL_SCORE_DESC": "Raw total score (High → Low)",
+          "BUSINESS_SCORE_DESC": "Business score (High → Low)",
+          "SERVICE_QUALITY_SCORE_DESC": "Service quality score (High → Low)",
+          "OPERATIONS_SCORE_DESC": "Operations score (High → Low)",
+          "QUALITATIVE_SCORE_DESC": "Qualitative score (High → Low)",
+          "RISK_PENALTY_ASC": "Risk penalty points (Lowest penalty first)",
+          "EMPLOYEE_CODE_ASC": "Employee code (A → Z)"
+        }
       }
     }
   }

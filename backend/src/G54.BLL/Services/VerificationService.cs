@@ -236,10 +236,6 @@ public sealed partial class VerificationService(
             submission.Work.UpdatedAt = now;
             if (dbDecision == VerificationDecision.Approved)
             {
-                var acceptedAppeals = await db.Appeals
-                    .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
-                    .Select(a => a.Id)
-                    .ToListAsync(cancellationToken);
                 // BR-32: a random 5% of manually approved results is queued for QA re-verification.
                 if (qaSampling?.ShouldSample(submission.Work) == true
                     && !await db.QaSamples.AnyAsync(x => x.ResultSubmissionId == submission.Id, cancellationToken))
@@ -252,11 +248,6 @@ public sealed partial class VerificationService(
                         Status = QaSampleStatus.Pending,
                         SampledAt = now,
                     });
-                }
-
-                foreach (var appealId in acceptedAppeals)
-                {
-                    await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
                 }
             }
             await db.SaveChangesAsync(cancellationToken);

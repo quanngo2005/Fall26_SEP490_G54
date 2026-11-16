@@ -35,16 +35,16 @@ Get department calibration overview for a specific evaluation period and optiona
 - `positionId` (`Guid`, optional): Optional job position filter.
 
 #### Business Rules
-- **BR-20**: Severe disciplinary violation downgrades maximum achievable tier.
-- **BR-34**: Sales Priority for High Performers. Ranking sort:
-  1. `TotalScore` DESC
+- **BR-20 / Dynamic Ranking Policy (GB-910)**: Proposed tier, effective ranking score, coaching/warning flags, quota caps, and tie-breaker ordering are computed by the active `RankingPolicy` (or the frozen `ranking_policy_snapshot_json` on locked periods; see `docs/api/SYSTEM_PARAMETER_CONTRACT.md` §3). Each ranked employee row also exposes `proposedTierExplanation` (`string[] | null`) listing step-by-step trace messages explaining how `proposedTier` was derived.
+- **BR-34**: Default ranking sort (configurable via `tieBreakers` in `RankingPolicy`):
+  1. `EffectiveScore` / `TotalScore` DESC
   2. `BusinessScore` DESC (tie-breaker)
   3. `ServiceQualityScore` DESC
   4. `EmployeeCode` ASC
-- **BR-37**: Department Tier A quota cap (max 20%, minimum 1 for small teams).
+- **BR-37**: Department Tier A quota cap uses live system parameter `tierAQuotaPercent` (default 20%, minimum 1 for small teams; Bell Curve targets read `tierAQuotaPercent`, `tierBTargetPercent`, `tierCTargetPercent`, `tierDTargetPercent`).
 - Bell Curve Gaussian distribution $\mu$ (mean) and $\sigma$ (standard deviation) calculated dynamically from scores.
 - **Scores**: an evaluation that has a stored `totalScore` and is not `DRAFT` shows the stored score in every score column (a stored score is never recalculated). A `DRAFT` evaluation, or an employee without one, is scored by the shared score calculation (the same as `GET /evaluations/form` and `POST /performance-evaluations/{id}/calculate`), with the qualitative scores saved on the evaluation. An employee whose score cannot be determined (no evaluation profile, or a profile without any root group) has `null` scores, `rank`, `proposedTier` and `calibratedTier` (N/A, never a default score): such an employee is listed after the ranked ones, is not ranked, and does not count in `quota` or `bellCurve`. `qualitativeScore` is `null` when the employee has no qualitative group. Calibrating or submitting for an employee who has no evaluation yet creates the evaluation with the score of the shared score calculation and its KPI detail rows (no fixed default score); if the employee's position has no evaluation profile the request is rejected with 400 `VALIDATION_ERROR` before anything is saved.
-- **BR-31**: an evaluation whose status is `DISPUTED` (Disputed_Pending, see `APPEAL_CONTRACT.md` 2.5) is hidden from this
+- **BR-31**: an evaluation whose status is `DISPUTED` (Disputed_Pending, see `APPEAL_CONTRACT.md` 2.6) is hidden from this
   screen: it is not in `rankedRoster`, gets no `rank`, and does not count in `quota` or `bellCurve`. The response adds
   `disputedPendingCount` (int, default 0) so the client can show how many scores are held back.
 

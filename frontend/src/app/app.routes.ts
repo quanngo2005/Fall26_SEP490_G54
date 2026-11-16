@@ -28,6 +28,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'ranking-studio',
+    canActivate: [authGuard, adminGuard],
+    title: 'Thiết kế gợi ý xếp hạng',
+    loadComponent: () =>
+      import('./features/system-parameters/ranking-studio.component').then(
+        (m) => m.RankingStudioComponent,
+      ),
+  },
+  {
     path: 'audit-logs',
     canActivate: [authGuard, adminGuard],
     title: 'Nhật ký audit',
@@ -305,6 +314,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/appeals/department-appeals.component').then(
         (m) => m.DepartmentAppealsComponent,
+      ),
+  },
+  {
+    path: 'appeals/department/detail',
+    canActivate: [authGuard, appealQueueGuard],
+    title: 'Chi tiết khiếu nại',
+    loadComponent: () =>
+      import('./features/appeals/department-appeal-detail.component').then(
+        (m) => m.DepartmentAppealDetailComponent,
       ),
   },
   {

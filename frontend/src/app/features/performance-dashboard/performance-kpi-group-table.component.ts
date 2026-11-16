@@ -16,7 +16,7 @@ export class PerfKpiGroupTableComponent extends LocalizedComponent {
   readonly groups = input.required<DepartmentKpiGroup[]>();
   /** `comparePeriod.name`; null hides the ± column. */
   readonly compareName = input<string | null>(null);
-  /** SCR-PRF-03 shows the campaign part of each actual (BR-26). */
+  /** The branch performance screen shows the campaign part of each actual. */
   readonly showCampaign = input(false);
 
   protected value(value: number | null, unit: string, decimals = 1): string {

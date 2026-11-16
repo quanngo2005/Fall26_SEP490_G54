@@ -129,7 +129,7 @@ describe('SidebarSettingsComponent', () => {
     expect(offered).toEqual([
       '',
       ...TestBed.inject(NavigationService).routeOptions.filter(
-        (route) => route !== '/sidebar-settings',
+        (route) => !TestBed.inject(NavigationService).adminOnlyRoutes.includes(route),
       ),
     ]);
     route.value = '';

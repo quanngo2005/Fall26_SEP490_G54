@@ -1,3 +1,4 @@
+using G54.BLL.Services;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,8 @@ internal static class RankingInputs
                 "Chưa cấu hình xếp loại (ranking_tier_threshold, downgrade). Hãy chạy DbMigrator.");
         }
 
-        return new DowngradeConfiguration(tiers, downgrade.TriggerSeverity, downgrade.CapTierCode);
+        var criteria = await EvaluationSettingsService.LoadCriteriaAsync(db, cancellationToken);
+        return new DowngradeConfiguration(tiers, downgrade.TriggerSeverity, downgrade.CapTierCode, criteria);
     }
 
     /// <summary>Risk events of the given employees that happened inside the period and were not dismissed, grouped by employee.</summary>

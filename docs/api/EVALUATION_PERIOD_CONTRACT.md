@@ -127,6 +127,6 @@ Không có body. Chuyển `OPEN` → `IN_REVIEW` và trả kết quả pre-close
 | Trường | Ý nghĩa |
 |---|---|
 | `pendingInReviewResults` | result submission `SUBMITTED` / `UNDER_REVIEW` nộp trong khoảng ngày của kỳ (UTC+7). Không chặn việc đóng kỳ |
-| `openDisputes` | appeal `OPEN` / `UNDER_REVIEW` gắn với evaluation của kỳ, hoặc với result nộp trong kỳ. Không chặn việc đóng kỳ, nhưng lock vẫn bị chặn bởi BR-31 (409 `EVALUATION_DISPUTE_PENDING`) cho đến khi xử lý hết |
+| `openDisputes` | appeal `OPEN` / `UNDER_REVIEW` gắn với result nộp trong kỳ (theo `submittedAt`). Không chặn việc đóng kỳ, nhưng lock vẫn bị chặn bởi BR-31 (409 `EVALUATION_DISPUTE_PENDING`) cho đến khi xử lý hết |
 
 Lỗi: 404 không có kỳ; 409 `EVALUATION_PERIOD_INVALID_STATE`.

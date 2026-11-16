@@ -313,11 +313,9 @@ describe('MyEvaluationComponent', () => {
     expect(fixture.debugElement.query(By.css('.ack-dialog'))).toBeFalsy();
   });
 
-  it('navigates to appeals when clicking appeal button', () => {
+  it('does not render an appeal button on the personal evaluation page', () => {
     const appealBtn = fixture.debugElement.query(By.css('.appeal-btn'));
-    appealBtn.nativeElement.click();
-
-    expect(router.navigate).toHaveBeenCalledWith(['/appeals/mine']);
+    expect(appealBtn).toBeNull();
   });
 
   it('opens and closes drilldown ledger modal for clickable KPI rows', () => {

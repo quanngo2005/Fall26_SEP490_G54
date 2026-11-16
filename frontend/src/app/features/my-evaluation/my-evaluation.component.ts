@@ -401,10 +401,6 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       });
   }
 
-  openAppeal(): void {
-    void this.router.navigate(['/appeals/mine']);
-  }
-
   openDrilldown(crit: PersonalEvaluationCriteriaItem): void {
     if (!crit.hasDrilldown) {
       return;

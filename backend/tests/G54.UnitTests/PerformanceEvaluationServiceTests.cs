@@ -21,29 +21,16 @@ public sealed class PerformanceEvaluationServiceTests
     // ----- Calculation ----------------------------------------------------------------------
 
     [Fact]
-    public async Task Calculate_PreservesLedgerDeductionsOnEveryRecalculation()
+    public async Task Calculate_GivesTheSameScoreOnEveryRecalculation()
     {
         using var world = await World.CreateAsync();
         world.AddTarget(world.KpiSum, 100m, employeeLevel: false, version: 1);
         world.AddProgress(world.KpiSum, 40m, null, Day10);
-        world.Db.ScoreEntries.Add(new ScoreEntry
-        {
-            Id = Guid.NewGuid(),
-            EvaluationId = world.Evaluation.Id,
-            EmployeeId = world.Employee.Id,
-            RecordedByEmployeeId = world.ManagerAccount.EmployeeId,
-            Points = -5,
-            Kind = ScoreEntryKind.Hold,
-            Source = ScoreEntrySource.System,
-            Reason = "Tạm giữ điểm trong lúc xét khiếu nại",
-            CreatedAt = Now,
-        });
         await world.SaveAsync();
         // SUM (share 50) scores 40; AVG and RATIO have no data and count as 0, so the group is 40 x 50% = 20 and the
-        // weighted score 20 x 70% = 14; the 5 held points leave 9.
-        Assert.Equal(9m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
-        Assert.Equal(9m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
-        Assert.Single(await world.Db.ScoreEntries.ToListAsync());
+        // weighted score 20 x 70% = 14. The score comes only from the actual progress.
+        Assert.Equal(14m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
+        Assert.Equal(14m, (await world.Service().CalculateAsync(world.ManagerAccount.Id, world.Evaluation.Id)).TotalScore);
     }
 
     [Fact]

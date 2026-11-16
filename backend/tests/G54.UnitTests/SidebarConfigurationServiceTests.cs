@@ -137,11 +137,37 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Equal("/work-types", saved.Routes!["workTypes"]);
     }
 
+    [Fact]
+    public async Task TheAdminMenuOffersSystemParametersAndRankingStudioAndAcceptsTheirRoutes()
+    {
+        await using var db = CreateContext();
+        var admin = await AddAccountAsync(db, "ADMIN");
+        var service = new SidebarConfigurationService(db);
+
+        var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
+        Assert.Contains("systemParameters", defaults.ItemIds);
+        Assert.Contains("rankingStudio", defaults.ItemIds);
+
+        var saved = await service.SaveAsync(admin, "admin", new SaveSidebarConfigurationDto
+        {
+            ItemIds = ["overview", "systemConfiguration", "systemParameters", "rankingStudio"],
+            Routes = new()
+            {
+                ["systemParameters"] = "/system-parameters",
+                ["rankingStudio"] = "/ranking-studio",
+            },
+        }, CancellationToken.None);
+        Assert.Equal("/system-parameters", saved.Routes!["systemParameters"]);
+        Assert.Equal("/ranking-studio", saved.Routes!["rankingStudio"]);
+    }
+
     [Theory]
     [InlineData("employee", "myProfile", "https://example.test")]
     [InlineData("employee", "myProfile", "//example.test")]
     [InlineData("employee", "myProfile", "/not-a-page")]
     [InlineData("employee", "myProfile", "/sidebar-settings")]
+    [InlineData("employee", "myProfile", "/system-parameters")]
+    [InlineData("employee", "myProfile", "/ranking-studio")]
     [InlineData("employee", "organization", "/home")]
     [InlineData("employee", "notifications", "/home")]
     [InlineData("admin", "systemConfiguration", "")]

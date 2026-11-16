@@ -1,7 +1,5 @@
-/* Decision Modal Styles */
-/* Inherited by the whole dialog: the body font of the screen */
+/* Decision Modal Styles (DESIGN.md: Manrope titles, Inter body and controls) */
 .modal-backdrop {
-  font-family: Inter, sans-serif;
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
@@ -18,6 +16,16 @@
   max-width: 90vw;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  font-family: Inter, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  color: #0f172a;
+
+  /* Native controls do not inherit the font on their own */
+  button,
+  input,
+  textarea {
+    font-family: inherit;
+  }
 
   .modal-header {
     padding: 14px 20px;
@@ -28,7 +36,9 @@
     h3 {
       margin: 0;
       font:
-        700 16px Manrope,
+        600 16px Manrope,
+        'Segoe UI',
+        Arial,
         sans-serif;
       color: #0f172a;
     }
@@ -46,6 +56,11 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    .field-error {
+      margin: 0;
+      font-size: 12px;
+      color: #dc2626;
+    }
   }
 
   .decision-radios {
@@ -60,7 +75,7 @@
       border: 1px solid #e2e8f0;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 600;
       color: #0f172a;
       &.radio-selected {
@@ -76,77 +91,31 @@
     }
   }
 
-  .adjustment-field .adjustment-select {
-    width: 100%;
-    height: 38px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    background: #fff;
-    padding: 0 12px;
-    font-size: 13px;
-    color: #0f172a;
-    outline: none;
-  }
-
   .note-field {
     display: flex;
     flex-direction: column;
     gap: 5px;
     label {
-      font-size: 12.5px;
+      font-size: 13px;
       font-weight: 600;
       color: #334155;
-      .required {
-        color: #dc2626;
-      }
     }
-    textarea,
-    input {
+    textarea {
       border: 1px solid #cbd5e1;
       border-radius: 6px;
       padding: 8px 12px;
       font-size: 13px;
-      font-family: inherit;
+      color: #0f172a;
       outline: none;
       resize: vertical;
+      &::placeholder {
+        color: #94a3b8;
+      }
       &:focus {
         border-color: #2563eb;
       }
       &.field-invalid {
         border-color: #ef4444;
-      }
-    }
-    .char-counter {
-      align-self: flex-end;
-      font-size: 11.5px;
-      color: #94a3b8;
-    }
-    .field-error {
-      margin: 0;
-      font-size: 12px;
-      color: #dc2626;
-    }
-  }
-
-  .consequence-callout {
-    padding: 10px 14px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 6px;
-    .callout-title {
-      margin: 0 0 4px;
-      font-size: 12px;
-      font-weight: 700;
-      color: #166534;
-    }
-    .callout-list {
-      margin: 0;
-      padding-left: 18px;
-      font-size: 12px;
-      color: #1e293b;
-      line-height: 1.45;
-      li {
-        margin-bottom: 2px;
       }
     }
   }
@@ -162,15 +131,6 @@
     .footer-hint {
       font-size: 12px;
       color: #64748b;
-      kbd {
-        display: inline-block;
-        padding: 1px 5px;
-        font-size: 11px;
-        background: #e2e8f0;
-        border: 1px solid #cbd5e1;
-        border-radius: 3px;
-        font-family: 'JetBrains Mono', monospace;
-      }
     }
     .footer-actions {
       display: flex;
@@ -182,6 +142,8 @@
       border: 1px solid #cbd5e1;
       border-radius: 6px;
       font-size: 13px;
+      font-weight: 500;
+      color: #0f172a;
       cursor: pointer;
     }
     .btn-primary {

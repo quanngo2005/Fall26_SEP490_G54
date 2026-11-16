@@ -44,6 +44,8 @@ export type MenuKey =
   | 'rolesPermissions'
   | 'accessPolicies'
   | 'systemConfiguration'
+  | 'systemParameters'
+  | 'rankingStudio'
   | 'systemAudit'
   | 'tasks'
   | 'personalKpis'
@@ -150,6 +152,8 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'workTypes',
     'kpiDefinitions',
     'systemConfiguration',
+    'systemParameters',
+    'rankingStudio',
     'systemAudit',
     'myProfile',
   ],
@@ -220,6 +224,8 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
+  { id: 'systemParameters', icon: 'sliders', route: '/system-parameters' },
+  { id: 'rankingStudio', icon: 'target', route: '/ranking-studio' },
   { id: 'systemAudit', icon: 'systemAudit', route: '/audit-logs' },
   // Legacy items for backward compat
   { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
@@ -255,6 +261,14 @@ export class NavigationService {
   readonly loadFailed = signal(false);
   readonly catalog = ITEMS;
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
+  readonly adminOnlyRoutes: readonly string[] = [
+    '/sidebar-settings',
+    '/system-parameters',
+    '/ranking-studio',
+    '/roles',
+    '/user-accounts',
+    '/audit-logs',
+  ];
   readonly routeOptions = [
     '/home',
     '/my-work',
@@ -264,6 +278,7 @@ export class NavigationService {
     '/department-performance',
     '/branch-performance',
     '/employee-detail',
+    '/employee-profile',
     '/work-types',
     '/evaluation-profiles',
     '/work-type-detail',
@@ -274,6 +289,7 @@ export class NavigationService {
     '/target-overview',
     '/sidebar-settings',
     '/system-parameters',
+    '/ranking-studio',
     '/roles',
     '/user-accounts',
     '/audit-logs',
@@ -374,7 +390,8 @@ export class NavigationService {
     );
     return this.buildItems(ids, routes).filter(
       (item) =>
-        (item.id !== 'systemConfiguration' || this.isAdmin()) &&
+        (!['systemConfiguration', 'systemParameters', 'rankingStudio'].includes(item.id) ||
+          this.isAdmin()) &&
         (!item.permission || [item.permission].flat().some((code) => permissions.has(code))),
     );
   });

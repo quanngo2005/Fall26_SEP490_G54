@@ -60,6 +60,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<ISystemParameterService, SystemParameterService>();
         services.AddScoped<IEvaluationSettingsService, EvaluationSettingsService>();
+        services.AddScoped<IRankingPolicyService, RankingPolicyService>();
         services.AddSingleton<SystemParameterStore>();
         services.AddHostedService<SystemParameterLoader>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
