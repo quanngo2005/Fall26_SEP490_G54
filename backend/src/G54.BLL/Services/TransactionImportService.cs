@@ -51,6 +51,18 @@ public sealed class TransactionImportService(
             }
             catch (DbUpdateException ex) when (attempt < 2 && PostgresConflict.IsUniqueViolation(ex))
             {
+                // Detach the whole failed graph: removing only the batch leaves its rows tracked as Added, and the
+                // next SaveChanges would insert them again (pointing to a batch that no longer exists).
+                foreach (var transaction in batch.Transactions.ToList())
+                {
+                    uow.ImportedTransactions.Remove(transaction);
+                }
+
+                foreach (var error in batch.Errors.ToList())
+                {
+                    uow.Repository<ImportBatchError>().Remove(error);
+                }
+
                 uow.ImportBatches.Remove(batch);
             }
         }

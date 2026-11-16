@@ -95,14 +95,18 @@ internal static class VerifiedResultRecorder
 
     /// <summary>
     /// Credits every KPI mapped to the work type for one matched imported transaction (docs/api/WORK_TRANSACTION_CONTRACT.md).
-    /// COUNT mappings credit 1, AMOUNT mappings credit the file's amount. Throws before writing anything when a KPI cannot be credited.
+    /// COUNT mappings credit 1, AMOUNT mappings credit the file's amount. With a <paramref name="referral"/> the value is
+    /// split between the referrer and the assignee (the processor). Throws before writing anything when a KPI cannot be
+    /// credited to the assignee; a referrer without an active target for a KPI only loses their share of that KPI.
     /// </summary>
     /// <param name="work">The work, with <c>WorkType.WorkTypeKpis.KpiDefinition</c> loaded.</param>
-    public static async Task RecordImportedAsync(
+    /// <returns><c>false</c> when the referrer's share of at least one KPI was not credited (no active target).</returns>
+    public static async Task<bool> RecordImportedAsync(
         AppDbContext db,
         WorkTransaction workTransaction,
         Work work,
         ImportedTransaction imported,
+        ImportedReferral? referral,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -121,13 +125,8 @@ internal static class VerifiedResultRecorder
             throw new BusinessRuleException(ErrorCodes.MetricTypeMismatch, statusCode: StatusCodes.Status409Conflict);
         }
 
-        var handover = await db.TaskHandovers
-            .AsNoTracking()
-            .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
-            .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
         var lines = new List<ContributionLine>();
+        var referrerCredited = true;
         foreach (var mapping in mappings)
         {
             var aggregation = mapping.KpiDefinition.AggregationType;
@@ -145,17 +144,29 @@ internal static class VerifiedResultRecorder
                 KpiAggregationType.Avg => 1m,
                 _ => null,
             };
-            (Guid EmployeeId, decimal RawValue)[] recipients = handover is null
-                ? [(work.AssigneeEmployeeId, raw)]
-                : SplitHandoverContributions(handover, raw);
-
-            foreach (var (employeeId, rawValue) in recipients)
+            var processorValue = raw;
+            if (referral is not null)
             {
-                var target = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, employeeId, progressDate, cancellationToken)
-                    ?? throw await TargetNotAssignedAsync(db, employeeId, cancellationToken);
-                PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
-                lines.Add(new ContributionLine(target, employeeId, rawValue, denominator, mapping.Multiplier));
+                var (referrerPoints, processorPoints) = ReferralPointSplit.Split(raw, referral.SharePercent);
+                processorValue = processorPoints;
+                var referrerTarget = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, referral.ReferrerEmployeeId, progressDate, cancellationToken);
+                if (referrerTarget is null)
+                {
+                    // The referrer often has no target for the product's KPI (a Teller referring a term deposit): the
+                    // processor keeps their share and the referrer's share is not credited, instead of blocking both.
+                    referrerCredited = false;
+                }
+                else
+                {
+                    PeriodLockGuard.EnsureWritable(referrerTarget.EvaluationPeriod);
+                    lines.Add(new ContributionLine(referrerTarget, referral.ReferrerEmployeeId, referrerPoints, denominator, mapping.Multiplier));
+                }
             }
+
+            var target = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, work.AssigneeEmployeeId, progressDate, cancellationToken)
+                ?? throw await TargetNotAssignedAsync(db, work.AssigneeEmployeeId, cancellationToken);
+            PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
+            lines.Add(new ContributionLine(target, work.AssigneeEmployeeId, processorValue, denominator, mapping.Multiplier));
         }
 
         var verifiedResult = new VerifiedWorkResult
@@ -171,7 +182,10 @@ internal static class VerifiedResultRecorder
         {
             await AddResultItemAsync(db, verifiedResult.Id, line, progressDate, now, cancellationToken);
         }
+
+        return referrerCredited;
     }
+
     /// <summary>
     /// The WorkTypeKpi mapping in effect on <paramref name="date"/>
     /// (<c>EffectiveFrom &lt;= date &amp;&amp; (EffectiveTo == null || EffectiveTo &gt;= date)</c>): a required KPI first,
@@ -333,6 +347,9 @@ internal static class VerifiedResultRecorder
         progress.UpdatedAt = now;
         return progress;
     }
+
+    /// <summary>Who referred the customer of an imported transaction and their share (percent) of every KPI value.</summary>
+    internal sealed record ImportedReferral(Guid ReferrerEmployeeId, decimal SharePercent);
 
     private sealed record ContributionLine(
         TargetAssignment Target,

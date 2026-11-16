@@ -1137,7 +1137,11 @@
           "EMPLOYEE_MISMATCH": "Giao dịch thuộc nhân viên khác.",
           "PRODUCT_MISMATCH": "Sản phẩm của giao dịch không đúng với loại việc.",
           "KPI_TARGET_NOT_ASSIGNED": "Bạn chưa được giao chỉ tiêu KPI nên chưa tính điểm được.",
-          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI này chưa tính điểm tự động được."
+          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI này chưa tính điểm tự động được.",
+          "CUSTOMER_MISMATCH": "Giao dịch thuộc khách hàng khác với khách hàng của công việc.",
+          "TRANSACTION_BEFORE_HANDOVER": "Giao dịch diễn ra trước ngày bàn giao khách hàng.",
+          "REFERRER_MISMATCH": "Người giới thiệu trong Core Banking khác với người bàn giao. Liên hệ quản lý để kiểm tra.",
+          "REFERRER_NOT_CREDITED": "Người giới thiệu chưa có chỉ tiêu cho KPI này nên chưa được cộng phần điểm giới thiệu."
         },
         "appealSent": "Đã gửi khiếu nại."
       },
@@ -7072,7 +7076,11 @@
           "EMPLOYEE_MISMATCH": "The transaction belongs to another employee.",
           "PRODUCT_MISMATCH": "The product of the transaction does not match the work type.",
           "KPI_TARGET_NOT_ASSIGNED": "You have no KPI target yet, so no score can be given.",
-          "KPI_AGGREGATION_NOT_SUPPORTED": "This KPI cannot be scored automatically yet."
+          "KPI_AGGREGATION_NOT_SUPPORTED": "This KPI cannot be scored automatically yet.",
+          "CUSTOMER_MISMATCH": "The transaction belongs to a different customer than the work.",
+          "TRANSACTION_BEFORE_HANDOVER": "The transaction happened before the customer was handed over.",
+          "REFERRER_MISMATCH": "The referrer in Core Banking differs from the handover. Ask your manager to check it.",
+          "REFERRER_NOT_CREDITED": "The referrer has no target for this KPI, so the referral share was not credited."
         },
         "appealSent": "Appeal submitted."
       },
