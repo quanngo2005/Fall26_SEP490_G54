@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -8,13 +9,18 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class WorkTransactionService(AppDbContext db, TimeProvider time) : IWorkTransactionService
+public sealed class WorkTransactionService(
+    AppDbContext db,
+    TimeProvider time,
+    IOptions<SystemParametersOptions>? parameters = null) : IWorkTransactionService
 {
-    private const int MaxCodes = 10;
+    private const int DefaultMaxCodes = 10;
     private const int MaxCodeLength = 100;
+    private int MaxCodes => parameters?.Value.MaxTransactionsPerWork ?? DefaultMaxCodes;
 
     public async Task<WorkTransactionsDto> ListAsync(Guid workId, Guid userId, CancellationToken ct = default)
     {

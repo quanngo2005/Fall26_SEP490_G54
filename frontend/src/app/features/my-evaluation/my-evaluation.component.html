@@ -117,15 +117,6 @@
               </div>
             </div>
 
-            <button
-              type="button"
-              class="btn-secondary appeal-btn"
-              [disabled]="!evalData.canAppeal"
-              (click)="openAppeal()"
-            >
-              {{localization.myEvaluation.appealButton}}
-            </button>
-
             @if (evalData.isAcknowledged) {
               <span class="badge-acknowledged">
                 <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

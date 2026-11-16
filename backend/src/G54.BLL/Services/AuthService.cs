@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Validation;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -18,14 +20,21 @@ public sealed class AuthService(
     JwtTokenProvider tokenProvider,
     IDistributedCache cache,
     IAuthSessionStore sessionStore,
-    IConfiguration configuration) : IAuthService
+    IConfiguration configuration,
+    IOptions<SystemParametersOptions>? parameters = null) : IAuthService
 {
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan DefaultRefreshTokenLifetime = TimeSpan.FromHours(12);
     private static readonly TimeSpan RememberedRefreshTokenLifetime = TimeSpan.FromDays(30);
-    private readonly int _maxFailedAttempts = configuration.GetValue("Authentication:MaxFailedAttempts", 5);
-    private readonly TimeSpan _lockoutDuration = TimeSpan.FromMinutes(
-        configuration.GetValue("Authentication:LockoutMinutes", 15));
+
+    private int MaxFailedAttempts => configuration.GetSection("Authentication:MaxFailedAttempts").Exists()
+        ? configuration.GetValue("Authentication:MaxFailedAttempts", 5)
+        : (parameters?.Value.AuthMaxFailedAttempts ?? 5);
+
+    private TimeSpan LockoutDuration => TimeSpan.FromMinutes(
+        configuration.GetSection("Authentication:LockoutMinutes").Exists()
+            ? configuration.GetValue("Authentication:LockoutMinutes", 15)
+            : (parameters?.Value.AuthLockoutMinutes ?? 15));
 
     public async Task<AuthResult> AuthenticateAsync(
         LoginRequestDto request,
@@ -76,10 +85,10 @@ public sealed class AuthService(
         if (!passwordEncoder.Verify(request.Password, account.PasswordHash))
         {
             account.FailedLoginAttempts++;
-            if (account.FailedLoginAttempts >= _maxFailedAttempts)
+            if (account.FailedLoginAttempts >= MaxFailedAttempts)
             {
                 account.IsLocked = true;
-                account.LockedUntil = now.Add(_lockoutDuration);
+                account.LockedUntil = now.Add(LockoutDuration);
             }
 
             account.UpdatedAt = now;
@@ -263,11 +272,11 @@ public sealed class AuthService(
         if (!passwordEncoder.Verify(request.CurrentPassword, account.PasswordHash))
         {
             account.FailedLoginAttempts++;
-            var locked = account.FailedLoginAttempts >= _maxFailedAttempts;
+            var locked = account.FailedLoginAttempts >= MaxFailedAttempts;
             if (locked)
             {
                 account.IsLocked = true;
-                account.LockedUntil = now.Add(_lockoutDuration);
+                account.LockedUntil = now.Add(LockoutDuration);
             }
 
             account.UpdatedAt = now;

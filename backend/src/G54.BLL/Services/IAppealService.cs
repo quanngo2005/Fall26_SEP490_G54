@@ -6,14 +6,10 @@ namespace G54.BLL.Services;
 /// <summary>Appeals against rejected result submissions. Contract: docs/api/APPEAL_CONTRACT.md.</summary>
 public interface IAppealService
 {
-    Task<ScoreEntryDto> ReviewAppealAsync(Guid appealId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default);
-    Task<ScoreEntryDto> DeductTaskScoreAsync(Guid workId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ScoreEntryDto>> GetScoreEntriesAsync(Guid appealId, Guid userId, CancellationToken cancellationToken = default);
-    Task<AppealDetailDto> DisputeScoreAsync(Guid appealId, Guid userId, ScoreDisputeRequestDto request, CancellationToken cancellationToken = default);
-    Task<AppealScoreSettingDto> GetScoreSettingAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<AppealScoreSettingDto> UpdateScoreSettingAsync(Guid userId, AppealScoreSettingDto request, CancellationToken cancellationToken = default);
-
-    /// <summary>Resolves an appeal; ACCEPT approves the submission, ADJUST requests revision, REJECT keeps it rejected.</summary>
+    /// <summary>
+    /// Resolves an appeal; ACCEPT approves the submission and records its verified result so the KPI actual and the score are
+    /// recalculated, ADJUST requests revision, REJECT keeps it rejected. The score never changes directly.
+    /// </summary>
     Task<AppealDecisionResultDto> DecideAppealAsync(
         Guid appealId,
         Guid userId,
@@ -33,23 +29,6 @@ public interface IAppealService
     /// <exception cref="G54.BLL.Common.Exceptions.BusinessRuleException">The 48-hour window has passed (<c>APPEAL_WINDOW_EXPIRED</c>).</exception>
     Task<AppealDetailDto> CreateAppealAsync(
         Guid submissionId,
-        Guid userId,
-        CreateAppealRequestDto request,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Files an appeal against the caller's own calculated score (<c>CALCULATED</c> or <c>IN_REVIEW</c>, period not locked),
-    /// within the configured hours after the score was calculated. The score becomes <c>DISPUTED</c> until the appeal ends.
-    /// </summary>
-    /// <exception cref="G54.BLL.Common.Exceptions.NotFoundException">No such evaluation.</exception>
-    /// <exception cref="G54.BLL.Common.Exceptions.ForbiddenException">The evaluation belongs to someone else.</exception>
-    /// <exception cref="G54.BLL.Common.Exceptions.ConflictException">
-    /// Period locked (<c>PERIOD_LOCKED</c>), score not appealable or already decided (<c>APPEAL_INVALID_STATE</c>),
-    /// or an appeal is in progress (<c>APPEAL_ALREADY_OPEN</c>).
-    /// </exception>
-    /// <exception cref="G54.BLL.Common.Exceptions.BusinessRuleException">The window has passed (<c>APPEAL_SCORE_WINDOW_EXPIRED</c>).</exception>
-    Task<AppealDetailDto> CreateScoreAppealAsync(
-        Guid evaluationId,
         Guid userId,
         CreateAppealRequestDto request,
         CancellationToken cancellationToken = default);

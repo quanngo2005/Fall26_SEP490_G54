@@ -26,6 +26,7 @@
           {{localization.systemParameters.tabNavigation}}
         </a>
         <a routerLink="/system-parameters">{{localization.systemParameters.tabParameters}}</a>
+        <a routerLink="/ranking-studio">{{localization.systemParameters.tabRankingStudio}}</a>
       </nav>
 
       <div>
@@ -171,7 +172,10 @@
                         >
                           <option value="" [selected]="!routeFor(id)">{{t.noRoute}}</option>
                           @for (route of navigation.routeOptions; track route) {
-                            @if (route !== '/sidebar-settings' || selectedRole() === 'admin') {
+                            @if (
+                              !navigation.adminOnlyRoutes.includes(route) ||
+                              selectedRole() === 'admin'
+                            ) {
                               <option [value]="route" [selected]="routeFor(id) === route">
                                 {{route}}
                               </option>

@@ -402,14 +402,38 @@ public sealed class EvaluationFormTests
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
-        var evaluation = await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        var submittedAt = new DateTimeOffset(2026, 10, 12, 9, 0, 0, TimeSpan.Zero);
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = "W-APPEAL",
+            Title = "Work",
+            AssigneeEmployeeId = s.Staff1.Id,
+            CreatedBy = s.Manager.Id,
+            Status = WorkStatus.Rejected,
+            Priority = WorkPriority.Medium,
+            UpdatedAt = submittedAt,
+        };
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = work.Id,
+            SubmitterEmployeeId = s.Staff1.Id,
+            SubmissionNo = 1,
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = submittedAt,
+            UpdatedAt = submittedAt,
+        };
+        context.Works.Add(work);
+        context.ResultSubmissions.Add(submission);
         foreach (var status in new[] { AppealStatus.Open, AppealStatus.UnderReview, AppealStatus.Withdrawn })
         {
             context.Appeals.Add(new Appeal
             {
                 Id = Guid.NewGuid(),
                 EmployeeId = s.Staff1.Id,
-                PerformanceEvaluationId = evaluation.Id,
+                ResultSubmissionId = submission.Id,
                 Reason = "Disagree",
                 Status = status,
                 FiledAt = DateTimeOffset.UtcNow,
@@ -425,6 +449,63 @@ public sealed class EvaluationFormTests
         Assert.Equal(2, form.OpenAppealCount);
         Assert.True(form.HasOpenDispute);
         Assert.False(form.CanEdit);
+    }
+
+    [Fact]
+    public async Task Form_OpenAppealCount_UsesVietnamBusinessDayBoundsMatchingAppealService()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        // 2026-10-01 00:30 UTC+7 = 2026-09-30 17:30 UTC (inside October in UTC+7, but September in UTC).
+        // 2026-11-01 00:30 UTC+7 = 2026-10-31 17:30 UTC (outside October in UTC+7, but October in UTC).
+        var octStartVn = new DateTimeOffset(2026, 9, 30, 17, 30, 0, TimeSpan.Zero);
+        var novStartVn = new DateTimeOffset(2026, 10, 31, 17, 30, 0, TimeSpan.Zero);
+        var number = 0;
+        foreach (var submittedAt in new[] { octStartVn, novStartVn })
+        {
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = $"W-TZ-{++number}",
+                Title = "Work",
+                AssigneeEmployeeId = s.Staff1.Id,
+                CreatedBy = s.Manager.Id,
+                Status = WorkStatus.Rejected,
+                Priority = WorkPriority.Medium,
+                UpdatedAt = submittedAt,
+            };
+            var submission = new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                SubmitterEmployeeId = s.Staff1.Id,
+                SubmissionNo = 1,
+                Status = SubmissionStatus.Rejected,
+                SubmittedAt = submittedAt,
+                UpdatedAt = submittedAt,
+            };
+            context.Works.Add(work);
+            context.ResultSubmissions.Add(submission);
+            context.Appeals.Add(new Appeal
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.Staff1.Id,
+                ResultSubmissionId = submission.Id,
+                Reason = "Disagree",
+                Status = AppealStatus.Open,
+                FiledAt = submittedAt.AddHours(1),
+                UpdatedAt = submittedAt.AddHours(1),
+            });
+        }
+
+        await context.SaveChangesAsync();
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal(1, form.OpenAppealCount);
+        Assert.True(form.HasOpenDispute);
     }
 
     [Fact]

@@ -1,12 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import {
-  appealCode,
-  appealErrorKey,
-  appealSubject,
-  appealSubjectWithScore,
-  openBlob,
-  typeKey,
-} from './appeal-display';
+import { appealCode, appealErrorKey, appealSubject, openBlob } from './appeal-display';
 
 const failure = (status: number, errorCode?: string) =>
   new HttpErrorResponse({ status, error: errorCode ? { errorCode } : null });
@@ -14,7 +7,6 @@ const failure = (status: number, errorCode?: string) =>
 describe('appeal display helpers', () => {
   const cases: [string, string][] = [
     ['APPEAL_WINDOW_EXPIRED', 'appeals.errors.windowExpired'],
-    ['APPEAL_SCORE_WINDOW_EXPIRED', 'appeals.errors.scoreWindowExpired'],
     ['APPEAL_ALREADY_OPEN', 'appeals.errors.alreadyOpen'],
     ['APPEAL_INVALID_STATE', 'appeals.errors.invalidState'],
     ['PERIOD_LOCKED', 'appeals.errors.periodLocked'],
@@ -39,54 +31,8 @@ describe('appeal display helpers', () => {
     expect(appealCode('3f2a9c10-1111-2222-3333-444455556666')).toBe('3F2A9C10');
   });
 
-  it('describes the subject of each kind of appeal and never invents one', () => {
-    expect(
-      appealSubject({ type: 'RESULT', workCode: 'WRK-1', submissionNo: 2, periodCode: null }),
-    ).toBe('WRK-1 · v2');
-    expect(
-      appealSubject({ type: 'RESULT', workCode: 'WRK-1', submissionNo: null, periodCode: null }),
-    ).toBe('WRK-1');
-    expect(
-      appealSubject({ type: 'RESULT', workCode: null, submissionNo: null, periodCode: null }),
-    ).toBeNull();
-    expect(
-      appealSubject({ type: 'SCORE', workCode: null, submissionNo: null, periodCode: '2026-Q2' }),
-    ).toBe('2026-Q2');
-    expect(
-      appealSubject({ type: 'SCORE', workCode: null, submissionNo: null, periodCode: null }),
-    ).toBeNull();
-  });
-
-  it('adds the formatted score to a score appeal only when the score is known', () => {
-    const format = (score: number) => `<${score}>`;
-    const score = (evaluationScore: number | null, periodCode: string | null = '2026-Q2') => ({
-      type: 'SCORE' as const,
-      workCode: null,
-      submissionNo: null,
-      periodCode,
-      evaluationScore,
-    });
-    expect(appealSubjectWithScore(score(87.2), format)).toBe('2026-Q2 · <87.2>');
-    expect(appealSubjectWithScore(score(0), format)).toBe('2026-Q2 · <0>');
-    expect(appealSubjectWithScore(score(null), format)).toBe('2026-Q2');
-    expect(appealSubjectWithScore(score(87.2, null), format)).toBeNull();
-    expect(
-      appealSubjectWithScore(
-        {
-          type: 'RESULT',
-          workCode: 'WRK-1',
-          submissionNo: 2,
-          periodCode: null,
-          evaluationScore: 5,
-        },
-        format,
-      ),
-    ).toBe('WRK-1 · v2');
-  });
-
-  it('picks the label key of a kind', () => {
-    expect(typeKey('SCORE')).toBe('scoreAppeal');
-    expect(typeKey('RESULT')).toBe('resultAppeal');
+  it('describes the subject as the work code and the submission number', () => {
+    expect(appealSubject({ workCode: 'WRK-1', submissionNo: 2 })).toBe('WRK-1 \u00B7 v2');
   });
 
   it('opens a blob in a new tab without an opener and releases the URL later', () => {

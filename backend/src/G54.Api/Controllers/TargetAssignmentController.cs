@@ -6,6 +6,7 @@ using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Dtos.TargetImport;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace G54.Api.Controllers;
 
@@ -15,11 +16,12 @@ namespace G54.Api.Controllers;
 public sealed class TargetAssignmentController(
     ITargetAllocationService service,
     ITargetImportService importService,
-    ITargetSetupService setupService) : ControllerBase
+    ITargetSetupService setupService,
+    IOptions<SystemParametersOptions>? parameters = null) : ControllerBase
 {
-    // G4: 10 MB for the year-target import only; the generic data-import default (SystemParameters:ImportMaxFileMb) is unaffected.
-    private const int MaxFileMb = 10;
+    private const int HardRequestLimitMb = 50;
     private const string XlsxExtension = ".xlsx";
+    private int MaxFileMb => Math.Max(1, parameters?.Value.TargetImportMaxFileMb ?? 10);
 
     [HttpGet("import/template")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -31,7 +33,7 @@ public sealed class TargetAssignmentController(
 
     [HttpPost("import/preview")]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(MaxFileMb * 1024 * 1024)]
+    [RequestSizeLimit(HardRequestLimitMb * 1024 * 1024)]
     [ProducesResponseType<ApiResponse<TargetImportPreviewDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<TargetImportPreviewDto>>> PreviewImport(
@@ -52,7 +54,7 @@ public sealed class TargetAssignmentController(
 
     [HttpPost("import/commit")]
     [Consumes("multipart/form-data")]
-    [RequestSizeLimit(MaxFileMb * 1024 * 1024)]
+    [RequestSizeLimit(HardRequestLimitMb * 1024 * 1024)]
     [ProducesResponseType<ApiResponse<TargetImportCommitResultDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
@@ -196,8 +198,8 @@ public sealed class TargetAssignmentController(
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
-    private static async Task<bool> IsAcceptedFileAsync(IFormFile? file) =>
-        file is not null && file.Length > 0 && file.Length <= MaxFileMb * 1024 * 1024 && await IsValidXlsxAsync(file);
+    private async Task<bool> IsAcceptedFileAsync(IFormFile? file) =>
+        file is not null && file.Length > 0 && file.Length <= (long)MaxFileMb * 1024 * 1024 && await IsValidXlsxAsync(file);
 
     private BadRequestObjectResult InvalidFile() => BadRequest(ApiResponse.Fail(
         ErrorCodes.ValidationError,

@@ -206,22 +206,51 @@ public sealed class EvaluationAcknowledgeTests : IDisposable
         Assert.DoesNotContain("ACKNOWLEDGED_AT", (await _db.PerformanceEvaluations.SingleAsync()).Comment, StringComparison.Ordinal);
     }
 
+    private void AddAppeal(Employee employee, AppealStatus status)
+    {
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            AssigneeEmployeeId = employee.Id,
+            CreatedBy = employee.Id,
+            Code = $"W-{Guid.NewGuid():N}"[..8],
+            Title = "Work",
+            Status = WorkStatus.Rejected,
+            UpdatedAt = Now,
+        };
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = work.Id,
+            Work = work,
+            SubmitterEmployeeId = employee.Id,
+            SubmissionNo = 1,
+            SubmittedAt = Now,
+            Status = SubmissionStatus.Rejected,
+            UpdatedAt = Now,
+        };
+        _db.Works.Add(work);
+        _db.ResultSubmissions.Add(submission);
+        _db.Appeals.Add(new Appeal
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = employee.Id,
+            ResultSubmissionId = submission.Id,
+            ResultSubmission = submission,
+            Status = status,
+            Reason = "Dispute the rejected submission",
+            FiledAt = Now,
+            UpdatedAt = Now,
+        });
+    }
+
     [Theory]
     [InlineData(AppealStatus.Open)]
     [InlineData(AppealStatus.UnderReview)]
     public async Task Acknowledge_WithAnAppealInProgress_Returns409DisputePending(AppealStatus status)
     {
-        var evaluation = AddEvaluation(_employee, PerformanceEvaluationStatus.Calculated);
-        _db.Appeals.Add(new Appeal
-        {
-            Id = Guid.NewGuid(),
-            EmployeeId = _employee.Id,
-            PerformanceEvaluationId = evaluation.Id,
-            Status = status,
-            Reason = "Dispute the score",
-            FiledAt = Now,
-            UpdatedAt = Now,
-        });
+        AddEvaluation(_employee, PerformanceEvaluationStatus.Calculated);
+        AddAppeal(_employee, status);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => AcknowledgeAsync(_employee));
@@ -235,17 +264,8 @@ public sealed class EvaluationAcknowledgeTests : IDisposable
     [InlineData(AppealStatus.Withdrawn)]
     public async Task Acknowledge_AfterTheAppealIsClosed_IsAllowed(AppealStatus status)
     {
-        var evaluation = AddEvaluation(_employee, PerformanceEvaluationStatus.Calculated);
-        _db.Appeals.Add(new Appeal
-        {
-            Id = Guid.NewGuid(),
-            EmployeeId = _employee.Id,
-            PerformanceEvaluationId = evaluation.Id,
-            Status = status,
-            Reason = "Dispute the score",
-            FiledAt = Now,
-            UpdatedAt = Now,
-        });
+        AddEvaluation(_employee, PerformanceEvaluationStatus.Calculated);
+        AddAppeal(_employee, status);
         await _db.SaveChangesAsync();
 
         var result = await AcknowledgeAsync(_employee);

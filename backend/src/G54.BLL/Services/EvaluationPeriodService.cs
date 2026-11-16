@@ -198,8 +198,7 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
             .CountAsync(cancellationToken);
         var openDisputes = await db.Appeals.CountAsync(
             a => (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
-                && ((a.PerformanceEvaluation != null && a.PerformanceEvaluation.EvaluationPeriodId == periodId)
-                    || (a.ResultSubmissionId != null && submissionsInPeriod.Contains(a.ResultSubmissionId.Value))),
+                && submissionsInPeriod.Contains(a.ResultSubmissionId),
             cancellationToken);
 
         period.Status = PeriodStatus.InReview;

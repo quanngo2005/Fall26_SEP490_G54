@@ -16,6 +16,9 @@ public sealed class SystemParametersControllerTests
     [InlineData(nameof(SystemParametersController.UpdateEvaluationComparison), "update")]
     [InlineData(nameof(SystemParametersController.GetTierCriteria), "view")]
     [InlineData(nameof(SystemParametersController.UpdateTierCriteria), "update")]
+    [InlineData(nameof(SystemParametersController.GetRankingPolicy), "view")]
+    [InlineData(nameof(SystemParametersController.UpdateRankingPolicy), "update")]
+    [InlineData(nameof(SystemParametersController.SimulateRankingPolicy), "view")]
     public void GB878_10_EveryActionRequiresTheMatchingSystemParameterPermission(string action, string permissionAction)
     {
         var type = typeof(SystemParametersController);
