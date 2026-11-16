@@ -89,6 +89,11 @@ internal static class VerifiedResultRecorder
             }
         }
 
+        if (lines.Count > 0)
+        {
+            await PeriodLockGuard.EnsureDateWritableAsync(db, progressDate, cancellationToken);
+        }
+
         var verifiedResult = new VerifiedWorkResult
         {
             Id = Guid.NewGuid(),
@@ -179,6 +184,11 @@ internal static class VerifiedResultRecorder
                 ?? throw await TargetNotAssignedAsync(db, work.AssigneeEmployeeId, cancellationToken);
             PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
             lines.Add(new ContributionLine(target, work.AssigneeEmployeeId, processorValue, denominator, mapping.Multiplier));
+        }
+
+        if (lines.Count > 0)
+        {
+            await PeriodLockGuard.EnsureDateWritableAsync(db, progressDate, cancellationToken);
         }
 
         var verifiedResult = new VerifiedWorkResult

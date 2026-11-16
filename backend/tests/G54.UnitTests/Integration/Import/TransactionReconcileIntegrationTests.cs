@@ -288,20 +288,30 @@ public sealed class TransactionReconcileIntegrationTests(ImportApiFixture api) :
         Assert.Equal(0.7m, await ProgressAsync(s.AssigneeTargetId));
     }
 
-    // C9: documents an open decision (BR-29). Today a locked quarter or year does not block crediting an open month.
-    [ImportIntegrationFact(Skip = "BR-29: not decided whether a locked quarter/year must block crediting an open month (see IMPORT_INTEGRATION_TEST_PLAN.md)")]
-    public async Task C9_LockedQuarterOrYear_ShouldKeepTheCodeInReview()
+    // C9 (BR-29): an open month under a locked quarter or year takes no new KPI data, like the import; the code stays
+    // IN_REVIEW and is credited by a later import once the period is reopened.
+    [ImportIntegrationTheory]
+    [InlineData(PeriodType.Quarter)]
+    [InlineData(PeriodType.Year)]
+    public async Task C9_LockedQuarterOrYear_KeepsTheCodeInReviewUntilReopened(PeriodType lockedType)
     {
         var s = await ArrangeAsync();
         var code = NewCode();
         api.AssertStatus(await ImportAsync(Tx(code, s.Date, Assignee, s.Product, 1m)), HttpStatusCode.Created);
-        var yearId = await api.QueryAsync(db => db.EvaluationPeriods
-            .Where(p => p.PeriodType == PeriodType.Year && p.StartDate == new DateOnly(s.Year, 1, 1)).Select(p => p.Id).SingleAsync());
-        await api.SetPeriodStatusAsync(yearId, PeriodStatus.Locked);
+        var lockedId = await api.QueryAsync(db => db.EvaluationPeriods
+            .Where(p => p.PeriodType == lockedType && p.StartDate == new DateOnly(s.Year, 1, 1)).Select(p => p.Id).SingleAsync());
+        await api.SetPeriodStatusAsync(lockedId, PeriodStatus.Locked);
 
-        var added = await AddCodesAsync(s, code);
+        var item = SingleItem(await AddCodesAsync(s, code));
 
-        Assert.Equal("IN_REVIEW", Assert.Single(added.Data.GetProperty("items").EnumerateArray()).GetProperty("status").GetString());
+        Assert.Equal("IN_REVIEW", item.GetProperty("status").GetString());
+        Assert.Equal("PERIOD_LOCKED", item.GetProperty("reason").GetString());
+        Assert.Equal(0m, await ProgressAsync(s.AssigneeTargetId));
+
+        await api.SetPeriodStatusAsync(lockedId, PeriodStatus.Open);
+        api.AssertStatus(await ImportAsync(Tx(NewCode(), "05/10/2026", "NV001", "DEPOSIT", 1m)), HttpStatusCode.Created);
+        Assert.Equal(WorkTransactionStatus.Matched, Assert.Single(await CodesAsync(s)).Status);
+        Assert.Equal(1m, await ProgressAsync(s.AssigneeTargetId));
     }
 
     private static JsonElement SingleItem(ApiResult added) => Assert.Single(added.Data.GetProperty("items").EnumerateArray());
