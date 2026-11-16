@@ -24,12 +24,12 @@ ImportPreviewDto {
   "summary": { "totalRows": 21, "valid": 17, "invalid": 4, "create": 17, "update": 0 },
   "rows": [ImportPreviewRowDto...]
 }
-ImportPreviewRowDto { "rowNumber": 19, "action": "INVALID", "data": { "Email*": "long.mt", ... }, "errors": [{ "column": "Email*", "code": "DATA_IMPORT_INVALID_VALUE", "message": "..." }] }
+ImportPreviewRowDto { "rowNumber": 19, "action": "INVALID", "data": { "Email*": "nv007.example.test", ... }, "errors": [{ "column": "Email*", "code": "DATA_IMPORT_INVALID_VALUE", "message": "..." }] }
 ImportCommitResultDto {
   "created": 17,
   "updated": 0,
   "skipped": 4,
-  "newAccounts": [{ "employeeCode": "NV001", "username": "an.nv@bank.vn", "temporaryPassword": "..." }],
+  "newAccounts": [{ "employeeCode": "NV001", "username": "nv001@example.test", "temporaryPassword": "..." }],
   "errors": [{ "rowNumber": 19, "errors": [{ "column": "Email*", "code": "DATA_IMPORT_INVALID_VALUE", "message": "..." }] }]
 }
 ```
@@ -92,7 +92,10 @@ A concurrent unique-index collision rolls the whole transaction back and returns
 
 ## Sample workbook (`02_Nhan_su_To_chuc.xlsx`)
 
-Branch `HN01`; departments `PGD-HK`, `PGD-BD`, `BGD`, `KSNB`, `HCNS`; 21 data rows (17 valid, 4 invalid on rows 19, 20, 21, 22): row 19 (`NV007`) has invalid email `long.mt`, row 20 (`NV008`) has blank name/email and unknown position `CREDIT_OFFICER`, row 21 repeats row 9's `NV005` (row 9 stays valid), row 22 (`NV019`) has unknown manager `NV099`.
+The business sample is confidential: it is not committed and its content is not copied into code or docs. Tests use a
+synthetic workbook with the same layout (`EmployeeOrgSampleWorkbook`): 21 data rows, 17 valid and 4 invalid on rows 19
+(bad email), 20 (blank name/email, unknown position `CREDIT_OFFICER`), 21 (repeats row 9's employee code; row 9 stays
+valid) and 22 (unknown manager).
 
 ## Sequence
 

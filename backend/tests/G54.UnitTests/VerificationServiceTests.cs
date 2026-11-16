@@ -835,8 +835,31 @@ public sealed class VerificationServiceTests
         }
     }
 
+    [Fact]
+    public async Task SubmitDecisionAsync_WhenOnlyTheReferrerHasNoActiveTarget_CreditsTheProcessorShareOnly()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (_, _, maker, _, checkerAccount, work, submission) = await SeedBasicSubmissionAsync(context);
+            var processor = NewEmployee(context, maker, "EMP-CO1");
+            await context.SaveChangesAsync();
+            await SeedKpiWorldAsync(context, work, maker, processor, referrerHasTarget: false, processorHasTarget: true);
+            context.TaskHandovers.Add(NewHandover(
+                work, maker, processor, HandoverStatus.Accepted, DateTimeOffset.UtcNow.AddHours(-3), DateTimeOffset.UtcNow.AddHours(-2)));
+            await context.SaveChangesAsync();
+
+            await service.SubmitDecisionAsync(submission.Id, checkerAccount.Id, Approve(50m));
+
+            var item = Assert.Single(await context.WorkResultItems.ToListAsync());
+            Assert.Equal(processor.Id, item.EmployeeId);
+            Assert.Equal(35m, item.Value);
+            Assert.Equal(SubmissionStatus.Approved, (await context.ResultSubmissions.SingleAsync()).Status);
+        }
+    }
+
+    // The processor's target is required; a referrer without one only loses their share (see the test above).
     [Theory]
-    [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(false, false)]
     public async Task SubmitDecisionAsync_WhenAHandoverRecipientHasNoActiveTarget_ThrowsConflictAndWritesNothing(
