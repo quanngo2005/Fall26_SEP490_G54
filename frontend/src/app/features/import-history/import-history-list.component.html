@@ -4,59 +4,69 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content" [attr.aria-busy]="loading()">
-      <div class="list-toolbar">
-        <h1>{{t.title}}</h1>
-      </div>
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{t.title}}</h1>
+          </div>
+        </div>
+        <div class="ui-page-actions">
+          <button type="button" class="button button-primary" disabled [title]="t.importComingSoon">
+            + {{t.importNew}}
+          </button>
+        </div>
+      </header>
 
-      <div class="list-filters">
-        <input
-          type="search"
-          class="input search-input"
-          disabled
-          [placeholder]="t.searchPlaceholder"
-          [attr.aria-label]="t.searchPlaceholder"
+      <div class="ui-filter-bar">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="search"
+            class="input"
+            disabled
+            [placeholder]="t.searchPlaceholder"
+            [attr.aria-label]="t.searchPlaceholder"
+            [title]="t.filterComingSoon"
+          />
+        </div>
+        <app-ui-select
+          [options]="noOptions"
+          [value]="''"
+          [disabled]="true"
+          [placeholder]="t.fileType"
+          [ariaLabel]="t.fileType"
           [title]="t.filterComingSoon"
         />
-        <select
-          class="select filter-select"
-          disabled
-          [attr.aria-label]="t.fileType"
+        <app-ui-select
+          [options]="noOptions"
+          [value]="''"
+          [disabled]="true"
+          [placeholder]="t.period"
+          [ariaLabel]="t.period"
           [title]="t.filterComingSoon"
-        >
-          <option value="">{{t.fileType}}</option>
-        </select>
-        <select
-          class="select filter-select"
-          disabled
-          [attr.aria-label]="t.period"
-          [title]="t.filterComingSoon"
-        >
-          <option value="">{{t.period}}</option>
-        </select>
+        />
         <input
           type="text"
-          class="input filter-select"
+          class="input date-input"
           disabled
           [placeholder]="t.dateRange"
           [attr.aria-label]="t.dateRange"
           [title]="t.filterComingSoon"
         />
-        <select
-          class="select filter-select"
-          disabled
-          [attr.aria-label]="t.status"
+        <app-ui-select
+          [options]="noOptions"
+          [value]="''"
+          [disabled]="true"
+          [placeholder]="t.status"
+          [ariaLabel]="t.status"
           [title]="t.filterComingSoon"
-        >
-          <option value="">{{t.status}}</option>
-        </select>
-        <span class="spacer"></span>
-        <button type="button" class="button button-primary" disabled [title]="t.importComingSoon">
-          + {{t.importNew}}
-        </button>
+        />
       </div>
 
       @if (loading()) {
-        <div class="state-card"><span class="spinner" aria-hidden="true"></span></div>
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+        </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
           <p>{{t.loadError}}</p>
@@ -65,65 +75,65 @@
           </button>
         </div>
       } @else {
-        <div class="surface-card table-card">
-          <table class="import-table">
-            <thead>
-              <tr>
-                <th>{{t.colBatchCode}}</th>
-                <th>{{t.colFileType}}</th>
-                <th>{{t.colFileName}}</th>
-                <th>{{t.colPeriod}}</th>
-                <th>{{t.colTime}}</th>
-                <th class="right">{{t.colTotal}}</th>
-                <th class="right">{{t.colSuccess}}</th>
-                <th class="right">{{t.colErrors}}</th>
-                <th>{{t.colStatus}}</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (batch of items(); track batch.id) {
-                <tr [class.is-selected]="batch.id === selectedId()" (click)="selectRow(batch)">
-                  <td class="mono">{{batchCode(batch)}}</td>
-                  <td>{{t.fileTypeTransaction}}</td>
-                  <td>{{batch.fileName}}</td>
-                  <td>—</td>
-                  <td class="mono">{{batch.importedAt | appDate: dateTime}}</td>
-                  <td class="right">{{batch.totalRows}}</td>
-                  <td class="right">{{batch.importedRows}}</td>
-                  <td class="right" [class.error-count]="batch.errorRows > 0">
-                    {{batch.errorRows}}
-                  </td>
-                  <td>
-                    <span class="badge" [class]="'badge ' + statusClass(batch.status)">
-                      {{statusLabel(batch.status)}}
-                    </span>
-                  </td>
-                </tr>
-              } @empty {
+        <div class="ui-table-card">
+          <div class="ui-table-wrap is-sticky">
+            <table class="ui-table import-table">
+              <thead>
                 <tr>
-                  <td colspan="9" class="empty">{{t.empty}}</td>
+                  <th scope="col">{{t.colBatchCode}}</th>
+                  <th scope="col">{{t.colFileType}}</th>
+                  <th scope="col">{{t.colFileName}}</th>
+                  <th scope="col">{{t.colPeriod}}</th>
+                  <th scope="col">{{t.colTime}}</th>
+                  <th scope="col" class="col-num">{{t.colTotal}}</th>
+                  <th scope="col" class="col-num">{{t.colSuccess}}</th>
+                  <th scope="col" class="col-num">{{t.colErrors}}</th>
+                  <th scope="col">{{t.colStatus}}</th>
                 </tr>
-              }
-            </tbody>
-          </table>
-          <div class="table-footer">
-            <span>{{range()}}</span>
-            <nav class="pager-pages" [attr.aria-label]="t.pagination">
-              @for (number of pages(); track number) {
-                <button
-                  type="button"
-                  class="page-button"
-                  [class.is-on]="number === page()"
-                  [attr.aria-current]="number === page() ? 'page' : null"
-                  (click)="goTo(number)"
-                >
-                  {{number}}
-                </button>
-              }
-            </nav>
+              </thead>
+              <tbody>
+                @for (batch of items(); track batch.id) {
+                  <tr
+                    [class.is-selected]="batch.id === selectedId()"
+                    [attr.aria-selected]="batch.id === selectedId()"
+                    (click)="selectRow(batch)"
+                  >
+                    <td class="col-mono">{{batchCode(batch)}}</td>
+                    <td>{{t.fileTypeTransaction}}</td>
+                    <td class="col-primary">{{batch.fileName}}</td>
+                    <td>—</td>
+                    <td class="col-mono">{{batch.importedAt | appDate: dateTime}}</td>
+                    <td class="col-num">{{batch.totalRows}}</td>
+                    <td class="col-num">{{batch.importedRows}}</td>
+                    <td class="col-num" [class.error-count]="batch.errorRows > 0">
+                      {{batch.errorRows}}
+                    </td>
+                    <td>
+                      <app-status-badge [tone]="statusTone(batch.status)">
+                        {{statusLabel(batch.status)}}
+                      </app-status-badge>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="9" class="ui-empty-cell empty">{{t.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
+
+          <app-table-pagination
+            [page]="page()"
+            [pageSize]="pageSize()"
+            [totalCount]="totalCount()"
+            [rangeTemplate]="t.range"
+            [ariaLabel]="t.pagination"
+            [disabled]="loading()"
+            (pageChange)="goTo($event)"
+          />
         </div>
-        <p class="footnote">{{t.footnote}}</p>
+        <p class="ui-table-footnote">{{t.footnote}}</p>
       }
     </main>
   </div>

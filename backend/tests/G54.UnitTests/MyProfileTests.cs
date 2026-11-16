@@ -361,6 +361,20 @@ public sealed class ChangePasswordTests : IDisposable
     }
 
     [Fact]
+    public async Task Success_ClearsTheMustChangePasswordFlagSoTheNewSessionIsNotForcedAgain()
+    {
+        var (account, refresh) = await SeedAsync();
+        var tracked = await _db.Accounts.SingleAsync(a => a.Id == account.Id);
+        tracked.MustChangePassword = true;
+        await _db.SaveChangesAsync();
+
+        var response = await Service().ChangePasswordAsync(account.Id, Request(refresh), null, CancellationToken.None);
+
+        Assert.False(response.User.MustChangePassword);
+        Assert.False((await Reload(account.Id)).MustChangePassword);
+    }
+
+    [Fact]
     public async Task Success_KeepsTheRememberMeChoiceAndNeverExtendsTheSession()
     {
         var (account, refresh) = await SeedAsync(rememberMe: true, refreshLifetime: TimeSpan.FromDays(10));

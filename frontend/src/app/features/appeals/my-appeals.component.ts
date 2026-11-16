@@ -1,4 +1,3 @@
-import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -10,7 +9,14 @@ import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppDatePipe } from '../../shared/pipes';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import {
   appealCode,
   appealErrorKey,
@@ -30,22 +36,33 @@ const TAB_STATUSES: Readonly<Record<MineTab, readonly AppealStatus[]>> = {
   RESOLVED: RESOLVED_STATUSES,
 };
 
+const STATUS_TONE: Readonly<Record<AppealStatus, StatusBadgeTone>> = {
+  OPEN: 'warning',
+  UNDER_REVIEW: 'info',
+  ACCEPTED: 'success',
+  REJECTED: 'danger',
+  WITHDRAWN: 'neutral',
+};
+
 @Component({
   selector: 'app-my-appeals',
   imports: [
     FormsModule,
     SidebarComponent,
     HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     MyAppealDrawerComponent,
     AppealSubmitModalComponent,
     AppDatePipe,
-    UpperCasePipe,
   ],
   templateUrl: './my-appeals.component.html',
   styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     '../../shared/ui/modal.scss',
-    './appeals-shared.scss',
-    './appeals-list.scss',
     './my-appeals.component.scss',
   ],
 })
@@ -99,12 +116,10 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     });
   });
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
 
   constructor() {
     super();
@@ -257,6 +272,10 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
 
   protected statusLabel(status: AppealStatus): string {
     return this.localization.appeals.status[status];
+  }
+
+  protected statusTone(status: AppealStatus): StatusBadgeTone {
+    return STATUS_TONE[status];
   }
 
   protected subject(item: AppealListItem): string {

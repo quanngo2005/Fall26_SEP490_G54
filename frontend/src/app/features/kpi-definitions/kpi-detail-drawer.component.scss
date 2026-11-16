@@ -64,7 +64,7 @@
     margin: 18px 0 8px;
     color: #475569;
     font:
-      700 11px Inter,
+      700 11px 'Nunito Sans',
       sans-serif;
     letter-spacing: 0.05em;
   }
@@ -112,8 +112,9 @@
 
   thead th {
     background: #f8fafc;
-    color: #475569;
-    font-size: 11px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .is-current {
@@ -152,23 +153,38 @@
   font-size: 12px;
 }
 
+/* Same badge shape as the list screen and StatusBadgeComponent (24px, 6px radius, sentence case). */
 .chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  box-sizing: border-box;
   border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #f1f5f9;
-  color: #475569;
+  color: #334155;
   font:
-    600 11px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
-  padding: 2px 8px;
+  padding: 0 9px;
   white-space: nowrap;
 
+  &[data-status]::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentcolor;
+  }
+
   &[data-status='ACTIVE'] {
-    border-color: #a7f3d0;
-    background: #ecfdf5;
+    border-color: transparent;
+    background: transparent;
     color: #047857;
+    font-weight: 500;
+    padding: 0;
   }
 
   &[data-status='PENDING_APPROVAL'],
@@ -179,15 +195,15 @@
   }
 
   &[data-status='REJECTED'] {
-    border-color: #fecaca;
-    background: #fef2f2;
-    color: #b91c1c;
+    border-color: #fecdd3;
+    background: #fff1f2;
+    color: #be123c;
   }
 
   &[data-credit='REFERRER'] {
-    border-color: #a5f3fc;
-    background: #ecfeff;
-    color: #0e7490;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
   }
 }
 

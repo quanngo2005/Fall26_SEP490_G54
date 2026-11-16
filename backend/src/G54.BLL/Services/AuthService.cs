@@ -297,6 +297,7 @@ public sealed class AuthService(
         }
 
         account.PasswordHash = passwordEncoder.Encode(request.NewPassword);
+        account.MustChangePassword = false;
         account.FailedLoginAttempts = 0;
         account.LockedUntil = null;
         account.UpdatedAt = now;
@@ -382,7 +383,8 @@ public sealed class AuthService(
                     account.Employee.Email,
                     account.Employee.FullName,
                     roles,
-                    permissions)),
+                    permissions,
+                    account.MustChangePassword)),
             refreshToken);
     }
 

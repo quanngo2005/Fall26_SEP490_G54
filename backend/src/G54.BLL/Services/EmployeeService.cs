@@ -249,6 +249,7 @@ public sealed class EmployeeService(
             EmployeeId = employee.Id,
             Username = email,
             PasswordHash = passwordEncoder.Encode(temporaryPassword),
+            MustChangePassword = true,
             IsLocked = status == EmployeeStatus.Terminated,
         };
         db.Accounts.Add(account);

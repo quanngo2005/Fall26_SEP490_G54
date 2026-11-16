@@ -10,23 +10,39 @@
   clip: rect(0 0 0 0);
 }
 
+/* Status and credit badges: the StatusBadgeComponent shape (24px, 6px radius, sentence case). */
 .chip {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  box-sizing: border-box;
   border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: #f1f5f9;
-  color: #475569;
+  color: #334155;
   font:
-    600 11px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
-  padding: 2px 8px;
+  padding: 0 9px;
   white-space: nowrap;
 
+  &[data-status]::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentcolor;
+  }
+
+  /* Healthy states stay quiet: a dot and plain text, no fill. */
   &[data-status='ACTIVE'] {
-    border-color: #a7f3d0;
-    background: #ecfdf5;
+    border-color: transparent;
+    background: transparent;
     color: #047857;
+    font-weight: 500;
+    padding: 0;
   }
 
   &[data-status='PENDING_APPROVAL'],
@@ -37,15 +53,15 @@
   }
 
   &[data-status='REJECTED'] {
-    border-color: #fecaca;
-    background: #fef2f2;
-    color: #b91c1c;
+    border-color: #fecdd3;
+    background: #fff1f2;
+    color: #be123c;
   }
 
   &[data-credit='REFERRER'] {
-    border-color: #a5f3fc;
-    background: #ecfeff;
-    color: #0e7490;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
   }
 }
 
@@ -68,7 +84,7 @@
 .menu-button {
   border: 0;
   background: none;
-  color: #1d4ed8;
+  color: #002b49;
   cursor: pointer;
   font-weight: 700;
   padding: 4px 8px;
@@ -102,39 +118,6 @@
     &:hover {
       background: #f1f5f9;
     }
-  }
-}
-
-.pager {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #475569;
-  font-size: 12px;
-  padding: 10px 14px;
-}
-
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.page-button {
-  min-width: 28px;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-  padding: 4px 8px;
-
-  &.is-active {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
-    font-weight: 700;
   }
 }
 

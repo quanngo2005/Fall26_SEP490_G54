@@ -16,7 +16,7 @@ main {
   gap: 16px;
   padding: 16px 24px;
   color: #1e293b;
-  font-family: Inter, sans-serif;
+  font-family: 'Nunito Sans', sans-serif;
 }
 .breadcrumb {
   margin: 0;
@@ -35,7 +35,7 @@ h1 {
   margin: 0;
   color: #0f172a;
   font:
-    600 20px/28px Inter,
+    600 20px/28px 'Nunito Sans',
     sans-serif;
 }
 .description {
@@ -57,7 +57,7 @@ h1 {
   color: #334155;
   cursor: pointer;
   font:
-    500 13px/20px Inter,
+    500 13px/20px 'Nunito Sans',
     sans-serif;
   padding: 0 14px;
 }
@@ -89,7 +89,7 @@ h1 {
   border-bottom: 2px solid transparent;
   color: #475569;
   font:
-    500 13px/20px Inter,
+    500 13px/20px 'Nunito Sans',
     sans-serif;
   padding: 0 12px;
   text-decoration: none;
@@ -134,7 +134,7 @@ h1 {
 .role-pick label {
   color: #334155;
   font:
-    600 12px/18px Inter,
+    600 12px/18px 'Nunito Sans',
     sans-serif;
 }
 .role-select {
@@ -150,7 +150,7 @@ h1 {
   color: #0f172a;
   cursor: pointer;
   font:
-    400 13px/20px Inter,
+    400 13px/20px 'Nunito Sans',
     sans-serif;
   padding: 0 32px 0 12px;
 }
@@ -168,7 +168,7 @@ h1 {
   background: #ecfeff;
   color: #0e7490;
   font:
-    400 12px/18px Inter,
+    400 12px/18px 'Nunito Sans',
     sans-serif;
   padding: 10px 12px;
 }

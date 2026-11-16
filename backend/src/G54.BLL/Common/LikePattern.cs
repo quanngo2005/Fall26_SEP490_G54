@@ -7,8 +7,11 @@ public static class LikePattern
     public const string Escape = "\\";
 
     /// <summary>Wraps the text in <c>%</c> and escapes its own wildcards so they match literally.</summary>
-    public static string Contains(string text) =>
-        "%" + text.Replace("\\", "\\\\", StringComparison.Ordinal)
+    public static string Contains(string text) => $"%{Exact(text)}%";
+
+    /// <summary>Escapes SQL LIKE wildcards so <c>ILike</c> performs an exact case-insensitive match.</summary>
+    public static string Exact(string text) =>
+        text.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal) + "%";
+            .Replace("_", "\\_", StringComparison.Ordinal);
 }

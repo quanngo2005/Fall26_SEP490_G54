@@ -1,1 +1,5 @@
 <router-outlet />
+@if (auth.mustChangePassword()) {
+  <!-- One-time password: nothing else is usable until the user has chosen their own. -->
+  <app-change-password-dialog [forced]="true" [email]="auth.currentUser()?.email ?? ''" />
+}

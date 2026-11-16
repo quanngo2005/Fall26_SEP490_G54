@@ -45,7 +45,7 @@ h1 {
   margin-bottom: 4px;
   color: #0f172a;
   font:
-    700 24px Manrope,
+    600 22px/30px 'Nunito Sans',
     sans-serif;
   letter-spacing: -0.01em;
 }
@@ -53,7 +53,7 @@ h2 {
   margin-bottom: 3px;
   color: #0f172a;
   font:
-    600 16px Manrope,
+    600 16px 'Nunito Sans',
     sans-serif;
 }
 .page-toolbar,
@@ -78,7 +78,7 @@ h2 {
   margin: 0;
   color: #002b49;
   font:
-    700 12px Inter,
+    700 12px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -107,45 +107,62 @@ h2 {
   font-size: 12px;
 }
 .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Nunito Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Status badges (DESIGN.md: Status Badges) */
+/* Status badges (aligned with StatusBadgeComponent: sentence-case, 24px, 6px radius) */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
+  gap: 6px;
+  min-height: 24px;
   box-sizing: border-box;
-  border: 1px solid #a7f3d0;
-  border-radius: 9999px;
-  background: #ecfdf5;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   color: #047857;
   font:
-    500 11px 'JetBrains Mono',
-    monospace;
-  padding: 0 10px;
-  text-transform: uppercase;
+    500 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 0;
   white-space: nowrap;
+}
+.status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentcolor;
 }
 .status-badge.is-muted {
   border-color: #e2e8f0;
   background: #f1f5f9;
   color: #334155;
+  font-weight: 600;
+  padding: 0 9px;
 }
 .status-badge.is-warning {
   border-color: #fde68a;
   background: #fffbeb;
   color: #b45309;
+  font-weight: 600;
+  padding: 0 9px;
 }
 .status-badge.is-danger {
   border-color: #fecdd3;
   background: #fff1f2;
   color: #be123c;
+  font-weight: 600;
+  padding: 0 9px;
 }
 .status-badge.is-info {
   border-color: #bfdbfe;
   background: #eff6ff;
   color: #1d4ed8;
+  font-weight: 600;
+  padding: 0 9px;
 }
 
 /* Hero card */
@@ -166,7 +183,7 @@ h2 {
   background: #002b49;
   color: #fff;
   font:
-    700 16px Manrope,
+    700 16px 'Nunito Sans',
     sans-serif;
 }
 .hero-mark app-layout-icon {
@@ -189,7 +206,7 @@ h2 {
   margin-bottom: 3px;
   color: #64748b;
   font:
-    600 11px Inter,
+    600 11px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;

@@ -6,7 +6,10 @@
 
     <main class="content-area">
       <!-- Breadcrumb -->
-      <nav class="breadcrumb-nav" [attr.aria-label]="localization.evaluationForm.breadcrumbAria">
+      <nav
+        class="breadcrumb-nav ui-breadcrumb"
+        [attr.aria-label]="localization.evaluationForm.breadcrumbAria"
+      >
         <span class="crumb">{{localization.evaluations.branchPeriods.breadcrumbHome}}</span>
         <span class="crumb-separator">/</span>
         <span class="crumb">{{localization.evaluations.branchPeriods.breadcrumbBranchPerformance}}</span>
@@ -15,11 +18,15 @@
       </nav>
 
       <!-- Page Title & Subtitle -->
-      <header class="page-header">
-        <h1 class="page-title">
-          {{headerTitle()}}
-        </h1>
-        <p class="page-subtitle">{{localization.evaluations.branchPeriods.headerSubtitle}}</p>
+      <header class="ui-page-header page-header">
+        <div class="ui-page-heading">
+          <h1 class="ui-page-title page-title">
+            {{headerTitle()}}
+          </h1>
+          <p class="ui-page-subtitle page-subtitle">
+            {{localization.evaluations.branchPeriods.headerSubtitle}}
+          </p>
+        </div>
       </header>
 
       <!-- Toast Notification -->
@@ -31,72 +38,40 @@
       }
 
       <!-- Filter Toolbar -->
-      <section class="filter-toolbar">
+      <section class="filter-toolbar ui-filter-bar">
         <div class="filter-group">
-          <label for="year-select" class="filter-label">{{localization.evaluations.branchPeriods.filterYear}}</label>
-          <select
-            id="year-select"
-            class="filter-select"
+          <span class="filter-label">{{localization.evaluations.branchPeriods.filterYear}}</span>
+          <app-ui-select
+            [options]="yearOptions()"
             [ngModel]="selectedYear().toString()"
             (ngModelChange)="onYearChange($event)"
-            [attr.aria-label]="localization.evaluations.branchPeriods.filterYear"
-          >
-            @for (y of availableYears(); track y) {
-              <option [value]="y">{{y}}</option>
-            }
-            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
-          </select>
+            [ariaLabel]="localization.evaluations.branchPeriods.filterYear"
+          />
         </div>
 
         <div class="filter-group">
-          <label for="type-select" class="filter-label">{{localization.evaluations.branchPeriods.filterPeriodType}}</label>
-          <select
-            id="type-select"
-            class="filter-select"
+          <span class="filter-label">{{localization.evaluations.branchPeriods.filterPeriodType}}</span>
+          <app-ui-select
+            [options]="periodTypeOptions()"
             [ngModel]="selectedPeriodType()"
             (ngModelChange)="onPeriodTypeChange($event)"
-            [attr.aria-label]="localization.evaluations.branchPeriods.filterPeriodType"
-          >
-            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
-            <option value="QUARTER">
-              {{localization.evaluations.branchPeriods.typeQuarter}}
-            </option>
-            <option value="YEAR">{{localization.evaluations.branchPeriods.typeYear}}</option>
-            <option value="MONTH">{{localization.evaluations.branchPeriods.typeMonth}}</option>
-          </select>
+            [ariaLabel]="localization.evaluations.branchPeriods.filterPeriodType"
+          />
         </div>
 
         <div class="filter-group">
-          <label for="status-select" class="filter-label">{{localization.evaluations.branchPeriods.filterStatus}}</label>
-          <select
-            id="status-select"
-            class="filter-select"
+          <span class="filter-label">{{localization.evaluations.branchPeriods.filterStatus}}</span>
+          <app-ui-select
+            [options]="statusOptions()"
             [ngModel]="selectedStatus()"
             (ngModelChange)="onStatusChange($event)"
-            [attr.aria-label]="localization.evaluations.branchPeriods.filterStatus"
-          >
-            <option value="ALL">{{localization.evaluations.branchPeriods.all}}</option>
-            <option value="IN_PROGRESS">
-              {{localization.evaluations.branchPeriods.statusInProgress}}
-            </option>
-            <option value="EVALUATING">
-              {{localization.evaluations.branchPeriods.statusEvaluating}}
-            </option>
-            <option value="IN_REVIEW">
-              {{localization.evaluations.branchPeriods.statusInReview}}
-            </option>
-            <option value="PUBLISHED">
-              {{localization.evaluations.branchPeriods.statusPublished}}
-            </option>
-            <option value="LOCKED">
-              {{localization.evaluations.branchPeriods.statusLocked}}
-            </option>
-          </select>
+            [ariaLabel]="localization.evaluations.branchPeriods.filterStatus"
+          />
         </div>
       </section>
 
       <!-- Table Section -->
-      <section class="table-card">
+      <section class="ui-table-card table-card">
         @if (loading()) {
           <div class="state-container loading-state">
             <div class="spinner" aria-hidden="true"></div>
@@ -114,8 +89,8 @@
             <p>{{localization.evaluations.branchPeriods.emptyList}}</p>
           </div>
         } @else {
-          <div class="table-responsive">
-            <table class="data-table">
+          <div class="ui-table-wrap table-responsive">
+            <table class="ui-table data-table">
               <thead>
                 <tr>
                   <th scope="col" class="th-period">
@@ -219,25 +194,25 @@
                     <td class="cell-status">
                       @switch (period.displayStatus) {
                         @case ('IN_REVIEW') {
-                          <span class="status-badge badge-in-review">
+                          <app-status-badge class="badge-in-review" tone="info">
                             {{localization.evaluations.branchPeriods.statusInReview}}
-                          </span>
+                          </app-status-badge>
                         }
                         @case ('PUBLISHED') {
-                          <span class="status-badge badge-published">
+                          <app-status-badge class="badge-published" tone="success">
                             {{localization.evaluations.branchPeriods.statusPublished}}
-                          </span>
+                          </app-status-badge>
                         }
                         @case ('LOCKED') {
-                          <span class="status-badge badge-locked">
+                          <app-status-badge class="badge-locked" tone="neutral">
                             <app-layout-icon name="lock" class="badge-icon" />
                             {{localization.evaluations.branchPeriods.statusLocked}}
-                          </span>
+                          </app-status-badge>
                         }
                         @default {
-                          <span class="status-badge badge-in-progress">
+                          <app-status-badge class="badge-in-progress" tone="neutral">
                             {{localization.evaluations.branchPeriods.statusInProgress}}
-                          </span>
+                          </app-status-badge>
                         }
                       }
                     </td>

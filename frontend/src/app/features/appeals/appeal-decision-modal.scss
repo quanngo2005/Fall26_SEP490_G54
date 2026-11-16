@@ -1,4 +1,4 @@
-/* Decision Modal Styles (DESIGN.md: Manrope titles, Inter body and controls) */
+/* Decision Modal Styles (DESIGN.md: 'Nunito Sans' titles, 'Nunito Sans' body and controls) */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -16,7 +16,7 @@
   max-width: 90vw;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  font-family: Inter, 'Segoe UI', Arial, sans-serif;
+  font-family: 'Nunito Sans', 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   color: #0f172a;
 
@@ -36,7 +36,7 @@
     h3 {
       margin: 0;
       font:
-        600 16px Manrope,
+        600 16px 'Nunito Sans',
         'Segoe UI',
         Arial,
         sans-serif;

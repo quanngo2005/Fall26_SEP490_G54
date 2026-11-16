@@ -23,6 +23,9 @@ public partial class Account
 
     public DateTimeOffset? LockedUntil { get; set; }
 
+    /// <summary>True while the account still uses a one-time password; the user must choose a new one before using the app.</summary>
+    public bool MustChangePassword { get; set; }
+
     public virtual ICollection<AuthAuditLog> AuthAuditLogs { get; set; } = new List<AuthAuditLog>();
 
     public virtual Employee Employee { get; set; } = null!;

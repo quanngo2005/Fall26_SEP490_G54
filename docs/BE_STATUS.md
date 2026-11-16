@@ -24,7 +24,7 @@ un.ps1 -ResetDevData`, which runs it before the migrator; needed when a newer se
 
 | Area | Status | Notes |
 |---|---|---|
-| Auth, roles, permission matrix (Resource×Action×Scope) | 🟡 | Auth and role listing are implemented; permission-matrix mutation APIs remain |
+| Auth, roles, permission matrix (Resource×Action×Scope) | 🟡 | Auth, role listing, and full user-account administration (`GET /user-accounts/summary`, `GET /user-accounts/eligible-employees`, `GET /user-accounts/{id}`, `POST /user-accounts`, `PUT /user-accounts/{id}`, `POST /user-accounts/{id}/reset-password`, `/lock`, `/unlock`, plus `account.must_change_password` forced first-login password change, GB-912, 16/11/2026 — verified over HTTP on PostgreSQL + Redis in `AdminAccountsHttpTests`) are implemented; permission-matrix mutation APIs remain |
 | Employee / Department (view-only) | 🟡 | `EmployeeController`, `DepartmentsController`; the write endpoints `POST/PUT/PATCH/DELETE /employees` are kept for Admin but now behave like the import (12/11/2026): `POST` also creates the account with a one-time password and the role of the job position, `TERMINATED` locks the account, `DELETE` terminates instead of removing (see `EMPLOYEE_CONTRACT.md`). Unit-tested and driven over HTTP; the frontend does not call them yet |
 | Performance dashboard | ✅ | Personal / Department / Branch + drill-down |
 | Personal criterion ledger | 🟡 | `GET /evaluations/personal/ledger` (`docs/api/EVALUATION_CONTRACT.md`, 11/11/2026) now returns `occurredOn`, the real work-transaction `status` and the work (`workId`, `workCode`, `workTitle`) behind each entry (work of the transaction, else of the verified submission). Unit-tested with InMemory; not run over HTTP |
