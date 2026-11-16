@@ -2131,6 +2131,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
             entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.CustomerCode).HasMaxLength(50).HasColumnName("customer_code");
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
             entity.Property(e => e.ProductCode).HasMaxLength(100).HasColumnName("product_code");
             entity.Property(e => e.TransactionDate).HasColumnName("transaction_date");

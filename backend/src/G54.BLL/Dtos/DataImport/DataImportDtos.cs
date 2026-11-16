@@ -11,4 +11,11 @@ public sealed record ImportPreviewDto(string FileName, ImportSummaryDto Summary,
 
 public sealed record ImportNewAccountDto(string EmployeeCode, string Username, string TemporaryPassword);
 
-public sealed record ImportCommitResultDto(int Created, int Updated, IReadOnlyList<ImportNewAccountDto> NewAccounts);
+public sealed record ImportSkippedRowDto(int RowNumber, IReadOnlyList<ImportErrorDto> Errors);
+
+public sealed record ImportCommitResultDto(
+    int Created,
+    int Updated,
+    int Skipped,
+    IReadOnlyList<ImportNewAccountDto> NewAccounts,
+    IReadOnlyList<ImportSkippedRowDto> Errors);

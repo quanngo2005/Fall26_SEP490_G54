@@ -226,6 +226,53 @@ public sealed class WorkTransactionServiceTests
     }
 
     [Fact]
+    public async Task Add_MatchesTheImportedCodeIgnoringCaseAndStoresTheCodeUpperCased()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Import("gd-1"); // imported before codes were normalized
+
+        var result = await rig.AddAsync(" Gd-1 ");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("GD-1", item.TransactionCode);
+        Assert.Equal("MATCHED", item.Status);
+    }
+
+    [Fact]
+    public async Task Add_SameCodeInAnotherCase_IsRejectedAsDuplicate()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        await rig.AddAsync("T1");
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => rig.AddAsync("t1"));
+
+        Assert.Equal(ErrorCodes.WorkTransactionDuplicate, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ReconcileBatch_RetriesAnInReviewCodeFromAnEarlierBatchOnceThePeriodIsReopened()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var period = await rig.Db.EvaluationPeriods.SingleAsync();
+        period.Status = PeriodStatus.Locked;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var first = await rig.AddAsync("T1");
+        Assert.Equal("IN_REVIEW", Assert.Single(first.Items).Status);
+        Assert.Equal(ErrorCodes.PeriodLocked, first.Items[0].Reason);
+
+        period.Status = PeriodStatus.Open;
+        await rig.Db.SaveChangesAsync();
+        // A later import that does not contain T1 still retries it.
+        var summary = await rig.Service.ReconcileBatchAsync(Guid.NewGuid());
+
+        Assert.Equal(new ReconcileSummaryDto(1, 0, 0), summary);
+        Assert.Equal("MATCHED", (await rig.Db.WorkTransactions.SingleAsync()).Status);
+        Assert.Equal(WorkStatus.Done, (await rig.Db.Works.SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task ReconcileBatch_CountsMatchedNotMatchedAndStillInReviewCodes()
     {
         var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
