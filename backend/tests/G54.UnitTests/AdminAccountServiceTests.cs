@@ -1,3 +1,5 @@
+using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Admin;
 using G54.BLL.Services;
 using G54.DAL;
@@ -65,9 +67,11 @@ public sealed class AdminAccountServiceTests : IDisposable
         UpdatedAt = Now,
     };
 
+    private readonly RecordingAuthSessionStore _sessions = new();
+
     public void Dispose() => _db.Dispose();
 
-    private AdminAccountService Service() => new(_db);
+    private AdminAccountService Service() => new(_db, new PasswordEncoder(), _sessions);
 
     private Account AddAccount(string code, string name, string username, Department dept, Role? role,
         bool locked = false, EmployeeStatus status = EmployeeStatus.Active)
@@ -160,7 +164,6 @@ public sealed class AdminAccountServiceTests : IDisposable
         Assert.Equal("Account Executive", alice.JobPositionTitle);
         Assert.Equal(_admin.Id, alice.RoleId);
         Assert.Equal("Administrator", alice.RoleName);
-        Assert.Null(alice.LastLoginAt);
     }
 
     // The keyword filter uses PostgreSQL ILike, so it is covered against a real database in AdminAccountsHttpTests.
@@ -228,5 +231,116 @@ public sealed class AdminAccountServiceTests : IDisposable
         Assert.Equal(1, clamped.Page);
         Assert.Equal(100, clamped.PageSize);
         Assert.Equal(4, clamped.Items.Count);
+    }
+
+    [Fact]
+    public async Task GetSummaryAndDetailAndUpdateRoleWorkEndToEnd()
+    {
+        var service = await SeedAsync();
+        var unmanaged = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "E099",
+            FullName = "New Hire",
+            Email = "newhire@x.local",
+            DepartmentId = _dept.Id,
+            Department = _dept,
+            JobPositionId = _position.Id,
+            JobPosition = _position,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = Now,
+            UpdatedAt = Now,
+        };
+        _db.Employees.Add(unmanaged);
+        await _db.SaveChangesAsync();
+
+        var summary = await service.GetSummaryAsync();
+        Assert.Equal(2, summary.ActiveCount);
+        Assert.Equal(1, summary.LockedCount);
+        Assert.Equal(1, summary.EmployeesWithoutAccountCount);
+
+        var eligible = await service.GetEligibleEmployeesAsync();
+        Assert.Single(eligible);
+        Assert.Equal("E099", eligible[0].EmployeeCode);
+
+        var accounts = await service.GetAccountsAsync(new UserAccountFilterDto());
+        var aliceSummary = accounts.Items.First(i => i.Username == "alice");
+        var detail = await service.GetAccountDetailAsync(aliceSummary.Id);
+        Assert.Equal("alice", detail.Username);
+        Assert.Equal("Sales", detail.DepartmentName);
+        Assert.Equal("Administrator", detail.RoleName);
+
+        var secondRole = new Role
+        {
+            Id = Guid.NewGuid(),
+            Code = "AUDITOR",
+            Name = "Auditor",
+            Status = RecordStatus.Active,
+            UpdatedAt = Now,
+        };
+        _db.Roles.Add(secondRole);
+        await _db.SaveChangesAsync();
+
+        var updated = await service.UpdateAccountAsync(aliceSummary.Id, new UpdateUserAccountRequestDto(secondRole.Id));
+        Assert.Equal(secondRole.Id, updated.RoleId);
+        Assert.Equal("Auditor", updated.RoleName);
+    }
+
+    [Fact]
+    public async Task ResetPasswordReplacesTheHashAndSignsTheAccountOut()
+    {
+        var service = await SeedAsync();
+        var alice = _db.Accounts.Single(a => a.Username == "alice");
+        var oldHash = alice.PasswordHash;
+        await _sessions.StoreAsync(alice.Id, Guid.NewGuid(), "h", Now.AddDays(1), CancellationToken.None);
+
+        var result = await service.ResetPasswordAsync(alice.Id);
+
+        Assert.False(string.IsNullOrWhiteSpace(result.TemporaryPassword));
+        await _db.Entry(alice).ReloadAsync();
+        Assert.NotEqual(oldHash, alice.PasswordHash);
+        Assert.True(alice.MustChangePassword);
+        Assert.Equal(0, _sessions.CountFor(alice.Id));
+    }
+
+    [Fact]
+    public async Task LockAndUnlockToggleTheAccountAndLockSignsItOut()
+    {
+        var service = await SeedAsync();
+        var carol = _db.Accounts.Single(a => a.Username == "carol");
+        var actor = _db.Accounts.Single(a => a.Username == "alice");
+        await _sessions.StoreAsync(carol.Id, Guid.NewGuid(), "h", Now.AddDays(1), CancellationToken.None);
+
+        var locked = await service.LockAccountAsync(actor.Id, carol.Id);
+
+        Assert.Equal("LOCKED", locked.Status);
+        Assert.Equal(0, _sessions.CountFor(carol.Id));
+
+        var unlocked = await service.UnlockAccountAsync(carol.Id);
+
+        Assert.Equal("ACTIVE", unlocked.Status);
+    }
+
+    [Fact]
+    public async Task LockingYourOwnAccountIsRejected()
+    {
+        var service = await SeedAsync();
+        var alice = _db.Accounts.Single(a => a.Username == "alice");
+
+        var error = await Assert.ThrowsAsync<BusinessRuleException>(() => service.LockAccountAsync(alice.Id, alice.Id));
+
+        Assert.Equal(ErrorCodes.CannotLockSelf, error.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AccountActionsAreRejectedForTerminatedEmployeesAndUnknownAccounts()
+    {
+        var service = await SeedAsync();
+        var dan = _db.Accounts.Single(a => a.Username == "dan");
+        var actor = _db.Accounts.Single(a => a.Username == "alice");
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.ResetPasswordAsync(dan.Id));
+        await Assert.ThrowsAsync<ValidationException>(() => service.LockAccountAsync(actor.Id, dan.Id));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.UnlockAccountAsync(Guid.NewGuid()));
     }
 }

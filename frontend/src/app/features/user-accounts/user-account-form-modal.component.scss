@@ -1,6 +1,9 @@
 .account-dialog {
   width: min(640px, 100%);
 }
+.full-select {
+  width: 100%;
+}
 .account-dialog form {
   display: flex;
   flex-direction: column;

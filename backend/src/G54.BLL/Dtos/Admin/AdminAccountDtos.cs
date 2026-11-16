@@ -23,11 +23,34 @@ public sealed record UserAccountSummaryDto(
     string EmployeeCode,
     string FullName,
     string DepartmentCode,
+    string DepartmentName,
+    string? JobPositionTitle,
+    Guid RoleId,
+    string RoleName,
+    string Status);
+
+public sealed record UserAccountHistoryEntryDto(
+    DateTimeOffset OccurredAt,
+    string Event,
+    string Actor);
+
+public sealed record UserAccountDetailDto(
+    Guid Id,
+    string Username,
+    string EmployeeCode,
+    string FullName,
+    string DepartmentCode,
     string? JobPositionTitle,
     Guid RoleId,
     string RoleName,
     string Status,
-    DateTimeOffset? LastLoginAt);
+    Guid EmployeeId,
+    string DepartmentName,
+    Guid? SuggestedRoleId,
+    DateTimeOffset CreatedAt,
+    string CreatedBy,
+    DateTimeOffset? PasswordChangedAt,
+    IReadOnlyList<UserAccountHistoryEntryDto> History);
 
 public sealed record UserAccountFilterDto(
     string? Keyword = null,
@@ -45,3 +68,31 @@ public sealed record UserAccountSummaryCountsDto(
 public sealed record UserAccountListDto(
     PagedResult<UserAccountSummaryDto> Items,
     UserAccountSummaryCountsDto Counts);
+
+public sealed record EligibleEmployeeDto(
+    Guid Id,
+    string EmployeeCode,
+    string FullName,
+    string DepartmentCode,
+    string DepartmentName,
+    string? JobPositionTitle,
+    string Email,
+    string Source,
+    Guid? SuggestedRoleId,
+    string? SuggestedUsername);
+
+public sealed record CreateUserAccountRequestDto(
+    Guid EmployeeId,
+    string Username,
+    Guid RoleId,
+    bool MustChangePassword = true);
+
+public sealed record CreateUserAccountResultDto(
+    UserAccountDetailDto Account,
+    string TemporaryPassword);
+
+public sealed record UpdateUserAccountRequestDto(
+    Guid RoleId);
+
+public sealed record ResetUserPasswordResultDto(
+    string TemporaryPassword);

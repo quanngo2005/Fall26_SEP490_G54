@@ -311,6 +311,7 @@ public sealed class EmployeeImportService(
                     EmployeeId = employee.Id,
                     Username = employee.Email,
                     PasswordHash = passwordEncoder.Encode(temporaryPassword),
+                    MustChangePassword = true,
                 };
                 db.Accounts.Add(account);
                 if (ctx.RolesByCode.TryGetValue(roleCode, out var role))

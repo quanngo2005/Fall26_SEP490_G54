@@ -10,6 +10,8 @@ export interface AuthenticatedUser {
   fullName: string;
   roles: string[];
   permissions: string[];
+  /** True while the account still uses a one-time password and must choose a new one before using the app. */
+  mustChangePassword?: boolean;
 }
 
 export interface AuthResponse {

@@ -16,12 +16,29 @@ import {
 } from '../../core/user-account.models';
 import { UserAccountService } from '../../core/user-account.service';
 import { AppDatePipe } from '../../shared/pipes';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { initials } from '../../shared/ui/display';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  initials,
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { UserAccountFormModalComponent } from './user-account-form-modal.component';
+import {
+  AccountAction,
+  UserAccountActionDialogComponent,
+} from './user-account-action-dialog.component';
 
 type DetailTab = 'info' | 'history';
 type FormMode = 'create' | 'edit' | null;
+
+/** Slightly longer than the 180ms exit animation so the node is removed only once it is fully transparent. */
+const DRAWER_EXIT_MS = 200;
+
+/** Pause after the last keystroke before the list is re-queried. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 /** SCR-ADM-01: user account list; SCR-ADM-02: details drawer; modals M1 live in the form component. */
 @Component({
@@ -32,14 +49,20 @@ type FormMode = 'create' | 'edit' | null;
     AppDatePipe,
     HeaderComponent,
     SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     UserAccountFormModalComponent,
+    UserAccountActionDialogComponent,
   ],
   templateUrl: './user-account-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/data-table.scss',
+    '../../shared/ui/drawer.scss',
     './user-account-list.component.scss',
-    './user-account-drawer.scss',
   ],
 })
 export class UserAccountListComponent extends LocalizedComponent {
@@ -68,28 +91,51 @@ export class UserAccountListComponent extends LocalizedComponent {
   protected readonly pageSize = signal(20);
 
   protected readonly selectedId = signal<string | null>(null);
+  protected readonly closing = signal(false);
+  private closeTimer: ReturnType<typeof setTimeout> | undefined;
+  private searchTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly detail = signal<UserAccountDetail | null>(null);
   protected readonly detailLoading = signal(false);
   protected readonly detailFailed = signal(false);
   protected readonly tab = signal<DetailTab>('info');
   protected readonly formMode = signal<FormMode>(null);
+  protected readonly action = signal<AccountAction | null>(null);
 
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.pageSize())),
   );
-  protected readonly pages = computed(() => {
-    const count = this.pageCount();
-    const start = Math.max(1, Math.min(this.page() - 1, count - 2));
-    return Array.from({ length: Math.min(3, count) }, (_, index) => start + index);
+
+  protected readonly hasFilters = computed(
+    () => !!(this.keyword().trim() || this.roleId() || this.departmentId() || this.status()),
+  );
+
+  protected readonly roleOptions = computed<SelectOption[]>(() => {
+    const t = this.localization.userAccounts;
+    return [
+      { value: '', label: t.roleAll },
+      ...this.roles().map((role) => ({ value: role.id, label: role.name })),
+    ];
   });
-  protected readonly range = computed(() => {
-    const total = this.totalCount();
-    const from = total === 0 ? 0 : (this.page() - 1) * this.pageSize() + 1;
-    const to = Math.min(total, this.page() * this.pageSize());
-    return this.localization.userAccounts.range
-      .replace('{from}', String(from))
-      .replace('{to}', String(to))
-      .replace('{total}', String(total));
+
+  protected readonly departmentOptions = computed<SelectOption[]>(() => {
+    const t = this.localization.userAccounts;
+    return [
+      { value: '', label: t.departmentAll },
+      ...this.departments().map((dept) => ({
+        value: dept.id,
+        label: dept.name,
+      })),
+    ];
+  });
+
+  protected readonly statusOptions = computed<SelectOption<UserAccountStatus | ''>[]>(() => {
+    const t = this.localization.userAccounts;
+    return [
+      { value: '', label: t.statusAll },
+      { value: 'ACTIVE', label: t.statusActive },
+      { value: 'LOCKED', label: t.statusLocked },
+      { value: 'EMPLOYEE_TERMINATED', label: t.statusTerminated },
+    ];
   });
 
   constructor() {
@@ -110,11 +156,15 @@ export class UserAccountListComponent extends LocalizedComponent {
       });
     this.loadCounts();
     this.load();
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(this.searchTimer);
+      clearTimeout(this.closeTimer);
+    });
   }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
-    if (!this.formMode()) this.closeDrawer();
+    if (!this.formMode() && !this.action()) this.closeDrawer();
   }
 
   protected load(): void {
@@ -149,6 +199,53 @@ export class UserAccountListComponent extends LocalizedComponent {
     this.load();
   }
 
+  /** Search runs while typing, after a short pause; Enter runs it immediately. */
+  protected onKeywordInput(value: string): void {
+    this.keyword.set(value);
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => this.filterChanged(), SEARCH_DEBOUNCE_MS);
+  }
+
+  protected flushSearch(): void {
+    clearTimeout(this.searchTimer);
+    this.filterChanged();
+  }
+
+  protected clearSearch(): void {
+    clearTimeout(this.searchTimer);
+    this.keyword.set('');
+    this.filterChanged();
+  }
+
+  protected clearFilters(): void {
+    clearTimeout(this.searchTimer);
+    this.keyword.set('');
+    this.roleId.set('');
+    this.departmentId.set('');
+    this.status.set('');
+    this.filterChanged();
+  }
+
+  protected onRoleFilter(id: string): void {
+    this.roleId.set(id);
+    this.filterChanged();
+  }
+
+  protected onDepartmentFilter(id: string): void {
+    this.departmentId.set(id);
+    this.filterChanged();
+  }
+
+  protected onStatusFilter(value: UserAccountStatus | ''): void {
+    this.status.set(value);
+    this.filterChanged();
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.filterChanged();
+  }
+
   protected setStatusCard(status: UserAccountStatus): void {
     this.status.set(this.status() === status ? '' : status);
     this.filterChanged();
@@ -160,16 +257,32 @@ export class UserAccountListComponent extends LocalizedComponent {
     this.load();
   }
 
+  protected toggleRow(account: UserAccountSummary): void {
+    if (account.id === this.selectedId()) {
+      this.closeDrawer();
+      return;
+    }
+    this.openDrawer(account);
+  }
+
   protected openDrawer(account: UserAccountSummary): void {
     if (account.id === this.selectedId()) return;
+    clearTimeout(this.closeTimer);
+    this.closing.set(false);
     this.selectedId.set(account.id);
     this.tab.set('info');
     this.fetchDetail(account.id);
   }
 
   protected closeDrawer(): void {
+    if (this.selectedId() === null) return;
+    // Keep the drawer mounted (and `detail` intact) until its exit animation has finished, then
+    // remove it ourselves. Angular's animate.leave strips the leave class before removing the node,
+    // which replays the enter animation as a flash.
     this.selectedId.set(null);
-    this.detail.set(null);
+    this.closing.set(true);
+    clearTimeout(this.closeTimer);
+    this.closeTimer = setTimeout(() => this.closing.set(false), DRAWER_EXIT_MS);
   }
 
   protected retryDetail(): void {
@@ -183,10 +296,12 @@ export class UserAccountListComponent extends LocalizedComponent {
 
   protected openEdit(account: UserAccountSummary): void {
     if (account.status === 'EMPLOYEE_TERMINATED') return;
-    if (this.detail()?.id === account.id) {
+    if (this.selectedId() === account.id && this.detail()?.id === account.id) {
       this.formMode.set('edit');
       return;
     }
+    clearTimeout(this.closeTimer);
+    this.closing.set(false);
     this.selectedId.set(account.id);
     this.tab.set('info');
     this.fetchDetail(account.id, () => this.formMode.set('edit'));
@@ -202,6 +317,22 @@ export class UserAccountListComponent extends LocalizedComponent {
     this.load();
   }
 
+  /** A lock/unlock returns the fresh account; a password reset does not, so the drawer is re-read quietly. */
+  protected onActionDone(updated: UserAccountDetail | null): void {
+    const id = this.detail()?.id;
+    this.action.set(null);
+    if (updated) {
+      this.detail.set(updated);
+    } else if (id) {
+      this.api
+        .detail(id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({ next: (fresh) => this.detail.update((cur) => (cur?.id === id ? fresh : cur)) });
+    }
+    this.loadCounts();
+    this.load();
+  }
+
   protected statusLabel(status: UserAccountStatus): string {
     const t = this.localization.userAccounts;
     return {
@@ -211,10 +342,12 @@ export class UserAccountListComponent extends LocalizedComponent {
     }[status];
   }
 
-  protected statusClass(status: UserAccountStatus): string {
-    return { ACTIVE: 'is-active', LOCKED: 'is-locked', EMPLOYEE_TERMINATED: 'is-terminated' }[
-      status
-    ];
+  protected statusTone(status: UserAccountStatus): StatusBadgeTone {
+    return {
+      ACTIVE: 'success' as const,
+      LOCKED: 'warning' as const,
+      EMPLOYEE_TERMINATED: 'danger' as const,
+    }[status];
   }
 
   protected initials(name: string): string {
