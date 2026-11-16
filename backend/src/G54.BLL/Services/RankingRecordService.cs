@@ -1,12 +1,15 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Evaluation;
+using G54.BLL.Dtos.SystemParameter;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -14,7 +17,11 @@ namespace G54.BLL.Services;
 /// Ranking records for HR (UC110, UC111): the final evaluations of a locked period, ranked inside their department and
 /// job position. Rank and tier are computed over the whole group first and filtered afterwards, so a filter never changes them.
 /// </summary>
-public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordService> logger) : IRankingRecordService
+public sealed class RankingRecordService(
+    AppDbContext db,
+    IRankingPolicyService rankingPolicies,
+    ILogger<RankingRecordService> logger,
+    IOptions<SystemParametersOptions>? parameters = null) : IRankingRecordService
 {
     private const int MaxPageSize = 100;
 
@@ -120,12 +127,14 @@ public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordS
                 ErrorCodes.EvaluationPeriodInvalidState);
     }
 
-    /// <summary>Every final, scored evaluation of the period with its rank and tier, plus the configured tier codes.</summary>
+    /// <summary>Every final, scored evaluation of the period with its rank and tier, plus the tier codes of the period's policy.</summary>
     private async Task<(List<RankedRow> Records, IReadOnlyList<string> TierCodes)> BuildRecordsAsync(
         EvaluationPeriod period,
         CancellationToken cancellationToken)
     {
-        var configuration = await RankingInputs.LoadDowngradeConfigurationAsync(db, cancellationToken);
+        // A locked period is ranked by the policy frozen when it was locked, the same as the calibration screen.
+        var policy = await rankingPolicies.LoadEffectiveDefinitionAsync(period, cancellationToken);
+        var criteria = await EvaluationSettingsService.LoadCriteriaAsync(db, cancellationToken);
 
         var evaluations = await db.PerformanceEvaluations
             .AsNoTracking()
@@ -138,6 +147,17 @@ public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordS
 
         var risksByEmployee = await RankingInputs.LoadRiskEventsByEmployeeAsync(db, evaluations.Select(pe => pe.EmployeeId).ToList(), period, cancellationToken);
 
+        var stored = evaluations.ToDictionary(pe => pe.Id, pe => EvaluationService.ParseStoredComment(pe.Comment, logger));
+
+        // The calibration screen evaluates the policy over a whole department, so its quotas and department average do too.
+        var proposed = evaluations
+            .GroupBy(pe => pe.Employee.DepartmentId)
+            .SelectMany(department => RankingRuleEngine.EvaluateRoster(
+                department.Select(pe => ToSubject(pe, stored[pe.Id], risksByEmployee)).ToList(),
+                policy,
+                criteria))
+            .ToDictionary(entry => entry.Key, entry => entry.Value.ProposedTier!);
+
         var rows = new List<RankedRow>(evaluations.Count);
         foreach (var group in evaluations.GroupBy(pe => (pe.Employee.DepartmentId, pe.Employee.JobPositionId)))
         {
@@ -148,23 +168,46 @@ public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordS
 
             for (var i = 0; i < ordered.Count; i++)
             {
-                rows.Add(ToRow(ordered[i], i + 1, ordered.Count, risksByEmployee, configuration));
+                var evaluation = ordered[i];
+                rows.Add(ToRow(evaluation, stored[evaluation.Id], i + 1, ordered.Count, proposed[evaluation.EmployeeId]));
             }
         }
 
-        return (rows, configuration.Tiers.Select(t => t.TierCode).ToList());
+        return (rows, policy.Tiers.OrderBy(t => t.RankOrder).Select(t => t.TierCode).ToList());
     }
 
-    private RankedRow ToRow(
+    /// <summary>A final evaluation keeps its stored score for every column, as the calibration roster shows it.</summary>
+    private RankingSubjectInput ToSubject(
         PerformanceEvaluation evaluation,
+        EvaluationService.StoredComment stored,
+        Dictionary<Guid, List<RiskEvent>> risksByEmployee)
+    {
+        var score = evaluation.TotalScore!.Value;
+        decimal? qualitative = stored.QualitativeScores.Count > 0 ? stored.QualitativeScores.Values.Average(q => q.Score) : null;
+        var risks = risksByEmployee.GetValueOrDefault(evaluation.EmployeeId);
+
+        return new RankingSubjectInput(
+            evaluation.EmployeeId,
+            evaluation.Employee.EmployeeCode,
+            evaluation.Employee.JobPosition.Code,
+            score,
+            score,
+            score,
+            qualitative,
+            score,
+            score,
+            score,
+            risks?.Sum(r => EvaluationService.RiskPenalty(r, parameters?.Value)) ?? 0m,
+            RiskEvents: risks);
+    }
+
+    private static RankedRow ToRow(
+        PerformanceEvaluation evaluation,
+        EvaluationService.StoredComment stored,
         int rank,
         int groupSize,
-        Dictionary<Guid, List<RiskEvent>> risksByEmployee,
-        DowngradeConfiguration configuration)
+        string proposedTier)
     {
-        var stored = EvaluationService.ParseStoredComment(evaluation.Comment, logger);
-        var score = evaluation.TotalScore!.Value;
-        var proposedTier = TierDeterminer.DetermineTier(score, risksByEmployee.GetValueOrDefault(evaluation.EmployeeId), configuration);
         var tier = stored.CalibrationData?.CalibratedTier ?? proposedTier;
         var employee = evaluation.Employee;
 
@@ -178,7 +221,7 @@ public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordS
                 employee.Department.Name,
                 employee.JobPositionId,
                 employee.JobPosition.Title,
-                score,
+                evaluation.TotalScore!.Value,
                 rank,
                 groupSize,
                 proposedTier,
@@ -187,7 +230,6 @@ public sealed class RankingRecordService(AppDbContext db, ILogger<RankingRecordS
                 evaluation.ApprovedAt),
             stored);
     }
-
     private static string? ParseTier(string? value, IReadOnlyList<string> tierCodes)
     {
         if (string.IsNullOrWhiteSpace(value))

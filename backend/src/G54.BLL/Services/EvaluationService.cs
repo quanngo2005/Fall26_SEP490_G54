@@ -2251,8 +2251,26 @@ public sealed partial class EvaluationService(
         return list;
     }
 
-    private Task<DowngradeConfiguration> LoadDowngradeConfigurationAsync(CancellationToken cancellationToken) =>
-        RankingInputs.LoadDowngradeConfigurationAsync(db, cancellationToken);
+    /// <summary>Reads the tier thresholds (best first) and the downgrade setting. Missing configuration is an error, never a guess.</summary>
+    private async Task<DowngradeConfiguration> LoadDowngradeConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var tiers = await db.RankingTierThresholds
+            .AsNoTracking()
+            .OrderBy(t => t.RankOrder)
+            .ToListAsync(cancellationToken);
+        var downgrade = await db.Downgrades
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tiers.Count == 0 || downgrade is null)
+        {
+            throw new InvalidOperationException(
+                "Chưa cấu hình xếp loại (ranking_tier_threshold, downgrade). Hãy chạy DbMigrator.");
+        }
+
+        var criteria = await EvaluationSettingsService.LoadCriteriaAsync(db, cancellationToken);
+        return new DowngradeConfiguration(tiers, downgrade.TriggerSeverity, downgrade.CapTierCode, criteria);
+    }
 
     private Task<Dictionary<Guid, List<RiskEvent>>> LoadRiskEventsByEmployeeAsync(
         List<Guid> employeeIds,

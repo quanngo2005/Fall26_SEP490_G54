@@ -45,7 +45,10 @@ public sealed class RankingRecordServiceTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 
-    private RankingRecordService Service => new(_db, NullLogger<RankingRecordService>.Instance);
+    private RankingRecordService Service => new(
+        _db,
+        new RankingPolicyService(_db, new PerformanceScoreCalculator(_db, new PerformanceScoreFormula())),
+        NullLogger<RankingRecordService>.Instance);
 
     private Department AddDepartment(string code, DepartmentLevelType level, Guid? parentId)
     {
@@ -210,6 +213,43 @@ public sealed class RankingRecordServiceTests : IDisposable
         Assert.Equal(("A1", "A1", false), (top.ProposedTier, top.Tier, top.IsAdjusted));
         var adjusted = result.Items.Single(r => r.EmployeeCode == "ADJ");
         Assert.Equal(("A1", "B", true), (adjusted.ProposedTier, adjusted.Tier, adjusted.IsAdjusted));
+    }
+
+    [Fact]
+    public async Task GetRecords_ProposesTheTierFromThePolicyFrozenWhenThePeriodWasLocked()
+    {
+        AddRecord("A", _sales, _teller, 92m);
+        _period.RankingPolicySnapshotJson = """
+            {"scoreFormula":"TotalScore","tiers":[{"tierCode":"TOP","rankOrder":1,"minScore":90},{"tierCode":"LOW","rankOrder":2,"minScore":0}],"tieBreakers":["EMPLOYEE_CODE_ASC"],"rules":[]}
+            """;
+        await _db.SaveChangesAsync();
+
+        var result = await Service.GetRecordsAsync(new RankingRecordFilterDto { PeriodId = _period.Id });
+        var filtered = await Service.GetRecordsAsync(new RankingRecordFilterDto { PeriodId = _period.Id, Tier = "top" });
+
+        // The tiers configured today would give A2 for 92: the frozen policy wins.
+        Assert.Equal("TOP", result.Items.Single().ProposedTier);
+        Assert.Single(filtered.Items);
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service.GetRecordsAsync(new RankingRecordFilterDto { PeriodId = _period.Id, Tier = "A2" }));
+    }
+
+    [Fact]
+    public async Task GetRecords_EvaluatesThePolicyOverTheWholeDepartmentLikeTheCalibrationScreen()
+    {
+        AddRecord("TELLER1", _sales, _teller, 100m);
+        AddRecord("OFFICER1", _sales, _officer, 80m);
+        // Department average 90: 100 -> 90 and 80 -> 70. Averaged per job position both would be 80.
+        _period.RankingPolicySnapshotJson = """
+            {"scoreFormula":"TotalScore - DepartmentAvgScore + 80","tiers":[{"tierCode":"TOP","rankOrder":1,"minScore":85},{"tierCode":"LOW","rankOrder":2,"minScore":0}],"tieBreakers":["EMPLOYEE_CODE_ASC"],"rules":[]}
+            """;
+        await _db.SaveChangesAsync();
+
+        var result = await Service.GetRecordsAsync(new RankingRecordFilterDto { PeriodId = _period.Id });
+
+        Assert.Equal(
+            [("OFFICER1", "LOW"), ("TELLER1", "TOP")],
+            result.Items.OrderBy(r => r.EmployeeCode).Select(r => (r.EmployeeCode, r.ProposedTier)));
     }
 
     [Fact]

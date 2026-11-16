@@ -29,9 +29,13 @@ still change.
   that group. The rank does not depend on the filters: it is computed over the whole group before filtering.
 - **Tier**: the tier the Branch Manager finalized. It is the calibrated tier when a department calibration set one,
   otherwise `proposedTier`.
-- **proposedTier**: the tier of `totalScore` from `ranking_tier_threshold`, capped by the downgrade rule when the employee
-  has a risk event of at least the configured severity in the period (same rule as the calibration screen).
-- Tier codes are the ones configured in `ranking_tier_threshold` (`A1`, `A2`, `A3`, `B`, `C` by default).
+- **proposedTier**: the tier the ranking policy gives the employee (`RankingRuleEngine`: score formula, tier thresholds,
+  tier criteria and automation rules such as the downgrade cap on a risk event). The policy is the one frozen in
+  `ranking_policy_snapshot_json` when the period was locked, so a later change of the policy does not change a locked period
+  (same source as the calibration screen, `docs/api/SYSTEM_PARAMETER_CONTRACT.md`). The score used is the stored `totalScore`,
+  and the policy is evaluated over every record of the department (formula variables such as the department average and
+  group quotas), as the calibration screen does, not per job position.
+- Tier codes are the ones of that policy (`A1`, `A2`, `A3`, `B`, `C` by default).
 
 ## 3. `GET /ranking-records`
 
@@ -42,7 +46,7 @@ still change.
 | `periodId` | GUID | yes | Evaluation period. Must be `LOCKED`. |
 | `departmentId` | GUID | no | This department and its sub-departments. |
 | `jobPositionId` | GUID | no | Job position of the employee. |
-| `tier` | string | no | A configured tier code (any casing). |
+| `tier` | string | no | A tier code of the period's policy (any casing). |
 | `keyword` | string | no | Case-insensitive contains on employee code or full name. |
 | `page` | int | no | Default 1; below 1 is treated as 1. |
 | `pageSize` | int | no | Default 20; clamped to 1..100. |
@@ -129,7 +133,7 @@ Component scores (business, service quality, operations) are not stored with a f
 
 | Status | `errorCode` | When |
 | --- | --- | --- |
-| 400 | `VALIDATION_ERROR` | `periodId` missing, or `tier` is not a configured tier code |
+| 400 | `VALIDATION_ERROR` | `periodId` missing, or `tier` is not a tier code of the period's policy |
 | 401 | `UNAUTHORIZED` | No or invalid token |
 | 403 | `FORBIDDEN` | The caller lacks `ranking_record:read` at scope `All` |
 | 404 | `NOT_FOUND` | Unknown period or department; the detail id is not a `FINAL` evaluation of a `LOCKED` period |
