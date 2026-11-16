@@ -64,7 +64,8 @@ public sealed class ControllerDelegationTests
             Stub<ITransactionImportService>(out var service),
             Stub<IWorkTransactionService>(out var transactions),
             Options.Create(new SystemParametersOptions()),
-            Stub<ITransactionImportTemplateProvider>(out var template));
+            Stub<ITransactionImportTemplateProvider>(out var template),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<G54.Api.Controllers.TransactionImportsController>.Instance);
 
         var actions = await RunAllAsync(controller);
 
@@ -84,7 +85,8 @@ public sealed class ControllerDelegationTests
             Stub<ITransactionImportService>(out var service),
             Stub<IWorkTransactionService>(out _),
             Options.Create(new SystemParametersOptions()),
-            Stub<ITransactionImportTemplateProvider>(out _)));
+            Stub<ITransactionImportTemplateProvider>(out _),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<G54.Api.Controllers.TransactionImportsController>.Instance));
         IFormFile? file = fileName is null ? null : new FormFile(new MemoryStream(XlsxBytes), 0, XlsxBytes.Length, "file", fileName);
 
         var result = await controller.Import(file, default);

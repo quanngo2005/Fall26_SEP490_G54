@@ -17,7 +17,9 @@ Follows `API_CONVENTIONS.md`. Imports are described in `TRANSACTION_IMPORT_CONTR
 
 - Adding a code moves the work to `SUBMITTED` (from `NEW`, `IN_PROGRESS`, `REJECTED`, `OVERDUE`). The work becomes `DONE` only when **all** its codes are `MATCHED`; otherwise it stays `SUBMITTED`. No new work status.
 - A matched code credits **every** KPI mapped to the work type, each with its own value: `work_type_kpi.value_source` = `COUNT` (default, credits 1) or `AMOUNT` (credits the file's `amount`). The multiplier is applied only when the KPI is scored. SUM, RATIO (uses the file's `denominator`) and AVG are supported; `NO_AGGREGATION` is never credited (code stays `IN_REVIEW`, reason `KPI_AGGREGATION_NOT_SUPPORTED`).
-- Reconcile runs when a code is added and after every `POST /transaction-imports` (all `IN_REVIEW` codes that appear in the new batch). It is idempotent: one matched code writes one ledger entry.
+- Reconcile runs when a code is added and after every `POST /transaction-imports`. After an import it retries **every** `IN_REVIEW` code that has an imported row in any batch, not only codes of the new batch, so a code left `IN_REVIEW` (locked period, missing target) is matched by the next import once the cause is fixed. It is idempotent: one matched code writes one ledger entry.
+- Transaction codes are trimmed and upper-cased when stored (both work codes and imported codes) and compared ignoring case, so `gd2610001` and `GD2610001` are the same code (and a duplicate on add).
+- Only the employee and product are compared; amount, date and customer code are not (the transaction date is used as the progress date).
 - A handed-over work keeps the 30/70 split.
 - **Late import of a carried-over result** (see `EVALUATION_PERIOD_CONTRACT.md` §7): when the work's latest
   `result_submission` has `carried_over_to_period_id` set (its original period locked while the result was still

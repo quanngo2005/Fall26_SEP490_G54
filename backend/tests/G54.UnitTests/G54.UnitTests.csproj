@@ -26,4 +26,8 @@
     <ProjectReference Include="..\..\src\G54.Api\G54.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="TestData\*.xlsx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
