@@ -1,35 +1,19 @@
-.locked-tag {
-  margin-left: 4px;
-  font-weight: 700;
+/* Shared header, banner, filter bar, table, pager and state styles come from ../../shared/ui. */
+
+.muted {
+  color: #64748b;
 }
 
-.status-pill {
-  &.is-pending {
-    background: #fef3c7;
-    color: #b45309;
-  }
+.locked-chip {
+  margin-left: 6px;
+  font-weight: 600;
+}
 
-  &.is-rejected {
-    background: #fee2e2;
-    color: #b91c1c;
-  }
+.profile-table tbody tr.is-inactive td {
+  color: #94a3b8;
 }
 
 .col-action {
   text-align: right;
-  white-space: nowrap;
-}
-
-.row-action {
-  color: #2563eb;
-  font-weight: 600;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
   white-space: nowrap;
 }

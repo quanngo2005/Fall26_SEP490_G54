@@ -1,25 +1,13 @@
-.page-title {
-  margin: 0 0 16px;
-  font:
-    700 20px/28px Inter,
-    system-ui,
-    sans-serif;
-  color: #0f172a;
-}
-
-.period-select-wrap,
-.search-box {
+/* Page title, stat strip, filter bar and table chrome come from the shared Common UI Kit (data-table.scss). */
+.period-select-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
   height: 31px;
+  padding: 0 8px;
   background: #fff;
   border: 1px solid #8494a9;
   border-radius: 6px;
-}
-
-.period-select-wrap {
-  padding: 0 8px;
 }
 
 .period-label,
@@ -31,16 +19,12 @@
   color: #475569;
 }
 
-.period-select,
-.search-input {
+.period-select {
   appearance: none;
   border: none;
   background: transparent;
   font-size: 13px;
   outline: none;
-}
-
-.period-select {
   font-weight: 600;
   color: #0f172a;
   padding-right: 18px;
@@ -66,11 +50,11 @@
 .status-badge.evaluating {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
   font:
-    600 12px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
 }
 
@@ -87,15 +71,6 @@
   background: #0e7490;
 }
 
-.progress-percent,
-.td-code,
-.td-quantitative,
-.td-qualitative,
-.total-score,
-.td-updated {
-  font-family: 'JetBrains Mono', Consolas, monospace;
-}
-
 .btn-calibrate {
   height: 35px;
   padding: 0 14px;
@@ -107,53 +82,52 @@
   cursor: not-allowed;
 }
 
+/* Stat cards: the ui-stat-card strip, with the evaluation's own content. */
 .stat-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  height: 71px;
-  padding: 8px 16px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  width: 100%;
   text-align: left;
   cursor: pointer;
-  &.active {
-    border: 2px solid #2563eb;
-  }
 }
 
 .stat-title {
-  font-size: 12px;
-  color: #475569;
+  display: block;
   margin-bottom: 2px;
+  color: #475569;
+  font:
+    500 12px/16px 'Nunito Sans',
+    sans-serif;
 }
 
 .stat-value {
-  font:
-    700 26px/1.1 Inter,
-    sans-serif;
+  display: block;
   color: #0f172a;
-}
-
-.search-box {
-  width: 240px;
-  padding: 0 10px 0 32px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 8px;
-  width: 16px;
-  height: 16px;
-  color: #8494a9;
+  font:
+    700 22px/28px 'Nunito Sans',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 .search-input {
   width: 100%;
-  color: #0f172a;
+  height: 38px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #1e293b;
+  font:
+    400 13px 'Nunito Sans',
+    sans-serif;
+  padding: 0 12px 0 34px;
+
   &::placeholder {
-    color: #8494a9;
+    color: #64748b;
+  }
+
+  &:focus {
+    border-color: #002b49;
+    box-shadow: 0 0 0 3px rgb(0 43 73 / 10%);
+    outline: none;
   }
 }
 
@@ -168,61 +142,51 @@
   }
 }
 
+/* Table cells: the shared .ui-table handles header and row sizing; these are the evaluation's own. */
 .evaluation-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-
-  thead th {
-    height: 36px;
-    background: #eef2f6;
-    color: #475569;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 0 14px;
-    text-align: center;
+  .td-code,
+  .td-quantitative,
+  .td-qualitative,
+  .td-updated {
+    font-variant-numeric: tabular-nums;
   }
 
-  tbody tr {
-    height: 44px;
-    border-top: 1px solid #eef2f6;
-    &:hover {
-      background: #f8fafc;
-    }
-    &.highlighted {
-      background: #eff6ff;
-    }
-  }
-
-  tbody td {
-    padding: 0 14px;
-    color: #0f172a;
-    text-align: center;
+  .td-code,
+  .total-score {
+    font-weight: 600;
   }
 }
 
-.td-code,
-.total-score {
-  font-weight: 700;
-}
-
+/* Status and attention badges: the StatusBadgeComponent shape (24px, 6px radius, sentence case). */
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 4px;
+  gap: 6px;
+  min-height: 24px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0 9px;
   font:
-    600 11px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
   white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentcolor;
+  }
 }
 
 .badge-draft,
 .badge-warning {
   background: #fffbeb;
-  border: 1px solid #fde68a;
+  border-color: #fde68a;
   color: #b45309;
 }
 
@@ -235,22 +199,25 @@
   }
 }
 
+/* A completed evaluation is the healthy state: a dot and plain text, no fill. */
 .badge-completed {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  border-color: transparent;
+  background: transparent;
   color: #047857;
+  font-weight: 500;
+  padding: 0;
 }
 
 .badge-unscored {
   background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border-color: #e2e8f0;
+  color: #334155;
 }
 
 .badge-danger {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
 }
 
 .score-change {
@@ -276,32 +243,18 @@
   color: #8494a9;
 }
 
-.page-btn {
-  width: 28px;
-  height: 28px;
+.table-footer {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 1px solid #cbd5e1;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid #f1f5f9;
+  border-radius: 0 0 8px 8px;
   background: #fff;
-  border-radius: 6px;
-  color: #475569;
-  font-size: 13px;
-  cursor: pointer;
-  &.active {
-    background: #eff6ff;
-    border-color: #bfdbfe;
-    color: #2563eb;
-  }
-}
-
-.banner-alert {
-  margin-top: 16px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  strong {
-    font-weight: 700;
-  }
+  color: #64748b;
+  font:
+    400 12px/18px 'Nunito Sans',
+    sans-serif;
 }

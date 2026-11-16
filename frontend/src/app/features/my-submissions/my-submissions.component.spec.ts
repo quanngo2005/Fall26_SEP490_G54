@@ -108,6 +108,15 @@ describe('MySubmissionsComponent', () => {
     http.expectOne(`${environment.apiUrl}/submissions/s1/reconciliation`).flush(envelope(body));
     fixture.detectChanges();
   };
+  /** Filters are `app-ui-select` dropdowns: picks an option by its position in the menu. */
+  const pick = (fixture: ReturnType<typeof open>, trigger: number, option: number) => {
+    (
+      fixture.nativeElement.querySelectorAll('.ui-select-trigger')[trigger] as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelectorAll('.ui-select-option')[option] as HTMLElement).click();
+    fixture.detectChanges();
+  };
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -140,11 +149,7 @@ describe('MySubmissionsComponent', () => {
 
   it('says "all periods" instead of repeating the word period when no period is chosen', () => {
     const fixture = open();
-    const select: HTMLSelectElement = fixture.nativeElement.querySelector(
-      'select[aria-label="Lọc theo kỳ"]',
-    );
-    select.value = 'ALL';
-    select.dispatchEvent(new Event('change'));
+    pick(fixture, 1, 0);
     http
       .expectOne((r) => r.url === listUrl)
       .flush(envelope({ items: [item()], totalCount: 1, page: 1, pageSize: 20 }));
@@ -182,7 +187,7 @@ describe('MySubmissionsComponent', () => {
     http.expectOne((r) => r.url === listUrl).flush({}, { status: 500, statusText: 'x' });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
-    const retry: HTMLButtonElement = fixture.nativeElement.querySelector('.state-block button');
+    const retry: HTMLButtonElement = fixture.nativeElement.querySelector('[role="alert"] button');
     retry.click();
     http
       .expectOne((r) => r.url === listUrl)
@@ -193,11 +198,8 @@ describe('MySubmissionsComponent', () => {
 
   it('filters by reconciliation and goes back to the first page', () => {
     const fixture = open();
-    const select$: HTMLSelectElement = fixture.nativeElement.querySelector(
-      'select[aria-label="Lọc theo đối soát"]',
-    );
-    select$.value = 'MATCHED';
-    select$.dispatchEvent(new Event('change'));
+    // Option 1 is "matched" in the reconciliation menu.
+    pick(fixture, 0, 1);
     const request = http.expectOne((r) => r.url === listUrl);
     expect(request.request.params.get('matchStatus')).toBe('MATCHED');
     expect(request.request.params.get('page')).toBe('1');

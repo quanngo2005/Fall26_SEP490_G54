@@ -254,7 +254,9 @@
                   <div class="employee-line">
                     <span class="avatar" aria-hidden="true">{{initials(account.fullName)}}</span>
                     <strong>{{account.fullName}}</strong>
-                    <span class="muted">{{account.employeeCode}} · {{account.departmentName}}</span>
+                    <span class="muted"
+                      >{{account.employeeCode}} · {{account.departmentName}}</span
+                    >
                     <a
                       class="ui-action-btn"
                       [routerLink]="['/employee-detail', account.employeeCode]"
@@ -310,12 +312,20 @@
 
               @if (account.status !== 'EMPLOYEE_TERMINATED') {
                 <footer class="drawer-foot">
-                  <button type="button" class="button button-secondary" (click)="action.set('reset')">
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    (click)="action.set('reset')"
+                  >
                     {{t.resetPassword}}
                   </button>
                   <span class="spacer"></span>
                   @if (account.status === 'LOCKED') {
-                    <button type="button" class="button button-secondary" (click)="action.set('unlock')">
+                    <button
+                      type="button"
+                      class="button button-secondary"
+                      (click)="action.set('unlock')"
+                    >
                       {{t.unlock}}
                     </button>
                   } @else {

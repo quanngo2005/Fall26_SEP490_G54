@@ -82,9 +82,34 @@ describe('RiskEventsComponent', () => {
   const listRequest = () => http.expectOne((r) => r.url === url);
   const text = (fixture: { nativeElement: HTMLElement }) =>
     (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
-  const choose = (select: HTMLSelectElement, value: string) => {
-    select.value = value;
-    select.dispatchEvent(new Event('change'));
+  /** Filters are `app-ui-select` dropdowns: index 0 period, 1 department, 2 severity, 3 state. */
+  const trigger = (fixture: { nativeElement: HTMLElement }, index: number) =>
+    fixture.nativeElement.querySelectorAll('.ui-select-trigger')[index] as HTMLButtonElement;
+  const optionsOf = (
+    fixture: { nativeElement: HTMLElement; detectChanges(): void },
+    index: number,
+  ) => {
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('.ui-select-option') as NodeListOf<HTMLElement>,
+    ).map((option) => option.textContent?.trim() ?? '');
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    return labels;
+  };
+  const choose = (
+    fixture: { nativeElement: HTMLElement; detectChanges(): void },
+    index: number,
+    label: string,
+  ) => {
+    trigger(fixture, index).click();
+    fixture.detectChanges();
+    const option = Array.from(
+      fixture.nativeElement.querySelectorAll('.ui-select-option') as NodeListOf<HTMLElement>,
+    ).find((el) => el.textContent?.includes(label));
+    option?.click();
+    fixture.detectChanges();
   };
 
   beforeEach(async () => {
@@ -179,19 +204,16 @@ describe('RiskEventsComponent', () => {
     const fixture = open();
     listRequest().flush(list([item()]));
     fixture.detectChanges();
-    const selects = fixture.nativeElement.querySelectorAll(
-      'select',
-    ) as NodeListOf<HTMLSelectElement>;
-    expect(selects[1].textContent).toContain('KHCN');
-    expect(selects[0].textContent).toContain('2026-10');
+    expect(optionsOf(fixture, 1).join(' ')).toContain('KHCN');
+    expect(optionsOf(fixture, 0).join(' ')).toContain('2026-10');
 
-    choose(selects[0], 'p1');
+    choose(fixture, 0, '2026-10');
     expect(listRequest().request.params.get('periodId')).toBe('p1');
-    choose(selects[1], 'd1');
+    choose(fixture, 1, 'KHCN');
     http.match((r) => r.url === url);
-    choose(selects[2], 'HIGH');
+    choose(fixture, 2, 'Cao');
     http.match((r) => r.url === url);
-    choose(selects[3], 'REVERSED');
+    choose(fixture, 3, 'Đã gỡ');
     const last = listRequest();
     expect(last.request.params.get('periodId')).toBe('p1');
     expect(last.request.params.get('departmentId')).toBe('d1');
@@ -230,9 +252,10 @@ describe('RiskEventsComponent', () => {
     listRequest().flush(list([item()], { totalCount: 45, pageSize: 20 }));
     fixture.detectChanges();
 
-    const pages = fixture.nativeElement.querySelectorAll(
-      '.page-box',
-    ) as NodeListOf<HTMLButtonElement>;
+    // The pager also holds the previous and next buttons; only the numbered ones count.
+    const pages = (
+      Array.from(fixture.nativeElement.querySelectorAll('.ui-page-btn')) as HTMLButtonElement[]
+    ).filter((button) => /^\d+$/.test(button.textContent?.trim() ?? ''));
     expect(pages.length).toBe(3);
     pages[2].click();
     expect(listRequest().request.params.get('page')).toBe('3');
@@ -325,7 +348,7 @@ describe('RiskEventsComponent', () => {
     fixture.detectChanges();
 
     expect(text(fixture)).toContain('Không tải được danh sách sự kiện rủi ro');
-    (fixture.nativeElement.querySelector('.state-block button') as HTMLButtonElement).click();
+    (fixture.nativeElement.querySelector('[role="alert"] button') as HTMLButtonElement).click();
     listRequest().flush(list([item()]));
     fixture.detectChanges();
     expect(text(fixture)).toContain('RSK-0045');
@@ -356,7 +379,7 @@ describe('RiskEventsComponent', () => {
     ];
   };
 
-  it('opens on the current period, newest first, instead of every period', async () => {
+  it('opens on the current period, newest first, instead of every period', () => {
     const fixture = TestBed.createComponent(RiskEventsComponent);
     fixture.detectChanges();
     http
@@ -368,16 +391,9 @@ describe('RiskEventsComponent', () => {
     expect(request.request.params.get('periodId')).toBe('month');
     request.flush(list([]));
     fixture.detectChanges();
-    const options = Array.from(
-      fixture.nativeElement.querySelectorAll(
-        '.period-select option',
-      ) as NodeListOf<HTMLOptionElement>,
-    );
-    expect(options.map((o) => o.value)).toEqual(['ALL', 'month', 'year']);
-    await fixture.whenStable();
-    expect(
-      (fixture.nativeElement.querySelector('.period-select select') as HTMLSelectElement).value,
-    ).toBe('month');
+    // The trigger shows the current period; the menu lists "all" first, then the newest periods.
+    expect(trigger(fixture, 0).textContent?.trim()).toBe('M');
+    expect(optionsOf(fixture, 0).length).toBe(3);
   });
 
   it('sorts by the clicked header, reverses on a second click and starts over at the first page', () => {
@@ -388,25 +404,25 @@ describe('RiskEventsComponent', () => {
       (Array.from(fixture.nativeElement.querySelectorAll('th')) as HTMLElement[]).find((th) =>
         th.textContent?.includes(label),
       );
-    expect(header('NGÀY VI')?.getAttribute('aria-sort') === 'descending').toBeTrue();
+    expect(header('Ngày vi phạm')?.getAttribute('aria-sort') === 'descending').toBeTrue();
 
-    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Mã')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const first = listRequest();
     expect(first.request.params.get('sortBy')).toBe('code');
     expect(first.request.params.get('sortDir')).toBe('asc');
     expect(first.request.params.get('page')).toBe('1');
     first.flush(list([item()]));
     fixture.detectChanges();
-    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('ascending');
+    expect(header('Mã')?.getAttribute('aria-sort')).toBe('ascending');
 
-    (header('MÃ')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Mã')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const second = listRequest();
     expect(second.request.params.get('sortDir')).toBe('desc');
     second.flush(list([item()]));
     fixture.detectChanges();
-    expect(header('MÃ')?.getAttribute('aria-sort')).toBe('descending');
+    expect(header('Mã')?.getAttribute('aria-sort')).toBe('descending');
 
-    (header('ĐIỂM PHẠT')?.querySelector('.sort-btn') as HTMLButtonElement).click();
+    (header('Điểm phạt')?.querySelector('.sort-btn') as HTMLButtonElement).click();
     const date = listRequest();
     expect(date.request.params.get('sortBy')).toBe('penalty');
     expect(date.request.params.get('sortDir')).toBe('desc');

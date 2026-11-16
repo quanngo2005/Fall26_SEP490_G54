@@ -11,29 +11,29 @@ import { LayoutIconComponent } from '../layout/layout-icon.component';
   imports: [FormsModule, LayoutIconComponent],
   template: `
     <div class="ui-search-wrap" [class.is-disabled]="disabled()">
-      <app-layout-icon name="search" class="ui-search-icon" />
-      <input
-        type="search"
-        class="ui-search-el"
-        [class.has-clear]="!!value() && !disabled()"
-        [ngModel]="value()"
-        [disabled]="disabled()"
-        [placeholder]="placeholder()"
-        [attr.aria-label]="ariaLabel() || placeholder()"
-        (ngModelChange)="valueChange.emit($event)"
-        (keydown.enter)="enterPressed.emit()"
-      />
-      @if (value() && !disabled()) {
-        <button
-          type="button"
-          class="ui-search-clear"
-          [attr.aria-label]="clearLabel()"
-          (click)="clear()"
-        >
-          ×
-        </button>
-      }
-    </div>
+  <app-layout-icon name="search" class="ui-search-icon" />
+  <input
+    type="search"
+    class="ui-search-el"
+    [class.has-clear]="!!value() && !disabled()"
+    [ngModel]="value()"
+    [disabled]="disabled()"
+    [placeholder]="placeholder()"
+    [attr.aria-label]="ariaLabel() || placeholder()"
+    (ngModelChange)="valueChange.emit($event)"
+    (keydown.enter)="enterPressed.emit()"
+  />
+  @if (value() && !disabled()) {
+    <button
+      type="button"
+      class="ui-search-clear"
+      [attr.aria-label]="clearLabel()"
+      (click)="clear()"
+    >
+      ×
+    </button>
+  }
+</div>
   `,
   styles: [
     `

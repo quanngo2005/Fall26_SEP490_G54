@@ -193,13 +193,18 @@ describe('WorkTypeListComponent', () => {
       });
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    expect(root.querySelector('.page-button.is-current')?.textContent).toContain('1 / 3');
+    // prev, pages 1-3, next
+    expect(root.querySelectorAll('.ui-page-btn').length).toBe(5);
+    expect(root.querySelector('.ui-pagination-range')?.textContent).toContain('/ 45');
 
-    const select = root.querySelector<HTMLSelectElement>('.page-size') as HTMLSelectElement;
-    select.value = select.options[2].value;
-    select.dispatchEvent(new Event('change'));
+    const trigger = root.querySelector<HTMLButtonElement>('.ui-size-dropdown .ui-select-trigger');
+    trigger?.click();
     fixture.detectChanges();
-    expect(root.querySelector('.page-button.is-current')?.textContent).toContain('1 / 1');
+    root.querySelectorAll<HTMLElement>('.ui-select-option')[2].click();
+    fixture.detectChanges();
+    // 50 per page fits all 45 rows on one page: prev, page 1, next
+    expect(root.querySelectorAll('.ui-page-btn').length).toBe(3);
+    expect(root.querySelector('.ui-page-btn.is-active')?.textContent).toContain('1');
   });
 
   it('deactivates the selected work type after confirmation and reloads the list', () => {
