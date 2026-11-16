@@ -28,11 +28,13 @@ public sealed class WorkTransactionService(
         return await ToDtoAsync(work, ct);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
     public async Task<WorkTransactionsDto> AddAsync(
         Guid workId, Guid userId, AddWorkTransactionsRequestDto request, CancellationToken ct = default)
     {
         var work = await LoadOwnWorkAsync(workId, userId, ct);
-        var codes = (request.TransactionCodes ?? []).Select(c => c?.Trim() ?? string.Empty).Where(c => c.Length > 0).Distinct().ToList();
+        var codes = (request.TransactionCodes ?? []).Select(NormalizeCode).Where(c => c.Length > 0).Distinct().ToList();
         if (codes.Count == 0 || codes.Any(c => c.Length > MaxCodeLength))
         {
             throw new ValidationException($"transactionCodes must hold 1+ codes of at most {MaxCodeLength} characters.");
@@ -49,7 +51,7 @@ public sealed class WorkTransactionService(
             throw new BusinessRuleException(ErrorCodes.WorkTransactionLimit, statusCode: StatusCodes.Status409Conflict);
         }
 
-        if (await db.WorkTransactions.AnyAsync(w => codes.Contains(w.TransactionCode), ct))
+        if (await db.WorkTransactions.AnyAsync(w => codes.Contains(w.TransactionCode.ToUpper()), ct))
         {
             throw new BusinessRuleException(ErrorCodes.WorkTransactionDuplicate, statusCode: StatusCodes.Status409Conflict);
         }
@@ -72,9 +74,10 @@ public sealed class WorkTransactionService(
         }
 
         await db.SaveChangesAsync(ct);
+        var importedByCode = await LoadImportedByCodeAsync(codes, ct);
         foreach (var item in added)
         {
-            await ReconcileAsync(item, work, ct);
+            await ReconcileAsync(item, work, importedByCode.GetValueOrDefault(item.TransactionCode), ct);
             await db.SaveChangesAsync(ct);
         }
 
@@ -110,18 +113,42 @@ public sealed class WorkTransactionService(
         return await ToDtoAsync(work, ct);
     }
 
+    /// <summary>
+    /// Reconciles every IN_REVIEW code that now has an imported row (not only the codes of <paramref name="batchId"/>),
+    /// so a code left IN_REVIEW earlier (locked period, missing target) is retried by any later import.
+    /// Works and imported rows are loaded in bulk; each code is saved on its own.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use StringComparison", Justification = "EF Core cannot translate string.Equals with StringComparison; upper() is translated to SQL.")]
     public async Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default)
     {
         var pending = await db.WorkTransactions
             .Where(w => w.Status == WorkTransactionStatus.InReview
-                && db.ImportedTransactions.Any(t => t.ImportBatchId == batchId && t.TransactionCode == w.TransactionCode))
+                && db.ImportedTransactions.Any(t => t.TransactionCode.ToUpper() == w.TransactionCode.ToUpper()))
+            .OrderBy(w => w.CreatedAt)
             .ToListAsync(ct);
+        if (pending.Count == 0)
+        {
+            return new ReconcileSummaryDto(0, 0, 0);
+        }
+
+        var workIds = pending.Select(p => p.WorkId).Distinct().ToList();
+        var works = await db.Works
+            .Include(w => w.WorkType).ThenInclude(t => t!.WorkTypeKpis).ThenInclude(k => k.KpiDefinition)
+            .Where(w => workIds.Contains(w.Id))
+            .ToDictionaryAsync(w => w.Id, ct);
+        var importedByCode = await LoadImportedByCodeAsync(pending.Select(p => p.TransactionCode), ct);
+
         foreach (var item in pending)
         {
-            var work = await LoadWorkAsync(item.WorkId, ct);
-            await ReconcileAsync(item, work, ct);
+            await ReconcileAsync(item, works[item.WorkId], importedByCode.GetValueOrDefault(NormalizeCode(item.TransactionCode)), ct);
             await db.SaveChangesAsync(ct);
-            await CompleteIfAllMatchedAsync(work, ct);
+        }
+
+        foreach (var workId in workIds)
+        {
+            await CompleteIfAllMatchedAsync(works[workId], ct);
         }
 
         return new ReconcileSummaryDto(
@@ -130,12 +157,31 @@ public sealed class WorkTransactionService(
             pending.Count(i => i.Status == WorkTransactionStatus.InReview));
     }
 
+    /// <summary>Transaction codes are compared trimmed and upper-cased (Core Banking codes are case-insensitive).</summary>
+    public static string NormalizeCode(string? code) => (code ?? string.Empty).Trim().ToUpperInvariant();
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    private async Task<Dictionary<string, ImportedTransaction>> LoadImportedByCodeAsync(IEnumerable<string> codes, CancellationToken ct)
+    {
+        var result = new Dictionary<string, ImportedTransaction>(StringComparer.Ordinal);
+        foreach (var chunk in codes.Select(NormalizeCode).Where(c => c.Length > 0).Distinct().Chunk(1000))
+        {
+            var found = await db.ImportedTransactions.Where(t => chunk.Contains(t.TransactionCode.ToUpper())).ToListAsync(ct);
+            foreach (var t in found)
+            {
+                result.TryAdd(NormalizeCode(t.TransactionCode), t);
+            }
+        }
+
+        return result;
+    }
+
     // A code with no imported row yet, or one that cannot be credited yet (no target, locked period), stays IN_REVIEW
     // with the error code as reason so it is retried by the next import; a mismatch is final.
-    private async Task ReconcileAsync(WorkTransaction item, Work work, CancellationToken ct)
+    private async Task ReconcileAsync(WorkTransaction item, Work work, ImportedTransaction? imported, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        var imported = await db.ImportedTransactions.FirstOrDefaultAsync(t => t.TransactionCode == item.TransactionCode, ct);
         if (imported is null)
         {
             Set(item, WorkTransactionStatus.InReview, null, now);

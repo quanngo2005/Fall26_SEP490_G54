@@ -19,19 +19,48 @@ public sealed class TransactionImportServiceTests
     {
         var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-        db.Employees.Add(new Employee
-        {
-            Id = Guid.NewGuid(),
-            EmployeeCode = "E001",
-            FullName = "A",
-            Email = "a@x.vn",
-            DepartmentId = Guid.NewGuid(),
-            JobPositionId = Guid.NewGuid(),
-            UpdatedAt = Now,
-            LastSyncAt = Now,
-        });
+        db.Employees.AddRange(
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "E001",
+                FullName = "A",
+                Email = "a@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Active,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            },
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "E002",
+                FullName = "B",
+                Email = "b@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Active,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            },
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "ETERM",
+                FullName = "Terminated",
+                Email = "term@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Terminated,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            });
+        db.WorkTypes.AddRange(
+            new WorkType { Id = Guid.NewGuid(), Code = "WT_CARD", Name = "Card", ProductCode = "CARD", Status = RecordStatus.Active },
+            new WorkType { Id = Guid.NewGuid(), Code = "WT_LOAN", Name = "Loan", ProductCode = "LOAN", Status = RecordStatus.Active });
         db.SaveChanges();
-        return (db, new TransactionImportService(new UnitOfWork(db), TimeProvider.System));
+        return (db, new TransactionImportService(new UnitOfWork(db), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions())));
     }
 
     private static MemoryStream Workbook(string[] header, params object?[][] rows)
@@ -294,6 +323,7 @@ public sealed class TransactionImportServiceTests
             LastSyncAt = Now,
         };
         seed.Employees.Add(employee);
+        seed.WorkTypes.Add(new WorkType { Id = Guid.NewGuid(), Code = "WT_CARD", Name = "Card", ProductCode = "CARD", Status = RecordStatus.Active });
         await seed.SaveChangesAsync();
 
         await using var racing = new RacingDbContext(options, () =>
@@ -322,7 +352,7 @@ public sealed class TransactionImportServiceTests
             });
             other.SaveChanges();
         });
-        var service = new TransactionImportService(new UnitOfWork(racing), TimeProvider.System);
+        var service = new TransactionImportService(new UnitOfWork(racing), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions()));
         using var file = Workbook(Header, Row("T1", amount: 10m), Row("T2"));
 
         var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
@@ -332,6 +362,36 @@ public sealed class TransactionImportServiceTests
         Assert.Equal(0, result.ErrorRows);
         Assert.Equal(["T1", "T2"], await racing.ImportedTransactions.OrderBy(t => t.TransactionCode).Select(t => t.TransactionCode).ToListAsync());
         Assert.Equal(1, await racing.ImportBatches.CountAsync(b => b.FileName == "tx.xlsx"));
+    }
+
+    [Fact]
+    public async Task Import_ValidatesProductCatalogEmployeeTerminatedReferEmployeeAndCustomerCode()
+    {
+        var (db, service) = Create();
+        string[] vnHeader = ["Mã giao dịch*", "Ngày GD*", "Mã khách hàng*", "Mã NV*", "Mã sản phẩm*", "Số tiền (VND)*", "Refer ID"];
+        using var file = Workbook(vnHeader,
+            ["GD01", "05/10/2026", "KH01", "E001", "CARD", "15.000.000", "E002"],
+            ["GD02", "05/10/2026", "", "E001", "CARD", "100000", null],
+            ["GD03", "05/10/2026", "KH03", "ETERM", "CARD", "100000", null],
+            ["GD04", "05/10/2026", "KH04", "E001", "UNKNOWN_PROD", "100000", null],
+            ["GD05", "05/10/2026", "KH05", "E001", "CARD", "100000", "NO_REFER"]);
+
+        var result = await service.ImportAsync("vn.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(5, result.TotalRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(4, result.ErrorRows);
+        Assert.Contains(result.Errors!, e => e.Row == 3 && e.Field == "Mã khách hàng*" && e.Code == "REQUIRED_FIELD_MISSING");
+        Assert.Contains(result.Errors!, e => e.Row == 4 && e.Field == "Mã NV*" && e.Code == "EMPLOYEE_TERMINATED");
+        Assert.Contains(result.Errors!, e => e.Row == 5 && e.Field == "Mã sản phẩm*" && e.Code == "PRODUCT_NOT_FOUND");
+        Assert.Contains(result.Errors!, e => e.Row == 6 && e.Field == "Refer ID" && e.Code == "REFER_EMPLOYEE_NOT_FOUND");
+
+        var saved = await db.ImportedTransactions.SingleAsync();
+        Assert.Equal("GD01", saved.TransactionCode);
+        Assert.Equal("KH01", saved.CustomerCode);
+        Assert.Equal(new DateOnly(2026, 10, 5), saved.TransactionDate);
+        Assert.Equal(15_000_000m, saved.Amount);
+        Assert.Equal("E002", saved.ReferEmployeeCode);
     }
 
     private sealed class RacingDbContext(DbContextOptions<AppDbContext> options, Action concurrentWinner) : AppDbContext(options)
