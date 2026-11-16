@@ -14,7 +14,8 @@ namespace G54.BLL.Services;
 /// Records the verified result and KPI contribution of an approved submission. Shared by the verification decision and
 /// by an ACCEPT appeal decision. ADJUST requests revision and does not record a verified result.
 /// Every metric the employee submitted contributes to its own KPI (a work type can map several KPIs).
-/// A metric whose KPI has an in-effect mapping is rejected (409 <c>KPI_TARGET_NOT_ASSIGNED</c>) when any recipient has no active target.
+/// A metric whose KPI has an in-effect mapping is rejected (409 <c>KPI_TARGET_NOT_ASSIGNED</c>) when the processor has no
+/// active target; a handover referrer without one only loses their share (the processor keeps theirs).
 /// </summary>
 internal static class VerifiedResultRecorder
 {
@@ -60,20 +61,31 @@ internal static class VerifiedResultRecorder
                 }
 
                 var denominator = DenominatorOf(aggregation!.Value, metric);
-                (Guid EmployeeId, decimal RawValue)[] recipients = handover is null
-                    ? [(submitterEmployeeId, metric.Value)]
-                    : SplitHandoverContributions(handover, metric.Value);
-
-                // Resolve every recipient's target before writing anything, so one missing target rejects the whole approval.
-                foreach (var (employeeId, rawValue) in recipients)
+                var processorId = submitterEmployeeId;
+                var processorValue = metric.Value;
+                if (handover is not null)
                 {
-                    var target = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, employeeId, progressDate, cancellationToken)
-                        ?? throw await TargetNotAssignedAsync(db, employeeId, cancellationToken);
+                    var (referrerPoints, processorPoints) = ReferralPointSplit.Split(metric.Value, handover.ReferrerSharePercent);
+                    processorId = handover.ToEmployeeId;
+                    processorValue = processorPoints;
 
-                    // Progress is never added to a locked period. Reversal entries (BR-16) are not implemented yet.
-                    PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
-                    lines.Add(new ContributionLine(target, employeeId, rawValue, denominator, mapping.Multiplier));
+                    // Same rule as the import reconcile: a referrer without an active target for this KPI (a Teller
+                    // referring a term deposit) loses only their share; the processor is still credited.
+                    var referrerTarget = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, handover.FromEmployeeId, progressDate, cancellationToken);
+                    if (referrerTarget is not null)
+                    {
+                        PeriodLockGuard.EnsureWritable(referrerTarget.EvaluationPeriod);
+                        lines.Add(new ContributionLine(referrerTarget, handover.FromEmployeeId, referrerPoints, denominator, mapping.Multiplier));
+                    }
                 }
+
+                // Resolved before anything is written, so a processor without a target rejects the whole approval.
+                var target = await FindActiveTargetAsync(db, mapping.KpiDefinitionId, processorId, progressDate, cancellationToken)
+                    ?? throw await TargetNotAssignedAsync(db, processorId, cancellationToken);
+
+                // Progress is never added to a locked period. Reversal entries (BR-16) are not implemented yet.
+                PeriodLockGuard.EnsureWritable(target.EvaluationPeriod);
+                lines.Add(new ContributionLine(target, processorId, processorValue, denominator, mapping.Multiplier));
             }
         }
 
@@ -222,16 +234,6 @@ internal static class VerifiedResultRecorder
             KpiAggregationType.Avg => 1m,
             _ => null,
         };
-
-    private static (Guid EmployeeId, decimal RawValue)[] SplitHandoverContributions(TaskHandover handover, decimal totalPoints)
-    {
-        var (referrerPoints, processorPoints) = ReferralPointSplit.Split(totalPoints, handover.ReferrerSharePercent);
-        return
-        [
-            (handover.FromEmployeeId, referrerPoints),
-            (handover.ToEmployeeId, processorPoints),
-        ];
-    }
 
     // A verified result item must feed an employee target's progress, so approval needs an active target for each
     // recipient. A late result (its transaction date before the newer version's effective date, BR-15) is attributed

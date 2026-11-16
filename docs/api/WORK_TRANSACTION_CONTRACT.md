@@ -34,8 +34,8 @@ Follows `API_CONVENTIONS.md`. Imports are described in `TRANSACTION_IMPORT_CONTR
 - Amount and date are never declared by the employee (only the code is entered): an `AMOUNT` KPI is credited with the
   Core Banking `amount` and the progress date is the Core Banking date. Not supported: a negative contribution (e.g.
   `KPI_CASA` = deposits − withdrawals) and per-customer counting (`KPI_NEW_CUST`, `KPI_CROSS_SELL`).
-- The manual verification path (`VerifiedResultRecorder.RecordAsync`) is unchanged: there a referrer without a target
-  still rejects the approval.
+- The manual verification and the ACCEPT appeal decision (`VerifiedResultRecorder.RecordAsync`) apply the same referrer
+  rule: a handover referrer without a target loses only their share (`SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`).
 
 ## Endpoints (authenticated; only the work's assignee, otherwise 403)
 

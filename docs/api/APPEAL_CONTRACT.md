@@ -195,7 +195,7 @@ File bằng chứng của khiếu nại tải qua `GET /evidence/{id}/download` 
 | Tự xử lý appeal/submission của mình | 422 | `MAKER_CANNOT_BE_CHECKER` |
 | Appeal/submission/work không còn hợp lệ hoặc xử lý đồng thời | 409 | `APPEAL_INVALID_STATE` |
 | Work đã được ghi nhận KPI | 409 | `KPI_ALREADY_CONTRIBUTED` |
-| `ACCEPT` cho work có KPI nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại; khiếu nại giữ nguyên trạng thái, không ghi gì | 409 | `KPI_TARGET_NOT_ASSIGNED` |
+| `ACCEPT` cho work có KPI nhưng người xử lý chưa có target `ACTIVE` trong kỳ hiện tại (người giới thiệu thiếu target chỉ mất phần điểm giới thiệu); khiếu nại giữ nguyên trạng thái, không ghi gì | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 
 Mã lỗi định nghĩa tại `backend/src/G54.BLL/Common/Constants/ErrorCodes.cs` (message VI/EN qua `ErrorCodes.GetDefaultMessage`).
 
