@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   catchError,
   finalize,
@@ -26,6 +26,8 @@ export class AuthService {
   );
 
   readonly currentUser = this.currentUserState.asReadonly();
+  /** The signed-in user still has a one-time password and has to replace it first. */
+  readonly mustChangePassword = computed(() => this.currentUserState()?.mustChangePassword === true);
 
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.http

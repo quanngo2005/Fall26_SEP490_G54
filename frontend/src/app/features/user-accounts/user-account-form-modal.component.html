@@ -91,21 +91,17 @@
             </div>
           } @else {
             <div class="field">
-              <label for="account-employee">{{t.employee}} <span class="req">*</span></label>
-              <select
+              <label>{{t.employee}} <span class="req">*</span></label>
+              <app-ui-select
                 id="account-employee"
-                class="select"
-                name="employee"
-                [class.is-invalid]="employeeError()"
+                class="full-select"
+                [options]="employeeSelectOptions()"
+                [value]="employeeId()"
+                [placeholder]="t.employeePlaceholder"
+                [ariaLabel]="t.employee"
                 [disabled]="loadingEmployees()"
-                [ngModel]="employeeId()"
-                (ngModelChange)="selectEmployee($event)"
-              >
-                <option value="">{{t.employeePlaceholder}}</option>
-                @for (item of eligible(); track item.id) {
-                  <option [value]="item.id">{{summaryLabel(item)}}</option>
-                }
-              </select>
+                (valueChange)="selectEmployee($event)"
+              />
               @if (employeeError(); as message) {
                 <p class="field-error" role="alert">{{message}}</p>
               } @else if (employeesFailed()) {
@@ -164,20 +160,16 @@
               </div>
             }
             <div class="field" [class.full]="isEdit()">
-              <label for="account-role">{{t.role}} <span class="req">*</span></label>
-              <select
+              <label>{{t.role}} <span class="req">*</span></label>
+              <app-ui-select
                 id="account-role"
-                class="select"
-                name="role"
-                [class.is-invalid]="roleError()"
-                [ngModel]="roleId()"
-                (ngModelChange)="roleId.set($event)"
-              >
-                <option value="">{{t.rolePlaceholder}}</option>
-                @for (role of roles(); track role.id) {
-                  <option [value]="role.id">{{role.name}}</option>
-                }
-              </select>
+                class="full-select"
+                [options]="roleSelectOptions()"
+                [value]="roleId()"
+                [placeholder]="t.rolePlaceholder"
+                [ariaLabel]="t.role"
+                (valueChange)="roleId.set($event)"
+              />
               @if (roleError(); as message) {
                 <p class="field-error" role="alert">{{message}}</p>
               } @else if (!isEdit()) {

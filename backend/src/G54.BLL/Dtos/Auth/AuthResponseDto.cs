@@ -12,4 +12,5 @@ public sealed record AuthenticatedUserDto(
     string Email,
     string FullName,
     IReadOnlyList<string> Roles,
-    IReadOnlyList<string> Permissions);
+    IReadOnlyList<string> Permissions,
+    bool MustChangePassword = false);
