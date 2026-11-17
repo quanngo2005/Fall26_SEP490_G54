@@ -172,7 +172,10 @@
               <span class="metric-pill font-mono">{{weightedPillText()}}</span>
             </div>
             <div class="metric-body">
-              <span class="metric-value font-mono" [ngClass]="scoreToneClass(data.summary.weightedScore)">
+              <span
+                class="metric-value font-mono"
+                [ngClass]="scoreToneClass(data.summary.weightedScore)"
+              >
                 @if (data.summary.weightedScore !== null) {
                   {{data.summary.weightedScore | appNumber: 2}}
                 } @else {
