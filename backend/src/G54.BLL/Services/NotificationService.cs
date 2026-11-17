@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
@@ -58,6 +59,41 @@ public sealed class NotificationService(
         return new SendNotificationResultDto(drafts.Count);
     }
 
+    public async Task<IReadOnlyList<NotificationRecipientOptionDto>> GetSendableRecipientsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var sender = await ResolveEmployeeAsync(userId, cancellationToken);
+        var granted = await permissions.GetEffectivePermissionsAsync(userId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "notification", "send");
+        if (level < AccessScope.DeptLevel)
+        {
+            throw new ForbiddenException("Bạn không có quyền gửi thông báo.");
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var scope = AccessScope.DepartmentsInScope(level, sender.DepartmentId, hierarchy);
+
+        var query = db.Employees.AsNoTracking()
+            .Where(e => e.Status == EmployeeStatus.Active && e.Id != sender.Id);
+        if (scope is not null)
+        {
+            query = query.Where(e => scope.Contains(e.DepartmentId));
+        }
+
+        return await query
+            .OrderBy(e => e.Department.Name)
+            .ThenBy(e => e.EmployeeCode)
+            .Select(e => new NotificationRecipientOptionDto(
+                e.Id,
+                e.EmployeeCode,
+                e.FullName,
+                e.DepartmentId,
+                e.Department.Name,
+                e.JobPosition.Title))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<PagedResult<NotificationDto>> GetMineAsync(
         Guid userId,
         NotificationFilterDto filter,
@@ -65,6 +101,8 @@ public sealed class NotificationService(
     {
         ArgumentNullException.ThrowIfNull(filter);
 
+        var typeFilter = EnumApiFormat.ParseEnum<NotificationType>(filter.Type, "type");
+        var severityFilter = EnumApiFormat.ParseEnum<NotificationSeverity>(filter.Severity, "severity");
         var employeeId = await GetEmployeeIdAsync(userId, cancellationToken);
         var page = Math.Max(1, filter.Page);
         var pageSize = Math.Clamp(filter.PageSize, 1, MaxPageSize);
@@ -73,6 +111,28 @@ public sealed class NotificationService(
         if (filter.Unread == true)
         {
             query = query.Where(n => n.ReadAt == null);
+        }
+        else if (filter.Unread == false)
+        {
+            query = query.Where(n => n.ReadAt != null);
+        }
+
+        if (typeFilter is { } nType)
+        {
+            query = query.Where(n => n.Type == nType);
+        }
+
+        if (severityFilter is { } nSeverity)
+        {
+            query = query.Where(n => n.Severity == nSeverity);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
+            query = query.Where(n =>
+                EF.Functions.ILike(n.Title, pattern, LikePattern.Escape)
+                || (n.Body != null && EF.Functions.ILike(n.Body, pattern, LikePattern.Escape)));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

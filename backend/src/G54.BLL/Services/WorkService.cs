@@ -171,6 +171,10 @@ public sealed partial class WorkService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         LogWorkCreated(logger, work.Code, assignee.Id, null);
+        if (AutomaticNotifications.WorkAssigned(work, assignee, creator) is { } assignedDraft)
+        {
+            await notifier.TryPublishAsync([assignedDraft], cancellationToken);
+        }
 
         var saved = await unitOfWork.Works.GetWithDetailsAsync(work.Id, cancellationToken) ?? work;
         return await BuildDetailAsync(saved, currentUserId, creator.Id, creator.DepartmentId, cancellationToken);

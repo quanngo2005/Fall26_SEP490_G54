@@ -36,6 +36,7 @@ public sealed class NotificationsControllerTests
 
     [Theory]
     [InlineData(nameof(NotificationsController.Send), typeof(HttpPostAttribute), "", "send", "Dept")]
+    [InlineData(nameof(NotificationsController.GetSendableRecipients), typeof(HttpGetAttribute), "recipients", "send", "Dept")]
     [InlineData(nameof(NotificationsController.GetMine), typeof(HttpGetAttribute), "", "read", "Own")]
     [InlineData(nameof(NotificationsController.GetUnreadCount), typeof(HttpGetAttribute), "unread-count", "read", "Own")]
     [InlineData(nameof(NotificationsController.MarkRead), typeof(HttpPostAttribute), "{id:guid}/read", "read", "Own")]
@@ -84,7 +85,8 @@ public sealed class NotificationsControllerTests
         Assert.IsType<OkObjectResult>((await controller.MarkRead(id, CancellationToken.None)).Result);
         Assert.Equal(id, service.ReadId);
         Assert.IsType<OkObjectResult>((await controller.MarkAllRead(CancellationToken.None)).Result);
-        Assert.Equal(["list", "unread", "read", "read-all"], service.Calls);
+        Assert.IsType<OkObjectResult>((await controller.GetSendableRecipients(CancellationToken.None)).Result);
+        Assert.Equal(["list", "unread", "read", "read-all", "recipients"], service.Calls);
         Assert.Equal(CallerId, service.UserId);
     }
 
@@ -141,6 +143,13 @@ public sealed class NotificationsControllerTests
         {
             Calls.Add("read-all");
             return Task.FromResult(new NotificationCountDto(2));
+        }
+
+        public Task<IReadOnlyList<NotificationRecipientOptionDto>> GetSendableRecipientsAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            UserId = userId;
+            Calls.Add("recipients");
+            return Task.FromResult<IReadOnlyList<NotificationRecipientOptionDto>>([]);
         }
 
         public Task<Guid> GetEmployeeIdAsync(Guid userId, CancellationToken cancellationToken = default) => Task.FromResult(userId);

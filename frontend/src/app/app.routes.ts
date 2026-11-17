@@ -297,6 +297,15 @@ export const routes: Routes = [
       import('./features/qa-queue/qa-queue-detail.component').then((m) => m.QaQueueDetailComponent),
   },
   {
+    path: 'notifications',
+    canActivate: [authGuard],
+    title: 'Thông báo',
+    loadComponent: () =>
+      import('./features/notifications/notification-list.component').then(
+        (m) => m.NotificationListComponent,
+      ),
+  },
+  {
     path: 'appeals',
     pathMatch: 'full',
     redirectTo: appealsHomeRedirect,
