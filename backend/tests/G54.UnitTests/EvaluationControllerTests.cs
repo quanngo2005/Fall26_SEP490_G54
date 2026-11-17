@@ -242,6 +242,39 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetDepartmentDashboard_ForwardsPeriodComparePeriodAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.GetDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardRequest);
+        var data = Assert.IsType<ApiResponse<DepartmentEvaluationDashboardDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("KHCN", data.Department.Code);
+    }
+
+    [Fact]
+    public async Task ExportDepartmentDashboard_ReturnsExcelFileWithExpectedName()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.ExportDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.ContentType);
+        Assert.Equal("danh-gia-phong-KHCN-2026-M11.xlsx", file.FileDownloadName);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardExportRequest);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -399,6 +432,39 @@ public sealed class EvaluationControllerTests
         public AcknowledgePersonalEvaluationRequestDto? LastAcknowledgeRequest { get; private set; }
         public Guid LastAcknowledgeUserId { get; private set; }
         public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardExportRequest { get; private set; }
+
+        public Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardDto(
+                new DepartmentEvaluationDepartmentDto(Guid.NewGuid(), "KHCN", "Phòng KHCN", "Nguyễn Văn A"),
+                null,
+                null,
+                [],
+                [],
+                new DepartmentEvaluationPerformanceDto(91.4m, 90.4m, 1.0m, 10, 12, 2, 1, 1, [], []),
+                new DepartmentEvaluationOperationsDto(142, 10, 14, 93.4m, 12.7m),
+                new DepartmentEvaluationTierDistributionDto(20m, [], []),
+                [],
+                [],
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardExportRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardExportDto([1, 2, 3], "danh-gia-phong-KHCN-2026-M11.xlsx"));
+        }
 
         public Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(Guid? periodId, Guid currentUserId, CancellationToken cancellationToken = default)
         {

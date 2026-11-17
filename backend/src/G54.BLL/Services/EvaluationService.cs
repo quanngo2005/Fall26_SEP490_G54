@@ -24,10 +24,14 @@ public sealed partial class EvaluationService(
     IPermissionService permissions,
     IPerformanceScoreCalculator calculator,
     INotifier notifier,
+    TimeProvider? time = null,
     IOptions<SystemParametersOptions>? parameters = null,
     IRankingPolicyService? rankingPolicies = null) : IEvaluationService
 {
-    private SystemParametersOptions Params => parameters?.Value ?? new SystemParametersOptions();
+    private readonly TimeProvider timeProvider = time ?? TimeProvider.System;
+    private readonly SystemParametersOptions systemParameters = parameters?.Value ?? new SystemParametersOptions();
+    private SystemParametersOptions Params => systemParameters;
+    private const decimal DefaultTierACapPercent = 20m;
     /// <summary>
     /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
     /// shared by the approval overview's <c>CanFinalize</c> flag and the finalize action that enforces it.

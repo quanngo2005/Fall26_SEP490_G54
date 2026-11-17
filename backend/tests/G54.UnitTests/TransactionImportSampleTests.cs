@@ -25,8 +25,11 @@ public sealed class TransactionImportSampleTests
         "INSURANCE",
     ];
 
-    [SampleFileFact("06_Giao_dich.xlsx")]
-    public async Task ImportAsync_RealSampleFile_Imports18ValidRowsAndFlagsRows20To24WithExpectedCodes()
+    // Synthetic workbook with the layout of the business sample 06_Giao_dich.xlsx (see SampleFiles); the real file is
+    // checked too, for its shape only, when it is copied into TestData/.
+    [Theory]
+    [MemberData(nameof(SampleFiles.Sources), SampleFiles.Transactions, MemberType = typeof(SampleFiles))]
+    public async Task ImportAsync_SampleWorkbook_Imports18ValidRowsAndFlagsRows20To24WithExpectedCodes(string source)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -45,7 +48,7 @@ public sealed class TransactionImportSampleTests
                 Id = Guid.NewGuid(),
                 EmployeeCode = code,
                 FullName = $"Nhân viên {code}",
-                Email = $"{code.ToLowerInvariant()}@bank.vn",
+                Email = $"{code.ToLowerInvariant()}@example.test",
                 DepartmentId = departmentId,
                 JobPositionId = jobPositionId,
                 Status = code == "NV006" ? EmployeeStatus.Terminated : EmployeeStatus.Active,
@@ -81,8 +84,7 @@ public sealed class TransactionImportSampleTests
         await db.SaveChangesAsync();
 
         var service = new TransactionImportService(new UnitOfWork(db), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions()));
-        var samplePath = Path.Combine(AppContext.BaseDirectory, "TestData", "06_Giao_dich.xlsx");
-        await using var stream = File.OpenRead(samplePath);
+        await using var stream = SampleFiles.Open(SampleFiles.Transactions, source);
 
         var batch = await service.ImportAsync("06_Giao_dich.xlsx", stream, Guid.NewGuid(), CancellationToken.None);
 
@@ -109,10 +111,13 @@ public sealed class TransactionImportSampleTests
         Assert.Equal("EMPLOYEE_TERMINATED", errors[4].Code);
         Assert.Equal("Mã NV*", errors[4].Field);
 
-        var gd2610001 = await db.ImportedTransactions.SingleAsync(t => t.TransactionCode == "GD2610001");
-        Assert.Equal(new DateOnly(2026, 10, 5), gd2610001.TransactionDate);
-        Assert.Equal("KH10021", gd2610001.CustomerCode);
-        Assert.Equal(15_000_000m, gd2610001.Amount);
-        Assert.Equal("DEPOSIT", gd2610001.ProductCode);
+        if (source == SampleFiles.Synthetic)
+        {
+            var first = await db.ImportedTransactions.SingleAsync(t => t.TransactionCode == "TXS0001");
+            Assert.Equal(new DateOnly(2026, 10, 1), first.TransactionDate);
+            Assert.Equal("KHS001", first.CustomerCode);
+            Assert.Equal(1_000_000m, first.Amount);
+            Assert.Equal("DEPOSIT", first.ProductCode);
+        }
     }
 }

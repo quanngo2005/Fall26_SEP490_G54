@@ -55,7 +55,7 @@ Errors: 403 `FORBIDDEN` (submission of someone else), 404 `NOT_FOUND` (unknown i
 ```
 
 - `fields[].declared` is what the work expects (the code the employee attached, the assignee's employee code, `WorkType.ProductCode`); `imported` is the row of the data import with the same transaction code (only a `MATCHED` code is linked to its row, so a code rejected for the employee or the product is looked up by its code, as the reconcile does). The employee is compared by id and the product ignoring case, like the reconcile. `matched` is `null` when there is nothing to compare: the code has no import yet (every `imported` is `null`), or `AMOUNT`, which has no declared value. `AMOUNT.imported` is a plain decimal string.
-- `transactions[].reason` is the error code of the work transaction (`EMPLOYEE_MISMATCH`, `PRODUCT_MISMATCH`, `KPI_TARGET_NOT_ASSIGNED`, `KPI_AGGREGATION_NOT_SUPPORTED`) or `null`.
+- `transactions[].reason` is the error code of the work transaction (`EMPLOYEE_MISMATCH`, `PRODUCT_MISMATCH`, `CUSTOMER_MISMATCH`, `TRANSACTION_BEFORE_HANDOVER`, `REFERRER_MISMATCH`, `REFERRER_NOT_CREDITED` on a `MATCHED` code, `KPI_TARGET_NOT_ASSIGNED`, `KPI_AGGREGATION_NOT_SUPPORTED`) or `null`.
 - `versions`: every non-draft submission of the caller for the same work, newest first. `matchStatus` is the work's current reconciliation, shared by all versions.
 - `appeal.state`: `NOT_APPLICABLE` (not `REJECTED`), `AVAILABLE` (rejected, before `deadline` = rejection time + `SystemParameters:AppealRejectedHours`, default 48 h), `EXPIRED`, `IN_PROGRESS` (an appeal is `OPEN` / `UNDER_REVIEW`, `appealId` set). Filing is still `POST /submissions/{id}/appeals`, which enforces the same rules.
 
