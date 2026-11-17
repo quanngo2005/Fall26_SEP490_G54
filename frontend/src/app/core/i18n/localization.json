@@ -160,7 +160,8 @@
         "users": "Tài khoản & Phân quyền",
         "settings": "Cài đặt hệ thống",
         "appeals": "Khiếu nại & Phúc khảo",
-        "importHistory": "Lịch sử nhập"
+        "importHistory": "Lịch sử nhập",
+        "reconciliation": "Đối soát giao dịch"
       },
       "common": {
         "close": "Đóng",
@@ -4186,6 +4187,196 @@
           "sending": "Đang gửi…",
           "submit": "Gửi"
         }
+      },
+      "reconciliation": {
+        "title": "Kết quả đối soát",
+        "autoBadge": "Đối soát tự động",
+        "autoNote": "Giao dịch khớp được tính vào KPI tự động, không cần duyệt tay.",
+        "sourceNote": "Dữ liệu so sánh lấy từ file giao dịch Core Banking đã được nhập vào hệ thống.",
+        "export": "Xuất Excel",
+        "exporting": "Đang xuất…",
+        "exportFailed": "Không xuất được file Excel. Vui lòng thử lại.",
+        "close": "Đóng",
+        "filterStatus": "Lọc theo trạng thái",
+        "cards": {
+          "all": "Tất cả"
+        },
+        "status": {
+          "NOT_MATCHED": "Không khớp",
+          "IN_REVIEW": "Chờ đối chiếu",
+          "MATCHED": "Đã khớp"
+        },
+        "searchPlaceholder": "Tìm mã giao dịch, mã khách hàng, mã nhân viên…",
+        "filterPeriod": "Kỳ đánh giá",
+        "allPeriods": "Tất cả kỳ",
+        "dateFrom": "Từ ngày",
+        "dateTo": "Đến ngày",
+        "filterDepartment": "Phòng ban",
+        "allDepartments": "Tất cả phòng ban",
+        "filterJob": "Vị trí",
+        "allJobs": "Tất cả vị trí",
+        "filterProduct": "Sản phẩm",
+        "allProducts": "Tất cả sản phẩm",
+        "filterReason": "Lý do",
+        "allReasons": "Tất cả lý do",
+        "clearFilters": "Xóa bộ lọc",
+        "saveFilters": "Lưu bộ lọc",
+        "filtersSaved": "Đã lưu bộ lọc. Lần sau mở màn hình này, bộ lọc sẽ được dùng lại.",
+        "colWork": "Mã việc",
+        "colEmployee": "Nhân viên",
+        "colTransaction": "Mã giao dịch / khách hàng",
+        "colProduct": "Sản phẩm",
+        "colAmount": "Số tiền (VND)",
+        "colSubmitted": "Gửi lúc",
+        "colStatus": "Trạng thái",
+        "colReason": "Lý do",
+        "reasons": {
+          "EMPLOYEE_MISMATCH": "Sai nhân viên",
+          "PRODUCT_MISMATCH": "Sai sản phẩm",
+          "CUSTOMER_MISMATCH": "Sai mã khách hàng",
+          "REFERRER_MISMATCH": "Sai người giới thiệu",
+          "TRANSACTION_BEFORE_HANDOVER": "Giao dịch trước ngày bàn giao",
+          "METRIC_TYPE_MISMATCH": "Loại chỉ số không phù hợp",
+          "NO_IMPORTED_TRANSACTION": "Chưa có trong file giao dịch",
+          "KPI_TARGET_NOT_ASSIGNED": "Chưa được giao chỉ tiêu KPI",
+          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI chưa hỗ trợ tính từ giao dịch",
+          "PERIOD_LOCKED": "Kỳ đánh giá đã khóa",
+          "REFERRER_NOT_CREDITED": "Người giới thiệu chưa có chỉ tiêu"
+        },
+        "noValue": "—",
+        "loading": "Đang tải…",
+        "loadError": "Không tải được danh sách đối soát.",
+        "retry": "Thử lại",
+        "empty": "Không tìm thấy kết quả phù hợp.",
+        "showing": "{from}–{to} / {total} kết quả",
+        "footnote": "Bấm vào một dòng để xem so sánh từng trường.",
+        "riskPrefill": "Mã giao dịch {code} không khớp với file giao dịch: {reason}.",
+        "riskCreated": "Đã ghi sự kiện rủi ro {code}.",
+        "errors": {
+          "forbidden": "Bạn không có quyền xem màn hình này.",
+          "notFound": "Không tìm thấy mã giao dịch này, hoặc nó nằm ngoài phạm vi bạn được xem.",
+          "generic": "Có lỗi xảy ra. Vui lòng thử lại."
+        },
+        "detail": {
+          "back": "Quay lại danh sách",
+          "title": "Đối soát {work} · {code}",
+          "viewOnly": "Chỉ xem, không có nút duyệt",
+          "flag": "Gắn cờ chất lượng",
+          "recordRisk": "Ghi sự kiện rủi ro",
+          "flagHint": "Tạo một mục trong hàng chờ QA để xem lại bằng chứng của kết quả này.",
+          "riskHint": "Mở biểu mẫu với nhân viên và công việc đã được điền sẵn.",
+          "actionsTitle": "Việc QA có thể làm",
+          "flagBlocked": {
+            "NO_PERMISSION": "Bạn không có quyền gắn cờ chất lượng.",
+            "NO_APPROVED_SUBMISSION": "Chỉ gắn cờ được kết quả đã duyệt, mà công việc này chưa có kết quả nào được duyệt.",
+            "OWN_WORK": "Bạn không thể gắn cờ công việc của chính mình.",
+            "OPEN_FLAG": "Kết quả này đã có một cờ chất lượng đang chờ xử lý."
+          },
+          "submissionCard": "Người gửi",
+          "sentAt": "Gửi lúc {time}",
+          "workType": "Loại việc: {type}",
+          "version": "Bài nộp phiên bản {no}",
+          "noSubmission": "Công việc này chưa có bài nộp kết quả.",
+          "importCard": "File giao dịch",
+          "importedAt": "Nhập lúc {time}",
+          "importedBy": "bởi {name}",
+          "noImportTitle": "Chưa có trong file giao dịch nào",
+          "noImport": "Khi quản trị viên nhập file giao dịch có chứa mã này, hệ thống sẽ tự đối soát lại.",
+          "compareTitle": "So sánh từng trường",
+          "summary": "{matched}/{compared} trường khớp",
+          "siblings": "Các mã khác của công việc này",
+          "colField": "Trường",
+          "colDeclared": "Nhân viên khai",
+          "colImported": "File giao dịch",
+          "colResult": "Kết quả",
+          "fields": {
+            "TRANSACTION_CODE": "Mã giao dịch",
+            "CUSTOMER": "Mã khách hàng (CIF)",
+            "EMPLOYEE": "Nhân viên thực hiện",
+            "PRODUCT": "Sản phẩm",
+            "REFERRAL": "Người giới thiệu",
+            "TRANSACTION_DATE": "Ngày giao dịch",
+            "AMOUNT": "Số tiền"
+          },
+          "declaredAmount": "Lấy theo file giao dịch",
+          "notDeclared": "Không khai báo",
+          "notInFile": "Chưa có trong file",
+          "result": {
+            "match": "Khớp",
+            "mismatch": "Lệch",
+            "notApplicable": "Không áp dụng",
+            "waiting": "Chờ file",
+            "fromFile": "Lấy từ file"
+          },
+          "explainTitle": "Cách đối soát",
+          "explainText": "Mã giao dịch khớp đúng nhân viên và sản phẩm thì được tính vào KPI tự động. Nếu lệch, mã bị loại và nhân viên cần sửa lại mã trên công việc của mình.",
+          "reasonLine": "Lý do hiện tại: {reason}",
+          "noHandover": "Không có bàn giao",
+          "emptyInFile": "Để trống"
+        },
+        "appeal": {
+          "title": "Khiếu nại",
+          "badge": {
+            "NOT_APPLICABLE": "Chưa có",
+            "AVAILABLE": "Còn hạn",
+            "EXPIRED": "Hết hạn",
+            "IN_PROGRESS": "Đang xử lý",
+            "DECIDED": "Đã xử lý"
+          },
+          "text": {
+            "NOT_APPLICABLE": "Chưa có khiếu nại. Với mã giao dịch lệch, nhân viên sửa lại mã trên công việc; chỉ khi bài nộp bị từ chối mới có thể khiếu nại.",
+            "AVAILABLE": "Bài nộp đã bị từ chối. Nhân viên còn {hours} giờ (đến {deadline}) để gửi khiếu nại.",
+            "EXPIRED": "Đã hết hạn gửi khiếu nại ({deadline}).",
+            "IN_PROGRESS": "Nhân viên đã gửi khiếu nại, đang chờ xử lý.",
+            "DECIDED": "Khiếu nại đã được xử lý: {status}."
+          },
+          "status": {
+            "ACCEPTED": "chấp nhận",
+            "REJECTED": "từ chối",
+            "WITHDRAWN": "nhân viên đã rút",
+            "OPEN": "đang mở",
+            "UNDER_REVIEW": "đang xem xét"
+          },
+          "open": "Xem khiếu nại"
+        },
+        "history": {
+          "title": "Lịch sử đối soát",
+          "empty": "Chưa có hoạt động nào.",
+          "system": "Hệ thống",
+          "event": {
+            "CODE_ADDED": "{actor} gửi mã giao dịch",
+            "IMPORTED": "File giao dịch {reference} được nhập vào hệ thống",
+            "IMPORTED_BY": "{actor} nhập file giao dịch {reference}",
+            "RECONCILED_MATCHED": "Hệ thống đối soát: đã khớp",
+            "RECONCILED_NOT_MATCHED": "Hệ thống đối soát: không khớp ({reason})",
+            "RECONCILED_IN_REVIEW": "Đang chờ file giao dịch có chứa mã này",
+            "QUALITY_FLAG": "{actor} gắn cờ chất lượng {reference}",
+            "RISK_EVENT": "{actor} ghi sự kiện rủi ro {reference}",
+            "APPEAL": "Nhân viên gửi khiếu nại"
+          }
+        },
+        "flagModal": {
+          "title": "Gắn cờ chất lượng",
+          "close": "Đóng",
+          "hint": "Cờ này tạo một mục trong hàng chờ QA để xem lại bằng chứng của kết quả đã duyệt.",
+          "reason": "Lý do",
+          "reasonPlaceholder": "Mô tả vấn đề bạn thấy (ít nhất 10 ký tự)",
+          "severity": "Mức độ",
+          "severities": {
+            "LOW": "Thấp",
+            "MEDIUM": "Trung bình",
+            "HIGH": "Cao"
+          },
+          "submit": "Gắn cờ",
+          "submitting": "Đang gắn cờ…",
+          "cancel": "Hủy",
+          "success": "Đã gắn cờ chất lượng. Mục mới nằm trong hàng chờ QA.",
+          "errors": {
+            "reason": "Nhập lý do ít nhất 10 ký tự.",
+            "failed": "Không gắn được cờ. Vui lòng thử lại."
+          }
+        },
+        "referrerLine": "Người giới thiệu: {code}"
       }
     },
     "en": {
@@ -4328,7 +4519,8 @@
         "users": "Accounts & Permissions",
         "settings": "System Settings",
         "appeals": "Appeals & Inquiries",
-        "importHistory": "Import History"
+        "importHistory": "Import History",
+        "reconciliation": "Transaction reconciliation"
       },
       "common": {
         "close": "Close",
@@ -8354,6 +8546,196 @@
           "sending": "Sending…",
           "submit": "Send"
         }
+      },
+      "reconciliation": {
+        "title": "Reconciliation results",
+        "autoBadge": "Automatic reconciliation",
+        "autoNote": "Matched transactions are credited to KPIs automatically, no manual approval needed.",
+        "sourceNote": "Compared against the Core Banking transaction file imported into the system.",
+        "export": "Export Excel",
+        "exporting": "Exporting…",
+        "exportFailed": "The Excel file could not be exported. Please try again.",
+        "close": "Close",
+        "filterStatus": "Filter by status",
+        "cards": {
+          "all": "All"
+        },
+        "status": {
+          "NOT_MATCHED": "Not matched",
+          "IN_REVIEW": "Waiting",
+          "MATCHED": "Matched"
+        },
+        "searchPlaceholder": "Search transaction code, customer code, employee code…",
+        "filterPeriod": "Evaluation period",
+        "allPeriods": "All periods",
+        "dateFrom": "From",
+        "dateTo": "To",
+        "filterDepartment": "Department",
+        "allDepartments": "All departments",
+        "filterJob": "Position",
+        "allJobs": "All positions",
+        "filterProduct": "Product",
+        "allProducts": "All products",
+        "filterReason": "Reason",
+        "allReasons": "All reasons",
+        "clearFilters": "Clear filters",
+        "saveFilters": "Save filters",
+        "filtersSaved": "Filters saved. They are used again the next time you open this screen.",
+        "colWork": "Work",
+        "colEmployee": "Employee",
+        "colTransaction": "Transaction / customer",
+        "colProduct": "Product",
+        "colAmount": "Amount (VND)",
+        "colSubmitted": "Sent at",
+        "colStatus": "Status",
+        "colReason": "Reason",
+        "reasons": {
+          "EMPLOYEE_MISMATCH": "Wrong employee",
+          "PRODUCT_MISMATCH": "Wrong product",
+          "CUSTOMER_MISMATCH": "Wrong customer code",
+          "REFERRER_MISMATCH": "Wrong referrer",
+          "TRANSACTION_BEFORE_HANDOVER": "Transaction before the handover",
+          "METRIC_TYPE_MISMATCH": "Metric type does not fit",
+          "NO_IMPORTED_TRANSACTION": "Not in the transaction file yet",
+          "KPI_TARGET_NOT_ASSIGNED": "No KPI target assigned",
+          "KPI_AGGREGATION_NOT_SUPPORTED": "KPI not supported from transactions",
+          "PERIOD_LOCKED": "Evaluation period locked",
+          "REFERRER_NOT_CREDITED": "Referrer has no KPI target"
+        },
+        "noValue": "—",
+        "loading": "Loading…",
+        "loadError": "The reconciliation list could not be loaded.",
+        "retry": "Try again",
+        "empty": "No matching results found.",
+        "showing": "{from}–{to} of {total} results",
+        "footnote": "Click a row to see the field-by-field comparison.",
+        "riskPrefill": "Transaction code {code} does not match the transaction file: {reason}.",
+        "riskCreated": "Risk event {code} recorded.",
+        "errors": {
+          "forbidden": "You do not have permission to view this screen.",
+          "notFound": "This transaction code was not found, or it is outside what you may see.",
+          "generic": "Something went wrong. Please try again."
+        },
+        "detail": {
+          "back": "Back to the list",
+          "title": "Reconciliation {work} · {code}",
+          "viewOnly": "View only, no approval buttons",
+          "flag": "Flag quality",
+          "recordRisk": "Record risk event",
+          "flagHint": "Creates an item in the QA queue to review the evidence of this result.",
+          "riskHint": "Opens the form with the employee and the work already filled in.",
+          "actionsTitle": "What QA can do",
+          "flagBlocked": {
+            "NO_PERMISSION": "You do not have permission to flag quality.",
+            "NO_APPROVED_SUBMISSION": "Only an approved result can be flagged, and this work has no approved result.",
+            "OWN_WORK": "You cannot flag your own work.",
+            "OPEN_FLAG": "This result already has a quality flag waiting to be handled."
+          },
+          "submissionCard": "Submitted by",
+          "sentAt": "Sent at {time}",
+          "workType": "Work type: {type}",
+          "version": "Submission version {no}",
+          "noSubmission": "This work has no result submission yet.",
+          "importCard": "Transaction file",
+          "importedAt": "Imported {time}",
+          "importedBy": "by {name}",
+          "noImportTitle": "Not in any transaction file yet",
+          "noImport": "When an administrator imports a transaction file that contains this code, the system reconciles it again automatically.",
+          "compareTitle": "Field-by-field comparison",
+          "summary": "{matched}/{compared} fields match",
+          "siblings": "Other codes of this work",
+          "colField": "Field",
+          "colDeclared": "Declared by the employee",
+          "colImported": "Transaction file",
+          "colResult": "Result",
+          "fields": {
+            "TRANSACTION_CODE": "Transaction code",
+            "CUSTOMER": "Customer code (CIF)",
+            "EMPLOYEE": "Employee in charge",
+            "PRODUCT": "Product",
+            "REFERRAL": "Referrer",
+            "TRANSACTION_DATE": "Transaction date",
+            "AMOUNT": "Amount"
+          },
+          "declaredAmount": "Taken from the transaction file",
+          "notDeclared": "Not declared",
+          "notInFile": "Not in the file yet",
+          "result": {
+            "match": "Match",
+            "mismatch": "Mismatch",
+            "notApplicable": "Not applicable",
+            "waiting": "Waiting for file",
+            "fromFile": "From the file"
+          },
+          "explainTitle": "How reconciliation works",
+          "explainText": "A transaction code that matches the right employee and product is credited to KPIs automatically. If it does not match, the code is left out and the employee needs to correct the code on their work.",
+          "reasonLine": "Current reason: {reason}",
+          "noHandover": "No handover",
+          "emptyInFile": "Left empty"
+        },
+        "appeal": {
+          "title": "Appeal",
+          "badge": {
+            "NOT_APPLICABLE": "None",
+            "AVAILABLE": "Open",
+            "EXPIRED": "Expired",
+            "IN_PROGRESS": "In progress",
+            "DECIDED": "Decided"
+          },
+          "text": {
+            "NOT_APPLICABLE": "No appeal yet. For a mismatched code the employee corrects the code on their work; an appeal is only possible when a submission is rejected.",
+            "AVAILABLE": "The submission was rejected. The employee has {hours} hours left (until {deadline}) to appeal.",
+            "EXPIRED": "The appeal window has closed ({deadline}).",
+            "IN_PROGRESS": "The employee filed an appeal that is waiting to be handled.",
+            "DECIDED": "The appeal was handled: {status}."
+          },
+          "status": {
+            "ACCEPTED": "accepted",
+            "REJECTED": "rejected",
+            "WITHDRAWN": "withdrawn by the employee",
+            "OPEN": "open",
+            "UNDER_REVIEW": "under review"
+          },
+          "open": "View appeal"
+        },
+        "history": {
+          "title": "Reconciliation history",
+          "empty": "Nothing has happened yet.",
+          "system": "System",
+          "event": {
+            "CODE_ADDED": "{actor} sent the transaction code",
+            "IMPORTED": "Transaction file {reference} was imported",
+            "IMPORTED_BY": "{actor} imported transaction file {reference}",
+            "RECONCILED_MATCHED": "System reconciliation: matched",
+            "RECONCILED_NOT_MATCHED": "System reconciliation: not matched ({reason})",
+            "RECONCILED_IN_REVIEW": "Waiting for a transaction file that contains this code",
+            "QUALITY_FLAG": "{actor} flagged quality {reference}",
+            "RISK_EVENT": "{actor} recorded risk event {reference}",
+            "APPEAL": "The employee filed an appeal"
+          }
+        },
+        "flagModal": {
+          "title": "Flag quality",
+          "close": "Close",
+          "hint": "This creates an item in the QA queue to review the evidence of an approved result.",
+          "reason": "Reason",
+          "reasonPlaceholder": "Describe the problem you see (at least 10 characters)",
+          "severity": "Severity",
+          "severities": {
+            "LOW": "Low",
+            "MEDIUM": "Medium",
+            "HIGH": "High"
+          },
+          "submit": "Flag",
+          "submitting": "Flagging…",
+          "cancel": "Cancel",
+          "success": "Quality flagged. The new item is in the QA queue.",
+          "errors": {
+            "reason": "Enter a reason of at least 10 characters.",
+            "failed": "The flag could not be created. Please try again."
+          }
+        },
+        "referrerLine": "Referrer: {code}"
       }
     }
   }
