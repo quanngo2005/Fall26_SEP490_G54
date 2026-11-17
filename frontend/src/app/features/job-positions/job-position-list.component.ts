@@ -25,7 +25,6 @@ import { JobPositionDetailDrawerComponent } from './job-position-detail-drawer.c
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
-    '../../shared/ui/workspace-page.part2.scss',
     './job-position-list.component.scss',
   ],
 })

@@ -24,8 +24,8 @@ public sealed partial class AppealService(
     IOptions<SystemParametersOptions> parameters) : IAppealService
 {
     private const int MaxReasonLength = 2000;
-    private const int MinReasonLength = 10;
-    private const int MaxFileCount = 10;
+    private int MinReasonLength => Math.Max(1, parameters.Value.MinReasonLength);
+    private int MaxFileCount => Math.Max(1, parameters.Value.MaxEvidenceFiles);
     private static readonly int DepartmentScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Dept);
     private static readonly int BranchScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.Branch);
     private static readonly int AllScopeLevel = PermissionScopes.GetScopeLevel(PermissionScopes.All);
@@ -175,7 +175,7 @@ public sealed partial class AppealService(
     }
 
     /// <summary>The reason and attachment limits of an appeal; returns the trimmed reason.</summary>
-    private static string ValidateAppealForm(CreateAppealRequestDto request)
+    private string ValidateAppealForm(CreateAppealRequestDto request)
     {
         var reason = request.Reason?.Trim();
         if (string.IsNullOrEmpty(reason))
@@ -188,7 +188,7 @@ public sealed partial class AppealService(
             throw new ValidationException($"Lý do khiếu nại tối đa {MaxReasonLength} ký tự.");
         }
 
-        if (request.Files is { Count: > MaxFileCount })
+        if (request.Files is not null && request.Files.Count > MaxFileCount)
         {
             throw new ValidationException($"Số lượng tệp đính kèm tối đa là {MaxFileCount} tệp.");
         }

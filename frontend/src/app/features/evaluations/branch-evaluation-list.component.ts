@@ -11,6 +11,7 @@ import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppDatePipe, AppNumberPipe } from '../../shared/pipes';
+import { SelectOption, StatusBadgeComponent, UiSelectComponent } from '../../shared/ui';
 
 const TOAST_DURATION_MS = 4000;
 
@@ -25,9 +26,11 @@ const TOAST_DURATION_MS = 4000;
     LayoutIconComponent,
     AppDatePipe,
     AppNumberPipe,
+    StatusBadgeComponent,
+    UiSelectComponent,
   ],
   templateUrl: './branch-evaluation-list.component.html',
-  styleUrls: ['./branch-evaluation-list.component.scss'],
+  styleUrls: ['./branch-evaluation-list.component.scss', './branch-evaluation-table.scss'],
 })
 export class BranchEvaluationListComponent extends LocalizedComponent implements OnInit {
   private readonly router = inject(Router);
@@ -61,6 +64,33 @@ export class BranchEvaluationListComponent extends LocalizedComponent implements
       years.add(selected);
     }
     return Array.from(years).sort((a, b) => b - a);
+  });
+
+  readonly yearOptions = computed<SelectOption<string>[]>(() => [
+    ...this.availableYears().map((year) => ({ value: String(year), label: String(year) })),
+    { value: 'ALL', label: this.localization.evaluations.branchPeriods.all },
+  ]);
+
+  readonly periodTypeOptions = computed<SelectOption<string>[]>(() => {
+    const text = this.localization.evaluations.branchPeriods;
+    return [
+      { value: 'ALL', label: text.all },
+      { value: 'QUARTER', label: text.typeQuarter },
+      { value: 'YEAR', label: text.typeYear },
+      { value: 'MONTH', label: text.typeMonth },
+    ];
+  });
+
+  readonly statusOptions = computed<SelectOption<string>[]>(() => {
+    const text = this.localization.evaluations.branchPeriods;
+    return [
+      { value: 'ALL', label: text.all },
+      { value: 'IN_PROGRESS', label: text.statusInProgress },
+      { value: 'EVALUATING', label: text.statusEvaluating },
+      { value: 'IN_REVIEW', label: text.statusInReview },
+      { value: 'PUBLISHED', label: text.statusPublished },
+      { value: 'LOCKED', label: text.statusLocked },
+    ];
   });
 
   readonly headerTitle = computed(() => {

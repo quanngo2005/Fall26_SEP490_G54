@@ -7,11 +7,11 @@ export interface UserAccountSummary {
   employeeCode: string;
   fullName: string;
   departmentCode: string;
+  departmentName: string;
   jobPositionTitle: string | null;
   roleId: string;
   roleName: string;
   status: UserAccountStatus;
-  lastLoginAt: string | null;
 }
 
 export interface UserAccountHistoryEntry {
@@ -22,7 +22,6 @@ export interface UserAccountHistoryEntry {
 
 export interface UserAccountDetail extends UserAccountSummary {
   employeeId: string;
-  departmentName: string;
   suggestedRoleId: string | null;
   createdAt: string;
   createdBy: string;
@@ -72,4 +71,8 @@ export interface CreateUserAccountResult {
 
 export interface UpdateUserAccountPayload {
   roleId: string;
+}
+
+export interface ResetUserPasswordResult {
+  temporaryPassword: string;
 }

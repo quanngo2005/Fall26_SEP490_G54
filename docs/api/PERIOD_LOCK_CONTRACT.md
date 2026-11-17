@@ -19,8 +19,9 @@ A guarded write that targets a locked period fails with **409 `PERIOD_LOCKED`**.
 
 | Endpoint | How the period is resolved |
 | --- | --- |
-| `POST /verifications/{submissionId}/decision` with `APPROVED` and submitted KPI metrics | the employee's `ACTIVE` target that covers today's business date (UTC+7); its `evaluationPeriodId` |
+| `POST /verifications/{submissionId}/decision` with `APPROVED` and submitted KPI metrics | the employee's `ACTIVE` target that covers today's business date (UTC+7), its `evaluationPeriodId`, **and every period containing that date** (see below) |
 | `POST /appeals/{id}/decision` with `ACCEPT` (records the verified result) | same as above |
+| Reconcile of a work transaction code (`POST /works/{id}/transactions`, after `POST /transaction-imports`) | the recipients' targets covering the Core Banking transaction date, and every period containing that date. The code stays `IN_REVIEW` with reason `PERIOD_LOCKED` and is retried by the next import |
 | `POST /target-assignments` | body `evaluationPeriodId` |
 | `POST /target-assignments/{id}/allocations` | the parent target's `evaluationPeriodId` |
 | `POST /target-assignments/{id}/period-allocations` | the parent target's period and every `evaluationPeriodId` in the body |
@@ -28,6 +29,10 @@ A guarded write that targets a locked period fails with **409 `PERIOD_LOCKED`**.
 
 Rules:
 
+- **Wider periods (decided 16/11/2026):** crediting KPI progress also checks every evaluation period whose
+  `[startDate, endDate]` contains the progress date (month, quarter, half-year, year). An open month under a `LOCKED` or
+  `CLOSED` quarter or year is therefore rejected with `PERIOD_LOCKED`, the same rule as the transaction import, which
+  rejects a row dated in any locked period (`TRANSACTION_IMPORT_CONTRACT.md`).
 - The check runs before any row is written, so a rejected request leaves the database unchanged.
 - It runs after authorization and existence checks, so an unknown id is still 404 and a forbidden caller is still 403.
 - Targets for `ImportYearTargets`, `AllocateDepartments` and `AllocateQuarters` already reject every non-`OPEN`

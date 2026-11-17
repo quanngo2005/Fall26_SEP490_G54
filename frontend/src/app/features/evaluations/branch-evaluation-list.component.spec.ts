@@ -348,7 +348,7 @@ describe('BranchEvaluationListComponent', () => {
     expect(api.branchPeriods).toHaveBeenCalledTimes(1);
   });
 
-  it('displays the dispute error when the period has pending disputes (BR-31)', () => {
+  it('displays the dispute error when the period has pending disputes', () => {
     const period = mockOverview.periods[1];
     api.finalize.and.returnValue(
       throwError(
@@ -363,7 +363,7 @@ describe('BranchEvaluationListComponent', () => {
     component.openLockModal(period);
     component.confirmLockPeriod();
 
-    expect(component.lockError()).toContain('BR-31');
+    expect(component.lockError()).toContain('khiếu nại');
     expect(component.isLockModalOpen()).toBeTrue();
     expect(component.isLocking()).toBeFalse();
   });

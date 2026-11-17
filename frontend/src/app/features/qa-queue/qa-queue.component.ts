@@ -1,4 +1,3 @@
-import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -10,14 +9,22 @@ import { currentPeriod, sortPeriodsNewestFirst } from '../../core/period-options
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   QaDepartmentOption,
+  QaItemStatus,
   QaKind,
   QaQueueCounts,
   QaQueueItem,
   QaTab,
 } from '../../core/qa-queue.models';
 import { QaQueueService } from '../../core/qa-queue.service';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { daysUntil, QaQueueContext } from './qa-queue-display';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -29,14 +36,21 @@ const DEFAULT_DESCENDING = ['created'];
 
 @Component({
   selector: 'app-qa-queue',
-  imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
+  imports: [
+    FormsModule,
+    SidebarComponent,
+    HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+    AppDatePipe,
+  ],
   templateUrl: './qa-queue.component.html',
   styleUrls: [
-    '../appeals/appeals-shared.scss',
-    '../appeals/appeals-list.scss',
-    '../../shared/ui/sortable-table.scss',
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './qa-queue.component.scss',
-    './qa-queue-badges.scss',
   ],
 })
 export class QaQueueComponent extends LocalizedComponent implements OnInit {
@@ -68,12 +82,21 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly kindOptions = computed<SelectOption<QaKind | 'ALL'>[]>(() => [
+    { value: 'ALL', label: this.localization.qaQueue.allKinds },
+    { value: 'FLAG', label: this.localization.qaQueue.kindFlag },
+    { value: 'SAMPLE', label: this.localization.qaQueue.kindSample },
+  ]);
+
+  protected readonly departmentOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.qaQueue.allDepartments },
+    ...this.departments().map((d) => ({ value: d.id, label: d.name })),
+  ]);
+
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.qaQueue.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
 
   constructor() {
     super();
@@ -212,8 +235,25 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
       : this.localization.qaQueue.kindSample;
   }
 
+  protected kindTone(kind: QaKind): StatusBadgeTone {
+    return kind === 'FLAG' ? 'warning' : 'info';
+  }
+
   protected statusLabel(item: QaQueueItem): string {
     return this.localization.qaQueue.status[item.status];
+  }
+
+  protected statusTone(status: QaItemStatus): StatusBadgeTone {
+    switch (status) {
+      case 'PASSED':
+      case 'DISMISSED':
+        return 'success';
+      case 'FAILED':
+      case 'REWORK_REQUESTED':
+        return 'danger';
+      default:
+        return 'warning';
+    }
   }
 
   protected sourceLabel(item: QaQueueItem): string {

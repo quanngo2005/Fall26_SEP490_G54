@@ -148,7 +148,16 @@
           <div class="metric-card">
             <span class="metric-title">{{localization.evaluationForm.tierTitle}}</span>
             <div class="metric-value-row">
-              <span class="metric-value">{{tierText()}}</span>
+              <span
+                class="metric-value"
+                [attr.title]="
+                  data.summary.proposedTierExplanation?.length
+                    ? data.summary.proposedTierExplanation?.join(' • ')
+                    : null
+                "
+              >
+                {{tierText()}}
+              </span>
             </div>
           </div>
         </section>

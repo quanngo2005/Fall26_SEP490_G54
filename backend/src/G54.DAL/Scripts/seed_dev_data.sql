@@ -252,6 +252,7 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000000c', 'EVALUATION_SUBMIT',   'Nộp đánh giá',         'evaluation',   'submit'),
  ('5eed0000-0000-0000-0009-00000000000d', 'EVALUATION_CALIBRATE','Hiệu chuẩn đánh giá',  'evaluation',   'calibrate'),
  ('5eed0000-0000-0000-0009-00000000000e', 'EVALUATION_FINALIZE', 'Phê duyệt và khóa kỳ đánh giá', 'evaluation', 'finalize'),
+ ('5eed0000-0000-0000-0009-00000000002f', 'EVALUATION_CALCULATE', 'Tính điểm KPI', 'evaluation', 'calculate'),
  ('5eed0000-0000-0000-0009-00000000000f', 'CAMPAIGN_READ',       'Xem chiến dịch',       'campaign',     'read'),
  ('5eed0000-0000-0000-0009-000000000010', 'CAMPAIGN_MANAGE',     'Quản lý chiến dịch',   'campaign',     'manage'),
  ('5eed0000-0000-0000-0009-000000000011', 'HANDOVER_CREATE',     'Yêu cầu bàn giao',     'handover',     'create'),
@@ -293,13 +294,13 @@ FROM (VALUES
     ('ADMIN', 'SUBMISSION_READ', 'All'), ('ADMIN', 'SUBMISSION_CREATE', 'All'), ('ADMIN', 'VERIFICATION_DECIDE', 'All'),
     ('ADMIN', 'KPI_READ', 'All'), ('ADMIN', 'KPI_MANAGE', 'All'), ('ADMIN', 'TARGET_MANAGE', 'All'), ('ADMIN', 'EVALUATION_READ', 'All'),
     ('ADMIN', 'EMPLOYEE_READ', 'All'), ('ADMIN', 'EVALUATION_SUBMIT', 'All'), ('ADMIN', 'EVALUATION_CALIBRATE', 'All'),
-    ('ADMIN', 'EVALUATION_FINALIZE', 'All'), ('ADMIN', 'CAMPAIGN_READ', 'All'), ('ADMIN', 'CAMPAIGN_MANAGE', 'All'), 
+    ('ADMIN', 'EVALUATION_CALCULATE', 'All'), ('ADMIN', 'EVALUATION_FINALIZE', 'All'), ('ADMIN', 'CAMPAIGN_READ', 'All'), ('ADMIN', 'CAMPAIGN_MANAGE', 'All'), 
     ('ADMIN', 'HANDOVER_CREATE', 'All'), ('ADMIN', 'HANDOVER_SET_SHARE', 'All'),
     ('ADMIN', 'HANDOVER_RESPOND', 'All'), ('ADMIN', 'HANDOVER_MANAGE', 'All'),
     ('MANAGER', 'WORK_READ', 'Department'), ('MANAGER', 'WORK_CREATE', 'Department'), ('MANAGER', 'WORK_UPDATE', 'Department'),
     ('MANAGER', 'SUBMISSION_READ', 'Department'), ('MANAGER', 'VERIFICATION_DECIDE', 'Department'),
     ('MANAGER', 'KPI_READ', 'All'), ('MANAGER', 'TARGET_MANAGE', 'Department'), ('MANAGER', 'EVALUATION_READ', 'Department'),
-    ('MANAGER', 'EMPLOYEE_READ', 'Department'), ('MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('MANAGER', 'EVALUATION_CALIBRATE', 'Department'),
+    ('MANAGER', 'EMPLOYEE_READ', 'Department'), ('MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('MANAGER', 'EVALUATION_CALIBRATE', 'Department'), ('MANAGER', 'EVALUATION_CALCULATE', 'Department'),
     ('MANAGER', 'CAMPAIGN_READ', 'Department'), ('MANAGER', 'CAMPAIGN_MANAGE', 'Department'), ('MANAGER', 'HANDOVER_CREATE', 'Own'), ('MANAGER', 'HANDOVER_SET_SHARE', 'Own'), ('MANAGER', 'HANDOVER_RESPOND', 'Own'), ('MANAGER', 'HANDOVER_MANAGE', 'Own'),
     ('VERIFIER', 'SUBMISSION_READ', 'Department'), ('VERIFIER', 'VERIFICATION_DECIDE', 'Department'), ('VERIFIER', 'KPI_READ', 'All'),
     ('EMPLOYEE', 'WORK_READ', 'Own'), ('EMPLOYEE', 'WORK_UPDATE', 'Own'), ('EMPLOYEE', 'SUBMISSION_READ', 'Own'),
@@ -374,7 +375,21 @@ INSERT INTO work_type (id, code, name, description, product_code) VALUES
  -- transaction matcher (BR-09) will require to match, and its own multiplier on the KPI mapping below.
  ('5eed0000-0000-0000-000c-000000000005', 'THE_TD_CLASSIC',  'Mở thẻ tín dụng Classic',  'Thẻ tín dụng hạng Classic',  'TD_CLASSIC'),
  ('5eed0000-0000-0000-000c-000000000006', 'THE_TD_GOLD',     'Mở thẻ tín dụng Gold',     'Thẻ tín dụng hạng Gold',     'TD_GOLD'),
- ('5eed0000-0000-0000-000c-000000000007', 'THE_TD_PLATINUM', 'Mở thẻ tín dụng Platinum', 'Thẻ tín dụng hạng Platinum', 'TD_PLATINUM')
+ ('5eed0000-0000-0000-000c-000000000007', 'THE_TD_PLATINUM', 'Mở thẻ tín dụng Platinum', 'Thẻ tín dụng hạng Platinum', 'TD_PLATINUM'),
+ -- Core Banking product catalog (01_Danh_muc_ma.xlsx / 06_Giao_dich.xlsx):
+ ('5eed0000-0000-0000-000c-000000000008', 'WT_DEPOSIT',          'Nộp tiền mặt/chuyển khoản vào TK thanh toán', NULL, 'DEPOSIT'),
+ ('5eed0000-0000-0000-000c-000000000009', 'WT_TERM_DEPOSIT',     'Mở sổ tiết kiệm / tiền gửi có kỳ hạn',        NULL, 'TERM_DEPOSIT'),
+ ('5eed0000-0000-0000-000c-00000000000a', 'WT_WITHDRAWAL',       'Rút tiền mặt tại quầy',                       NULL, 'WITHDRAWAL'),
+ ('5eed0000-0000-0000-000c-00000000000b', 'WT_TRANSFER',         'Chuyển tiền trong/ngoài hệ thống',            NULL, 'TRANSFER'),
+ ('5eed0000-0000-0000-000c-00000000000c', 'WT_ACCOUNT_OPEN',     'Mở tài khoản thanh toán mới',                 NULL, 'ACCOUNT_OPEN'),
+ ('5eed0000-0000-0000-000c-00000000000d', 'WT_CARD_DEBIT_STD',   'Phát hành thẻ ghi nợ Chuẩn',                  NULL, 'CARD_DEBIT_STD'),
+ ('5eed0000-0000-0000-000c-00000000000e', 'WT_CARD_DEBIT_GOLD',  'Phát hành thẻ ghi nợ Vàng',                   NULL, 'CARD_DEBIT_GOLD'),
+ ('5eed0000-0000-0000-000c-00000000000f', 'WT_CARD_CREDIT_STD',  'Phát hành thẻ tín dụng Chuẩn',                NULL, 'CARD_CREDIT_STD'),
+ ('5eed0000-0000-0000-000c-000000000010', 'WT_CARD_CREDIT_PLAT', 'Phát hành thẻ tín dụng Platinum',             NULL, 'CARD_CREDIT_PLAT'),
+ ('5eed0000-0000-0000-000c-000000000011', 'WT_EBANKING',         'Đăng ký và kích hoạt eBanking',               NULL, 'EBANKING'),
+ ('5eed0000-0000-0000-000c-000000000012', 'WT_SMS_BANKING',      'Đăng ký SMS biến động số dư',                 NULL, 'SMS_BANKING'),
+ ('5eed0000-0000-0000-000c-000000000013', 'WT_QR_MERCHANT',      'Mở điểm chấp nhận thanh toán QR',             NULL, 'QR_MERCHANT'),
+ ('5eed0000-0000-0000-000c-000000000014', 'WT_INSURANCE',        'Hợp đồng bảo hiểm liên kết ngân hàng',        NULL, 'INSURANCE')
 ON CONFLICT DO NOTHING;
 
 -- Fixed ids are required: the overlap trigger excludes rows with the same id.

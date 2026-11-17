@@ -34,11 +34,18 @@ describe('UserAccountFormModalComponent', () => {
     return fixture;
   }
 
-  async function set(fixture: ComponentFixture<unknown>, selector: string, value: string) {
-    const el = (fixture.nativeElement as HTMLElement).querySelector(selector) as
-      HTMLInputElement | HTMLSelectElement;
-    el.value = value;
-    el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input'));
+  async function chooseOption(
+    fixture: ComponentFixture<unknown>,
+    hostSelector: string,
+    optionLabelFragment: string,
+  ) {
+    const root = fixture.nativeElement as HTMLElement;
+    const host = root.querySelector(hostSelector) as HTMLElement;
+    (host.querySelector('.ui-select-trigger') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const options = Array.from(host.querySelectorAll('.ui-select-option')) as HTMLElement[];
+    const match = options.find((li) => li.textContent?.includes(optionLabelFragment));
+    match?.click();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -67,7 +74,7 @@ describe('UserAccountFormModalComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    await set(fixture, '#account-employee', 'e1');
+    await chooseOption(fixture, '#account-employee', 'NV0031');
     const el: HTMLElement = fixture.nativeElement;
     expect((el.querySelector('#account-username') as HTMLInputElement).value).toBe('vtg.so');
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
@@ -112,7 +119,7 @@ describe('UserAccountFormModalComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
-    await set(fixture, '#account-employee', 'e1');
+    await chooseOption(fixture, '#account-employee', 'NV0031');
     (fixture.nativeElement.querySelector('form') as HTMLFormElement).dispatchEvent(
       new Event('submit'),
     );
@@ -143,7 +150,7 @@ describe('UserAccountFormModalComponent', () => {
     fixture.detectChanges();
     const el: HTMLElement = fixture.nativeElement;
     expect(el.querySelector('.callout.is-warning')).toBeNull();
-    await set(fixture, '#account-role', 'r2');
+    await chooseOption(fixture, '#account-role', 'Sales Officer');
     expect(el.querySelector('.callout.is-warning')?.textContent).toContain('Sales Officer');
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     const req = http.expectOne(`${url}/a1`);

@@ -210,13 +210,14 @@ describe('DepartmentListComponent', () => {
     const fixture = await create();
     const root = fixture.nativeElement as HTMLElement;
     const pageButtons = Array.from(
-      root.querySelectorAll<HTMLButtonElement>('.pagination-controls button'),
+      root.querySelectorAll<HTMLButtonElement>('.ui-pagination-pages button'),
     );
 
-    expect(pageButtons.length).toBe(3);
-    expect(text(root.querySelector('.pagination-info'))).toBe('1–20 / 45 phòng');
+    // Prev + pages 1, 2, 3 + Next = 5 buttons
+    expect(pageButtons.length).toBe(5);
+    expect(text(root.querySelector('.ui-pagination-range'))).toBe('1–20 / 45 phòng');
 
-    pageButtons[1].click();
+    pageButtons[2].click();
     fixture.detectChanges();
     expect(api.list.calls.mostRecent().args[0].page).toBe(2);
   });
@@ -261,15 +262,19 @@ describe('DepartmentListComponent', () => {
     const fixture = await create();
     const root = fixture.nativeElement as HTMLElement;
 
-    for (const control of [root.querySelector('input'), root.querySelector('select')]) {
-      const event = new KeyboardEvent('keydown', {
-        key: 'ArrowDown',
-        bubbles: true,
-        cancelable: true,
-      });
-      control?.dispatchEvent(event);
-      expect(event.defaultPrevented).toBeFalse();
-    }
+    const searchInput = root.querySelector('input');
+    const inputEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    });
+    searchInput?.dispatchEvent(inputEvent);
+    expect(inputEvent.defaultPrevented).toBeFalse();
+
+    const selectTrigger = root.querySelector('.ui-select-trigger');
+    selectTrigger?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+    );
     fixture.detectChanges();
     expect(root.querySelector('tr.is-selected')).toBeNull();
   });
@@ -347,6 +352,6 @@ describe('DepartmentListComponent', () => {
     );
     expect(text(root.querySelector('.sync-banner'))).toContain('synced');
     expect(text(root.querySelector('th.col-manager'))).toBe('MANAGER');
-    expect(text(root.querySelector('.pagination-info'))).toBe('1–3 / 3 departments');
+    expect(text(root.querySelector('.ui-pagination-range'))).toBe('1–3 / 3 departments');
   });
 });

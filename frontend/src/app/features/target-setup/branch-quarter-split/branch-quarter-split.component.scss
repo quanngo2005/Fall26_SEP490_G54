@@ -14,19 +14,19 @@
   border-collapse: collapse;
 }
 .quarter-table th {
-  height: 40px;
+  height: 36px;
   box-sizing: border-box;
-  border-bottom: 1px solid #cbd5e1;
-  background: #eef2f6;
-  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
   font:
-    600 12px Inter,
+    600 13px/18px 'Nunito Sans',
     sans-serif;
-  letter-spacing: 0.48px;
-  padding: 0 12px;
+  letter-spacing: 0;
+  padding: 0 14px 2px;
   text-align: left;
-  text-transform: uppercase;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .quarter-table th.num {
   text-align: right;
@@ -43,10 +43,10 @@
 .quarter-table td {
   height: 48px;
   box-sizing: border-box;
-  border-bottom: 1px solid #eef2f6;
-  color: #0f172a;
-  font-size: 13px;
-  padding: 0 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  font-size: 14px;
+  padding: 0 14px;
   vertical-align: middle;
 }
 .quarter-table tbody tr:last-child td {
@@ -88,7 +88,7 @@
   background: #fff;
   color: #0f172a;
   font:
-    400 13px Inter,
+    400 13px 'Nunito Sans',
     sans-serif;
   padding: 0 8px;
   text-align: right;
@@ -138,7 +138,7 @@
   color: #2563eb;
   cursor: pointer;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
   padding: 0 10px;
   white-space: nowrap;

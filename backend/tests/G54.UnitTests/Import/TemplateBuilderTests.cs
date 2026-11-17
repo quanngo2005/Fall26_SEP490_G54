@@ -14,8 +14,8 @@ public sealed class TemplateBuilderTests
     }
 
     private static ImportTemplate<SampleRow> BuildTemplate() => new TemplateBuilder<SampleRow>()
-        .Column("Code*", (r, v) => r.Code = v)
-        .Column("Name*", (r, v) => r.Name = v)
+        .Column("Code*", (r, v) => r.Code = v, aliases: ["employee_code", "Mã nhân viên"])
+        .Column("Name*", (r, v) => r.Name = v, aliases: ["Họ tên (VN)"])
         .Column("Note", (r, v) => r.Note = v, required: false)
         .Build();
 
@@ -67,5 +67,22 @@ public sealed class TemplateBuilderTests
 
         Assert.Equal("NV001", row.Code);
         Assert.Equal("Nguyen Van A", row.Name);
+    }
+
+    [Fact]
+    public void MapRow_AliasesAndAccentParentheticalInsensitivity_MapsAndReturnsMatchedSourceHeader()
+    {
+        var template = BuildTemplate();
+        string[] sourceHeaders = ["ma nhan vien*", "Ho ten", "Extra"];
+        var headerIndex = template.BuildHeaderIndex(sourceHeaders);
+        var raw = new RawRow(2, ["NV001", "Nguyen Van A", "ignored"]);
+
+        var row = template.MapRow(raw, headerIndex);
+
+        Assert.Equal("NV001", row.Code);
+        Assert.Equal("Nguyen Van A", row.Name);
+        Assert.True(ImportHeaderNormalizer.HasColumn("Code*", headerIndex));
+        Assert.False(ImportHeaderNormalizer.HasColumn("Note", headerIndex));
+        Assert.Equal("ma nhan vien*", ImportHeaderNormalizer.GetMatchedHeader("Code*", sourceHeaders, headerIndex));
     }
 }

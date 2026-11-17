@@ -9,20 +9,35 @@ import { KpiOption, WorkTypeDetail, WorkTypeStatus } from '../../core/work-type.
 import { WorkTypeService } from '../../core/work-type.service';
 import { OPEN_WORK_STATUSES } from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { WorkTypeDetailDrawerComponent } from './work-type-detail-drawer.component';
 
 /** SCR-CFG-02: system administrator work type list. */
 @Component({
   selector: 'app-work-type-list',
   standalone: true,
-  imports: [FormsModule, HeaderComponent, SidebarComponent, WorkTypeDetailDrawerComponent],
+  imports: [
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+    WorkTypeDetailDrawerComponent,
+  ],
   templateUrl: './work-type-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
-    '../../shared/ui/workspace-page.part2.scss',
-    './work-type-list.component.scss',
+    './work-type-list-page.scss',
   ],
 })
 export class WorkTypeListComponent extends LocalizedComponent {
@@ -55,6 +70,24 @@ export class WorkTypeListComponent extends LocalizedComponent {
   protected kpiId = '';
   protected page = 1;
   protected pageSize = 20;
+
+  protected readonly statusOptions = computed<SelectOption<WorkTypeStatus | ''>[]>(() => {
+    const t = this.localization.workTypes;
+    return [
+      { value: '', label: t.statusAll },
+      { value: 'ACTIVE', label: t.statusActive },
+      { value: 'INACTIVE', label: t.statusInactive },
+      { value: 'ARCHIVED', label: t.statusArchived },
+    ];
+  });
+
+  protected readonly kpiFilterOptions = computed<SelectOption[]>(() => {
+    const t = this.localization.workTypes;
+    return [
+      { value: '', label: t.kpiFilterAll },
+      ...this.kpiOptions().map((kpi) => ({ value: kpi.id, label: `${kpi.code} · ${kpi.name}` })),
+    ];
+  });
 
   protected readonly activeCount = computed(
     () => this.allWorkTypes().filter((item) => item.status === 'ACTIVE').length,
@@ -103,13 +136,6 @@ export class WorkTypeListComponent extends LocalizedComponent {
     return Math.max(1, Math.ceil(this.totalCount() / this.currentPageSize()));
   }
 
-  protected readonly rangeText = computed(() => {
-    const total = this.totalCount();
-    const first = total === 0 ? 0 : (this.currentPage() - 1) * this.currentPageSize() + 1;
-    const last = Math.min(total, first + this.workTypes().length - 1);
-    return this.i18n.translate('workTypes.range', { first, last, total });
-  });
-
   constructor() {
     super();
     this.loadLookups();
@@ -146,6 +172,26 @@ export class WorkTypeListComponent extends LocalizedComponent {
     this.filterKeyword.set(this.keyword.trim());
     this.filterStatus.set(this.status);
     this.selectedKpiId.set(this.kpiId);
+  }
+
+  protected onStatusFilter(value: WorkTypeStatus | ''): void {
+    this.status = value;
+    this.applyFilter();
+  }
+
+  protected onKpiFilter(value: string): void {
+    this.kpiId = value;
+    this.applyFilter();
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.applyFilter();
+  }
+
+  protected clearKeyword(): void {
+    this.keyword = '';
+    this.applyFilter();
   }
 
   protected selectPositionTab(positionId: string): void {
@@ -203,6 +249,11 @@ export class WorkTypeListComponent extends LocalizedComponent {
       : status === 'INACTIVE'
         ? t.statusInactive
         : t.statusArchived;
+  }
+
+  protected statusTone(status: WorkTypeStatus): StatusBadgeTone {
+    if (status === 'ACTIVE') return 'success';
+    return status === 'INACTIVE' ? 'warning' : 'neutral';
   }
 
   protected open(workType: WorkTypeDetail): void {

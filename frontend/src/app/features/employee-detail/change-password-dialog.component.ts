@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -34,6 +35,7 @@ const MIN_EMAIL_NAME_LENGTH = 3;
 })
 export class ChangePasswordDialogComponent extends LocalizedComponent implements OnInit {
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   /** The element that opened the popup; focus goes back to it when the popup closes. */
   private readonly opener = document.activeElement as HTMLElement | null;
@@ -41,6 +43,11 @@ export class ChangePasswordDialogComponent extends LocalizedComponent implements
 
   /** The user's email; a new password may not contain its name part. */
   readonly email = input('');
+  /**
+   * Forced mode (the account still has a one-time password): the popup cannot be dismissed, it only offers to
+   * sign out, and it goes away when the password has been changed.
+   */
+  readonly forced = input(false);
   /** Emitted after the password was changed; the parent closes the popup. */
   readonly changed = output<void>();
   /** Emitted when the user dismissed the popup without changing anything. */
@@ -51,6 +58,7 @@ export class ChangePasswordDialogComponent extends LocalizedComponent implements
   protected confirmPassword = '';
   protected readonly showPasswords = signal(false);
   protected readonly saving = signal(false);
+  protected readonly signingOut = signal(false);
   protected readonly errorText = signal<string | null>(null);
 
   ngOnInit(): void {
@@ -102,7 +110,7 @@ export class ChangePasswordDialogComponent extends LocalizedComponent implements
   /** User-initiated close (Cancel, ×, backdrop, Escape): ignored while the request is in flight. */
   @HostListener('document:keydown.escape')
   protected close(): void {
-    if (this.saving() || this.dismissed) return;
+    if (this.forced() || this.saving() || this.dismissed) return;
     this.dismissed = true;
     // Typed passwords must not outlive the popup.
     this.currentPassword = '';
@@ -130,6 +138,24 @@ export class ChangePasswordDialogComponent extends LocalizedComponent implements
         },
         error: (error: unknown) => this.errorText.set(this.errorMessage(error)),
       });
+  }
+
+  /** Forced mode only: leave instead of choosing a password. */
+  protected signOut(): void {
+    if (this.saving() || this.signingOut()) return;
+    this.signingOut.set(true);
+    const leave = (): void => {
+      this.signingOut.set(false);
+      void this.router.navigateByUrl('/login');
+    };
+    this.auth.logout().subscribe({
+      next: leave,
+      error: () => {
+        // The session is unusable either way; drop it locally so the user is not stuck behind the popup.
+        this.auth.clearSession();
+        leave();
+      },
+    });
   }
 
   private errorMessage(error: unknown): string {

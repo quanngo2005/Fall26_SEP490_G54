@@ -87,6 +87,12 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
+                    b.Property<bool>("MustChangePassword")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("must_change_password");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -777,6 +783,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("period_type")
                         .HasColumnName("period_type");
 
+                    b.Property<string>("RankingPolicySnapshotJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("ranking_policy_snapshot_json");
+
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date")
                         .HasColumnName("start_date");
@@ -1119,6 +1129,11 @@ namespace G54.DAL.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("amount");
+
+                    b.Property<string>("CustomerCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("customer_code");
 
                     b.Property<decimal?>("Denominator")
                         .HasPrecision(18, 4)
@@ -2032,6 +2047,91 @@ namespace G54.DAL.Migrations
                         .HasDatabaseName("ix_quality_flag_status");
 
                     b.ToTable("quality_flag", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.RankingPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("EvaluationPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluation_period_id");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("PolicyJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("{}")
+                        .HasColumnName("policy_json");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_policy_pkey");
+
+                    b.HasIndex(new[] { "Code" }, "uq_ranking_policy_code")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "EvaluationPeriodId" }, "uq_ranking_policy_period")
+                        .IsUnique();
+
+                    b.ToTable("ranking_policy", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_policy_version", "version >= 1");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
@@ -4025,6 +4125,17 @@ namespace G54.DAL.Migrations
                     b.Navigation("QaSample");
 
                     b.Navigation("ResultSubmission");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.RankingPolicy", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EvaluationPeriod")
+                        .WithMany()
+                        .HasForeignKey("EvaluationPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_ranking_policy_period");
+
+                    b.Navigation("EvaluationPeriod");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>

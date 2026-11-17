@@ -112,6 +112,7 @@ export interface EvaluationCalculationSummary {
   totalScore: number | null;
   proposedTier: string | null;
   weightedScore: number | null;
+  proposedTierExplanation?: string[] | null;
 }
 
 export interface PerformanceEvaluationState {

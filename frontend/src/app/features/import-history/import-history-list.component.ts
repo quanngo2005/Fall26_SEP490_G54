@@ -4,12 +4,27 @@ import { ImportBatchSummary } from '../../core/import-history.models';
 import { ImportHistoryService } from '../../core/import-history.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppDatePipe } from '../../shared/pipes';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 
 /** SCR-ADM-07: import history list. Filters are rendered but disabled pending API filter support. */
 @Component({
   selector: 'app-import-history-list',
-  imports: [AppDatePipe, HeaderComponent, SidebarComponent],
+  imports: [
+    AppDatePipe,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+  ],
   templateUrl: './import-history-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -23,6 +38,9 @@ export class ImportHistoryListComponent extends LocalizedComponent {
 
   protected readonly dateTime = 'DD/MM/YYYY HH:mm';
 
+  /** Filters are not wired yet, so the dropdowns only show their placeholder. */
+  protected readonly noOptions: readonly SelectOption[] = [];
+
   protected readonly items = signal<ImportBatchSummary[]>([]);
   protected readonly totalCount = signal(0);
   protected readonly loading = signal(true);
@@ -35,20 +53,6 @@ export class ImportHistoryListComponent extends LocalizedComponent {
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.pageSize())),
   );
-  protected readonly pages = computed(() => {
-    const count = this.pageCount();
-    const start = Math.max(1, Math.min(this.page() - 1, count - 2));
-    return Array.from({ length: Math.min(3, count) }, (_, index) => start + index);
-  });
-  protected readonly range = computed(() => {
-    const total = this.totalCount();
-    const from = total === 0 ? 0 : (this.page() - 1) * this.pageSize() + 1;
-    const to = Math.min(total, this.page() * this.pageSize());
-    return this.localization.importHistory.range
-      .replace('{from}', String(from))
-      .replace('{to}', String(to))
-      .replace('{total}', String(total));
-  });
 
   constructor() {
     super();
@@ -98,12 +102,12 @@ export class ImportHistoryListComponent extends LocalizedComponent {
     return labels[status] ?? status;
   }
 
-  protected statusClass(status: string): string {
-    const classes: Record<string, string> = {
-      COMPLETED: 'is-success',
-      COMPLETED_WITH_ERRORS: 'is-warning',
-      REJECTED: 'is-danger',
+  protected statusTone(status: string): StatusBadgeTone {
+    const tones: Record<string, StatusBadgeTone> = {
+      COMPLETED: 'success',
+      COMPLETED_WITH_ERRORS: 'warning',
+      REJECTED: 'danger',
     };
-    return classes[status] ?? 'is-neutral';
+    return tones[status] ?? 'neutral';
   }
 }

@@ -13,11 +13,11 @@ const summary = (id: string, username: string, status: UserAccountSummary['statu
   employeeCode: 'NV0012',
   fullName: 'Nguyễn Văn A',
   departmentCode: 'PGD-01',
+  departmentName: 'Phòng Giao dịch 1',
   jobPositionTitle: 'Giao dịch viên',
   roleId: 'r1',
   roleName: 'Teller',
   status,
-  lastLoginAt: '2026-10-24T10:42:00Z',
 });
 
 const detail: UserAccountDetail = {
@@ -73,24 +73,29 @@ describe('UserAccountListComponent', () => {
     return fixture;
   }
 
-  it('renders rows and hides edit for terminated employees', () => {
+  it('renders rows without per-row action buttons', () => {
     const el: HTMLElement = setup().nativeElement;
     const rows = el.querySelectorAll('tbody tr');
     expect(rows.length).toBe(2);
     expect(rows[0].textContent).toContain('nva.teller');
-    expect(rows[0].querySelectorAll('button').length).toBe(3);
-    expect(rows[1].querySelectorAll('button').length).toBe(1);
+    expect(rows[0].querySelectorAll('button').length).toBe(0);
     expect(el.querySelector('.quick-card strong')?.textContent).toContain('41');
   });
 
-  it('opens the detail drawer', () => {
+  it('opens the detail drawer on row click and closes it on a second click', () => {
     const fixture = setup();
     const el: HTMLElement = fixture.nativeElement;
-    (el.querySelector('tbody tr .link-button') as HTMLButtonElement).click();
+    (el.querySelector('tbody tr') as HTMLElement).click();
     flush('/user-accounts/a1', detail);
     fixture.detectChanges();
     expect(el.querySelector('.drawer h2')?.textContent).toContain('nva.teller');
     expect(el.querySelector('.history-card')?.textContent).toContain('Reset mật khẩu');
+
+    (el.querySelector('tbody tr') as HTMLElement).click();
+    fixture.detectChanges();
+    // The drawer stays mounted for its exit animation, flagged as leaving.
+    expect(el.querySelector('.drawer')?.classList.contains('is-leaving')).toBe(true);
+    expect(el.querySelector('.ui-master-detail')?.classList.contains('has-drawer')).toBe(false);
   });
 
   it('shows an error state with retry when the list fails', () => {

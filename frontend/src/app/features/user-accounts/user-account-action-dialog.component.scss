@@ -1,0 +1,47 @@
+.action-dialog {
+  width: min(460px, 100%);
+}
+.message {
+  margin: 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.mono {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.password-row {
+  display: flex;
+  gap: 8px;
+}
+.callout {
+  display: grid;
+  gap: 2px;
+  margin-top: 12px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+.callout.is-info {
+  border-color: #a5f3fc;
+  background: #ecfeff;
+  color: #0e7490;
+}
+.callout.is-error {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+.button-danger {
+  border: 1px solid #e11d48;
+  background: #e11d48;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #be123c;
+    border-color: #be123c;
+  }
+}

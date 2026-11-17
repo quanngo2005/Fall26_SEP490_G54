@@ -1,0 +1,764 @@
+@let t = localization.rankingStudio;
+@let sp = localization.systemParameters;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main>
+      <p class="breadcrumb">{{t.breadcrumb}}</p>
+      <div class="title-bar">
+        <div>
+          <h1>{{t.title}}</h1>
+          <p class="description">{{t.description}}</p>
+        </div>
+        <div class="title-actions">
+          <a
+            class="btn-link"
+            [routerLink]="['/audit-logs']"
+            [queryParams]="{ entityName: auditEntityName }"
+          >
+            {{sp.auditLogLink}} ↗
+          </a>
+          <button
+            type="button"
+            class="btn"
+            [disabled]="saving() || loading() || policyMeta().isLockedSnapshot"
+            (click)="resetDefaultTemplate()"
+          >
+            {{t.btnResetDefault}}
+          </button>
+          <button
+            type="button"
+            class="btn btn-simulate"
+            [disabled]="simulating() || loading()"
+            (click)="runSimulation()"
+          >
+            {{simulating() ? t.btnSimulating : t.btnSimulate}}
+          </button>
+          <button
+            type="button"
+            class="btn primary"
+            [disabled]="saving() || loading() || policyMeta().isLockedSnapshot"
+            (click)="savePolicy()"
+          >
+            {{t.btnSavePolicy}}
+          </button>
+        </div>
+      </div>
+
+      <nav class="tabs" [attr.aria-label]="sp.tabsLabel">
+        <a routerLink="/sidebar-settings">{{sp.tabNavigation}}</a>
+        <a routerLink="/system-parameters">{{sp.tabParameters}}</a>
+        <a routerLink="/ranking-studio" class="is-active" aria-current="page">
+          {{sp.tabRankingStudio}}
+        </a>
+      </nav>
+
+      @if (loading()) {
+        <p class="state" role="status">{{t.loading}}</p>
+      } @else if (error() === 'loadFailed') {
+        <div class="banner banner-error" role="alert">
+          <strong>{{t.loadFailed}}</strong>
+          <button type="button" class="btn" (click)="loadInitial()">{{sp.retry}}</button>
+        </div>
+      } @else {
+        @if (policyMeta().isLockedSnapshot) {
+          <div class="banner banner-warn" role="status">
+            <strong>{{t.lockedBanner}}</strong>
+          </div>
+        }
+        @if (savedVersion(); as ver) {
+          <div class="banner banner-success" role="status">
+            <strong>{{i18n.translate('rankingStudio.saveSuccess', { version: ver })}}</strong>
+          </div>
+        }
+        @if (error() === 'saveFailed') {
+          <div class="banner banner-error" role="alert">
+            <strong>{{t.saveFailed}}</strong>
+          </div>
+        }
+        @if (error() === 'simulateFailed') {
+          <div class="banner banner-error" role="alert">
+            <strong>{{t.simulateFailed}}</strong>
+          </div>
+        }
+
+        <!-- Scope & Policy Identity Card -->
+        <section class="card meta-card">
+          <div class="meta-top">
+            <div class="badges">
+              <span class="badge-pill navy">
+                {{i18n.translate('rankingStudio.versionBadge', { version: policyMeta().version })}}
+              </span>
+              <span class="badge-pill" [class.override]="policyMeta().hasPeriodOverride">
+                {{policyMeta().hasPeriodOverride ? t.overrideBadge : t.defaultBadge}}
+              </span>
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div class="form-field">
+              <label for="policy-scope">{{t.scopeLabel}}</label>
+              <select
+                id="policy-scope"
+                class="control-input"
+                [value]="selectedPeriodId()"
+                (change)="onScopeChange($event)"
+              >
+                <option value="">{{t.scopeGlobal}}</option>
+                @for (period of periods(); track period.id) {
+                  <option [value]="period.id" [selected]="selectedPeriodId() === period.id">
+                    {{period.code}} · {{period.name}} ({{period.status}})
+                  </option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="policy-name">{{t.policyNameLabel}}</label>
+              <input
+                id="policy-name"
+                type="text"
+                class="control-input"
+                [readOnly]="policyMeta().isLockedSnapshot"
+                [value]="policyName()"
+                (input)="policyName.set($any($event.target).value)"
+              />
+            </div>
+            <div class="form-field full-span">
+              <label for="policy-desc">{{t.policyDescLabel}}</label>
+              <textarea
+                id="policy-desc"
+                rows="2"
+                class="control-textarea"
+                [readOnly]="policyMeta().isLockedSnapshot"
+                [value]="policyDescription()"
+                (input)="policyDescription.set($any($event.target).value)"
+              ></textarea>
+            </div>
+          </div>
+        </section>
+
+        <!-- 1. Formula Builder -->
+        <section class="card" aria-labelledby="sec-formula">
+          <header class="card-header">
+            <div>
+              <h2 id="sec-formula">{{t.sectionFormulaTitle}}</h2>
+              <p class="help">{{t.sectionFormulaHelp}}</p>
+            </div>
+            <div class="preset-row">
+              <span class="chip-label">{{t.formulaPresetsLabel}}</span>
+              <button
+                type="button"
+                class="chip preset"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="applyFormulaPreset('standard')"
+              >
+                {{t.presetStandard}}
+              </button>
+              <button
+                type="button"
+                class="chip preset"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="applyFormulaPreset('unitPenalty')"
+              >
+                {{t.presetUnitPenalty}}
+              </button>
+              <button
+                type="button"
+                class="chip preset"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="applyFormulaPreset('balanced')"
+              >
+                {{t.presetBalancedCap}}
+              </button>
+            </div>
+          </header>
+
+          <textarea
+            #formulaBox
+            id="score-formula-input"
+            rows="2"
+            class="formula-editor"
+            [readOnly]="policyMeta().isLockedSnapshot"
+            [attr.aria-label]="t.sectionFormulaTitle"
+            [value]="scoreFormula()"
+            (input)="scoreFormula.set($any($event.target).value)"
+          ></textarea>
+
+          <div class="token-bars">
+            <div class="token-group">
+              <span class="chip-label">{{t.formulaInsertVar}}</span>
+              @for (variable of catalog().formulaVariables; track variable) {
+                <button
+                  type="button"
+                  class="chip var-chip"
+                  [disabled]="policyMeta().isLockedSnapshot"
+                  (click)="insertToken(variable, false, formulaBox)"
+                >
+                  {{variable}}
+                </button>
+              }
+            </div>
+            <div class="token-group">
+              <span class="chip-label">{{t.formulaInsertFn}}</span>
+              @for (fn of catalog().formulaFunctions; track fn) {
+                <button
+                  type="button"
+                  class="chip fn-chip"
+                  [disabled]="policyMeta().isLockedSnapshot"
+                  (click)="insertToken(fn, true, formulaBox)"
+                >
+                  {{fn}}(…)
+                </button>
+              }
+            </div>
+          </div>
+        </section>
+
+        <!-- 2 & 3. Base Tiers + Tie-Breakers -->
+        <div class="two-col-grid">
+          <section class="card" aria-labelledby="sec-tiers">
+            <header class="card-header">
+              <div>
+                <h2 id="sec-tiers">{{t.sectionTiersTitle}}</h2>
+                <p class="help">{{t.sectionTiersHelp}}</p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="policyMeta().isLockedSnapshot || tiers().length >= 10"
+                (click)="addTier()"
+              >
+                {{t.btnAddTier}}
+              </button>
+            </header>
+
+            <div class="table-scroll">
+              <table class="studio-table">
+                <thead>
+                  <tr>
+                    <th>{{t.colTierOrder}}</th>
+                    <th>{{t.colTierCode}}</th>
+                    <th class="num">{{t.colTierMinScore}}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (tier of tiers(); track $index; let idx = $index) {
+                    <tr>
+                      <td class="mono">#{{idx + 1}}</td>
+                      <td>
+                        <input
+                          type="text"
+                          class="tier-code-input"
+                          [readOnly]="policyMeta().isLockedSnapshot"
+                          [attr.aria-label]="t.colTierCode + ' ' + (idx + 1)"
+                          [value]="tier.tierCode"
+                          (input)="updateTierCode(idx, $event)"
+                        />
+                      </td>
+                      <td class="num">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          class="tier-score-input"
+                          [readOnly]="policyMeta().isLockedSnapshot"
+                          [attr.aria-label]="t.colTierMinScore + ' ' + tier.tierCode"
+                          [value]="tier.minScore"
+                          (input)="updateTierMinScore(idx, $event)"
+                        />
+                      </td>
+                      <td class="num">
+                        @if (tiers().length > 2 && !policyMeta().isLockedSnapshot) {
+                          <button type="button" class="link-danger" (click)="removeTier(idx)">
+                            {{t.btnRemoveTier}}
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card" aria-labelledby="sec-tie">
+            <header class="card-header">
+              <div>
+                <h2 id="sec-tie">{{t.sectionTieBreakerTitle}}</h2>
+                <p class="help">{{t.sectionTieBreakerHelp}}</p>
+              </div>
+            </header>
+
+            <ol class="tie-list">
+              @for (
+                tb of tieBreakers();
+                track tb;
+                let idx = $index;
+                let first = $first;
+                let last = $last
+              ) {
+                <li class="tie-item">
+                  <span class="tie-rank">#{{idx + 1}}</span>
+                  <span class="tie-name">{{tieBreakerLabel(tb)}}</span>
+                  <div class="tie-actions">
+                    <button
+                      type="button"
+                      class="btn-mini"
+                      [disabled]="first || policyMeta().isLockedSnapshot"
+                      (click)="moveTieBreaker(idx, -1)"
+                    >
+                      ↑ {{t.btnMoveUp}}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-mini"
+                      [disabled]="last || policyMeta().isLockedSnapshot"
+                      (click)="moveTieBreaker(idx, 1)"
+                    >
+                      ↓ {{t.btnMoveDown}}
+                    </button>
+                  </div>
+                </li>
+              }
+            </ol>
+
+            <div class="tie-pool">
+              @for (field of catalog().tieBreakerFields; track field) {
+                <label class="tie-check">
+                  <input
+                    type="checkbox"
+                    [checked]="tieBreakers().includes(field)"
+                    [disabled]="policyMeta().isLockedSnapshot"
+                    (change)="toggleTieBreakerField(field, $event)"
+                  />
+                  <span>{{tieBreakerLabel(field)}}</span>
+                </label>
+              }
+            </div>
+          </section>
+        </div>
+
+        <!-- 4. Visual Automation Pipeline (WHEN -> IF -> THEN) -->
+        <section class="card" aria-labelledby="sec-rules">
+          <header class="card-header">
+            <div>
+              <h2 id="sec-rules">{{t.sectionRulesTitle}}</h2>
+              <p class="help">{{t.sectionRulesHelp}}</p>
+            </div>
+            <div class="preset-row">
+              <button
+                type="button"
+                class="btn btn-sm primary"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="addRulePreset('blank')"
+              >
+                {{t.btnAddRule}}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="addRulePreset('risk')"
+              >
+                {{t.btnAddPresetRisk}}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="addRulePreset('veto')"
+              >
+                {{t.btnAddPresetVeto}}
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="policyMeta().isLockedSnapshot"
+                (click)="addRulePreset('quota')"
+              >
+                {{t.btnAddPresetQuota}}
+              </button>
+            </div>
+          </header>
+
+          <div class="rules-pipeline">
+            @for (
+              rule of rules();
+              track rule.id;
+              let rIdx = $index;
+              let first = $first;
+              let last = $last
+            ) {
+              <article class="rule-block" [class.is-disabled]="!rule.enabled">
+                <div class="rule-header">
+                  <div class="rule-title-group">
+                    <span class="step-badge">RULE #{{rIdx + 1}}</span>
+                    <input
+                      type="text"
+                      class="rule-name-input"
+                      [readOnly]="policyMeta().isLockedSnapshot"
+                      [attr.aria-label]="'Rule ' + (rIdx + 1)"
+                      [value]="rule.name"
+                      (input)="updateRuleName(rIdx, $event)"
+                    />
+                  </div>
+                  <div class="rule-controls">
+                    <label class="inline-toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="rule.enabled"
+                        [disabled]="policyMeta().isLockedSnapshot"
+                        (change)="toggleRuleEnabled(rIdx, $event)"
+                      />
+                      <span>{{rule.enabled ? t.ruleEnabled : t.ruleDisabled}}</span>
+                    </label>
+                    <label class="inline-toggle">
+                      <input
+                        type="checkbox"
+                        [checked]="rule.stopOnMatch"
+                        [disabled]="policyMeta().isLockedSnapshot"
+                        (change)="toggleRuleStop(rIdx, $event)"
+                      />
+                      <span>{{t.ruleStopOnMatch}}</span>
+                    </label>
+                    <button
+                      type="button"
+                      class="btn-mini"
+                      [disabled]="first || policyMeta().isLockedSnapshot"
+                      (click)="moveRule(rIdx, -1)"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-mini"
+                      [disabled]="last || policyMeta().isLockedSnapshot"
+                      (click)="moveRule(rIdx, 1)"
+                    >
+                      ↓
+                    </button>
+                    @if (!policyMeta().isLockedSnapshot) {
+                      <button type="button" class="link-danger" (click)="deleteRule(rIdx)">
+                        {{t.btnDeleteRule}}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <!-- WHENScratch Block -->
+                <div class="scratch-lane lane-when">
+                  <span class="lane-tag tag-when">{{t.whenBlock}}</span>
+                  <span class="lane-text">{{t.whenEvaluated}}</span>
+                </div>
+
+                <!-- IF Scratch Block -->
+                <div class="scratch-lane lane-if">
+                  <div class="lane-head">
+                    <span class="lane-tag tag-if">{{t.ifBlock}}</span>
+                    <select
+                      class="logic-select"
+                      [disabled]="policyMeta().isLockedSnapshot"
+                      [attr.aria-label]="t.ifBlock"
+                      [value]="rule.conditions.logicalOperator"
+                      (change)="updateLogicalOp(rIdx, $event)"
+                    >
+                      <option value="AND" [selected]="rule.conditions.logicalOperator === 'AND'">
+                        {{t.matchAll}}
+                      </option>
+                      <option value="OR" [selected]="rule.conditions.logicalOperator === 'OR'">
+                        {{t.matchAny}}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="clause-list">
+                    @for (cond of rule.conditions.items; track $index; let cIdx = $index) {
+                      <div class="clause-row">
+                        <select
+                          class="clause-select metric-sel"
+                          [disabled]="policyMeta().isLockedSnapshot"
+                          [attr.aria-label]="'Metric ' + (cIdx + 1)"
+                          [value]="cond.metric"
+                          (change)="updateConditionMetric(rIdx, cIdx, $event)"
+                        >
+                          @for (m of catalog().metrics; track m) {
+                            <option [value]="m" [selected]="cond.metric === m">
+                              {{metricLabel(m)}}
+                            </option>
+                          }
+                        </select>
+
+                        <select
+                          class="clause-select op-sel"
+                          [disabled]="policyMeta().isLockedSnapshot"
+                          [attr.aria-label]="'Operator ' + (cIdx + 1)"
+                          [value]="cond.operator"
+                          (change)="updateConditionOperator(rIdx, cIdx, $event)"
+                        >
+                          @for (op of operatorsForMetric(cond.metric); track op) {
+                            <option [value]="op" [selected]="cond.operator === op">
+                              {{operatorLabel(op)}}
+                            </option>
+                          }
+                        </select>
+
+                        @if (isStringMetric(cond.metric)) {
+                          <input
+                            type="text"
+                            class="clause-input wide"
+                            [readOnly]="policyMeta().isLockedSnapshot"
+                            [placeholder]="t.placeholderValues"
+                            [value]="formatConditionValues(cond)"
+                            (input)="updateConditionStringValues(rIdx, cIdx, $event)"
+                          />
+                        } @else {
+                          <input
+                            type="number"
+                            step="0.5"
+                            class="clause-input num-in"
+                            [readOnly]="policyMeta().isLockedSnapshot"
+                            [attr.aria-label]="'Value ' + (cIdx + 1)"
+                            [value]="cond.value ?? 0"
+                            (input)="updateConditionValue(rIdx, cIdx, false, $event)"
+                          />
+                          @if (cond.operator === 'BETWEEN') {
+                            <span class="between-sep">..</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              class="clause-input num-in"
+                              [readOnly]="policyMeta().isLockedSnapshot"
+                              [attr.aria-label]="'Max Value ' + (cIdx + 1)"
+                              [value]="cond.secondaryValue ?? 100"
+                              (input)="updateConditionValue(rIdx, cIdx, true, $event)"
+                            />
+                          }
+                        }
+
+                        @if (rule.conditions.items.length > 1 && !policyMeta().isLockedSnapshot) {
+                          <button
+                            type="button"
+                            class="btn-remove"
+                            aria-label="Remove condition"
+                            (click)="removeCondition(rIdx, cIdx)"
+                          >
+                            ×
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  @if (!policyMeta().isLockedSnapshot) {
+                    <button type="button" class="btn-add-clause" (click)="addCondition(rIdx)">
+                      {{t.btnAddCondition}}
+                    </button>
+                  }
+                </div>
+
+                <!-- THEN Scratch Block -->
+                <div class="scratch-lane lane-then">
+                  <div class="lane-head">
+                    <span class="lane-tag tag-then">{{t.thenBlock}}</span>
+                  </div>
+
+                  <div class="clause-list">
+                    @for (act of rule.actions; track $index; let aIdx = $index) {
+                      <div class="clause-row">
+                        <select
+                          class="clause-select action-sel"
+                          [disabled]="policyMeta().isLockedSnapshot"
+                          [attr.aria-label]="'Action ' + (aIdx + 1)"
+                          [value]="act.type"
+                          (change)="updateActionType(rIdx, aIdx, $event)"
+                        >
+                          @for (at of catalog().actionTypes; track at) {
+                            <option [value]="at" [selected]="act.type === at">
+                              {{actionLabel(at)}}
+                            </option>
+                          }
+                        </select>
+
+                        @if (needsActionTier(act.type)) {
+                          <select
+                            class="clause-select tier-sel"
+                            [disabled]="policyMeta().isLockedSnapshot"
+                            [attr.aria-label]="t.placeholderTier"
+                            [value]="act.tierCode ?? ''"
+                            (change)="updateActionTier(rIdx, aIdx, $event)"
+                          >
+                            @for (tr of tiers(); track tr.tierCode) {
+                              <option
+                                [value]="tr.tierCode"
+                                [selected]="act.tierCode === tr.tierCode"
+                              >
+                                {{tr.tierCode}}
+                              </option>
+                            }
+                          </select>
+                        }
+
+                        @if (needsActionNumber(act.type)) {
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            class="clause-input num-in"
+                            [readOnly]="policyMeta().isLockedSnapshot"
+                            [attr.aria-label]="'Action Value ' + (aIdx + 1)"
+                            [value]="act.numericValue ?? 1"
+                            (input)="updateActionNumber(rIdx, aIdx, $event)"
+                          />
+                        }
+
+                        <input
+                          type="text"
+                          class="clause-input wide"
+                          [readOnly]="policyMeta().isLockedSnapshot"
+                          [placeholder]="t.placeholderMessage"
+                          [value]="act.message ?? ''"
+                          (input)="updateActionMessage(rIdx, aIdx, $event)"
+                        />
+
+                        @if (rule.actions.length > 1 && !policyMeta().isLockedSnapshot) {
+                          <button
+                            type="button"
+                            class="btn-remove"
+                            aria-label="Remove action"
+                            (click)="removeAction(rIdx, aIdx)"
+                          >
+                            ×
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  @if (!policyMeta().isLockedSnapshot) {
+                    <button type="button" class="btn-add-clause" (click)="addAction(rIdx)">
+                      {{t.btnAddAction}}
+                    </button>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+
+        <!-- 5. Live Dry-Run Sandbox Preview -->
+        <section class="card sandbox-card" aria-labelledby="sec-sandbox">
+          <header class="card-header">
+            <div>
+              <h2 id="sec-sandbox">{{t.sectionSandboxTitle}}</h2>
+            </div>
+            <button
+              type="button"
+              class="btn btn-simulate"
+              [disabled]="simulating()"
+              (click)="runSimulation()"
+            >
+              {{simulating() ? t.btnSimulating : t.btnSimulate}}
+            </button>
+          </header>
+
+          @if (simulation(); as sim) {
+            <div class="sim-summary-bar">
+              <span class="badge-pill" [class.override]="sim.isSyntheticSample">
+                {{sim.isSyntheticSample ? t.sandboxSyntheticBadge : t.sandboxRealBadge}}
+              </span>
+              <span class="sim-stat">
+                {{t.sandboxSummaryTotal}}: <strong>{{sim.totalEmployees}}</strong>
+              </span>
+              <span class="sim-stat changed">
+                {{t.sandboxSummaryChanged}}: <strong>{{sim.changedCount}}</strong>
+              </span>
+            </div>
+
+            <div class="table-scroll">
+              <table class="studio-table compact">
+                <thead>
+                  <tr>
+                    <th>{{t.colSimTier}}</th>
+                    <th class="num">{{t.colSimBefore}}</th>
+                    <th class="num">{{t.colSimAfter}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of sim.tierSummary; track item.tierCode) {
+                    <tr>
+                      <td>
+                        <span class="tier-badge">{{item.tierCode}}</span>
+                      </td>
+                      <td class="num mono">{{item.beforeCount}} ({{item.beforePercent}}%)</td>
+                      <td
+                        class="num mono"
+                        [class.diff-highlight]="item.beforeCount !== item.afterCount"
+                      >
+                        {{item.afterCount}} ({{item.afterPercent}}%)
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-scroll">
+              <table class="studio-table">
+                <thead>
+                  <tr>
+                    <th>{{t.colSimEmp}}</th>
+                    <th>{{t.colSimPos}}</th>
+                    <th class="num">{{t.colSimScore}}</th>
+                    <th class="num">{{t.colSimRank}}</th>
+                    <th>{{t.colSimTierDiff}}</th>
+                    <th>{{t.colSimTrace}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of sim.rows; track row.employeeId) {
+                    <tr [class.row-changed]="row.changed">
+                      <td>
+                        <strong>{{row.fullName}}</strong>
+                        <div class="sub-mono">{{row.employeeCode}}</div>
+                      </td>
+                      <td>
+                        <div>{{row.jobPositionTitle}}</div>
+                        <div class="sub-text">{{row.departmentName}}</div>
+                      </td>
+                      <td class="num mono">
+                        {{row.totalScore}} → <strong>{{row.effectiveScore}}</strong>
+                      </td>
+                      <td class="num mono">#{{row.beforeRank}} → #{{row.afterRank}}</td>
+                      <td>
+                        <span class="tier-badge">{{row.beforeTier}}</span>
+                        →
+                        <span
+                          class="tier-badge"
+                          [class.changed-tier]="row.beforeTier !== row.afterTier"
+                        >
+                          {{row.afterTier}}
+                        </span>
+                      </td>
+                      <td>
+                        <ul class="trace-list">
+                          @for (step of row.explanation; track $index) {
+                            <li>{{step}}</li>
+                          }
+                        </ul>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="empty-sandbox">{{t.sandboxEmpty}}</p>
+          }
+        </section>
+      }
+    </main>
+  </div>
+</div>

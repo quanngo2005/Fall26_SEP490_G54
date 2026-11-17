@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { TestBed } from '@angular/core/testing';
+import { fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { AuditLogDetail, AuditLogListItem } from '../../core/audit-log.models';
@@ -94,8 +94,8 @@ describe('AuditLogListComponent', () => {
     expect(rows[0].querySelector('.entity')?.textContent).toBe(item.entityName);
     expect(rows[0].textContent).toContain(item.actorName);
     expect(rows[0].textContent).toContain(component.time(item.occurredAt));
-    expect(rows[0].querySelector('.tag')?.getAttribute('data-action')).toBe('Update');
-    expect(rows[0].querySelector('.tag')?.textContent).toContain(t.actions.Update);
+    expect(rows[0].querySelector('app-status-badge')?.getAttribute('data-action')).toBe('Update');
+    expect(rows[0].querySelector('app-status-badge')?.textContent).toContain(t.actions.Update);
     expect(fixture.nativeElement.textContent).toContain(
       TestBed.inject(I18nService).translate('auditLog.totalCount', { count: 1 }),
     );
@@ -145,9 +145,7 @@ describe('AuditLogListComponent', () => {
     fixture.detectChanges();
     list.calls.reset();
     const root: HTMLElement = fixture.nativeElement;
-    const clearButton = Array.from(
-      root.querySelectorAll<HTMLButtonElement>('.list-filters button'),
-    ).find((button) => button.type === 'button');
+    const clearButton = root.querySelector<HTMLButtonElement>('.ui-filter-clear');
     clearButton?.click();
     fixture.detectChanges();
     expect(component.keyword()).toBe('');
@@ -162,8 +160,8 @@ describe('AuditLogListComponent', () => {
     const component = fixture.componentInstance;
     fixture.detectChanges();
     expect(component.pageCount()).toBe(3);
-    const pager = fixture.nativeElement.querySelector('.pager');
-    const [prev, next] = pager.querySelectorAll('button');
+    const prev = fixture.nativeElement.querySelector('button[aria-label="Previous page"]');
+    const next = fixture.nativeElement.querySelector('button[aria-label="Next page"]');
     expect(prev.disabled).toBeTrue();
     expect(next.disabled).toBeFalse();
     next.click();
@@ -178,7 +176,7 @@ describe('AuditLogListComponent', () => {
     fixture.destroy();
   });
 
-  it('GB654_19 opens the details drawer with request info and an old/new diff, and closes on Escape', () => {
+  it('GB654_19 opens the details drawer with request info and an old/new diff, and closes on Escape', fakeAsync(() => {
     const fixture = create();
     fixture.nativeElement.querySelector('.log-table tbody tr').click();
     fixture.detectChanges();
@@ -190,9 +188,12 @@ describe('AuditLogListComponent', () => {
     expect(drawer.querySelector('.value.new')?.textContent).toContain('CONFIRMED');
     fixture.componentInstance.close();
     fixture.detectChanges();
+    // The drawer stays mounted for its exit animation, then is removed.
+    tick(250);
+    fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.drawer')).toBeNull();
     fixture.destroy();
-  });
+  }));
 
   it('GB654_20 shows an error with retry when loading fails, and an empty state when there are no records', () => {
     list.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));

@@ -138,12 +138,16 @@ describe('EmployeeListComponent', () => {
   });
 
   it('populates department and position filter dropdowns', () => {
-    const dropdowns: NodeListOf<HTMLSelectElement> =
-      fixture.nativeElement.querySelectorAll('.dropdown-select');
+    const dropdowns: NodeListOf<HTMLElement> = fixture.nativeElement.querySelectorAll(
+      'app-ui-select.dropdown-select',
+    );
     expect(dropdowns.length).toBe(2);
+    dropdowns[0].querySelector<HTMLButtonElement>('.ui-select-trigger')?.click();
+    fixture.detectChanges();
+    const options = dropdowns[0].querySelectorAll('.ui-select-option');
     // Department dropdown has placeholder + 1 item
-    expect(dropdowns[0].options.length).toBe(2);
-    expect(dropdowns[0].options[1].value).toBe('d1');
+    expect(options.length).toBe(2);
+    expect(options[1].textContent).toContain('Phòng Kinh doanh');
   });
 
   it('renders table rows with employees from API', () => {

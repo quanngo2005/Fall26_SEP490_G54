@@ -4,8 +4,42 @@ public static class SidebarCatalog
 {
     public static IReadOnlySet<string> Routes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        "", "/home", "/my-work", "/my-targets", "/my-evaluation", "/departments", "/department-performance", "/branch-performance", "/employee-profile", "/work-types", "/work-type-detail", "/review-verify", "/appeals", "/kpi-definitions", "/sidebar-settings", "/audit-logs",
+        "",
+        "/home",
+        "/my-work",
+        "/my-targets",
+        "/my-evaluation",
+        "/departments",
+        "/department-performance",
+        "/branch-performance",
+        "/employee-detail",
+        "/employee-profile",
+        "/work-types",
+        "/evaluation-profiles",
+        "/work-type-detail",
+        "/review-verify",
+        "/appeals",
+        "/kpi-definitions",
+        "/campaigns",
+        "/target-overview",
+        "/sidebar-settings",
+        "/system-parameters",
+        "/ranking-studio",
+        "/roles",
+        "/user-accounts",
+        "/audit-logs",
     };
+
+    public static IReadOnlySet<string> AdminOnlyRoutes { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "/sidebar-settings",
+        "/system-parameters",
+        "/ranking-studio",
+        "/roles",
+        "/user-accounts",
+        "/audit-logs",
+    };
+
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "myTargets", "appeals", "notifications", "myProfile"],
@@ -13,7 +47,7 @@ public static class SidebarCatalog
         ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
         ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "appeals", "notifications", "myProfile"],
         ["qa"] = ["overview", "verificationQueue", "appeals", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
-        ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "kpiDefinitions", "systemConfiguration", "systemAudit", "myProfile"],
+        ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "kpiDefinitions", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "myProfile"],
     };
 
     public static IReadOnlySet<string> ItemIds { get; } = new HashSet<string>(StringComparer.Ordinal)
@@ -22,7 +56,7 @@ public static class SidebarCatalog
         "departments", "jobPositions", "reportingLines", "employeeData", "teamWork", "handoverDelegation",
         "reviewVerify", "teamPerformance", "targetsAndCampaigns", "targetOverview", "branchWork", "branchPerformance", "departmentPerformance",
         "appeals", "reportingStructure", "verificationQueue", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "accounts",
-        "rolesPermissions", "accessPolicies", "systemConfiguration", "systemAudit", "tasks", "personalKpis", "review", "positions",
+        "rolesPermissions", "accessPolicies", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "tasks", "personalKpis", "review", "positions",
         "kpiDefinitions", "workTypes", "targets", "reports", "audit", "users", "settings",
     };
 

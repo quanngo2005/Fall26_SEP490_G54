@@ -8,7 +8,7 @@
 .field label {
   color: #64748b;
   font:
-    600 11px Inter,
+    600 11px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -26,7 +26,7 @@
   background-color: #fff;
   color: #1e293b;
   font:
-    400 14px Inter,
+    400 14px 'Nunito Sans',
     sans-serif;
   padding: 0 12px;
   transition:
@@ -51,7 +51,7 @@
   padding: 8px 12px;
 }
 .input::placeholder {
-  color: #94a3b8;
+  color: #64748b;
 }
 .select:hover,
 .input:hover {
@@ -78,7 +78,7 @@
   border-radius: 4px;
   cursor: pointer;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
   padding: 0 16px;
   transition:

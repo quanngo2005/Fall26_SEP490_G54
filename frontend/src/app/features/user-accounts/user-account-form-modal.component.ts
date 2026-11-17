@@ -21,13 +21,14 @@ import {
   UserAccountSummary,
 } from '../../core/user-account.models';
 import { UserAccountService } from '../../core/user-account.service';
+import { SelectOption, UiSelectComponent } from '../../shared/ui';
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,50}$/;
 
 /** SCR-ADM-01-M1 (create) and SCR-ADM-02-M1 (edit role) in one dialog. */
 @Component({
   selector: 'app-user-account-form-modal',
-  imports: [FormsModule],
+  imports: [FormsModule, UiSelectComponent],
   templateUrl: './user-account-form-modal.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
@@ -67,6 +68,18 @@ export class UserAccountFormModalComponent extends LocalizedComponent implements
   protected readonly selectedRole = computed(
     () => this.roles().find((role) => role.id === this.roleId()) ?? null,
   );
+  protected readonly employeeSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.userAccounts.employeePlaceholder },
+    ...this.eligible().map((item) => ({
+      value: item.id,
+      label: this.summaryLabel(item),
+      sublabel: item.departmentName,
+    })),
+  ]);
+  protected readonly roleSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.userAccounts.rolePlaceholder },
+    ...this.roles().map((role) => ({ value: role.id, label: role.name })),
+  ]);
 
   protected readonly usernameError = computed(() => {
     if (this.serverError() === 'usernameExists')

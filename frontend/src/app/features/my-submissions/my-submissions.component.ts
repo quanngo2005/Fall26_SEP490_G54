@@ -23,11 +23,25 @@ import {
 } from '../../core/my-submission.models';
 import { MySubmissionService } from '../../core/my-submission.service';
 import { AppDatePipe } from '../../shared/pipes';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { badgeOf, hoursLeft } from './my-submission-display';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
+import { badgeOf, BadgeTone, hoursLeft } from './my-submission-display';
 import { MySubmissionDrawerComponent } from './my-submission-drawer.component';
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+const BADGE_TONE: Readonly<Record<BadgeTone, StatusBadgeTone>> = {
+  green: 'success',
+  red: 'danger',
+  gray: 'neutral',
+  amber: 'warning',
+};
 
 @Component({
   selector: 'app-my-submissions',
@@ -35,15 +49,19 @@ const SEARCH_DEBOUNCE_MS = 300;
     FormsModule,
     SidebarComponent,
     HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     MySubmissionDrawerComponent,
     AppealSubmitModalComponent,
     AppDatePipe,
   ],
   templateUrl: './my-submissions.component.html',
   styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     '../../shared/ui/modal.scss',
-    '../appeals/appeals-shared.scss',
-    '../appeals/appeals-list.scss',
     './my-submissions.component.scss',
   ],
 })
@@ -78,12 +96,18 @@ export class MySubmissionsComponent extends LocalizedComponent implements OnInit
     () => this.items().find((item) => item.submissionId === this.selectedId()) ?? null,
   );
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly matchOptions = computed<SelectOption<MatchStatus | 'ALL'>[]>(() => [
+    { value: 'ALL', label: this.localization.submissions.matchFilter.all },
+    { value: 'MATCHED', label: this.localization.submissions.matchFilter.MATCHED },
+    { value: 'NOT_MATCHED', label: this.localization.submissions.matchFilter.NOT_MATCHED },
+    { value: 'IN_REVIEW', label: this.localization.submissions.matchFilter.IN_REVIEW },
+    { value: 'NONE', label: this.localization.submissions.matchFilter.NONE },
+  ]);
+
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.submissions.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
 
   protected readonly summary = computed(() => {
     const period = this.periods().find((p) => p.id === this.periodFilter());
@@ -238,9 +262,9 @@ export class MySubmissionsComponent extends LocalizedComponent implements OnInit
     if (id) this.loadDetail.next(id);
   }
 
-  protected badge(item: MySubmissionListItem) {
+  protected badge(item: MySubmissionListItem): { tone: StatusBadgeTone; label: string } {
     const { key, tone } = badgeOf(item.status, item.matchStatus);
-    return { tone, label: this.localization.submissions.badge[key] };
+    return { tone: BADGE_TONE[tone], label: this.localization.submissions.badge[key] };
   }
 
   protected transactionText(item: MySubmissionListItem): string {

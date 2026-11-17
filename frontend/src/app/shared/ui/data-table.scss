@@ -1,0 +1,748 @@
+/* ==========================================================================
+   Common Enterprise UI Primitives (DESIGN.md canonical tokens & table system)
+   Import into standalone list/detail pages via styleUrls or @use.
+   ========================================================================== */
+
+/* 1. Master-Detail Responsive Split Layout & Overlay Drawer */
+.ui-master-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ui-master-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  container-type: inline-size;
+}
+
+@keyframes ui-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.ui-drawer-backdrop {
+  display: none;
+
+  &.is-leaving {
+    animation: ui-backdrop-out 180ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    pointer-events: none;
+  }
+}
+
+/* 2. Page Header & Filter Toolbar */
+.ui-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin-bottom: 18px;
+}
+
+.ui-page-heading {
+  min-width: 0;
+}
+
+.ui-breadcrumb {
+  margin: 0 0 4px;
+  color: #64748b;
+  font:
+    500 12px/16px 'Nunito Sans',
+    sans-serif;
+}
+
+.ui-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-page-title {
+  margin: 0;
+  color: #0f172a;
+  font:
+    600 22px/30px 'Nunito Sans',
+    'Nunito Sans',
+    sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.ui-page-subtitle {
+  margin: 4px 0 0;
+  color: #475569;
+  font:
+    400 13px/18px 'Nunito Sans',
+    sans-serif;
+}
+
+.ui-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 2. KPI / Stat Summary Strip */
+.ui-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 240px));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ui-stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 78px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid #002b49;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 5%),
+    0 1px 2px -1px rgb(15 23 42 / 3%);
+  color: #475569;
+  font:
+    500 12px/16px 'Nunito Sans',
+    sans-serif;
+  padding: 12px 16px;
+  text-align: left;
+
+  &.tone-success {
+    border-top-color: #059669;
+  }
+
+  &.tone-warning {
+    border-top-color: #d97706;
+  }
+
+  &.tone-danger {
+    border-top-color: #e11d48;
+  }
+
+  &.tone-neutral {
+    border-top-color: #64748b;
+  }
+
+  &.is-interactive {
+    cursor: pointer;
+
+    &:hover {
+      border-color: #cbd5e1;
+      border-top-color: #002b49;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #002b49;
+      outline-offset: 2px;
+    }
+  }
+
+  &.is-active {
+    border-color: #002b49;
+    background: #f8fafc;
+    box-shadow: 0 0 0 1px #002b49;
+  }
+}
+
+.ui-stat-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ui-stat-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ui-stat-value {
+  color: #0f172a;
+  font:
+    700 22px/28px 'Nunito Sans',
+    Consolas,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* 3.Page Tabs & Filter Bar */
+.ui-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.ui-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font:
+    500 13.5px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 0 12px;
+  text-decoration: none;
+
+  &:hover:not(:disabled) {
+    color: #0f172a;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: -2px;
+    border-radius: 4px 4px 0 0;
+  }
+
+  &:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+
+  &.is-active {
+    border-bottom-color: #002b49;
+    color: #002b49;
+    font-weight: 600;
+  }
+
+  .ui-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    border-radius: 9999px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 0 6px;
+  }
+
+  &.is-active .ui-tab-count {
+    background: #eff6ff;
+    color: #002b49;
+  }
+}
+
+.ui-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
+  color: #334155;
+  font:
+    400 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 10px 14px;
+
+  &.tone-info {
+    border-color: #bae6fd;
+    background: #f0f9ff;
+    color: #0369a1;
+  }
+
+  &.tone-success {
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+  }
+
+  &.tone-warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #b45309;
+  }
+
+  &.tone-danger {
+    border-color: #fecdd3;
+    background: #fff1f2;
+    color: #be123c;
+  }
+}
+
+.ui-callout {
+  margin-top: 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  padding: 12px 16px;
+
+  h4,
+  strong {
+    display: block;
+    margin: 0 0 3px;
+    color: #0369a1;
+    font:
+      600 13px/18px 'Nunito Sans',
+      sans-serif;
+  }
+
+  p,
+  span {
+    margin: 0;
+    color: #334155;
+    font:
+      400 13px/19px 'Nunito Sans',
+      sans-serif;
+  }
+}
+
+/* 4. Filter Bar & Search Input */
+.ui-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+
+  .select,
+  .input {
+    min-height: 38px;
+    height: 38px;
+    font-size: 13px;
+  }
+
+  .select {
+    width: auto;
+    min-width: 156px;
+    max-width: 240px;
+  }
+
+  app-ui-select {
+    min-width: 164px;
+    max-width: 240px;
+  }
+}
+
+.ui-search-field {
+  position: relative;
+  flex: 1 1 240px;
+  max-width: 320px;
+
+  app-layout-icon {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    width: 16px;
+    height: 16px;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+  }
+
+  .input {
+    padding-left: 34px;
+  }
+
+  /* Custom clear button replaces the browser's own cancel icon. */
+  .input[type='search']::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .input.has-clear {
+    padding-right: 32px;
+  }
+
+  .ui-search-clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+
+    &:hover {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #002b49;
+      outline-offset: 1px;
+    }
+  }
+}
+
+.ui-filter-clear {
+  min-height: 38px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #002b49;
+  cursor: pointer;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 0 10px;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: 1px;
+  }
+}
+
+.ui-filter-spacer {
+  flex: 1 1 auto;
+}
+
+/* 4. Enterprise Data Table Card (DESIGN.md: 36px header, 48px rows) */
+.ui-table-card {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow:
+    0 1px 3px 0 rgb(15 23 42 / 5%),
+    0 1px 2px -1px rgb(15 23 42 / 3%);
+}
+
+.ui-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 8px 8px 0 0;
+
+  /* Long lists scroll inside the card so the header row and the pagination bar stay in view. */
+  &.is-sticky {
+    max-height: max(360px, calc(100dvh - 430px));
+    overflow: auto;
+
+    .ui-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      box-shadow: inset 0 -1px 0 #e2e8f0;
+    }
+  }
+}
+
+.ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font:
+    400 14px/20px 'Nunito Sans',
+    sans-serif;
+
+  thead th {
+    height: 36px;
+    box-sizing: border-box;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    font:
+      600 13px/18px 'Nunito Sans',
+      sans-serif;
+    letter-spacing: 0;
+    /* Nunito Sans' lowercase sits ~1px below the centre of its line box; nudge it back up. */
+    padding: 0 14px 2px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  tbody tr {
+    background: #fff;
+    transition: background-color 120ms ease;
+
+    &:hover td {
+      background: #f8fafc;
+    }
+
+    &.is-clickable {
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid #002b49;
+        outline-offset: -2px;
+      }
+    }
+
+    &.is-selected td {
+      background: #eff6ff;
+    }
+
+    &.is-selected td:first-child {
+      box-shadow: inset 3px 0 0 #002b49;
+    }
+
+    &.is-muted td {
+      color: #94a3b8;
+    }
+  }
+
+  tbody td {
+    height: 48px;
+    box-sizing: border-box;
+    border-top: 1px solid #f1f5f9;
+    color: #1e293b;
+    padding: 8px 14px;
+    vertical-align: middle;
+  }
+
+  tbody tr:first-child td {
+    border-top: 0;
+  }
+
+  tfoot tr {
+    background: #f8fafc;
+    border-top: 2px solid #e2e8f0;
+    font-weight: 600;
+  }
+
+  tfoot td {
+    height: 44px;
+    padding: 8px 14px;
+    color: #0f172a;
+  }
+
+  /* Column & cell alignment / typography modifiers */
+  .col-code {
+    color: #0f172a;
+    font:
+      600 14px/20px 'Nunito Sans',
+      Consolas,
+      monospace;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .col-primary {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  .col-mono {
+    color: #475569;
+    font:
+      500 13.5px/20px 'Nunito Sans',
+      Consolas,
+      monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .col-num {
+    text-align: right;
+    font:
+      500 14px/20px 'Nunito Sans',
+      Consolas,
+      monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .col-center {
+    text-align: center;
+  }
+
+  .col-actions {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .col-nowrap {
+    white-space: nowrap;
+  }
+
+  .ui-sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      color: #0f172a;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #002b49;
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
+
+    .sort-arrow {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+  }
+
+  thead th[aria-sort='ascending'] .sort-arrow,
+  thead th[aria-sort='descending'] .sort-arrow {
+    color: #002b49;
+  }
+
+  .ui-empty-cell {
+    height: auto;
+    padding: 36px 16px;
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+  }
+}
+
+/* Inline row action buttons */
+.ui-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.ui-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #002b49;
+  cursor: pointer;
+  font:
+    600 12px/16px 'Nunito Sans',
+    sans-serif;
+  padding: 0 8px;
+
+  &:hover:not(:disabled) {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+}
+
+/* Neutral chip / role tag (non-status metadata) */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  font:
+    500 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 0 9px;
+  white-space: nowrap;
+}
+
+.ui-table-footnote {
+  margin: 10px 0 0;
+  color: #64748b;
+  font:
+    400 12px/18px 'Nunito Sans',
+    sans-serif;
+}
+
+@container (max-width: 760px) {
+  .ui-stat-strip {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .ui-search-field {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .ui-filter-bar app-ui-select,
+  .ui-filter-bar .select {
+    flex: 1 1 140px;
+    min-width: 130px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .ui-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 75;
+    background: rgb(15 23 42 / 38%);
+    backdrop-filter: blur(2px);
+  }
+}
+
+@media (max-width: 720px) {
+  .ui-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ui-page-actions {
+    width: 100%;
+  }
+
+  .ui-stat-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .ui-search-field {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .ui-filter-bar app-ui-select,
+  .ui-filter-bar .select {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}

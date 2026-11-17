@@ -131,7 +131,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden),
     };
 });
-var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 5);
 var loginWindowSeconds = builder.Configuration.GetValue("RateLimiting:Login:WindowSeconds", 60);
 
 builder.Services.AddRateLimiter(options =>
@@ -155,12 +154,16 @@ builder.Services.AddRateLimiter(options =>
         var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString()
             ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
             ?? "unknown";
+        var configuredPermitLimit = httpContext.RequestServices
+            .GetService<Microsoft.Extensions.Options.IOptions<G54.BLL.Common.SystemParametersOptions>>()
+            ?.Value.LoginRateLimitPerMinute ?? 5;
+        var permitLimit = Math.Max(1, builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", configuredPermitLimit));
 
         return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ipAddress,
+            partitionKey: $"{ipAddress}:{permitLimit}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = loginPermitLimit,
+                PermitLimit = permitLimit,
                 Window = TimeSpan.FromSeconds(loginWindowSeconds),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0,

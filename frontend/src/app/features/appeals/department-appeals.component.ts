@@ -1,4 +1,3 @@
-import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -11,8 +10,15 @@ import { EmployeeService } from '../../core/employee.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { appealCode, appealSubject, OPEN_STATUSES, RESOLVED_STATUSES } from './appeal-display';
 
 type DepartmentTab = 'NEEDS_ACTION' | 'RESOLVED' | 'ALL';
@@ -23,13 +29,30 @@ const TAB_STATUSES: Readonly<Record<DepartmentTab, readonly AppealStatus[]>> = {
   ALL: [],
 };
 
+const STATUS_TONE: Readonly<Record<AppealStatus, StatusBadgeTone>> = {
+  OPEN: 'warning',
+  UNDER_REVIEW: 'info',
+  ACCEPTED: 'success',
+  REJECTED: 'danger',
+  WITHDRAWN: 'neutral',
+};
+
 @Component({
   selector: 'app-department-appeals',
-  imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
+  imports: [
+    FormsModule,
+    SidebarComponent,
+    HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+    AppDatePipe,
+  ],
   templateUrl: './department-appeals.component.html',
   styleUrls: [
-    './appeals-shared.scss',
-    './appeals-list.scss',
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './department-appeals.component.scss',
   ],
 })
@@ -66,12 +89,15 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
     });
   });
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
+
+  protected readonly positionOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPositions },
+    ...this.positions().map((p) => ({ value: p.id, label: p.title })),
+  ]);
 
   constructor() {
     super();
@@ -163,6 +189,10 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
 
   protected statusLabel(status: AppealStatus): string {
     return this.localization.appeals.status[status];
+  }
+
+  protected statusTone(status: AppealStatus): StatusBadgeTone {
+    return STATUS_TONE[status];
   }
 
   protected subject(item: AppealListItem): string {

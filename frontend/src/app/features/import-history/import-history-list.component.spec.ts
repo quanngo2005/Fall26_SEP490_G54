@@ -95,7 +95,7 @@ describe('ImportHistoryListComponent', () => {
     fixture.detectChanges();
 
     const el: HTMLElement = fixture.nativeElement;
-    const pageButtons = Array.from(el.querySelectorAll<HTMLButtonElement>('.page-button'));
+    const pageButtons = Array.from(el.querySelectorAll<HTMLButtonElement>('.ui-page-btn'));
     const pageTwo = pageButtons.find((b) => b.textContent?.trim() === '2')!;
     pageTwo.click();
 
@@ -114,8 +114,8 @@ describe('ImportHistoryListComponent', () => {
     });
     fixture.detectChanges();
 
-    expect(el.querySelector('.table-footer span')?.textContent).toContain('21');
-    expect(el.querySelector('.table-footer span')?.textContent).toContain('40');
+    expect(el.querySelector('.ui-pagination-range')?.textContent).toContain('21');
+    expect(el.querySelector('.ui-pagination-range')?.textContent).toContain('40');
   });
 
   it('shows the empty state when the result has no items', () => {

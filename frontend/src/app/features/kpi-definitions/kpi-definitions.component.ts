@@ -19,6 +19,8 @@ import {
 } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
+import { TablePaginationComponent } from '../../shared/ui';
 import { businessClock } from '../work-board/work-board.utils';
 import { KpiDecision, KpiDecisionModalComponent } from './kpi-decision-modal.component';
 import { KpiDetailDrawerComponent, KpiViewerMode } from './kpi-detail-drawer.component';
@@ -59,6 +61,8 @@ interface FormState {
     FormsModule,
     HeaderComponent,
     SidebarComponent,
+    LayoutIconComponent,
+    TablePaginationComponent,
     KpiFormModalComponent,
     KpiDecisionModalComponent,
     KpiDetailDrawerComponent,
@@ -160,9 +164,6 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
 
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.pageSize)),
-  );
-  protected readonly pageNumbers = computed(() =>
-    Array.from({ length: this.pageCount() }, (_, index) => index + 1).slice(0, 7),
   );
 
   constructor() {
@@ -274,6 +275,20 @@ export class KpiDefinitionsComponent extends LocalizedComponent {
     const from = total === 0 ? 0 : (this.page - 1) * this.pageSize + 1;
     const to = Math.min(this.page * this.pageSize, total);
     return this.i18n.translate('kpiCatalog.rowsInfo', { from, to, total });
+  }
+
+  /** The pagination footer: the row range, plus the pending count for the Branch Manager. */
+  protected get footerText(): string {
+    const pending =
+      this.isApprover() && this.tab() === 'PENDING_APPROVAL'
+        ? ` · ${this.i18n.translate('kpiCatalog.pendingCount', { count: this.totalCount() })}`
+        : '';
+    return `${this.rangeText}${pending}`;
+  }
+
+  /** "{size} / page" with the size left as a placeholder for the pagination component. */
+  protected get pageSizeTemplate(): string {
+    return this.i18n.translate('kpiCatalog.perPage', { size: '{size}' });
   }
 
   protected tabCount(tab: StatusTab): number | null {

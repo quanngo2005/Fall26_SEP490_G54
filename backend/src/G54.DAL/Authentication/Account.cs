@@ -20,6 +20,8 @@ public sealed class Account
 
     public DateTimeOffset? LockedUntil { get; set; }
 
+    public bool MustChangePassword { get; set; }
+
     public Employee Employee { get; set; } = null!;
 
     public ICollection<AuthAuditLog> AuthAuditLogs { get; set; } = new List<AuthAuditLog>();

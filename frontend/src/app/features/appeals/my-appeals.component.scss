@@ -1,27 +1,15 @@
 :host {
   display: block;
-  height: 100vh;
-  width: 100%;
 }
 
-.table-container .data-table tbody tr {
-  &.selected-row {
-    background: #eff6ff !important;
+/* The drawer host fills the docked panel that sits below the 56px header. */
+.drawer > app-my-appeal-drawer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
 
-    td:first-child {
-      border-left: 3px solid #2563eb;
-    }
-  }
-
-  &.muted-row {
-    color: #94a3b8;
-
-    .cell-bold {
-      color: #94a3b8;
-    }
-  }
-
-  td.muted-text {
-    color: #94a3b8;
-  }
+.muted-text {
+  color: #94a3b8;
 }

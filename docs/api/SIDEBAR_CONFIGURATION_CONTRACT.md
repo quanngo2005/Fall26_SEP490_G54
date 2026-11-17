@@ -26,7 +26,9 @@ the whole field preserves existing overrides (backward-compatible older clients)
 Routes must be an internal application route from the supported allowlist (backend:
 `SidebarCatalog.Routes`; frontend: `NavigationService.routeOptions`), or empty. Both
 lists must stay identical; this document intentionally does not duplicate them. No
-external URLs, query strings, hashes or arbitrary routes. `/sidebar-settings` is admin-only.
+external URLs, query strings, hashes or arbitrary routes. `/sidebar-settings`,
+`/system-parameters`, `/ranking-studio`, `/roles`, `/user-accounts`, and `/audit-logs`
+are admin-only (`SidebarCatalog.AdminOnlyRoutes` / `NavigationService.adminOnlyRoutes`).
 Group `organization` has no route override; it expands children. Admin's required
 `systemConfiguration` route cannot be changed away from `/sidebar-settings`.
 Route changes do not change the menu's required permission or destination API authorization.

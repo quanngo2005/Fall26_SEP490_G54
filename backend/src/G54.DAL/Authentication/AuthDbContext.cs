@@ -76,6 +76,9 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : DbC
                 .HasDefaultValue(0)
                 .HasColumnName("failed_login_attempts");
             entity.Property(account => account.LockedUntil).HasColumnName("locked_until");
+            entity.Property(account => account.MustChangePassword)
+                .HasDefaultValue(false)
+                .HasColumnName("must_change_password");
             entity.HasOne(account => account.Employee)
                 .WithOne(employee => employee.Account)
                 .HasForeignKey<Account>(account => account.EmployeeId)

@@ -1,120 +1,10 @@
-.workspace-layout {
-  display: flex;
-  min-height: 100dvh;
-  background: #e6eaf0;
-}
-.workspace-main {
-  flex: 1;
-  min-width: 0;
-}
-[hidden] {
-  display: none !important;
-}
-main {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px 24px;
-  color: #1e293b;
-  font-family: Inter, sans-serif;
-}
-.breadcrumb {
-  margin: 0;
-  color: #475569;
-  font-size: 12px;
-  line-height: 18px;
-}
-.title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-h1 {
-  margin: 0;
-  color: #0f172a;
-  font:
-    600 20px/28px Inter,
-    sans-serif;
-}
-.description {
-  margin: 0;
-  color: #475569;
-  font-size: 12px;
-  line-height: 18px;
-}
-.title-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.btn-link {
-  color: #2563eb;
-  font:
-    500 13px/20px Inter,
-    sans-serif;
-}
-.btn {
-  min-height: 36px;
-  border: 1px solid #8494a9;
-  border-radius: 6px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font:
-    500 13px/20px Inter,
-    sans-serif;
-  padding: 0 14px;
-}
-.btn:hover:not(:disabled) {
-  background: #f1f5f9;
-}
-.btn.primary {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-  font-weight: 600;
-}
-.btn.primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid #cbd5e1;
-}
-.tabs a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  border-bottom: 2px solid transparent;
-  color: #475569;
-  font:
-    500 13px/20px Inter,
-    sans-serif;
-  padding: 0 12px;
-  text-decoration: none;
-}
-.tabs a.is-active {
-  border-bottom-color: #2563eb;
-  color: #2563eb;
-  font-weight: 600;
-}
-
 :host {
   display: block;
 }
 .state {
   margin: 0;
   color: #475569;
-  font:
-    400 13px/20px Inter,
-    sans-serif;
+  font-size: 13px;
 }
 .state-error {
   display: flex;
@@ -124,44 +14,92 @@ h1 {
 .state-error p {
   margin: 0;
 }
-.state button {
-  min-height: 36px;
-  border: 1px solid #8494a9;
-  border-radius: 6px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font:
-    500 13px Inter,
-    sans-serif;
-  padding: 0 14px;
-}
-.banner {
+.toolbar-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 12px;
   margin-bottom: 16px;
-  border: 1px solid #a5f3fc;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #ecfeff;
-  color: #0e7490;
-  font:
-    400 12px/18px Inter,
-    sans-serif;
-  padding: 10px 12px;
+  background: #fff;
+  padding: 12px 16px;
 }
-.banner strong {
+.search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  padding: 0 12px;
+  height: 38px;
+}
+.search-wrap app-layout-icon {
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  font-size: 13px;
+  outline: none;
+}
+.group-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  height: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  font:
+    500 12px/16px 'Nunito Sans',
+    sans-serif;
+  padding: 0 12px;
+}
+.pill.is-active {
+  border-color: #002b49;
+  background: #002b49;
+  color: #fff;
+}
+.comparison-card {
+  margin-bottom: 16px;
+}
+.comparison-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+.comparison-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.comparison-field label {
+  color: #0f172a;
+  font-size: 12px;
   font-weight: 600;
 }
-.banner-success {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  color: #15803d;
-}
-.banner-error {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
+.select-field {
+  height: 38px;
+  min-width: 240px;
+  max-width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  padding: 0 10px;
 }
 .columns {
   display: grid;
@@ -169,48 +107,34 @@ h1 {
   gap: 16px;
   align-items: start;
 }
-.column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  padding: 16px;
-}
 .card header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
-  min-height: 22px;
-}
-.card h2 {
-  margin: 0;
-  color: #0f172a;
-  font:
-    600 15px/22px Inter,
-    sans-serif;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
 }
 .meta {
-  color: #475569;
+  color: #64748b;
   font:
-    400 12px/18px Inter,
-    sans-serif;
+    500 11px/16px 'JetBrains Mono',
+    monospace;
   white-space: nowrap;
 }
 .prow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 16px;
+  column-gap: 14px;
   row-gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f8fafc;
+}
+.prow:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 .label {
   display: flex;
@@ -224,21 +148,15 @@ h1 {
 }
 .name label {
   color: #0f172a;
-  font:
-    600 13px/20px Inter,
-    sans-serif;
+  font-size: 13px;
+  font-weight: 600;
 }
 .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
   background: #2563eb;
-}
-.help {
-  color: #475569;
-  font:
-    400 12px/18px Inter,
-    sans-serif;
 }
 .control {
   display: flex;
@@ -246,65 +164,77 @@ h1 {
   gap: 8px;
 }
 .field {
-  width: 150px;
-  height: 36px;
+  width: 136px;
+  height: 38px;
   box-sizing: border-box;
-  border: 1px solid #8494a9;
-  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   background: #fff;
   color: #0f172a;
   font:
-    400 13px/20px Inter,
-    sans-serif;
+    500 13px/20px 'JetBrains Mono',
+    monospace;
   font-variant-numeric: tabular-nums;
-  padding: 0 12px;
+  padding: 0 10px;
   text-align: right;
 }
-.field:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 1px;
+.field:focus-visible,
+.select-field:focus-visible {
+  outline: none;
+  border-color: #002b49;
+  box-shadow: 0 0 0 3px rgba(0, 43, 73, 0.12);
 }
 .field.is-changed {
   border-color: #2563eb;
   background: #eff6ff;
 }
 .field.is-invalid {
-  border-color: #b91c1c;
-  background: #fef2f2;
+  border-color: #e11d48;
+  background: #fff1f2;
 }
 .field.is-locked {
-  background: #eef2f6;
-  color: #475569;
+  background: #f1f5f9;
+  color: #64748b;
   cursor: not-allowed;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f172a;
+}
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: #002b49;
 }
 .unit {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-width: 56px;
-  color: #475569;
-  font:
-    400 13px/20px Inter,
-    sans-serif;
+  min-width: 64px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
 }
 .unit app-layout-icon {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 }
 .error {
   grid-column: 1 / -1;
   margin: 0;
-  color: #b91c1c;
-  font:
-    400 12px/18px Inter,
-    sans-serif;
+  color: #be123c;
+  font-size: 12px;
+  font-weight: 500;
 }
 .footnote {
   margin: 0;
-  color: #475569;
-  font:
-    400 12px/18px Inter,
-    sans-serif;
+  color: #64748b;
+  font-size: 12px;
 }
 .visually-hidden {
   position: absolute;
@@ -314,8 +244,21 @@ h1 {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1120px) {
   .columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .prow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .field {
+    width: 100%;
+    max-width: 180px;
+  }
+  .select-field {
+    min-width: 0;
+    width: 100%;
   }
 }
