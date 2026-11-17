@@ -1,0 +1,165 @@
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.col-state {
+  width: 28px;
+  padding-right: 0;
+}
+
+// Containing block for the absolutely positioned .visually-hidden labels inside the table, so they are
+// clipped by the scrollable wrapper instead of widening the whole page on narrow screens.
+.ui-table-wrap {
+  position: relative;
+}
+
+.state-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.state-dot.is-unread {
+  background: #2563eb;
+}
+
+.state-dot.is-unread.is-important {
+  background: #e30613;
+}
+
+.ui-table tbody tr.is-unread td {
+  background: #f8fbff;
+}
+
+.message-cell {
+  display: table-cell;
+  max-width: 520px;
+  min-width: 220px;
+}
+
+.message-title,
+.message-body {
+  display: block;
+}
+
+.message-title {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+tr:not(.is-unread) .message-title {
+  font-weight: 500;
+}
+
+.message-body {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #475569;
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sent-note {
+  margin: 0;
+  color: #047857;
+  font-size: 14px;
+}
+
+.send-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.textarea {
+  min-height: 96px;
+}
+
+.severity-field {
+  max-width: 240px;
+}
+
+.target-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.target-field legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: #64748b;
+  font:
+    600 11px 'Nunito Sans',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  color: #1e293b;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.choice small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.picker {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.picker-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-tools .input {
+  flex: 1 1 200px;
+  min-height: 36px;
+}
+
+.picker-count {
+  margin: 8px 0 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.picker-list {
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.picker-state {
+  margin: 0;
+  padding: 12px 0;
+  color: #64748b;
+  font-size: 13px;
+}

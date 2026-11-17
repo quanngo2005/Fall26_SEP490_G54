@@ -291,7 +291,18 @@ public sealed class SystemParametersHttpTests : IAsyncLifetime, IAsyncDisposable
     private async Task<JsonElement> CheckAsync(HttpResponseMessage response, HttpStatusCode expected, string? errorCode = null)
     {
         var text = await response.Content.ReadAsStringAsync();
-        Assert.True(response.StatusCode == expected, $"Expected {(int)expected}, got {(int)response.StatusCode}: {text}\nAPI LOG:\n{_apiLog}");
+        if (response.StatusCode != expected)
+        {
+            // The API process appends to the log from another thread, so read it under the same lock.
+            string log;
+            lock (_apiLog)
+            {
+                log = _apiLog.ToString();
+            }
+
+            Assert.Fail($"Expected {(int)expected}, got {(int)response.StatusCode}: {text}\nAPI LOG:\n{log}");
+        }
+
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
         Assert.Equal(errorCode is null, root.GetProperty("success").GetBoolean());

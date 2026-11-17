@@ -19,11 +19,11 @@ public partial class AppDbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.RecipientEmployeeId).HasColumnName("recipient_employee_id");
             entity.Property(e => e.SenderEmployeeId).HasColumnName("sender_employee_id");
-            entity.Property(e => e.Type).HasConversion(PgNameConverter<NotificationType>()).HasMaxLength(30).HasColumnName("type");
+            entity.Property(e => e.Type).HasConversion(PgNameConverter<NotificationType>()).HasMaxLength(40).HasColumnName("type");
             entity.Property(e => e.Severity).HasConversion(PgNameConverter<NotificationSeverity>()).HasMaxLength(20).HasColumnName("severity");
             entity.Property(e => e.Title).HasMaxLength(200).HasColumnName("title");
             entity.Property(e => e.Body).HasMaxLength(2000).HasColumnName("body");
-            entity.Property(e => e.RelatedType).HasConversion(PgNameConverter<NotificationRelatedType>()).HasMaxLength(20).HasColumnName("related_type");
+            entity.Property(e => e.RelatedType).HasConversion(PgNameConverter<NotificationRelatedType>()).HasMaxLength(30).HasColumnName("related_type");
             entity.Property(e => e.RelatedId).HasColumnName("related_id");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.ReadAt).HasColumnName("read_at");
