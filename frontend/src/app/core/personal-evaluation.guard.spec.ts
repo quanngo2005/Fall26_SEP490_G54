@@ -38,9 +38,9 @@ describe('personalEvaluationGuard', () => {
     expect(run()).toBeTrue();
   });
 
-  it('redirects branch managers to /evaluations', () => {
+  it('redirects branch managers to /evaluations/branch-periods', () => {
     as(['BRANCH_MANAGER'], ['EVALUATION_READ', 'EVALUATION_FINALIZE']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
+    expect(String(run())).toBe(router.parseUrl('/evaluations/branch-periods').toString());
   });
 
   it('redirects department managers to /evaluations', () => {
@@ -50,15 +50,15 @@ describe('personalEvaluationGuard', () => {
 
   it('redirects users holding manager finalize or verification decide permissions', () => {
     as(['EMPLOYEE'], ['EVALUATION_FINALIZE']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
+    expect(String(run())).toBe(router.parseUrl('/evaluations/branch-periods').toString());
 
     as(['EMPLOYEE'], ['VERIFICATION_DECIDE']);
     expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
   });
 
-  it('redirects admins with FULL_ACCESS to /evaluations', () => {
+  it('redirects admins with FULL_ACCESS to /home', () => {
     as(['ADMIN'], ['FULL_ACCESS']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
+    expect(String(run())).toBe(router.parseUrl('/home').toString());
   });
 
   it('evaluates helper function directly', () => {

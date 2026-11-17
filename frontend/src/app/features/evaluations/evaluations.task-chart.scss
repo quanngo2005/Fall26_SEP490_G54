@@ -1,0 +1,107 @@
+.task-dist-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.task-dist-metric {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.task-dist-label {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.task-dist-val {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+
+  small {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+  }
+}
+
+.task-chart-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  padding: 2px;
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.toggle-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #475569;
+  font:
+    600 11.5px Inter,
+    sans-serif;
+  cursor: pointer;
+
+  &.is-active {
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+  }
+}
+
+.task-stack-track {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #eef2f7;
+  margin-bottom: 14px;
+}
+
+.task-seg,
+.task-dot,
+.task-bar-fill {
+  &.seg-onTime {
+    background: #059669;
+  }
+
+  &.seg-inProgress {
+    background: #2563eb;
+  }
+
+  &.seg-overdue {
+    background: #e11d48;
+  }
+}
+
+.staff-task-seg {
+  &.seg-onTime {
+    fill: #059669;
+  }
+
+  &.seg-inProgress {
+    fill: #2563eb;
+  }
+
+  &.seg-overdue {
+    fill: #e11d48;
+  }
+}

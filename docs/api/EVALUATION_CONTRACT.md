@@ -12,10 +12,12 @@ endpoints of the same controller are described in `CALIBRATION_APPROVAL_CONTRACT
 | --- | --- | --- |
 | `GET /evaluations/periods` | `evaluation:read` | `Own` or higher |
 | `GET /evaluations/department-employees` | `evaluation:read` | `Dept` or higher |
+| `GET /evaluations/department-dashboard` | `evaluation:read` | `Dept` only (Department Manager) |
+| `GET /evaluations/department-dashboard/export` | `evaluation:read` | `Dept` only (Department Manager) |
 
-The BLL restricts the target department to the caller's granted scope. `All` bypasses the check; `Branch`
+The BLL restricts the target department to the caller's granted scope. `All` bypasses the check on `/department-employees`; `Branch`
 covers the nearest branch subtree; `Dept` the caller's own department subtree. A department outside that set
-returns 403 `FORBIDDEN`.
+returns 403 `FORBIDDEN`. For `/department-dashboard` and `/department-dashboard/export`, only a Department Manager (`evaluation:read` at `Dept` scope without `Branch` or `All` scope) is allowed to access their own department; `BRANCH_MANAGER` and `ADMIN` / `SYSTEM_ADMIN` receive 403 `FORBIDDEN`.
 
 The seed grants `evaluation:read`/`submit` to `MANAGER`, `DEPT_MANAGER`, `BRANCH_MANAGER` and `ADMIN`, and
 `evaluation:read` at `Own` to `EMPLOYEE`. No role `HR` exists in the seed: HR cannot call these endpoints
@@ -161,3 +163,38 @@ Permission: any signed-in employee with a personal evaluation (own data only). Q
 | `workId`, `workCode`, `workTitle` | GUID / string / string, nullable | the work behind the entry: the work of the work transaction, else the work of the verified submission; null when neither exists |
 
 The modal searches (transaction code, work code or title), filters by status and by date range in the browser on this array. A row with `workId` opens `/my-work?keyword=<workCode>&workId=<workId>`: the work board on the caller's own work, searched by the work code, with the detail drawer of that work open. Errors: 404 unknown period or employee.
+
+## Department Evaluation & Performance Dashboard (`/evaluations`)
+
+### `GET /evaluations/department-dashboard`
+
+Permission: `evaluation:read` at `Dept` scope (Department Manager only; `BRANCH_MANAGER` and `ADMIN` / `SYSTEM_ADMIN` receive 403 `FORBIDDEN`).
+Query: `periodId` (GUID, optional; defaults to the latest open or active evaluation period), `comparePeriodId` (GUID, optional; defaults to the latest earlier period of the same `periodType`).
+
+Response `data` (`DepartmentEvaluationDashboardDto`):
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `department` | object | `id`, `code`, `name`, `managerName` |
+| `period` | object or null | `id`, `code`, `name`, `startDate`, `endDate`, `periodType`, `status`, `isActive` |
+| `comparePeriod` | object or null | selected or default compare period of the same `periodType` (`startDate < period.startDate`) |
+| `availablePeriods` | array | selectable periods (`periodType != DAY`), newest first |
+| `compareOptions` | array | earlier periods of the same `periodType` as `period`, newest first |
+| `performance` | object | `average`, `previousAverage`, `changeFromPrevious`, `evaluatedEmployeeCount`, `totalEmployeeCount`, `unscoredEmployeeCount`, `pipCount`, `appealCount`, `kpiGroups[]`, `trend[]` |
+| `operations` | object | `onTimeCompletedCount`, `overdueCount`, `inProgressCount`, `onTimeRatePercent`, `loadPerStaff`. SLA counts only `Work` items where `PlannedEndDate != null`: `onTimeCompletedCount` = completed (`DONE` / `VERIFIED`) in period with completion business date `<= PlannedEndDate`; `overdueCount` = open overdue (`Status == OVERDUE` or `PlannedEndDate < today`) plus late-completed in period (completion business date `> PlannedEndDate`); `onTimeRatePercent = onTimeCompletedCount / (onTimeCompletedCount + overdueCount) * 100` (null when denominator is 0) |
+| `tierDistribution` | object | `tierACapPercent` (20), `tiers[]` (`tierCode`, `rankOrder`, `minScore`, `maxScore`, `count`, `percent` for all 5 tiers `A1`, `A2`, `A3`, `B`, `C` from `ranking_tier_threshold`), `actionAlerts[]` (`kind`: `PIP` \| `APPEAL`, `employeeId`, `employeeCode`, `fullName`, `tierCode`, `totalScore`, `metaText`) |
+| `profileGroups` | array | ordered root groups of the department's evaluation profiles (`name`, `displayOrder`, `weightPercent`) |
+| `staffRows` | array | `employeeId`, `employeeCode`, `fullName`, `jobPositionId`, `jobPositionTitle`, `groupScores[]` (`groupName`, `displayOrder`, `weightPercent`, `score`), `totalScore`, `previousTotalScore`, `scoreDelta`, `tierCode`, `onTimeSlaPercent`, `status` (`FINAL` \| `APPEAL` \| `PIP` \| `PENDING`), `evaluationStatus`, `canOpenForm` |
+
+### `GET /evaluations/department-dashboard/export`
+
+Query: `periodId` (GUID, optional), `comparePeriodId` (GUID, optional).
+Response: raw `.xlsx` workbook (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, no `ApiResponse` envelope) named `danh-gia-phong-<deptCode>-<periodCode>.xlsx`, built from `GetDepartmentEvaluationDashboardAsync(periodId, comparePeriodId, currentUserId)` using the same ClosedXML structure as `DepartmentService.Export.cs` and customized to include every section reported on `/evaluations`:
+
+- `Tong quan`: department code/name, manager, period name/code/status, compare period, average score / previous / delta, KPI met rate % / met count / total count / notice count, SLA on-time % / on-time count / overdue count / in-progress count / load per staff, evaluated / total / unscored / PIP / appeal staff counts, Tier A cap %, and generated timestamp.
+- `KPI`: weighted KPI group name, weight %, group average score, KPI code, name, unit, target, actual, achievement %, compare achievement %, and delta %.
+- `Xu huong`: 6-period department score trend (`periodCode`, `periodName`, `average`).
+- `Xep loai`: 5 ranking tiers (`A1`, `A2`, `A3`, `B`, `C` with min/max score, count, percent) followed by manager action alerts (`PIP`, `APPEAL` with employee code/name, tier, score, and detail).
+- `Can bo`: staff evaluation rows (`employeeCode`, `fullName`, `jobPositionTitle`, dynamic profile group columns, `totalScore`, `previousTotalScore`, `scoreDelta`, `tierCode`, `onTimeSlaPercent`, localized `status`, and `evaluationStatus`).
+
+A failed export shows an inline error banner and saves nothing.
