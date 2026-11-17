@@ -17,7 +17,8 @@ public sealed partial class VerificationService(
     ILogger<VerificationService> logger,
     TimeProvider time,
     IPermissionService permissions,
-    IQaSamplingPolicy? qaSampling = null) : IVerificationService
+    IQaSamplingPolicy? qaSampling = null,
+    INotifier? notifier = null) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -262,6 +263,12 @@ public sealed partial class VerificationService(
         }
 
         LogVerificationAudit(logger, normalizedDecision, submission.Id, verifier.Id, null);
+        if (notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                [AutomaticNotifications.SubmissionDecided(submission, submission.Work, verifier, normalizedDecision, dto.Feedback)],
+                cancellationToken);
+        }
 
         var message = $"Quyết định thẩm định đã được ghi nhận: {actionText}.";
 

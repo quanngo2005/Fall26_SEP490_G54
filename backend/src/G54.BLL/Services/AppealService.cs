@@ -21,7 +21,8 @@ public sealed partial class AppealService(
     IStorageService storage,
     ILogger<AppealService> logger,
     TimeProvider time,
-    IOptions<SystemParametersOptions> parameters) : IAppealService
+    IOptions<SystemParametersOptions> parameters,
+    INotifier? notifier = null) : IAppealService
 {
     private const int MaxReasonLength = 2000;
     private int MinReasonLength => Math.Max(1, parameters.Value.MinReasonLength);
@@ -170,6 +171,13 @@ public sealed partial class AppealService(
         }
 
         LogAppealDecided(logger, decision, appeal.Id, caller.Employee.Id, null);
+        if (notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                [AutomaticNotifications.AppealDecided(appeal, submission.Work, caller.Employee, decision, note)],
+                cancellationToken);
+        }
+
         return new AppealDecisionResultDto(
             await ReloadDetailAsync(appeal.Id, cancellationToken), decision, submission.Status.ToEnumString(), submission.Work.Status.ToEnumString(), verification?.Id);
     }
@@ -224,6 +232,7 @@ public sealed partial class AppealService(
 
         var submission = await db.ResultSubmissions.AsNoTracking()
             .Include(s => s.Verifications)
+            .Include(s => s.Work)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken)
             ?? throw new NotFoundException("Đợt nộp kết quả", submissionId);
 
@@ -306,6 +315,10 @@ public sealed partial class AppealService(
         }
 
         LogAppealFiled(logger, appeal.Id, submissionId, caller.Employee.Id, null);
+        if (notifier is not null && submission.Work is not null && AutomaticNotifications.AppealFiled(appeal, submission.Work, caller.Employee) is { } appealDraft)
+        {
+            await notifier.TryPublishAsync([appealDraft], cancellationToken);
+        }
 
         return await ReloadDetailAsync(appeal.Id, cancellationToken);
     }
