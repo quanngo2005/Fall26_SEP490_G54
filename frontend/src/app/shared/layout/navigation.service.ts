@@ -28,6 +28,7 @@ export type MenuKey =
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
+  | 'reconciliation'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
   | 'targetOverview'
@@ -100,6 +101,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'teamWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'teamPerformance',
     'departmentPerformance',
     'targetOverview',
@@ -115,6 +117,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'branchPerformance',
     'departmentPerformance',
     'targetOverview',
@@ -135,6 +138,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   ],
   qa: [
     'overview',
+    'reconciliation',
     'verificationQueue',
     'appeals',
     'escalatedCases',
@@ -187,6 +191,12 @@ const ITEMS: readonly NavigationItem[] = [
     icon: 'reviewVerify',
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
+  },
+  {
+    id: 'reconciliation',
+    icon: 'reviewVerify',
+    route: '/reconciliations',
+    permission: 'RECONCILIATION_READ',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   {
@@ -284,6 +294,7 @@ export class NavigationService {
     '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
+    '/reconciliations',
     '/appeals',
     '/notifications',
     '/kpi-definitions',
