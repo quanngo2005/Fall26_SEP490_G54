@@ -67,7 +67,7 @@ public sealed record EvaluationRiskEventDto(
 
 /// <summary>
 /// The scores of the form. TotalScore and WeightedScore are null when the profile has no active quantitative KPI group (N/A, never 0);
-/// ProposedTier is populated only when assigned on the Ranking/Calibration screen.
+/// ProposedTier is the calibrated tier, or the tier the score and risks give when none was calibrated; null when there is no total score.
 /// </summary>
 public sealed record EvaluationCalculationSummaryDto(
     decimal? BusinessScore,

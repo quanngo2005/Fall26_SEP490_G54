@@ -506,7 +506,7 @@ public sealed class PerformanceScoreCalculatorTests
     }
 
     [Fact]
-    public async Task Form_WithNothingToScore_HasAZeroTotalAndNoProposedTierUntilCalibrated()
+    public async Task Form_WithNothingToScore_HasAZeroTotalAndATierFromThatTotal()
     {
         using var w = await World.CreateAsync(withQualitativeGroup: false);
 
@@ -514,7 +514,7 @@ public sealed class PerformanceScoreCalculatorTests
 
         Assert.Equal(0m, form.Summary.TotalScore);
         Assert.Equal(0m, form.Summary.WeightedScore);
-        Assert.Null(form.Summary.ProposedTier);
+        Assert.Equal("C", form.Summary.ProposedTier);
         Assert.Null(form.PreviousPeriod);
     }
 

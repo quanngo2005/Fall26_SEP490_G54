@@ -286,7 +286,7 @@ public sealed class EvaluationServiceTests
         Assert.Equal(2, form.CriteriaGroups.Count);
         Assert.DoesNotContain(form.CriteriaGroups, g => g.IsQualitative);
         Assert.True(form.CanEdit);
-        Assert.Null(form.Summary.ProposedTier);
+        Assert.Equal("C", form.Summary.ProposedTier);
         Assert.NotNull(form.CriteriaSummary);
         Assert.Equal(1, form.CriteriaSummary!.AchievedCount);
         Assert.Equal(0, form.CriteriaSummary.NearCount);
