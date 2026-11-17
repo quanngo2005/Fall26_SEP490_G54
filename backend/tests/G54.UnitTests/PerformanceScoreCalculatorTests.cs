@@ -436,7 +436,7 @@ public sealed class PerformanceScoreCalculatorTests
     [Fact]
     public async Task FormSaveAndCalculate_GiveTheSameScoreAndTheSameKpiRowsForTheSameData()
     {
-        using var w = await World.CreateAsync();
+        using var w = await World.CreateAsync(withQualitativeGroup: false);
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 60m);
         w.AddProgress(w.Kh, 5m); // no target: left out on every path
@@ -446,7 +446,7 @@ public sealed class PerformanceScoreCalculatorTests
         await w.Db.SaveChangesAsync();
 
         var saved = await w.SubmitAsync(w.Staff1, isDraft: false);
-        var form = await w.FormAsync(w.Staff1); // after the save: the form reads the qualitative score the save stored
+        var form = await w.FormAsync(w.Staff1);
         var evaluationId = saved.EvaluationId;
         var calculated = await w.CalculateEndpointAsync(evaluationId);
 
@@ -506,7 +506,7 @@ public sealed class PerformanceScoreCalculatorTests
     }
 
     [Fact]
-    public async Task Form_WithNothingToScore_HasAZeroTotalAndALowestTier()
+    public async Task Form_WithNothingToScore_HasAZeroTotalAndATierFromThatTotal()
     {
         using var w = await World.CreateAsync(withQualitativeGroup: false);
 
@@ -514,7 +514,7 @@ public sealed class PerformanceScoreCalculatorTests
 
         Assert.Equal(0m, form.Summary.TotalScore);
         Assert.Equal(0m, form.Summary.WeightedScore);
-        Assert.NotNull(form.Summary.ProposedTier);
+        Assert.Equal("C", form.Summary.ProposedTier);
         Assert.Null(form.PreviousPeriod);
     }
 
@@ -608,7 +608,7 @@ public sealed class PerformanceScoreCalculatorTests
         var result = await w.SubmitAsync(w.Staff1, isDraft: true);
 
         Assert.Equal(0m, result.TotalScore);
-        Assert.NotNull(result.ProposedTier);
+        Assert.Null(result.ProposedTier);
         Assert.Equal("DRAFT", result.Status);
         Assert.Equal(0, await w.Db.PerformanceContributions.CountAsync()); // no KPI has both a target and progress
     }
@@ -809,7 +809,7 @@ public sealed class PerformanceScoreCalculatorTests
     }
 
     [Fact]
-    public async Task Submit_WithAQualitativeScoreForAGroupThatHasKpis_IsRefusedAndChangesNothing()
+    public async Task Submit_WithQualitativeScoresPayload_IgnoresQualitativeAndSavesQuantitativeScore()
     {
         using var w = await World.CreateAsync();
 
@@ -819,21 +819,22 @@ public sealed class PerformanceScoreCalculatorTests
             QualitativeScores: [new QualitativeScoreInputDto(w.SalesRoot.Id, 90m)],
             IsDraft: true);
 
-        await Assert.ThrowsAsync<G54.BLL.Common.Exceptions.ValidationException>(() => w.SubmitAsync(request));
+        var result = await w.SubmitAsync(request);
 
-        Assert.Equal(0, await w.Db.PerformanceEvaluations.CountAsync());
+        Assert.Equal("DRAFT", result.Status);
+        Assert.Equal(0m, result.TotalScore);
     }
 
     [Fact]
-    public async Task Submit_Completing_WithoutTheQualitativeScore_IsRefusedAndChangesNothing()
+    public async Task Submit_Completing_WithoutComment_IsRefusedAndChangesNothing()
     {
         using var w = await World.CreateAsync();
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 100m);
         await w.Db.SaveChangesAsync();
-        w.QualitativeScore = null;
 
-        await Assert.ThrowsAsync<G54.BLL.Common.Exceptions.ValidationException>(() => w.SubmitAsync(w.Staff1, isDraft: false));
+        await Assert.ThrowsAsync<G54.BLL.Common.Exceptions.ValidationException>(() =>
+            w.SubmitAsync(new SubmitEvaluationRequestDto(w.Staff1.Id, w.Period.Id, Comment: " ", IsDraft: false)));
 
         Assert.Equal(0, await w.Db.PerformanceEvaluations.CountAsync());
         Assert.Equal(0, await w.Db.PerformanceContributions.CountAsync());
@@ -842,25 +843,24 @@ public sealed class PerformanceScoreCalculatorTests
     // ----- the calculation endpoint ------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task CalculateEndpoint_UsesTheQualitativeScoreSavedWithTheForm()
+    public async Task CalculateEndpoint_UsesStoredQualitativeMarker_WhenPresent()
     {
         using var w = await World.CreateAsync();
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 100m);
+        var evaluation = w.AddEvaluation(w.Staff1, null, PerformanceEvaluationStatus.Draft);
+        evaluation.Comment = $$"""<!-- QUALITATIVE_JSON: [{"evaluationProfileItemId":"{{w.QualitativeRoot.Id}}","score":80,"notes":null}] -->""";
         await w.Db.SaveChangesAsync();
-        w.QualitativeScore = 80m;
-        var saved = await w.SubmitAsync(w.Staff1, isDraft: true);
 
-        var calculated = await w.CalculateEndpointAsync(saved.EvaluationId);
+        var calculated = await w.CalculateEndpointAsync(evaluation.Id);
 
-        Assert.Equal(saved.TotalScore, calculated.TotalScore);
         Assert.Equal(80m, calculated.Groups.Single(g => g.GroupName == "Quality").ComponentScore);
     }
 
     [Fact]
     public async Task CalculateEndpoint_SubtractsTheRiskPenaltyLikeTheForm()
     {
-        using var w = await World.CreateAsync();
+        using var w = await World.CreateAsync(withQualitativeGroup: false);
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 100m);
         w.AddRisk(RiskEventSeverity.Medium);
@@ -1002,7 +1002,7 @@ public sealed class PerformanceScoreCalculatorTests
     [Fact]
     public async Task Calibration_ADraftEmployee_IsScoredByTheSharedCalculation()
     {
-        using var w = await World.CreateAsync();
+        using var w = await World.CreateAsync(withQualitativeGroup: false);
         w.AddTarget(w.Hdv, 100m, employee: w.Staff1);
         w.AddProgress(w.Hdv, 100m, owner: w.Staff1);
         w.AddEvaluation(w.Staff1, null, PerformanceEvaluationStatus.Draft);

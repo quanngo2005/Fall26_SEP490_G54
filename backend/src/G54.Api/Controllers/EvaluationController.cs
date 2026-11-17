@@ -30,10 +30,36 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     public async Task<ActionResult<ApiResponse<EvaluationFormDto>>> GetEvaluationForm(
         [FromQuery] Guid employeeId,
         [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the employee's performance evaluation report for the selected period (`/evaluations/form`) to an Excel workbook (`.xlsx`).
+    /// </summary>
+    [HttpGet("form/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<IActionResult> ExportEvaluationForm(
+        [FromQuery] Guid employeeId,
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportEvaluationFormAsync(
+            employeeId,
+            periodId,
+            User.GetRequiredUserId(),
+            comparePeriodId,
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>

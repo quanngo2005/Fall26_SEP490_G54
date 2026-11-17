@@ -150,12 +150,11 @@ describe('EvaluationService', () => {
     expect(status).toBe(404);
   });
 
-  it('posts the evaluation to /submit with the draft flag and the qualitative scores', () => {
+  it('posts the evaluation to /submit with the draft flag', () => {
     const body: SubmitEvaluationRequest = {
       employeeId: 'e1',
       periodId: period.id,
       comment: 'Good',
-      qualitativeScores: [{ evaluationProfileItemId: 'g1', score: 7 }],
       isDraft: true,
     };
     const result = { evaluationId: 'ev1', status: 'DRAFT' } as unknown as EvaluationResult;
@@ -173,7 +172,6 @@ describe('EvaluationService', () => {
         employeeId: 'e1',
         periodId: period.id,
         comment: null,
-        qualitativeScores: [],
         isDraft: false,
       })
       .subscribe({
