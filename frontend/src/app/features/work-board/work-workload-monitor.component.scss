@@ -1,0 +1,393 @@
+:host {
+  display: block;
+}
+
+.monitor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.monitor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.monitor-section-title {
+  margin: 0;
+  color: #0f172a;
+  font:
+    700 16px/24px 'Nunito Sans',
+    sans-serif;
+}
+
+.monitor-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-select {
+  width: auto;
+  min-width: 168px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
+.monitor-compose-btn {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* KPI Summary Row */
+.monitor-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 88px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 16px;
+  text-align: left;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+}
+
+.kpi-card-action {
+  cursor: pointer;
+
+  &:hover {
+    border-color: #94a3b8;
+    box-shadow: 0 2px 8px rgb(15 23 42 / 8%);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: 2px;
+  }
+
+  &.is-danger {
+    border-color: #fca5a5;
+  }
+
+  &.is-active {
+    border: 2px solid #b91c1c;
+    padding: 11px 15px;
+  }
+}
+
+.kpi-label {
+  color: #475569;
+  font:
+    500 13px/18px 'Nunito Sans',
+    sans-serif;
+}
+
+.kpi-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.kpi-value {
+  color: #0f172a;
+  font:
+    700 24px/32px 'Nunito Sans',
+    sans-serif;
+}
+
+.kpi-value-danger {
+  color: #b91c1c;
+}
+
+.kpi-hint {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: 4px;
+  font:
+    600 12px 'Nunito Sans',
+    sans-serif;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.tag-teal {
+  background: #ecfeff;
+  color: #0e7490;
+}
+
+.tag-success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.tag-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+/* 2-column Middle Grid */
+.monitor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.monitor-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 700;
+  }
+}
+
+.panel-meta {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.panel-empty {
+  margin: 12px 0 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* Stage Funnel */
+.funnel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 74px;
+  align-items: center;
+  gap: 12px;
+}
+
+.funnel-label {
+  color: #1e293b;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+}
+
+.funnel-track {
+  height: 22px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.funnel-fill {
+  height: 100%;
+  background: #0e7490;
+  border-radius: 4px;
+  transition: width 0.25s ease;
+}
+
+.funnel-stat {
+  color: #334155;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.funnel-footnote {
+  margin: 14px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* Employee Workload Table */
+.load-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.load-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  thead th {
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 10px 12px;
+    color: #1e293b;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .col-num {
+    text-align: right;
+    width: 64px;
+  }
+}
+
+.cell-employee {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.cell-position {
+  color: #475569;
+}
+
+.text-danger {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.cell-load {
+  min-width: 96px;
+}
+
+.load-track {
+  width: 100%;
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.load-fill {
+  height: 100%;
+  background: #0e7490;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+
+  &.is-high {
+    background: #c2410c;
+  }
+}
+
+/* Overdue Alerts */
+.alerts-panel.is-highlighted {
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 2px rgb(185 28 28 / 12%);
+}
+
+.alerts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 12px;
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  background: #fafbfc;
+}
+
+.alert-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.alert-work {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.alert-meta {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.alert-action {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 1080px) {
+  .monitor-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .monitor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .monitor-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .funnel-row {
+    grid-template-columns: 96px minmax(0, 1fr) 68px;
+  }
+}
