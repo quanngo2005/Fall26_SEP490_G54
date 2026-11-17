@@ -24,7 +24,8 @@ public sealed partial class EvaluationService(
     IPerformanceScoreCalculator calculator,
     TimeProvider? time = null,
     IOptions<SystemParametersOptions>? parameters = null,
-    IRankingPolicyService? rankingPolicies = null) : IEvaluationService
+    IRankingPolicyService? rankingPolicies = null,
+    INotifier? notifier = null) : IEvaluationService
 {
     private readonly TimeProvider timeProvider = time ?? TimeProvider.System;
     private readonly SystemParametersOptions systemParameters = parameters?.Value ?? new SystemParametersOptions();
@@ -1126,6 +1127,18 @@ public sealed partial class EvaluationService(
             cancellationToken);
 
         LogCalibrationSubmitted(logger, request.DepartmentId, request.PeriodId, adjustmentMap.Count, null);
+        if (!request.IsDraft && notifier is not null)
+        {
+            var branchManagerIds = await NotificationRecipients.ActiveBranchManagersAsync(db, cancellationToken);
+            if (reviewer.ManagerId is { } reviewerManagerId && !branchManagerIds.Contains(reviewerManagerId))
+            {
+                branchManagerIds.Add(reviewerManagerId);
+            }
+
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.CalibrationSubmitted(department, period, reviewer, branchManagerIds),
+                cancellationToken);
+        }
 
         var statusString = targetStatus.ToString().ToUpperInvariant();
         var message = request.IsDraft
@@ -1397,6 +1410,13 @@ public sealed partial class EvaluationService(
         await db.SaveChangesAsync(cancellationToken);
 
         LogCalibrationRejected(logger, departmentId, request.PeriodId, reasonTrimmed, null);
+        if (notifier is not null)
+        {
+            var deptManagerIds = await NotificationRecipients.ActiveDepartmentManagersAsync(db, departmentId, cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.CalibrationDecided(department, period, reviewer, deptManagerIds, approved: false, reasonTrimmed),
+                cancellationToken);
+        }
 
         return new CalibrationDecisionResultDto(
             departmentId,
@@ -1479,6 +1499,13 @@ public sealed partial class EvaluationService(
         await db.SaveChangesAsync(cancellationToken);
 
         LogCalibrationApproved(logger, departmentId, request.PeriodId, approvedCount, null);
+        if (notifier is not null)
+        {
+            var deptManagerIds = await NotificationRecipients.ActiveDepartmentManagersAsync(db, departmentId, cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.CalibrationDecided(department, period, reviewer, deptManagerIds, approved: true, noteTrimmed),
+                cancellationToken);
+        }
 
         return new DepartmentApprovalResultDto(
             departmentId,
@@ -1658,7 +1685,7 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
 
         EnsureNoMarkerSyntax(request.ApprovalComments, "ApprovalComments");
 
@@ -1721,6 +1748,17 @@ public sealed partial class EvaluationService(
         await db.SaveChangesAsync(cancellationToken);
 
         LogPeriodFinalized(logger, request.PeriodId, evaluations.Count, null);
+        if (notifier is not null && evaluations.Count > 0)
+        {
+            var evaluatedIds = evaluations.Select(pe => pe.EmployeeId).Distinct().ToList();
+            var activeEvaluatedIds = await db.Employees.AsNoTracking()
+                .Where(e => evaluatedIds.Contains(e.Id) && e.Status == EmployeeStatus.Active)
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.PeriodResultsPublished(period, reviewer, activeEvaluatedIds),
+                cancellationToken);
+        }
 
         return new FinalizeResultDto(
             request.PeriodId,

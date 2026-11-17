@@ -18,6 +18,21 @@ public enum NotificationType
     [PgName("RATING_ONE_STAR")] RatingOneStar,
     [PgName("RESULT_PUBLISHED")] ResultPublished,
     [PgName("WORK_PLAN_UPDATED")] WorkPlanUpdated,
+    [PgName("WORK_ASSIGNED")] WorkAssigned,
+    [PgName("SUBMISSION_SUBMITTED")] SubmissionSubmitted,
+    [PgName("SUBMISSION_DECIDED")] SubmissionDecided,
+    [PgName("TRANSACTION_MISMATCH")] TransactionMismatch,
+    [PgName("IMPORT_COMPLETED_WITH_ERRORS")] ImportCompletedWithErrors,
+    [PgName("RISK_EVENT_RECORDED")] RiskEventRecorded,
+    [PgName("RISK_EVENT_REVERSED")] RiskEventReversed,
+    [PgName("QUALITY_FLAG_RAISED")] QualityFlagRaised,
+    [PgName("APPEAL_FILED")] AppealFiled,
+    [PgName("APPEAL_DECIDED")] AppealDecided,
+    [PgName("CALIBRATION_SUBMITTED")] CalibrationSubmitted,
+    [PgName("CALIBRATION_DECIDED")] CalibrationDecided,
+    [PgName("CAMPAIGN_DECIDED")] CampaignDecided,
+    [PgName("EVALUATION_PROFILE_DECIDED")] EvaluationProfileDecided,
+    [PgName("SYSTEM_ALERT")] SystemAlert,
 }
 
 public enum NotificationSeverity
@@ -34,6 +49,14 @@ public enum NotificationRelatedType
     [PgName("HANDOVER")] Handover,
     [PgName("KPI")] Kpi,
     [PgName("TARGET")] Target,
+    [PgName("SUBMISSION")] Submission,
+    [PgName("APPEAL")] Appeal,
+    [PgName("RISK_EVENT")] RiskEvent,
+    [PgName("QUALITY_FLAG")] QualityFlag,
+    [PgName("EVALUATION_PERIOD")] EvaluationPeriod,
+    [PgName("EVALUATION_PROFILE")] EvaluationProfile,
+    [PgName("IMPORT_BATCH")] ImportBatch,
+    [PgName("AUDIT_LOG")] AuditLog,
 }
 
 /// <summary>One notification for one recipient; an announcement to many employees is one row each, so read state is per person.</summary>

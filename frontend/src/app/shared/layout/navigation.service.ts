@@ -155,6 +155,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'systemParameters',
     'rankingStudio',
     'systemAudit',
+    'notifications',
     'myProfile',
   ],
 };
@@ -166,7 +167,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
   { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
-  { id: 'notifications', icon: 'notifications' },
+  { id: 'notifications', icon: 'notifications', route: '/notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
   {
@@ -284,6 +285,7 @@ export class NavigationService {
     '/work-type-detail',
     '/review-verify',
     '/appeals',
+    '/notifications',
     '/kpi-definitions',
     '/campaigns',
     '/target-overview',
