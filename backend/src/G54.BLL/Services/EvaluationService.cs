@@ -12,6 +12,7 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -19,8 +20,13 @@ public sealed partial class EvaluationService(
     AppDbContext db,
     ILogger<EvaluationService> logger,
     IPermissionService permissions,
-    IPerformanceScoreCalculator calculator) : IEvaluationService
+    IPerformanceScoreCalculator calculator,
+    TimeProvider? time = null,
+    IOptions<SystemParametersOptions>? parameters = null) : IEvaluationService
 {
+    private readonly TimeProvider timeProvider = time ?? TimeProvider.System;
+    private readonly SystemParametersOptions systemParameters = parameters?.Value ?? new SystemParametersOptions();
+    private const decimal DefaultTierACapPercent = 20m;
     /// <summary>
     /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
     /// shared by the approval overview's <c>CanFinalize</c> flag and the finalize action that enforces it.

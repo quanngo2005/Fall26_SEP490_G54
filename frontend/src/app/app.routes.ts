@@ -7,6 +7,7 @@ import { targetManageGuard } from './core/target-manage.guard';
 import { qaQueueGuard } from './core/qa-queue.guard';
 import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
+import { departmentEvaluationGuard } from './core/department-evaluation.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 
 export const routes: Routes = [
@@ -144,7 +145,7 @@ export const routes: Routes = [
   },
   {
     path: 'evaluations',
-    canActivate: [authGuard],
+    canActivate: [authGuard, departmentEvaluationGuard],
     title: 'Đánh giá nhân viên',
     loadComponent: () =>
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),

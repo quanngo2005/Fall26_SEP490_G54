@@ -45,12 +45,35 @@ export function canViewPersonalEvaluation(
 
 /**
  * Protects SCR-EVL-04 (Personal Evaluation Result).
- * Directs managers/admins to `/evaluations`. Compose after `authGuard`.
+ * Directs department managers to `/evaluations`, branch managers to `/evaluations/branch-periods`,
+ * and admins to `/home`. Compose after `authGuard`.
  */
 export const personalEvaluationGuard: CanActivateFn = () => {
   const user = inject(AuthService).currentUser();
-  return (
-    canViewPersonalEvaluation(user?.roles, user?.permissions) ||
-    inject(Router).parseUrl('/evaluations')
+  if (canViewPersonalEvaluation(user?.roles, user?.permissions)) {
+    return true;
+  }
+
+  const router = inject(Router);
+  const normRoles = (user?.roles ?? []).map((r) =>
+    r
+      .trim()
+      .toUpperCase()
+      .replace(/[.:\-\s]+/g, '_'),
   );
+  const normPerms = (user?.permissions ?? []).map(normalizePermission);
+
+  if (
+    normRoles.includes('ADMIN') ||
+    normRoles.includes('SYSTEM_ADMIN') ||
+    normPerms.includes(FULL_ACCESS_PERMISSION)
+  ) {
+    return router.parseUrl('/home');
+  }
+
+  if (normRoles.includes('BRANCH_MANAGER') || normPerms.includes(BRANCH_EVALUATION_PERMISSION)) {
+    return router.parseUrl('/evaluations/branch-periods');
+  }
+
+  return router.parseUrl('/evaluations');
 };
