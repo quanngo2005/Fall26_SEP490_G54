@@ -1,6 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-using G54.DAL.Entities;
-
 namespace G54.BLL.Dtos.Evaluation;
 
 public sealed record EvaluationEmployeeDto(
@@ -69,7 +66,8 @@ public sealed record EvaluationRiskEventDto(
     DateTimeOffset OccurredAt);
 
 /// <summary>
-/// The scores of the form. TotalScore, ProposedTier and WeightedScore are null only when the profile has no root group (N/A, never 0).
+/// The scores of the form. TotalScore and WeightedScore are null when the profile has no active quantitative KPI group (N/A, never 0);
+/// ProposedTier is populated only when assigned on the Ranking/Calibration screen.
 /// </summary>
 public sealed record EvaluationCalculationSummaryDto(
     decimal? BusinessScore,
@@ -100,6 +98,24 @@ public sealed record PreviousPeriodSummaryDto(
     string Tier,
     decimal? ScoreDifference);
 
+public sealed record EvaluationCriteriaSummaryDto(
+    int AchievedCount,
+    int NearCount,
+    int BelowCount,
+    int TotalCount,
+    decimal? AchievedRatePercent);
+
+public sealed record EvaluationSlaSummaryDto(
+    int OnTimeCompletedCount,
+    int OverdueCount,
+    int InProgressCount,
+    decimal? OnTimeRatePercent);
+
+public sealed record EvaluationFormSettingsDto(
+    int MaxCommentLength,
+    decimal KpiMetThresholdPercent,
+    decimal KpiNearThresholdPercent);
+
 public sealed record EvaluationFormDto(
     EvaluationEmployeeDto Employee,
     EvaluationPeriodDto Period,
@@ -112,18 +128,23 @@ public sealed record EvaluationFormDto(
     int PendingSubmissionCount,
     int OpenAppealCount,
     bool HasOpenDispute,
-    PreviousPeriodSummaryDto? PreviousPeriod);
+    PreviousPeriodSummaryDto? PreviousPeriod,
+    EvaluationCriteriaSummaryDto? CriteriaSummary = null,
+    EvaluationSlaSummaryDto? SlaSummary = null,
+    EvaluationFormSettingsDto? FormSettings = null,
+    EvaluationPeriodOptionDto? ComparePeriod = null,
+    IReadOnlyList<EvaluationPeriodOptionDto>? CompareOptions = null);
 
 public sealed record QualitativeScoreInputDto(
     Guid EvaluationProfileItemId,
     decimal Score,
-    [param: StringLength(1000, ErrorMessage = "Ghi chú điểm định tính không vượt quá 1000 ký tự.")] string? Notes = null);
+    string? Notes = null);
 
 public sealed record SubmitEvaluationRequestDto(
     Guid EmployeeId,
     Guid PeriodId,
-    [param: StringLength(1000, ErrorMessage = "Nhận xét không vượt quá 1000 ký tự.")] string? Comment = null,
-    [param: StringLength(1000, ErrorMessage = "Kế hoạch kèm cặp không vượt quá 1000 ký tự.")] string? CoachingPlan = null,
+    string? Comment = null,
+    string? CoachingPlan = null,
     bool CoachingRequired = false,
     List<QualitativeScoreInputDto>? QualitativeScores = null,
     bool IsDraft = false,
@@ -170,3 +191,7 @@ public sealed record DepartmentEmployeeEvaluationSummaryDto(
     DateTimeOffset? UpdatedAt,
     decimal? QuantitativeScoreChange,
     IReadOnlyList<string>? ProposedTierExplanation = null);
+
+public sealed record EvaluationFormExportDto(
+    byte[] Content,
+    string FileName);

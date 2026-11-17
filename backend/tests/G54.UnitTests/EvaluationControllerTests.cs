@@ -21,7 +21,7 @@ public sealed class EvaluationControllerTests
         var employeeId = Guid.NewGuid();
         var periodId = Guid.NewGuid();
 
-        var result = await controller.GetEvaluationForm(employeeId, periodId, CancellationToken.None);
+        var result = await controller.GetEvaluationForm(employeeId, periodId, null, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal((employeeId, periodId, UserId), service.LastFormRequest);
@@ -302,6 +302,8 @@ public sealed class EvaluationControllerTests
 
         public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormRequest { get; private set; }
 
+        public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormExportRequest { get; private set; }
+
         public SubmitEvaluationRequestDto? LastSubmission { get; private set; }
 
         public Guid LastSubmissionUserId { get; private set; }
@@ -334,10 +336,16 @@ public sealed class EvaluationControllerTests
 
         public Guid LastFinalizeUserId { get; private set; }
 
-        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
         {
             LastFormRequest = (employeeId, periodId, currentUserId);
             return Task.FromResult<EvaluationFormDto>(null!);
+        }
+
+        public Task<EvaluationFormExportDto> ExportEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
+        {
+            LastFormExportRequest = (employeeId, periodId, currentUserId);
+            return Task.FromResult(new EvaluationFormExportDto([1, 2, 3], "danh-gia-nhan-vien-EMP01-2026-Q1.xlsx"));
         }
 
         public Task<EvaluationResultDto> SubmitEvaluationAsync(SubmitEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)

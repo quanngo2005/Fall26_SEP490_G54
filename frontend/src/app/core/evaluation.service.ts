@@ -149,11 +149,29 @@ export class EvaluationService {
     });
   }
 
-  form(employeeId: string, periodId: string): Observable<EvaluationFormModel> {
-    const params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+  form(
+    employeeId: string,
+    periodId: string,
+    comparePeriodId?: string | null,
+  ): Observable<EvaluationFormModel> {
+    let params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
     return this.http
       .get<ApiResponse<EvaluationFormModel>>(`${this.url}/form`, { params })
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportEvaluationForm(
+    employeeId: string,
+    periodId: string,
+    comparePeriodId?: string | null,
+  ): Observable<Blob> {
+    let params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    return this.http.get(`${this.url}/form/export`, {
+      params,
+      responseType: 'blob',
+    });
   }
 
   submit(request: SubmitEvaluationRequest): Observable<EvaluationResult> {
