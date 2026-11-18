@@ -79,3 +79,23 @@ backend/src/G54.Api/**/uploads/
 uploads/
 /docs/plans
 /docs/diagrams
+/docs/test-reports
+
+# ai-service
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Local MCP config (machine-specific paths)
+/.mcp.json
+/docs/excels
+/docs/design
+/docs/test
+/docs/figma-gb337
+/docs/testing
+
+# Local screen descriptions (not tracked)
+docs/screen-descriptions/
+
+# Real business sample workbooks: keep local only (tests skip without them)
+backend/tests/G54.UnitTests/TestData/*.xlsx

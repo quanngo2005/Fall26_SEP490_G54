@@ -53,7 +53,10 @@ public sealed class WorkSubmissionValidator(IUnitOfWork unitOfWork, TimeProvider
                     && (wtk.EffectiveTo == null || wtk.EffectiveTo >= today))
                 .ToListAsync(cancellationToken);
 
-            var activeKpiMap = activeWorkTypeKpis.ToDictionary(k => k.KpiDefinitionId);
+            // The unique index is (work type, KPI, effective from), so two rows of one KPI can both be in force; the latest rate wins.
+            var activeKpiMap = activeWorkTypeKpis
+                .GroupBy(k => k.KpiDefinitionId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(k => k.EffectiveFrom).First());
 
             // Check that all required KPIs are present in submitted metrics
             foreach (var requiredKpi in activeWorkTypeKpis.Where(k => k.IsRequired))

@@ -2,21 +2,29 @@ using Microsoft.AspNetCore.Http;
 
 namespace G54.BLL.Dtos.Appeal;
 
-public sealed record ReviewAppealRequestDto(decimal? Points, string? Reason);
-public sealed record ScoreDisputeRequestDto(string? Reason);
-public sealed record AppealScoreSettingDto(decimal DefaultPoints);
-public sealed record ScoreEntryDto(Guid Id, Guid? AppealId, Guid? WorkId, Guid EvaluationId, decimal Points,
-    string Kind, string Source, string Reason, Guid RecordedByEmployeeId, DateTimeOffset CreatedAt, Guid? ReversesEntryId);
+/// <summary>Whose appeals <c>GET /appeals</c> lists, as exposed in the API <c>scope</c> query.</summary>
+public static class AppealScopes
+{
+    public const string Mine = "MINE";
+    public const string Team = "TEAM";
+}
+
+/// <summary>The values of <c>decision</c> accepted by <c>POST /appeals/{id}/decision</c>.</summary>
+public static class AppealDecisions
+{
+    public const string Accept = "ACCEPT";
+    public const string Adjust = "ADJUST";
+    public const string Reject = "REJECT";
+}
 
 public sealed record DecideAppealRequestDto
 {
     public string? Decision { get; init; }
 
     public string? Note { get; init; }
-
-    public decimal? VerifiedValue { get; init; }
 }
 
+/// <summary><c>VerificationId</c> is null when the appeal was rejected.</summary>
 public sealed record AppealDecisionResultDto(
     AppealDetailDto Appeal,
     string Decision,
@@ -34,8 +42,23 @@ public sealed class CreateAppealRequestDto
 
 public sealed record AppealFilterDto
 {
-    /// <summary>UPPER_SNAKE status filter (OPEN, UNDER_REVIEW, ACCEPTED, REJECTED, WITHDRAWN); unknown value is 400.</summary>
+    /// <summary>
+    /// UPPER_SNAKE status filter (OPEN, UNDER_REVIEW, ACCEPTED, REJECTED, WITHDRAWN), one value or a comma separated
+    /// list; unknown value is 400.
+    /// </summary>
     public string? Status { get; init; }
+
+    /// <summary>Only appeals of results submitted in this evaluation period.</summary>
+    public Guid? PeriodId { get; init; }
+
+    /// <summary>Only appeals of employees holding this job position.</summary>
+    public Guid? JobPositionId { get; init; }
+
+    /// <summary>
+    /// Whose appeals: <c>MINE</c> only the caller's own, <c>TEAM</c> only other employees' within the caller's scope;
+    /// empty means both; unknown value is 400.
+    /// </summary>
+    public string? Scope { get; init; }
 
     public int Page { get; init; } = 1;
 
@@ -55,7 +78,10 @@ public sealed record AppealListItemDto(
     string Status,
     DateTimeOffset FiledAt,
     DateTimeOffset? DecidedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? JobPositionTitle = null,
+    string? ResolvedByEmployeeName = null,
+    string? Note = null);
 
 public sealed record AppealEvidenceDto(
     Guid Id,
@@ -64,6 +90,16 @@ public sealed record AppealEvidenceDto(
     string? MimeType,
     string PreviewUrl,
     string DownloadUrl);
+
+/// <summary>The Core Banking transaction code(s) of the appealed work and their reconciliation outcome.</summary>
+public sealed record AppealTransactionDto(
+    string TransactionCode,
+    string Status,
+    string? Reason,
+    string? ImportBatchFileName = null,
+    string? ProductCode = null,
+    decimal? Amount = null,
+    DateOnly? TransactionDate = null);
 
 public sealed record AppealDetailDto(
     Guid Id,
@@ -84,4 +120,8 @@ public sealed record AppealDetailDto(
     Guid? ResolvedByEmployeeId,
     string? ResolvedByEmployeeName,
     IReadOnlyList<AppealEvidenceDto> Evidences,
-    string? ScoreDisputeReason = null);
+    DateTimeOffset SubmittedAt,
+    string? WorkTypeName = null,
+    string? ReferrerEmployeeCode = null,
+    string? ReferrerEmployeeName = null,
+    IReadOnlyList<AppealTransactionDto>? Transactions = null);

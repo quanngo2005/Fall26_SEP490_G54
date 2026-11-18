@@ -1,0 +1,177 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && items().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+
+      @if (notice()) {
+        <div class="ui-banner tone-success" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="ui-action-btn"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="ui-master-detail" [class.has-drawer]="selectedItem() !== null">
+        <div class="ui-master-pane">
+          <header class="ui-page-header">
+            <div class="ui-page-heading">
+              <div class="ui-title-row">
+                <h1 class="ui-page-title">{{localization.submissions.title}}</h1>
+              </div>
+              <p class="ui-page-subtitle">{{summary()}}</p>
+            </div>
+          </header>
+
+          <div class="ui-filter-bar">
+            <div class="ui-search-field">
+              <app-layout-icon name="search" />
+              <input
+                type="text"
+                class="input"
+                [ngModel]="keyword()"
+                (ngModelChange)="onKeyword($event)"
+                [attr.aria-label]="localization.submissions.searchPlaceholder"
+                [placeholder]="localization.submissions.searchPlaceholder"
+              />
+            </div>
+            <app-ui-select
+              [options]="matchOptions()"
+              [value]="matchFilter()"
+              [ariaLabel]="localization.submissions.filterMatch"
+              (valueChange)="setMatch($event)"
+            />
+            @if (!selectedItem()) {
+              <app-ui-select
+                [options]="periodOptions()"
+                [value]="periodFilter()"
+                [ariaLabel]="localization.submissions.filterPeriod"
+                (valueChange)="setPeriod($event)"
+              />
+            }
+          </div>
+
+          @if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.submissions.loadError}}</p>
+              <button type="button" class="button button-secondary" (click)="retry()">
+                {{localization.submissions.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="ui-table-card">
+              <div class="ui-table-wrap is-sticky">
+                <table class="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{{localization.submissions.columns.work}}</th>
+                      <th scope="col">{{localization.submissions.columns.version}}</th>
+                      @if (!selectedItem()) {
+                        <th scope="col">{{localization.submissions.columns.transaction}}</th>
+                      }
+                      <th scope="col">{{localization.submissions.columns.submittedAt}}</th>
+                      <th scope="col">{{localization.submissions.columns.status}}</th>
+                      @if (!selectedItem()) {
+                        <th scope="col">{{localization.submissions.columns.reconciliation}}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (item of items(); track item.submissionId) {
+                      <tr
+                        class="is-clickable"
+                        [class.is-selected]="selectedId() === item.submissionId"
+                        [class.selected-row]="selectedId() === item.submissionId"
+                        [attr.aria-current]="selectedId() === item.submissionId ? 'true' : null"
+                        tabindex="0"
+                        (click)="select(item)"
+                        (keydown.enter)="select(item)"
+                      >
+                        <td class="col-code">{{item.workCode}}</td>
+                        <td class="col-mono">v{{item.submissionNo}}</td>
+                        @if (!selectedItem()) {
+                          <td class="col-mono">{{transactionText(item)}}</td>
+                        }
+                        <td class="col-nowrap">
+                          {{item.submittedAt | appDate: 'DD/MM/YYYY HH:mm'}}
+                        </td>
+                        <td>
+                          @let b = badge(item);
+                          <app-status-badge [tone]="b.tone">{{b.label}}</app-status-badge>
+                        </td>
+                        @if (!selectedItem()) {
+                          <td>{{reconcileText(item)}}</td>
+                        }
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td [attr.colspan]="selectedItem() ? 4 : 6" class="ui-empty-cell">
+                          {{loading()
+                              ? localization.submissions.loading
+                              : localization.submissions.empty}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <app-table-pagination
+                [page]="page()"
+                [pageSize]="pageSize()"
+                [totalCount]="totalCount()"
+                [rangeText]="showingText()"
+                [ariaLabel]="localization.common.pageInformation"
+                [disabled]="loading()"
+                (pageChange)="goToPage($event)"
+              />
+            </div>
+          }
+
+          @if (!selectedItem()) {
+            <div class="ui-callout">
+              <h4>{{localization.submissions.hintTitle}}</h4>
+              <p>{{localization.submissions.hint}}</p>
+            </div>
+          }
+        </div>
+
+        @if (selectedItem(); as selected) {
+          <div class="ui-drawer-backdrop" aria-hidden="true" (click)="closeDrawer()"></div>
+          <div class="drawer">
+            <app-my-submission-drawer
+              [item]="selected"
+              [detail]="detail()"
+              [loading]="detailLoading()"
+              [failed]="detailFailed()"
+              (closeDrawer)="closeDrawer()"
+              (selectNext)="selectNext()"
+              (selectPrev)="selectPrev()"
+              (selectVersion)="viewVersion($event)"
+              (appeal)="openAppeal($event)"
+            />
+          </div>
+        }
+      </div>
+
+      @if (appealFor(); as submissionId) {
+        <app-appeal-submit-modal
+          [submissionId]="submissionId"
+          (submitted)="onAppealed()"
+          (dismissed)="appealFor.set(null)"
+        />
+      }
+    </main>
+  </div>
+</div>

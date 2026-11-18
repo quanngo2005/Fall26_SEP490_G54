@@ -1,0 +1,414 @@
+using ClosedXML.Excel;
+using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
+using G54.BLL.Services;
+using G54.DAL;
+using G54.DAL.Entities;
+using G54.DAL.Uow;
+using Microsoft.EntityFrameworkCore;
+
+namespace G54.UnitTests;
+
+public sealed class TransactionImportServiceTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 4, 3, 0, 0, TimeSpan.Zero);
+    private static readonly string[] Header =
+        ["transaction_code", "employee_code", "product_code", "transaction_date", "amount", "denominator", "refer_employee_code"];
+
+    private static (AppDbContext Db, TransactionImportService Service) Create()
+    {
+        var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Employees.AddRange(
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "E001",
+                FullName = "A",
+                Email = "a@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Active,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            },
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "E002",
+                FullName = "B",
+                Email = "b@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Active,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            },
+            new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = "ETERM",
+                FullName = "Terminated",
+                Email = "term@x.vn",
+                DepartmentId = Guid.NewGuid(),
+                JobPositionId = Guid.NewGuid(),
+                Status = EmployeeStatus.Terminated,
+                UpdatedAt = Now,
+                LastSyncAt = Now,
+            });
+        db.WorkTypes.AddRange(
+            new WorkType { Id = Guid.NewGuid(), Code = "WT_CARD", Name = "Card", ProductCode = "CARD", Status = RecordStatus.Active },
+            new WorkType { Id = Guid.NewGuid(), Code = "WT_LOAN", Name = "Loan", ProductCode = "LOAN", Status = RecordStatus.Active });
+        db.SaveChanges();
+        return (db, new TransactionImportService(new UnitOfWork(db), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions())));
+    }
+
+    private static MemoryStream Workbook(string[] header, params object?[][] rows)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet();
+        for (var c = 0; c < header.Length; c++) ws.Cell(1, c + 1).Value = header[c];
+        for (var r = 0; r < rows.Length; r++)
+            for (var c = 0; c < rows[r].Length; c++)
+                if (rows[r][c] is { } v) ws.Cell(r + 2, c + 1).Value = XLCellValue.FromObject(v, System.Globalization.CultureInfo.InvariantCulture);
+        var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        ms.Position = 0;
+        return ms;
+    }
+
+    private static object?[] Row(string code, string emp = "E001", string product = "CARD", decimal amount = 10m, object? denominator = null) =>
+        [code, emp, product, new DateTime(2026, 11, 1), amount, denominator, null];
+
+    [Fact]
+    public async Task Import_StoresValidRowsAndReportsTheRest()
+    {
+        var (db, service) = Create();
+        using var file = Workbook(Header, Row("T1"), Row("T2", emp: "NOPE"), Row("T3", amount: -1m), Row("T1"));
+
+        var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(4, result.TotalRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(3, result.ErrorRows);
+        Assert.Contains(result.Errors!, e => e.Row == 3 && e.Code == "EMPLOYEE_NOT_FOUND");
+        Assert.Contains(result.Errors!, e => e.Row == 4 && e.Code == "INVALID_VALUE");
+        Assert.Contains(result.Errors!, e => e.Row == 5 && e.Code == "DUPLICATE_IN_FILE");
+        Assert.Equal(1, await db.ImportedTransactions.CountAsync());
+    }
+
+    [Fact]
+    public async Task Import_SkipsTransactionCodesAlreadyImported()
+    {
+        var (db, service) = Create();
+        using (var first = Workbook(Header, Row("T1"))) await service.ImportAsync("a.xlsx", first, Guid.NewGuid());
+        using var second = Workbook(Header, Row("T1"), Row("T2"));
+
+        var result = await service.ImportAsync("b.xlsx", second, Guid.NewGuid());
+
+        Assert.Equal(1, result.DuplicateRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(2, await db.ImportedTransactions.CountAsync());
+    }
+
+    [Fact]
+    public async Task Import_FlagsMissingRequiredFieldsAndBadDenominator()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1", product: ""), Row("T2", denominator: 0m));
+
+        var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(0, result.ImportedRows);
+        Assert.Contains(result.Errors!, e => e.Row == 2 && e.Code == "REQUIRED_FIELD_MISSING");
+        Assert.Contains(result.Errors!, e => e.Row == 3 && e.Field == "denominator");
+    }
+
+    [Fact]
+    public async Task Import_RejectsWrongHeaderEmptyAndNonWorkbookFiles()
+    {
+        var (_, service) = Create();
+        using var wrongHeader = Workbook(["code", "employee_code", "product_code", "transaction_date", "amount"], Row("T1"));
+        using var noRows = Workbook(Header);
+        using var junk = new MemoryStream([1, 2, 3]);
+
+        foreach (var stream in new[] { wrongHeader, noRows, junk })
+        {
+            var ex = await Assert.ThrowsAsync<AppException>(() => service.ImportAsync("tx.xlsx", stream, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.ImportInvalidFile, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task GB633_01_ListBatches_ReturnsNewestFirstWithCountsAndNoErrors()
+    {
+        var (db, service) = Create();
+        var importer = Guid.NewGuid();
+        db.ImportBatches.AddRange(
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "old.xlsx", TotalRows = 3, ImportedRows = 2, DuplicateRows = 0, ErrorRows = 1, ImportedBy = importer, ImportedAt = Now.AddDays(-2) },
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "new.xlsx", TotalRows = 5, ImportedRows = 4, DuplicateRows = 1, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now },
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "mid.xlsx", TotalRows = 1, ImportedRows = 1, DuplicateRows = 0, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now.AddDays(-1) });
+        await db.SaveChangesAsync();
+
+        var result = await service.ListBatchesAsync(1, 20);
+
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(["new.xlsx", "mid.xlsx", "old.xlsx"], result.Items.Select(b => b.FileName));
+        Assert.All(result.Items, b => Assert.Null(b.Errors));
+        var newest = result.Items[0];
+        Assert.Equal((5, 4, 1, 0, importer), (newest.TotalRows, newest.ImportedRows, newest.DuplicateRows, newest.ErrorRows, newest.ImportedBy));
+    }
+
+    [Fact]
+    public async Task GB633_02_ListBatches_EmptyHistoryReturnsNoItems()
+    {
+        var (_, service) = Create();
+
+        var result = await service.ListBatchesAsync(1, 20);
+
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListBatches_ClampsPageAndPageSize()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1"));
+        await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var belowMin = await service.ListBatchesAsync(0, 0);
+        var aboveMax = await service.ListBatchesAsync(1, 500);
+
+        Assert.Equal(1, belowMin.Page);
+        Assert.Equal(1, belowMin.PageSize);
+        Assert.Equal(200, aboveMax.PageSize);
+    }
+
+    [Fact]
+    public async Task ListTransactions_FiltersAndThrowsNotFoundForUnknownBatch()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1", product: "CARD"), Row("T2", product: "LOAN"));
+        var batch = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var page = await service.ListTransactionsAsync(batch.Id, null, "LOAN", 1, 20);
+
+        Assert.Equal("T2", Assert.Single(page.Items).TransactionCode);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ListTransactionsAsync(Guid.NewGuid(), null, null, 1, 20));
+        await Assert.ThrowsAsync<NotFoundException>(() => service.GetBatchAsync(Guid.NewGuid()));
+    }
+
+    private static EvaluationPeriod Period(PeriodStatus status, DateOnly start, DateOnly end) => new()
+    {
+        Id = Guid.NewGuid(),
+        Code = $"P-{start:yyyyMMdd}",
+        Name = "period",
+        StartDate = start,
+        EndDate = end,
+        PeriodType = PeriodType.Month,
+        Status = status,
+        UpdatedAt = Now,
+    };
+
+    [Fact]
+    public async Task Import_PersistsRowErrorsAndListsThemInRowOrder()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1"), Row("T2", emp: "NOPE"), Row("T3", amount: -1m), Row("T1"));
+        var batch = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var all = await service.ListErrorsAsync(batch.Id, 1, 20);
+        var firstPage = await service.ListErrorsAsync(batch.Id, 1, 2);
+        var secondPage = await service.ListErrorsAsync(batch.Id, 2, 2);
+
+        Assert.Equal(3, all.TotalCount);
+        Assert.Equal([3, 4, 5], all.Items.Select(e => e.Row));
+        Assert.Equal("EMPLOYEE_NOT_FOUND", all.Items[0].Code);
+        Assert.Equal([3, 4], firstPage.Items.Select(e => e.Row));
+        Assert.Equal([5], secondPage.Items.Select(e => e.Row));
+        Assert.Null((await service.GetBatchAsync(batch.Id)).Errors);
+    }
+
+    [Fact]
+    public async Task ListErrors_IsEmptyForCleanBatchAndNotFoundForUnknownBatch()
+    {
+        var (_, service) = Create();
+        using var file = Workbook(Header, Row("T1"));
+        var batch = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        var page = await service.ListErrorsAsync(batch.Id, 1, 20);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.ListErrorsAsync(Guid.NewGuid(), 1, 20));
+    }
+
+    [Fact]
+    public async Task Import_ReportsAlreadyImportedCodeWithDifferentValuesAsConflictNotDuplicate()
+    {
+        var (db, service) = Create();
+        using (var first = Workbook(Header, Row("T1", amount: 10m), Row("T2", amount: 5m)))
+            await service.ImportAsync("a.xlsx", first, Guid.NewGuid());
+        using var second = Workbook(Header, Row("T1", amount: 10m), Row("T2", amount: 99m));
+
+        var result = await service.ImportAsync("b.xlsx", second, Guid.NewGuid());
+
+        Assert.Equal(1, result.DuplicateRows);
+        Assert.Equal(0, result.ImportedRows);
+        var error = Assert.Single(result.Errors!);
+        Assert.Equal(3, error.Row);
+        Assert.Equal("CONFLICTING_DUPLICATE", error.Code);
+        Assert.Equal(5m, (await db.ImportedTransactions.SingleAsync(t => t.TransactionCode == "T2")).Amount);
+        Assert.Single((await service.ListErrorsAsync(result.Id, 1, 20)).Items);
+    }
+
+    [Theory]
+    [InlineData(PeriodStatus.Locked, true)]
+    [InlineData(PeriodStatus.Closed, true)]
+    [InlineData(PeriodStatus.Open, false)]
+    [InlineData(PeriodStatus.InReview, false)]
+    public async Task Import_RejectsRowsInsideLockedOrClosedPeriodsOnly(PeriodStatus status, bool rejected)
+    {
+        var (db, service) = Create();
+        db.EvaluationPeriods.Add(Period(status, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30)));
+        await db.SaveChangesAsync();
+        using var file = Workbook(Header, Row("T1"));
+
+        var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(rejected ? 0 : 1, result.ImportedRows);
+        Assert.Equal(rejected ? 1 : 0, result.ErrorRows);
+        if (rejected)
+        {
+            var error = Assert.Single(result.Errors!);
+            Assert.Equal("PERIOD_LOCKED", error.Code);
+            Assert.Equal("transaction_date", error.Field);
+            Assert.Equal(0, await db.ImportedTransactions.CountAsync());
+            Assert.Single((await service.ListErrorsAsync(result.Id, 1, 20)).Items);
+        }
+    }
+
+    [Fact]
+    public async Task Import_OnlyRejectsTheRowsInALockedPeriodAndKeepsTheRest()
+    {
+        var (db, service) = Create();
+        db.EvaluationPeriods.Add(Period(PeriodStatus.Locked, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31)));
+        await db.SaveChangesAsync();
+        using var file = Workbook(Header,
+            ["T1", "E001", "CARD", new DateTime(2026, 10, 15), 10m, null, null],
+            ["T2", "E001", "CARD", new DateTime(2026, 11, 2), 10m, null, null]);
+
+        var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal("PERIOD_LOCKED", Assert.Single(result.Errors!).Code);
+        Assert.Equal("T2", (await db.ImportedTransactions.SingleAsync()).TransactionCode);
+    }
+
+    [Fact]
+    public async Task Import_RetriesOnceWhenAConcurrentImportWinsTheUniqueIndex()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var seed = new AppDbContext(options);
+        var employee = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "E001",
+            FullName = "A",
+            Email = "a@x.vn",
+            DepartmentId = Guid.NewGuid(),
+            JobPositionId = Guid.NewGuid(),
+            UpdatedAt = Now,
+            LastSyncAt = Now,
+        };
+        seed.Employees.Add(employee);
+        seed.WorkTypes.Add(new WorkType { Id = Guid.NewGuid(), Code = "WT_CARD", Name = "Card", ProductCode = "CARD", Status = RecordStatus.Active });
+        await seed.SaveChangesAsync();
+
+        await using var racing = new RacingDbContext(options, () =>
+        {
+            using var other = new AppDbContext(options);
+            other.ImportBatches.Add(new ImportBatch
+            {
+                Id = Guid.NewGuid(),
+                FileName = "other.xlsx",
+                TotalRows = 1,
+                ImportedRows = 1,
+                ImportedBy = Guid.NewGuid(),
+                ImportedAt = Now,
+                Transactions =
+                {
+                    new ImportedTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        TransactionCode = "T1",
+                        EmployeeId = employee.Id,
+                        ProductCode = "CARD",
+                        TransactionDate = new DateOnly(2026, 11, 1),
+                        Amount = 10m,
+                    },
+                },
+            });
+            other.SaveChanges();
+        });
+        var service = new TransactionImportService(new UnitOfWork(racing), TimeProvider.System, new G54.BLL.Common.Import.Reading.ClosedXmlSheetReader(), Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions()));
+        using var file = Workbook(Header, Row("T1", amount: 10m), Row("T2"));
+
+        var result = await service.ImportAsync("tx.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(1, result.DuplicateRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(0, result.ErrorRows);
+        Assert.Equal(["T1", "T2"], await racing.ImportedTransactions.OrderBy(t => t.TransactionCode).Select(t => t.TransactionCode).ToListAsync());
+        Assert.Equal(1, await racing.ImportBatches.CountAsync(b => b.FileName == "tx.xlsx"));
+    }
+
+    [Fact]
+    public async Task Import_ValidatesProductCatalogEmployeeTerminatedReferEmployeeAndCustomerCode()
+    {
+        var (db, service) = Create();
+        string[] vnHeader = ["Mã giao dịch*", "Ngày GD*", "Mã khách hàng*", "Mã NV*", "Mã sản phẩm*", "Số tiền (VND)*", "Refer ID"];
+        using var file = Workbook(vnHeader,
+            ["GD01", "05/10/2026", "KH01", "E001", "CARD", "15.000.000", "E002"],
+            ["GD02", "05/10/2026", "", "E001", "CARD", "100000", null],
+            ["GD03", "05/10/2026", "KH03", "ETERM", "CARD", "100000", null],
+            ["GD04", "05/10/2026", "KH04", "E001", "UNKNOWN_PROD", "100000", null],
+            ["GD05", "05/10/2026", "KH05", "E001", "CARD", "100000", "NO_REFER"]);
+
+        var result = await service.ImportAsync("vn.xlsx", file, Guid.NewGuid());
+
+        Assert.Equal(5, result.TotalRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(4, result.ErrorRows);
+        Assert.Contains(result.Errors!, e => e.Row == 3 && e.Field == "Mã khách hàng*" && e.Code == "REQUIRED_FIELD_MISSING");
+        Assert.Contains(result.Errors!, e => e.Row == 4 && e.Field == "Mã NV*" && e.Code == "EMPLOYEE_TERMINATED");
+        Assert.Contains(result.Errors!, e => e.Row == 5 && e.Field == "Mã sản phẩm*" && e.Code == "PRODUCT_NOT_FOUND");
+        Assert.Contains(result.Errors!, e => e.Row == 6 && e.Field == "Refer ID" && e.Code == "REFER_EMPLOYEE_NOT_FOUND");
+
+        var saved = await db.ImportedTransactions.SingleAsync();
+        Assert.Equal("GD01", saved.TransactionCode);
+        Assert.Equal("KH01", saved.CustomerCode);
+        Assert.Equal(new DateOnly(2026, 10, 5), saved.TransactionDate);
+        Assert.Equal(15_000_000m, saved.Amount);
+        Assert.Equal("E002", saved.ReferEmployeeCode);
+    }
+
+    private sealed class RacingDbContext(DbContextOptions<AppDbContext> options, Action concurrentWinner) : AppDbContext(options)
+    {
+        private bool _raced;
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_raced)
+            {
+                _raced = true;
+                concurrentWinner();
+                throw new DbUpdateException("duplicate key",
+                    new Npgsql.PostgresException("duplicate key value", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.UniqueViolation));
+            }
+
+            return base.SaveChangesAsync(cancellationToken);
+        }
+    }
+}

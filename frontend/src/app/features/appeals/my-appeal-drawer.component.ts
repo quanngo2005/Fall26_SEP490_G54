@@ -1,0 +1,104 @@
+import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AppealDetail, AppealEvidence, AppealListItem } from '../../core/appeal.models';
+import { AppealService } from '../../core/appeal.service';
+import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { displayBytes } from '../../shared/ui/display';
+import { AppDatePipe } from '../../shared/pipes';
+import { appealCode, appealSubject, openBlob } from './appeal-display';
+
+@Component({
+  selector: 'app-my-appeal-drawer',
+  standalone: true,
+  imports: [AppDatePipe],
+  templateUrl: './my-appeal-drawer.component.html',
+  styleUrls: ['./my-appeal-drawer.component.scss', './my-appeal-drawer-history.scss'],
+  host: {
+    '(window:keydown)': 'onKeydown($event)',
+  },
+})
+export class MyAppealDrawerComponent extends LocalizedComponent {
+  private readonly api = inject(AppealService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly appeal = input.required<AppealListItem>();
+  readonly detail = input<AppealDetail | null>(null);
+  readonly loading = input(false);
+  readonly failed = input(false);
+  readonly closeDrawer = output<void>();
+  readonly withdraw = output<AppealListItem>();
+  readonly selectNext = output<void>();
+  readonly selectPrev = output<void>();
+
+  protected readonly previewFailed = signal(false);
+
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      this.closeDrawer.emit();
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.selectPrev.emit();
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.selectNext.emit();
+    }
+  }
+
+  protected code(): string {
+    return appealCode(this.appeal().id);
+  }
+
+  protected subject(): string {
+    return appealSubject(this.appeal());
+  }
+
+  protected transactionCodesText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    return txs.map((t) => t.transactionCode).join(', ');
+  }
+
+  protected reconciliationText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    const labels = this.localization.qaQueue.transactionStatus;
+    return txs
+      .map((t) => {
+        const status = labels[t.status] ?? t.status;
+        return t.reason
+          ? `${t.transactionCode}: ${status} (${t.reason})`
+          : `${t.transactionCode}: ${status}`;
+      })
+      .join(' · ');
+  }
+
+  protected subtitle(): string {
+    const appeal = this.appeal();
+    return this.i18n.translate('appeals.filedOn', {
+      time: this.i18n.formatDate(appeal.filedAt, 'DD/MM/YYYY HH:mm'),
+      handler: appeal.resolvedByEmployeeName ?? this.localization.appeals.notAvailable,
+    });
+  }
+
+  protected size(bytes: number | null): string {
+    return displayBytes(bytes, this.i18n.currentLanguage(), this.localization.appeals.notAvailable);
+  }
+
+  protected confirmWithdraw(): void {
+    if (window.confirm(this.localization.appeals.withdrawConfirm)) {
+      this.withdraw.emit(this.appeal());
+    }
+  }
+
+  protected preview(file: AppealEvidence): void {
+    this.previewFailed.set(false);
+    this.api
+      .evidence(file.previewUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => openBlob(blob),
+        error: () => this.previewFailed.set(true),
+      });
+  }
+}

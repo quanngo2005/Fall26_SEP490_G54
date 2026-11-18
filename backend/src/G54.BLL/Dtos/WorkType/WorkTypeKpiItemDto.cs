@@ -9,6 +9,9 @@ public sealed record WorkTypeKpiItemDto
 
     public bool IsRequired { get; init; }
 
+    [Range(typeof(decimal), "0.0001", "10")]
+    public decimal Multiplier { get; init; } = 1m;
+
     [Required]
     public DateOnly EffectiveFrom { get; init; }
 

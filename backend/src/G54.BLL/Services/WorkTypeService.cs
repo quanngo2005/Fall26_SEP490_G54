@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -35,6 +36,9 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, null, cancellationToken);
 
+        var productCode = NormalizeOptional(dto.ProductCode);
+        await EnsureProductCodeUniqueAsync(productCode, null, cancellationToken);
+
         var kpiIds = dto.Kpis.Select(k => k.KpiDefinitionId).Distinct().ToList();
         if (kpiIds.Count > 0)
         {
@@ -47,6 +51,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             Code = code,
             Name = dto.Name.Trim(),
             Description = NormalizeOptional(dto.Description),
+            ProductCode = productCode,
             Status = RecordStatus.Active,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -59,6 +64,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 WorkTypeId = workType.Id,
                 KpiDefinitionId = kpiItem.KpiDefinitionId,
                 IsRequired = kpiItem.IsRequired,
+                Multiplier = kpiItem.Multiplier,
                 EffectiveFrom = kpiItem.EffectiveFrom,
                 EffectiveTo = kpiItem.EffectiveTo,
                 UpdatedAt = DateTimeOffset.UtcNow,
@@ -66,7 +72,14 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         }
 
         db.WorkTypes.Add(workType);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsProductCodeUniqueViolation(ex))
+        {
+            throw new ConflictException($"Mã sản phẩm '{productCode}' đã được gán cho loại công việc khác.");
+        }
 
         await RecordAuditLogAsync("CREATE_WORK_TYPE", workType.Id);
         return await GetRequiredWorkTypeAsync(workType.Id, cancellationToken);
@@ -83,11 +96,12 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(w =>
-                w.Code.Contains(keyword) ||
-                w.Name.Contains(keyword) ||
-                (w.Description != null && w.Description.Contains(keyword)));
+                EF.Functions.ILike(w.Code, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(w.Name, pattern, LikePattern.Escape) ||
+                (w.Description != null && EF.Functions.ILike(w.Description, pattern, LikePattern.Escape)));
         }
 
         if (status.HasValue)
@@ -106,6 +120,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Code,
                 w.Name,
                 w.Description,
+                w.ProductCode,
                 w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
@@ -115,6 +130,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                         k.KpiDefinition.Code,
                         k.KpiDefinition.Name,
                         k.IsRequired,
+                        k.Multiplier,
                         k.EffectiveFrom,
                         k.EffectiveTo))
                     .ToList()))
@@ -135,6 +151,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 w.Code,
                 w.Name,
                 w.Description,
+                w.ProductCode,
                 w.Status.ToEnumString(),
                 w.UpdatedAt,
                 w.WorkTypeKpis
@@ -144,6 +161,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                         k.KpiDefinition.Code,
                         k.KpiDefinition.Name,
                         k.IsRequired,
+                        k.Multiplier,
                         k.EffectiveFrom,
                         k.EffectiveTo))
                     .ToList()))
@@ -166,6 +184,9 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         var code = dto.Code.Trim();
         await EnsureCodeUniqueAsync(code, id, cancellationToken);
 
+        var productCode = NormalizeOptional(dto.ProductCode);
+        await EnsureProductCodeUniqueAsync(productCode, id, cancellationToken);
+
         var kpiIds = dto.Kpis.Select(k => k.KpiDefinitionId).Distinct().ToList();
         if (kpiIds.Count > 0)
         {
@@ -175,6 +196,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
         workType.Code = code;
         workType.Name = dto.Name.Trim();
         workType.Description = NormalizeOptional(dto.Description);
+        workType.ProductCode = productCode;
         workType.UpdatedAt = DateTimeOffset.UtcNow;
 
         db.WorkTypeKpis.RemoveRange(workType.WorkTypeKpis);
@@ -186,6 +208,7 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
                 WorkTypeId = workType.Id,
                 KpiDefinitionId = kpiItem.KpiDefinitionId,
                 IsRequired = kpiItem.IsRequired,
+                Multiplier = kpiItem.Multiplier,
                 EffectiveFrom = kpiItem.EffectiveFrom,
                 EffectiveTo = kpiItem.EffectiveTo,
                 UpdatedAt = DateTimeOffset.UtcNow,
@@ -193,7 +216,15 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             db.WorkTypeKpis.Add(newKpi);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsProductCodeUniqueViolation(ex))
+        {
+            throw new ConflictException($"Mã sản phẩm '{productCode}' đã được gán cho loại công việc khác.");
+        }
+
         await RecordAuditLogAsync("UPDATE_WORK_TYPE", id);
 
         return await GetRequiredWorkTypeAsync(id, cancellationToken);
@@ -248,6 +279,27 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
             throw new ConflictException($"Mã loại công việc '{code}' đã tồn tại.");
         }
     }
+
+    private async Task EnsureProductCodeUniqueAsync(string? productCode, Guid? excludeId, CancellationToken cancellationToken)
+    {
+        if (productCode is null)
+        {
+            return;
+        }
+
+        var exists = await db.WorkTypes.AnyAsync(
+            w => w.ProductCode == productCode && (!excludeId.HasValue || w.Id != excludeId.Value),
+            cancellationToken);
+        if (exists)
+        {
+            throw new ConflictException($"Mã sản phẩm '{productCode}' đã được gán cho loại công việc khác.");
+        }
+    }
+
+    /// <summary>Catches the race the pre-check in <see cref="EnsureProductCodeUniqueAsync"/> cannot close.</summary>
+    private static bool IsProductCodeUniqueViolation(DbUpdateException ex) =>
+        PostgresConflict.IsUniqueViolation(ex)
+        && ex.InnerException is Npgsql.PostgresException { ConstraintName: "uq_work_type_product_code" };
 
     private async Task EnsureKpisActiveAsync(List<Guid> kpiIds, CancellationToken cancellationToken)
     {

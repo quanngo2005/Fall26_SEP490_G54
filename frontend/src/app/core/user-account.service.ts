@@ -8,6 +8,7 @@ import {
   CreateUserAccountPayload,
   CreateUserAccountResult,
   EligibleEmployee,
+  ResetUserPasswordResult,
   UpdateUserAccountPayload,
   UserAccountDetail,
   UserAccountFilter,
@@ -53,6 +54,24 @@ export class UserAccountService {
   update(id: string, payload: UpdateUserAccountPayload): Observable<UserAccountDetail> {
     return this.http
       .put<ApiResponse<UserAccountDetail>>(this.itemUrl(id), payload)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  resetPassword(id: string): Observable<ResetUserPasswordResult> {
+    return this.http
+      .post<ApiResponse<ResetUserPasswordResult>>(`${this.itemUrl(id)}/reset-password`, {})
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  lock(id: string): Observable<UserAccountDetail> {
+    return this.http
+      .post<ApiResponse<UserAccountDetail>>(`${this.itemUrl(id)}/lock`, {})
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  unlock(id: string): Observable<UserAccountDetail> {
+    return this.http
+      .post<ApiResponse<UserAccountDetail>>(`${this.itemUrl(id)}/unlock`, {})
       .pipe(map((response) => this.unwrap(response)));
   }
 

@@ -58,6 +58,11 @@ of truth for both sides. Read existing contracts and controllers before choosing
 - Standard errors are mapped by `GlobalExceptionHandler` to `ApiResponse.Fail`.
   Specify validation, 401, 403, 404, 409, 422 and 500 behavior where applicable.
   Framework/auth errors and non-JSON/file endpoints need explicit documentation.
+- Authentication challenge, forbidden, and login rate-limit responses are the
+  documented exception: ASP.NET Core emits `ProblemDetails` for these framework
+  responses so clients can distinguish an unauthenticated challenge from a
+  business-service failure. Authenticated business endpoints continue to use
+  `ApiResponse<T>`.
 - Use stable `errorCode` for client decisions/localized messages, not human-readable
   message comparisons. Never return an HTTP 200 success body for a failed operation.
 

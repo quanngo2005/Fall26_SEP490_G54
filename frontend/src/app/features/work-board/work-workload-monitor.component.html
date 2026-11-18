@@ -1,0 +1,224 @@
+<section class="monitor-wrap" [attr.aria-busy]="loading()">
+  <div class="monitor-toolbar">
+    <h2 class="monitor-section-title">{{localization.work.monitor.sectionTitle}}</h2>
+    <div class="monitor-controls">
+      @if (departments().length > 0) {
+        <select
+          id="monitor-department-select"
+          class="select monitor-select"
+          [ngModel]="selectedDepartmentId()"
+          (ngModelChange)="onDepartmentChange($event)"
+          [attr.aria-label]="localization.work.monitor.departmentLabel"
+        >
+          @for (dept of departments(); track dept.id) {
+            <option [value]="dept.id">{{dept.name}}</option>
+          }
+        </select>
+      }
+
+      <select
+        id="monitor-period-select"
+        class="select monitor-select"
+        [ngModel]="period()"
+        (ngModelChange)="onPeriodChange($event)"
+        [attr.aria-label]="localization.work.monitor.periodLabel"
+      >
+        @for (opt of periodOptions; track opt.value) {
+          <option [value]="opt.value">{{i18n.translate(opt.key)}}</option>
+        }
+      </select>
+
+      <button
+        type="button"
+        id="monitor-compose-notice"
+        class="button button-secondary monitor-compose-btn"
+        disabled
+        [attr.title]="localization.work.comingSoon"
+      >
+        {{localization.work.monitor.composeNotice}}
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="state-card" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>{{localization.work.monitor.loading}}</p>
+    </div>
+  } @else if (failed()) {
+    <div class="state-card state-error" role="alert">
+      <p>{{localization.work.monitor.error}}</p>
+      <button type="button" id="monitor-retry" class="button button-secondary" (click)="retry()">
+        {{localization.work.monitor.retry}}
+      </button>
+    </div>
+  } @else {
+    <section class="monitor-kpis" [attr.aria-label]="localization.work.monitor.kpiLabel">
+      <article class="kpi-card">
+        <span class="kpi-label">{{localization.work.monitor.kpiTotal}}</span>
+        <div class="kpi-body">
+          <strong id="monitor-kpi-total" class="kpi-value num">{{summary().total}}</strong>
+          <span class="kpi-hint">
+            {{i18n.translate('work.kpi.employeesCount', { count: summary().employeeCount })}}
+          </span>
+        </div>
+      </article>
+
+      <article class="kpi-card">
+        <span class="kpi-label">{{localization.work.monitor.kpiInProgress}}</span>
+        <div class="kpi-body">
+          <strong id="monitor-kpi-in-progress" class="kpi-value num">
+            {{summary().inProgress}}
+          </strong>
+          <span class="tag tag-teal">{{localization.work.monitor.kpiInProgressTag}}</span>
+        </div>
+      </article>
+
+      <article class="kpi-card">
+        <span class="kpi-label">{{localization.work.monitor.kpiCompleted}}</span>
+        <div class="kpi-body">
+          <strong id="monitor-kpi-completed" class="kpi-value num">{{summary().completed}}</strong>
+          <span class="tag tag-success num">{{summary().completedPercent}}%</span>
+        </div>
+      </article>
+
+      <button
+        type="button"
+        id="monitor-kpi-overdue"
+        class="kpi-card kpi-card-action"
+        [class.is-danger]="summary().overdue > 0"
+        [class.is-active]="overdueFilterOnly()"
+        [attr.aria-pressed]="overdueFilterOnly()"
+        (click)="toggleOverdueFilter()"
+      >
+        <span class="kpi-label">{{localization.work.monitor.kpiOverdue}}</span>
+        <span class="kpi-body">
+          <strong class="kpi-value kpi-value-danger num">{{summary().overdue}}</strong>
+          <span class="tag tag-danger">
+            {{overdueFilterOnly()
+                ? localization.work.monitor.kpiOverdueActive
+                : localization.work.monitor.kpiOverdueHint}}
+          </span>
+        </span>
+      </button>
+    </section>
+
+    <div class="monitor-grid">
+      <section class="monitor-panel" [attr.aria-label]="localization.work.monitor.funnelTitle">
+        <header class="panel-head">
+          <h3>{{localization.work.monitor.funnelTitle}}</h3>
+          <span class="panel-meta">{{localization.work.monitor.funnelCountUnit}}</span>
+        </header>
+
+        @if (!hasFunnelData()) {
+          <p class="panel-empty">{{localization.work.monitor.funnelEmpty}}</p>
+        } @else {
+          <div class="funnel-list">
+            @for (stage of funnelStages(); track stage.key) {
+              <div class="funnel-row" [attr.data-stage]="stage.key">
+                <span class="funnel-label">{{stage.label}}</span>
+                <div class="funnel-track" aria-hidden="true">
+                  <div class="funnel-fill" [style.width.%]="stage.percent"></div>
+                </div>
+                <span class="funnel-stat num">
+                  {{stage.count}}
+                  @if (stage.showPercent) {
+                    · {{stage.percent}}%
+                  }
+                </span>
+              </div>
+            }
+          </div>
+          <p class="funnel-footnote">{{localization.work.monitor.funnelFootnote}}</p>
+        }
+      </section>
+
+      <section class="monitor-panel" [attr.aria-label]="localization.work.monitor.workloadTitle">
+        <header class="panel-head">
+          <h3>{{localization.work.monitor.workloadTitle}}</h3>
+          <span class="panel-meta">{{localization.work.monitor.workloadSortNote}}</span>
+        </header>
+
+        @if (employeeLoads().length === 0) {
+          <p class="panel-empty">{{localization.work.monitor.workloadEmpty}}</p>
+        } @else {
+          <div class="load-table-wrap">
+            <table class="load-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{localization.work.monitor.colEmployee}}</th>
+                  <th scope="col">{{localization.work.monitor.colPosition}}</th>
+                  <th scope="col" class="col-num">{{localization.work.monitor.colOpen}}</th>
+                  <th scope="col" class="col-num">{{localization.work.monitor.colOverdue}}</th>
+                  <th scope="col">{{localization.work.monitor.colLoad}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of employeeLoads(); track row.employeeId) {
+                  <tr class="load-row">
+                    <td class="cell-employee">{{row.fullName}}</td>
+                    <td class="cell-position">{{row.jobPositionTitle}}</td>
+                    <td class="col-num num">{{row.openCount}}</td>
+                    <td class="col-num num" [class.text-danger]="row.overdueCount > 0">
+                      {{row.overdueCount}}
+                    </td>
+                    <td class="cell-load">
+                      <div class="load-track" aria-hidden="true">
+                        <div
+                          class="load-fill"
+                          [class.is-high]="row.isHighLoad"
+                          [style.width.%]="row.loadPercent"
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+
+    <section
+      id="monitor-overdue-alerts"
+      class="monitor-panel alerts-panel"
+      [class.is-highlighted]="overdueFilterOnly()"
+      [attr.aria-label]="localization.work.monitor.overdueTitle"
+    >
+      <header class="panel-head">
+        <h3>{{localization.work.monitor.overdueTitle}}</h3>
+        <span class="tag tag-danger num">
+          {{i18n.translate('work.monitor.overdueCount', { count: overdueAlerts().length })}}
+        </span>
+      </header>
+
+      @if (overdueAlerts().length === 0) {
+        <p class="panel-empty">{{localization.work.monitor.overdueEmpty}}</p>
+      } @else {
+        <ul class="alerts-list">
+          @for (alert of overdueAlerts(); track alert.item.id) {
+            <li class="alert-row">
+              <div class="alert-main">
+                <span class="tag tag-danger num">
+                  {{i18n.translate('work.card.overdueDays', { days: alert.daysLate })}}
+                </span>
+                <span class="alert-work">
+                  <strong class="mono">{{alert.item.code}}</strong> · {{alert.item.title}}
+                </span>
+                <span class="alert-meta">{{overdueMetaText(alert)}}</span>
+              </div>
+              <button
+                type="button"
+                class="button button-secondary alert-action"
+                (click)="openWork.emit(alert.item.id)"
+              >
+                {{localization.work.monitor.viewWork}}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</section>

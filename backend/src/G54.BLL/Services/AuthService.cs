@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Validation;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
@@ -18,14 +20,22 @@ public sealed class AuthService(
     JwtTokenProvider tokenProvider,
     IDistributedCache cache,
     IAuthSessionStore sessionStore,
-    IConfiguration configuration) : IAuthService
+    IConfiguration configuration,
+    IOptions<SystemParametersOptions>? parameters = null,
+    ISystemAlertNotifier? systemAlerts = null) : IAuthService
 {
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan DefaultRefreshTokenLifetime = TimeSpan.FromHours(12);
     private static readonly TimeSpan RememberedRefreshTokenLifetime = TimeSpan.FromDays(30);
-    private readonly int _maxFailedAttempts = configuration.GetValue("Authentication:MaxFailedAttempts", 5);
-    private readonly TimeSpan _lockoutDuration = TimeSpan.FromMinutes(
-        configuration.GetValue("Authentication:LockoutMinutes", 15));
+
+    private int MaxFailedAttempts => configuration.GetSection("Authentication:MaxFailedAttempts").Exists()
+        ? configuration.GetValue("Authentication:MaxFailedAttempts", 5)
+        : (parameters?.Value.AuthMaxFailedAttempts ?? 5);
+
+    private TimeSpan LockoutDuration => TimeSpan.FromMinutes(
+        configuration.GetSection("Authentication:LockoutMinutes").Exists()
+            ? configuration.GetValue("Authentication:LockoutMinutes", 15)
+            : (parameters?.Value.AuthLockoutMinutes ?? 15));
 
     public async Task<AuthResult> AuthenticateAsync(
         LoginRequestDto request,
@@ -76,15 +86,25 @@ public sealed class AuthService(
         if (!passwordEncoder.Verify(request.Password, account.PasswordHash))
         {
             account.FailedLoginAttempts++;
-            if (account.FailedLoginAttempts >= _maxFailedAttempts)
+            var justLocked = false;
+            if (account.FailedLoginAttempts >= MaxFailedAttempts)
             {
                 account.IsLocked = true;
-                account.LockedUntil = now.Add(_lockoutDuration);
+                account.LockedUntil = now.Add(LockoutDuration);
+                justLocked = true;
             }
 
             account.UpdatedAt = now;
             RecordAudit(account.Id, "LOGIN_FAILED", ipAddress);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (justLocked && systemAlerts is not null)
+            {
+                await systemAlerts.NotifyAdminsAsync(
+                    "Cảnh báo bảo mật: Tài khoản bị tạm khóa",
+                    $"Tài khoản '{account.Username}' ({account.Employee.EmployeeCode} - {account.Employee.FullName}) đã bị khóa tạm thời ({LockoutDuration.TotalMinutes:0} phút) do đăng nhập sai liên tiếp {account.FailedLoginAttempts} lần (IP: {ipAddress ?? "unknown"}).",
+                    cancellationToken);
+            }
+
             return new AuthResult(
                 null,
                 account.IsLocked ? AuthFailureReason.AccountLocked : AuthFailureReason.InvalidCredentials);
@@ -137,7 +157,9 @@ public sealed class AuthService(
             return null;
         }
 
-        if (account.IsLocked || account.Employee.Status != EmployeeStatus.Active)
+        // A lock with a LockedUntil in the past has expired, exactly as at login and password change.
+        var stillLocked = account.IsLocked && (account.LockedUntil is null || account.LockedUntil > DateTimeOffset.UtcNow);
+        if (stillLocked || account.Employee.Status != EmployeeStatus.Active)
         {
             var revoked = await sessionStore.RevokeAsync(
                 currentToken.AccountId,
@@ -261,16 +283,24 @@ public sealed class AuthService(
         if (!passwordEncoder.Verify(request.CurrentPassword, account.PasswordHash))
         {
             account.FailedLoginAttempts++;
-            var locked = account.FailedLoginAttempts >= _maxFailedAttempts;
+            var locked = account.FailedLoginAttempts >= MaxFailedAttempts;
             if (locked)
             {
                 account.IsLocked = true;
-                account.LockedUntil = now.Add(_lockoutDuration);
+                account.LockedUntil = now.Add(LockoutDuration);
             }
 
             account.UpdatedAt = now;
             RecordAudit(account.Id, "PASSWORD_CHANGE_FAILED", ipAddress);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (locked && systemAlerts is not null)
+            {
+                await systemAlerts.NotifyAdminsAsync(
+                    "Cảnh báo bảo mật: Khóa tài khoản khi đổi mật khẩu",
+                    $"Tài khoản '{account.Username}' ({account.Employee.EmployeeCode} - {account.Employee.FullName}) đã bị khóa tạm thời ({LockoutDuration.TotalMinutes:0} phút) do nhập sai mật khẩu hiện tại {account.FailedLoginAttempts} lần (IP: {ipAddress ?? "unknown"}).",
+                    cancellationToken);
+            }
+
             throw locked
                 ? new ForbiddenException()
                 : new AppException(
@@ -286,6 +316,7 @@ public sealed class AuthService(
         }
 
         account.PasswordHash = passwordEncoder.Encode(request.NewPassword);
+        account.MustChangePassword = false;
         account.FailedLoginAttempts = 0;
         account.LockedUntil = null;
         account.UpdatedAt = now;
@@ -294,6 +325,11 @@ public sealed class AuthService(
 
         // Revoke first, then store the new session; the other order would delete the session that is meant to survive.
         await sessionStore.RevokeAllAsync(account.Id, cancellationToken);
+        await cache.SetStringAsync(
+            CreateAccessRevokedBeforeKey(account.Id),
+            now.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = AccessTokenLifetime },
+            cancellationToken);
         var remainingLifetime = currentSession.ExpiresAt - now;
         var issued = IssueTokens(account, currentSession.RememberMe, remainingLifetime);
         var sessionStored = await sessionStore.StoreAsync(
@@ -311,6 +347,8 @@ public sealed class AuthService(
     }
 
     public static string CreateAccessBlacklistKey(Guid tokenId) => $"auth:revoked:{tokenId}";
+
+    public static string CreateAccessRevokedBeforeKey(Guid accountId) => $"auth:revoked-before:{accountId}";
 
     private void RecordAudit(
         Guid? actorId,
@@ -364,7 +402,8 @@ public sealed class AuthService(
                     account.Employee.Email,
                     account.Employee.FullName,
                     roles,
-                    permissions)),
+                    permissions,
+                    account.MustChangePassword)),
             refreshToken);
     }
 

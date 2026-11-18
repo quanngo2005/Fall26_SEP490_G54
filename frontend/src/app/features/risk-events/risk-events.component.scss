@@ -1,0 +1,24 @@
+:host {
+  display: block;
+}
+
+/* Right-aligned numeric column; the header is aligned the same way so the sort button sits over the figures. */
+.ui-table th.col-penalty,
+.ui-table td.col-penalty {
+  text-align: right;
+}
+
+.penalty {
+  color: #dc2626;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+
+  &.muted {
+    color: #94a3b8;
+    text-decoration: line-through;
+  }
+}
+
+.muted-text {
+  color: #94a3b8;
+}

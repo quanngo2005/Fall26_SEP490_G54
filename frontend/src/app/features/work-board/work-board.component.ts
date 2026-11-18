@@ -2,6 +2,7 @@ import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/
 import { Component, DestroyRef, NgZone, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import {
   EMPTY,
   Observable,
@@ -18,12 +19,19 @@ import { DepartmentMember } from '../../core/department.models';
 import { DepartmentService } from '../../core/department.service';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
+import { HandoverDetail } from '../../core/handover.models';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { JobPositionSummary } from '../../core/job-position.models';
 import { JobPositionService } from '../../core/job-position.service';
 import { WorkTypeDetail } from '../../core/work-type.models';
 import { WorkTypeService } from '../../core/work-type.service';
-import { WorkFilter, WorkListItem, WorkPriority, WorkStatus } from '../../core/work.models';
+import {
+  WorkDetail,
+  WorkFilter,
+  WorkListItem,
+  WorkPriority,
+  WorkStatus,
+} from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { NavigationService } from '../../shared/layout/navigation.service';
@@ -47,7 +55,10 @@ import {
   quickFilterColumns,
   timeLeftToday,
 } from './work-board.utils';
+import { AssignWorkDialogComponent } from './assign-work-dialog.component';
+import { HandoverDialogComponent } from './handover-dialog.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
+import { WorkWorkloadMonitorComponent } from './work-workload-monitor.component';
 
 interface ColumnState {
   items: WorkListItem[];
@@ -104,6 +115,9 @@ const emptyColumn = (loading: boolean): ColumnState => ({
     HeaderComponent,
     SidebarComponent,
     WorkDetailDrawerComponent,
+    AssignWorkDialogComponent,
+    HandoverDialogComponent,
+    WorkWorkloadMonitorComponent,
   ],
   templateUrl: './work-board.component.html',
   styleUrls: [
@@ -122,6 +136,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   private readonly workTypeApi = inject(WorkTypeService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly boardReload = new Subject<void>();
   private readonly listReload = new Subject<void>();
@@ -136,7 +151,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   /** A manager can open the department's work; everyone else only has their own. */
   protected readonly isManager = inject(NavigationService).isManager;
   protected readonly isTeam = computed(() => this.scope() === 'team');
-  private me: Pick<EmployeeDetail, 'id' | 'departmentId'> | null = null;
+  protected readonly me = signal<Pick<EmployeeDetail, 'id' | 'departmentId'> | null>(null);
   protected readonly columnDefs = computed(() => (this.isTeam() ? TEAM_COLUMNS : BOARD_COLUMNS));
   /** The one move a card allows: my board starts a work, the department board completes one. */
   private readonly action = computed(
@@ -147,7 +162,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
-  protected readonly view = signal<'board' | 'list'>('board');
+  protected readonly view = signal<'board' | 'list' | 'monitor'>('board');
   protected readonly profileLoading = signal(true);
   protected readonly profileFailed = signal(false);
   protected readonly columns = signal<Record<BoardColumnKey, ColumnState>>(this.emptyColumns(true));
@@ -165,6 +180,8 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly quick = signal<QuickFilter | null>(null);
   protected readonly positionId = signal('');
   protected readonly selectedId = signal<string | null>(null);
+  protected readonly assignOpen = signal(false);
+  protected readonly handoverOpen = signal(false);
   protected readonly toast = signal<Toast | null>(null);
   protected readonly now = signal(new Date());
 
@@ -317,7 +334,7 @@ export class WorkBoardComponent extends LocalizedComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (me) => {
-          this.me = me;
+          this.me.set(me);
           const manager = this.isManager();
           if (manager) {
             this.optional(this.departments.members(me.departmentId, { pageSize: 100 }), (page) =>
@@ -328,7 +345,23 @@ export class WorkBoardComponent extends LocalizedComponent {
             );
           }
           this.profileLoading.set(false);
-          this.chooseScope(manager ? 'team' : 'mine');
+          const query = this.route.snapshot.queryParamMap;
+          const requestedView = query.get('view') ?? this.route.snapshot.data?.['view'];
+          const employeeCode = query.get('employeeCode');
+          const linkedKeyword = query.get('keyword');
+          const linkedWorkId = query.get('workId');
+          if (linkedKeyword || linkedWorkId) {
+            this.keyword = linkedKeyword ?? '';
+            this.selectedId.set(linkedWorkId);
+            this.chooseScope('mine');
+          } else if (manager && requestedView === 'monitor') {
+            this.view.set('monitor');
+            this.chooseScope('team');
+          } else if (manager && employeeCode) {
+            this.openTeamOfEmployee(employeeCode);
+          } else {
+            this.chooseScope(manager ? 'team' : 'mine');
+          }
         },
         error: () => {
           this.profileFailed.set(true);
@@ -345,15 +378,33 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   /**
-   * Switches between my own work and the department's. The two use different columns and filters, so the
-   * screen starts over with the new ones.
+   * Opens the department's work already narrowed to the employee of a link (`?employeeCode=`), so the board
+   * is loaded once, with the filter. A code that does not resolve falls back to the whole department.
    */
-  protected chooseScope(scope: WorkScope): void {
+  private openTeamOfEmployee(employeeCode: string): void {
+    this.employees
+      .byCode(employeeCode)
+      .pipe(
+        map((employee) => employee.id),
+        catchError(() => of('')),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((employeeId) => this.chooseScope('team', employeeId));
+  }
+
+  /**
+   * Switches between my own work and the department's. The two use different columns and filters, so the
+   * screen starts over with the new ones (the department's can start on one employee).
+   */
+  protected chooseScope(scope: WorkScope, employeeId = ''): void {
     if (scope === 'team' && !this.isManager()) return;
     this.scope.set(scope);
+    if (scope === 'mine' && this.view() === 'monitor') {
+      this.view.set('board');
+    }
     this.quick.set(null);
     this.positionId.set('');
-    this.employeeId = '';
+    this.employeeId = employeeId;
     this.priority = '';
     this.columns.set(this.emptyColumns(true));
     this.list.update((state) => ({ ...state, items: [], totalCount: 0, page: 1 }));
@@ -363,7 +414,8 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   // ---- Filters and view -----------------------------------------------------------------------
 
-  protected setView(mode: 'board' | 'list'): void {
+  protected setView(mode: 'board' | 'list' | 'monitor'): void {
+    if (mode === 'monitor' && !this.isTeam()) return;
     if (this.view() === mode) return;
     this.view.set(mode);
     if (mode === 'list') this.reloadListFromFirstPage();
@@ -375,7 +427,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   protected applyServerFilters(): void {
-    if (!this.me) return;
+    if (!this.me()) return;
     this.list.update((state) => ({ ...state, page: 1 }));
     this.boardReload.next();
     if (this.view() === 'list') this.listReload.next();
@@ -388,6 +440,46 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected toggleQuick(filter: QuickFilter): void {
     this.quick.update((current) => (current === filter ? null : filter));
     if (this.view() === 'list') this.reloadListFromFirstPage();
+  }
+
+  protected openAssign(): void {
+    if (this.isTeam()) this.assignOpen.set(true);
+  }
+
+  /** Works an employee can still hand over: their own, not yet submitted. */
+  protected readonly handoverWorks = computed(() => {
+    const columns = this.columns();
+    return [...(columns.new?.items ?? []), ...(columns.inProgress?.items ?? [])].filter((item) =>
+      ['New', 'InProgress'].includes(item.status),
+    );
+  });
+
+  protected openHandover(): void {
+    if (!this.isTeam()) this.handoverOpen.set(true);
+  }
+
+  protected onHandoverRequested(handover: HandoverDetail): void {
+    this.handoverOpen.set(false);
+    this.showToast(
+      'success',
+      this.i18n.translate('work.handover.success', {
+        code: handover.workCode,
+        name: handover.toEmployeeName,
+      }),
+    );
+    this.applyServerFilters();
+  }
+
+  protected onAssigned(work: WorkDetail): void {
+    this.assignOpen.set(false);
+    this.showToast(
+      'success',
+      this.i18n.translate('work.assign.success', {
+        code: work.code,
+        name: work.assigneeEmployeeName ?? work.assigneeEmployeeCode ?? '',
+      }),
+    );
+    this.applyServerFilters();
   }
 
   protected retry(): void {
@@ -423,7 +515,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   // ---- Loading --------------------------------------------------------------------------------
 
   private baseFilter(): WorkFilter {
-    const me = this.me;
+    const me = this.me();
     return {
       ...(this.isTeam()
         ? {
@@ -490,7 +582,7 @@ export class WorkBoardComponent extends LocalizedComponent {
     this.listReload
       .pipe(
         switchMap(() => {
-          if (!this.me) return EMPTY;
+          if (!this.me()) return EMPTY;
           this.list.update((state) => ({ ...state, loading: true, failed: false }));
           return this.works
             .list({

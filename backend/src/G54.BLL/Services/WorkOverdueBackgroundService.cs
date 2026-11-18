@@ -1,20 +1,23 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
 /// <summary>
 /// Periodically moves work past its planned end date (compared against today at UTC+7) to Overdue through <see cref="IWorkService.MarkOverdueAsync"/>.
-/// Configuration: <c>WorkOverdue:Enabled</c> (default true), <c>WorkOverdue:IntervalMinutes</c> (default 15).
+/// Reads live <c>workOverdueEnabled</c> and <c>workOverdueSweepMinutes</c> from <see cref="SystemParametersOptions"/> (with <c>IConfiguration</c> override support for tests).
 /// </summary>
 public sealed class WorkOverdueBackgroundService(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     TimeProvider time,
-    ILogger<WorkOverdueBackgroundService> logger) : BackgroundService
+    ILogger<WorkOverdueBackgroundService> logger,
+    IOptions<SystemParametersOptions>? parameters = null) : BackgroundService
 {
     private const int DefaultIntervalMinutes = 15;
 
@@ -26,20 +29,35 @@ public sealed class WorkOverdueBackgroundService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!configuration.GetValue("WorkOverdue:Enabled", true))
+        var configEnabled = configuration.GetSection("WorkOverdue:Enabled");
+        if (configEnabled.Exists() && !configuration.GetValue("WorkOverdue:Enabled", true))
         {
             return;
         }
 
-        var minutes = configuration.GetValue("WorkOverdue:IntervalMinutes", DefaultIntervalMinutes);
-        var interval = TimeSpan.FromMinutes(minutes > 0 ? minutes : DefaultIntervalMinutes);
-
-        using var timer = new PeriodicTimer(interval);
-        do
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await SweepAsync(stoppingToken);
+            var liveEnabled = configEnabled.Exists()
+                ? configuration.GetValue("WorkOverdue:Enabled", true)
+                : (parameters?.Value.WorkOverdueEnabled ?? true);
+            if (liveEnabled)
+            {
+                await SweepAsync(stoppingToken);
+            }
+
+            var configuredMinutes = configuration.GetSection("WorkOverdue:IntervalMinutes").Exists()
+                ? configuration.GetValue("WorkOverdue:IntervalMinutes", DefaultIntervalMinutes)
+                : (parameters?.Value.WorkOverdueSweepMinutes ?? DefaultIntervalMinutes);
+            var interval = TimeSpan.FromMinutes(configuredMinutes > 0 ? configuredMinutes : DefaultIntervalMinutes);
+            try
+            {
+                await Task.Delay(interval, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
-        while (await WaitForNextTickAsync(timer, stoppingToken));
     }
 
     internal async Task SweepAsync(CancellationToken cancellationToken)
@@ -59,21 +77,11 @@ public sealed class WorkOverdueBackgroundService(
         {
             // Shutting down.
         }
+#pragma warning disable CA1031
         catch (Exception ex)
+#pragma warning restore CA1031
         {
             LogFailed(logger, ex);
-        }
-    }
-
-    private static async Task<bool> WaitForNextTickAsync(PeriodicTimer timer, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await timer.WaitForNextTickAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
         }
     }
 }

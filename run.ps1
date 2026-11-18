@@ -1,6 +1,9 @@
 param(
     [switch]$Docker,
     [switch]$Stop,
+    # DEV ONLY: wipe the sample business data (targets, work, submissions, ...) before migrating, so the seed
+    # rebuilds it. Use it when the migration fails after the seed changed (see reset_dev_business_data.sql).
+    [switch]$ResetDevData,
     [ValidateRange(1, 3600)]
     [int]$FrontendTimeoutSeconds = 600
 )
@@ -40,6 +43,36 @@ function Import-DevelopmentEnvironment {
     $connectionString["Username"] = $env:POSTGRES_USER
     $connectionString["Password"] = $env:POSTGRES_PASSWORD
     $env:ConnectionStrings__Postgres = $connectionString.ConnectionString
+}
+
+# Runs backend/src/G54.DAL/Scripts/reset_dev_business_data.sql inside the postgres container. The file is copied in
+# instead of piped so its UTF-8 text survives Windows PowerShell's native-command encoding.
+function Reset-DevBusinessData {
+    $script = Join-Path $root "backend/src/G54.DAL/Scripts/reset_dev_business_data.sql"
+    if (-not (Test-Path $script)) {
+        throw "Reset script not found: $script"
+    }
+
+    Write-Warning "-ResetDevData: wiping the sample business data of database '$($env:POSTGRES_DB)' (targets, work, submissions, evaluations, appeals, risk events). Organization, accounts, roles and the KPI catalog are kept."
+
+    $ready = $false
+    for ($attempt = 0; $attempt -lt 30 -and -not $ready; $attempt++) {
+        docker compose --env-file $envFile -f $composeFile exec -T postgres pg_isready -U $env:POSTGRES_USER -d $env:POSTGRES_DB *> $null
+        $ready = $LASTEXITCODE -eq 0
+        if (-not $ready) { Start-Sleep -Seconds 2 }
+    }
+    if (-not $ready) {
+        throw "PostgreSQL did not become ready; the dev data was not reset."
+    }
+
+    docker compose --env-file $envFile -f $composeFile cp $script postgres:/tmp/reset_dev_business_data.sql
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not copy the reset script into the postgres container."
+    }
+    docker compose --env-file $envFile -f $composeFile exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB -v ON_ERROR_STOP=1 -f /tmp/reset_dev_business_data.sql
+    if ($LASTEXITCODE -ne 0) {
+        throw "Resetting the dev data failed; nothing was reseeded."
+    }
 }
 
 function Test-Endpoint {
@@ -109,12 +142,19 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
         throw "Failed to start PostgreSQL, Redis, and pgAdmin."
     }
 
+    if ($ResetDevData) {
+        Reset-DevBusinessData
+    }
+
     $originalEnvironment = $env:ASPNETCORE_ENVIRONMENT
     $env:ASPNETCORE_ENVIRONMENT = "Development"
     dotnet run --project "$root/backend/src/G54.DbMigrator/G54.DbMigrator.csproj"
     $env:ASPNETCORE_ENVIRONMENT = $originalEnvironment
     if ($LASTEXITCODE -ne 0) {
-        throw "Database migration failed. Native API and frontend were not started."
+        throw ("Database migration failed. Native API and frontend were not started. " +
+            "If the error is about target sums or other sample data after pulling a newer seed, " +
+            "the local database still holds data from an older seed: run '.\run.ps1 -ResetDevData' " +
+            "(development only, it wipes the sample business data and reseeds it).")
     }
 } else {
     Write-Warning "Docker is unavailable. PostgreSQL, Redis, pgAdmin, and DbMigrator were skipped."

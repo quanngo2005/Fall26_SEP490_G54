@@ -1,4 +1,5 @@
 using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
@@ -50,7 +51,8 @@ public sealed class EvaluationFormTests
         return new EvaluationService(
             context,
             NullLogger<EvaluationService>.Instance,
-            new FakePermissionService(null, grants.ToArray()));
+            new FakePermissionService(null, grants.ToArray()),
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
     }
 
     private static async Task<Scenario> SeedAsync(AppDbContext context)
@@ -400,14 +402,38 @@ public sealed class EvaluationFormTests
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
-        var evaluation = await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        var submittedAt = new DateTimeOffset(2026, 10, 12, 9, 0, 0, TimeSpan.Zero);
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = "W-APPEAL",
+            Title = "Work",
+            AssigneeEmployeeId = s.Staff1.Id,
+            CreatedBy = s.Manager.Id,
+            Status = WorkStatus.Rejected,
+            Priority = WorkPriority.Medium,
+            UpdatedAt = submittedAt,
+        };
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = work.Id,
+            SubmitterEmployeeId = s.Staff1.Id,
+            SubmissionNo = 1,
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = submittedAt,
+            UpdatedAt = submittedAt,
+        };
+        context.Works.Add(work);
+        context.ResultSubmissions.Add(submission);
         foreach (var status in new[] { AppealStatus.Open, AppealStatus.UnderReview, AppealStatus.Withdrawn })
         {
             context.Appeals.Add(new Appeal
             {
                 Id = Guid.NewGuid(),
                 EmployeeId = s.Staff1.Id,
-                PerformanceEvaluationId = evaluation.Id,
+                ResultSubmissionId = submission.Id,
                 Reason = "Disagree",
                 Status = status,
                 FiledAt = DateTimeOffset.UtcNow,
@@ -423,6 +449,63 @@ public sealed class EvaluationFormTests
         Assert.Equal(2, form.OpenAppealCount);
         Assert.True(form.HasOpenDispute);
         Assert.False(form.CanEdit);
+    }
+
+    [Fact]
+    public async Task Form_OpenAppealCount_UsesVietnamBusinessDayBoundsMatchingAppealService()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m);
+        // 2026-10-01 00:30 UTC+7 = 2026-09-30 17:30 UTC (inside October in UTC+7, but September in UTC).
+        // 2026-11-01 00:30 UTC+7 = 2026-10-31 17:30 UTC (outside October in UTC+7, but October in UTC).
+        var octStartVn = new DateTimeOffset(2026, 9, 30, 17, 30, 0, TimeSpan.Zero);
+        var novStartVn = new DateTimeOffset(2026, 10, 31, 17, 30, 0, TimeSpan.Zero);
+        var number = 0;
+        foreach (var submittedAt in new[] { octStartVn, novStartVn })
+        {
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = $"W-TZ-{++number}",
+                Title = "Work",
+                AssigneeEmployeeId = s.Staff1.Id,
+                CreatedBy = s.Manager.Id,
+                Status = WorkStatus.Rejected,
+                Priority = WorkPriority.Medium,
+                UpdatedAt = submittedAt,
+            };
+            var submission = new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                SubmitterEmployeeId = s.Staff1.Id,
+                SubmissionNo = 1,
+                Status = SubmissionStatus.Rejected,
+                SubmittedAt = submittedAt,
+                UpdatedAt = submittedAt,
+            };
+            context.Works.Add(work);
+            context.ResultSubmissions.Add(submission);
+            context.Appeals.Add(new Appeal
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.Staff1.Id,
+                ResultSubmissionId = submission.Id,
+                Reason = "Disagree",
+                Status = AppealStatus.Open,
+                FiledAt = submittedAt.AddHours(1),
+                UpdatedAt = submittedAt.AddHours(1),
+            });
+        }
+
+        await context.SaveChangesAsync();
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal(1, form.OpenAppealCount);
+        Assert.True(form.HasOpenDispute);
     }
 
     [Fact]
@@ -523,18 +606,33 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_PreviousPeriod_IgnoresAnEarlierDraftEvenWhenItHoldsAScore()
+    public async Task Form_ComparePeriod_UsesTheSelectedPeriodAndListsTheOptions()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var earlier = context.EvaluationPeriods.Single(p => p.Code == "2026-09");
-        await AddEvaluationAsync(context, s, s.Staff1, earlier, 70m, PerformanceEvaluationStatus.Draft);
+        const decimal earlierScore = 70m;
+        await AddEvaluationAsync(context, s, s.Staff1, earlier, earlierScore, PerformanceEvaluationStatus.Final);
         var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
 
-        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, earlier.Id);
 
-        Assert.Null(form.PreviousPeriod);
+        Assert.Equal(earlier.Id, form.ComparePeriod!.Id);
+        Assert.Equal(earlierScore, form.PreviousPeriod!.TotalScore);
+        Assert.Contains(form.CompareOptions!, option => option.Id == earlier.Id);
     }
+
+    [Fact]
+    public async Task Form_ComparePeriod_RejectsAPeriodThatIsNotEarlierOfTheSameType()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, s.Period.Id));
+    }
+
 
     // ----- the calculation ----------------------------------------------------------------------------
 
@@ -592,7 +690,7 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_Group_WithoutActiveKpis_IsMarkedQualitative()
+    public async Task Form_Group_WithoutActiveKpis_IsExcludedFromForm()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
@@ -602,7 +700,7 @@ public sealed class EvaluationFormTests
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
-        Assert.True(form.CriteriaGroups.Single().IsQualitative);
+        Assert.Empty(form.CriteriaGroups);
     }
 
     [Fact]
@@ -699,5 +797,107 @@ public sealed class EvaluationFormTests
         var item = form.CriteriaGroups.Single().KpiItems.Single();
         Assert.Null(item.TargetValue);
         Assert.Equal(100m, item.WeightPercent);
+    }
+
+    [Fact]
+    public async Task Form_KpiItems_ShareTheGroupOverTheActiveKpisOnly()
+    {
+        // Business (100) -> [ Sales (60) -> [ HDV 25, KH_MOI 75 (inactive) ], Service (40) -> [ CSAT 100 ] ]
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var business = await context.EvaluationProfileItems.SingleAsync(i => i.Name == "Business");
+        context.EvaluationProfileItems.Remove(await context.EvaluationProfileItems.SingleAsync(i => i.KpiDefinitionId == s.Kpi.Id));
+        await context.SaveChangesAsync();
+
+        KpiDefinition Kpi(string code, KpiStatus status) => new()
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = s.KpiGroup.Id,
+            Code = code,
+            Name = code,
+            Unit = "unit",
+            AggregationType = KpiAggregationType.Sum,
+            Direction = KpiDirection.HigherBetter,
+            Status = status,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        EvaluationProfileItem Node(Guid? parent, string? name, KpiDefinition? kpi, decimal weight, int order) => new()
+        {
+            Id = Guid.NewGuid(),
+            EvaluationProfileId = s.Profile.Id,
+            ParentItemId = parent,
+            Name = name,
+            KpiDefinitionId = kpi?.Id,
+            WeightPercent = weight,
+            DisplayOrder = order,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+
+        var hdv = Kpi("N-HDV", KpiStatus.Active);
+        var khMoi = Kpi("N-KH", KpiStatus.Inactive);
+        var csat = Kpi("N-CSAT", KpiStatus.Active);
+        context.KpiDefinitions.AddRange(hdv, khMoi, csat);
+        var sales = Node(business.Id, "Sales", null, 60m, 1);
+        var serviceNode = Node(business.Id, "Service", null, 40m, 2);
+        context.EvaluationProfileItems.AddRange(
+            sales,
+            serviceNode,
+            Node(sales.Id, null, hdv, 25m, 1),
+            Node(sales.Id, null, khMoi, 75m, 2),
+            Node(serviceNode.Id, null, csat, 100m, 1));
+        await context.SaveChangesAsync();
+
+        var form = await CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept)
+            .GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        // Sales keeps only HDV, so the group splits 60 : 40 between Sales and Service.
+        var items = form.CriteriaGroups.Single().KpiItems.ToDictionary(k => k.KpiCode, k => k.WeightPercent);
+        Assert.Equal(2, items.Count);
+        Assert.Equal(60m, items["N-HDV"]);
+        Assert.Equal(40m, items["N-CSAT"]);
+        Assert.Equal(100m, items.Values.Sum());
+    }
+
+    // ----- a qualitative-only profile leaves no quantitative criteria to score on the form ------------
+
+    [Fact]
+    public async Task Form_QualitativeGroup_WithoutActiveKpis_GivesNullQuantitativeScores()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        s.Kpi.Status = KpiStatus.Inactive;
+        await context.SaveChangesAsync();
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Empty(form.CriteriaGroups);
+        Assert.Null(form.Summary.WeightedScore);
+        Assert.Null(form.Summary.TotalScore);
+        Assert.Null(form.Summary.ProposedTier);
+    }
+
+    // ----- the previous period keeps the tier that was stored ---------------------------------------
+
+    [Fact]
+    public async Task Form_PreviousPeriod_UsesTheStoredCalibratedTier_WhenThereIsOne()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var earlier = context.EvaluationPeriods.Single(p => p.Code == "2026-09");
+        const decimal earlierScore = 70m;
+        var withoutCalibration = await AddEvaluationAsync(context, s, s.Staff1, earlier, earlierScore, PerformanceEvaluationStatus.Final);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+        var recalculated = (await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id)).PreviousPeriod!.Tier;
+
+        // A stored tier different from the recalculated one proves the stored one wins.
+        var storedTier = recalculated == "A1" ? "C" : "A1";
+        withoutCalibration.Comment = $"<!-- CALIBRATION_JSON: {{\"CalibratedTier\":\"{storedTier}\",\"Reason\":null,\"CoachingFlag\":false}} -->";
+        await context.SaveChangesAsync();
+
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal(storedTier, form.PreviousPeriod!.Tier);
+        Assert.Equal(earlierScore, form.PreviousPeriod.TotalScore);
     }
 }

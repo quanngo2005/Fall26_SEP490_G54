@@ -3,23 +3,21 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content evaluation-form-page">
-      <nav class="breadcrumb-bar" [attr.aria-label]="localization.evaluationForm.breadcrumbAria">
+      <nav class="breadcrumb-trail" [attr.aria-label]="localization.evaluationForm.breadcrumbAria">
         <button type="button" class="breadcrumb-link" (click)="onBackToList()">
           {{localization.evaluationForm.breadcrumbParent}}
         </button>
         @if (form(); as current) {
-          <span class="breadcrumb-separator">&gt;</span>
-          <span class="breadcrumb-current">{{current.period.code}}</span>
-          <span class="breadcrumb-separator">&gt;</span>
+          <span class="breadcrumb-separator">/</span>
           <span class="breadcrumb-current">{{current.employee.fullName}}</span>
         }
       </nav>
 
       @if (loading() || failure() || !form()) {
-        <section class="state-panel" role="status">
-          <p class="state-text">{{stateText()}}</p>
+        <section class="state-card" role="status">
+          <p>{{stateText()}}</p>
           @if (!loading()) {
-            <button type="button" class="btn-secondary" (click)="onBackToList()">
+            <button type="button" class="button button-secondary" (click)="onBackToList()">
               {{localization.evaluationForm.back}}
             </button>
           }
@@ -27,25 +25,76 @@
       } @else {
         @let data = form()!;
 
-        <section class="header-toolbar">
-          <div class="header-left">
+        <header class="page-header">
+          <div class="page-heading">
             <div class="title-row">
-              <h1 class="employee-name">{{data.employee.fullName}}</h1>
+              <h1 class="page-title font-heading">{{data.employee.fullName}}</h1>
               @if (isDraftStatus()) {
-                <span class="badge badge-draft">{{localization.evaluationForm.statusDraft}}</span>
+                <span class="status-pill">{{localization.evaluationForm.statusDraft}}</span>
               } @else {
-                <span class="badge badge-completed">
+                <span class="status-pill status-pill-done">
                   {{localization.evaluationForm.statusCompleted}}
                 </span>
               }
             </div>
-            <p class="employee-sub">
+            <p class="page-subtitle">
               {{data.employee.employeeCode}} · {{data.employee.jobPositionTitle}} ·
               {{data.employee.departmentName}}
             </p>
           </div>
 
-          <div class="header-right">
+          <div class="page-actions">
+            <div class="period-select-wrap">
+              <select
+                class="period-select period-type-select"
+                [value]="selectedPeriodType()"
+                [disabled]="loading() || saving() || exporting()"
+                (change)="onPeriodTypeChange($event)"
+                [attr.aria-label]="localization.evaluationForm.periodTypeAria"
+              >
+                @for (type of periodTypes; track type) {
+                  <option [value]="type">{{periodTypeLabel(type)}}</option>
+                }
+              </select>
+              <app-layout-icon name="chevron-down" class="select-chevron" />
+            </div>
+
+            @if (filteredPeriods().length > 0 && selectedEmployeeId()) {
+              <div class="period-select-wrap">
+                <select
+                  class="period-select"
+                  [attr.aria-label]="localization.evaluationForm.periodSelectAria"
+                  [value]="selectedPeriodId() ?? ''"
+                  [disabled]="loading() || saving() || exporting()"
+                  (change)="onPeriodChange($event)"
+                >
+                  @for (period of filteredPeriods(); track period.id) {
+                    <option [value]="period.id">{{period.code}} · {{period.name}}</option>
+                  }
+                </select>
+                <app-layout-icon name="chevron-down" class="select-chevron" />
+              </div>
+            }
+
+            @if (compareOptions().length > 0) {
+              <div class="period-select-wrap">
+                <select
+                  class="period-select compare-select"
+                  [value]="selectedComparePeriodId() ?? ''"
+                  [disabled]="loading() || saving() || exporting()"
+                  (change)="onCompareChange($event)"
+                  [attr.aria-label]="localization.evaluationForm.periodCompareAria"
+                >
+                  @for (period of compareOptions(); track period.id) {
+                    <option [value]="period.id">
+                      {{localization.evaluationForm.periodComparePrefix}}{{period.name}}
+                    </option>
+                  }
+                </select>
+                <app-layout-icon name="chevron-down" class="select-chevron" />
+              </div>
+            }
+
             @if (hasRosterNavigation()) {
               <div class="pagination-controls">
                 <button
@@ -56,7 +105,7 @@
                 >
                   {{localization.evaluationForm.btnPrev}}
                 </button>
-                <span class="nav-indicator">{{navIndicatorText()}}</span>
+                <span class="nav-indicator font-mono">{{navIndicatorText()}}</span>
                 <button
                   type="button"
                   class="btn-nav"
@@ -67,10 +116,22 @@
                 </button>
               </div>
             }
-
             <button
               type="button"
-              class="btn-secondary"
+              class="button button-secondary"
+              id="evaluation-export"
+              [disabled]="exporting() || saving()"
+              (click)="onExportExcel()"
+            >
+              @if (exporting()) {
+                {{localization.evaluationForm.exporting}}
+              } @else {
+                {{localization.evaluationForm.btnExport}}
+              }
+            </button>
+            <button
+              type="button"
+              class="button button-secondary"
               [disabled]="!canSubmit()"
               (click)="onSaveDraft()"
             >
@@ -78,14 +139,14 @@
             </button>
             <button
               type="button"
-              class="btn-primary"
-              [disabled]="!canSubmit()"
+              class="button button-primary"
+              [disabled]="!canSubmit() || completeBlocked()"
               (click)="onCompleteEvaluation()"
             >
               {{localization.evaluationForm.btnComplete}}
             </button>
           </div>
-        </section>
+        </header>
 
         @if (saveMessage(); as message) {
           <p
@@ -101,241 +162,259 @@
           <p class="readonly-note" role="status">{{localization.evaluationForm.readOnlyNote}}</p>
         }
 
-        <section class="metric-cards-grid">
-          <div class="metric-card">
-            <span class="metric-title">{{localization.evaluationForm.totalScoreTitle}}</span>
-            <div class="metric-value-row">
-              <span class="metric-value highlight">{{data.summary.totalScore | appNumber: 2}}</span>
+        <section
+          class="metric-grid"
+          [attr.aria-label]="localization.evaluationForm.quantitativeSectionTitle"
+        >
+          <article class="metric-card">
+            <div class="metric-head">
+              <span class="metric-title">{{localization.evaluationForm.quantitativeScoreTitle}}</span>
+              <span class="metric-pill font-mono">{{weightedPillText()}}</span>
             </div>
-          </div>
-
-          <div class="metric-card">
-            <span class="metric-title">{{localization.evaluationForm.quantitativeScoreTitle}}</span>
-            <div class="metric-value-row">
-              <span class="metric-value">{{data.summary.weightedScore | appNumber: 2}}</span>
-              <span class="metric-calc-detail">
-                {{localization.evaluationForm.penaltyLabel}}
-                {{data.summary.totalRiskPenalty | appNumber: 2}}
-              </span>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <span class="metric-title">{{localization.evaluationForm.qualitativeScoreTitle}}</span>
-            <div class="metric-value-row">
-              <span class="metric-value">
-                @if (qualitativeAverage() !== null) {
-                  {{qualitativeAverage() | appNumber: 2}}
+            <div class="metric-body">
+              <span
+                class="metric-value font-mono"
+                [ngClass]="scoreToneClass(data.summary.weightedScore)"
+              >
+                @if (data.summary.weightedScore !== null) {
+                  {{data.summary.weightedScore | appNumber: 2}}
                 } @else {
                   {{localization.evaluations.emptyValue}}
                 }
               </span>
+              <span class="metric-scale font-mono">/ 100</span>
             </div>
-          </div>
+          </article>
 
-          <div class="metric-card">
-            <span class="metric-title">{{localization.evaluationForm.tierTitle}}</span>
-            <div class="metric-value-row">
-              <span class="metric-value">{{tierText()}}</span>
+          <article class="metric-card">
+            <div class="metric-head">
+              <span class="metric-title">{{localization.evaluationForm.metricCriteriaTitle}}</span>
+              <span class="metric-pill pill-info font-mono">{{criteriaPillText()}}</span>
             </div>
-          </div>
+            <div class="metric-body">
+              <span class="metric-value font-mono">{{criteriaValueText()}}</span>
+            </div>
+            <p class="metric-foot">{{criteriaFootText()}}</p>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-head">
+              <span class="metric-title">{{localization.evaluationForm.metricSlaTitle}}</span>
+              <span class="metric-pill pill-success">{{localization.evaluationForm.metricSlaPill}}</span>
+            </div>
+            <div class="metric-body">
+              <span class="metric-value font-mono">{{slaValueText()}}</span>
+            </div>
+            <p class="metric-foot">{{slaFootText()}}</p>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-head">
+              <span class="metric-title">{{localization.evaluationForm.metricRiskTitle}}</span>
+              @if (data.riskEvents.length > 0) {
+                <span class="metric-pill pill-danger">{{localization.evaluationForm.metricRiskPillHas}}</span>
+              }
+            </div>
+            <div class="metric-body">
+              <span class="metric-value font-mono">{{data.riskEvents.length}}</span>
+              <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
+              <span class="metric-deduction font-mono"
+                >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
+              >
+            </div>
+          </article>
+
+          <article class="metric-card">
+            <div class="metric-head">
+              <span class="metric-title">{{localization.evaluationForm.metricTierTitle}}</span>
+            </div>
+            <div class="metric-body">
+              <span
+                class="metric-value font-mono"
+                [ngClass]="tierToneClass()"
+                [attr.title]="
+                  data.summary.proposedTierExplanation?.length
+                    ? data.summary.proposedTierExplanation?.join(' • ')
+                    : null
+                "
+              >
+                {{tierText()}}
+              </span>
+            </div>
+          </article>
         </section>
 
-        <div class="main-columns-grid">
-          <section class="quantitative-panel">
-            <div class="panel-card">
-              <div class="panel-header">
-                <h2 class="panel-title">
-                  {{localization.evaluationForm.quantitativeSectionTitle}}
-                </h2>
-                <span class="panel-meta">{{quantitativeMetaText()}}</span>
-              </div>
+        <div class="main-grid">
+          <section class="table-card">
+            <div class="table-card-head">
+              <h2 class="table-card-title">
+                {{localization.evaluationForm.quantitativeSectionTitle}}
+              </h2>
+              <span class="table-card-meta">{{quantitativeMetaText()}}</span>
+            </div>
 
-              <div class="table-container">
-                <table class="quantitative-table">
-                  <thead>
-                    <tr>
-                      <th class="th-item">{{localization.evaluationForm.colKpiItem}}</th>
-                      <th class="th-weight text-center">
-                        {{localization.evaluationForm.colWeight}}
-                      </th>
-                      <th class="th-target text-center">
-                        {{localization.evaluationForm.colTarget}}
-                      </th>
-                      <th class="th-actual text-center">
-                        {{localization.evaluationForm.colActual}}
-                      </th>
-                      <th class="th-achieved text-center">
-                        {{localization.evaluationForm.colAchievement}}
-                      </th>
-                      <th class="th-score text-center">
-                        {{localization.evaluationForm.colScore}}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (group of data.criteriaGroups; track group.evaluationProfileItemId) {
-                      <tr class="group-header-row">
-                        <td colspan="5" class="group-header-cell">
-                          {{group.groupName}} · {{group.weightPercent | appNumber: 2}}%
-                        </td>
-                        <td class="group-header-cell group-score-cell text-center">
+            <div class="table-wrap">
+              <table class="kpi-table">
+                <thead>
+                  <tr>
+                    <th class="th-item">{{localization.evaluationForm.colKpiItem}}</th>
+                    <th class="text-center">{{localization.evaluationForm.colWeight}}</th>
+                    <th class="text-center">{{localization.evaluationForm.colTarget}}</th>
+                    <th class="text-center">{{localization.evaluationForm.colActual}}</th>
+                    <th class="text-center">{{localization.evaluationForm.colAchievement}}</th>
+                    <th class="text-center">{{localization.evaluationForm.colScore}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (group of data.criteriaGroups; track group.evaluationProfileItemId) {
+                    <tr class="group-row">
+                      <td class="group-name">{{group.groupName}}</td>
+                      <td class="text-center font-mono">
+                        {{group.weightPercent | appNumber: 2}}%
+                      </td>
+                      <td colspan="3"></td>
+                      <td
+                        class="text-center font-mono score-cell"
+                        [ngClass]="scoreToneClass(group.groupScore)"
+                      >
+                        @if (group.groupScore !== null) {
                           {{group.groupScore | appNumber: 2}}
+                        } @else {
+                          {{localization.evaluations.emptyValue}}
+                        }
+                      </td>
+                    </tr>
+
+                    @for (item of group.kpiItems; track item.kpiDefinitionId) {
+                      <tr class="kpi-row">
+                        <td class="kpi-name">{{item.kpiName}}</td>
+                        <td class="text-center font-mono">
+                          {{item.weightPercent | appNumber: 2}}%
                         </td>
-                      </tr>
-
-                      @if (group.isQualitative) {
-                        <tr class="kpi-row">
-                          <td colspan="6" class="td-item">
-                            {{localization.evaluationForm.qualitativeGroupRow}}
-                          </td>
-                        </tr>
-                      }
-
-                      @for (item of group.kpiItems; track item.kpiDefinitionId) {
-                        <tr class="kpi-row">
-                          <td class="td-item">{{item.kpiName}}</td>
-                          <td class="td-weight text-center">
-                            {{item.weightPercent | appNumber: 2}}%
-                          </td>
-                          <td class="td-target text-center">
-                            @if (item.targetValue !== null) {
-                              {{item.targetValue | appNumber: 2}} {{item.unit}}
-                            } @else {
-                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
-                            }
-                          </td>
-                          <td class="td-actual text-center">
+                        <td class="text-center font-mono">
+                          @if (item.targetValue !== null) {
+                            {{item.targetValue | appNumber: 2}} {{item.unit}}
+                          } @else {
+                            <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                          }
+                        </td>
+                        <td class="text-center font-mono">
+                          @if (item.actualValue !== null) {
                             {{item.actualValue | appNumber: 2}} {{item.unit}}
-                          </td>
-                          <td class="td-achieved text-center">
-                            {{item.achievementPercent | appNumber: 2}}%
-                          </td>
-                          <td class="td-score text-center">
+                          } @else {
+                            <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                          }
+                        </td>
+                        <td class="text-center">
+                          @if (item.achievementPercent !== null) {
+                            <span
+                              class="score-badge font-mono"
+                              [ngClass]="scoreToneClass(item.achievementPercent)"
+                            >
+                              {{item.achievementPercent | appNumber: 2}}%
+                            </span>
+                          } @else {
+                            <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                          }
+                        </td>
+                        <td
+                          class="text-center font-mono score-cell"
+                          [ngClass]="scoreToneClass(item.componentScore)"
+                        >
+                          @if (item.componentScore !== null) {
                             {{item.componentScore | appNumber: 2}}
-                          </td>
-                        </tr>
-                      }
-                    }
-
-                    <tr class="summary-row kpi-total-row">
-                      <td colspan="5" class="td-summary-label">
-                        {{localization.evaluationForm.rowTotalKpi}}
-                      </td>
-                      <td class="td-summary-value text-center">
-                        {{data.summary.weightedScore | appNumber: 2}}
-                      </td>
-                    </tr>
-
-                    @for (event of data.riskEvents; track event.id) {
-                      <tr class="penalty-row">
-                        <td class="td-penalty-title">
-                          {{localization.evaluationForm.rowRiskPenalty}}
-                        </td>
-                        <td colspan="4" class="td-penalty-desc">
-                          {{event.code}} · {{event.description}}
-                        </td>
-                        <td class="td-penalty-value text-center">
-                          -{{event.penaltyPoints | appNumber: 2}}
+                          } @else {
+                            <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                          }
                         </td>
                       </tr>
                     }
+                  }
 
-                    <tr class="summary-row final-quantitative-row">
-                      <td colspan="5" class="td-summary-label">
-                        {{localization.evaluationForm.rowFinalTotal}}
-                      </td>
-                      <td class="td-summary-value text-center">
-                        {{data.summary.totalScore | appNumber: 2}}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <tr class="risk-table-row">
+                    <td colspan="5">
+                      {{localization.evaluationForm.riskCardTitle}}
+                      <span class="risk-table-meta">{{riskCountPillText()}}</span>
+                    </td>
+                    <td class="text-center font-mono">
+                      -{{data.summary.totalRiskPenalty | appNumber: 2}}
+                    </td>
+                  </tr>
 
-              <div class="panel-footnote">
-                <p class="footnote-text">{{localization.evaluationForm.footnoteCalculation}}</p>
-              </div>
+                  <tr class="total-row">
+                    <td colspan="5">{{localization.evaluationForm.rowTotalKpi}}</td>
+                    <td class="text-center font-mono">
+                      @if (data.summary.weightedScore !== null) {
+                        {{data.summary.weightedScore | appNumber: 2}}
+                      } @else {
+                        {{localization.evaluations.emptyValue}}
+                      }
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-card-foot">
+              <p>{{localization.evaluationForm.footnoteCalculation}}</p>
             </div>
           </section>
 
-          <section class="side-panel">
-            <div class="panel-card qualitative-card">
-              <h3 class="side-card-title">
-                {{localization.evaluationForm.qualitativeCardTitle}}
-              </h3>
+          <aside class="side-column">
+            <section class="side-card">
+              <h2 class="side-card-title">{{localization.evaluationForm.commentCardTitle}}</h2>
+              <label class="field-label" for="commentTextarea">
+                {{localization.evaluationForm.commentLabel}} <span class="required-star">*</span>
+              </label>
+              <textarea
+                id="commentTextarea"
+                class="comment-textarea"
+                rows="4"
+                [ngModel]="commentInput()"
+                (ngModelChange)="commentInput.set($event)"
+                [attr.maxlength]="maxCommentLength()"
+                [disabled]="!data.canEdit"
+                [placeholder]="localization.evaluationForm.commentPlaceholder"
+              ></textarea>
+              <span class="char-counter font-mono">{{charCounterText()}}</span>
+            </section>
 
-              @for (group of qualitativeGroups(); track group.evaluationProfileItemId) {
-                <div class="form-group">
-                  <label
-                    class="form-label required"
-                    [for]="'score-' + group.evaluationProfileItemId"
-                  >
-                    {{group.groupName}} <span class="required-star">*</span>
-                  </label>
-                  <div class="score-input-wrap">
-                    <input
-                      [id]="'score-' + group.evaluationProfileItemId"
-                      type="number"
-                      class="score-input"
-                      [ngModel]="qualitativeScores()[group.evaluationProfileItemId]"
-                      (ngModelChange)="setQualitativeScore(group.evaluationProfileItemId, $event)"
-                      [min]="scoreMin"
-                      [max]="scoreMax"
-                      [disabled]="!data.canEdit"
-                      [placeholder]="localization.evaluationForm.qualitativeScorePlaceholder"
-                    />
-                    <span class="score-suffix">/ {{scoreMax}}</span>
+            <section class="side-card">
+              <div class="side-card-head">
+                <h2 class="side-card-title">{{localization.evaluationForm.riskCardTitle}}</h2>
+                <span class="metric-pill pill-danger font-mono">{{riskCountPillText()}}</span>
+              </div>
+              @for (event of data.riskEvents; track event.id) {
+                <div class="risk-row">
+                  <div>
+                    <p class="risk-name">{{event.description}}</p>
+                    <p class="risk-meta">{{event.code}} · {{event.severity}}</p>
                   </div>
+                  <span class="risk-points font-mono"
+                    >-{{event.penaltyPoints | appNumber: 2}}</span
+                  >
                 </div>
               }
-
-              @if (scoreInvalid()) {
-                <p class="field-error" role="alert">{{scoreInvalidText()}}</p>
-              }
-
-              <div class="form-group">
-                <label class="form-label required" for="commentTextarea">
-                  {{localization.evaluationForm.commentLabel}}
-                  <span class="required-star">*</span>
-                </label>
-                <textarea
-                  id="commentTextarea"
-                  class="comment-textarea"
-                  rows="4"
-                  [ngModel]="commentInput()"
-                  (ngModelChange)="commentInput.set($event)"
-                  [maxlength]="maxCommentLength"
-                  [disabled]="!data.canEdit"
-                  [placeholder]="localization.evaluationForm.commentPlaceholder"
-                ></textarea>
-                <span class="char-counter">{{charCounterText()}}</span>
+              <div class="risk-total">
+                <span>{{localization.evaluationForm.riskTotalLabel}}</span>
+                <span class="risk-points font-mono"
+                  >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
+                >
               </div>
-            </div>
+            </section>
 
-            <div class="panel-card attention-card">
-              <h3 class="attention-title">{{localization.evaluationForm.attentionTitle}}</h3>
-              <ul class="attention-list">
-                <li class="attention-item">{{pendingNotesText()}}</li>
-                <li class="attention-item">{{riskPenaltyNotesText()}}</li>
-                <li class="attention-item">{{appealsNotesText()}}</li>
-              </ul>
-            </div>
-
-            <div class="panel-card prev-period-card">
-              <div class="prev-header">
-                <h3 class="prev-title">{{prevPeriodTitleText()}}</h3>
+            <section class="side-card">
+              <h2 class="side-card-title">{{localization.evaluationForm.attentionTitle}}</h2>
+              <div class="attention-row">
+                <span>{{localization.evaluationForm.attentionPending}}</span>
+                <span class="metric-pill pill-warning font-mono">{{pendingPillText()}}</span>
               </div>
-
-              @if (data.previousPeriod; as previous) {
-                <div class="prev-score-row">
-                  <span class="prev-score">{{previous.totalScore | appNumber: 2}}</span>
-                  <span class="badge badge-tier-a1">{{previous.tier}}</span>
-                </div>
-                <p class="prev-comparison-text">{{comparisonText()}}</p>
-              }
-            </div>
-          </section>
+              <div class="attention-row">
+                <span>{{localization.evaluationForm.attentionAppeals}}</span>
+                <span class="metric-pill pill-warning font-mono">{{appealPillText()}}</span>
+              </div>
+            </section>
+          </aside>
         </div>
       }
     </main>

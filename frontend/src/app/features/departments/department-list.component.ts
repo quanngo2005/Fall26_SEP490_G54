@@ -3,8 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import { SelectOption, TablePaginationComponent, UiSelectComponent } from '../../shared/ui';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentService } from '../../core/department.service';
 import {
@@ -23,13 +23,14 @@ import { DepartmentDetailDrawerComponent } from './department-detail-drawer.comp
     HeaderComponent,
     SidebarComponent,
     LayoutIconComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     DepartmentDetailDrawerComponent,
   ],
   templateUrl: './department-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
-    '../../shared/ui/workspace-page.part2.scss',
     './department-list.component.scss',
   ],
 })
@@ -50,6 +51,15 @@ export class DepartmentListComponent extends LocalizedComponent {
   protected page = 1;
   protected readonly pageSize = 20;
   protected readonly statuses: readonly DepartmentStatus[] = ['ACTIVE', 'INACTIVE'];
+
+  protected readonly statusOptions = computed<SelectOption<DepartmentStatus | ''>[]>(() => {
+    const t = this.localization.department;
+    return [
+      { value: '', label: t.statusAll },
+      { value: 'ACTIVE', label: t.statusActive },
+      { value: 'INACTIVE', label: t.statusInactive },
+    ];
+  });
 
   protected readonly selectedDepartment = computed(
     () => this.departments().find((d) => d.id === this.selectedDepartmentId()) ?? null,
@@ -76,11 +86,6 @@ export class DepartmentListComponent extends LocalizedComponent {
       total: this.totalCount(),
     }),
   );
-
-  protected readonly pages = computed(() => {
-    const total = this.totalPages();
-    return Array.from({ length: total }, (_, i) => i + 1);
-  });
 
   constructor() {
     super();
@@ -123,13 +128,16 @@ export class DepartmentListComponent extends LocalizedComponent {
   protected onArrowKey(event: KeyboardEvent): void {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('input, select, textarea, button, a, [contenteditable="true"]')) return;
+    if (
+      target?.closest('input, select, textarea, button, a, app-ui-select, [contenteditable="true"]')
+    )
+      return;
     const items = this.departments();
     if (items.length === 0) return;
     const current = items.findIndex((d) => d.id === this.selectedDepartmentId());
     const step = event.key === 'ArrowDown' ? 1 : -1;
     const next = (current + step + items.length) % items.length;
-    this.selectDepartment(items[next]);
+    this.selectedDepartmentId.set(items[next].id);
     event.preventDefault();
   }
 
@@ -138,8 +146,20 @@ export class DepartmentListComponent extends LocalizedComponent {
     this.reload.next();
   }
 
+  protected onStatusChange(value: DepartmentStatus | ''): void {
+    this.status = value;
+    this.refresh();
+  }
+
+  protected clearSearch(): void {
+    this.keyword = '';
+    this.refresh();
+  }
+
   protected selectDepartment(department: DepartmentSummary): void {
-    this.selectedDepartmentId.set(department.id);
+    this.selectedDepartmentId.set(
+      this.selectedDepartmentId() === department.id ? null : department.id,
+    );
   }
 
   protected goToPage(target: number): void {

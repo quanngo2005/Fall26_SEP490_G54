@@ -1,0 +1,301 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content appeal-page-container" [attr.aria-busy]="loading()">
+      @if (notice()) {
+        <div class="alert-banner" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="alert-close"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="detail-container">
+        <nav class="breadcrumb-bar" [attr.aria-label]="localization.qaQueue.breadcrumb">
+          <a class="breadcrumb-link" tabindex="0" (click)="goBack()" (keydown.enter)="goBack()">
+            {{localization.qaQueue.title}}
+          </a>
+          <span class="breadcrumb-sep">›</span>
+          <span class="breadcrumb-current">{{detail()?.item?.code ?? ''}}</span>
+        </nav>
+
+        @if (loading() && !detail()) {
+          <p role="status">{{localization.qaQueue.loading}}</p>
+        } @else if (failed()) {
+          <div class="state-block" role="alert">
+            <p>{{notFound() ? localization.qaQueue.notFound : localization.qaQueue.loadError}}</p>
+            @if (!notFound()) {
+              <button type="button" class="btn-primary" (click)="retry()">
+                {{localization.qaQueue.retry}}
+              </button>
+            }
+          </div>
+        } @else if (detail(); as d) {
+          <div class="action-header">
+            <div class="header-left">
+              <h2 class="appeal-headline">{{d.item.code}}</h2>
+              <span class="work-code font-code">{{d.item.workCode}}</span>
+              <span class="kind-badge" [class]="'kind-' + d.item.type.toLowerCase()">
+                {{kindLabel()}}
+              </span>
+              <span class="status-badge" [class]="'status-' + d.item.status.toLowerCase()">
+                {{statusLabel()}}
+              </span>
+            </div>
+            <div class="header-right-actions">
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="!previous()"
+                (click)="step(previous())"
+              >
+                {{localization.qaQueue.previous}}
+              </button>
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="!next()"
+                (click)="step(next())"
+              >
+                {{localization.qaQueue.next}}
+              </button>
+            </div>
+          </div>
+
+          @if (!isPending()) {
+            <div class="info-callout" role="status">
+              <p class="callout-text">{{alreadyDecidedText()}} {{reviewedText()}}</p>
+            </div>
+          }
+
+          <div class="cards-grid">
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.qaQueue.evidenceTitle}}</span>
+                <span class="card-subtitle">{{versionText()}}</span>
+              </div>
+              <div class="card-body">
+                <div class="evidence-list">
+                  @for (file of d.evidences; track file.id) {
+                    <div class="evidence-item">
+                      <div class="file-info">
+                        <span class="file-name">{{file.fileName}}</span>
+                        <span class="file-size">· {{size(file.fileSize)}}</span>
+                      </div>
+                      <button type="button" class="preview-btn" (click)="preview(file)">
+                        {{localization.qaQueue.preview}}
+                      </button>
+                    </div>
+                  } @empty {
+                    <p>{{localization.qaQueue.noEvidence}}</p>
+                  }
+                </div>
+                @if (previewFailed()) {
+                  <p class="field-error" role="alert">{{localization.qaQueue.previewFailed}}</p>
+                }
+              </div>
+              <div class="reconcile-table">
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.qaQueue.employee}}</span>
+                  <span class="row-val">
+                    {{d.item.employeeCode}} · {{d.item.employeeName}}
+                    @if (d.jobPositionTitle) {
+                      · {{d.jobPositionTitle}}
+                    }
+                  </span>
+                </div>
+                <div class="reconcile-row">
+                  <span class="row-label">{{localization.qaQueue.product}}</span>
+                  <span class="row-val">{{d.item.workTitle}}</span>
+                </div>
+                @if (d.submissionComment) {
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.qaQueue.submissionComment}}</span>
+                    <span class="row-val">{{d.submissionComment}}</span>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.qaQueue.reconciliationTitle}}</span>
+              </div>
+              <div class="reconcile-table">
+                @for (tx of d.transactions; track tx.transactionCode) {
+                  <div class="reconcile-row">
+                    <span class="row-label">{{localization.qaQueue.transactionCode}}</span>
+                    <span class="row-val font-code">
+                      {{tx.transactionCode}}
+                      <span class="tx-status" [class]="'tx-' + tx.status.toLowerCase()">
+                        {{transactionStatus(tx)}}
+                      </span>
+                    </span>
+                  </div>
+                  @if (tx.importBatchFileName) {
+                    <div class="reconcile-row">
+                      <span class="row-label">{{localization.qaQueue.batch}}</span>
+                      <span class="row-val font-code">{{tx.importBatchFileName}}</span>
+                    </div>
+                  }
+                  @if (tx.productCode) {
+                    <div class="reconcile-row">
+                      <span class="row-label">{{localization.qaQueue.productCode}}</span>
+                      <span class="row-val">{{tx.productCode}}</span>
+                    </div>
+                  }
+                } @empty {
+                  <p class="empty-note">{{localization.qaQueue.noTransactions}}</p>
+                }
+              </div>
+
+              @if (d.reason) {
+                <div class="card-body">
+                  <span class="field-caption">
+                    {{d.item.kind === 'FLAG'
+                        ? localization.qaQueue.reasonFlag
+                        : localization.qaQueue.reasonSample}}
+                  </span>
+                  <div class="reason-text-box">{{d.reason}}</div>
+                </div>
+              }
+              @if (d.reworkComment && d.reworkComment !== d.reason) {
+                <div class="card-body">
+                  <span class="field-caption">{{localization.qaQueue.reworkComment}}</span>
+                  <div class="reason-text-box">{{d.reworkComment}}</div>
+                </div>
+              }
+
+              @if (isPending()) {
+                <div class="card-body decision-box">
+                  <span class="field-caption">{{localization.qaQueue.decisionTitle}}</span>
+                  <div
+                    class="verdict-toggle"
+                    role="radiogroup"
+                    [attr.aria-label]="localization.qaQueue.decisionTitle"
+                  >
+                    <button
+                      type="button"
+                      role="radio"
+                      class="verdict-btn confirm"
+                      [class.active]="verdict() === 'CONFIRM'"
+                      [attr.aria-checked]="verdict() === 'CONFIRM'"
+                      (click)="selectVerdict('CONFIRM')"
+                    >
+                      <span class="verdict-icon" aria-hidden="true">✓</span>
+                      {{localization.qaQueue.confirmCorrect}}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      class="verdict-btn reject"
+                      [class.active]="verdict() === 'REJECT'"
+                      [attr.aria-checked]="verdict() === 'REJECT'"
+                      (click)="selectVerdict('REJECT')"
+                    >
+                      <span class="verdict-icon" aria-hidden="true">✕</span>
+                      {{localization.qaQueue.reject}}
+                    </button>
+                  </div>
+
+                  <label class="field-caption" for="qaComment">
+                    {{localization.qaQueue.commentLabel}}
+                    @if (verdict() === 'REJECT') {
+                      <span class="required">*</span>
+                    }
+                  </label>
+                  <textarea
+                    id="qaComment"
+                    rows="3"
+                    [ngModel]="comment()"
+                    (ngModelChange)="comment.set($event)"
+                    [class.field-invalid]="showValidation() && !commentValid()"
+                    [placeholder]="localization.qaQueue.commentPlaceholder"
+                  ></textarea>
+                  @if (showValidation() && !commentValid()) {
+                    <p class="field-error" role="alert">
+                      {{localization.qaQueue.commentRequired}}
+                    </p>
+                  }
+
+                  @if (isSample() && verdict() === 'REJECT') {
+                    <div class="reject-options">
+                      <div class="inline-field severity-field">
+                        <span id="qaSeverityLabel">{{localization.qaQueue.severityLabel}}</span>
+                        <div
+                          class="severity-toggle"
+                          role="radiogroup"
+                          aria-labelledby="qaSeverityLabel"
+                        >
+                          @for (level of severities; track level) {
+                            <button
+                              type="button"
+                              role="radio"
+                              class="severity-btn"
+                              [class]="'severity-btn level-' + level.toLowerCase()"
+                              [class.active]="severity() === level"
+                              [attr.aria-checked]="severity() === level"
+                              (click)="severity.set(level)"
+                            >
+                              {{severityLabel(level)}}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                      <div class="inline-field switch-field">
+                        <button
+                          type="button"
+                          role="switch"
+                          class="switch"
+                          id="qaRework"
+                          [class.on]="requestRework()"
+                          [attr.aria-checked]="requestRework()"
+                          (click)="requestRework.set(!requestRework())"
+                        >
+                          <span class="switch-knob"></span>
+                        </button>
+                        <label for="qaRework">{{localization.qaQueue.requestRework}}</label>
+                      </div>
+                    </div>
+                  }
+
+                  @if (verdictNote()) {
+                    <p class="verdict-note">{{verdictNote()}}</p>
+                  }
+                  @if (errorKey()) {
+                    <p class="field-error" role="alert">{{errorText()}}</p>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (isPending()) {
+            <div class="decision-footer">
+              <button
+                type="button"
+                class="btn-secondary"
+                [disabled]="submitting()"
+                (click)="cancel()"
+              >
+                {{localization.qaQueue.cancel}}
+              </button>
+              <button type="button" class="btn-primary" [disabled]="!canSave()" (click)="save()">
+                {{submitting() ? localization.qaQueue.saving : localization.qaQueue.save}}
+              </button>
+            </div>
+          }
+        }
+      </div>
+    </main>
+  </div>
+</div>

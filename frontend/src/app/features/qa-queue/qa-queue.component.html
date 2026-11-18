@@ -1,0 +1,249 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && items().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+
+      <div class="ui-master-detail">
+        <div class="ui-master-pane">
+          <header class="ui-page-header">
+            <div class="ui-page-heading">
+              <div class="ui-title-row">
+                <h1 class="ui-page-title">{{localization.qaQueue.title}}</h1>
+              </div>
+            </div>
+          </header>
+
+          <div class="ui-tabs" role="tablist" [attr.aria-label]="localization.qaQueue.tabsAria">
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'PENDING'"
+              [attr.aria-selected]="activeTab() === 'PENDING'"
+              (click)="setTab('PENDING')"
+            >
+              {{localization.qaQueue.tabPending}}
+              <span class="ui-tab-count tab-count">{{counts().pending}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'CONFIRMED'"
+              [attr.aria-selected]="activeTab() === 'CONFIRMED'"
+              (click)="setTab('CONFIRMED')"
+            >
+              {{localization.qaQueue.tabConfirmed}}
+              <span class="ui-tab-count tab-count">{{counts().confirmed}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'REJECTED'"
+              [attr.aria-selected]="activeTab() === 'REJECTED'"
+              (click)="setTab('REJECTED')"
+            >
+              {{localization.qaQueue.tabRejected}}
+              <span class="ui-tab-count tab-count">{{counts().rejected}}</span>
+            </button>
+          </div>
+
+          <div class="ui-filter-bar">
+            <div class="ui-search-field">
+              <app-layout-icon name="search" />
+              <input
+                type="text"
+                class="input"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="setSearch($event)"
+                [attr.aria-label]="localization.qaQueue.searchPlaceholder"
+                [placeholder]="localization.qaQueue.searchPlaceholder"
+              />
+            </div>
+            <app-ui-select
+              [options]="kindOptions()"
+              [value]="kindFilter()"
+              [ariaLabel]="localization.qaQueue.filterKind"
+              (valueChange)="setKind($event)"
+            />
+            <app-ui-select
+              [options]="departmentOptions()"
+              [value]="departmentFilter()"
+              [ariaLabel]="localization.qaQueue.filterDepartment"
+              (valueChange)="setDepartment($event)"
+            />
+            <app-ui-select
+              [options]="periodOptions()"
+              [value]="periodFilter()"
+              [ariaLabel]="localization.qaQueue.filterPeriod"
+              (valueChange)="setPeriod($event)"
+            />
+          </div>
+
+          @if (loading() && items().length === 0) {
+            <div class="state-card" role="status">
+              <span class="spinner" aria-hidden="true"></span>
+            </div>
+          } @else if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.qaQueue.loadError}}</p>
+              <button type="button" class="button button-secondary" (click)="retry()">
+                {{localization.qaQueue.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="ui-table-card">
+              <div class="ui-table-wrap is-sticky">
+                <table class="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" [attr.aria-sort]="ariaSort('code')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('code')"
+                        >
+                          {{localization.qaQueue.colCode}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('code')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('type')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('type')"
+                        >
+                          {{localization.qaQueue.colKind}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('type')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('work')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('work')"
+                        >
+                          {{localization.qaQueue.colWork}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('work')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('employee')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('employee')"
+                        >
+                          {{localization.qaQueue.colEmployee}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('employee')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('source')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('source')"
+                        >
+                          {{localization.qaQueue.colSource}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('source')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('created')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('created')"
+                        >
+                          {{localization.qaQueue.colCreated}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('created')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('due')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('due')"
+                        >
+                          {{localization.qaQueue.colDue}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('due')}}</span>
+                        </button>
+                      </th>
+                      <th scope="col" [attr.aria-sort]="ariaSort('status')">
+                        <button
+                          type="button"
+                          class="ui-sort-btn sort-btn"
+                          [attr.title]="localization.qaQueue.sortHint"
+                          (click)="toggleSort('status')"
+                        >
+                          {{localization.qaQueue.colStatus}}<span class="sort-arrow" aria-hidden="true">{{sortArrow('status')}}</span>
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (item of items(); track item.kind + item.id) {
+                      <tr
+                        class="is-clickable clickable-row"
+                        tabindex="0"
+                        (click)="open(item)"
+                        (keydown.enter)="open(item)"
+                      >
+                        <td class="col-code">{{item.code}}</td>
+                        <td>
+                          <app-status-badge [tone]="kindTone(item.type)">
+                            {{kindLabel(item.type)}}
+                          </app-status-badge>
+                        </td>
+                        <td class="col-mono">{{item.workCode}}</td>
+                        <td class="col-primary">
+                          {{item.employeeCode}} · {{item.employeeName}}
+                        </td>
+                        <td>{{sourceLabel(item)}}</td>
+                        <td class="col-nowrap">{{item.createdAt | appDate: 'DD/MM/YYYY'}}</td>
+                        <td class="col-nowrap" [class.urgent-cell]="isUrgent(item)">
+                          {{dueText(item)}}
+                        </td>
+                        <td>
+                          <app-status-badge [tone]="statusTone(item.status)">
+                            {{statusLabel(item)}}
+                          </app-status-badge>
+                        </td>
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td colspan="8" class="ui-empty-cell">
+                          {{loading() ? localization.qaQueue.loading : localization.qaQueue.empty}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <app-table-pagination
+                [page]="page()"
+                [pageSize]="pageSize()"
+                [totalCount]="totalCount()"
+                [rangeText]="showingText()"
+                [ariaLabel]="localization.common.pageInformation"
+                [disabled]="loading()"
+                (pageChange)="goToPage($event)"
+              />
+            </div>
+          }
+
+          <div class="ui-callout">
+            <h4>{{localization.qaQueue.sampleNoticeTitle}}</h4>
+            <p>{{localization.qaQueue.sampleNoticeText}}</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

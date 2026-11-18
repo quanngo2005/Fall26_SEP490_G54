@@ -64,6 +64,13 @@ $intentionallyOpen = @{
     "GET /sidebar-configurations"                          = "SidebarConfigurationService filters by the caller's roles"
     "GET /sidebar-configurations/current"                  = "SidebarConfigurationService filters by the caller's roles"
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
+    "GET /my-dashboard/progress-card"                      = "MyDashboardService resolves the caller and employee from the token, no IDOR possible"
+    "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
+    "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
+    "GET /target-assignments/employees/{employeeId:guid}/suggested-daily" = "TargetAssignmentService.GetSuggestedDailyAsync calls EnsureCanViewAsync: the employee or an org-scoped caller"
+    "POST /target-assignments/{id:guid}/feedback/confirm"  = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
+    "POST /target-assignments/{id:guid}/feedback/comments" = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
+    "GET /target-assignments/{id:guid}/feedback"           = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
     # Reference/catalog data used to fill forms, nothing sensitive (kpi:read is granted to every role)
     "GET /employees/departments"                           = "reference list"
     "GET /employees/job-positions"                         = "reference list"
@@ -79,8 +86,6 @@ $intentionallyOpen = @{
     "POST /submissions/{submissionId:guid}/appeals"        = "AppealService: caller must be the submitter"
     "POST /appeals/{id:guid}/withdraw"                     = "AppealService: caller must be the filer"
     "GET /appeals"                                         = "AppealService: scoped to own or department"
-    "GET /appeals/{id:guid}/score-entries"                 = "AppealService: same own/department scope as the appeal detail"
-    "POST /appeals/{id:guid}/score-dispute"                = "AppealService: caller must be the filer"
     "GET /appeals/{id:guid}"                               = "AppealService: scoped to own or department"
     "GET /evidence/{id:guid}/download"                     = "EvidenceService.CanViewAsync"
     "GET /evidence/{id:guid}/preview"                      = "EvidenceService.CanViewAsync"
@@ -90,6 +95,11 @@ $intentionallyOpen = @{
     "GET /submissions/{submissionId:guid}"                 = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "GET /works/{workId:guid}/submissions/{submissionId:guid}" = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "POST /submissions/{submissionId:guid}/withdraw"       = "ResultSubmissionService: submitter only"
+    "GET /submissions/mine"                                = "MySubmissionService.GetMineAsync resolves the employee from the token and lists only their own submissions"
+    "GET /submissions/{submissionId:guid}/reconciliation"  = "MySubmissionService.GetDetailAsync: submitter only (403 otherwise)"
+    "GET /works/{workId:guid}/transactions"                = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "POST /works/{workId:guid}/transactions"               = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
+    "DELETE /works/{workId:guid}/transactions/{transactionId:guid}" = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
     "POST /works/{workId:guid}/submissions/{submissionId:guid}/withdraw" = "ResultSubmissionService: submitter only"
     "PATCH /works/{id:guid}/status"                        = "WorkService: assignee or direct manager"
 }
@@ -135,6 +145,16 @@ $checks = @(
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-03"; Severity = "Gate"; Name = "Unit tests (with coverage collection)"; Test = {
+            # BE-04 (format) and BE-08 (EF model) do not depend on the test run, so they start now and run while the
+            # tests do; their checks only collect the result. Both use only Debug output / design-time builds, the
+            # tests use the Release output, so they do not touch each other's files.
+            $script:formatJob = Start-BackgroundCommand "dotnet" @("format", $solution, "--verify-no-changes", "--no-restore")
+            dotnet ef --version *> $null
+            $script:efAvailable = ($LASTEXITCODE -eq 0)
+            if ($script:efAvailable) {
+                $dalProject = Join-Path $backend "src/G54.DAL"
+                $script:efJob = Start-BackgroundCommand "dotnet" @("ef", "migrations", "has-pending-model-changes", "--project", $dalProject, "--startup-project", $dalProject, "--context", "AppDbContext")
+            }
             $run = Invoke-Logged { dotnet test $solution -c Release --no-build --settings (Join-Path $backend "coverlet.runsettings") --collect:"XPlat Code Coverage" --logger "trx;LogFileName=tests.trx" --results-directory $testResults }
             $script:cobertura = Get-ChildItem -Path $testResults -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
             $trxFile = Get-ChildItem -Path $testResults -Recurse -Filter "tests.trx" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -151,7 +171,7 @@ $checks = @(
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-04"; Severity = "Gate"; Name = "Formatting (dotnet format)"; Test = {
-            $run = Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore }
+            $run = if ($script:formatJob) { Receive-BackgroundCommand $script:formatJob } else { Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore } }
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings -GroupByFile
             if ($run.ExitCode -ne 0) { Add-Finding "fix with: dotnet format backend/G54.sln" }
             $run.ExitCode -eq 0 } },
@@ -175,13 +195,16 @@ $checks = @(
             }
             $clean } },
     @{ Id = "BE-08"; Severity = "Gate"; Name = "EF model has no changes missing a migration"; Test = {
-            dotnet ef --version *> $null
-            if ($LASTEXITCODE -ne 0) {
+            if ($null -eq $script:efAvailable) {
+                dotnet ef --version *> $null
+                $script:efAvailable = ($LASTEXITCODE -eq 0)
+            }
+            if (-not $script:efAvailable) {
                 if ($env:CI -eq "true") { Add-Finding "dotnet-ef is not installed on the CI runner"; return $false }
                 return (Skip-Check "dotnet-ef is not installed (dotnet tool install -g dotnet-ef --version 8.*)")
             }
             $dal = Join-Path $backend "src/G54.DAL"
-            $run = Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext }
+            $run = if ($script:efJob) { Receive-BackgroundCommand $script:efJob } else { Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext } }
             if ($run.ExitCode -ne 0 -and ($run.Lines -join "`n") -match 'Changes have been made to the model') {
                 Add-Finding "the EF model changed without a migration: run dotnet ef migrations add <Name> --project backend/src/G54.DAL"
             }
@@ -235,8 +258,10 @@ $checks = @(
                 Add-Finding "skipped: $($test.testName)$(if ($reason) { " - $reason" })"
             }
             $skippedTests.Count -eq 0 } },
+    # .Result only blocks when it reads a Task: the result of a call (`Foo().Result`) or a variable named *task*. A DTO or record
+    # property that happens to be called Result (e.g. dto.Result) is not sync-over-async and must not be reported.
     @{ Id = "BE-20"; Severity = "Medium"; Name = "No sync-over-async, async void, empty catch or console output in services"; Test = {
-            $a = Find-Pattern $serviceFiles '\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
+            $a = Find-Pattern $serviceFiles '(\)|[Tt]ask\w*)\.Result\b(?!\s*=)|\.Wait\(\)|GetAwaiter\(\)\.GetResult\(\)' "blocking on async code (deadlock/thread starvation risk)"
             $b = Find-Pattern $serviceFiles '\basync\s+void\b' "async void: exceptions crash the process"
             $c = Find-PatternInContent $serviceFiles 'catch\s*(\([^)]*\))?\s*\{\s*\}' "empty catch swallows errors"
             $d = Find-Pattern $serviceFiles 'Console\.Write(Line)?\(' "use ILogger instead of Console"

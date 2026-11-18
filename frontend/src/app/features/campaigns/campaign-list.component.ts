@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -13,9 +13,17 @@ import {
 import { CampaignService } from '../../core/campaign.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppDatePipe } from '../../shared/pipes';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { CampaignCreateModalComponent } from './campaign-create-modal.component';
-import { statusBadgeClass, worksProgress } from './campaign.utils';
+import { worksProgress } from './campaign.utils';
 
 type StatusTab = CampaignStatus | '';
 
@@ -35,6 +43,10 @@ const PAGE_SIZE = 10;
     SidebarComponent,
     CampaignCreateModalComponent,
     AppDatePipe,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
   ],
   templateUrl: './campaign-list.component.html',
   styleUrls: [
@@ -49,6 +61,7 @@ export class CampaignListComponent extends LocalizedComponent {
   private readonly router = inject(Router);
   private readonly reload = new Subject<void>();
 
+  protected readonly pageSize = PAGE_SIZE;
   protected readonly tabs: readonly TabDefinition[] = [
     { status: '', count: 'totalCampaigns' },
     { status: 'PLANNED', count: 'plannedCampaigns' },
@@ -66,7 +79,17 @@ export class CampaignListComponent extends LocalizedComponent {
   protected objectiveId = '';
   protected page = 1;
 
-  protected readonly badgeClass = statusBadgeClass;
+  protected readonly totalCount = computed(() => this.overview()?.campaigns.totalCount ?? 0);
+
+  /** The objective filter, with "all" as the first option. */
+  protected readonly objectiveOptions = computed<SelectOption<string>[]>(() => [
+    { value: '', label: this.localization.campaign.allObjectives },
+    ...this.objectives().map((objective) => ({
+      value: objective.id,
+      label: `${objective.code} · ${objective.name}`,
+    })),
+  ]);
+
   protected readonly progress = worksProgress;
 
   constructor() {
@@ -139,13 +162,24 @@ export class CampaignListComponent extends LocalizedComponent {
     return this.localization.campaign.status[status] ?? status;
   }
 
-  protected totalPages(): number {
-    const total = this.overview()?.campaigns.totalCount ?? 0;
-    return Math.max(1, Math.ceil(total / PAGE_SIZE));
+  /** Active and finished campaigns read as quiet green; waiting or paused ones draw the eye. */
+  protected badgeTone(status: CampaignStatus): StatusBadgeTone {
+    switch (status) {
+      case 'RUNNING':
+      case 'COMPLETED':
+        return 'success';
+      case 'PLANNED':
+      case 'PAUSED':
+        return 'warning';
+      case 'CANCELLED':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 
   protected rangeText(): string {
-    const total = this.overview()?.campaigns.totalCount ?? 0;
+    const total = this.totalCount();
     const from = total === 0 ? 0 : (this.page - 1) * PAGE_SIZE + 1;
     const to = Math.min(this.page * PAGE_SIZE, total);
     return `${from}–${to} / ${total} ${this.localization.campaign.campaigns}`;

@@ -27,4 +27,6 @@ public enum EmployeeStatus
     OnLeave,
     [PgName("TERMINATED")]
     Terminated,
+    [PgName("PENDING_RESIGNATION")]
+    PendingResignation,
 }

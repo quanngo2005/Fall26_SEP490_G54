@@ -57,27 +57,40 @@ public static class EvaluationProfileTree
         node.IsLeaf ? [node] : node.Children.SelectMany(Leaves);
 
     /// <summary>
-    /// Share of the root <paramref name="root"/> each KPI leaf carries, in percent: the leaf's weight among its siblings
-    /// multiplied by the weights of its parent groups up to (not including) the root. Computed from the configured
-    /// weights only, so the leaves of a root add up to 100 whether or not each has a score.
+    /// Share of the root <paramref name="root"/> each active KPI leaf carries, in percent. It is the share
+    /// <see cref="ScoreNode"/> gives the leaf: at every level the weight is normalised over the siblings that still own
+    /// an active leaf, so a KPI that is not active leaves the shares of the others in proportion and the active leaves of
+    /// a root add up to 100. Computed from the configured weights only, whether or not a leaf has a score. A leaf that is
+    /// not active, or whose siblings all weigh nothing, has no entry.
     /// </summary>
     public static IReadOnlyDictionary<Guid, decimal> LeafShares(ProfileNode root)
     {
         var shares = new Dictionary<Guid, decimal>();
-        Collect(root, 100m, isRoot: true);
+        Collect(root, 100m);
         return shares;
 
-        void Collect(ProfileNode node, decimal share, bool isRoot)
+        void Collect(ProfileNode node, decimal share)
         {
             if (node.IsLeaf)
             {
-                shares[node.Item.KpiDefinitionId!.Value] = isRoot ? 100m : share;
+                if (node.Kpi is { Status: KpiStatus.Active })
+                {
+                    shares[node.Item.KpiDefinitionId!.Value] = share;
+                }
+
                 return;
             }
 
-            foreach (var child in node.Children)
+            var active = node.Children.Where(child => ActiveLeaves(child).Any()).ToList();
+            var totalWeight = active.Sum(child => child.Item.WeightPercent);
+            if (totalWeight <= 0m)
             {
-                Collect(child, share * child.Item.WeightPercent / 100m, isRoot: false);
+                return;
+            }
+
+            foreach (var child in active)
+            {
+                Collect(child, share * child.Item.WeightPercent / totalWeight);
             }
         }
     }
@@ -85,6 +98,12 @@ public static class EvaluationProfileTree
     /// <summary>The leaves whose KPI definition is active.</summary>
     public static IEnumerable<ProfileNode> ActiveLeaves(ProfileNode node) =>
         Leaves(node).Where(leaf => leaf.Kpi is { Status: KpiStatus.Active });
+
+    /// <summary>
+    /// Whether a root group is scored by the reviewer instead of by KPIs: it owns no active KPI leaf (it has no KPI at
+    /// all, or every KPI under it is not active).
+    /// </summary>
+    public static bool IsQualitative(ProfileNode root) => !ActiveLeaves(root).Any();
 
     /// <summary>
     /// Mean of the scored parts weighted by their weight, normalised over the parts that have a score, so a part
@@ -101,11 +120,20 @@ public static class EvaluationProfileTree
     }
 
     /// <summary>
-    /// Score of a node: a leaf takes <paramref name="leafScore"/>, a group the weighted mean of its children.
+    /// What a KPI leaf contributes to its group. An inactive KPI is not part of the profile, so it has no score and its
+    /// share goes to the others (null). An active KPI that could not be scored (no target or no progress) counts as 0
+    /// and keeps its share (awaiting BA confirmation). The one place this rule lives, for every level that scores a tree.
+    /// </summary>
+    public static decimal? ScoredLeaf(ProfileNode leaf, decimal? kpiScore) =>
+        leaf.Kpi is { Status: KpiStatus.Active } ? kpiScore ?? 0m : null;
+
+    /// <summary>
+    /// Score of a node: a leaf takes <paramref name="leafScore"/> through <see cref="ScoredLeaf"/>, a group the weighted
+    /// mean of its children. Only a group without any active KPI has no score.
     /// </summary>
     public static decimal? ScoreNode(ProfileNode node, Func<ProfileNode, decimal?> leafScore) =>
         node.IsLeaf
-            ? leafScore(node)
+            ? ScoredLeaf(node, leafScore(node))
             : WeightedMean(node.Children.Select(child => (child.Item.WeightPercent, ScoreNode(child, leafScore))));
 
     private static ProfileNode BuildNode(EvaluationProfileItem item, ILookup<Guid, EvaluationProfileItem> childrenOf) =>

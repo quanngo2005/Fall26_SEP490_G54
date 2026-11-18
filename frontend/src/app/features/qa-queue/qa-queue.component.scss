@@ -1,0 +1,9 @@
+:host {
+  display: block;
+}
+
+/* Overdue or due-within-a-day deadline, shown in the same warm accent as the other urgency cues. */
+.urgent-cell {
+  color: #c2410c;
+  font-weight: 600;
+}

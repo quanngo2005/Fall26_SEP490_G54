@@ -1,0 +1,237 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && items().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+
+      @if (notice()) {
+        <div class="ui-banner tone-success" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="ui-action-btn"
+            [attr.aria-label]="localization.common.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+      @if (errorKey()) {
+        <div class="ui-banner tone-danger alert-error" role="alert">
+          <span>{{errorText()}}</span>
+          <button
+            type="button"
+            class="ui-action-btn"
+            [attr.aria-label]="localization.common.close"
+            (click)="errorKey.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <div class="ui-master-detail" [class.has-drawer]="selectedAppeal() !== null">
+        <div class="ui-master-pane">
+          <header class="ui-page-header">
+            <div class="ui-page-heading">
+              <div class="ui-title-row">
+                <h1 class="ui-page-title">{{localization.appeals.myTitle}}</h1>
+              </div>
+            </div>
+            @if (!selectedAppeal()) {
+              <div class="ui-page-actions">
+                <button type="button" class="button button-primary" (click)="openSubmit()">
+                  {{localization.appeals.submitAppeal}}
+                </button>
+              </div>
+            }
+          </header>
+
+          <div class="ui-tabs" role="tablist" [attr.aria-label]="localization.appeals.tabsAria">
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'ALL'"
+              [attr.aria-selected]="activeTab() === 'ALL'"
+              (click)="setTab('ALL')"
+            >
+              {{localization.appeals.all}}
+              <span class="ui-tab-count tab-count">{{counts().all}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'OPEN'"
+              [attr.aria-selected]="activeTab() === 'OPEN'"
+              (click)="setTab('OPEN')"
+            >
+              {{localization.appeals.open}}
+              <span class="ui-tab-count tab-count">{{counts().open}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'UNDER_REVIEW'"
+              [attr.aria-selected]="activeTab() === 'UNDER_REVIEW'"
+              (click)="setTab('UNDER_REVIEW')"
+            >
+              {{localization.appeals.underReview}}
+              <span class="ui-tab-count tab-count">{{counts().underReview}}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="ui-tab tab-btn"
+              [class.is-active]="activeTab() === 'RESOLVED'"
+              [attr.aria-selected]="activeTab() === 'RESOLVED'"
+              (click)="setTab('RESOLVED')"
+            >
+              {{localization.appeals.resolved}}
+              <span class="ui-tab-count tab-count">{{counts().resolved}}</span>
+            </button>
+          </div>
+
+          <div class="ui-filter-bar">
+            <div class="ui-search-field">
+              <app-layout-icon name="search" />
+              <input
+                type="text"
+                class="input"
+                [ngModel]="searchQuery()"
+                (ngModelChange)="searchQuery.set($event)"
+                [attr.aria-label]="localization.appeals.searchMine"
+                [placeholder]="localization.appeals.searchMine"
+              />
+            </div>
+            @if (!selectedAppeal()) {
+              <app-ui-select
+                [options]="periodOptions()"
+                [value]="periodFilter()"
+                [ariaLabel]="localization.appeals.filterPeriod"
+                (valueChange)="setPeriod($event)"
+              />
+            }
+          </div>
+
+          @if (failed()) {
+            <div class="state-card state-error" role="alert">
+              <p>{{localization.appeals.loadError}}</p>
+              <button type="button" class="button button-secondary" (click)="retry()">
+                {{localization.appeals.retry}}
+              </button>
+            </div>
+          } @else {
+            <div class="ui-table-card">
+              <div class="ui-table-wrap is-sticky">
+                <table class="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{{localization.appeals.code}}</th>
+                      @if (!selectedAppeal()) {
+                        <th scope="col">{{localization.appeals.subject}}</th>
+                      }
+                      <th scope="col">{{localization.appeals.filedAt}}</th>
+                      @if (!selectedAppeal()) {
+                        <th scope="col">{{localization.appeals.handler}}</th>
+                      }
+                      <th scope="col">{{localization.appeals.statusLabel}}</th>
+                      @if (!selectedAppeal()) {
+                        <th scope="col">{{localization.appeals.outcome}}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (item of filteredItems(); track item.id) {
+                      <tr
+                        class="is-clickable"
+                        [class.is-selected]="selectedId() === item.id"
+                        [class.selected-row]="selectedId() === item.id"
+                        [class.is-muted]="item.status === 'WITHDRAWN'"
+                        tabindex="0"
+                        (click)="selectAppeal(item)"
+                        (keydown.enter)="selectAppeal(item)"
+                      >
+                        <td class="col-code">{{code(item)}}</td>
+                        @if (!selectedAppeal()) {
+                          <td class="col-mono">{{subject(item)}}</td>
+                        }
+                        <td class="col-nowrap">{{item.filedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
+                        @if (!selectedAppeal()) {
+                          <td>
+                            {{item.resolvedByEmployeeName ?? localization.appeals.notAvailable}}
+                          </td>
+                        }
+                        <td>
+                          <app-status-badge [tone]="statusTone(item.status)">
+                            {{statusLabel(item.status)}}
+                          </app-status-badge>
+                        </td>
+                        @if (!selectedAppeal()) {
+                          <td [class.muted-text]="item.status === 'WITHDRAWN'">
+                            {{outcome(item)}}
+                          </td>
+                        }
+                      </tr>
+                    } @empty {
+                      <tr>
+                        <td [attr.colspan]="selectedAppeal() ? 3 : 6" class="ui-empty-cell">
+                          {{loading() ? localization.appeals.loading : localization.appeals.empty}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              <app-table-pagination
+                [page]="page()"
+                [pageSize]="pageSize()"
+                [totalCount]="totalCount()"
+                [rangeText]="showingText()"
+                [ariaLabel]="localization.common.pageInformation"
+                [disabled]="loading()"
+                (pageChange)="goToPage($event)"
+              />
+            </div>
+          }
+
+          @if (!selectedAppeal()) {
+            <div class="ui-callout">
+              <h4>{{localization.appeals.deadlineHintTitle}}</h4>
+              <p>{{localization.appeals.deadlineHint}}</p>
+            </div>
+          }
+        </div>
+
+        @if (selectedAppeal(); as selected) {
+          <div class="ui-drawer-backdrop" aria-hidden="true" (click)="closeDrawer()"></div>
+          <div class="drawer">
+            <app-my-appeal-drawer
+              [appeal]="selected"
+              [detail]="detail()"
+              [loading]="detailLoading()"
+              [failed]="detailFailed()"
+              (closeDrawer)="closeDrawer()"
+              (withdraw)="onWithdraw($event)"
+              (selectNext)="selectNext()"
+              (selectPrev)="selectPrev()"
+            />
+          </div>
+        }
+      </div>
+
+      @if (submitOpen()) {
+        <app-appeal-submit-modal (submitted)="onSubmitted()" (dismissed)="submitOpen.set(false)" />
+      }
+    </main>
+  </div>
+</div>

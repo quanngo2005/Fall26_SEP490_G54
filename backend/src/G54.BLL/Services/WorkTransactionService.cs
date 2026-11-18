@@ -1,0 +1,386 @@
+using G54.BLL.Common;
+using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
+using G54.BLL.Dtos.TransactionImport;
+using G54.BLL.Dtos.WorkTransaction;
+using G54.DAL;
+using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace G54.BLL.Services;
+
+public sealed class WorkTransactionService(
+    AppDbContext db,
+    TimeProvider time,
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : IWorkTransactionService
+{
+    private const int DefaultMaxCodes = 10;
+    private const int MaxCodeLength = 100;
+    private const string ReasonCustomerMismatch = "CUSTOMER_MISMATCH";
+    private const string ReasonTransactionBeforeHandover = "TRANSACTION_BEFORE_HANDOVER";
+    private const string ReasonReferrerMismatch = "REFERRER_MISMATCH";
+    private const string ReasonReferrerNotCredited = "REFERRER_NOT_CREDITED";
+    private int MaxCodes => parameters?.Value.MaxTransactionsPerWork ?? DefaultMaxCodes;
+
+    public async Task<WorkTransactionsDto> ListAsync(Guid workId, Guid userId, CancellationToken ct = default)
+    {
+        var work = await LoadOwnWorkAsync(workId, userId, ct);
+        return await ToDtoAsync(work, ct);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    public async Task<WorkTransactionsDto> AddAsync(
+        Guid workId, Guid userId, AddWorkTransactionsRequestDto request, CancellationToken ct = default)
+    {
+        var work = await LoadOwnWorkAsync(workId, userId, ct);
+        var codes = (request.TransactionCodes ?? []).Select(NormalizeCode).Where(c => c.Length > 0).Distinct().ToList();
+        if (codes.Count == 0 || codes.Any(c => c.Length > MaxCodeLength))
+        {
+            throw new ValidationException($"transactionCodes must hold 1+ codes of at most {MaxCodeLength} characters.");
+        }
+
+        var canSubmit = WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Submit, out var submitted);
+        if (work.Status != WorkStatus.Submitted && !canSubmit)
+        {
+            throw new BusinessRuleException(ErrorCodes.WorkInvalidState, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (await db.WorkTransactions.CountAsync(w => w.WorkId == workId, ct) + codes.Count > MaxCodes)
+        {
+            throw new BusinessRuleException(ErrorCodes.WorkTransactionLimit, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        if (await db.WorkTransactions.AnyAsync(w => codes.Contains(w.TransactionCode.ToUpper()), ct))
+        {
+            throw new BusinessRuleException(ErrorCodes.WorkTransactionDuplicate, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var now = time.GetUtcNow();
+        var added = codes.Select(c => new WorkTransaction
+        {
+            Id = Guid.NewGuid(),
+            WorkId = workId,
+            TransactionCode = c,
+            Status = WorkTransactionStatus.InReview,
+            CreatedAt = now,
+            UpdatedAt = now,
+        }).ToList();
+        db.WorkTransactions.AddRange(added);
+        if (work.Status != WorkStatus.Submitted)
+        {
+            work.Status = submitted;
+            work.UpdatedAt = now;
+        }
+
+        await db.SaveChangesAsync(ct);
+        var importedByCode = await LoadImportedByCodeAsync(codes, ct);
+        foreach (var item in added)
+        {
+            await ReconcileAsync(item, work, importedByCode.GetValueOrDefault(item.TransactionCode), ct);
+            await db.SaveChangesAsync(ct);
+        }
+
+        await CompleteIfAllMatchedAsync(work, ct);
+        await NotifyMismatchedAsync([(work, added)], ct);
+        return await ToDtoAsync(work, ct);
+    }
+
+    public async Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default)
+    {
+        var work = await LoadOwnWorkAsync(workId, userId, ct);
+        var item = await db.WorkTransactions.FirstOrDefaultAsync(w => w.Id == transactionId && w.WorkId == workId, ct)
+            ?? throw new NotFoundException("Work transaction not found.");
+        if (item.Status == WorkTransactionStatus.Matched)
+        {
+            throw new BusinessRuleException(ErrorCodes.WorkInvalidState, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        db.WorkTransactions.Remove(item);
+        await db.SaveChangesAsync(ct);
+
+        if (work.Status == WorkStatus.Submitted && !await db.WorkTransactions.AnyAsync(w => w.WorkId == workId, ct)
+            && WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Reopen, out var reopened))
+        {
+            work.Status = reopened;
+            work.UpdatedAt = time.GetUtcNow();
+            await db.SaveChangesAsync(ct);
+        }
+        else
+        {
+            await CompleteIfAllMatchedAsync(work, ct);
+        }
+
+        return await ToDtoAsync(work, ct);
+    }
+
+    /// <summary>
+    /// Reconciles every IN_REVIEW code that now has an imported row (not only the codes of <paramref name="batchId"/>),
+    /// so a code left IN_REVIEW earlier (locked period, missing target) is retried by any later import.
+    /// Works and imported rows are loaded in bulk; each code is saved on its own.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1862:Use StringComparison", Justification = "EF Core cannot translate string.Equals with StringComparison; upper() is translated to SQL.")]
+    public async Task<ReconcileSummaryDto> ReconcileBatchAsync(Guid batchId, CancellationToken ct = default)
+    {
+        var pending = await db.WorkTransactions
+            .Where(w => w.Status == WorkTransactionStatus.InReview
+                && db.ImportedTransactions.Any(t => t.TransactionCode.ToUpper() == w.TransactionCode.ToUpper()))
+            .OrderBy(w => w.CreatedAt)
+            .ToListAsync(ct);
+        if (pending.Count == 0)
+        {
+            return new ReconcileSummaryDto(0, 0, 0);
+        }
+
+        var workIds = pending.Select(p => p.WorkId).Distinct().ToList();
+        var works = await db.Works
+            .Include(w => w.WorkType).ThenInclude(t => t!.WorkTypeKpis).ThenInclude(k => k.KpiDefinition)
+            .Where(w => workIds.Contains(w.Id))
+            .ToDictionaryAsync(w => w.Id, ct);
+        var importedByCode = await LoadImportedByCodeAsync(pending.Select(p => p.TransactionCode), ct);
+
+        foreach (var item in pending)
+        {
+            await ReconcileAsync(item, works[item.WorkId], importedByCode.GetValueOrDefault(NormalizeCode(item.TransactionCode)), ct);
+            await db.SaveChangesAsync(ct);
+        }
+
+        foreach (var workId in workIds)
+        {
+            await CompleteIfAllMatchedAsync(works[workId], ct);
+        }
+
+        await NotifyMismatchedAsync(
+            pending.GroupBy(p => p.WorkId).Select(g => (works[g.Key], (IReadOnlyCollection<WorkTransaction>)g.ToList())),
+            ct);
+
+        return new ReconcileSummaryDto(
+            pending.Count(i => i.Status == WorkTransactionStatus.Matched),
+            pending.Count(i => i.Status == WorkTransactionStatus.NotMatched),
+            pending.Count(i => i.Status == WorkTransactionStatus.InReview));
+    }
+
+    /// <summary>Transaction codes are compared trimmed and upper-cased (Core Banking codes are case-insensitive).</summary>
+    public static string NormalizeCode(string? code) => (code ?? string.Empty).Trim().ToUpperInvariant();
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    private async Task<Dictionary<string, ImportedTransaction>> LoadImportedByCodeAsync(IEnumerable<string> codes, CancellationToken ct)
+    {
+        var result = new Dictionary<string, ImportedTransaction>(StringComparer.Ordinal);
+        foreach (var chunk in codes.Select(NormalizeCode).Where(c => c.Length > 0).Distinct().Chunk(1000))
+        {
+            var found = await db.ImportedTransactions.Where(t => chunk.Contains(t.TransactionCode.ToUpper())).ToListAsync(ct);
+            foreach (var t in found)
+            {
+                result.TryAdd(NormalizeCode(t.TransactionCode), t);
+            }
+        }
+
+        return result;
+    }
+
+    // A code with no imported row yet, or one that cannot be credited yet (no target, locked period), stays IN_REVIEW
+    // with the error code as reason so it is retried by the next import; a mismatch is final.
+    private async Task ReconcileAsync(WorkTransaction item, Work work, ImportedTransaction? imported, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        if (imported is null)
+        {
+            Set(item, WorkTransactionStatus.InReview, null, now);
+        }
+        else if (imported.EmployeeId != work.AssigneeEmployeeId)
+        {
+            Set(item, WorkTransactionStatus.NotMatched, "EMPLOYEE_MISMATCH", now);
+        }
+        else if (work.WorkType?.ProductCode is not { } product
+            || !string.Equals(product, imported.ProductCode, StringComparison.OrdinalIgnoreCase))
+        {
+            Set(item, WorkTransactionStatus.NotMatched, "PRODUCT_MISMATCH", now);
+        }
+        else if (IsCustomerMismatch(work, imported))
+        {
+            Set(item, WorkTransactionStatus.NotMatched, ReasonCustomerMismatch, now);
+        }
+        else if (await CheckReferralAsync(work, imported, ct) is var (mismatch, referral) && mismatch is not null)
+        {
+            Set(item, WorkTransactionStatus.NotMatched, mismatch, now);
+        }
+        else
+        {
+            try
+            {
+                var referrerCredited = await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, referral, now, ct);
+                item.ImportedTransactionId = imported.Id;
+                Set(item, WorkTransactionStatus.Matched, referrerCredited ? null : ReasonReferrerNotCredited, now);
+            }
+            catch (AppException ex) when (ex.ErrorCode == ErrorCodes.MetricTypeMismatch)
+            {
+                // BR-09: automatic mapping is blocked and the result goes to the manager.
+                Set(item, WorkTransactionStatus.NotMatched, ex.ErrorCode, now);
+            }
+            catch (AppException ex)
+            {
+                Set(item, WorkTransactionStatus.InReview, ex.ErrorCode, now);
+            }
+        }
+    }
+
+    // The work's customer (CIF), when set, must be the customer of the Core Banking transaction.
+    private static bool IsCustomerMismatch(Work work, ImportedTransaction imported) =>
+        !string.IsNullOrWhiteSpace(work.CustomerCif)
+        && !string.IsNullOrWhiteSpace(imported.CustomerCode)
+        && !string.Equals(work.CustomerCif.Trim(), imported.CustomerCode.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Who referred the customer: the accepted handover of the work, otherwise the file's Refer ID (BR-07) with the default
+    /// 30 % share. Returns a NOT_MATCHED reason instead when the transaction happened before the handover, or when the
+    /// file's Refer ID names someone other than the handover's referrer.
+    /// </summary>
+    private async Task<(string? Mismatch, VerifiedResultRecorder.ImportedReferral? Referral)> CheckReferralAsync(
+        Work work, ImportedTransaction imported, CancellationToken ct)
+    {
+        var handover = await db.TaskHandovers.AsNoTracking()
+            .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
+            .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
+            .FirstOrDefaultAsync(ct);
+
+        Guid? fileReferrer = null;
+        if (!string.IsNullOrWhiteSpace(imported.ReferEmployeeCode))
+        {
+            var referCode = imported.ReferEmployeeCode.Trim();
+            fileReferrer = await db.Employees.AsNoTracking()
+                .Where(e => e.EmployeeCode == referCode)
+                .Select(e => (Guid?)e.Id)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        // Refer ID of the processor himself is not a referral.
+        if (fileReferrer == work.AssigneeEmployeeId)
+        {
+            fileReferrer = null;
+        }
+
+        if (handover is not null)
+        {
+            var handoverDate = DateOnly.FromDateTime(handover.HandoverAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
+            if (imported.TransactionDate < handoverDate)
+            {
+                return (ReasonTransactionBeforeHandover, null);
+            }
+
+            if (fileReferrer is { } referrer && referrer != handover.FromEmployeeId)
+            {
+                return (ReasonReferrerMismatch, null);
+            }
+
+            return (null, new VerifiedResultRecorder.ImportedReferral(handover.FromEmployeeId, handover.ReferrerSharePercent));
+        }
+
+        return fileReferrer is { } fromFile
+            ? (null, new VerifiedResultRecorder.ImportedReferral(fromFile, TaskHandover.DefaultReferrerSharePercent))
+            : (null, null);
+    }
+
+    private async Task NotifyMismatchedAsync(
+        IEnumerable<(Work Work, IReadOnlyCollection<WorkTransaction> Items)> workGroups,
+        CancellationToken ct)
+    {
+        if (notifier is null)
+        {
+            return;
+        }
+
+        var mismatchedByWork = workGroups
+            .Select(g => (
+                g.Work,
+                Mismatched: g.Items
+                    .Where(i => i.Status == WorkTransactionStatus.NotMatched)
+                    .Select(i => (i.TransactionCode, i.Reason))
+                    .ToList()))
+            .Where(g => g.Mismatched.Count > 0)
+            .ToList();
+        if (mismatchedByWork.Count == 0)
+        {
+            return;
+        }
+
+        var assigneeIds = mismatchedByWork.Select(g => g.Work.AssigneeEmployeeId).Distinct().ToList();
+        var assignees = await db.Employees.AsNoTracking()
+            .Where(e => assigneeIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, ct);
+
+        var drafts = new List<NotificationDraft>();
+        foreach (var (work, mismatched) in mismatchedByWork)
+        {
+            if (assignees.TryGetValue(work.AssigneeEmployeeId, out var assignee))
+            {
+                drafts.AddRange(AutomaticNotifications.TransactionMismatched(work, assignee, mismatched));
+            }
+        }
+
+        await notifier.TryPublishAsync(drafts, ct);
+    }
+
+    private async Task CompleteIfAllMatchedAsync(Work work, CancellationToken ct)
+    {
+        if (work.Status != WorkStatus.Submitted)
+        {
+            return;
+        }
+
+        var statuses = await db.WorkTransactions.Where(w => w.WorkId == work.Id).Select(w => w.Status).ToListAsync(ct);
+        if (statuses.Count > 0 && statuses.All(s => s == WorkTransactionStatus.Matched)
+            && WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Verify, out var verified)
+            && WorkStateMachine.TryGetNextStatus(verified, WorkAction.Complete, out var done))
+        {
+            work.Status = done;
+            work.UpdatedAt = time.GetUtcNow();
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private static void Set(WorkTransaction item, string status, string? reason, DateTimeOffset now)
+    {
+        item.Status = status;
+        item.Reason = reason;
+        item.UpdatedAt = now;
+    }
+
+    private async Task<WorkTransactionsDto> ToDtoAsync(Work work, CancellationToken ct)
+    {
+        var items = await db.WorkTransactions.AsNoTracking().Where(w => w.WorkId == work.Id)
+            .OrderBy(w => w.CreatedAt).ThenBy(w => w.TransactionCode)
+            .Select(w => new WorkTransactionDto(w.Id, w.TransactionCode, w.Status, w.Reason, w.UpdatedAt))
+            .ToListAsync(ct);
+        return new WorkTransactionsDto(work.Id, work.Status.ToEnumString(), items);
+    }
+
+    private async Task<Work> LoadWorkAsync(Guid workId, CancellationToken ct) =>
+        await db.Works
+            .Include(w => w.WorkType).ThenInclude(t => t!.WorkTypeKpis).ThenInclude(k => k.KpiDefinition)
+            .FirstOrDefaultAsync(w => w.Id == workId, ct)
+        ?? throw new NotFoundException("Work not found.");
+
+    private async Task<Work> LoadOwnWorkAsync(Guid workId, Guid userId, CancellationToken ct)
+    {
+        var employee = await db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == userId || e.Account!.Id == userId, ct);
+        if (employee is null || employee.Status != EmployeeStatus.Active)
+        {
+            throw new UnauthorizedException("Employee not found or inactive.");
+        }
+
+        var work = await LoadWorkAsync(workId, ct);
+        return work.AssigneeEmployeeId == employee.Id
+            ? work
+            : throw new ForbiddenException("Only the assignee can manage the transaction codes of this work.");
+    }
+}

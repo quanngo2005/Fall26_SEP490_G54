@@ -1,0 +1,8 @@
+@let cell = value();
+@if (cell === 'NONE') {
+  <span class="muted">—</span>
+} @else if (cell === 'UNALLOCATED') {
+  <span class="unallocated">{{localization.targetOverview.unallocated}}</span>
+} @else {
+  {{cell | appNumber}}
+}

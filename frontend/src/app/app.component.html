@@ -1,1 +1,12 @@
 <router-outlet />
+@if (auth.currentUser()) {
+  @defer (on immediate) {
+    <app-notification-toasts />
+  }
+}
+@if (auth.mustChangePassword()) {
+  <!-- One-time password: nothing else is usable until the user has chosen their own. -->
+  @defer (on immediate) {
+    <app-change-password-dialog [forced]="true" [email]="auth.currentUser()?.email ?? ''" />
+  }
+}

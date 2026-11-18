@@ -1,0 +1,167 @@
+/* Decision Modal Styles (DESIGN.md: 'Nunito Sans' titles, 'Nunito Sans' body and controls) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-window {
+  background: #fff;
+  border-radius: 8px;
+  width: 520px;
+  max-width: 90vw;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  font-family: 'Nunito Sans', 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  color: #0f172a;
+
+  /* Native controls do not inherit the font on their own */
+  button,
+  input,
+  textarea {
+    font-family: inherit;
+  }
+
+  .modal-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    h3 {
+      margin: 0;
+      font:
+        600 16px 'Nunito Sans',
+        'Segoe UI',
+        Arial,
+        sans-serif;
+      color: #0f172a;
+    }
+    .modal-close {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 16px;
+      color: #64748b;
+    }
+  }
+
+  .modal-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    .field-error {
+      margin: 0;
+      font-size: 12px;
+      color: #dc2626;
+    }
+  }
+
+  .decision-radios {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      &.radio-selected {
+        border-color: #2563eb;
+        background: #eff6ff;
+      }
+      p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        font-weight: 400;
+        color: #64748b;
+      }
+    }
+  }
+
+  .note-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    textarea {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #0f172a;
+      outline: none;
+      resize: vertical;
+      &::placeholder {
+        color: #94a3b8;
+      }
+      &:focus {
+        border-color: #2563eb;
+      }
+      &.field-invalid {
+        border-color: #ef4444;
+      }
+    }
+  }
+
+  .modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    .footer-hint {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .footer-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-secondary {
+      padding: 7px 16px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    .btn-primary {
+      padding: 7px 18px;
+      background: #2563eb;
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      &:hover:not(:disabled) {
+        background: #1d4ed8;
+      }
+      &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    }
+  }
+}

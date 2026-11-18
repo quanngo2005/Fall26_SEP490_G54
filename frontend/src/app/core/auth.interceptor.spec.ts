@@ -54,6 +54,27 @@ describe('authInterceptor', () => {
     sessionStorage.clear();
   });
 
+  for (const path of [
+    '/qa-queue',
+    '/qa-dashboard',
+    '/qa-dashboard/filters',
+    '/qa-queue/FLAG/f1',
+    '/qa-samples',
+    '/quality-flags',
+  ]) {
+    it(`sends the bearer token to the QA endpoint ${path}`, () => {
+      localStorage.setItem(
+        'g54.auth.session',
+        JSON.stringify({ ...refreshedSession, accessToken: 'live-access-token' }),
+      );
+      client.get(`${environment.apiUrl}${path}`).subscribe({ error: () => undefined });
+
+      const request = http.expectOne(`${environment.apiUrl}${path}`);
+      expect(request.request.headers.get('Authorization')).toBe('Bearer live-access-token');
+      request.flush({});
+    });
+  }
+
   it('refreshes once after 401 and keeps the session when the retry fails for another reason', () => {
     client.get(`${environment.apiUrl}/employees`).subscribe({ error: () => undefined });
 
@@ -73,7 +94,7 @@ describe('authInterceptor', () => {
 
   it('attaches the token to admin configuration and lookup endpoints', () => {
     localStorage.setItem('g54.auth.session', JSON.stringify(refreshedSession));
-    for (const path of ['/sidebar-configurations', '/roles', '/job-positions']) {
+    for (const path of ['/sidebar-configurations', '/roles', '/job-positions', '/audit-logs']) {
       client.get(`${environment.apiUrl}${path}`).subscribe();
       const request = http.expectOne(`${environment.apiUrl}${path}`);
       expect(request.request.headers.get('Authorization')).toBe('Bearer rotated-access-token');

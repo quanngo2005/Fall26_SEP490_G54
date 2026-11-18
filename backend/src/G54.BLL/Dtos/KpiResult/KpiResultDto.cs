@@ -17,6 +17,8 @@ public sealed record KpiResultDto(
     string KpiName,
     string Unit,
     decimal Value,
+    decimal RawValue,
+    decimal MultiplierApplied,
     decimal? Denominator,
     string Status,
     DateTimeOffset VerifiedAt,

@@ -1,0 +1,170 @@
+.qa-panel {
+  container-type: inline-size;
+}
+.head-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  color: #475569;
+  font-size: 12px;
+}
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: #93c5fd;
+  vertical-align: -1px;
+}
+.dash {
+  display: inline-block;
+  width: 20px;
+  margin-right: 6px;
+  border-top: 1.5px dashed #94a3b8;
+  vertical-align: middle;
+}
+.summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
+  strong {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  span {
+    color: #475569;
+    font-size: 12px;
+  }
+}
+.chart {
+  padding: 28px 16px 16px 44px;
+}
+.plot {
+  position: relative;
+  height: 150px;
+}
+.grid,
+.avg {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 0;
+}
+.grid {
+  border-top: 1px solid #f1f5f9;
+  &.base {
+    border-top-color: #dde3ea;
+  }
+  span {
+    position: absolute;
+    left: -30px;
+    width: 22px;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 11px;
+    text-align: right;
+  }
+}
+.avg {
+  z-index: 2;
+  border-top: 1.5px dashed #94a3b8;
+  pointer-events: none;
+  span {
+    position: absolute;
+    bottom: 3px;
+    left: 4px;
+    color: #475569;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+}
+.cols,
+.labels {
+  display: flex;
+}
+.cols {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.col {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+}
+.bar {
+  position: relative;
+  display: block;
+  width: min(36px, 62%);
+  border-radius: 3px 3px 0 0;
+  background: #93c5fd;
+}
+.value {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 3px;
+  transform: translateX(-50%);
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+}
+.current {
+  .bar {
+    background: #2563eb;
+  }
+  .value {
+    color: #1e40af;
+    font-weight: 700;
+  }
+  .week {
+    color: #0f172a;
+    font-weight: 600;
+  }
+}
+.labels {
+  margin-top: 8px;
+}
+.label {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 2px;
+  text-align: center;
+}
+.week,
+.rate {
+  display: block;
+}
+.week {
+  color: #475569;
+  font-size: 12px;
+}
+.rate {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 14px;
+}
+@container (max-width: 600px) {
+  .summary {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .chart {
+    padding: 24px 12px 12px 38px;
+  }
+  .rate {
+    font-size: 10px;
+  }
+}

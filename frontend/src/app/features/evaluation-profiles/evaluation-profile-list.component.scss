@@ -1,0 +1,19 @@
+/* Shared header, banner, filter bar, table, pager and state styles come from ../../shared/ui. */
+
+.muted {
+  color: #64748b;
+}
+
+.locked-chip {
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+.profile-table tbody tr.is-inactive td {
+  color: #94a3b8;
+}
+
+.col-action {
+  text-align: right;
+  white-space: nowrap;
+}

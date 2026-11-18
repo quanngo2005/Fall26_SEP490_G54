@@ -1,0 +1,76 @@
+/* Shared table, filter, pager, drawer and header styles come from ../../shared/ui. Only audit-specific pieces live here. */
+
+.entity-input {
+  width: min(200px, 100%);
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+
+  .input {
+    min-width: 150px;
+  }
+}
+
+.field-error {
+  margin: 0 0 12px;
+  color: #be123c;
+  font-size: 12px;
+}
+
+.id-cell {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.columns-cell {
+  max-width: 220px;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+}
+
+.state-error {
+  color: #b91c1c;
+}
+
+.value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.value.old {
+  background: #fef2f2;
+}
+
+.value.new {
+  background: #ecfdf5;
+}
+
+.change-table th,
+.change-table td {
+  padding: 8px 10px;
+}

@@ -18,12 +18,23 @@ public sealed class PerformanceScoreFormula : IPerformanceScoreFormula
     public KpiScoreResult CalculateKpi(KpiScoreInput input)
     {
         var actual = ResolveActual(input);
-        if (actual is null || input.TargetValue == 0m)
+        var threshold = ResolveThreshold(input);
+        if (actual is null || threshold is null)
         {
             return new KpiScoreResult(null, null, null);
         }
 
-        var raw = Math.Min(Math.Max(AchievementPercent(input, actual.Value), 0m), MaxStoredPercent);
+        if (input.Direction != KpiDirection.LowerBetter && threshold.Value <= 0m)
+        {
+            return new KpiScoreResult(null, null, null);
+        }
+
+        if (input.Direction == KpiDirection.LowerBetter && threshold.Value < 0m)
+        {
+            return new KpiScoreResult(null, null, null);
+        }
+
+        var raw = Math.Min(Math.Max(AchievementPercent(input, actual.Value, threshold.Value), 0m), MaxStoredPercent);
         var capped = input.MaxAchievementPercent is { } cap ? Math.Min(raw, cap) : raw;
 
         return new KpiScoreResult(raw, capped, capped);
@@ -42,36 +53,55 @@ public sealed class PerformanceScoreFormula : IPerformanceScoreFormula
     }
 
     /// <summary>The value compared with the target: a ratio KPI divides by its denominator, others use the sum or mean.</summary>
-    private static decimal? ResolveActual(KpiScoreInput input)
+    public static decimal? ResolveActual(
+        KpiAggregationType aggregationType,
+        string unit,
+        decimal? actualValue,
+        decimal? actualDenominator)
     {
-        if (input.AggregationType != KpiAggregationType.Ratio)
-        {
-            return input.ActualValue;
-        }
-
-        if (input.ActualDenominator is not > 0m)
+        if (!actualValue.HasValue)
         {
             return null;
         }
 
-        var ratio = input.ActualValue / input.ActualDenominator.Value;
-        return input.Unit.Trim() == "%" ? ratio * 100m : ratio;
+        if (aggregationType != KpiAggregationType.Ratio)
+        {
+            return actualValue.Value;
+        }
+
+        if (actualDenominator is not > 0m)
+        {
+            return null;
+        }
+
+        var ratio = actualValue.Value / actualDenominator.Value;
+        return unit.Trim() == "%" ? ratio * 100m : ratio;
     }
 
-    private static decimal AchievementPercent(KpiScoreInput input, decimal actual)
-    {
-        var target = input.TargetValue;
+    private static decimal? ResolveActual(KpiScoreInput input) =>
+        ResolveActual(input.AggregationType, input.Unit, input.ActualValue, input.ActualDenominator);
 
+    private static decimal? ResolveThreshold(KpiScoreInput input) =>
+        input.TargetValue is > 0m ? input.TargetValue : input.BaselineValue;
+
+    private static decimal AchievementPercent(KpiScoreInput input, decimal actual, decimal threshold)
+    {
         switch (input.Direction)
         {
             case KpiDirection.HigherBetter:
-                return actual / target * 100m;
+                return actual / threshold * 100m;
             case KpiDirection.LowerBetter:
-                return actual == 0m
-                    ? input.MaxAchievementPercent ?? ZeroActualPercent
-                    : target / actual * 100m;
+                var ceiling = input.MaxAchievementPercent ?? ZeroActualPercent;
+                if (actual <= threshold)
+                {
+                    return ceiling;
+                }
+
+                return threshold == 0m || input.Unit.Trim() == "%"
+                    ? ceiling - (actual - threshold)
+                    : threshold / actual * 100m;
             default:
-                return 100m - Math.Abs(actual - target) / Math.Abs(target) * 100m;
+                return 100m - Math.Abs(actual - threshold) / Math.Abs(threshold) * 100m;
         }
     }
 }

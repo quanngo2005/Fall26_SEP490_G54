@@ -22,6 +22,12 @@ public partial class EvaluationPeriod
     public PeriodType PeriodType { get; set; }
     public PeriodStatus Status { get; set; }
 
+    /// <summary>Hard-lock watermark (BR-29): every month up to and including this date's month is read-only.</summary>
+    public DateOnly? HardLockedThrough { get; set; }
+
+    /// <summary>Frozen JSON snapshot of the <see cref="RankingPolicy"/> definition captured when the period is locked (GB-910).</summary>
+    public string? RankingPolicySnapshotJson { get; set; }
+
     public virtual ICollection<EvaluationPeriod> InverseParentPeriod { get; set; } = new List<EvaluationPeriod>();
 
     public virtual EvaluationPeriod? ParentPeriod { get; set; }

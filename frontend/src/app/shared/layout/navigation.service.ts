@@ -14,6 +14,7 @@ export type MenuKey =
   | 'overview'
   | 'myWork'
   | 'mySubmissions'
+  | 'myTargets'
   | 'myPerformance'
   | 'notifications'
   | 'myProfile'
@@ -23,12 +24,14 @@ export type MenuKey =
   | 'jobPositions'
   | 'reportingLines'
   | 'employeeData'
-  | 'reportsComplaints'
+  | 'appeals'
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
+  | 'reconciliation'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
+  | 'targetOverview'
   | 'branchWork'
   | 'branchPerformance'
   | 'departmentPerformance'
@@ -42,6 +45,8 @@ export type MenuKey =
   | 'rolesPermissions'
   | 'accessPolicies'
   | 'systemConfiguration'
+  | 'systemParameters'
+  | 'rankingStudio'
   | 'systemAudit'
   | 'tasks'
   | 'personalKpis'
@@ -59,7 +64,8 @@ export interface NavigationItem {
   id: MenuKey;
   icon: string;
   route?: string;
-  permission?: string;
+  /** One permission, or several of which any one is enough. */
+  permission?: string | readonly string[];
   children?: NavigationItem[];
 }
 
@@ -84,7 +90,8 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myWork',
     'mySubmissions',
     'myPerformance',
-    'reportsComplaints',
+    'myTargets',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -94,9 +101,12 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'teamWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'teamPerformance',
+    'departmentPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
-    'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -107,10 +117,13 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'branchPerformance',
     'departmentPerformance',
+    'targetOverview',
     'targetsAndCampaigns',
-    'reportsComplaints',
+    'kpiDefinitions',
+    'appeals',
     'notifications',
     'myProfile',
   ],
@@ -119,14 +132,15 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'employees',
     'organization',
     'employeeData',
-    'reportsComplaints',
+    'appeals',
     'notifications',
     'myProfile',
   ],
   qa: [
     'overview',
+    'reconciliation',
     'verificationQueue',
-    'reportsComplaints',
+    'appeals',
     'escalatedCases',
     'auditReview',
     'riskEvents',
@@ -139,8 +153,13 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'accounts',
     'rolesPermissions',
     'accessPolicies',
+    'workTypes',
+    'kpiDefinitions',
     'systemConfiguration',
+    'systemParameters',
+    'rankingStudio',
     'systemAudit',
+    'notifications',
     'myProfile',
   ],
 };
@@ -148,10 +167,11 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
-  { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance' },
-  { id: 'reportsComplaints', icon: 'reportsComplaints' },
-  { id: 'notifications', icon: 'notifications' },
+  { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
+  { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
+  { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
+  { id: 'notifications', icon: 'notifications', route: '/notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
   {
@@ -172,7 +192,19 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
   },
+  {
+    id: 'reconciliation',
+    icon: 'reviewVerify',
+    route: '/reconciliations',
+    permission: 'RECONCILIATION_READ',
+  },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
+  {
+    id: 'targetOverview',
+    icon: 'targetsAndCampaigns',
+    route: '/target-overview',
+    permission: 'TARGET_MANAGE',
+  },
   {
     id: 'targetsAndCampaigns',
     icon: 'targetsAndCampaigns',
@@ -180,18 +212,32 @@ const ITEMS: readonly NavigationItem[] = [
     permission: 'TARGET_MANAGE',
   },
   { id: 'branchWork', icon: 'branchWork' },
-  { id: 'branchPerformance', icon: 'branchPerformance' },
+  {
+    id: 'branchPerformance',
+    icon: 'branchPerformance',
+    route: '/branch-performance',
+    // SCR-PRF-03 reads the branch overview, so it needs what its route guard needs (organizationGuard).
+    permission: 'ORGANIZATION_READ',
+  },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
-  { id: 'verificationQueue', icon: 'verificationQueue', permission: 'VERIFICATION_DECIDE' },
+  {
+    id: 'verificationQueue',
+    icon: 'verificationQueue',
+    route: '/qa-queue',
+    // The QA queue (SCR-REV-06): quality flags and the 5% re-verification samples.
+    permission: 'QUALITY_FLAG_READ',
+  },
   { id: 'escalatedCases', icon: 'escalatedCases' },
   { id: 'auditReview', icon: 'auditReview' },
-  { id: 'riskEvents', icon: 'riskEvents' },
+  { id: 'riskEvents', icon: 'riskEvents', route: '/risk-events', permission: 'RISK_EVENT_READ' },
   { id: 'reportsAnalytics', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
   { id: 'accounts', icon: 'people', route: '/user-accounts' },
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
-  { id: 'systemAudit', icon: 'systemAudit' },
+  { id: 'systemParameters', icon: 'sliders', route: '/system-parameters' },
+  { id: 'rankingStudio', icon: 'target', route: '/ranking-studio' },
+  { id: 'systemAudit', icon: 'systemAudit', route: '/audit-logs' },
   // Legacy items for backward compat
   { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'personalKpis', icon: 'employeeData', permission: 'KPI_READ' },
@@ -206,9 +252,10 @@ const ITEMS: readonly NavigationItem[] = [
     id: 'kpiDefinitions',
     icon: 'reportsAnalytics',
     route: '/kpi-definitions',
-    permission: 'KPI_MANAGE',
+    // The System Admin maintains the catalog; the Branch Manager approves it.
+    permission: ['KPI_MANAGE', 'KPI_APPROVE'],
   },
-  { id: 'workTypes', icon: 'myWork', route: '/work-type-detail' },
+  { id: 'workTypes', icon: 'myWork', route: '/work-types' },
   { id: 'targets', icon: 'targetsAndCampaigns', permission: 'TARGET_MANAGE' },
   { id: 'reports', icon: 'reportsAnalytics', permission: 'EVALUATION_READ' },
   { id: 'audit', icon: 'auditReview' },
@@ -225,19 +272,41 @@ export class NavigationService {
   readonly loadFailed = signal(false);
   readonly catalog = ITEMS;
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
+  readonly adminOnlyRoutes: readonly string[] = [
+    '/sidebar-settings',
+    '/system-parameters',
+    '/ranking-studio',
+    '/roles',
+    '/user-accounts',
+    '/audit-logs',
+  ];
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/work-monitor',
+    '/my-targets',
+    '/my-evaluation',
     '/departments',
     '/department-performance',
+    '/branch-performance',
     '/employee-detail',
+    '/employee-profile',
+    '/work-types',
+    '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
+    '/reconciliations',
+    '/appeals',
+    '/notifications',
     '/kpi-definitions',
     '/campaigns',
+    '/target-overview',
     '/sidebar-settings',
+    '/system-parameters',
+    '/ranking-studio',
     '/roles',
     '/user-accounts',
+    '/audit-logs',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -335,8 +404,9 @@ export class NavigationService {
     );
     return this.buildItems(ids, routes).filter(
       (item) =>
-        (item.id !== 'systemConfiguration' || this.isAdmin()) &&
-        (!item.permission || permissions.has(item.permission)),
+        (!['systemConfiguration', 'systemParameters', 'rankingStudio'].includes(item.id) ||
+          this.isAdmin()) &&
+        (!item.permission || [item.permission].flat().some((code) => permissions.has(code))),
     );
   });
   readonly currentPageKey = computed((): MenuKey | null => {

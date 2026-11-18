@@ -1,9 +1,16 @@
+using G54.BLL.Common.Models;
 using G54.BLL.Dtos.EvaluationPeriod;
 
 namespace G54.BLL.Services;
 
 public interface IEvaluationPeriodService
 {
+    /// <summary>Lists evaluation periods with optional search, type/status filter, hierarchy navigation, and paging.</summary>
+    Task<PagedResult<EvaluationPeriodItemDto>> GetPeriodsAsync(EvaluationPeriodFilterDto filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets evaluation period detail by ID.</summary>
+    Task<EvaluationPeriodItemDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Creates a period that starts <c>OPEN</c>.</summary>
     Task<EvaluationPeriodStatusDto> CreateAsync(CreateEvaluationPeriodRequestDto request, CancellationToken cancellationToken = default);
 

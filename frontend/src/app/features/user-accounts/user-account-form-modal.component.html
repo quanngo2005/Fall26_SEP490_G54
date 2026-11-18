@@ -1,6 +1,7 @@
 @let t = localization.userAccounts;
-<div class="modal-backdrop" (click)="close()" role="presentation">
+<div animate.leave="g54-leave-fade" class="modal-backdrop" (click)="close()" role="presentation">
   <div
+    animate.leave="g54-leave-pop"
     class="modal-dialog account-dialog"
     role="dialog"
     aria-modal="true"
@@ -90,21 +91,20 @@
             </div>
           } @else {
             <div class="field">
-              <label for="account-employee">{{t.employee}} <span class="req">*</span></label>
-              <select
-                id="account-employee"
-                class="select"
-                name="employee"
-                [class.is-invalid]="employeeError()"
-                [disabled]="loadingEmployees()"
-                [ngModel]="employeeId()"
-                (ngModelChange)="selectEmployee($event)"
+              <label for="account-employee-trigger"
+                >{{t.employee}} <span class="req">*</span></label
               >
-                <option value="">{{t.employeePlaceholder}}</option>
-                @for (item of eligible(); track item.id) {
-                  <option [value]="item.id">{{summaryLabel(item)}}</option>
-                }
-              </select>
+              <app-ui-select
+                id="account-employee"
+                triggerId="account-employee-trigger"
+                class="full-select"
+                [options]="employeeSelectOptions()"
+                [value]="employeeId()"
+                [placeholder]="t.employeePlaceholder"
+                [ariaLabel]="t.employee"
+                [disabled]="loadingEmployees()"
+                (valueChange)="selectEmployee($event)"
+              />
               @if (employeeError(); as message) {
                 <p class="field-error" role="alert">{{message}}</p>
               } @else if (employeesFailed()) {
@@ -163,20 +163,17 @@
               </div>
             }
             <div class="field" [class.full]="isEdit()">
-              <label for="account-role">{{t.role}} <span class="req">*</span></label>
-              <select
+              <label for="account-role-trigger">{{t.role}} <span class="req">*</span></label>
+              <app-ui-select
                 id="account-role"
-                class="select"
-                name="role"
-                [class.is-invalid]="roleError()"
-                [ngModel]="roleId()"
-                (ngModelChange)="roleId.set($event)"
-              >
-                <option value="">{{t.rolePlaceholder}}</option>
-                @for (role of roles(); track role.id) {
-                  <option [value]="role.id">{{role.name}}</option>
-                }
-              </select>
+                triggerId="account-role-trigger"
+                class="full-select"
+                [options]="roleSelectOptions()"
+                [value]="roleId()"
+                [placeholder]="t.rolePlaceholder"
+                [ariaLabel]="t.role"
+                (valueChange)="roleId.set($event)"
+              />
               @if (roleError(); as message) {
                 <p class="field-error" role="alert">{{message}}</p>
               } @else if (!isEdit()) {

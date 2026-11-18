@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { convertToParamMap, ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of, Subject, throwError } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
+import { of, Subject, throwError } from 'rxjs';
 import { EvaluationFormComponent } from './evaluation-form.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import {
   DepartmentEmployeeEvaluation,
@@ -26,9 +27,6 @@ const quantitativeGroup: EvaluationCriterionGroup = {
   groupName: 'Business',
   weightPercent: 70,
   groupScore: 50,
-  qualitativeScore: null,
-  qualitativeNotes: null,
-  isQualitative: false,
   kpiItems: [
     {
       kpiDefinitionId: 'k1',
@@ -55,15 +53,12 @@ const quantitativeGroup: EvaluationCriterionGroup = {
   ],
 };
 
-const qualitativeGroup: EvaluationCriterionGroup = {
-  evaluationProfileItemId: 'g-q',
-  groupCode: 'SOFT',
-  groupName: 'Attitude',
+const serviceGroup: EvaluationCriterionGroup = {
+  evaluationProfileItemId: 'g-sv',
+  groupCode: 'SV',
+  groupName: 'Service',
   weightPercent: 30,
   groupScore: 100,
-  qualitativeScore: 80,
-  qualitativeNotes: 'note',
-  isQualitative: true,
   kpiItems: [],
 };
 
@@ -88,7 +83,7 @@ function buildForm(overrides: Partial<EvaluationFormModel> = {}): EvaluationForm
       status: 'OPEN',
     },
     profile: { id: 'pr1', code: 'EP-SALES', name: 'Sales profile', version: 1 },
-    criteriaGroups: [quantitativeGroup, qualitativeGroup],
+    criteriaGroups: [quantitativeGroup, serviceGroup],
     riskEvents: [
       {
         id: 'r1',
@@ -126,6 +121,26 @@ function buildForm(overrides: Partial<EvaluationFormModel> = {}): EvaluationForm
     openAppealCount: 1,
     hasOpenDispute: false,
     previousPeriod: { periodCode: '2026-Q3', totalScore: 60, tier: 'B', scoreDifference: 3 },
+    comparePeriod: null,
+    compareOptions: [],
+    criteriaSummary: {
+      achievedCount: 3,
+      nearCount: 2,
+      belowCount: 1,
+      totalCount: 6,
+      achievedRatePercent: 50,
+    },
+    slaSummary: {
+      onTimeCompletedCount: 27,
+      overdueCount: 1,
+      inProgressCount: 2,
+      onTimeRatePercent: 96.4,
+    },
+    formSettings: {
+      maxCommentLength: 1000,
+      kpiMetThresholdPercent: 100,
+      kpiNearThresholdPercent: 85,
+    },
     ...overrides,
   };
 }
@@ -150,6 +165,7 @@ function rosterRow(employeeId: string): DepartmentEmployeeEvaluation {
     pendingSubmissionCount: 0,
     canEvaluate: true,
     updatedAt: null,
+    quantitativeScoreChange: null,
   };
 }
 
@@ -169,9 +185,10 @@ describe('EvaluationFormComponent', () => {
   let component: EvaluationFormComponent;
   let api: jasmine.SpyObj<EvaluationService>;
   let router: Router;
-  let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let target: EvaluationFormTargetService;
 
   const text = () => TestBed.inject(I18nService).localization.evaluationForm;
+  const emptyValue = () => TestBed.inject(I18nService).localization.evaluations.emptyValue;
 
   async function create(
     form: EvaluationFormModel | HttpErrorResponse = buildForm(),
@@ -187,21 +204,19 @@ describe('EvaluationFormComponent', () => {
   }
 
   beforeEach(async () => {
+    sessionStorage.clear();
     api = jasmine.createSpyObj<EvaluationService>('EvaluationService', [
       'form',
       'submit',
       'departmentEmployees',
+      'periods',
+      'exportEvaluationForm',
     ]);
-    query = new BehaviorSubject(convertToParamMap({ employeeId: 'e2', periodId: 'period-1' }));
+    api.periods.and.returnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [EvaluationFormComponent],
-      providers: [
-        provideRouter([]),
-        { provide: EvaluationService, useValue: api },
-        { provide: ActivatedRoute, useValue: { queryParamMap: query.asObservable() } },
-        I18nService,
-      ],
+      providers: [provideRouter([]), { provide: EvaluationService, useValue: api }, I18nService],
     })
       .overrideComponent(EvaluationFormComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent] },
@@ -211,139 +226,143 @@ describe('EvaluationFormComponent', () => {
 
     router = TestBed.inject(Router);
     spyOn(router, 'navigate').and.resolveTo(true);
+    target = TestBed.inject(EvaluationFormTargetService);
+    target.save({ employeeId: 'e2', periodId: 'period-1' });
   });
 
-  it('loads the form of the employee and period named in the query', async () => {
+  afterEach(() => sessionStorage.clear());
+
+  it('loads the form of the employee and period saved for this tab', async () => {
     await create();
     expect(api.form).toHaveBeenCalledOnceWith('e2', 'period-1');
     expect(component.form()?.employee.fullName).toBe('Le Minh Chau');
     expect(fixture.nativeElement.textContent).toContain('Le Minh Chau');
-    expect(fixture.nativeElement.textContent).toContain('2026-Q4');
   });
 
-  it('renders the groups, the KPI rows and the risk penalty from the API', async () => {
+  it('renders the groups, the KPI rows and the risk events from the API', async () => {
     await create();
     const body = fixture.nativeElement.textContent as string;
     expect(body).toContain('Business');
+    expect(body).toContain('Service');
     expect(body).toContain('Deposits');
     expect(body).toContain('New customers');
     expect(body).toContain('RSK-1');
-    expect(body).toContain('Sales profile');
+  });
+
+  it('does not show any qualitative input', async () => {
+    await create();
+    expect(fixture.nativeElement.querySelector('input')).toBeNull();
+    expect(fixture.nativeElement.querySelector('select.score-input')).toBeNull();
+  });
+
+  it('shows the weighted KPI score from the API in the total row', async () => {
+    await create();
+    const total = fixture.nativeElement.querySelector('tr.total-row') as HTMLElement;
+    expect(total.textContent).toContain('65');
+  });
+
+  it('shows the total risk deduction above the KPI total', async () => {
+    await create();
+    const deduction = fixture.nativeElement.querySelector('.metric-deduction') as HTMLElement;
+    expect(deduction.textContent).toContain('2');
+    expect(fixture.nativeElement.querySelector('.risk-total')).not.toBeNull();
+  });
+
+  it('does not show a final score or a tier calculated by the form', async () => {
+    await create();
+    const titles = Array.from(
+      fixture.nativeElement.querySelectorAll('.metric-title') as NodeListOf<HTMLElement>,
+    ).map((title) => title.textContent?.trim());
+    expect(titles).not.toContain(text().totalScoreTitle);
+    expect(component.tierText()).toBe(
+      TestBed.inject(I18nService).translate('evaluationForm.proposedTier', { tier: 'B' }),
+    );
   });
 
   it('shows N/A for a KPI that has no target instead of zero', async () => {
     await create();
     const rows = fixture.nativeElement.querySelectorAll('tr.kpi-row') as NodeListOf<HTMLElement>;
-    const noTarget = Array.from(rows).find((r) => r.textContent?.includes('New customers'));
-    const targetCell = noTarget?.querySelector('.td-target') as HTMLElement;
-    expect(targetCell.textContent?.trim()).toBe(
-      TestBed.inject(I18nService).localization.evaluations.emptyValue,
-    );
+    const noTarget = Array.from(rows).find((row) => row.textContent?.includes('New customers'));
+    expect(noTarget?.textContent).toContain(emptyValue());
   });
 
-  it('places the weight column between the KPI item and the target', async () => {
+  it('shows N/A for a KPI without progress and keeps a real zero', async () => {
+    const noProgress = {
+      ...quantitativeGroup,
+      kpiItems: [
+        {
+          ...quantitativeGroup.kpiItems[1],
+          targetValue: 10,
+          actualValue: null,
+          achievementPercent: null,
+          componentScore: null,
+        },
+      ],
+    };
+    await create(buildForm({ criteriaGroups: [noProgress, serviceGroup] }));
+    const row = Array.from(
+      fixture.nativeElement.querySelectorAll('tr.kpi-row') as NodeListOf<HTMLElement>,
+    ).find((r) => r.textContent?.includes('New customers'));
+    expect(row?.textContent).toContain(emptyValue());
+  });
+
+  it('shows N/A for the total when nothing can be scored', async () => {
+    await create(
+      buildForm({
+        summary: {
+          ...buildForm().summary,
+          totalScore: null,
+          weightedScore: null,
+          proposedTier: null,
+        },
+      }),
+    );
+    const total = fixture.nativeElement.querySelector('tr.total-row') as HTMLElement;
+    expect(total.textContent).toContain(emptyValue());
+    expect(component.tierText()).toBe(emptyValue());
+  });
+
+  it('shows N/A for a group score that cannot be determined', async () => {
+    await create(
+      buildForm({ criteriaGroups: [{ ...quantitativeGroup, groupScore: null }, serviceGroup] }),
+    );
+    const group = fixture.nativeElement.querySelector('tr.group-row') as HTMLElement;
+    expect(group.querySelector('.score-cell')?.textContent).toContain(emptyValue());
+  });
+
+  it('shows the group rows and the total row with the dictionary colours', async () => {
+    await create();
+    expect(fixture.nativeElement.querySelectorAll('tr.group-row').length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('tr.total-row').length).toBe(1);
+  });
+
+  it('keeps the table header in the order of the SVG', async () => {
     await create();
     const labels = text();
     const header = Array.from(
       fixture.nativeElement.querySelectorAll('thead th') as NodeListOf<HTMLElement>,
     ).map((cell) => cell.textContent?.trim());
-    expect(header.slice(0, 3)).toEqual([labels.colKpiItem, labels.colWeight, labels.colTarget]);
+    expect(header).toEqual([
+      labels.colKpiItem,
+      labels.colWeight,
+      labels.colTarget,
+      labels.colActual,
+      labels.colAchievement,
+      labels.colScore,
+    ]);
   });
 
-  it('shows the weight of each KPI as a percent of its group', async () => {
-    await create();
-    const rows = fixture.nativeElement.querySelectorAll('tr.kpi-row') as NodeListOf<HTMLElement>;
-    const cells = Array.from(rows)
-      .filter((row) => row.querySelector('.td-weight'))
-      .map((row) =>
-        (row.querySelector('.td-weight') as HTMLElement).textContent?.replace(/\s/g, ''),
-      );
-    expect(cells.length).toBe(2);
-    expect(cells[0]).toContain('60');
-    expect(cells[1]).toContain('40');
-    expect(cells.every((cell) => cell?.endsWith('%'))).toBeTrue();
-  });
-
-  it('spans the group, summary and penalty rows over every column', async () => {
-    await create();
-    const columns = fixture.nativeElement.querySelectorAll('thead th').length;
-    const width = (row: Element): number =>
-      Array.from(row.children).reduce(
-        (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
-        0,
-      );
-    const groupRows = fixture.nativeElement.querySelectorAll(
-      'tr.group-header-row',
-    ) as NodeListOf<HTMLElement>;
-    expect(groupRows.length).toBeGreaterThan(0);
-    groupRows.forEach((row) => expect(width(row)).toBe(columns));
-    const penalty = fixture.nativeElement.querySelector('tr.penalty-row') as HTMLElement;
-    const penaltyWidth = Array.from(penalty.children).reduce(
-      (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
-      0,
-    );
-    expect(penaltyWidth).toBe(columns);
-    const total = fixture.nativeElement.querySelector('tr.kpi-total-row') as HTMLElement;
-    const totalWidth = Array.from(total.children).reduce(
-      (sum, cell) => sum + Number(cell.getAttribute('colspan') ?? 1),
-      0,
-    );
-    expect(totalWidth).toBe(columns);
-  });
-
-  it('shows the score of each group on its header row, in the score column', async () => {
-    await create();
-    const rows = Array.from(
-      fixture.nativeElement.querySelectorAll('tr.group-header-row') as NodeListOf<HTMLElement>,
-    );
-    const columns = fixture.nativeElement.querySelectorAll('thead th').length;
-    const scoreOf = (row: HTMLElement): string | undefined =>
-      row.querySelector('.group-score-cell')?.textContent?.replace(/\s/g, '');
-
-    expect(rows.length).toBe(2);
-    expect(rows[0].textContent).toContain('Business');
-    expect(scoreOf(rows[0])).toContain('50');
-    expect(scoreOf(rows[1])).toContain('100');
-    rows.forEach((row) => {
-      // The score cell is the last one, so it sits under the SCORE column.
-      expect(row.lastElementChild?.classList.contains('group-score-cell')).toBeTrue();
-      expect(row.lastElementChild?.classList.contains('text-center')).toBeTrue();
-      expect(columns).toBe(6);
-    });
-  });
-
-  it('does not repeat the score of a qualitative group on a second row', async () => {
-    await create();
-    const rows = Array.from(
-      fixture.nativeElement.querySelectorAll('tr.group-header-row') as NodeListOf<HTMLElement>,
-    );
-    const qualitative = rows.find((row) => row.textContent?.includes('Attitude'));
-    expect(qualitative?.querySelector('.group-score-cell')).not.toBeNull();
-    const note = (qualitative?.nextElementSibling as HTMLElement).textContent?.trim();
-    expect(note).toBe(text().qualitativeGroupRow);
-    expect((qualitative?.nextElementSibling as HTMLElement).querySelector('.td-score')).toBeNull();
-  });
-  it('centres every table column except the KPI item', async () => {
-    await create();
-    const header = fixture.nativeElement.querySelectorAll('thead th') as NodeListOf<HTMLElement>;
-    expect(header[0].classList.contains('text-center')).toBeFalse();
-    Array.from(header)
-      .slice(1)
-      .forEach((cell) => expect(cell.classList.contains('text-center')).toBeTrue());
-  });
-
-  it('does not call the form API when the query lacks the employee or the period', async () => {
-    query.next(convertToParamMap({ employeeId: 'e2' }));
+  it('does not call the form API when no employee and period were saved for this tab', async () => {
+    sessionStorage.clear();
     await create();
     expect(api.form).not.toHaveBeenCalled();
     expect(component.failure()).toBe('notFound');
     expect(component.stateText()).toBe(text().notFound);
   });
 
-  it('reloads when the query changes', async () => {
+  it('does not navigate when it opens, so the address is left as it is', async () => {
     await create();
-    query.next(convertToParamMap({ employeeId: 'e3', periodId: 'period-1' }));
-    expect(api.form).toHaveBeenCalledWith('e3', 'period-1');
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it('shows the loading text while the form is pending', () => {
@@ -376,17 +395,9 @@ describe('EvaluationFormComponent', () => {
     });
   }
 
-  it('fills the comment and the qualitative score from the stored evaluation', async () => {
+  it('fills the comment from the stored evaluation', async () => {
     await create();
     expect(component.commentInput()).toBe('Saved comment');
-    expect(component.qualitativeScores()['g-q']).toBe(80);
-    expect(component.qualitativeAverage()).toBe(80);
-  });
-
-  it('keeps the qualitative average empty when no score is entered', async () => {
-    await create();
-    component.setQualitativeScore('g-q', null);
-    expect(component.qualitativeAverage()).toBeNull();
   });
 
   describe('edit gate', () => {
@@ -404,25 +415,13 @@ describe('EvaluationFormComponent', () => {
       component.onSaveDraft();
       expect(api.submit).not.toHaveBeenCalled();
     });
-
-    it('blocks saving while a qualitative score is out of range', async () => {
-      await create();
-      component.setQualitativeScore('g-q', component.scoreMax + 1);
-      expect(component.scoreInvalid()).toBeTrue();
-      expect(component.canSubmit()).toBeFalse();
-      component.setQualitativeScore('g-q', component.scoreMin - 1);
-      expect(component.scoreInvalid()).toBeTrue();
-      component.setQualitativeScore('g-q', component.scoreMax);
-      expect(component.scoreInvalid()).toBeFalse();
-    });
   });
 
   describe('saving', () => {
-    it('saves a draft with the entered comment and qualitative scores', async () => {
+    it('saves a draft with the entered comment and no qualitative scores', async () => {
       api.submit.and.returnValue(of(savedResult));
       await create();
       component.commentInput.set('  New comment  ');
-      component.setQualitativeScore('g-q', 90);
       component.onSaveDraft();
       expect(api.submit).toHaveBeenCalledOnceWith({
         employeeId: 'e2',
@@ -430,14 +429,13 @@ describe('EvaluationFormComponent', () => {
         comment: 'New comment',
         coachingPlan: 'plan',
         coachingRequired: true,
-        qualitativeScores: [{ evaluationProfileItemId: 'g-q', score: 90, notes: 'note' }],
         isDraft: true,
       });
       expect(component.saveMessage()?.kind).toBe('success');
       expect(component.saveMessage()?.text).toBe(text().saveDraftSuccess);
     });
 
-    it('reloads the form after a successful save and keeps the success message', async () => {
+    it('reloads the form after a successful save', async () => {
       api.submit.and.returnValue(of(savedResult));
       await create();
       component.onSaveDraft();
@@ -464,22 +462,12 @@ describe('EvaluationFormComponent', () => {
       });
     });
 
-    it('refuses to complete while a qualitative score is missing', async () => {
-      await create();
-      component.setQualitativeScore('g-q', null);
-      component.onCompleteEvaluation();
-      expect(api.submit).not.toHaveBeenCalled();
-      expect(component.saveMessage()?.kind).toBe('error');
-    });
-
-    it('still allows a draft without a comment or a score', async () => {
+    it('still allows a draft without a comment', async () => {
       api.submit.and.returnValue(of(savedResult));
       await create();
       component.commentInput.set('');
-      component.setQualitativeScore('g-q', null);
       component.onSaveDraft();
       expect(api.submit).toHaveBeenCalledTimes(1);
-      expect(api.submit.calls.mostRecent().args[0].qualitativeScores).toEqual([]);
       expect(api.submit.calls.mostRecent().args[0].comment).toBeNull();
     });
 
@@ -520,17 +508,79 @@ describe('EvaluationFormComponent', () => {
     }
   });
 
+  describe('rejected input', () => {
+    it('shows the message the API sends for an HTTP 400', async () => {
+      const message = 'Nhận xét quá dài.';
+      api.submit.and.returnValue(
+        throwError(
+          () => new HttpErrorResponse({ status: 400, error: { success: false, message } }),
+        ),
+      );
+      await create();
+      component.onSaveDraft();
+      expect(component.saveMessage()).toEqual({ kind: 'error', text: message });
+      expect(component.saving()).toBeFalse();
+    });
+
+    it('falls back to the generic message for an HTTP 400 without a message', async () => {
+      api.submit.and.returnValue(throwError(() => new HttpErrorResponse({ status: 400 })));
+      await create();
+      component.onSaveDraft();
+      expect(component.saveMessage()).toEqual({ kind: 'error', text: text().saveError });
+    });
+  });
+
+  describe('unsaved changes', () => {
+    let confirmSpy: jasmine.Spy;
+
+    beforeEach(() => {
+      confirmSpy = spyOn(window, 'confirm').and.returnValue(true);
+    });
+
+    it('does not ask while nothing was changed', async () => {
+      await create();
+      expect(component.hasUnsavedChanges()).toBeFalse();
+      component.onNext();
+      component.onBackToList();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(api.form).toHaveBeenCalledWith('e3', 'period-1');
+      expect(router.navigate).toHaveBeenCalledOnceWith(['/evaluations']);
+    });
+
+    it('asks before moving to another employee when the comment was edited', async () => {
+      await create();
+      component.commentInput.set('Edited comment');
+      expect(component.hasUnsavedChanges()).toBeTrue();
+      component.onNext();
+      expect(confirmSpy).toHaveBeenCalledOnceWith(text().confirmDiscard);
+      expect(api.form).toHaveBeenCalledWith('e3', 'period-1');
+    });
+
+    it('stays on the form and keeps the input when the reviewer declines', async () => {
+      confirmSpy.and.returnValue(false);
+      await create();
+      component.commentInput.set('Edited comment');
+      api.form.calls.reset();
+      component.onNext();
+      component.onPrev();
+      component.onBackToList();
+      expect(api.form).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(target.read()).toEqual({ employeeId: 'e2', periodId: 'period-1' });
+      expect(component.commentInput()).toBe('Edited comment');
+    });
+
+    it('does not ask on a read only form', async () => {
+      await create(buildForm({ canEdit: false }));
+      component.commentInput.set('Edited comment');
+      expect(component.hasUnsavedChanges()).toBeFalse();
+    });
+  });
+
   describe('previous and next', () => {
     it('loads the roster once, without a department, so it matches the list', async () => {
       await create();
       expect(api.departmentEmployees).toHaveBeenCalledOnceWith('period-1');
-    });
-
-    it('does not reload the roster when moving to another employee of the same period', async () => {
-      await create();
-      api.form.and.returnValue(of(buildForm({ employee: { ...buildForm().employee, id: 'e3' } })));
-      query.next(convertToParamMap({ employeeId: 'e3', periodId: 'period-1' }));
-      expect(api.departmentEmployees).toHaveBeenCalledTimes(1);
     });
 
     it('shows the position in the roster and opens the neighbours', async () => {
@@ -538,20 +588,15 @@ describe('EvaluationFormComponent', () => {
       expect(component.rosterIndex()).toBe(1);
       expect(component.navIndicatorText()).toBe('2 / 3');
       component.onPrev();
-      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-        queryParams: { employeeId: 'e1', periodId: 'period-1' },
-      });
-      component.onNext();
-      expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-        queryParams: { employeeId: 'e3', periodId: 'period-1' },
-      });
+      expect(api.form).toHaveBeenCalledWith('e1', 'period-1');
+      expect(target.read()).toEqual({ employeeId: 'e1', periodId: 'period-1' });
     });
 
     it('does not move past either end of the roster', async () => {
       await create(buildForm({ employee: { ...buildForm().employee, id: 'e1' } }));
-      (router.navigate as jasmine.Spy).calls.reset();
+      api.form.calls.reset();
       component.onPrev();
-      expect(router.navigate).not.toHaveBeenCalled();
+      expect(api.form).not.toHaveBeenCalled();
     });
 
     it('hides the navigation when the employee is not in the roster', async () => {
@@ -559,72 +604,80 @@ describe('EvaluationFormComponent', () => {
       expect(component.hasRosterNavigation()).toBeFalse();
       expect(fixture.nativeElement.querySelector('.pagination-controls')).toBeNull();
     });
-
-    it('hides the navigation when the roster cannot be read', async () => {
-      api.form.and.returnValue(of(buildForm()));
-      api.departmentEmployees.and.returnValue(
-        throwError(() => new HttpErrorResponse({ status: 403 })),
-      );
-      fixture = TestBed.createComponent(EvaluationFormComponent);
-      component = fixture.componentInstance;
-      fixture.detectChanges();
-      expect(component.roster()).toEqual([]);
-      expect(component.hasRosterNavigation()).toBeFalse();
-    });
   });
 
   describe('side panels', () => {
-    it('builds the attention notes from the API counts', async () => {
+    it('shows the attention counts from the API', async () => {
       await create();
-      expect(component.pendingNotesText()).toContain('2');
-      expect(component.riskPenaltyNotesText()).toContain('1');
-      expect(component.appealsNotesText()).toContain('1');
+      expect(component.pendingPillText()).toContain('2');
+      expect(component.appealPillText()).toContain('1');
     });
 
-    it('compares with the previous period when there is one', async () => {
+    it('shows the risk count and the number of events', async () => {
       await create();
-      expect(component.prevPeriodTitleText()).toContain('2026-Q3');
-      expect(component.comparisonText()).toContain('3');
+      expect(component.riskCountPillText()).toContain('1');
     });
 
-    it('says there is no previous period instead of inventing one', async () => {
+    it('shows the previous period delta in the KPI pill', async () => {
+      await create();
+      expect(component.weightedPillText()).toContain('3');
+    });
+
+    it('shows a dash when there is no previous period', async () => {
       await create(buildForm({ previousPeriod: null }));
-      expect(component.prevPeriodTitleText()).toBe(text().prevPeriodNone);
-      expect(component.comparisonText()).toBe(
-        TestBed.inject(I18nService).localization.evaluations.emptyValue,
-      );
-      expect(fixture.nativeElement.querySelector('.prev-score')).toBeNull();
+      expect(component.weightedPillText()).toBe(emptyValue());
     });
 
-    it('picks the lower and equal comparison wording', async () => {
-      await create(
-        buildForm({
-          previousPeriod: { periodCode: 'p', totalScore: 70, tier: 'B', scoreDifference: -2 },
-        }),
-      );
-      expect(component.comparisonText()).toContain('2');
-      expect(component.comparisonText()).not.toBe(text().comparisonEqual);
-      query.next(convertToParamMap({ employeeId: 'e2', periodId: 'period-1' }));
-      api.form.and.returnValue(
-        of(
-          buildForm({
-            previousPeriod: { periodCode: 'p', totalScore: 63, tier: 'B', scoreDifference: 0 },
-          }),
-        ),
-      );
-      query.next(convertToParamMap({ employeeId: 'e2', periodId: 'period-2' }));
-      expect(component.comparisonText()).toBe(text().comparisonEqual);
-    });
-
-    it('shows the draft and the completed badge from the stored status', async () => {
+    it('renders criteria summary and SLA summary from the API instead of placeholders', async () => {
       await create();
-      expect(fixture.nativeElement.querySelector('.badge-draft')).not.toBeNull();
+      expect(component.criteriaValueText()).toBe('3 / 6');
+      expect(component.criteriaPillText()).toContain('50');
+      expect(component.criteriaFootText()).toContain('85');
+      expect(component.slaValueText()).toContain('96');
+      expect(component.slaFootText()).toContain('1');
+    });
+
+    it('shows empty value for criteria and SLA when there are no scorable items or SLA tasks', async () => {
       await create(
         buildForm({
-          currentEvaluation: { ...buildForm().currentEvaluation, status: 'CALCULATED' },
+          criteriaSummary: {
+            achievedCount: 0,
+            nearCount: 0,
+            belowCount: 0,
+            totalCount: 0,
+            achievedRatePercent: null,
+          },
+          slaSummary: {
+            onTimeCompletedCount: 0,
+            overdueCount: 0,
+            inProgressCount: 0,
+            onTimeRatePercent: null,
+          },
         }),
       );
-      expect(fixture.nativeElement.querySelector('.badge-completed')).not.toBeNull();
+      expect(component.criteriaValueText()).toBe(emptyValue());
+      expect(component.criteriaPillText()).toBe(emptyValue());
+      expect(component.slaValueText()).toBe(emptyValue());
+    });
+
+    it('applies dynamic formSettings for comment maxlength and KPI score tone classes', async () => {
+      await create(
+        buildForm({
+          formSettings: {
+            maxCommentLength: 600,
+            kpiMetThresholdPercent: 95,
+            kpiNearThresholdPercent: 80,
+          },
+        }),
+      );
+      const textarea = fixture.nativeElement.querySelector('textarea') as HTMLTextAreaElement;
+      expect(textarea.getAttribute('maxlength')).toBe('600');
+      expect(component.charCounterText()).toContain('600');
+      expect(component.scoreToneClass(95)).toBe('tone-good');
+      expect(component.scoreToneClass(94.9)).toBe('tone-warn');
+      expect(component.scoreToneClass(80)).toBe('tone-warn');
+      expect(component.scoreToneClass(79.9)).toBe('tone-bad');
+      expect(component.scoreToneClass(null)).toBe('');
     });
   });
 
@@ -642,12 +695,6 @@ describe('EvaluationFormComponent', () => {
       expect(fixture.nativeElement.textContent).toContain(
         i18n.localization.evaluationForm.btnSaveDraft,
       );
-    });
-
-    it('renders the aria label of the breadcrumb from the dictionary', async () => {
-      await create();
-      const nav = fixture.nativeElement.querySelector('nav.breadcrumb-bar') as HTMLElement;
-      expect(nav.getAttribute('aria-label')).toBe(text().breadcrumbAria);
     });
   });
 

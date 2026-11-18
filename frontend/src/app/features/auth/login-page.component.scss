@@ -4,7 +4,7 @@
   display: block;
   min-height: 100vh;
   color: #191c1e;
-  font-family: Inter, 'Segoe UI', Arial, sans-serif;
+  font-family: 'Nunito Sans', 'Segoe UI', Arial, sans-serif;
 }
 
 .login-shell {
@@ -44,7 +44,7 @@
   background: var(--navy);
   color: #fff;
   font:
-    700 25px Manrope,
+    700 25px 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;
@@ -58,7 +58,7 @@
 
 .wordmark-copy strong {
   font:
-    700 18px/1 Manrope,
+    700 18px/1 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;
@@ -80,7 +80,7 @@ h1 {
   margin: 0 0 9px;
   color: #0f172a;
   font:
-    700 32px/1.2 Manrope,
+    700 32px/1.2 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;
@@ -123,7 +123,7 @@ input:not([type='checkbox']) {
   background: #fff;
   color: #1e293b;
   font:
-    14px Inter,
+    14px 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;
@@ -150,7 +150,7 @@ input[aria-invalid='true'] {
   color: var(--navy);
   cursor: pointer;
   font:
-    600 12px Inter,
+    600 12px 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;
@@ -204,7 +204,7 @@ input[aria-invalid='true'] {
   color: #fff;
   cursor: pointer;
   font:
-    600 14px Inter,
+    600 14px 'Nunito Sans',
     'Segoe UI',
     Arial,
     sans-serif;

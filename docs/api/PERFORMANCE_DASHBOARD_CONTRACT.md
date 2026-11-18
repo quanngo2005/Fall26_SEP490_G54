@@ -52,7 +52,7 @@ The BLL also requires an active, unlocked account. A department or employee outs
 - **Scored evaluation:** an evaluation counts only when its status is not `DRAFT` and its `totalScore` is not `null`.
   A `DRAFT` evaluation is treated as not evaluated: no score, no groups, no KPIs.
 - **Disputed (BR-31):** on the department and branch routes an evaluation with status `DISPUTED` (Disputed_Pending, see
-  `APPEAL_CONTRACT.md` 2.5) is not scored: it is left out of `evaluatedEmployeeCount`, `averageScore`,
+  `APPEAL_CONTRACT.md` 2.6) is not scored: it is left out of `evaluatedEmployeeCount`, `averageScore`,
   `previousAverageScore`, `groups`, `kpis` and `childUnits`. In `members` it keeps `evaluationStatus: "DISPUTED"` and
   `totalScore: null`. The personal routes still return the caller's own stored score.
 - **N/A rule:** a value with no data is `null` (never `0`). Counts are `0` when there is genuinely nothing to count.
@@ -122,8 +122,9 @@ Field definitions:
 - `totalScore`: the stored `performance_evaluation.total_score`; `null` when not scored.
 - `groups`: one entry per root group of the **evaluation's own profile tree**, ordered by `displayOrder`;
   `evaluationProfileItemId` is the tree node, `weightPercent` its weight among the roots. `score` is the mean of the
-  scored parts of the group (KPI leaves and sub-groups) weighted by their weight among siblings and normalised over
-  the parts that have a score, `null` when there is none.
+  parts of the group (KPI leaves and sub-groups) weighted by their weight among siblings: an active KPI without a
+  calculated contribution counts as 0 and keeps its weight, the same rule as the calculation (awaiting BA
+  confirmation); an inactive KPI is left out. `null` when the group has no active KPI.
 - `kpis`: the KPIs of the group and its sub-groups that have a calculated contribution, ordered by `code` (ordinal). `targetValue` and
   `actualValue` are the snapshots stored by the calculation. `achievementPercentRaw`, `achievementPercentCapped` and
   `score` are the stored values. A KPI of a group that is not part of the profile is not listed.
@@ -202,7 +203,8 @@ Field definitions:
 branch  ->  childUnits (departments)  ->  childUnits (teams)  ->  members  ->  employee  ->  groups / kpis
 ```
 
-The drill-down stops at the KPI. It does not return works, submissions or evidence.
+The dashboard drill-down stops at the KPI. The lines behind a score, their works, submissions and transactions are
+in `docs/api/TRACEABILITY_CONTRACT.md`.
 
 ## Errors
 

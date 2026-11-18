@@ -21,7 +21,7 @@ public sealed class EvaluationControllerTests
         var employeeId = Guid.NewGuid();
         var periodId = Guid.NewGuid();
 
-        var result = await controller.GetEvaluationForm(employeeId, periodId, CancellationToken.None);
+        var result = await controller.GetEvaluationForm(employeeId, periodId, null, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal((employeeId, periodId, UserId), service.LastFormRequest);
@@ -143,6 +143,138 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetBranchPeriods_ForwardsQueryFiltersWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+
+        var result = await controller.GetBranchPeriods(2026, "QUARTER", "IN_REVIEW", CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((2026, "QUARTER", "IN_REVIEW", UserId), service.LastBranchPeriodsRequest);
+        var data = Assert.IsType<ApiResponse<BranchEvaluationPeriodsOverviewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("Chi nhánh kiểm thử", data.BranchName);
+    }
+
+    [Fact]
+    public async Task ApproveDepartmentRanking_ForwardsTheDepartmentIdAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var deptId = Guid.NewGuid();
+        var request = new ApproveDepartmentRankingRequestDto(Guid.NewGuid(), "Approved by BM");
+
+        var result = await controller.ApproveDepartmentRanking(deptId, request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(deptId, service.LastApprovedDepartmentId);
+        Assert.Same(request, service.LastApproval);
+        Assert.Equal(UserId, service.LastApprovalUserId);
+        var data = Assert.IsType<ApiResponse<DepartmentApprovalResultDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("APPROVED", data.Status);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheck_ForwardsPeriodIdWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+
+        var result = await controller.GetPreCloseCheck(periodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, UserId), service.LastPreCloseCheckRequest);
+        var data = Assert.IsType<ApiResponse<PreCloseCheckOverviewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("TEST-Q3", data.PeriodCode);
+        Assert.Single(data.Items);
+    }
+
+    [Fact]
+    public async Task GetPersonalEvaluation_ForwardsPeriodIdWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+
+        var result = await controller.GetPersonalEvaluation(periodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, UserId), service.LastPersonalEvaluationRequest);
+        var data = Assert.IsType<ApiResponse<PersonalEvaluationViewDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal(periodId, data.PeriodId);
+    }
+
+    [Fact]
+    public async Task AcknowledgePersonalEvaluation_ForwardsRequestWithTheCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var request = new AcknowledgePersonalEvaluationRequestDto(Guid.NewGuid());
+
+        var result = await controller.AcknowledgePersonalEvaluation(request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Same(request, service.LastAcknowledgeRequest);
+        Assert.Equal(UserId, service.LastAcknowledgeUserId);
+        Assert.True(Assert.IsType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(ok.Value).Data!.Success);
+    }
+
+    [Fact]
+    public async Task GetPersonalCriteriaLedger_ForwardsPeriodCriteriaAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var criteriaId = Guid.NewGuid();
+
+        var result = await controller.GetPersonalCriteriaLedger(periodId, criteriaId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, criteriaId, UserId), service.LastPersonalLedgerRequest);
+        var data = Assert.IsType<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Single(data);
+    }
+
+    [Fact]
+    public async Task GetDepartmentDashboard_ForwardsPeriodComparePeriodAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.GetDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardRequest);
+        var data = Assert.IsType<ApiResponse<DepartmentEvaluationDashboardDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("KHCN", data.Department.Code);
+    }
+
+    [Fact]
+    public async Task ExportDepartmentDashboard_ReturnsExcelFileWithExpectedName()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.ExportDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.ContentType);
+        Assert.Equal("danh-gia-phong-KHCN-2026-M11.xlsx", file.FileDownloadName);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardExportRequest);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -170,6 +302,8 @@ public sealed class EvaluationControllerTests
 
         public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormRequest { get; private set; }
 
+        public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormExportRequest { get; private set; }
+
         public SubmitEvaluationRequestDto? LastSubmission { get; private set; }
 
         public Guid LastSubmissionUserId { get; private set; }
@@ -190,14 +324,28 @@ public sealed class EvaluationControllerTests
 
         public Guid LastRejectionUserId { get; private set; }
 
+        public Guid LastApprovedDepartmentId { get; private set; }
+
+        public ApproveDepartmentRankingRequestDto? LastApproval { get; private set; }
+
+        public Guid LastApprovalUserId { get; private set; }
+
+        public (Guid PeriodId, Guid UserId) LastPreCloseCheckRequest { get; private set; }
+
         public FinalizeEvaluationPeriodRequestDto? LastFinalize { get; private set; }
 
         public Guid LastFinalizeUserId { get; private set; }
 
-        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
         {
             LastFormRequest = (employeeId, periodId, currentUserId);
             return Task.FromResult<EvaluationFormDto>(null!);
+        }
+
+        public Task<EvaluationFormExportDto> ExportEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
+        {
+            LastFormExportRequest = (employeeId, periodId, currentUserId);
+            return Task.FromResult(new EvaluationFormExportDto([1, 2, 3], "danh-gia-nhan-vien-EMP01-2026-Q1.xlsx"));
         }
 
         public Task<EvaluationResultDto> SubmitEvaluationAsync(SubmitEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
@@ -253,11 +401,123 @@ public sealed class EvaluationControllerTests
             return Task.FromResult(new CalibrationDecisionResultDto(departmentId, request.PeriodId, "RECALIBRATION_REQUESTED", "returned"));
         }
 
+        public Task<DepartmentApprovalResultDto> ApproveDepartmentCalibrationAsync(Guid departmentId, ApproveDepartmentRankingRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastApprovedDepartmentId = departmentId;
+            LastApproval = request;
+            LastApprovalUserId = currentUserId;
+            return Task.FromResult(new DepartmentApprovalResultDto(departmentId, request.PeriodId, "APPROVED", 5, "approved"));
+        }
+
+        public Task<PreCloseCheckOverviewDto> GetPreCloseCheckAsync(Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPreCloseCheckRequest = (periodId, currentUserId);
+            var item = new PreCloseCheckItemDto("CHECK_1", "Check 1", 0, true);
+            return Task.FromResult(new PreCloseCheckOverviewDto(periodId, "TEST-Q3", "Q3", new DateOnly(2026, 7, 1), new DateOnly(2026, 9, 30), DateTimeOffset.UtcNow, true, 0, [item]));
+        }
+
         public Task<FinalizeResultDto> FinalizeAndLockPeriodAsync(FinalizeEvaluationPeriodRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
         {
             LastFinalize = request;
             LastFinalizeUserId = currentUserId;
             return Task.FromResult(FinalizeResult);
+        }
+
+        public (int? Year, string? PeriodType, string? Status, Guid UserId) LastBranchPeriodsRequest { get; private set; }
+
+        public Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+            int? year,
+            string? periodType,
+            string? status,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastBranchPeriodsRequest = (year, periodType, status, currentUserId);
+            return Task.FromResult(new BranchEvaluationPeriodsOverviewDto("Chi nhánh kiểm thử", "BR-TEST", [2026], []));
+        }
+
+        public (Guid? PeriodId, Guid UserId) LastPersonalEvaluationRequest { get; private set; }
+        public AcknowledgePersonalEvaluationRequestDto? LastAcknowledgeRequest { get; private set; }
+        public Guid LastAcknowledgeUserId { get; private set; }
+        public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardExportRequest { get; private set; }
+
+        public Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardDto(
+                new DepartmentEvaluationDepartmentDto(Guid.NewGuid(), "KHCN", "Phòng KHCN", "Nguyễn Văn A"),
+                null,
+                null,
+                [],
+                [],
+                new DepartmentEvaluationPerformanceDto(91.4m, 90.4m, 1.0m, 10, 12, 2, 1, 1, [], []),
+                new DepartmentEvaluationOperationsDto(142, 10, 14, 93.4m, 12.7m),
+                new DepartmentEvaluationTierDistributionDto(20m, [], []),
+                [],
+                [],
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardExportRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardExportDto([1, 2, 3], "danh-gia-phong-KHCN-2026-M11.xlsx"));
+        }
+
+        public Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(Guid? periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPersonalEvaluationRequest = (periodId, currentUserId);
+            return Task.FromResult(new PersonalEvaluationViewDto(
+                periodId ?? Guid.NewGuid(),
+                "Q3/2026",
+                "2026-Q3",
+                "FINAL",
+                "—",
+                0,
+                false,
+                85m,
+                null,
+                null,
+                null,
+                "A2",
+                ["A1", "A2", "A3", "B", "C"],
+                "Top 20%",
+                1,
+                5,
+                "Sales Officer",
+                [],
+                null,
+                0m,
+                null,
+                false,
+                null));
+        }
+
+        public Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(AcknowledgePersonalEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastAcknowledgeRequest = request;
+            LastAcknowledgeUserId = currentUserId;
+            return Task.FromResult(new AcknowledgePersonalEvaluationResultDto(true, DateTimeOffset.UtcNow, "ok"));
+        }
+
+        public Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(Guid periodId, Guid criteriaId, Guid currentUserId, CancellationToken cancellationToken = default)
+        {
+            LastPersonalLedgerRequest = (periodId, criteriaId, currentUserId);
+            IReadOnlyList<PersonalCriteriaLedgerItemDto> items =
+            [
+                new PersonalCriteriaLedgerItemDto(Guid.NewGuid(), "TX-001", "10/10/2026", "100,000 VND", 5m, "VALID", "2026-10-10")
+            ];
+            return Task.FromResult(items);
         }
     }
 }

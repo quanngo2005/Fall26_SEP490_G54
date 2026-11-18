@@ -122,7 +122,6 @@ public sealed class VerificationScopeTests
     private static readonly SubmitVerificationDecisionDto Approve = new()
     {
         Decision = "APPROVED",
-        VerifiedValue = 15m,
         Feedback = "Hồ sơ đầy đủ.",
     };
 

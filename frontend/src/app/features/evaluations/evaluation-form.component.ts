@@ -1,71 +1,107 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subscription } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { finalize, Observable, Subscription } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import {
   DepartmentEmployeeEvaluation,
-  EvaluationCriterionGroup,
   EvaluationFormModel,
+  EvaluationPeriodOption,
   SubmitEvaluationRequest,
 } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
-
-/** Longest comment the form accepts; the backend does not limit it, so the form does. */
-const COMMENT_MAX_LENGTH = 1000;
-/** A qualitative score is a percentage of the group, so it runs from 0 to the percent scale. */
-const SCORE_MIN = 0;
-const SCORE_MAX = 100;
+import { serverMessage } from '../campaigns/campaign.utils';
+import { saveFile } from '../performance-dashboard/performance-page';
 
 type LoadFailure = 'offline' | 'forbidden' | 'notFound' | 'error';
 type SaveMessage = { kind: 'success' | 'error'; text: string };
+type PeriodTypeFilter = 'YEAR' | 'QUARTER' | 'MONTH';
+
+const PERIOD_TYPES: readonly PeriodTypeFilter[] = ['YEAR', 'QUARTER', 'MONTH'];
 
 @Component({
   selector: 'app-evaluation-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, HeaderComponent, SidebarComponent, AppNumberPipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    AppNumberPipe,
+  ],
   templateUrl: './evaluation-form.component.html',
-  styleUrls: ['./evaluation-form.component.scss', './evaluation-form.layout.scss'],
+  styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    './evaluation-form.component.scss',
+    './evaluation-form.layout.scss',
+    './evaluations.layout.scss',
+  ],
 })
 export class EvaluationFormComponent extends LocalizedComponent {
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly evaluationService = inject(EvaluationService);
+  private readonly formTarget = inject(EvaluationFormTargetService);
+  private readonly destroyRef = inject(DestroyRef);
   private formRequest?: Subscription;
   private rosterRequest?: Subscription;
+  private periodsRequest?: Subscription;
+  private exportRequest?: Subscription;
+  private submitRequest?: Subscription;
   private rosterKey = '';
 
-  readonly maxCommentLength = COMMENT_MAX_LENGTH;
-  readonly scoreMin = SCORE_MIN;
-  readonly scoreMax = SCORE_MAX;
-
   readonly form = signal<EvaluationFormModel | null>(null);
+  readonly maxCommentLength = computed(() => this.form()?.formSettings.maxCommentLength ?? null);
+  readonly periods = signal<EvaluationPeriodOption[]>([]);
+  readonly selectedEmployeeId = signal<string | null>(null);
+  readonly selectedPeriodId = signal<string | null>(null);
+  readonly selectedComparePeriodId = signal<string | null>(null);
+  readonly selectedPeriodType = signal<PeriodTypeFilter>('MONTH');
+  readonly periodTypes = PERIOD_TYPES;
+  readonly periodOptions = computed<EvaluationPeriodOption[]>(() => {
+    const items = this.periods();
+    const current = this.form()?.period;
+    if (!current || items.some((period) => period.id === current.id)) {
+      return items;
+    }
+    return [
+      {
+        id: current.id,
+        code: current.code,
+        name: current.name,
+        startDate: current.startDate,
+        endDate: current.endDate,
+        periodType: current.periodType,
+        status: current.status,
+        isActive: current.status === 'OPEN',
+      },
+      ...items,
+    ];
+  });
+  readonly filteredPeriods = computed<EvaluationPeriodOption[]>(() => {
+    const type = this.selectedPeriodType();
+    return this.periodOptions().filter((period) => period.periodType === type);
+  });
+  readonly compareOptions = computed<EvaluationPeriodOption[]>(
+    () => this.form()?.compareOptions ?? [],
+  );
   readonly loading = signal(false);
   readonly failure = signal<LoadFailure | null>(null);
   readonly saving = signal(false);
+  readonly exporting = signal(false);
   readonly saveMessage = signal<SaveMessage | null>(null);
 
   readonly roster = signal<DepartmentEmployeeEvaluation[]>([]);
   readonly commentInput = signal('');
-  readonly qualitativeScores = signal<Record<string, number | null>>({});
-
-  readonly qualitativeGroups = computed<EvaluationCriterionGroup[]>(() =>
-    (this.form()?.criteriaGroups ?? []).filter((group) => group.isQualitative),
-  );
 
   readonly commentLength = computed(() => this.commentInput().length);
-
-  readonly qualitativeAverage = computed<number | null>(() => {
-    const scores = this.qualitativeGroups()
-      .map((group) => this.qualitativeScores()[group.evaluationProfileItemId])
-      .filter((score): score is number => typeof score === 'number');
-    return scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
-  });
 
   readonly rosterIndex = computed(() => {
     const employeeId = this.form()?.employee.id;
@@ -76,25 +112,16 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   readonly isDraftStatus = computed(() => this.form()?.currentEvaluation.status === 'DRAFT');
 
-  /** Out-of-range or non-numeric scores block both actions; a missing score or comment only blocks completion. */
-  readonly scoreInvalid = computed(() =>
-    this.qualitativeGroups().some((group) => {
-      const score = this.qualitativeScores()[group.evaluationProfileItemId];
-      return score !== null && score !== undefined && !this.isValidScore(score);
-    }),
-  );
+  readonly canSubmit = computed(() => !!this.form()?.canEdit && !this.saving());
 
-  readonly completeBlocked = computed(
-    () =>
-      this.commentInput().trim().length === 0 ||
-      this.qualitativeGroups().some(
-        (group) => this.qualitativeScores()[group.evaluationProfileItemId] == null,
-      ),
-  );
+  /** The comment differs from what the loaded form holds, so leaving would lose it. */
+  readonly hasUnsavedChanges = computed(() => {
+    const form = this.form();
+    if (!form || !form.canEdit) return false;
+    return this.commentInput() !== (form.currentEvaluation.comment ?? '');
+  });
 
-  readonly canSubmit = computed(
-    () => !!this.form()?.canEdit && !this.saving() && !this.scoreInvalid(),
-  );
+  readonly completeBlocked = computed(() => this.commentInput().trim().length === 0);
 
   readonly stateText = computed(() => {
     const text = this.localization.evaluationForm;
@@ -116,12 +143,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly charCounterText = computed(() =>
     this.i18n.translate('evaluationForm.charCounter', {
       current: this.commentLength(),
-      max: this.maxCommentLength,
+      max: this.maxCommentLength() ?? 0,
     }),
-  );
-
-  readonly scoreInvalidText = computed(() =>
-    this.i18n.translate('evaluationForm.scoreInvalid', { min: this.scoreMin, max: this.scoreMax }),
   );
 
   readonly navIndicatorText = computed(() =>
@@ -131,45 +154,69 @@ export class EvaluationFormComponent extends LocalizedComponent {
     }),
   );
 
-  readonly pendingNotesText = computed(() =>
-    this.i18n.translate('evaluationForm.itemPendingWorkTypes', {
+  readonly weightedPillText = computed(() => {
+    const previous = this.form()?.previousPeriod;
+    if (!previous || previous.scoreDifference === null)
+      return this.localization.evaluations.emptyValue;
+    const sign = previous.scoreDifference > 0 ? '+' : previous.scoreDifference < 0 ? '-' : '';
+    return `${sign}${this.i18n.formatNumber(Math.abs(previous.scoreDifference), 2)}`;
+  });
+
+  readonly criteriaPillText = computed(() => {
+    const rate = this.form()?.criteriaSummary.achievedRatePercent ?? null;
+    if (rate === null) return this.localization.evaluations.emptyValue;
+    return this.i18n.translate('evaluationForm.criteriaPill', {
+      percent: this.i18n.formatNumber(rate, 0),
+    });
+  });
+
+  readonly criteriaValueText = computed(() => {
+    const summary = this.form()?.criteriaSummary;
+    if (!summary || summary.totalCount === 0) return this.localization.evaluations.emptyValue;
+    return `${summary.achievedCount} / ${summary.totalCount}`;
+  });
+
+  readonly criteriaFootText = computed(() => {
+    const current = this.form();
+    if (!current) return '';
+    const summary = current.criteriaSummary;
+    return this.i18n.translate('evaluationForm.criteriaFoot', {
+      achieved: summary.achievedCount,
+      near: summary.nearCount,
+      below: summary.belowCount,
+      nearThreshold: this.i18n.formatNumber(current.formSettings.kpiNearThresholdPercent, 0),
+    });
+  });
+
+  readonly slaValueText = computed(() => {
+    const rate = this.form()?.slaSummary.onTimeRatePercent ?? null;
+    if (rate === null) return this.localization.evaluations.emptyValue;
+    return `${this.i18n.formatNumber(rate, 1)}%`;
+  });
+
+  readonly slaFootText = computed(() =>
+    this.i18n.translate('evaluationForm.slaFoot', {
+      late: this.form()?.slaSummary.overdueCount ?? 0,
+    }),
+  );
+
+  readonly riskCountPillText = computed(() =>
+    this.i18n.translate('evaluationForm.riskCountPill', {
+      count: this.form()?.riskEvents.length ?? 0,
+    }),
+  );
+
+  readonly pendingPillText = computed(() =>
+    this.i18n.translate('evaluationForm.attentionCount', {
       count: this.form()?.pendingSubmissionCount ?? 0,
     }),
   );
 
-  readonly riskPenaltyNotesText = computed(() =>
-    this.i18n.translate('evaluationForm.itemRiskPenalty', {
-      count: this.form()?.riskEvents.length ?? 0,
-      points: this.i18n.formatNumber(this.form()?.summary.totalRiskPenalty ?? 0, 2),
+  readonly appealPillText = computed(() =>
+    this.i18n.translate('evaluationForm.attentionCount', {
+      count: this.form()?.openAppealCount ?? 0,
     }),
   );
-
-  readonly appealsNotesText = computed(() =>
-    this.i18n.translate('evaluationForm.itemAppeals', {
-      open: this.form()?.openAppealCount ?? 0,
-    }),
-  );
-
-  readonly comparisonText = computed(() => {
-    const previous = this.form()?.previousPeriod;
-    if (!previous) return this.localization.evaluations.emptyValue;
-    const key =
-      previous.scoreDifference > 0
-        ? 'comparisonHigher'
-        : previous.scoreDifference < 0
-          ? 'comparisonLower'
-          : 'comparisonEqual';
-    return this.i18n.translate(`evaluationForm.${key}`, {
-      points: this.i18n.formatNumber(Math.abs(previous.scoreDifference), 2),
-    });
-  });
-
-  readonly prevPeriodTitleText = computed(() => {
-    const previous = this.form()?.previousPeriod;
-    return previous
-      ? this.i18n.translate('evaluationForm.prevPeriodTitle', { period: previous.periodCode })
-      : this.localization.evaluationForm.prevPeriodNone;
-  });
 
   readonly quantitativeMetaText = computed(() => {
     const form = this.form();
@@ -188,26 +235,38 @@ export class EvaluationFormComponent extends LocalizedComponent {
       : this.localization.evaluations.emptyValue;
   });
 
+  readonly tierToneClass = computed(() => {
+    const tier = this.form()?.summary.proposedTier;
+    if (!tier) return '';
+    if (tier.startsWith('A')) return 'tier-a';
+    return `tier-${tier.toLowerCase()}`;
+  });
+
   constructor() {
     super();
-    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
-      const employeeId = params.get('employeeId');
-      const periodId = params.get('periodId');
-      if (!employeeId || !periodId) {
-        this.form.set(null);
-        this.failure.set('notFound');
-        return;
-      }
-      this.loadForm(employeeId, periodId);
-    });
+    const target = this.formTarget.read();
+    if (!target) {
+      this.failure.set('notFound');
+      return;
+    }
+    this.selectedEmployeeId.set(target.employeeId);
+    this.selectedPeriodId.set(target.periodId);
+    this.loadPeriods();
+    this.loadForm(this.evaluationService.form(target.employeeId, target.periodId));
   }
 
-  isValidScore(score: number): boolean {
-    return Number.isFinite(score) && score >= SCORE_MIN && score <= SCORE_MAX;
+  periodTypeLabel(type: PeriodTypeFilter): string {
+    const dict = this.localization.evaluationForm.periodTypes as Record<string, string>;
+    return dict[type] ?? type;
   }
 
-  setQualitativeScore(itemId: string, value: number | null): void {
-    this.qualitativeScores.update((scores) => ({ ...scores, [itemId]: value }));
+  /** Colour follows the configured met/near thresholds supplied by the backend. */
+  scoreToneClass(score: number | null): string {
+    const settings = this.form()?.formSettings;
+    if (score === null || !settings) return '';
+    if (score >= settings.kpiMetThresholdPercent) return 'tone-good';
+    if (score >= settings.kpiNearThresholdPercent) return 'tone-warn';
+    return 'tone-bad';
   }
 
   onPrev(): void {
@@ -234,27 +293,130 @@ export class EvaluationFormComponent extends LocalizedComponent {
   }
 
   onBackToList(): void {
+    if (!this.confirmLeave()) return;
     void this.router.navigate(['/evaluations']);
+  }
+
+  onPeriodChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    if (!this.switchPeriod(select.value)) {
+      select.value = this.selectedPeriodId() ?? '';
+    }
+  }
+
+  onPeriodTypeChange(event: Event): void {
+    const nextType = (event.target as HTMLSelectElement).value as PeriodTypeFilter;
+    this.selectedPeriodType.set(nextType);
+    const firstMatching = this.periodOptions().find((p) => p.periodType === nextType);
+    if (firstMatching) {
+      this.switchPeriod(firstMatching.id);
+    }
+  }
+
+  onCompareChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const compareId = select.value || null;
+    const employeeId = this.form()?.employee.id ?? this.selectedEmployeeId();
+    const periodId = this.selectedPeriodId();
+    if (!employeeId || !periodId || compareId === this.selectedComparePeriodId()) return;
+    if (!this.confirmLeave()) {
+      select.value = this.selectedComparePeriodId() ?? '';
+      return;
+    }
+    this.exportRequest?.unsubscribe();
+    this.exporting.set(false);
+    this.selectedComparePeriodId.set(compareId);
+    this.loadForm(this.evaluationService.form(employeeId, periodId, compareId));
+  }
+
+  onExportExcel(): void {
+    const form = this.form();
+    if (!form || this.exporting() || this.loading()) return;
+
+    this.exportRequest?.unsubscribe();
+    this.exporting.set(true);
+    this.saveMessage.set(null);
+    this.exportRequest = this.evaluationService
+      .exportEvaluationForm(form.employee.id, form.period.id, this.selectedComparePeriodId())
+      .pipe(
+        finalize(() => this.exporting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (blob) => {
+          saveFile(
+            blob,
+            `danh-gia-nhan-vien-${this.safeFilePart(form.employee.employeeCode)}-${this.safeFilePart(form.period.code)}.xlsx`,
+          );
+        },
+        error: () => {
+          this.saveMessage.set({
+            kind: 'error',
+            text: this.localization.evaluationForm.exportError,
+          });
+        },
+      });
+  }
+
+  private safeFilePart(value: string): string {
+    return value.replace(/[\\/:*?"<>|]+/g, '-');
+  }
+
+  private switchPeriod(nextPeriodId: string | null): boolean {
+    const employeeId = this.form()?.employee.id ?? this.selectedEmployeeId();
+    if (!nextPeriodId || !employeeId || nextPeriodId === this.selectedPeriodId()) return false;
+    if (!this.confirmLeave()) return false;
+    this.exportRequest?.unsubscribe();
+    this.exporting.set(false);
+    this.selectedPeriodId.set(nextPeriodId);
+    this.selectedComparePeriodId.set(null);
+    this.formTarget.save({ employeeId, periodId: nextPeriodId });
+    this.loadForm(this.evaluationService.form(employeeId, nextPeriodId));
+    return true;
+  }
+
+  /** True when there is nothing to lose or the reviewer agrees to discard the unsaved input. */
+  private confirmLeave(): boolean {
+    return !this.hasUnsavedChanges() || confirm(this.localization.evaluationForm.confirmDiscard);
   }
 
   private openRosterEntry(index: number): void {
     const target = this.roster()[index];
-    const periodId = this.form()?.period.id;
+    const periodId = this.selectedPeriodId() ?? this.form()?.period.id;
     if (!target || !periodId) return;
-    void this.router.navigate(['/evaluations/form'], {
-      queryParams: { employeeId: target.employeeId, periodId },
-    });
+    if (!this.confirmLeave()) return;
+    // The address stays the same, so the next employee is loaded here instead of by navigating.
+    this.exportRequest?.unsubscribe();
+    this.exporting.set(false);
+    this.selectedEmployeeId.set(target.employeeId);
+    this.formTarget.save({ employeeId: target.employeeId, periodId });
+    this.loadForm(this.evaluationService.form(target.employeeId, periodId));
   }
 
-  private loadForm(employeeId: string, periodId: string, keepMessage = false): void {
+  private loadPeriods(): void {
+    this.periodsRequest?.unsubscribe();
+    this.periodsRequest = this.evaluationService
+      .periods()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => this.periods.set(items.filter((period) => period.periodType !== 'DAY')),
+        error: () => this.periods.set([]),
+      });
+  }
+
+  private loadForm(request: Observable<EvaluationFormModel>, keepMessage = false): void {
     this.formRequest?.unsubscribe();
     this.loading.set(true);
     this.failure.set(null);
     if (!keepMessage) this.saveMessage.set(null);
-    this.formRequest = this.evaluationService.form(employeeId, periodId).subscribe({
+    this.formRequest = request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (form) => {
         this.form.set(form);
-        this.applyInputs(form);
+        this.selectedEmployeeId.set(form.employee.id);
+        this.selectedPeriodId.set(form.period.id);
+        this.selectedComparePeriodId.set(form.comparePeriod?.id ?? null);
+        this.selectedPeriodType.set(form.period.periodType as PeriodTypeFilter);
+        this.commentInput.set(form.currentEvaluation.comment ?? '');
         this.loading.set(false);
         this.loadRoster(form);
       },
@@ -275,16 +437,6 @@ export class EvaluationFormComponent extends LocalizedComponent {
     });
   }
 
-  private applyInputs(form: EvaluationFormModel): void {
-    this.commentInput.set(form.currentEvaluation.comment ?? '');
-    const scores: Record<string, number | null> = {};
-    for (const group of form.criteriaGroups) {
-      if (group.isQualitative)
-        scores[group.evaluationProfileItemId] = group.qualitativeScore ?? null;
-    }
-    this.qualitativeScores.set(scores);
-  }
-
   /**
    * Previous/Next walk the same roster as the evaluation list: the caller's own department and everything beneath it.
    * No departmentId is sent, so the backend defaults to the caller's department; the roster stays empty when the
@@ -296,10 +448,13 @@ export class EvaluationFormComponent extends LocalizedComponent {
     this.rosterKey = key;
     this.rosterRequest?.unsubscribe();
     this.roster.set([]);
-    this.rosterRequest = this.evaluationService.departmentEmployees(form.period.id).subscribe({
-      next: (rows) => this.roster.set(rows),
-      error: () => this.roster.set([]),
-    });
+    this.rosterRequest = this.evaluationService
+      .departmentEmployees(form.period.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (rows) => this.roster.set(rows),
+        error: () => this.roster.set([]),
+      });
   }
 
   private submit(isDraft: boolean): void {
@@ -312,36 +467,38 @@ export class EvaluationFormComponent extends LocalizedComponent {
       comment: this.commentInput().trim() || null,
       coachingPlan: form.currentEvaluation.coachingPlan,
       coachingRequired: form.currentEvaluation.coachingRequired,
-      qualitativeScores: this.qualitativeGroups()
-        .filter(
-          (group) => typeof this.qualitativeScores()[group.evaluationProfileItemId] === 'number',
-        )
-        .map((group) => ({
-          evaluationProfileItemId: group.evaluationProfileItemId,
-          score: this.qualitativeScores()[group.evaluationProfileItemId] as number,
-          notes: group.qualitativeNotes,
-        })),
       isDraft,
     };
 
+    this.submitRequest?.unsubscribe();
     this.saving.set(true);
     this.saveMessage.set(null);
-    this.evaluationService.submit(request).subscribe({
-      next: () => {
-        this.saving.set(false);
-        this.saveMessage.set({
-          kind: 'success',
-          text: isDraft
-            ? this.localization.evaluationForm.saveDraftSuccess
-            : this.localization.evaluationForm.completeSuccess,
-        });
-        this.loadForm(form.employee.id, form.period.id, true);
-      },
-      error: (error: unknown) => {
-        this.saving.set(false);
-        this.saveMessage.set({ kind: 'error', text: this.saveErrorText(error) });
-      },
-    });
+    this.submitRequest = this.evaluationService
+      .submit(request)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.saveMessage.set({
+            kind: 'success',
+            text: isDraft
+              ? this.localization.evaluationForm.saveDraftSuccess
+              : this.localization.evaluationForm.completeSuccess,
+          });
+          this.loadForm(
+            this.evaluationService.form(
+              form.employee.id,
+              form.period.id,
+              this.selectedComparePeriodId(),
+            ),
+            true,
+          );
+        },
+        error: (error: unknown) => {
+          this.saving.set(false);
+          this.saveMessage.set({ kind: 'error', text: this.saveErrorText(error) });
+        },
+      });
   }
 
   private saveErrorText(error: unknown): string {
@@ -350,6 +507,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
     switch (status) {
       case 0:
         return text.offline;
+      case 400:
+        return serverMessage(error) ?? text.saveError;
       case 403:
         return text.saveForbidden;
       case 409:

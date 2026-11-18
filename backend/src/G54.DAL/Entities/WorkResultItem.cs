@@ -15,6 +15,10 @@ public partial class WorkResultItem
 
     public decimal Value { get; set; }
 
+    public decimal RawValue { get; set; }
+
+    public decimal MultiplierApplied { get; set; } = 1m;
+
     public decimal? Denominator { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

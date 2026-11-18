@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -7,25 +8,23 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace G54.BLL.Services;
 
 /// <summary>
-/// Handover requests. A request whose amount is above <c>Handover:AmountThreshold</c> (BR-01) is rejected.
+/// Handover requests. A request whose amount is above <c>SystemParameters:HandoverAmountThreshold</c> (SCR-ADM-04) (BR-01) is rejected.
 /// </summary>
 public sealed partial class HandoverService(
     AppDbContext db,
     IPermissionService permissions,
-    IConfiguration configuration,
+    INotifier notifier,
+    IOptions<SystemParametersOptions> parameters,
     ILogger<HandoverService> logger,
     TimeProvider time) : IHandoverService
 {
-    /// <summary>Fallback when <c>Handover:AmountThreshold</c> is not configured.</summary>
-    private const decimal DefaultAmountThreshold = 500_000_000m;
-
     private const int MaxReasonLength = 2000;
 
     /// <summary>Referrer share when none is set: the recipient receives 100%.</summary>
@@ -86,7 +85,7 @@ public sealed partial class HandoverService(
                 ErrorCodes.WorkInvalidState);
         }
 
-        var threshold = configuration.GetValue("Handover:AmountThreshold", DefaultAmountThreshold);
+        var threshold = parameters.Value.HandoverAmountThreshold;
         if (input.Amount > threshold)
         {
             throw new BusinessRuleException(
@@ -156,10 +155,12 @@ public sealed partial class HandoverService(
         if (transfer)
         {
             LogHandoverDecided(logger, "TRANSFER", handover.Id, workId, from.Id, recipient.Id, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, from, recipient, caller.Id), cancellationToken);
         }
         else
         {
             LogHandoverRequested(logger, handover.Id, workId, from.Id, recipient.Id, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverRequested(handover, work, from, recipient), cancellationToken);
         }
 
         return Map(handover, work, from, recipient);
@@ -209,6 +210,7 @@ public sealed partial class HandoverService(
         await SaveDecisionAsync(cancellationToken);
 
         LogHandoverDecided(logger, accept ? "ACCEPT" : "REJECT", handover.Id, work.Id, handover.FromEmployeeId, handover.ToEmployeeId, null);
+        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, handover.FromEmployee, handover.ToEmployee, caller.Id), cancellationToken);
 
         return Map(handover, work, handover.FromEmployee, handover.ToEmployee);
     }
@@ -308,6 +310,20 @@ public sealed partial class HandoverService(
     private async Task<bool> HasSetSharePermissionAsync(Employee caller, CancellationToken cancellationToken)
         => caller.Account is not null
             && await permissions.HasPermissionAsync(caller.Account.Id, "handover", "set_share", PermissionScopes.Own, cancellationToken);
+
+    public async Task<IReadOnlyList<HandoverRecipientDto>> GetRecipientsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var caller = await ResolveCallerAsync(userId, cancellationToken);
+        return await db.Employees.AsNoTracking()
+            .Where(e => e.DepartmentId == caller.DepartmentId
+                && e.Id != caller.Id
+                && e.Status == EmployeeStatus.Active)
+            .OrderBy(e => e.FullName)
+            .Select(e => new HandoverRecipientDto(e.Id, e.EmployeeCode, e.FullName, e.JobPosition.Title))
+            .ToListAsync(cancellationToken);
+    }
 
     private async Task<Employee> ResolveCallerAsync(Guid userId, CancellationToken cancellationToken)
     {

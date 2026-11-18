@@ -338,12 +338,14 @@
 
   @if (confirmOpen()) {
     <div
+      animate.leave="g54-leave-fade"
       class="modal-backdrop"
       (click)="closeConfirm()"
       (keydown.escape)="closeConfirm()"
       role="presentation"
     >
       <div
+        animate.leave="g54-leave-pop"
         class="modal-dialog"
         role="dialog"
         aria-modal="true"

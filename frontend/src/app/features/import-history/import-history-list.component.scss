@@ -1,0 +1,23 @@
+/* Shared table, filter, pager and header styles come from ../../shared/ui. Only import-specific pieces live here. */
+
+.date-input {
+  width: min(180px, 100%);
+}
+
+.import-table tbody tr {
+  cursor: pointer;
+}
+
+.import-table tbody tr.is-selected {
+  box-shadow: inset 3px 0 0 #002b49;
+  background: #eff6ff;
+}
+
+.error-count {
+  color: #be123c;
+  font-weight: 700;
+}
+
+.empty {
+  color: #64748b;
+}

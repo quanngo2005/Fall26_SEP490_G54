@@ -105,6 +105,18 @@ public sealed class TargetAllocationServiceTests
     }
 
     [Fact]
+    public async Task AllocateDepartments_EmptyItems_ThrowsValidationInsteadOfAServerError()
+    {
+        var f = await CreateAsync();
+        var dto = new AllocateDepartmentsDto([], null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, dto, Guid.NewGuid()));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task AllocateDepartments_SumBelowTarget_Throws422()
     {
         var f = await CreateAsync();
@@ -128,6 +140,7 @@ public sealed class TargetAllocationServiceTests
         var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
         Assert.Equal(1200m, deptYearTarget.TargetValue);
         Assert.Equal(TargetAssignmentStatus.Draft, deptYearTarget.Status);
+        Assert.Equal(new DateOnly(2026, 1, 1), deptYearTarget.EffectiveFrom);
     }
 
     [Fact]
@@ -177,6 +190,8 @@ public sealed class TargetAllocationServiceTests
         await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
         var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
         await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var quarterTargetBeforeConfirm = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == deptYearTarget.Id);
+        Assert.Equal(new DateOnly(2026, 1, 1), quarterTargetBeforeConfirm.EffectiveFrom);
 
         await f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid());
 
@@ -185,9 +200,62 @@ public sealed class TargetAllocationServiceTests
         var monthTargets = await f.Db.TargetAssignments.Where(t => t.ParentAssignmentId == quarterTarget.Id).ToListAsync();
         Assert.Equal(3, monthTargets.Count);
         Assert.Equal(1000m, monthTargets.Sum(t => t.TargetValue));
+        // Each month's EffectiveFrom must be that month period's own start date, not the quarter's.
+        foreach (var monthTarget in monthTargets)
+        {
+            var monthPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == monthTarget.EvaluationPeriodId);
+            Assert.Equal(monthPeriod.StartDate, monthTarget.EffectiveFrom);
+        }
         var monthTargetIds = monthTargets.Select(t => t.Id).ToList();
         var days = await f.Db.TargetAssignments.Where(t => t.ParentAssignmentId != null && monthTargetIds.Contains(t.ParentAssignmentId.Value)).ToListAsync();
         Assert.Equal(1000m, days.Sum(t => t.TargetValue));
+        // Each day's EffectiveFrom must be that day period's own start date.
+        foreach (var dayTarget in days)
+        {
+            var dayPeriod = await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == dayTarget.EvaluationPeriodId);
+            Assert.Equal(dayPeriod.StartDate, dayTarget.EffectiveFrom);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confirm_WhenTheYearOrAQuarterIsLockedAfterAllocating_ThrowsPeriodLockedAndChangesNothing(bool lockYear)
+    {
+        var f = await CreateAsync();
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
+        await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var lockedId = lockYear ? f.YearPeriodId : f.Q1Id;
+        (await f.Db.EvaluationPeriods.SingleAsync(p => p.Id == lockedId)).Status = PeriodStatus.Locked;
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid()));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(TargetAssignmentStatus.Draft, (await f.Db.TargetAssignments.SingleAsync(t => t.Id == deptYearTarget.Id)).Status);
+        Assert.Empty(await f.Db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(PeriodType.Month)]
+    [InlineData(PeriodType.Day)]
+    public async Task Confirm_WhenAGeneratedMonthOrDayIsLocked_ThrowsPeriodLockedAndChangesNothing(PeriodType lockedType)
+    {
+        var f = await CreateAsync();
+        await f.Service.AllocateDepartmentsAsync(f.BranchYearTarget.Id, new([new(f.DeptId, f.KpiId, 1000m)], null), Guid.NewGuid());
+        var deptYearTarget = await f.Db.TargetAssignments.SingleAsync(t => t.ParentAssignmentId == f.BranchYearTarget.Id);
+        await f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid());
+        // The quarter and year stay open; only one generated child period is locked.
+        var child = await f.Db.EvaluationPeriods.Where(p => p.PeriodType == lockedType).OrderBy(p => p.StartDate).FirstAsync();
+        child.Status = PeriodStatus.Closed;
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => f.Service.ConfirmAsync(deptYearTarget.Id, Guid.NewGuid()));
+
+        Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
+        Assert.Equal(TargetAssignmentStatus.Draft, (await f.Db.TargetAssignments.SingleAsync(t => t.Id == deptYearTarget.Id)).Status);
+        Assert.Empty(await f.Db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month).ToListAsync());
     }
 
     [Fact]
@@ -309,6 +377,33 @@ public sealed class TargetAllocationServiceTests
     }
 
     [Fact]
+    public async Task Tree_YearWithQuarterSplitAndDepartmentAllocation_CountsAllocationOnce()
+    {
+        var f = await CreateAsync();
+        TargetAssignment Child(Guid departmentId, Guid periodId, Guid? parentId) => new()
+        {
+            Id = Guid.NewGuid(),
+            ParentAssignmentId = parentId ?? f.BranchYearTarget.Id,
+            DepartmentId = departmentId,
+            KpiDefinitionId = f.KpiId,
+            EvaluationPeriodId = periodId,
+            TargetValue = 1000,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+        };
+        var deptYear = Child(f.DeptId, f.YearPeriodId, null);
+        f.Db.TargetAssignments.AddRange(Child(f.BranchId, f.Q1Id, null), deptYear, Child(f.DeptId, f.Q1Id, deptYear.Id));
+        await f.Db.SaveChangesAsync();
+
+        var root = Assert.Single(await f.Service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid()));
+
+        Assert.Equal("YEAR", root.PeriodType);
+        Assert.Equal("DRAFT", root.Status);
+        Assert.Equal(1000m, root.AllocatedValue);
+        Assert.Equal(1000m, root.Children.Single(c => c.Id == deptYear.Id).AllocatedValue);
+    }
+
+    [Fact]
     public async Task Tree_OtherBranchOrUnknownAccount_IsForbidden()
     {
         var f = await CreateAsync();
@@ -320,8 +415,6 @@ public sealed class TargetAllocationServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, outsider));
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetTreeAsync(f.BranchId, 2026, null, Guid.NewGuid()));
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            service.ImportYearTargetsAsync(f.BranchId, 2026, Stream.Null, outsider));
     }
 
     private sealed class AllocationPermissions(bool admin) : IPermissionService

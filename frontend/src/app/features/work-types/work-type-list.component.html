@@ -1,0 +1,202 @@
+@let t = localization.workTypes;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <header class="ui-page-header list-toolbar">
+        <div class="ui-page-heading">
+          <p class="ui-breadcrumb">
+            {{t.breadcrumbHome}} / {{t.breadcrumbConfig}} / {{t.breadcrumbCurrent}}
+          </p>
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{t.title}}</h1>
+          </div>
+          <p class="ui-page-subtitle">{{subtitleText()}}</p>
+        </div>
+        <div class="ui-page-actions">
+          <button type="button" class="button button-primary" disabled [title]="t.unavailable">
+            + {{t.create}}
+          </button>
+        </div>
+      </header>
+
+      <div class="ui-banner tone-info" role="note">
+        <strong>{{t.bannerTitle}}</strong>
+        <span>{{t.bannerBody}}</span>
+      </div>
+
+      <nav class="ui-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="ui-tab"
+          [class.is-active]="selectedPositionId() === ''"
+          [attr.aria-selected]="selectedPositionId() === ''"
+          (click)="selectPositionTab('')"
+        >
+          {{t.tabAll}}
+          <span class="ui-tab-count">{{allWorkTypes().length}}</span>
+        </button>
+        @for (pos of positions(); track pos.id) {
+          <button
+            type="button"
+            role="tab"
+            class="ui-tab"
+            [class.is-active]="selectedPositionId() === pos.id"
+            [attr.aria-selected]="selectedPositionId() === pos.id"
+            (click)="selectPositionTab(pos.id)"
+          >
+            {{pos.title}}
+            <span class="ui-tab-count">{{positionCount(pos)}}</span>
+          </button>
+        }
+      </nav>
+
+      <div class="ui-filter-bar">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="search"
+            class="input"
+            name="keyword"
+            [class.has-clear]="!!keyword"
+            [(ngModel)]="keyword"
+            (ngModelChange)="applyFilter()"
+            [placeholder]="t.search"
+            [attr.aria-label]="t.search"
+          />
+          @if (keyword) {
+            <button
+              type="button"
+              class="ui-search-clear"
+              [attr.aria-label]="t.clearSearch"
+              (click)="clearKeyword()"
+            >
+              ×
+            </button>
+          }
+        </div>
+        <app-ui-select
+          [options]="statusOptions()"
+          [value]="status"
+          [placeholder]="t.statusAll"
+          [ariaLabel]="t.colStatus"
+          (valueChange)="onStatusFilter($event)"
+        />
+        <app-ui-select
+          class="kpi-select"
+          [options]="kpiFilterOptions()"
+          [value]="kpiId"
+          [placeholder]="t.kpiFilterAll"
+          [ariaLabel]="t.colKpi"
+          (valueChange)="onKpiFilter($event)"
+        />
+        <button type="button" class="ui-filter-clear" (click)="clearFilter()">
+          {{t.clearFilter}}
+        </button>
+      </div>
+
+      @if (loading() && workTypes().length === 0) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{t.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="ui-table-card">
+          <div class="ui-table-wrap is-sticky">
+            <table class="ui-table work-type-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{t.colCode}}</th>
+                  <th scope="col">{{t.colName}}</th>
+                  <th scope="col">{{t.colPosition}}</th>
+                  <th scope="col">{{t.colKpi}}</th>
+                  <th scope="col">{{t.colCif}}</th>
+                  <th scope="col" class="col-num">{{t.colOpenWorks}}</th>
+                  <th scope="col">{{t.colStatus}}</th>
+                  <th scope="col">{{t.colCreated}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of workTypes(); track item.id) {
+                  <tr
+                    class="work-type-row is-clickable"
+                    tabindex="0"
+                    [class.is-selected]="selectedId() === item.id"
+                    [attr.aria-selected]="selectedId() === item.id"
+                    (click)="open(item)"
+                    (keydown.enter)="open(item)"
+                    [class.is-inactive]="item.status !== 'ACTIVE'"
+                  >
+                    <td class="col-mono col-code">{{item.code}}</td>
+                    <td class="col-primary">{{item.name}}</td>
+                    <td>
+                      <span class="ui-chip position-badge">{{positionLabel(item)}}</span>
+                    </td>
+                    <td class="col-kpi">
+                      @if (item.kpis.length > 0) {
+                        <span>{{item.kpis[0].kpiCode}} {{item.kpis[0].kpiName}}</span>
+                        @if (item.kpis.length > 1) {
+                          <span class="ui-chip kpi-more">+{{item.kpis.length - 1}}</span>
+                        }
+                      } @else {
+                        <span class="muted">{{t.noKpi}}</span>
+                      }
+                    </td>
+                    <td>{{transactionCifLabel(item)}}</td>
+                    <td class="col-num">
+                      {{openCount(item.id) ?? t.notAvailable}}
+                    </td>
+                    <td>
+                      <app-status-badge [tone]="statusTone(item.status)">
+                        {{statusLabel(item.status)}}
+                      </app-status-badge>
+                    </td>
+                    <td class="col-mono">
+                      {{i18n.formatDate(item.createdAt, 'DD/MM/YYYY HH:mm')}}
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="8" class="ui-empty-cell empty-cell">{{t.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <app-table-pagination
+            [page]="currentPage()"
+            [pageSize]="currentPageSize()"
+            [totalCount]="totalCount()"
+            [rangeTemplate]="t.range"
+            [pageSizeOptions]="pageSizes"
+            [pageSizeTemplate]="'{size} / ' + t.perPage"
+            [pageSizeAriaLabel]="t.pageSize"
+            (pageChange)="goToPage($event)"
+            (pageSizeChange)="onPageSizeChange($event)"
+          />
+        </div>
+        <p class="ui-table-footnote">{{t.footnote}}</p>
+      }
+    </main>
+    @if (selected(); as current) {
+      <app-work-type-detail-drawer
+        [workType]="current"
+        [positionName]="positionLabel(current)"
+        [resultUnit]="resultUnitLabel(current)"
+        [transactionCif]="transactionCifLabel(current)"
+        (closeDrawer)="selectedId.set(null)"
+        (changed)="load()"
+      />
+    }
+  </div>
+</div>

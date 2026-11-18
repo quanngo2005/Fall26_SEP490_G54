@@ -150,7 +150,7 @@ public sealed class EnumApiFormatContractTests
         var position = new JobPosition
         {
             Id = Guid.NewGuid(),
-            Code = "P1",
+            Code = "SALES",
             Title = "Pos",
             Status = RecordStatus.Active,
             LastSyncAt = now,
@@ -159,7 +159,7 @@ public sealed class EnumApiFormatContractTests
         profile.JobPositionId = position.Id;
         db.AddRange(profile, dept, position);
         await db.SaveChangesAsync();
-        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll)), dept, position);
+        return (db, new EmployeeService(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, FakePermissionService.EmployeeReadAll), new PlainPasswordEncoder()), dept, position);
     }
 
     private static CreateEmployeeDto NewEmployee(Department dept, JobPosition position, string code, string? status) => new()
@@ -318,10 +318,10 @@ public sealed class EnumApiFormatContractTests
             var created = await service.CreateKpiAsync(NewKpi(group, "K-5", "SUM", "HIGHER_BETTER"));
 
             await Assert.ThrowsAsync<ValidationException>(
-                () => service.ChangeStatusAsync(created.Id, new KpiStatusDto { Status = "Published" }));
+                () => service.ChangeStatusAsync(Guid.NewGuid(), created.Id, new KpiStatusDto { Status = "Published" }));
 
-            await service.ChangeStatusAsync(created.Id, new KpiStatusDto { Status = "ACTIVE" });
-            Assert.Equal("ACTIVE", (await service.GetKpiByIdAsync(created.Id))!.Status);
+            await service.ChangeStatusAsync(Guid.NewGuid(), created.Id, new KpiStatusDto { Status = "archived" });
+            Assert.Equal("ARCHIVED", (await service.GetKpiByIdAsync(created.Id))!.Status);
         }
     }
 

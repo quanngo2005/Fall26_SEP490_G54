@@ -8,6 +8,14 @@ public interface IEvaluationService
         Guid employeeId,
         Guid periodId,
         Guid currentUserId,
+        Guid? comparePeriodId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationFormExportDto> ExportEvaluationFormAsync(
+        Guid employeeId,
+        Guid periodId,
+        Guid currentUserId,
+        Guid? comparePeriodId = null,
         CancellationToken cancellationToken = default);
 
     Task<EvaluationResultDto> SubmitEvaluationAsync(
@@ -21,6 +29,18 @@ public interface IEvaluationService
     Task<IReadOnlyList<DepartmentEmployeeEvaluationSummaryDto>> GetDepartmentEmployeesForEvaluationAsync(
         Guid periodId,
         Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
@@ -47,8 +67,42 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<DepartmentApprovalResultDto> ApproveDepartmentCalibrationAsync(
+        Guid departmentId,
+        ApproveDepartmentRankingRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<PreCloseCheckOverviewDto> GetPreCloseCheckAsync(
+        Guid periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<FinalizeResultDto> FinalizeAndLockPeriodAsync(
         FinalizeEvaluationPeriodRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<BranchEvaluationPeriodsOverviewDto> GetBranchEvaluationPeriodsOverviewAsync(
+        int? year,
+        string? periodType,
+        string? status,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
+        Guid? periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
+        AcknowledgePersonalEvaluationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(
+        Guid periodId,
+        Guid criteriaId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 }

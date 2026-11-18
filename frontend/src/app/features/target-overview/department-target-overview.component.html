@@ -1,0 +1,259 @@
+@let text = localization.targetOverview;
+<div class="page-toolbar">
+  <div class="page-heading">
+    <p class="breadcrumb">{{text.breadcrumb}}</p>
+    <h1>
+      {{text.title}}
+      @if (departmentName()) {
+        · {{departmentName()}}
+      }
+    </h1>
+    @if (quarter() > 0) {
+      <p class="subtitle">
+        {{text.allocationLabel}} {{text.quarter}} {{quarter()}}: {{allocationStatus()}}
+      </p>
+    }
+  </div>
+  <div class="toolbar-actions">
+    <label class="inline-field">
+      {{text.year}}
+      <select
+        class="select"
+        [ngModel]="year()"
+        (ngModelChange)="selectYear(+$event)"
+        [attr.aria-label]="text.year"
+      >
+        @for (item of years(); track item) {
+          <option [ngValue]="item">{{item}}</option>
+        }
+      </select>
+    </label>
+    <label class="inline-field">
+      {{text.period}}
+      <select
+        class="select period-select"
+        [ngModel]="quarter()"
+        (ngModelChange)="selectQuarter(+$event)"
+        [attr.aria-label]="text.period"
+      >
+        @for (item of quarterOptions(); track item) {
+          <option [ngValue]="item">{{text.quarter}} {{item}}/{{year()}}</option>
+        }
+      </select>
+    </label>
+    <a
+      class="button button-primary"
+      routerLink="/target-allocation"
+      [queryParams]="{ year: year(), quarter: quarter() }"
+    >
+      {{text.allocateToEmployees}}
+    </a>
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">{{text.retry}}</button>
+  </div>
+} @else if (years().length === 0) {
+  <div class="state-card">
+    <p>{{text.noPeriod}}</p>
+  </div>
+} @else {
+  <section class="surface-card target-card">
+    <div class="table-wrap">
+      <table class="quota-table">
+        <thead>
+          <tr>
+            <th>{{text.quotaTitle}}</th>
+            <th class="num">{{text.wholeYear}} {{year()}}</th>
+            @for (item of quarters; track item) {
+              <th class="num">{{text.quarter}} {{item}}</th>
+            }
+            <th class="num">{{text.colAllocated}} ({{text.quarter}} {{quarter()}})</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of quota(); track row.kpi.id) {
+            <tr>
+              <td>
+                <span class="quota-kpi">{{row.kpi.name}}</span>
+                <span class="quota-unit"> · {{row.kpi.unit}}</span>
+              </td>
+              <td class="num">
+                <app-target-cell [value]="row.year ?? 'NONE'" />
+              </td>
+              @for (value of row.quarters; track $index) {
+                <td class="num" [class.is-selected-period]="$index + 1 === quarter()">
+                  <app-target-cell [value]="value ?? 'NONE'" />
+                </td>
+              }
+              <td class="num">
+                @if (row.remaining === null) {
+                  <app-target-cell [value]="'NONE'" />
+                } @else if (row.remaining === 0) {
+                  <span class="allocated-done">{{row.allocated | appNumber}} ✓</span>
+                } @else {
+                  <span class="allocated-open">
+                    {{row.allocated | appNumber}} · {{text.remaining}}
+                    {{row.remaining | appNumber}}
+                  </span>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty-cell" colspan="7">{{text.empty}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="section-heading">
+    <div>
+      <h2>
+        {{text.feedbackTitle}}
+        @if (quarter() > 0) {
+          ({{text.quarter}} {{quarter()}})
+        }
+      </h2>
+      <div class="pill-group">
+        <span class="pill">{{feedbackRows().length}} {{text.employees}}</span>
+        <span class="pill is-confirmed">{{counts().confirmed}} {{text.confirmedCount}}</span>
+        <span class="pill is-commented">{{counts().commented}} {{text.commentedCount}}</span>
+        <span class="pill">{{counts().notViewed}} {{text.notViewedCount}}</span>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input
+        type="search"
+        class="input filter-search"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event); resetPage()"
+        [placeholder]="text.searchEmployee"
+        [attr.aria-label]="text.searchEmployee"
+      />
+      <select
+        class="select filter-select"
+        [ngModel]="position()"
+        (ngModelChange)="position.set($event); resetPage()"
+        [attr.aria-label]="text.allPositions"
+      >
+        <option value="">{{text.allPositions}}</option>
+        @for (item of positionOptions(); track item) {
+          <option [value]="item">{{item}}</option>
+        }
+      </select>
+      <select
+        class="select filter-select"
+        [ngModel]="feedbackFilter()"
+        (ngModelChange)="feedbackFilter.set($event); resetPage()"
+        [attr.aria-label]="text.allFeedback"
+      >
+        <option value="">{{text.allFeedback}}</option>
+        <option value="CONFIRMED">{{text.statusConfirmed}}</option>
+        <option value="COMMENTED">{{text.statusCommented}}</option>
+        <option value="NOT_VIEWED">{{text.statusNotViewed}}</option>
+      </select>
+    </div>
+  </div>
+
+  <section class="surface-card target-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{{text.colCode}}</th>
+            <th>{{text.colName}}</th>
+            <th>{{text.colPosition}}</th>
+            @for (row of quota(); track row.kpi.id) {
+              <th class="num">{{row.kpi.name}} ({{row.kpi.unit}})</th>
+            }
+            <th>{{text.colFeedback}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of pageRows(); track row.employee.id) {
+            @if (teamStart(pageRows(), $index); as team) {
+              <tr class="team-row">
+                <td colspan="3">
+                  <strong>{{team.name}}</strong>
+                  <span class="team-tag">{{text.teamTag}}</span>
+                </td>
+                @for (cell of team.cells; track $index) {
+                  <td class="num"><app-target-cell [value]="cell" /></td>
+                }
+                <td></td>
+              </tr>
+            }
+            <tr>
+              <td class="mono code">{{row.employee.employeeCode}}</td>
+              <td>{{row.employee.fullName}}</td>
+              <td>{{row.employee.jobPositionTitle}}</td>
+              @for (cell of row.cells; track $index) {
+                <td class="num"><app-target-cell [value]="cell" /></td>
+              }
+              <td>
+                <div class="feedback-cell">
+                  <span
+                    class="pill"
+                    [class.is-confirmed]="row.feedback === 'CONFIRMED'"
+                    [class.is-commented]="row.feedback === 'COMMENTED'"
+                  >
+                    {{feedbackLabel(row.feedback)}}
+                    @if (row.feedback === 'CONFIRMED' && row.feedbackAt) {
+                      {{row.feedbackAt | appDate}}
+                    }
+                  </span>
+                  @if (row.feedback === 'COMMENTED') {
+                    @if (comments()[row.employee.id]; as comment) {
+                      <p class="comment-text" [attr.title]="comment">{{comment}}</p>
+                    }
+                    <a
+                      class="link-button"
+                      routerLink="/target-allocation"
+                      [queryParams]="{ year: year(), quarter: quarter() }"
+                    >
+                      {{text.adjust}} ›
+                    </a>
+                  }
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty-cell" [attr.colspan]="quota().length + 4">{{text.empty}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (totalPages() > 1) {
+      <div class="table-footer">
+        <span>{{range().from}}–{{range().to}} / {{range().total}} {{text.employees}}</span>
+        <div class="pager">
+          @for (number of pageNumbers(); track number) {
+            <button
+              type="button"
+              class="button"
+              [class.button-primary]="number === page()"
+              [class.button-secondary]="number !== page()"
+              [attr.aria-current]="number === page() ? 'page' : null"
+              (click)="page.set(number)"
+            >
+              {{number}}
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </section>
+}

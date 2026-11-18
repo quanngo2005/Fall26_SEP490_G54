@@ -1,0 +1,177 @@
+/* Same code font stack as the list and styles.scss (the shared appeals rule falls back to Courier New). */
+.font-code {
+  font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+}
+
+.status-badge {
+  &.tone-green {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+
+  &.tone-red {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fecaca;
+  }
+
+  &.tone-gray {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #cbd5e1;
+  }
+
+  &.tone-amber {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+  }
+}
+
+.compare-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #ffffff;
+}
+
+.compare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.compare-reason {
+  font-size: 12px;
+  font-weight: 400;
+  color: #b91c1c;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+
+  th {
+    text-align: left;
+    padding: 6px 4px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  td {
+    padding: 7px 4px;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+  }
+
+  .col-match {
+    width: 48px;
+    text-align: center;
+  }
+
+  tr.mismatch td {
+    color: #b91c1c;
+    font-weight: 600;
+  }
+
+  .mark {
+    font-weight: 700;
+
+    &.ok {
+      color: #15803d;
+    }
+
+    &.bad {
+      color: #dc2626;
+    }
+  }
+}
+
+.version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 12.5px;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+
+  span:nth-child(2) {
+    flex: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &:hover {
+    background: #f8fafc;
+  }
+
+  &.current {
+    border-color: #2563eb;
+    background: #eff6ff;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+}
+
+.drawer-callout.muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+
+  .callout-heading {
+    color: #475569;
+  }
+}
+
+.appeal-button {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #2563eb;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+
+  &:hover:not(:disabled) {
+    background: #eff6ff;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: #cbd5e1;
+    color: #94a3b8;
+  }
+}

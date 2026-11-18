@@ -24,4 +24,6 @@ public partial class JobPosition
     public virtual ICollection<EvaluationProfile> EvaluationProfiles { get; set; } = new List<EvaluationProfile>();
 
     public virtual ICollection<JobPositionWorkType> JobPositionWorkTypes { get; set; } = new List<JobPositionWorkType>();
+
+    public virtual ICollection<KpiDefinition> KpiDefinitions { get; set; } = new List<KpiDefinition>();
 }

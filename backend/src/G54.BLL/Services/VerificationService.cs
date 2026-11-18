@@ -12,11 +12,13 @@ using Microsoft.Extensions.Logging;
 
 namespace G54.BLL.Services;
 
-public sealed class VerificationService(
+public sealed partial class VerificationService(
     AppDbContext db,
     ILogger<VerificationService> logger,
     TimeProvider time,
-    IPermissionService permissions) : IVerificationService
+    IPermissionService permissions,
+    IQaSamplingPolicy? qaSampling = null,
+    INotifier? notifier = null) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -54,15 +56,20 @@ public sealed class VerificationService(
             submission.SubmitterEmployee?.JobPosition?.Title ?? "Nhân viên",
             submission.SubmitterEmployee?.Department?.Name ?? "Phòng ban");
 
-        var primaryKpi = submission.Work.WorkType?.WorkTypeKpis.FirstOrDefault()?.KpiDefinition;
+        // Same in-effect mapping VerifiedResultRecorder will use on approval, so the dossier shows the KPI the
+        // approval would actually record.
+        var primaryKpi = VerifiedResultRecorder
+            .SelectInEffectMapping(submission.Work.WorkType, time.GetBusinessToday())?.KpiDefinition;
         KpiItemDto? kpiItem = null;
         if (primaryKpi is not null)
         {
+            var declared = ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics
+                .FirstOrDefault(m => m.KpiDefinitionId == primaryKpi.Id);
             kpiItem = new KpiItemDto(
                 primaryKpi.Id,
                 primaryKpi.Code,
                 primaryKpi.Name,
-                15.0m, // Giá trị mặc định mô phỏng sản lượng nộp
+                declared?.Value ?? 0m,
                 primaryKpi.Unit);
         }
 
@@ -84,11 +91,9 @@ public sealed class VerificationService(
             new("STD-03", "Tuân thủ chữ ký pháp lý trên hợp đồng tín dụng", true),
         };
 
-        var submissionCode = $"#SUB-{submission.Work.Code}-V{submission.SubmissionNo}";
-
         return new VerificationDossierDto(
             submission.Id,
-            submissionCode,
+            SubmissionCode(submission.Work.Code, submission.SubmissionNo),
             submission.SubmissionNo,
             submission.WorkId,
             submission.Work.Code,
@@ -128,6 +133,7 @@ public sealed class VerificationService(
             .Include(s => s.Work)
                 .ThenInclude(w => w.WorkType)
                     .ThenInclude(wt => wt!.WorkTypeKpis)
+                        .ThenInclude(k => k.KpiDefinition)
             .Include(s => s.Verifications)
             .Include(s => s.SubmitterEmployee)
             .FirstOrDefaultAsync(s => s.Id == submissionId, cancellationToken);
@@ -209,7 +215,14 @@ public sealed class VerificationService(
             if (dbDecision == VerificationDecision.Approved)
             {
                 await VerifiedResultRecorder.RecordAsync(
-                    db, logger, time, verification, submission.Work, submission.SubmitterEmployeeId, dto.VerifiedValue, now, cancellationToken);
+                    db,
+                    time,
+                    verification,
+                    submission.Work,
+                    submission.SubmitterEmployeeId,
+                    ResultSubmissionService.ParseStoredComment(submission.Comment).Metrics,
+                    now,
+                    cancellationToken);
             }
 
             // Insert the verification before APPROVED closes the submission in the database trigger.
@@ -224,13 +237,18 @@ public sealed class VerificationService(
             submission.Work.UpdatedAt = now;
             if (dbDecision == VerificationDecision.Approved)
             {
-                var acceptedAppeals = await db.Appeals
-                    .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
-                    .Select(a => a.Id)
-                    .ToListAsync(cancellationToken);
-                foreach (var appealId in acceptedAppeals)
+                // BR-32: a random 5% of manually approved results is queued for QA re-verification.
+                if (qaSampling?.ShouldSample(submission.Work) == true
+                    && !await db.QaSamples.AnyAsync(x => x.ResultSubmissionId == submission.Id, cancellationToken))
                 {
-                    await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
+                    db.QaSamples.Add(new QaSample
+                    {
+                        Id = Guid.NewGuid(),
+                        ResultSubmissionId = submission.Id,
+                        SubmitterEmployeeId = submission.SubmitterEmployeeId,
+                        Status = QaSampleStatus.Pending,
+                        SampledAt = now,
+                    });
                 }
             }
             await db.SaveChangesAsync(cancellationToken);
@@ -245,6 +263,12 @@ public sealed class VerificationService(
         }
 
         LogVerificationAudit(logger, normalizedDecision, submission.Id, verifier.Id, null);
+        if (notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                [AutomaticNotifications.SubmissionDecided(submission, submission.Work, verifier, normalizedDecision, dto.Feedback)],
+                cancellationToken);
+        }
 
         var message = $"Quyết định thẩm định đã được ghi nhận: {actionText}.";
 
@@ -356,11 +380,6 @@ public sealed class VerificationService(
             {
                 throw new ValidationException("Hạn chót nộp lại phải lớn hơn thời điểm hiện tại.");
             }
-        }
-
-        if (dec is "APPROVED" && dto.VerifiedValue.HasValue && dto.VerifiedValue.Value < 0)
-        {
-            throw new ValidationException("Sản lượng công nhận không được là số âm.");
         }
     }
 }

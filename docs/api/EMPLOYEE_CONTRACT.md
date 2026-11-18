@@ -4,6 +4,21 @@ Status: backend implemented (read endpoints used by the frontend). Typed client:
 `frontend/src/app/core/employee.service.ts`. Routes use the backend origin, no API prefix; all
 responses use `ApiResponse<T>` (see `API_CONVENTIONS.md`). Write endpoints
 (`POST/PUT/PATCH/DELETE /employees...`) exist but are not used by the read-only list or detail page.
+They need `employee:manage` (scope All) and follow the same account rules as the Excel import
+(`DATA_IMPORT_CONTRACT.md`), so an employee changed by hand and one changed by import end up the same:
+
+- `POST /employees` creates the employee **and its account** in one save: username = the employee's email
+  (lower-cased), role = the one mapped from the job position (`TELLER`/`SALES` -> `EMPLOYEE`, `DEPT_MANAGER`,
+  `BRANCH_MANAGER`, `QA` -> `VERIFIER`, `HR_OFFICER`, `SYS_ADMIN` -> `SYSTEM_ADMIN`), and a random 16-character
+  one-time password. The password is returned **once**, as `data.temporaryPassword` of the 201 response, with
+  `Cache-Control: no-store`; no other endpoint returns it and it cannot be read again. A job position with no
+  role mapping is rejected (400 `VALIDATION_ERROR`); a username that already exists is 409. An employee created
+  as `TERMINATED` gets a locked account.
+- Moving an employee to `TERMINATED` (`PUT /employees/{id}`, `PATCH /employees/{id}/status` or `DELETE`) **locks
+  the account** (BR-22). Like the import, nothing ever unlocks it again, including a later change back to `ACTIVE`.
+- `DELETE /employees/{id}` never removes the row: it moves the employee to `TERMINATED` and locks the account
+  (200, idempotent; 404 for an unknown id). Employees with direct reports, work, submissions or verifications are
+  terminated like any other (the former 409 conflicts no longer exist); direct reports keep their `managerId`.
 The list at `/employees` also uses the department and job-position option lookups below.
 
 ## Authorization
@@ -12,8 +27,10 @@ The list at `/employees` also uses the department and job-position option lookup
 `employee:read` at `Own` scope or higher. The service restricts rows to self (`Own`), the caller's
 department subtree (`Dept`), the nearest branch subtree (`Branch`), or everyone (`All`/full access).
 Missing permission returns 403; an unknown or out-of-scope employee detail returns 404.
-`GET /employees/me` and the option lookups require authentication. The lookups return all active
-departments/positions, not a scope-filtered employee roster.
+`GET /employees/me` requires authentication. The option lookups (`/employees/departments`,
+`/employees/job-positions`) use the same `employee:read` scope as the list (403 without it): they return
+only the active departments in the caller's scope and the active positions held by at least one employee
+in that scope. `All`/full access sees every active department and position.
 The detail page additionally reads scoped `/departments/{id}/members` (see `DEPARTMENT_CONTRACT.md`).
 
 ## Endpoints
@@ -34,12 +51,15 @@ the response, not local sample counts. Search and filters are applied on the ser
 `data`: an array of `{ id, code, name, levelType }`. IDs are GUID strings;
 `levelType` follows the backend's current numeric `DepartmentLevelType` serialization
 (`Branch`, `Department`, `Team` in declaration order). The list does not use this field
-to decide access or filtering. Active departments only, ordered by code.
+to decide access or filtering. Active departments within the caller's `employee:read` scope only
+(`Own`: the caller's own department; `Dept`: its subtree; `Branch`: the nearest branch subtree; `All`:
+every department), ordered by code.
 
 ### `GET /employees/job-positions`
 
 `data`: an array of `{ id, code, title }`. IDs are GUID strings.
-Active positions only, ordered by code. Both lookup filters send GUID IDs, not display codes.
+Active positions held by at least one employee within the caller's `employee:read` scope, ordered by
+code; it does not depend on the department chosen in the list. Both lookup filters send GUID IDs, not display codes.
 
 ### List limitations
 
@@ -101,7 +121,12 @@ legacy link (see "Identifier hand-off").
 
 ## Enum API format
 
-`status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED`.
+`status` is an UPPER_SNAKE string: `ACTIVE | INACTIVE | ON_LEAVE | TERMINATED | PENDING_RESIGNATION`. The last
+value is written only by the Data Import feature (`docs/api/DATA_IMPORT_CONTRACT.md`); this API accepts and
+returns it like any other status but assigns no extra behaviour to it.
+
+The Data Import feature also adds a nullable `employee.hire_date` (date) column. It is not yet exposed on
+`EmployeeDetailDto` or any endpoint below — follow-up work, tracked with the import feature's "ngoài phạm vi" list.
 
 Responses are produced with `EnumApiFormat.ToEnumString()`. The `status` query filter, the optional `status`
 of `POST /employees` (defaults to `ACTIVE`), the required `status` of `PUT /employees/{id}` and the

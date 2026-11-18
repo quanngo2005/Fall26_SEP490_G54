@@ -1,14 +1,14 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HttpErrorResponse } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
 import { EvaluationsComponent } from './evaluations.component';
-import { EvaluationService } from '../../core/evaluation.service';
-import { DepartmentEmployeeEvaluation, EvaluationPeriodOption } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { DepartmentEvaluationDashboard } from '../../core/evaluation.models';
+import { environment } from '../../../environments/environment';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class StubHeaderComponent {}
@@ -21,86 +21,240 @@ class StubIconComponent {
   readonly name = input<string>();
 }
 
-const period: EvaluationPeriodOption = {
-  id: 'period-1',
-  code: 'Q-TEST',
-  name: 'Test quarter',
-  startDate: '2026-10-01',
-  endDate: '2026-12-31',
-  periodType: 'QUARTER',
-  status: 'OPEN',
-  isActive: true,
+const MOCK_DASHBOARD: DepartmentEvaluationDashboard = {
+  department: {
+    id: 'dept-1',
+    code: 'KHCN',
+    name: 'Phòng Khách hàng Cá nhân',
+    managerName: 'Trần Quốc Bảo',
+  },
+  period: {
+    id: 'period-11',
+    code: '2026-M11',
+    name: 'Tháng 11/2026',
+    startDate: '2026-11-01',
+    endDate: '2026-11-30',
+    periodType: 'MONTH',
+    status: 'OPEN',
+    isActive: true,
+  },
+  comparePeriod: {
+    id: 'period-10',
+    code: '2026-M10',
+    name: 'Tháng 10/2026',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    periodType: 'MONTH',
+    status: 'LOCKED',
+    isActive: false,
+  },
+  availablePeriods: [
+    {
+      id: 'period-11',
+      code: '2026-M11',
+      name: 'Tháng 11/2026',
+      startDate: '2026-11-01',
+      endDate: '2026-11-30',
+      periodType: 'MONTH',
+      status: 'OPEN',
+      isActive: true,
+    },
+    {
+      id: 'period-10',
+      code: '2026-M10',
+      name: 'Tháng 10/2026',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
+      periodType: 'MONTH',
+      status: 'LOCKED',
+      isActive: false,
+    },
+  ],
+  compareOptions: [
+    {
+      id: 'period-10',
+      code: '2026-M10',
+      name: 'Tháng 10/2026',
+      startDate: '2026-10-01',
+      endDate: '2026-10-31',
+      periodType: 'MONTH',
+      status: 'LOCKED',
+      isActive: false,
+    },
+  ],
+  performance: {
+    average: 90.3,
+    previousAverage: 89.3,
+    changeFromPrevious: 1.0,
+    evaluatedEmployeeCount: 4,
+    totalEmployeeCount: 6,
+    unscoredEmployeeCount: 2,
+    pipCount: 1,
+    appealCount: 1,
+    kpiGroups: [
+      {
+        name: 'Kinh doanh',
+        displayOrder: 1,
+        weightPercent: 70,
+        averageScore: 92.4,
+        kpis: [
+          {
+            kpiDefinitionId: 'kpi-1',
+            code: 'KPI-01',
+            name: 'Huy động tiền gửi tiết kiệm',
+            unit: 'tỷ',
+            direction: 'HIGHER_BETTER',
+            targetValue: 15,
+            actualValue: 11.4,
+            achievementPercent: 76,
+            previousAchievementPercent: 84,
+            changeFromPreviousPercent: -8,
+          },
+          {
+            kpiDefinitionId: 'kpi-2',
+            code: 'KPI-02',
+            name: 'Doanh số giải ngân cho vay',
+            unit: 'tỷ',
+            direction: 'HIGHER_BETTER',
+            targetValue: 20,
+            actualValue: 21.2,
+            achievementPercent: 106,
+            previousAchievementPercent: 101,
+            changeFromPreviousPercent: 5,
+          },
+        ],
+      },
+    ],
+    trend: [
+      { periodId: 'period-10', periodCode: '10', periodName: 'Tháng 10/2026', average: 89.3 },
+      { periodId: 'period-11', periodCode: '11', periodName: 'Tháng 11/2026', average: 90.3 },
+    ],
+  },
+  operations: {
+    onTimeCompletedCount: 142,
+    overdueCount: 6,
+    inProgressCount: 18,
+    onTimeRatePercent: 95.9,
+    loadPerStaff: 3.0,
+  },
+  tierDistribution: {
+    tierACapPercent: 20,
+    tiers: [
+      { tierCode: 'A1', rankOrder: 1, minScore: 95, maxScore: null, count: 1, percent: 25 },
+      { tierCode: 'A2', rankOrder: 2, minScore: 90, maxScore: 95, count: 1, percent: 25 },
+      { tierCode: 'A3', rankOrder: 3, minScore: 85, maxScore: 90, count: 0, percent: 0 },
+      { tierCode: 'B', rankOrder: 4, minScore: 70, maxScore: 85, count: 1, percent: 25 },
+      { tierCode: 'C', rankOrder: 5, minScore: 0, maxScore: 70, count: 1, percent: 25 },
+    ],
+    actionAlerts: [
+      {
+        kind: 'PIP',
+        employeeId: 'emp-7',
+        employeeCode: 'NV007',
+        fullName: 'Ngô Thanh Mai',
+        tierCode: 'C',
+        totalScore: 68.5,
+        metaText: 'CV Kinh doanh',
+      },
+      {
+        kind: 'APPEAL',
+        employeeId: 'emp-3',
+        employeeCode: 'NV003',
+        fullName: 'Demo Employee',
+        tierCode: null,
+        totalScore: null,
+        metaText: 'CV Kinh doanh',
+      },
+      {
+        kind: 'TOP',
+        employeeId: 'emp-4',
+        employeeCode: 'NV004',
+        fullName: 'Lê Minh Châu',
+        tierCode: 'A1',
+        totalScore: 98.2,
+        metaText: 'CV Kinh doanh',
+      },
+    ],
+  },
+  profileGroups: [
+    { name: 'Kinh doanh', displayOrder: 1, weightPercent: 70 },
+    { name: 'Dịch vụ', displayOrder: 2, weightPercent: 20 },
+    { name: 'Tuân thủ', displayOrder: 3, weightPercent: 10 },
+  ],
+  staffRows: [
+    {
+      employeeId: 'emp-4',
+      employeeCode: 'NV004',
+      fullName: 'Lê Minh Châu',
+      jobPositionId: 'pos-1',
+      jobPositionTitle: 'CV Kinh doanh',
+      groupScores: [
+        { groupName: 'Kinh doanh', displayOrder: 1, weightPercent: 70, score: 100 },
+        { groupName: 'Dịch vụ', displayOrder: 2, weightPercent: 20, score: 91 },
+        { groupName: 'Tuân thủ', displayOrder: 3, weightPercent: 10, score: 100 },
+      ],
+      totalScore: 98.2,
+      previousTotalScore: 92.7,
+      scoreDelta: 5.5,
+      tierCode: 'A1',
+      onTimeSlaPercent: 98.6,
+      status: 'FINAL',
+      evaluationStatus: 'APPROVED',
+      canOpenForm: true,
+    },
+    {
+      employeeId: 'emp-7',
+      employeeCode: 'NV007',
+      fullName: 'Ngô Thanh Mai',
+      jobPositionId: 'pos-1',
+      jobPositionTitle: 'CV Kinh doanh',
+      groupScores: [
+        { groupName: 'Kinh doanh', displayOrder: 1, weightPercent: 70, score: 65.7 },
+        { groupName: 'Dịch vụ', displayOrder: 2, weightPercent: 20, score: 78 },
+        { groupName: 'Tuân thủ', displayOrder: 3, weightPercent: 10, score: 69 },
+      ],
+      totalScore: 68.5,
+      previousTotalScore: 75.0,
+      scoreDelta: -6.5,
+      tierCode: 'C',
+      onTimeSlaPercent: 81.0,
+      status: 'PIP',
+      evaluationStatus: 'CALCULATED',
+      canOpenForm: true,
+    },
+    {
+      employeeId: 'emp-8',
+      employeeCode: 'NV008',
+      fullName: 'Phạm Hoàng Nam',
+      jobPositionId: 'pos-1',
+      jobPositionTitle: 'Mới tiếp nhận',
+      groupScores: [],
+      totalScore: null,
+      previousTotalScore: null,
+      scoreDelta: null,
+      tierCode: null,
+      onTimeSlaPercent: 100,
+      status: 'PENDING',
+      evaluationStatus: 'NOT_STARTED',
+      canOpenForm: false,
+    },
+  ],
+  generatedAt: '2026-11-16T08:00:00Z',
 };
-
-function row(overrides: Partial<DepartmentEmployeeEvaluation>): DepartmentEmployeeEvaluation {
-  return {
-    employeeId: 'e1',
-    employeeCode: 'NV0001',
-    fullName: 'Nguyễn Văn A',
-    jobPositionTitle: 'Sales',
-    jobPositionId: 'p1',
-    departmentId: 'd1',
-    departmentName: 'Phòng Kinh doanh',
-    evaluationId: null,
-    totalScore: null,
-    evaluationStatus: 'NOT_STARTED',
-    proposedTier: null,
-    calculatedAt: null,
-    quantitativeScore: null,
-    qualitativeScore: null,
-    hasOpenDispute: false,
-    pendingSubmissionCount: 0,
-    canEvaluate: true,
-    updatedAt: null,
-    ...overrides,
-  };
-}
-
-const rows: DepartmentEmployeeEvaluation[] = [
-  row({
-    employeeId: 'e1',
-    employeeCode: 'NV0001',
-    evaluationStatus: 'DRAFT',
-    quantitativeScore: 99.64,
-    qualitativeScore: 85,
-    totalScore: 96.71,
-    pendingSubmissionCount: 2,
-    updatedAt: '2026-10-26T08:00:00+07:00',
-  }),
-  row({
-    employeeId: 'e2',
-    employeeCode: 'NV0002',
-    fullName: 'Phạm Văn Long',
-    evaluationStatus: 'CALCULATED',
-    totalScore: 90.48,
-    canEvaluate: false,
-  }),
-  row({
-    employeeId: 'e3',
-    employeeCode: 'NV0003',
-    fullName: 'Đỗ Thị Giang',
-    jobPositionTitle: 'Teller',
-    jobPositionId: 'p2',
-    hasOpenDispute: true,
-  }),
-];
 
 describe('EvaluationsComponent', () => {
   let component: EvaluationsComponent;
   let fixture: ComponentFixture<EvaluationsComponent>;
-  let api: jasmine.SpyObj<EvaluationService>;
+  let httpMock: HttpTestingController;
+  let i18n: I18nService;
+  let router: Router;
 
   beforeEach(async () => {
-    api = jasmine.createSpyObj<EvaluationService>('EvaluationService', [
-      'periods',
-      'departmentEmployees',
-    ]);
-    api.periods.and.returnValue(of([period]));
-    api.departmentEmployees.and.returnValue(of(rows));
-
+    localStorage.clear();
+    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [EvaluationsComponent],
-      providers: [provideRouter([]), { provide: EvaluationService, useValue: api }, I18nService],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     })
       .overrideComponent(EvaluationsComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent, LayoutIconComponent] },
@@ -110,135 +264,136 @@ describe('EvaluationsComponent', () => {
 
     fixture = TestBed.createComponent(EvaluationsComponent);
     component = fixture.componentInstance;
+    httpMock = TestBed.inject(HttpTestingController);
+    i18n = TestBed.inject(I18nService);
+    router = TestBed.inject(Router);
+    i18n.setLanguage('vi');
+    fixture.detectChanges();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/evaluations/department-dashboard`);
+    req.flush({ success: true, data: MOCK_DASHBOARD });
     fixture.detectChanges();
   });
 
-  it('loads the periods and then the rows of the active period', () => {
-    expect(api.periods).toHaveBeenCalled();
-    expect(api.departmentEmployees).toHaveBeenCalledWith('period-1');
-    expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(3);
+  afterEach(() => {
+    httpMock.verify();
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
-  it('renders page title from localization', () => {
-    const title = fixture.nativeElement.querySelector('h1.page-title')?.textContent?.trim();
-    expect(title).toBe(TestBed.inject(I18nService).localization.evaluations.pageTitle);
+  function text(): string {
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  it('loads department dashboard data and renders 5 ranking tiers A1..C in the chart legend', () => {
+    expect(component.departmentScore()).toBe(90.3);
+    expect(component.tierItems().map((t) => t.tierCode)).toEqual(['A1', 'A2', 'A3', 'B', 'C']);
+    expect(fixture.nativeElement.querySelectorAll('.tier-mini-chip').length).toBe(5);
+    expect(fixture.nativeElement.querySelector('.status-badge-open')).toBeNull();
   });
 
-  it('shows the period code, the department and the deadline from the API in the context bar', () => {
-    const el: HTMLElement = fixture.nativeElement;
-    expect(el.querySelector('.period-select')?.textContent).toContain('Q-TEST');
-    const info = el.querySelector('.dept-info')?.textContent ?? '';
-    expect(info).toContain('Phòng Kinh doanh');
-    expect(info).toContain('31/12/2026');
-  });
+  it('leaves unscored staff without a total and filters by code or name', () => {
+    const pending = component.staff().filter((item) => item.totalScore === null);
+    expect(pending.map((item) => item.employeeCode)).toEqual(['NV008']);
 
-  it('derives the stat cards and the progress from the rows', () => {
-    expect(component.statSummary()).toEqual({
-      allCount: 3,
-      notEvaluatedCount: 1,
-      draftCount: 1,
-      completedCount: 1,
-      attentionCount: 2,
-    });
-    expect(component.periodInfo().progressPercent).toBe(33);
-  });
-
-  it('shows N/A for scores the API has no value for', () => {
-    const cells = fixture.nativeElement.querySelectorAll('tbody tr')[2].querySelectorAll('td');
-    const emptyValue = TestBed.inject(I18nService).localization.evaluations.emptyValue;
-    expect(cells[5].textContent?.trim()).toBe(emptyValue);
-    expect(cells[5].textContent).not.toContain('0');
-  });
-
-  it('maps NOT_STARTED, DRAFT and later states to the list statuses', () => {
-    expect(component.listStatus(rows[0])).toBe('DRAFT');
-    expect(component.listStatus(rows[1])).toBe('COMPLETED');
-    expect(component.listStatus(rows[2])).toBe('NOT_EVALUATED');
-  });
-
-  it('filters items when selecting a stat card', () => {
-    component.setStatFilter('DRAFT');
-    expect(component.displayedEvaluations().map((i) => i.employeeCode)).toEqual(['NV0001']);
-
-    component.setStatFilter('COMPLETED');
-    expect(component.displayedEvaluations().map((i) => i.employeeCode)).toEqual(['NV0002']);
-
-    component.setStatFilter('ATTENTION');
-    expect(component.displayedEvaluations().length).toBe(2);
-  });
-
-  it('filters items by keyword and by position', () => {
-    component.searchKeyword.set('Giang');
-    expect(component.displayedEvaluations().map((i) => i.employeeCode)).toEqual(['NV0003']);
+    component.searchKeyword.set('mai');
+    expect(component.filteredStaff().map((item) => item.employeeCode)).toEqual(['NV007']);
 
     component.searchKeyword.set('');
-    component.positionFilter.set('p1');
-    expect(component.displayedEvaluations().length).toBe(2);
+    expect(component.filteredStaff().length).toBe(3);
+
+    component.tierFilter.set('C');
+    expect(component.filteredStaff().map((item) => item.employeeCode)).toEqual(['NV007']);
+    component.tierFilter.set('');
+
+    component.statusFilter.set('PENDING');
+    expect(component.filteredStaff().map((item) => item.employeeCode)).toEqual(['NV008']);
+    component.statusFilter.set('');
+
+    component.sortBy.set('nameAsc');
+    expect(component.filteredStaff().map((item) => item.employeeCode)).toEqual([
+      'NV004',
+      'NV007',
+      'NV008',
+    ]);
   });
 
-  it('reloads the rows when another period is chosen', () => {
-    component.onPeriodChange({ target: { value: 'period-2' } } as unknown as Event);
-    expect(api.departmentEmployees).toHaveBeenCalledWith('period-2');
-  });
+  it('renders 6-period trend bar chart, staff performance column chart, task distribution chart, and diverging bars', () => {
+    expect(component.trendBars().length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.trend-bar').length).toBe(2);
+    expect(component.staffChartBars().length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.staff-col-bar').length).toBe(2);
+    expect(component.taskDistributionSegments().length).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.task-bar-row').length).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.diverge').length).toBe(4);
 
-  it('shows the offline state instead of rows', () => {
-    api.departmentEmployees.and.returnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+    component.setTaskViewMode('staff');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(1);
-    expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
-      TestBed.inject(I18nService).localization.evaluations.offline,
-    );
+    expect(component.staffTaskStackedBars().length).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.staff-task-col').length).toBe(3);
   });
 
-  it('shows the forbidden state', () => {
-    api.departmentEmployees.and.returnValue(
-      throwError(() => new HttpErrorResponse({ status: 403 })),
+  it('reloads dashboard when compare period changes', () => {
+    const select = fixture.nativeElement.querySelector('.compare-select') as HTMLSelectElement;
+    select.value = 'period-10';
+    select.dispatchEvent(new Event('change'));
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/evaluations/department-dashboard?periodId=period-11&comparePeriodId=period-10`,
     );
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+    req.flush({ success: true, data: MOCK_DASHBOARD });
+    expect(component.selectedComparePeriodId()).toBe('period-10');
+  });
+
+  it('exports the Excel report of the selected period and compare period through the department evaluation dashboard', () => {
+    const save = spyOn(URL, 'createObjectURL').and.returnValue('blob:x');
+    spyOn(URL, 'revokeObjectURL');
+    spyOn(HTMLAnchorElement.prototype, 'click');
+
+    component.exportExcel();
+    expect(component.exporting()).toBeTrue();
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/evaluations/department-dashboard/export?periodId=period-11&comparePeriodId=period-10`,
+    );
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['x']));
+
+    expect(save).toHaveBeenCalled();
+    expect(component.exporting()).toBeFalse();
+    expect(component.exportFailed()).toBeFalse();
+  });
+
+  it('shows an error and does not save a file when the export fails', () => {
+    const save = spyOn(URL, 'createObjectURL');
+
+    component.exportExcel();
+    httpMock
+      .expectOne(
+        `${environment.apiUrl}/evaluations/department-dashboard/export?periodId=period-11&comparePeriodId=period-10`,
+      )
+      .flush(new Blob(['x']), { status: 403, statusText: 'Forbidden' });
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
-      TestBed.inject(I18nService).localization.evaluations.forbidden,
-    );
+
+    expect(save).not.toHaveBeenCalled();
+    expect(component.exporting()).toBeFalse();
+    expect(component.exportFailed()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
   });
 
-  it('shows the empty state for a genuine empty list', () => {
-    api.departmentEmployees.and.returnValue(of([]));
-    component.onPeriodChange({ target: { value: 'period-1' } } as unknown as Event);
+  it('opens staff evaluation form when clicking View on a row with canOpenForm', () => {
+    const navSpy = spyOn(router, 'navigate').and.resolveTo(true);
+    component.openStaffForm(MOCK_DASHBOARD.staffRows[0]);
+    expect(navSpy).toHaveBeenCalledWith(['/evaluations/form']);
+  });
+
+  it('switches the rendered text between Vietnamese and English without reloading', () => {
+    expect(text()).toContain('Đánh giá & Hiệu suất Phòng ban');
+
+    i18n.setLanguage('en');
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('tbody td').textContent).toContain(
-      TestBed.inject(I18nService).localization.evaluations.emptyList,
-    );
-    expect(component.periodInfo().progressPercent).toBeNull();
-  });
 
-  it('navigates to /evaluations/form when openEvaluationForm is called', () => {
-    const router = TestBed.inject(Router);
-    spyOn(router, 'navigate');
-    component.openEvaluationForm(rows[0]);
-    expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form'], {
-      queryParams: {
-        employeeId: 'e1',
-        periodId: 'period-1',
-      },
-    });
-  });
-
-  it('shows the number of units when the rows span several departments', () => {
-    api.departmentEmployees.and.returnValue(
-      of([
-        row({ employeeId: 'e1', departmentName: 'Team 1' }),
-        row({ employeeId: 'e2', departmentName: 'Team 2' }),
-        row({ employeeId: 'e3', departmentName: 'Team 2' }),
-      ]),
-    );
-    component = TestBed.createComponent(EvaluationsComponent).componentInstance;
-    expect(component.periodInfo().departmentName).toBe(
-      TestBed.inject(I18nService).translate('evaluations.departmentCount', { count: 2 }),
-    );
-  });
-
-  it('keeps the department name when every row belongs to one department', () => {
-    expect(component.periodInfo().departmentName).toBe(rows[0].departmentName);
+    expect(text()).toContain('Evaluation & Department Performance');
+    expect(text()).not.toContain('Đánh giá & Hiệu suất Phòng ban');
   });
 });

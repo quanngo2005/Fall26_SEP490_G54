@@ -1,4 +1,6 @@
 using G54.BLL.Dtos.Submission;
+using G54.DAL;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 
@@ -6,7 +8,9 @@ namespace G54.BLL.Services;
 
 public sealed class EventBus(
     IDistributedCache cache,
-    ILogger<EventBus> logger) : IEventBus
+    ILogger<EventBus> logger,
+    AppDbContext? db = null,
+    INotifier? notifier = null) : IEventBus
 {
     private static readonly Action<ILogger, string, Exception?> LogUnhandledEvent =
         LoggerMessage.Define<string>(LogLevel.Information, new EventId(1, "UnhandledEvent"), "EventBus received unhandled event of type {EventType}");
@@ -18,7 +22,7 @@ public sealed class EventBus(
         LoggerMessage.Define<Guid>(LogLevel.Warning, new EventId(3, "CacheInvalidationFailed"), "EventBus: Failed to invalidate cache for Work {WorkId}");
 
     private static readonly Action<ILogger, string, string, int, Guid, Exception?> LogNotificationDispatched =
-        LoggerMessage.Define<string, string, int, Guid>(LogLevel.Information, new EventId(4, "NotificationDispatched"), "EventBus: Notification routed for Work {WorkCode} ('{WorkTitle}'), Submission #{SubmissionNo} (ID: {SubmissionId}). Notified Department Manager / Verifier via In-App and Email.");
+        LoggerMessage.Define<string, string, int, Guid>(LogLevel.Information, new EventId(4, "NotificationDispatched"), "EventBus: Notification routed for Work {WorkCode} ('{WorkTitle}'), Submission #{SubmissionNo} (ID: {SubmissionId}). Notified Department Manager / Verifier via In-App.");
 
     public async Task PublishAsync<TEvent>(TEvent eventMessage, CancellationToken cancellationToken = default)
         where TEvent : class
@@ -46,12 +50,22 @@ public sealed class EventBus(
             await cache.RemoveAsync("work:pending-approvals", cancellationToken);
             LogCacheInvalidated(logger, e.WorkId, null);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogCacheInvalidationFailed(logger, e.WorkId, ex);
         }
 
-        // 2. Dispatch simulated notification: In-App + Email to Department Manager / Verifier
+        // 2. Dispatch real in-app + SignalR notification to the submitter's direct manager
+        if (db is not null && notifier is not null)
+        {
+            var submitter = await db.Employees.AsNoTracking()
+                .FirstOrDefaultAsync(emp => emp.Id == e.SubmitterId, cancellationToken);
+            if (submitter is not null && AutomaticNotifications.SubmissionSubmitted(e.SubmissionId, e.WorkCode, e.WorkTitle, e.SubmissionNo, submitter) is { } draft)
+            {
+                await notifier.TryPublishAsync([draft], cancellationToken);
+            }
+        }
+
         LogNotificationDispatched(logger, e.WorkCode, e.WorkTitle, e.SubmissionNo, e.SubmissionId, null);
     }
 }

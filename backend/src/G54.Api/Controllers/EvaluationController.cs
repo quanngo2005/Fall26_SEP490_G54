@@ -17,6 +17,8 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class EvaluationController(IEvaluationService service) : ControllerBase
 {
+    private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     /// <summary>
     /// Gets the evaluation form pre-populated with employee details, criteria structure, and quantitative ledger actuals.
     /// </summary>
@@ -28,10 +30,36 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     public async Task<ActionResult<ApiResponse<EvaluationFormDto>>> GetEvaluationForm(
         [FromQuery] Guid employeeId,
         [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the employee's performance evaluation report for the selected period (`/evaluations/form`) to an Excel workbook (`.xlsx`).
+    /// </summary>
+    [HttpGet("form/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<IActionResult> ExportEvaluationForm(
+        [FromQuery] Guid employeeId,
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportEvaluationFormAsync(
+            employeeId,
+            periodId,
+            User.GetRequiredUserId(),
+            comparePeriodId,
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>
@@ -82,6 +110,54 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets the Department Evaluation &amp; Performance Dashboard overview for the caller's department (`/evaluations`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard")]
+    [ProducesResponseType<ApiResponse<DepartmentEvaluationDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<DepartmentEvaluationDashboardDto>>> GetDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the Department Evaluation &amp; Performance Dashboard (`/evaluations`) to an Excel workbook (`.xlsx`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<IActionResult> ExportDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>
@@ -164,7 +240,50 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
-    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107, BR-29).
+    /// Executive approves the calibrated rankings of a department (SCR-EVL-03-D1).
+    /// </summary>
+    [HttpPost("approvals/{departmentId:guid}/approve")]
+    [ProducesResponseType<ApiResponse<DepartmentApprovalResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<DepartmentApprovalResultDto>>> ApproveDepartmentRanking(
+        [FromRoute] Guid departmentId,
+        [FromBody] ApproveDepartmentRankingRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ApproveDepartmentCalibrationAsync(
+            departmentId,
+            request,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Pre-close operational checklist before finalizing/locking an evaluation period (SCR-EVL-03-M1).
+    /// </summary>
+    [HttpGet("pre-close-check")]
+    [ProducesResponseType<ApiResponse<PreCloseCheckOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<PreCloseCheckOverviewDto>>> GetPreCloseCheck(
+        [FromQuery] Guid periodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPreCloseCheckAsync(
+            periodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Executive sign-off and hard-lock of evaluation period (SCR-EVL-03 - UC106, UC107).
     /// </summary>
     [HttpPost("approvals/finalize")]
     [ProducesResponseType<ApiResponse<FinalizeResultDto>>(StatusCodes.Status200OK)]
@@ -177,6 +296,77 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         CancellationToken cancellationToken)
     {
         var result = await service.FinalizeAndLockPeriodAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets the list of evaluation periods for Branch Manager with progress, quality ratio and appeal window status (SCR-EVL-03 List).
+    /// </summary>
+    [HttpGet("branch-periods")]
+    [ProducesResponseType<ApiResponse<BranchEvaluationPeriodsOverviewDto>>(StatusCodes.Status200OK)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<BranchEvaluationPeriodsOverviewDto>>> GetBranchPeriods(
+        [FromQuery] int? year,
+        [FromQuery] string? periodType,
+        [FromQuery] string? status,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetBranchEvaluationPeriodsOverviewAsync(
+            year,
+            periodType,
+            status,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets personal performance evaluation details for the current employee (SCR-EVL-04 - UC108, UC109).
+    /// </summary>
+    [HttpGet("personal")]
+    [ProducesResponseType<ApiResponse<PersonalEvaluationViewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<ActionResult<ApiResponse<PersonalEvaluationViewDto>>> GetPersonalEvaluation(
+        [FromQuery] Guid? periodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPersonalEvaluationAsync(periodId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Acknowledges personal performance evaluation result (SCR-EVL-04 - UC108).
+    /// </summary>
+    [HttpPost("personal/acknowledge")]
+    [ProducesResponseType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<ActionResult<ApiResponse<AcknowledgePersonalEvaluationResultDto>>> AcknowledgePersonalEvaluation(
+        [FromBody] AcknowledgePersonalEvaluationRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AcknowledgePersonalEvaluationAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets personal criteria transaction ledger details for drilldown (SCR-EVL-04).
+    /// </summary>
+    [HttpGet("personal/ledger")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>> GetPersonalCriteriaLedger(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid criteriaId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPersonalCriteriaLedgerAsync(periodId, criteriaId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

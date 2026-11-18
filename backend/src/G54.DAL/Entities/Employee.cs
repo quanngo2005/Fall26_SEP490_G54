@@ -27,6 +27,9 @@ public partial class Employee
 
     public EmployeeStatus Status { get; set; }
 
+    /// <summary>Ngày vào làm (nullable: only populated by the Employee/Organization data import).</summary>
+    public DateOnly? HireDate { get; set; }
+
     public virtual Account? Account { get; set; }
 
     public virtual ICollection<Appeal> AppealResolvedByNavigations { get; set; } = new List<Appeal>();

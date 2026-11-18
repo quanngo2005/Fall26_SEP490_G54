@@ -13,6 +13,15 @@ public sealed record CreateRiskEventRequestDto
     public string? Severity { get; init; }
 
     public DateTimeOffset? OccurredAt { get; init; }
+
+    /// <summary>Penalty entered by QA (positive, up to 100). Empty: the penalty follows the severity.</summary>
+    public decimal? PenaltyPoints { get; init; }
+
+    /// <summary>Code of the linked work, if any.</summary>
+    public string? WorkCode { get; init; }
+
+    /// <summary>True: the event is recorded at once (<c>CONFIRMED</c> with its negative contribution) instead of waiting as <c>OPEN</c>.</summary>
+    public bool Record { get; init; }
 }
 
 public sealed record RiskEventDto(

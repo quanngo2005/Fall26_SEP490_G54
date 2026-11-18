@@ -12,7 +12,7 @@ import { displayNumber } from '../../shared/ui/display';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './job-position-detail-drawer.component.html',
-  styleUrls: ['./job-position-detail-drawer.component.scss'],
+  styleUrls: ['../../shared/ui/ui-controls.scss', './job-position-detail-drawer.component.scss'],
 })
 export class JobPositionDetailDrawerComponent extends LocalizedComponent {
   private readonly api = inject(JobPositionService);

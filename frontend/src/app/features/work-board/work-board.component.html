@@ -9,11 +9,21 @@
 
       <p class="breadcrumb">
         {{localization.work.breadcrumbHome}} /
-        {{isTeam() ? localization.work.team.breadcrumbCurrent : localization.work.breadcrumbCurrent}}
+        {{view() === 'monitor'
+            ? localization.work.monitor.breadcrumbCurrent
+            : isTeam()
+              ? localization.work.team.breadcrumbCurrent
+              : localization.work.breadcrumbCurrent}}
       </p>
 
       <div class="page-head">
-        <h1>{{isTeam() ? localization.work.team.title : localization.work.title}}</h1>
+        <h1>
+          {{view() === 'monitor'
+              ? localization.work.monitor.title
+              : isTeam()
+                ? localization.work.team.title
+                : localization.work.title}}
+        </h1>
         <div class="head-actions">
           @if (isManager()) {
             <div class="segmented" role="group" [attr.aria-label]="localization.work.scopeSwitch">
@@ -56,14 +66,25 @@
             >
               {{localization.work.viewList}}
             </button>
+            @if (isTeam()) {
+              <button
+                type="button"
+                id="work-view-monitor"
+                [class.is-active]="view() === 'monitor'"
+                [attr.aria-pressed]="view() === 'monitor'"
+                (click)="setView('monitor')"
+              >
+                {{localization.work.viewMonitor}}
+              </button>
+            }
           </div>
           @if (!isTeam()) {
             <button
               type="button"
               id="work-transfer"
               class="button button-secondary"
-              disabled
-              [attr.title]="localization.work.comingSoon"
+              [disabled]="profileLoading()"
+              (click)="openHandover()"
             >
               {{localization.work.transfer}}
             </button>
@@ -72,8 +93,9 @@
             type="button"
             id="work-create"
             class="button button-primary"
-            disabled
-            [attr.title]="localization.work.comingSoon"
+            [disabled]="!isTeam() || profileLoading()"
+            [attr.title]="isTeam() ? null : localization.work.comingSoon"
+            (click)="openAssign()"
           >
             + {{isTeam() ? localization.work.team.assignWork : localization.work.create}}
           </button>
@@ -92,6 +114,12 @@
             {{localization.work.state.retry}}
           </button>
         </div>
+      } @else if (view() === 'monitor' && isTeam()) {
+        <app-work-workload-monitor
+          [defaultDepartmentId]="me()?.departmentId ?? ''"
+          [now]="now()"
+          (openWork)="selectedId.set($event)"
+        />
       } @else {
         <section
           class="kpis"
@@ -508,6 +536,7 @@
 
 @if (toast(); as t) {
   <div
+    animate.leave="g54-leave-toast"
     class="toast"
     [class.toast-error]="t.kind === 'error'"
     [attr.role]="t.kind === 'error' ? 'alert' : 'status'"
@@ -520,5 +549,22 @@
 }
 
 @if (selectedId(); as id) {
-  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" />
+  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" (changed)="applyServerFilters()" />
+}
+
+@if (handoverOpen()) {
+  <app-handover-dialog
+    [works]="handoverWorks()"
+    (closed)="handoverOpen.set(false)"
+    (requested)="onHandoverRequested($event)"
+  />
+}
+
+@if (assignOpen()) {
+  <app-assign-work-dialog
+    [members]="members()"
+    [workTypes]="workTypes()"
+    (closed)="assignOpen.set(false)"
+    (assigned)="onAssigned($event)"
+  />
 }

@@ -33,6 +33,14 @@ const campaign = (overrides: Partial<CampaignSummary> = {}): CampaignSummary => 
   generatedWorksCount: 36,
   completedWorksCount: 9,
   updatedAt: '2026-10-20T10:00:00Z',
+  progressPercent: 0,
+  timeElapsedPercent: 0,
+  paceGap: 0,
+  kpiCode: null,
+  kpiName: null,
+  targetUnit: null,
+  targetValue: null,
+  actualValue: null,
   ...overrides,
 });
 
@@ -43,6 +51,7 @@ const overview = (items: CampaignSummary[], totalCount = items.length): Campaign
     plannedCampaigns: 1,
     completedCampaigns: 2,
     totalTasksGenerated: 54,
+    slowCampaignCount: 0,
     totalCompletedTasks: 20,
   },
   campaigns: { items, totalCount, page: 1, pageSize: 10 },
@@ -112,7 +121,7 @@ describe('CampaignListComponent', () => {
   it('filters by the selected status tab and returns to page 1', async () => {
     const fixture = await create();
     const root: HTMLElement = fixture.nativeElement;
-    const next = root.querySelectorAll<HTMLButtonElement>('.pager-buttons button')[1];
+    const next = root.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!;
     next.click();
     fixture.detectChanges();
     expect(api.list.calls.mostRecent().args[0].page).toBe(2);
@@ -160,7 +169,7 @@ describe('CampaignListComponent', () => {
     const root: HTMLElement = fixture.nativeElement;
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
 
-    root.querySelector<HTMLButtonElement>('.page-toolbar .button-primary')!.click();
+    root.querySelector<HTMLButtonElement>('.ui-page-actions .button-primary')!.click();
     fixture.detectChanges();
     expect(root.querySelector('app-campaign-create-modal')).not.toBeNull();
 

@@ -6,14 +6,10 @@ namespace G54.BLL.Services;
 /// <summary>Appeals against rejected result submissions. Contract: docs/api/APPEAL_CONTRACT.md.</summary>
 public interface IAppealService
 {
-    Task<ScoreEntryDto> ReviewAppealAsync(Guid appealId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default);
-    Task<ScoreEntryDto> DeductTaskScoreAsync(Guid workId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ScoreEntryDto>> GetScoreEntriesAsync(Guid appealId, Guid userId, CancellationToken cancellationToken = default);
-    Task<AppealDetailDto> DisputeScoreAsync(Guid appealId, Guid userId, ScoreDisputeRequestDto request, CancellationToken cancellationToken = default);
-    Task<AppealScoreSettingDto> GetScoreSettingAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<AppealScoreSettingDto> UpdateScoreSettingAsync(Guid userId, AppealScoreSettingDto request, CancellationToken cancellationToken = default);
-
-    /// <summary>Resolves an appeal; ACCEPT approves the submission, ADJUST requests revision, REJECT keeps it rejected.</summary>
+    /// <summary>
+    /// Resolves an appeal; ACCEPT approves the submission and records its verified result so the KPI actual and the score are
+    /// recalculated, ADJUST requests revision, REJECT keeps it rejected. The score never changes directly.
+    /// </summary>
     Task<AppealDecisionResultDto> DecideAppealAsync(
         Guid appealId,
         Guid userId,

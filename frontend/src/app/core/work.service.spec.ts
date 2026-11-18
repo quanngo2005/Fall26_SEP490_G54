@@ -123,4 +123,86 @@ describe('WorkService', () => {
     http.expectOne(`${url}/w1`).flush({ success: false, status: 200, data: null, message: 'x' });
     expect(failed).toBeTrue();
   });
+
+  it('creates a work through POST /works', () => {
+    let code = '';
+    service
+      .create({
+        title: 'Mở thẻ tín dụng',
+        workTypeId: 't1',
+        assigneeEmployeeId: 'e1',
+        priority: 'High',
+        plannedEndDate: '2026-11-30',
+      })
+      .subscribe((work) => (code = work.code));
+
+    const request = http.expectOne(url);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body.priority).toBe('High');
+    request.flush({ success: true, status: 200, data: { ...item, code: 'WRK-1' } });
+
+    expect(code).toBe('WRK-1');
+  });
+
+  it('reads the activity log of a work', () => {
+    let messages: string[] = [];
+    service.activities('w1').subscribe((list) => (messages = list.map((a) => a.message)));
+
+    const request = http.expectOne(`${url}/w1/activities`);
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      success: true,
+      status: 200,
+      data: [
+        {
+          id: 'a1',
+          action: 'ASSIGNED',
+          message: 'Việc được giao',
+          actorEmployeeId: 'e9',
+          actorName: 'Lê Văn C',
+          createdAt: '2026-10-24T02:10:00+00:00',
+        },
+      ],
+    });
+
+    expect(messages).toEqual(['Việc được giao']);
+  });
+
+  it('ticks a checklist item through PATCH and returns the updated work', () => {
+    let progress: number | null | undefined;
+    service
+      .setChecklistItem('w1', 'c1', true)
+      .subscribe((work) => (progress = work.progressPercent));
+
+    const request = http.expectOne(`${url}/w1/checklist-items/c1`);
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ isDone: true });
+    request.flush({ success: true, status: 200, data: { ...detail, progressPercent: 50 } });
+
+    expect(progress).toBe(50);
+  });
+
+  it('saves the plan through PUT /works/{id}/plan', () => {
+    let deadline = '';
+    service
+      .updatePlan('w1', {
+        plannedEndDate: '2026-10-27',
+        priority: 'High',
+        checklist: [{ id: 'c1', title: 'Xác minh giấy tờ' }, { title: 'Gửi email' }],
+        note: 'Khách hẹn lại',
+      })
+      .subscribe((work) => (deadline = work.plannedEndDate ?? ''));
+
+    const request = http.expectOne(`${url}/w1/plan`);
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body.checklist.length).toBe(2);
+    expect(request.request.body.note).toBe('Khách hẹn lại');
+    request.flush({
+      success: true,
+      status: 200,
+      data: { ...detail, plannedEndDate: '2026-10-27' },
+    });
+
+    expect(deadline).toBe('2026-10-27');
+  });
 });

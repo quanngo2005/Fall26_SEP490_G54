@@ -10,6 +10,7 @@ using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 
 namespace G54.UnitTests;
 
@@ -61,6 +62,35 @@ public sealed class AppealsControllerTests
         Assert.Equal(
             "appeals/{id:guid}",
             type.GetMethod(nameof(AppealsController.GetAppealById))?.GetCustomAttribute<HttpGetAttribute>()?.Template);
+    }
+
+    [Fact]
+    public void Controller_ExposesNoEndpointThatChangesAScoreDirectly()
+    {
+        var routes = typeof(AppealsController).GetMethods()
+            .SelectMany(m => m.GetCustomAttributes<HttpMethodAttribute>())
+            .Select(a => a.Template)
+            .ToList();
+
+        Assert.DoesNotContain(routes, r => r!.Contains("score", StringComparison.OrdinalIgnoreCase) || r.EndsWith("/review", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetAppeals_PassesEveryFilterToTheService()
+    {
+        var service = new RecordingService();
+        var controller = ControllerFor(service, Guid.NewGuid());
+        var periodId = Guid.NewGuid();
+        var positionId = Guid.NewGuid();
+
+        await controller.GetAppeals(
+            new AppealFilterDto { Status = "OPEN,UNDER_REVIEW", Scope = "TEAM", PeriodId = periodId, JobPositionId = positionId },
+            CancellationToken.None);
+
+        Assert.Equal("OPEN,UNDER_REVIEW", service.Filter!.Status);
+        Assert.Equal("TEAM", service.Filter.Scope);
+        Assert.Equal(periodId, service.Filter.PeriodId);
+        Assert.Equal(positionId, service.Filter.JobPositionId);
     }
 
     [Fact]
@@ -187,12 +217,6 @@ public sealed class AppealsControllerTests
 
     private sealed class RecordingService : IAppealService
     {
-        public Task<ScoreEntryDto> ReviewAppealAsync(Guid appealId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<ScoreEntryDto> DeductTaskScoreAsync(Guid workId, Guid userId, ReviewAppealRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ScoreEntryDto>> GetScoreEntriesAsync(Guid appealId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AppealDetailDto> DisputeScoreAsync(Guid appealId, Guid userId, ScoreDisputeRequestDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AppealScoreSettingDto> GetScoreSettingAsync(Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<AppealScoreSettingDto> UpdateScoreSettingAsync(Guid userId, AppealScoreSettingDto request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public int Calls { get; private set; }
         public Guid UserId { get; private set; }
         public Guid SubmissionId { get; private set; }
@@ -229,7 +253,8 @@ public sealed class AppealsControllerTests
             null,
             null,
             null,
-            []);
+            [],
+            DateTimeOffset.UtcNow);
 
         public Task<AppealDetailDto> CreateAppealAsync(
             Guid submissionId,

@@ -1,0 +1,74 @@
+@let t = localization.userAccounts;
+<div animate.leave="g54-leave-fade" class="modal-backdrop" (click)="close()" role="presentation">
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog action-dialog"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="account-action-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    @if (temporaryPassword(); as password) {
+      <div class="modal-header">
+        <h2 id="account-action-title">
+          {{t.resetDoneTitle.replace('{username}', account().username)}}
+        </h2>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="reset-temp-password">{{t.tempPassword}}</label>
+          <div class="password-row">
+            <input id="reset-temp-password" class="input mono" readonly [value]="password" />
+            <button type="button" class="button button-secondary" (click)="copyPassword()">
+              {{copied() ? t.copied : t.copy}}
+            </button>
+          </div>
+        </div>
+        <div class="callout is-info" role="status">
+          <strong>{{t.tempNoticeTitle}}</strong>
+          <span>{{t.resetPasswordOnce}}</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button button-primary" (click)="finish()">{{t.done}}</button>
+      </div>
+    } @else {
+      <div class="modal-header">
+        <h2 id="account-action-title">{{copy().title}}</h2>
+        <button type="button" class="modal-close" (click)="close()" [attr.aria-label]="t.close">
+          ×
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="message">{{copy().message}}</p>
+        @if (error(); as code) {
+          <div class="callout is-error" role="alert">
+            <span>{{code === 'cannotLockSelf' ? t.cannotLockSelf : t.actionError}}</span>
+          </div>
+        }
+      </div>
+      <div class="modal-footer">
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="saving()"
+          (click)="close()"
+        >
+          {{t.cancel}}
+        </button>
+        <button
+          type="button"
+          class="button"
+          [class.button-danger]="kind() === 'lock'"
+          [class.button-primary]="kind() !== 'lock'"
+          [disabled]="saving()"
+          (click)="confirm()"
+        >
+          {{saving() ? t.saving : copy().submit}}
+        </button>
+      </div>
+    }
+  </div>
+</div>

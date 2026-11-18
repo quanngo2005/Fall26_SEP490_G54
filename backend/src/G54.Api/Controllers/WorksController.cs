@@ -75,6 +75,65 @@ public sealed class WorksController(IWorkService workService) : ControllerBase
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    /// <summary>The activity log of a work, newest first; 404 outside the caller's <c>work:read</c> scope.</summary>
+    [HttpGet("{id:guid}/activities")]
+    [HasPermission("work", "read", "Own")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<WorkActivityDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkActivityDto>>>> GetActivities(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.GetActivitiesAsync(id, User.GetRequiredUserId(), cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse.Fail(
+                errorCode: ErrorCodes.NotFound,
+                message: "Không tìm thấy công việc yêu cầu.",
+                errors: null,
+                traceId: HttpContext.TraceIdentifier,
+                status: StatusCodes.Status404NotFound));
+        }
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>The assignee ticks or unticks one checklist item; the work's progress follows.</summary>
+    [HttpPatch("{id:guid}/checklist-items/{itemId:guid}")]
+    [HasPermission("work", "read", "Own")]
+    [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<WorkDetailDto>>> SetChecklistItem(
+        Guid id,
+        Guid itemId,
+        [FromBody] WorkChecklistItemStateDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.SetChecklistItemAsync(id, itemId, User.GetRequiredUserId(), dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật danh mục kiểm tra thành công.", HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>The assignee's manager edits the deadline, priority and checklist of an open work (SCR-WRK-03-M1).</summary>
+    [HttpPut("{id:guid}/plan")]
+    [HasPermission("work", "read", "Own")]
+    [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<WorkDetailDto>>> UpdatePlan(
+        Guid id,
+        [FromBody] UpdateWorkPlanDto dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await workService.UpdatePlanAsync(id, User.GetRequiredUserId(), dto, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật kế hoạch công việc thành công.", HttpContext.TraceIdentifier));
+    }
+
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType<ApiResponse<WorkDetailDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]

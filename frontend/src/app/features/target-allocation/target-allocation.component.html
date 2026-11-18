@@ -1,0 +1,396 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content alloc-page" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">{{localization.targetAllocation.breadcrumb}}</p>
+
+      <div class="page-head">
+        <h1>
+          {{i18n.translate('targetAllocation.title', { department: departmentName() })}}
+        </h1>
+        <label class="inline-field">
+          {{localization.targetAllocation.period}}
+          <select
+            class="select"
+            [ngModel]="periodId()"
+            (ngModelChange)="selectPeriod($event)"
+            [attr.aria-label]="localization.targetAllocation.period"
+          >
+            @for (item of periods(); track item.id) {
+              <option [value]="item.id">{{item.name}}</option>
+            }
+          </select>
+        </label>
+        <a routerLink="/target-overview" class="button button-secondary">
+          {{localization.targetAllocation.back}}
+        </a>
+      </div>
+
+      @if (loading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.targetAllocation.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.targetAllocation.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{localization.targetAllocation.retry}}
+          </button>
+        </div>
+      } @else if (periods().length === 0) {
+        <div class="state-card">
+          <p>{{localization.targetAllocation.noPeriods}}</p>
+        </div>
+      } @else if (columns().length === 0) {
+        <div class="state-card">
+          <p>{{localization.targetAllocation.noTargets}}</p>
+        </div>
+      } @else if (employees().length === 0 && teams().length === 0) {
+        <div class="state-card">
+          <p>{{localization.targetAllocation.noEmployees}}</p>
+        </div>
+      } @else {
+        <div class="alloc-toolbar">
+          <div class="tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              [class.is-active]="position() === ''"
+              [attr.aria-selected]="position() === ''"
+              (click)="position.set('')"
+            >
+              {{localization.targetAllocation.allPositions}} · {{employees().length}}
+            </button>
+            @for (item of positions(); track item.title) {
+              <button
+                type="button"
+                role="tab"
+                [class.is-active]="position() === item.title"
+                [attr.aria-selected]="position() === item.title"
+                (click)="position.set(item.title)"
+              >
+                {{item.title}} · {{item.count}}
+              </button>
+            }
+          </div>
+          <div class="toolbar-actions">
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="!canSplit()"
+              (click)="split(false)"
+            >
+              {{localization.targetAllocation.splitEqual}}
+            </button>
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="!canSplit()"
+              (click)="split(true)"
+            >
+              {{localization.targetAllocation.splitByDays}}
+            </button>
+            <button
+              type="button"
+              id="allocation-balance"
+              class="button button-secondary"
+              [disabled]="!canSplit()"
+              [attr.title]="localization.targetAllocation.balanceAllHint"
+              (click)="balanceAll()"
+            >
+              {{localization.targetAllocation.balanceAll}}
+            </button>
+            @if (editing()) {
+              <button type="button" class="button button-secondary" (click)="cancelAdjust()">
+                {{localization.targetAllocation.cancelAdjust}}
+              </button>
+            } @else if (anyAllocated()) {
+              <button
+                type="button"
+                id="allocation-adjust"
+                class="button button-secondary"
+                (click)="startAdjust()"
+              >
+                {{localization.targetAllocation.adjust}}
+              </button>
+            }
+            <button
+              type="button"
+              id="allocation-save"
+              class="button button-primary"
+              [disabled]="!canSave()"
+              (click)="save()"
+            >
+              {{saving() ? localization.targetAllocation.saving : localization.targetAllocation.save}}
+            </button>
+          </div>
+        </div>
+
+        @if (editing()) {
+          <label class="field adjust-reason">
+            {{localization.targetAllocation.adjustReason}}
+            <input
+              type="text"
+              class="input"
+              maxlength="1000"
+              [placeholder]="localization.targetAllocation.adjustReasonPlaceholder"
+              [ngModel]="reason()"
+              (ngModelChange)="reason.set($event)"
+            />
+          </label>
+        }
+
+        @if (notice(); as n) {
+          <p class="alloc-notice" [class.is-error]="n.kind === 'error'" role="status">
+            {{n.text}}
+          </p>
+        }
+
+        <div class="alloc-body" [class.has-panel]="selectedId()">
+          <div class="alloc-main">
+            <div class="table-wrap">
+              <table class="alloc-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.targetAllocation.colEmployee}}</th>
+                    <th scope="col" class="num">{{localization.targetAllocation.colWorkDays}}</th>
+                    @for (column of columns(); track column.kpi.id) {
+                      <th scope="col" class="num">{{column.kpi.name}} ({{column.kpi.unit}})</th>
+                    }
+                    <th scope="col">{{localization.targetAllocation.colFeedback}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of rows(); track row.employee.id) {
+                    <tr [class.is-selected]="selectedId() === row.employee.id">
+                      <th scope="row">
+                        <button type="button" class="link-button" (click)="select(row.employee.id)">
+                          {{row.employee.fullName}} ›
+                        </button>
+                      </th>
+                      <td class="num">{{workDays()}}</td>
+                      @for (column of columns(); track column.kpi.id) {
+                        <td class="num">
+                          <div class="cell-wrap">
+                            @if (pinned(row.employee.id, column.kpi.id)) {
+                              <button
+                                type="button"
+                                class="pin"
+                                [attr.aria-label]="localization.targetAllocation.unpin"
+                                [attr.title]="localization.targetAllocation.unpin"
+                                (click)="unpin(row.employee.id, column.kpi.id)"
+                              >
+                                📌
+                              </button>
+                            }
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              class="input cell-input"
+                              [class.is-empty]="cell(row.employee.id, column.kpi.id) === null"
+                              [disabled]="isLocked(column.kpi.id)"
+                              [placeholder]="localization.targetAllocation.notEntered"
+                              [attr.aria-label]="row.employee.fullName + ' · ' + column.kpi.name"
+                              [ngModel]="cell(row.employee.id, column.kpi.id)"
+                              (ngModelChange)="edit(row.employee.id, column.kpi.id, $event)"
+                            />
+                          </div>
+                        </td>
+                      }
+                      <td>
+                        <span class="badge" [attr.data-status]="row.feedback">
+                          {{feedbackLabel(row.feedback)}}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                  @for (group of teamGroups(); track group.team.id) {
+                    <tr class="team-row">
+                      <th scope="row">
+                        {{group.team.name}}
+                        <span class="badge">{{localization.targetAllocation.teamTag}}</span>
+                        <span class="team-meta">
+                          {{i18n.translate('targetAllocation.teamMembers', { count: group.size })}}
+                        </span>
+                      </th>
+                      <td class="num">—</td>
+                      @for (column of columns(); track column.kpi.id) {
+                        <td class="num team-total">
+                          @if (teamTotal(group.team.id, column.kpi.id) !== null) {
+                            {{teamTotal(group.team.id, column.kpi.id) | appNumber}}
+                          } @else {
+                            —
+                          }
+                        </td>
+                      }
+                      <td>—</td>
+                    </tr>
+                    @for (member of group.members; track member.id) {
+                      <tr class="member-row" [class.is-selected]="selectedId() === member.id">
+                        <th scope="row">
+                          <button type="button" class="link-button" (click)="select(member.id)">
+                            {{member.fullName}} ›
+                          </button>
+                        </th>
+                        <td class="num">{{workDays()}}</td>
+                        @for (column of columns(); track column.kpi.id) {
+                          <td class="num">
+                            <div class="cell-wrap">
+                              @if (pinned(member.id, column.kpi.id)) {
+                                <button
+                                  type="button"
+                                  class="pin"
+                                  [attr.aria-label]="localization.targetAllocation.unpin"
+                                  [attr.title]="localization.targetAllocation.unpin"
+                                  (click)="unpin(member.id, column.kpi.id)"
+                                >
+                                  📌
+                                </button>
+                              }
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                class="input cell-input"
+                                [class.is-empty]="cell(member.id, column.kpi.id) === null"
+                                [disabled]="isLocked(column.kpi.id)"
+                                [placeholder]="localization.targetAllocation.notEntered"
+                                [attr.aria-label]="member.fullName + ' · ' + column.kpi.name"
+                                [ngModel]="cell(member.id, column.kpi.id)"
+                                (ngModelChange)="edit(member.id, column.kpi.id, $event)"
+                              />
+                            </div>
+                          </td>
+                        }
+                        <td>
+                          <span class="badge" [attr.data-status]="memberFeedback(member.id)">
+                            {{feedbackLabel(memberFeedback(member.id))}}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row" colspan="2">
+                      {{localization.targetAllocation.allocatedRow}}
+                    </th>
+                    @for (column of columns(); track column.kpi.id) {
+                      <td
+                        class="num"
+                        [class.is-bad]="remaining(column.kpi.id) !== 0"
+                        [class.is-good]="remaining(column.kpi.id) === 0"
+                      >
+                        {{allocated(column.kpi.id, column.parent.targetValue) | appNumber}} /
+                        {{column.parent.targetValue | appNumber}}
+                      </td>
+                    }
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            @for (item of shownShortfalls(); track item.kpi.id) {
+              <p class="alloc-notice is-error" role="alert">{{shortfallText(item)}}</p>
+            }
+            @if (anyAllocated() && !editing()) {
+              <p class="alloc-hint">{{localization.targetAllocation.lockedNote}}</p>
+            }
+            <p class="alloc-hint">{{localization.targetAllocation.applyNote}}</p>
+          </div>
+
+          @if (selectedId()) {
+            <aside class="alloc-panel" [attr.aria-label]="selectedName()">
+              <div class="panel-head">
+                <h2>
+                  {{i18n.translate('targetAllocation.panelTitle', {
+                      name: selectedName(),
+                      period: periodLabel(),
+                    })}}
+                </h2>
+                <button
+                  type="button"
+                  class="panel-close"
+                  [attr.aria-label]="localization.targetAllocation.panelClose"
+                  (click)="closePanel()"
+                >
+                  ×
+                </button>
+              </div>
+              <div class="panel-note">
+                <strong>{{localization.targetAllocation.panelAuto}}</strong>
+                <span>{{localization.targetAllocation.panelAutoBody}}</span>
+              </div>
+              <div class="tabs" role="tablist">
+                @for (column of columns(); track column.kpi.id) {
+                  <button
+                    type="button"
+                    role="tab"
+                    [class.is-active]="selectedKpiId() === column.kpi.id"
+                    [attr.aria-selected]="selectedKpiId() === column.kpi.id"
+                    (click)="selectKpi(column.kpi.id)"
+                  >
+                    {{column.kpi.name}}
+                  </button>
+                }
+              </div>
+              @switch (breakdown().state) {
+                @case ('loading') {
+                  <p class="alloc-hint" role="status">
+                    {{localization.targetAllocation.panelLoading}}
+                  </p>
+                }
+                @case ('failed') {
+                  <p class="alloc-notice is-error" role="alert">
+                    {{localization.targetAllocation.panelFailed}}
+                  </p>
+                }
+                @case ('ready') {
+                  @if (breakdown().data; as data) {
+                    <table class="alloc-table panel-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">{{localization.targetAllocation.colMonth}}</th>
+                          <th scope="col" class="num">
+                            {{localization.targetAllocation.colDays}}
+                          </th>
+                          <th scope="col" class="num">
+                            {{localization.targetAllocation.colValue}}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (item of data.items; track item.start) {
+                          <tr>
+                            <td>{{item.start.slice(5, 7)}}/{{item.start.slice(0, 4)}}</td>
+                            <td class="num">{{item.workingDays}}</td>
+                            <td class="num">{{item.value | appNumber}}</td>
+                          </tr>
+                        }
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <th scope="row">{{localization.targetAllocation.total}}</th>
+                          <td class="num">{{data.workingDays}}</td>
+                          <td class="num">{{data.totalValue | appNumber}}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  }
+                }
+                @default {
+                  <p class="alloc-hint">{{localization.targetAllocation.panelNotSaved}}</p>
+                }
+              }
+            </aside>
+          }
+        </div>
+      }
+    </main>
+  </div>
+</div>

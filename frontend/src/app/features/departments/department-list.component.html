@@ -6,49 +6,55 @@
       @if (loading() && departments().length > 0) {
         <div class="refresh-bar" aria-hidden="true"></div>
       }
-      <div class="master-detail-container" [class.has-detail]="selectedDepartment() !== null">
-        <section class="master-panel">
-          <div class="page-heading">
-            <p class="breadcrumb">{{localization.department.listBreadcrumb}}</p>
-            <div class="title-line">
-              <h1>{{localization.department.listTitle}}</h1>
-              <span class="read-only-badge">{{localization.department.readOnlyBadge}}</span>
-            </div>
-          </div>
 
-          <div class="sync-banner" role="status">
+      <div class="ui-master-detail" [class.has-drawer]="selectedDepartment() !== null">
+        <section class="ui-master-pane">
+          <header class="ui-page-header">
+            <div class="ui-page-heading">
+              <p class="ui-breadcrumb">{{localization.department.listBreadcrumb}}</p>
+              <div class="ui-title-row">
+                <h1 class="ui-page-title">{{localization.department.listTitle}}</h1>
+                <span class="ui-chip read-only-badge">
+                  {{localization.department.readOnlyBadge}}
+                </span>
+              </div>
+            </div>
+          </header>
+
+          <div class="ui-banner sync-banner" role="status">
             <span>{{syncText()}}</span>
           </div>
 
-          <div class="filter-toolbar">
-            <div class="search-box">
-              <app-layout-icon class="search-icon" name="search" />
+          <div class="ui-filter-bar">
+            <div class="ui-search-field">
+              <app-layout-icon name="search" />
               <input
                 type="search"
                 class="input search-input"
+                [class.has-clear]="keyword"
                 [(ngModel)]="keyword"
                 (ngModelChange)="refresh()"
                 [placeholder]="localization.department.searchPlaceholder"
                 [attr.aria-label]="localization.department.searchPlaceholder"
               />
+              @if (keyword) {
+                <button
+                  type="button"
+                  class="ui-search-clear"
+                  (click)="clearSearch()"
+                  [attr.aria-label]="localization.common.close"
+                >
+                  ×
+                </button>
+              }
             </div>
-            <div class="status-box">
-              <select
-                class="select status-select"
-                [(ngModel)]="status"
-                (ngModelChange)="refresh()"
-                [attr.aria-label]="localization.department.statusAll"
-              >
-                <option value="">{{localization.department.statusAll}}</option>
-                @for (option of statuses; track option) {
-                  <option [value]="option">
-                    {{option === 'ACTIVE'
-                        ? localization.department.statusActive
-                        : localization.department.statusInactive}}
-                  </option>
-                }
-              </select>
-            </div>
+            <app-ui-select
+              [options]="statusOptions()"
+              [value]="status"
+              [placeholder]="localization.department.statusAll"
+              [ariaLabel]="localization.department.statusAll"
+              (valueChange)="onStatusChange($event)"
+            />
           </div>
 
           @if (loading() && departments().length === 0 && !failed()) {
@@ -64,13 +70,13 @@
               </button>
             </div>
           } @else {
-            <div class="table-card">
-              <div class="table-wrap">
-                <table class="department-table">
+            <div class="ui-table-card">
+              <div class="ui-table-wrap is-sticky">
+                <table class="ui-table department-table">
                   <thead>
                     <tr>
-                      <th class="col-code" scope="col">{{localization.department.colCode}}</th>
-                      <th class="col-name" scope="col">{{localization.department.colName}}</th>
+                      <th scope="col">{{localization.department.colCode}}</th>
+                      <th scope="col">{{localization.department.colName}}</th>
                       <th class="col-manager" scope="col">
                         {{localization.department.colManager}}
                       </th>
@@ -82,7 +88,7 @@
                   <tbody>
                     @for (dept of departments(); track dept.id) {
                       <tr
-                        class="department-row"
+                        class="department-row is-clickable"
                         [class.is-selected]="selectedDepartmentId() === dept.id"
                         [attr.aria-selected]="selectedDepartmentId() === dept.id"
                         (click)="selectDepartment(dept)"
@@ -90,20 +96,20 @@
                         (keydown.enter)="selectDepartment(dept)"
                         (keydown.space)="selectDepartment(dept); $event.preventDefault()"
                       >
-                        <td class="col-code">
+                        <td class="col-mono">
                           <span class="code-badge">{{dept.code}}</span>
                         </td>
-                        <td class="col-name font-medium">{{dept.name}}</td>
+                        <td class="col-primary">{{dept.name}}</td>
                         <td class="col-manager">
                           {{dept.managerName ?? localization.department.notAvailable}}
                         </td>
                         <td class="col-num">{{number(dept.tellerCount)}}</td>
                         <td class="col-num">{{number(dept.salesCount)}}</td>
-                        <td class="col-num font-bold">{{number(dept.employeeCount)}}</td>
+                        <td class="col-num col-primary">{{number(dept.employeeCount)}}</td>
                       </tr>
                     } @empty {
                       <tr>
-                        <td colspan="6" class="empty-cell">
+                        <td colspan="6" class="ui-empty-cell empty-cell">
                           {{keyword || status
                               ? localization.department.noMatches
                               : localization.department.noDepartments}}
@@ -114,29 +120,23 @@
                 </table>
               </div>
 
-              <footer class="table-footer">
-                <span class="pagination-info">{{paginationText()}}</span>
-                <div class="pagination-controls">
-                  @for (p of pages(); track p) {
-                    <button
-                      type="button"
-                      class="page-number-btn"
-                      [class.is-active]="p === page"
-                      (click)="goToPage(p)"
-                    >
-                      {{p}}
-                    </button>
-                  }
-                </div>
-              </footer>
+              <app-table-pagination
+                [page]="page"
+                [pageSize]="pageSize"
+                [totalCount]="totalCount()"
+                [rangeText]="paginationText()"
+                [disabled]="loading()"
+                (pageChange)="goToPage($event)"
+              />
             </div>
           }
         </section>
 
         @if (selectedDepartment(); as selected) {
-          <div class="detail-slot">
+          <div class="ui-drawer-backdrop" aria-hidden="true" (click)="closeDrawer()"></div>
+          <aside class="ui-drawer" role="dialog" [attr.aria-label]="selected.name">
             <app-department-detail-drawer [department]="selected" (closeDrawer)="closeDrawer()" />
-          </div>
+          </aside>
         }
       </div>
     </main>

@@ -36,7 +36,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chi�
 
 | Method | Endpoint | Description | Auth / Role |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/business-objectives` | Lists the business objectives a campaign can be linked to (everything but `CANCELLED`), ordered by code. Feeds the objective dropdown of the plan form. | `[Authorize]` `campaign:read` (Dept) |
+| `GET` | `/business-objectives` | Lists the business objectives a campaign can be linked to (everything but `CANCELLED`), ordered by code. Feeds the objective dropdown of the plan form. Now served by `BusinessObjectivesController`, see `BUSINESS_OBJECTIVE_CONTRACT.md`. | `[Authorize]` `objective:read` (Dept) |
 | `GET` | `/campaigns` | Lists business campaigns with status/objective filters, pagination, and KPI metric summary cards. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `GET` | `/campaigns/{id}` | Gets campaign detail including linked objective, configured work types, participants, and progress metrics. | `[Authorize]` Dept Mgr, Branch Mgr |
 | `POST` | `/campaigns` | Creates a new campaign plan with participants and work types (Status: `PLANNED`). | `[Authorize]` Dept Mgr |
@@ -50,7 +50,7 @@ This contract specifies the canonical backend API for **Business Campaigns (Chi�
 ## 3. Endpoint Specifications
 
 ### 3.0 GET `/business-objectives`
-`data`: array of `{ id, code, name, description }` for objectives whose status is not `CANCELLED`, ordered by `code`.
+`data`: array of business objectives (the shape, the permission and the visibility rules are in `BUSINESS_OBJECTIVE_CONTRACT.md`; it still contains `id`, `code`, `name`, `description`), without `CANCELLED` ones unless `status` is given, ordered by `code`.
 
 ---
 
@@ -75,7 +75,8 @@ Gets paginated list of campaigns with summary metrics.
       "plannedCampaigns": 1,
       "completedCampaigns": 0,
       "totalTasksGenerated": 1420,
-      "totalCompletedTasks": 972
+      "totalCompletedTasks": 972,
+      "slowCampaignCount": 1
     },
     "campaigns": {
       "items": [
@@ -94,6 +95,14 @@ Gets paginated list of campaigns with summary metrics.
           "workTypesCount": 2,
           "generatedWorksCount": 650,
           "completedWorksCount": 490,
+          "progressPercent": 75.4,
+          "timeElapsedPercent": 88.0,
+          "paceGap": -12.6,
+          "kpiCode": "HDV",
+          "kpiName": "Huy động vốn",
+          "targetUnit": "tỷ VND",
+          "targetValue": 300,
+          "actualValue": 66,
           "updatedAt": "2026-10-20T10:00:00Z"
         }
       ],
@@ -106,6 +115,10 @@ Gets paginated list of campaigns with summary metrics.
   "traceId": "trace-1234"
 }
 ```
+
+`progressPercent`, `timeElapsedPercent`, `paceGap`, `kpiCode`, `kpiName`, `targetUnit`, `targetValue`, `actualValue` and
+`metrics.slowCampaignCount` serve the SCR-PRF-03 campaign card; their definitions are in
+`BRANCH_DASHBOARD_CONTRACT.md` section 3 (nullable fields are `null` when the source data is missing, never `0`).
 
 ---
 

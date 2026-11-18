@@ -41,6 +41,7 @@ const PATHS: Readonly<Record<string, string>> = {
   accessPolicies: 'M7 16l-4-4 4-4 M21 12H3 M17 8l4 4-4 4',
   systemConfiguration:
     'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M5 5l2 2 M17 17l2 2 M5 19l2-2 M17 7l2-2',
+  sliders: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
   systemAudit: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
   accounts: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',
   rolesPermissions:
