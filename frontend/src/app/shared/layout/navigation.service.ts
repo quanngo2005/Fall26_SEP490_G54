@@ -28,6 +28,7 @@ export type MenuKey =
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
+  | 'reconciliation'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
   | 'targetOverview'
@@ -100,6 +101,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'teamWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'teamPerformance',
     'departmentPerformance',
     'targetOverview',
@@ -115,6 +117,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'branchPerformance',
     'departmentPerformance',
     'targetOverview',
@@ -135,6 +138,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   ],
   qa: [
     'overview',
+    'reconciliation',
     'verificationQueue',
     'appeals',
     'escalatedCases',
@@ -155,6 +159,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'systemParameters',
     'rankingStudio',
     'systemAudit',
+    'notifications',
     'myProfile',
   ],
 };
@@ -166,7 +171,7 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
   { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
-  { id: 'notifications', icon: 'notifications' },
+  { id: 'notifications', icon: 'notifications', route: '/notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
   {
@@ -186,6 +191,12 @@ const ITEMS: readonly NavigationItem[] = [
     icon: 'reviewVerify',
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
+  },
+  {
+    id: 'reconciliation',
+    icon: 'reviewVerify',
+    route: '/reconciliations',
+    permission: 'RECONCILIATION_READ',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   {
@@ -272,6 +283,7 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/work-monitor',
     '/my-targets',
     '/my-evaluation',
     '/departments',
@@ -283,7 +295,9 @@ export class NavigationService {
     '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
+    '/reconciliations',
     '/appeals',
+    '/notifications',
     '/kpi-definitions',
     '/campaigns',
     '/target-overview',

@@ -204,7 +204,6 @@
                 @for (group of kpiGroups(); track group.displayOrder; let gIdx = $index) {
                   <tr class="group-row">
                     <td colspan="4" class="group-name">
-                      <span class="group-swatch" [attr.data-index]="gIdx"></span>
                       {{kpiGroupHeader(group)}}
                     </td>
                     <td class="group-score text-right font-mono">

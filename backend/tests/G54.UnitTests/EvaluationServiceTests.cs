@@ -288,11 +288,24 @@ public sealed class EvaluationServiceTests
         Assert.Equal("NV001", form.Employee.EmployeeCode);
         Assert.Equal(period.Id, form.Period.Id);
         Assert.Equal("EP-TELLER", form.Profile.Code);
-        Assert.Equal(3, form.CriteriaGroups.Count);
+        Assert.Equal(2, form.CriteriaGroups.Count);
+        Assert.DoesNotContain(form.CriteriaGroups, g => g.IsQualitative);
         Assert.True(form.CanEdit);
+        Assert.Equal("C", form.Summary.ProposedTier);
+        Assert.NotNull(form.CriteriaSummary);
+        Assert.Equal(1, form.CriteriaSummary!.AchievedCount);
+        Assert.Equal(0, form.CriteriaSummary.NearCount);
+        Assert.Equal(1, form.CriteriaSummary.BelowCount);
+        Assert.Equal(2, form.CriteriaSummary.TotalCount);
+        Assert.Equal(50m, form.CriteriaSummary.AchievedRatePercent);
+        Assert.NotNull(form.SlaSummary);
+        Assert.NotNull(form.FormSettings);
+        Assert.Equal(1000, form.FormSettings!.MaxCommentLength);
+        Assert.Equal(100m, form.FormSettings.KpiMetThresholdPercent);
+        Assert.Equal(85m, form.FormSettings.KpiNearThresholdPercent);
 
         var kdGroup = form.CriteriaGroups.First(g => g.GroupCode == "KD");
-        Assert.Equal(40m, kdGroup.WeightPercent);
+        Assert.Equal(57.14m, kdGroup.WeightPercent); // 40 / (40 + 30) normalized over quantitative groups
         Assert.Single(kdGroup.KpiItems);
 
         var hdvItem = kdGroup.KpiItems[0];
@@ -391,15 +404,9 @@ public sealed class EvaluationServiceTests
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
 
-        // Above the 0-100 group scale, so the value can only be accepted by the configured qualitative maximum.
+        // Above the 0-100 group scale, stored as a legacy GENERAL_QUALITATIVE_SCORE marker in the evaluation comment.
         const decimal generalScore = 150m;
-        await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                EmployeeId: staff.Id,
-                PeriodId: period.Id,
-                IsDraft: true,
-                GeneralQualitativeScore: generalScore),
-            manager.Id);
+        await StoreCommentAsync(context, staff, period, $"<!-- GENERAL_QUALITATIVE_SCORE: {generalScore} -->");
 
         var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, staff.DepartmentId, manager.Id);
 
@@ -412,7 +419,7 @@ public sealed class EvaluationServiceTests
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
 
-        // Add a CRITICAL risk event during period (penalty = 20 points, demoted tier)
+        // Add a CRITICAL risk event during period (penalty = 20 points)
         var risk = new RiskEvent
         {
             Id = Guid.NewGuid(),
@@ -428,7 +435,7 @@ public sealed class EvaluationServiceTests
         await context.RiskEvents.AddAsync(risk);
         await context.SaveChangesAsync();
 
-        // The service-quality KPI also reaches its target, so the total is 80 and only the risk event limits the tier.
+        // Both quantitative KPIs reach 100%, so quantitative weighted score = 100 and Critical risk deducts 20 -> 80.
         var csatKpi = await context.KpiDefinitions.SingleAsync(k => k.Code == "CSAT");
         var csatTarget = new TargetAssignment
         {
@@ -454,22 +461,18 @@ public sealed class EvaluationServiceTests
         });
         await context.SaveChangesAsync();
 
-        var cldvItem = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
         var request = new SubmitEvaluationRequestDto(
             EmployeeId: staff.Id,
             PeriodId: period.Id,
             Comment: "Có vi phạm nghiêm trọng trong kỳ",
-            QualitativeScores: new List<QualitativeScoreInputDto>
-            {
-                new(cldvItem.Id, 100m, "Chăm sóc khách hàng tốt"),
-            },
             IsDraft: false);
 
         var result = await service.SubmitEvaluationAsync(request, manager.Id);
 
         Assert.NotNull(result);
-        // Due to critical risk, tier is capped at B
-        Assert.Equal("B", result.ProposedTier);
+        Assert.Equal(80m, result.TotalScore);
+        // Tier is null on submit until assigned on the Ranking/Calibration screen
+        Assert.Null(result.ProposedTier);
     }
 
     // ----- Downgrade: every place that decides a tier must apply it the same way ------------
@@ -1448,81 +1451,38 @@ public sealed class EvaluationServiceTests
             new RecordingNotifier());
 
     [Fact]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreHasNoItemId()
+    public async Task SubmitEvaluationAsync_Complete_ThrowsValidation_WhenCommentIsBlank()
     {
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m)]), manager.Id));
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "   ", IsDraft: false), manager.Id));
 
         Assert.Equal(400, ex.StatusCode);
         Assert.Empty(context.PerformanceEvaluations);
     }
 
     [Fact]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenTwoLegacyScoresBothHaveNoItemId()
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(Guid.Empty, 80m), new(Guid.Empty, 70m)]),
-            manager.Id));
-
-        Assert.Equal(400, ex.StatusCode);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Fact]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsDuplicated()
+    public async Task SubmitEvaluationAsync_IgnoresQualitativeGroups_AndNormalizesQuantitativeKpiTotal()
     {
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
+        var saved = await service.SubmitEvaluationAsync(
             new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 80m), new(qualitativeRoot.Id, 70m)]),
-            manager.Id));
-
-        Assert.Equal(400, ex.StatusCode);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Fact]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsNotARootGroup()
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var leaf = await context.EvaluationProfileItems.FirstAsync(i => i.ParentItemId != null);
-
-        var unknown = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(Guid.NewGuid(), 80m)]), manager.Id));
-        var notRoot = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(leaf.Id, 80m)]), manager.Id));
-
-        Assert.Equal(400, unknown.StatusCode);
-        Assert.Equal(400, notRoot.StatusCode);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Fact]
-    public async Task SubmitEvaluationAsync_StoresAValidQualitativeScore_AndTheFormReadsItBack()
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var qualitativeRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
-
-        await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 64m, "Ghi chú")]),
+                staff.Id,
+                period.Id,
+                Comment: "Nhận xét hoàn tất",
+                QualitativeScores: [new(qualitativeRoot.Id, 64m, "Ghi chú")],
+                IsDraft: false),
             manager.Id);
         var form = await service.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
 
-        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
-        Assert.Equal(64m, group.QualitativeScore);
-        Assert.Equal("Ghi chú", group.QualitativeNotes);
+        Assert.DoesNotContain(form.CriteriaGroups, g => g.EvaluationProfileItemId == qualitativeRoot.Id);
+        Assert.Equal(Math.Round(100m * 40m / 70m, 4), saved.TotalScore);
+        Assert.Equal(saved.TotalScore, form.Summary.TotalScore);
     }
 
     [Fact]
@@ -1541,9 +1501,7 @@ public sealed class EvaluationServiceTests
 
         var form = await CreateServiceWith(context, logger).GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
 
-        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == qualitativeRoot.Id);
-        Assert.Equal(70m, group.QualitativeScore);
-        Assert.Equal("đầu", group.QualitativeNotes);
+        Assert.DoesNotContain(form.CriteriaGroups, g => g.EvaluationProfileItemId == qualitativeRoot.Id);
         Assert.Equal(2, logger.Entries.Count(e => e.Level == LogLevel.Warning));
     }
 
@@ -1824,24 +1782,7 @@ public sealed class EvaluationServiceTests
     // ----- Qualitative group: a score is accepted only for a group without an active KPI -----------
 
     [Fact]
-    public async Task SubmitEvaluationAsync_ThrowsValidation_WhenAQualitativeScoreIsSentForAGroupWithActiveKpis()
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var kpiGroupRoot = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Kinh doanh");
-
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(kpiGroupRoot.Id, 10m)], IsDraft: true),
-            manager.Id));
-
-        Assert.Equal(400, ex.StatusCode);
-        Assert.Contains("Kinh doanh", ex.Message);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Fact]
-    public async Task SubmitEvaluationAsync_AcceptsAQualitativeScore_WhenEveryKpiOfTheGroupIsInactive()
+    public async Task GetEvaluationFormAsync_ExcludesGroup_WhenEveryKpiOfTheGroupIsInactive()
     {
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -1850,51 +1791,33 @@ public sealed class EvaluationServiceTests
         await context.SaveChangesAsync();
 
         var result = await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(serviceGroup.Id, 50m)], IsDraft: true),
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Hoàn tất", IsDraft: false),
             manager.Id);
 
         var form = await service.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
-        var group = form.CriteriaGroups.Single(g => g.EvaluationProfileItemId == serviceGroup.Id);
-        Assert.True(group.IsQualitative);
-        Assert.Equal(50m, group.GroupScore);
+        Assert.DoesNotContain(form.CriteriaGroups, g => g.EvaluationProfileItemId == serviceGroup.Id);
+        var kdGroup = Assert.Single(form.CriteriaGroups);
+        Assert.Equal(100m, kdGroup.WeightPercent);
+        Assert.Equal(100m, result.TotalScore);
         Assert.Equal(result.TotalScore, form.CurrentEvaluation.TotalScore);
     }
 
     [Fact]
-    public async Task SubmitEvaluationAsync_Draft_CountsAnUnscoredQualitativeGroupAsZero()
+    public async Task SubmitEvaluationAsync_Complete_SucceedsWithoutQualitativeScores_WhenCommentIsProvided()
     {
         var (context, service) = CreateTestEnvironment();
         var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-        var scored = await context.EvaluationProfileItems.FirstAsync(i => i.Name == "Van hanh & Tuan thu");
 
-        var unscored = await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, IsDraft: true), manager.Id);
-        var withScore = await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(scored.Id, 100m)], IsDraft: true),
+        var result = await service.SubmitEvaluationAsync(
+            new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "Hoàn thành tốt", IsDraft: false),
             manager.Id);
 
-        // The unscored group adds nothing; scoring it raises the total by exactly its weighted score.
-        Assert.Equal(scored.WeightPercent, withScore.TotalScore - unscored.TotalScore);
+        Assert.Equal("CALCULATED", result.Status);
+        Assert.Equal(Math.Round(100m * 40m / 70m, 4), result.TotalScore);
     }
 
     [Fact]
-    public async Task SubmitEvaluationAsync_Complete_ThrowsValidation_WhenAQualitativeGroupHasNoScore()
-    {
-        var (context, service) = CreateTestEnvironment();
-        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
-
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(staff.Id, period.Id, IsDraft: false), manager.Id));
-
-        Assert.Equal(400, ex.StatusCode);
-        Assert.Contains("Van hanh & Tuan thu", ex.Message);
-        Assert.Empty(context.PerformanceEvaluations);
-    }
-
-    [Fact]
-    public async Task GetDepartmentCalibrationAsync_ReadsTheSavedQualitativeScore_InsteadOfAFullScore()
+    public async Task GetDepartmentCalibrationAsync_ReadsStoredQualitativeMarker_WhenPresent()
     {
         var (context, service) = CreateTestEnvironment();
         var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
@@ -1902,10 +1825,8 @@ public sealed class EvaluationServiceTests
 
         var unscored = (await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id))
             .RankedRoster.Single(e => e.EmployeeId == staff.Id);
-        await service.SubmitEvaluationAsync(
-            new SubmitEvaluationRequestDto(
-                staff.Id, period.Id, QualitativeScores: [new(qualitativeRoot.Id, 70m)], IsDraft: true),
-            manager.Id);
+        var json = $$"""[{"evaluationProfileItemId":"{{qualitativeRoot.Id}}","score":70,"notes":null}]""";
+        await StoreCommentAsync(context, staff, period, $"<!-- QUALITATIVE_JSON: {json} -->", PerformanceEvaluationStatus.Draft);
         var scored = (await service.GetDepartmentCalibrationAsync(period.Id, dept.Id, null, manager.Id))
             .RankedRoster.Single(e => e.EmployeeId == staff.Id);
 
@@ -2132,20 +2053,164 @@ public sealed class EvaluationServiceTests
     }
 
     [Theory]
-    [InlineData(typeof(SubmitEvaluationRequestDto), "Comment")]
-    [InlineData(typeof(SubmitEvaluationRequestDto), "CoachingPlan")]
-    [InlineData(typeof(QualitativeScoreInputDto), "Notes")]
-    public void EvaluationFreeText_IsLimitedByTheDto(Type dto, string parameterName)
+    [InlineData("Comment")]
+    [InlineData("CoachingPlan")]
+    public async Task EvaluationFreeText_IsLimitedBySystemParameter_EvalCommentMaxLength(string fieldName)
     {
-        // ASP.NET Core validates the attributes of a record's constructor parameters while binding the request body.
-        var limit = dto.GetConstructors().Single().GetParameters().Single(p => p.Name == parameterName)
-            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.StringLengthAttribute), inherit: false)
-            .Cast<System.ComponentModel.DataAnnotations.StringLengthAttribute>().Single();
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var options = Microsoft.Extensions.Options.Options.Create(
+            new G54.BLL.Common.SystemParametersOptions { EvalCommentMaxLength = 60 });
+        var permissions = new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"));
+        var customService = new EvaluationService(
+            context,
+            NullLogger<EvaluationService>.Instance,
+            permissions,
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier(),
+            parameters: options);
 
-        Assert.True(limit.IsValid(null));
-        Assert.True(limit.IsValid(new string('a', limit.MaximumLength)));
-        Assert.False(limit.IsValid(new string('a', limit.MaximumLength + 1)));
-        Assert.False(string.IsNullOrWhiteSpace(limit.ErrorMessage));
+        var validText = new string('a', 60);
+        var tooLongText = new string('a', 61);
+
+        var okRequest = fieldName == "Comment"
+            ? new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: validText, IsDraft: true)
+            : new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "ok", CoachingPlan: validText, IsDraft: true);
+        var saved = await customService.SubmitEvaluationAsync(okRequest, manager.Id);
+        Assert.NotEqual(Guid.Empty, saved.EvaluationId);
+
+        var badRequest = fieldName == "Comment"
+            ? new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: tooLongText, IsDraft: true)
+            : new SubmitEvaluationRequestDto(staff.Id, period.Id, Comment: "ok", CoachingPlan: tooLongText, IsDraft: true);
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => customService.SubmitEvaluationAsync(badRequest, manager.Id));
+        Assert.Contains("60", ex.Message);
+    }
+
+    [Fact]
+    public async Task GetEvaluationFormAsync_AppliesConfiguredThresholds_AndCalculatesEmployeeSlaSummary()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var csatKpi = await context.KpiDefinitions.SingleAsync(k => k.Code == "CSAT");
+        var csatTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            KpiDefinitionId = csatKpi.Id,
+            TargetValue = 100m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.TargetAssignments.AddAsync(csatTarget);
+        await context.ActualProgresses.AddAsync(new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = csatTarget.Id,
+            Value = 92m,
+            ProgressDate = new DateOnly(2026, 10, 15),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+
+        var workType = new WorkType
+        {
+            Id = Guid.NewGuid(),
+            Code = "WT-SLA",
+            Name = "SLA Work",
+            Status = RecordStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.WorkTypes.AddAsync(workType);
+        await context.Works.AddRangeAsync(
+            new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "W-ONTIME",
+                Title = "On time",
+                WorkTypeId = workType.Id,
+                AssigneeEmployeeId = staff.Id,
+                CreatedBy = manager.Id,
+                Status = WorkStatus.Done,
+                PlannedEndDate = new DateOnly(2026, 10, 20),
+                UpdatedAt = new DateTimeOffset(2026, 10, 18, 10, 0, 0, TimeSpan.FromHours(7)),
+                AssignedAt = DateTimeOffset.UtcNow,
+            },
+            new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "W-LATE",
+                Title = "Late",
+                WorkTypeId = workType.Id,
+                AssigneeEmployeeId = staff.Id,
+                CreatedBy = manager.Id,
+                Status = WorkStatus.Done,
+                PlannedEndDate = new DateOnly(2026, 10, 10),
+                UpdatedAt = new DateTimeOffset(2026, 10, 12, 10, 0, 0, TimeSpan.FromHours(7)),
+                AssignedAt = DateTimeOffset.UtcNow,
+            },
+            new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "W-OPEN",
+                Title = "In progress",
+                WorkTypeId = workType.Id,
+                AssigneeEmployeeId = staff.Id,
+                CreatedBy = manager.Id,
+                Status = WorkStatus.InProgress,
+                PlannedEndDate = new DateOnly(2026, 10, 28),
+                UpdatedAt = DateTimeOffset.UtcNow,
+                AssignedAt = DateTimeOffset.UtcNow,
+            });
+        await context.SaveChangesAsync();
+
+        var options = Microsoft.Extensions.Options.Options.Create(new G54.BLL.Common.SystemParametersOptions
+        {
+            EvalKpiMetThresholdPercent = 95m,
+            EvalKpiNearThresholdPercent = 90m,
+            EvalCommentMaxLength = 750,
+        });
+        var permissions = new FakePermissionService(
+            null,
+            new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
+            new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"));
+        var fixedTime = new FixedTimeProvider(new DateTimeOffset(2026, 10, 22, 9, 0, 0, TimeSpan.FromHours(7)));
+        var customService = new EvaluationService(
+            context,
+            NullLogger<EvaluationService>.Instance,
+            permissions,
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier(),
+            time: fixedTime,
+            parameters: options);
+
+        var form = await customService.GetEvaluationFormAsync(staff.Id, period.Id, manager.Id);
+
+        Assert.Equal(750, form.FormSettings!.MaxCommentLength);
+        Assert.Equal(95m, form.FormSettings.KpiMetThresholdPercent);
+        Assert.Equal(90m, form.FormSettings.KpiNearThresholdPercent);
+        // HDV = 100% (>= 95 achieved), CSAT = 92% (90..95 near)
+        Assert.Equal(1, form.CriteriaSummary!.AchievedCount);
+        Assert.Equal(1, form.CriteriaSummary.NearCount);
+        Assert.Equal(0, form.CriteriaSummary.BelowCount);
+        Assert.Equal(2, form.CriteriaSummary.TotalCount);
+        Assert.Equal(50m, form.CriteriaSummary.AchievedRatePercent);
+        // SLA: 1 on-time completed, 1 late completed, 1 in-progress -> 50%
+        Assert.Equal(1, form.SlaSummary!.OnTimeCompletedCount);
+        Assert.Equal(1, form.SlaSummary.OverdueCount);
+        Assert.Equal(1, form.SlaSummary.InProgressCount);
+        Assert.Equal(50m, form.SlaSummary.OnTimeRatePercent);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
     // ----- A concurrent first save of the same evaluation ----------------------------------------
 

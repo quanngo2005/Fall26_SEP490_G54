@@ -31,9 +31,19 @@ public sealed class NotificationsController(INotificationService service) : Cont
         return StatusCode(StatusCodes.Status201Created, response);
     }
 
+    [HttpGet("recipients")]
+    [HasPermission("notification", "send", "Dept")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<NotificationRecipientOptionDto>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<NotificationRecipientOptionDto>>>> GetSendableRecipients(CancellationToken cancellationToken)
+    {
+        var result = await service.GetSendableRecipientsAsync(User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpGet]
     [HasPermission("notification", "read", "Own")]
     [ProducesResponseType<ApiResponse<PagedResult<NotificationDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<PagedResult<NotificationDto>>>> GetMine(
         [FromQuery] NotificationFilterDto filter,
         CancellationToken cancellationToken)

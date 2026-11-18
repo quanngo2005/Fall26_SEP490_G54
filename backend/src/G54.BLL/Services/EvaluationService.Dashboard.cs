@@ -544,6 +544,64 @@ public sealed partial class EvaluationService
             employeeOps);
     }
 
+    private async Task<EvaluationSlaSummaryDto> LoadEmployeeSlaSummaryAsync(
+        Guid employeeId,
+        EvaluationPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var today = timeProvider.GetBusinessToday();
+        var openWorks = await db.Works
+            .AsNoTracking()
+            .Where(w => w.AssigneeEmployeeId == employeeId && WorkStatusGroups.Open.Contains(w.Status))
+            .Select(w => new { w.Status, w.PlannedEndDate })
+            .ToListAsync(cancellationToken);
+
+        var inProgressCount = openWorks.Count(w => WorkStatusGroups.InExecution.Contains(w.Status));
+        var openOverdueCount = openWorks.Count(w =>
+            w.PlannedEndDate.HasValue && (w.Status == WorkStatus.Overdue || w.PlannedEndDate.Value < today));
+
+        var start = StartOfBusinessDay(period.StartDate);
+        var endExclusive = StartOfBusinessDay(period.EndDate.AddDays(1));
+
+        var completedWithDeadline = await db.Works
+            .AsNoTracking()
+            .Where(w => w.AssigneeEmployeeId == employeeId
+                && WorkStatusGroups.Completed.Contains(w.Status)
+                && w.PlannedEndDate != null
+                && w.UpdatedAt >= start
+                && w.UpdatedAt < endExclusive)
+            .Select(w => new { PlannedEndDate = w.PlannedEndDate!.Value, w.UpdatedAt })
+            .ToListAsync(cancellationToken);
+
+        var onTimeCompletedCount = 0;
+        var lateCompletedCount = 0;
+        foreach (var work in completedWithDeadline)
+        {
+            var completedBusinessDate = DateOnly.FromDateTime(
+                work.UpdatedAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
+            if (completedBusinessDate <= work.PlannedEndDate)
+            {
+                onTimeCompletedCount++;
+            }
+            else
+            {
+                lateCompletedCount++;
+            }
+        }
+
+        var overdueCount = openOverdueCount + lateCompletedCount;
+        var totalSlaTracked = onTimeCompletedCount + overdueCount;
+        decimal? onTimeRatePercent = totalSlaTracked > 0
+            ? RoundDashboard((decimal)onTimeCompletedCount / totalSlaTracked * 100m)
+            : null;
+
+        return new EvaluationSlaSummaryDto(
+            onTimeCompletedCount,
+            overdueCount,
+            inProgressCount,
+            onTimeRatePercent);
+    }
+
     private static List<DepartmentEvaluationProfileGroupColumnDto> BuildDashboardProfileGroupColumns(
         List<Employee> employees,
         Dictionary<Guid, IReadOnlyList<ProfileNode>> profileTreesByPosition)
@@ -1217,7 +1275,13 @@ public sealed partial class EvaluationService
             null,
         ];
 
-        WriteDashboardTable(sheet, dashboard, "BẢNG ĐIỂM & CHỈ SỐ CÁN BỘ", header, rows, formats);
+        WriteDashboardTable(
+            sheet,
+            dashboard,
+            "BẢNG ĐIỂM & CHỈ SỐ CÁN BỘ",
+            header,
+            rows,
+            formats);
 
         var tierColumn = Array.IndexOf(header, "Xếp loại") + 1;
         var statusColumn = Array.IndexOf(header, "Trạng thái") + 1;
@@ -1258,7 +1322,23 @@ public sealed partial class EvaluationService
         string title,
         string[] header,
         object?[][] rows,
-        string?[] formats)
+        string?[] formats) =>
+        WriteExportTable(
+            sheet,
+            title,
+            BuildDashboardSubtitle(dashboard),
+            header,
+            rows,
+            formats);
+
+    private static void WriteExportTable(
+        IXLWorksheet sheet,
+        string title,
+        string subtitle,
+        string[] header,
+        object?[][] rows,
+        string?[] formats,
+        int maxColumnWidth = 48)
     {
         var lastColumn = header.Length;
         var lastRow = ExportHeaderRow + rows.Length;
@@ -1271,7 +1351,7 @@ public sealed partial class EvaluationService
         titleRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         sheet.Row(1).Height = 28;
 
-        sheet.Cell(2, 1).Value = BuildDashboardSubtitle(dashboard);
+        sheet.Cell(2, 1).Value = subtitle;
         var subtitleRange = sheet.Range(2, 1, 2, lastColumn).Merge();
         subtitleRange.Style.Font.Italic = true;
         subtitleRange.Style.Font.FontColor = ExportMutedText;
@@ -1303,8 +1383,13 @@ public sealed partial class EvaluationService
                     decimal d => d,
                     int n => n,
                     string s => s,
-                    var other => other.ToString(),
+                    var other => SanitizeExcelString(other.ToString()),
                 };
+                if (row[c] is string text)
+                {
+                    cell.Value = SanitizeExcelString(text);
+                }
+
                 if (c < formats.Length && formats[c] is { } format)
                 {
                     cell.Style.NumberFormat.Format = format;
@@ -1332,8 +1417,20 @@ public sealed partial class EvaluationService
         {
             var column = sheet.Column(c);
             column.AdjustToContents(ExportHeaderRow, lastRow);
-            column.Width = Math.Clamp(column.Width + 2, 14, 48);
+            column.Width = Math.Clamp(column.Width + 2, 14, maxColumnWidth);
         }
+    }
+
+    private static string SanitizeExcelString(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value[0] is '=' or '+' or '-' or '@'
+            ? $"'{value}"
+            : value;
     }
 
     private static string BuildDashboardSubtitle(DepartmentEvaluationDashboardDto dashboard)

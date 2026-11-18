@@ -57,6 +57,7 @@ public sealed class QualityAssuranceService(
         await db.SaveChangesAsync(cancellationToken);
 
         LogAction(logger, "FLAG", flag.Id, caller.Id, null);
+        await NotifyFlagRaisedAsync(flag.Id, caller, cancellationToken);
         return await LoadFlagDtoAsync(flag.Id, cancellationToken);
     }
 
@@ -220,6 +221,10 @@ public sealed class QualityAssuranceService(
             {
                 await NotifyReworkAsync(id, caller, cancellationToken);
             }
+            else
+            {
+                await NotifyFlagRaisedAsync(id, caller, cancellationToken);
+            }
 
             flagDto = await LoadFlagDtoAsync(id, cancellationToken);
         }
@@ -274,6 +279,13 @@ public sealed class QualityAssuranceService(
         flag.ReworkComment = comment;
         flag.ReworkRequestedAt = now;
         flag.UpdatedAt = now;
+    }
+
+    private async Task NotifyFlagRaisedAsync(Guid flagId, Employee caller, CancellationToken cancellationToken)
+    {
+        var flag = await FlagQuery().FirstAsync(f => f.Id == flagId, cancellationToken);
+        var drafts = AutomaticNotifications.QualityFlagRaised(flag, flag.ResultSubmission.Work, flag.Employee, caller);
+        await notifier.TryPublishAsync(drafts, cancellationToken);
     }
 
     private async Task NotifyReworkAsync(Guid flagId, Employee caller, CancellationToken cancellationToken)

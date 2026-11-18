@@ -1,4 +1,5 @@
 using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
@@ -606,18 +607,33 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_PreviousPeriod_IgnoresAnEarlierDraftEvenWhenItHoldsAScore()
+    public async Task Form_ComparePeriod_UsesTheSelectedPeriodAndListsTheOptions()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var earlier = context.EvaluationPeriods.Single(p => p.Code == "2026-09");
-        await AddEvaluationAsync(context, s, s.Staff1, earlier, 70m, PerformanceEvaluationStatus.Draft);
+        const decimal earlierScore = 70m;
+        await AddEvaluationAsync(context, s, s.Staff1, earlier, earlierScore, PerformanceEvaluationStatus.Final);
         var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
 
-        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, earlier.Id);
 
-        Assert.Null(form.PreviousPeriod);
+        Assert.Equal(earlier.Id, form.ComparePeriod!.Id);
+        Assert.Equal(earlierScore, form.PreviousPeriod!.TotalScore);
+        Assert.Contains(form.CompareOptions!, option => option.Id == earlier.Id);
     }
+
+    [Fact]
+    public async Task Form_ComparePeriod_RejectsAPeriodThatIsNotEarlierOfTheSameType()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, s.Period.Id));
+    }
+
 
     // ----- the calculation ----------------------------------------------------------------------------
 
@@ -675,7 +691,7 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_Group_WithoutActiveKpis_IsMarkedQualitative()
+    public async Task Form_Group_WithoutActiveKpis_IsExcludedFromForm()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
@@ -685,7 +701,7 @@ public sealed class EvaluationFormTests
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
-        Assert.True(form.CriteriaGroups.Single().IsQualitative);
+        Assert.Empty(form.CriteriaGroups);
     }
 
     [Fact]
@@ -843,10 +859,10 @@ public sealed class EvaluationFormTests
         Assert.Equal(100m, items.Values.Sum());
     }
 
-    // ----- a qualitative group the reviewer has not scored ------------------------------------------
+    // ----- a qualitative-only profile leaves no quantitative criteria to score on the form ------------
 
     [Fact]
-    public async Task Form_QualitativeGroup_WithoutAScore_CountsAsZeroInsteadOfAFullScore()
+    public async Task Form_QualitativeGroup_WithoutActiveKpis_GivesNullQuantitativeScores()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
@@ -856,10 +872,10 @@ public sealed class EvaluationFormTests
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
-        var group = form.CriteriaGroups.Single();
-        Assert.True(group.IsQualitative);
-        Assert.Equal(0m, group.GroupScore);
-        Assert.Equal(0m, form.Summary.WeightedScore);
+        Assert.Empty(form.CriteriaGroups);
+        Assert.Null(form.Summary.WeightedScore);
+        Assert.Null(form.Summary.TotalScore);
+        Assert.Null(form.Summary.ProposedTier);
     }
 
     // ----- the previous period keeps the tier that was stored ---------------------------------------

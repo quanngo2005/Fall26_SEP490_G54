@@ -8,6 +8,14 @@ public interface IEvaluationService
         Guid employeeId,
         Guid periodId,
         Guid currentUserId,
+        Guid? comparePeriodId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationFormExportDto> ExportEvaluationFormAsync(
+        Guid employeeId,
+        Guid periodId,
+        Guid currentUserId,
+        Guid? comparePeriodId = null,
         CancellationToken cancellationToken = default);
 
     Task<EvaluationResultDto> SubmitEvaluationAsync(

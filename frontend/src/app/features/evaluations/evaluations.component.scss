@@ -50,7 +50,9 @@
       600 11.5px Inter,
       sans-serif;
     text-transform: uppercase;
-    padding: 8px;
+    padding: 10px 12px;
+    white-space: nowrap;
+    vertical-align: middle;
   }
 
   .th-kpi {
@@ -59,8 +61,8 @@
   }
 
   .group-row td {
-    padding: 11px 8px 5px;
-    background: #f8fafc;
+    padding: 12px 8px 8px;
+    background: #e0e0e0;
     border-top: 1px solid #f1f5f9;
   }
 
@@ -73,15 +75,28 @@
   }
 
   .group-score {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 800;
     color: #0f172a;
   }
 
   .item-row td {
-    padding: 8px;
+    padding: 11px 8px;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
+  }
+
+  .td-actual {
+    padding-right: 16px;
+  }
+
+  .td-rate {
+    padding-left: 12px;
+    padding-right: 16px;
+  }
+
+  .change {
+    padding-left: 16px;
   }
 
   .td-label {

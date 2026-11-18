@@ -25,7 +25,8 @@ public sealed class EmployeeImportService(
     AppDbContext db,
     IExcelSheetReader reader,
     IPasswordEncoder passwordEncoder,
-    IOptions<SystemParametersOptions> parameters) : IEmployeeImportService
+    IOptions<SystemParametersOptions> parameters,
+    INotifier? notifier = null) : IEmployeeImportService
 {
     private const string BranchCodeHeader = "Mã chi nhánh*";
     private const string BranchNameHeader = "Tên chi nhánh*";
@@ -90,7 +91,22 @@ public sealed class EmployeeImportService(
 
         try
         {
-            return await uow.ExecuteInTransactionAsync(ct => WriteAsync(validRows, skippedRows, ctx, ct), cancellationToken);
+            var result = await uow.ExecuteInTransactionAsync(ct => WriteAsync(validRows, skippedRows, ctx, ct), cancellationToken);
+            if (skippedRows.Count > 0 && notifier is not null)
+            {
+                var adminIds = await NotificationRecipients.ActiveAdminsAsync(db, cancellationToken);
+                var drafts = adminIds
+                    .Select(id => AutomaticNotifications.ImportCompletedWithErrors(
+                        id,
+                        "nhân sự & tổ chức",
+                        "02_Nhan_su_To_chuc.xlsx",
+                        result.Created + result.Updated,
+                        skippedRows.Count))
+                    .ToList();
+                await notifier.TryPublishAsync(drafts, cancellationToken);
+            }
+
+            return result;
         }
         catch (Exception ex) when (PostgresConflict.IsUniqueViolation(ex))
         {

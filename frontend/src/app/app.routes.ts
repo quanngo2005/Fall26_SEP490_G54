@@ -9,6 +9,7 @@ import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 import { departmentEvaluationGuard } from './core/department-evaluation.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
+import { reconciliationGuard } from './core/reconciliation.guard';
 
 export const routes: Routes = [
   {
@@ -297,6 +298,33 @@ export const routes: Routes = [
       import('./features/qa-queue/qa-queue-detail.component').then((m) => m.QaQueueDetailComponent),
   },
   {
+    path: 'reconciliations',
+    canActivate: [authGuard, reconciliationGuard],
+    title: 'Kết quả đối soát',
+    loadComponent: () =>
+      import('./features/reconciliations/reconciliation-list.component').then(
+        (m) => m.ReconciliationListComponent,
+      ),
+  },
+  {
+    path: 'reconciliations/:id',
+    canActivate: [authGuard, reconciliationGuard],
+    title: 'Chi tiết đối soát',
+    loadComponent: () =>
+      import('./features/reconciliations/reconciliation-detail.component').then(
+        (m) => m.ReconciliationDetailComponent,
+      ),
+  },
+  {
+    path: 'notifications',
+    canActivate: [authGuard],
+    title: 'Thông báo',
+    loadComponent: () =>
+      import('./features/notifications/notification-list.component').then(
+        (m) => m.NotificationListComponent,
+      ),
+  },
+  {
     path: 'appeals',
     pathMatch: 'full',
     redirectTo: appealsHomeRedirect,
@@ -355,6 +383,14 @@ export const routes: Routes = [
     path: 'my-work',
     canActivate: [authGuard],
     title: 'Công việc',
+    loadComponent: () =>
+      import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
+  },
+  {
+    path: 'work-monitor',
+    canActivate: [authGuard],
+    title: 'Giám sát tải việc',
+    data: { view: 'monitor' },
     loadComponent: () =>
       import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },

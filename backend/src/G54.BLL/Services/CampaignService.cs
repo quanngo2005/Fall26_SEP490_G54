@@ -18,7 +18,8 @@ public sealed partial class CampaignService(
     AppDbContext db,
     ILogger<CampaignService> logger,
     TimeProvider time,
-    IOptions<SystemParametersOptions>? parameters = null) : ICampaignService
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : ICampaignService
 {
     /// <summary>Largest value <c>work.target_value</c> (numeric(18,4)) can hold.</summary>
     private const decimal MaxTargetValue = 9_999_999_999_999m;
@@ -579,6 +580,17 @@ public sealed partial class CampaignService(
 
         await db.SaveChangesAsync(cancellationToken);
         LogCampaignDecided(logger, id, decision, null);
+        if (notifier is not null && currentEmployee is not null)
+        {
+            var rawParticipantIds = campaign.Participants.Select(p => p.EmployeeId).Distinct().ToList();
+            var participantIds = await db.Employees.AsNoTracking()
+                .Where(e => rawParticipantIds.Contains(e.Id) && e.Status == EmployeeStatus.Active)
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.CampaignDecided(campaign, currentEmployee, participantIds, decision == "APPROVE", request.Note),
+                cancellationToken);
+        }
 
         return new CampaignDecisionResultDto(
             campaign.Id,
@@ -811,6 +823,15 @@ public sealed partial class CampaignService(
         db.Works.AddRange(generatedWorks);
         await db.SaveChangesAsync(cancellationToken);
         LogBatchWorkGenerated(logger, campaign.Id, generatedWorks.Count, rule, null);
+        if (notifier is not null)
+        {
+            var countsByAssignee = generatedWorks
+                .GroupBy(w => w.AssigneeEmployeeId)
+                .Select(g => (g.Key, g.Count()));
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.BatchWorksAssigned(campaign, countsByAssignee, creator),
+                cancellationToken);
+        }
 
         return new BatchWorkGenerateResultDto(
             CampaignId: campaign.Id,
