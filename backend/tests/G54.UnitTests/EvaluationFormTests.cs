@@ -901,4 +901,31 @@ public sealed class EvaluationFormTests
         Assert.Equal(storedTier, form.PreviousPeriod!.Tier);
         Assert.Equal(earlierScore, form.PreviousPeriod.TotalScore);
     }
+
+    [Fact]
+    public async Task ExportEvaluationFormAsync_ReturnsAWorkbookWithTheThreeSheetsAndASafeFileName()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.All, PermissionScopes.All);
+
+        var export = await service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        using var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(export.Content));
+        Assert.Equal(["Tong quan", "Tieu chi & KPI", "Su kien rui ro"], workbook.Worksheets.Select(w => w.Name).ToArray());
+        Assert.EndsWith(".xlsx", export.FileName);
+        Assert.StartsWith("danh-gia-nhan-vien-", export.FileName);
+        Assert.DoesNotContain(export.FileName, c => c is '/' or '\\' or ' ');
+        Assert.Contains(workbook.Worksheet("Tong quan").CellsUsed(), c => c.GetString() == s.Staff1.EmployeeCode);
+    }
+
+    [Fact]
+    public async Task ExportEvaluationFormAsync_ForAnEmployeeTheReaderCannotSee_Throws()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Own, submitScope: null);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id));
+    }
 }
