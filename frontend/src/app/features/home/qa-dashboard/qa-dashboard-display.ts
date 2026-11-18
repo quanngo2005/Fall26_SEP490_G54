@@ -35,7 +35,7 @@ export function shortDatePattern(datePattern: string): string {
   return datePattern.replace(/[^DMY]?YYYY[^DMY]?/, '');
 }
 
-/** Codes of a week that are not matched (yet): IN_REVIEW and NOT_MATCHED. */
+/** NOT_MATCHED codes of a week: `totalCount` only counts decided codes (MATCHED + NOT_MATCHED), not IN_REVIEW. */
 export function openCount(week: QaDashboardWeeklyRate): number {
   return Math.max(0, week.totalCount - week.matchedCount);
 }

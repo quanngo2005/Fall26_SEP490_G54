@@ -49,9 +49,6 @@ public sealed class QaDashboardService(
 
         // 3. Transactions query in period
         var txQuery = db.WorkTransactions.AsNoTracking()
-            .Include(t => t.Work).ThenInclude(w => w.AssigneeEmployee).ThenInclude(e => e.JobPosition)
-            .Include(t => t.Work).ThenInclude(w => w.AssigneeEmployee).ThenInclude(e => e.Department)
-            .Include(t => t.ImportedTransaction)
             .Where(t => t.CreatedAt >= periodStartOffset && t.CreatedAt < periodEndOffset);
 
         if (departmentIds is not null)
@@ -70,17 +67,27 @@ public sealed class QaDashboardService(
             txQuery = txQuery.Where(t => t.Work.AssigneeEmployee.JobPosition.Code == code);
         }
 
-        var transactions = await txQuery.ToListAsync(cancellationToken);
+        // Only the columns the dashboard reads; the full entity graph is not needed for counting.
+        var transactions = await txQuery
+            .Select(t => new TransactionRow(
+                t.Status,
+                t.Reason,
+                t.CreatedAt,
+                t.Work.AssigneeEmployeeId,
+                t.Work.AssigneeEmployee.EmployeeCode,
+                t.Work.AssigneeEmployee.FullName,
+                t.Work.AssigneeEmployee.JobPosition != null ? t.Work.AssigneeEmployee.JobPosition.Title : null,
+                t.Work.AssigneeEmployee.Department != null ? t.Work.AssigneeEmployee.Department.Name : null))
+            .ToListAsync(cancellationToken);
 
         var notMatchedList = transactions.Where(t => t.Status == WorkTransactionStatus.NotMatched).ToList();
         var inReviewList = transactions.Where(t => t.Status == WorkTransactionStatus.InReview).ToList();
-        var matchedList = transactions.Where(t => t.Status == WorkTransactionStatus.Matched).ToList();
 
         // 4. Warning Banner & In Review Card
         var inReviewCount = inReviewList.Count;
         var banner = new QaDashboardBannerDto(
             inReviewCount,
-            $"Còn {inReviewCount} kết quả In Review chưa có giao dịch import",
+            $"Còn {inReviewCount} mã giao dịch chưa có trong file import",
             $"Tháng {periodDto.Name} khóa KPI lúc {lockTime:HH:mm:ss} {period.EndDate:dd/MM/yyyy} (BR-29). Sau thời điểm này không import lại được giao dịch của tháng.",
             inReviewCount > 0);
 
@@ -95,11 +102,16 @@ public sealed class QaDashboardService(
         var notMatchedCard = new QaDashboardNotMatchedCardDto(
             notMatchedList.Count,
             oldestDays,
-            oldestDays.HasValue ? $"cũ nhất {oldestDays.Value} ngày" : "0 ngày");
+            oldestDays switch
+            {
+                null => string.Empty,
+                0 => "phát sinh hôm nay",
+                var days => $"cũ nhất {days} ngày",
+            });
 
         var inReviewCard = new QaDashboardInReviewCardDto(
             inReviewCount,
-            "chờ GD import (MSG13)");
+            $"hạn import {period.EndDate:dd/MM}");
 
         // 6. QA Queue Card
         var flagsQuery = db.QualityFlags.AsNoTracking()
@@ -155,7 +167,10 @@ public sealed class QaDashboardService(
         // 7. Risk Events Card
         var riskQuery = db.RiskEvents.AsNoTracking()
             .Include(r => r.Employee)
-            .Where(r => r.ReversedAt == null && r.OccurredAt >= periodStartOffset && r.OccurredAt < periodEndOffset);
+            .Where(r => r.ReversedAt == null
+                && r.Status != RiskEventStatus.Dismissed
+                && r.OccurredAt >= periodStartOffset
+                && r.OccurredAt < periodEndOffset);
 
         if (departmentIds is not null)
         {
@@ -175,11 +190,13 @@ public sealed class QaDashboardService(
 
         var riskEvents = await riskQuery.ToListAsync(cancellationToken);
         var totalPenalty = riskEvents.Sum(r => EvaluationService.RiskPenalty(r, parameters?.Value));
+        var openRiskEvents = riskEvents.Count(r => r.Status is RiskEventStatus.Open or RiskEventStatus.Confirmed);
 
         var riskEventsCard = new QaDashboardRiskEventsCardDto(
             riskEvents.Count,
             totalPenalty,
-            $"tổng phạt -{totalPenalty:0.#} điểm");
+            $"{openRiskEvents} chưa đóng · −{totalPenalty:0.#} điểm",
+            openRiskEvents);
 
         var cards = new QaDashboardCardsDto(notMatchedCard, inReviewCard, qaQueueCard, riskEventsCard);
 
@@ -197,22 +214,18 @@ public sealed class QaDashboardService(
             .ToDictionaryAsync(x => x.EmployeeId, x => x.Count, cancellationToken);
 
         var topEmployees = notMatchedList
-            .GroupBy(t => t.Work.AssigneeEmployeeId)
+            .GroupBy(t => t.EmployeeId)
             .Select(g =>
             {
                 var first = g.First();
-                var emp = first.Work.AssigneeEmployee;
-                var discCount = g.Count();
-                var flagCount = openFlagsByEmployee.GetValueOrDefault(emp.Id);
-
                 return new QaDashboardTopEmployeeDto(
-                    emp.Id,
-                    emp.EmployeeCode,
-                    emp.FullName,
-                    emp.JobPosition?.Title ?? "N/A",
-                    emp.Department?.Name,
-                    discCount,
-                    flagCount);
+                    first.EmployeeId,
+                    first.EmployeeCode,
+                    first.FullName,
+                    first.JobTitle ?? "N/A",
+                    first.DepartmentName,
+                    g.Count(),
+                    openFlagsByEmployee.GetValueOrDefault(first.EmployeeId));
             })
             .OrderByDescending(e => e.DiscrepancyCount)
             .ThenByDescending(e => e.FlagCount)
@@ -423,7 +436,7 @@ public sealed class QaDashboardService(
         return $"{period.StartDate:MM/yyyy}";
     }
 
-    private async Task<List<WorkTransaction>> LoadChartTransactionsAsync(
+    private async Task<List<ChartRow>> LoadChartTransactionsAsync(
         DateOnly anchorDate,
         IReadOnlyCollection<Guid>? departmentIds,
         QaDashboardFilterDto filter,
@@ -454,12 +467,12 @@ public sealed class QaDashboardService(
             query = query.Where(t => t.Work.AssigneeEmployee.JobPosition.Code == code);
         }
 
-        return await query.ToListAsync(cancellationToken);
+        return await query.Select(t => new ChartRow(t.Status, t.CreatedAt)).ToListAsync(cancellationToken);
     }
 
     private static QaDashboardMatchedRateChartDto BuildWeeklyMatchedRateChart(
         DateOnly anchorDate,
-        IReadOnlyList<WorkTransaction> transactions)
+        IReadOnlyList<ChartRow> transactions)
     {
         // 8 weeks ending on the current week's Sunday
         var weeks = new List<QaDashboardWeeklyRateDto>();
@@ -475,7 +488,8 @@ public sealed class QaDashboardService(
             var weekMonday = currentWeekMonday.AddDays(-i * 7);
             var weekSunday = weekMonday.AddDays(6);
             var weekNum = ISOWeek.GetWeekOfYear(weekMonday.ToDateTime(TimeOnly.MinValue));
-            var year = weekMonday.Year;
+            // ISO week-year: the Monday of week 1 can still fall in December (29/12/2025 is week 1 of 2026).
+            var year = ISOWeek.GetYear(weekMonday.ToDateTime(TimeOnly.MinValue));
 
             var weekStartOffset = new DateTimeOffset(weekMonday.ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime();
             var weekEndOffset = new DateTimeOffset(weekSunday.AddDays(1).ToDateTime(TimeOnly.MinValue), BusinessOffset).ToUniversalTime();
@@ -509,8 +523,8 @@ public sealed class QaDashboardService(
     }
 
     private static List<QaDashboardReasonCountDto> BuildCommonReasons(
-        List<WorkTransaction> notMatched,
-        List<WorkTransaction> inReview)
+        List<TransactionRow> notMatched,
+        List<TransactionRow> inReview)
     {
         var dict = new Dictionary<string, (string Label, int Count)>(StringComparer.OrdinalIgnoreCase);
 
@@ -529,14 +543,17 @@ public sealed class QaDashboardService(
 
         foreach (var item in notMatched)
         {
-            var code = item.Reason == "REFER_MISMATCH" ? "REFER_ID_MISSING" : item.Reason ?? "UNKNOWN_MISMATCH";
-            var label = FormatReasonDescription(WorkTransactionStatus.NotMatched, item.Reason);
-            Add(code, label, 1);
+            // Same codes as the reconciliation screen, so a row can open it filtered by `reason`.
+            var code = string.IsNullOrWhiteSpace(item.Reason) ? UnknownReason : item.Reason;
+            Add(code, FormatReasonDescription(WorkTransactionStatus.NotMatched, item.Reason), 1);
         }
 
         if (inReview.Count > 0)
         {
-            Add("NO_IMPORTED_TRANSACTION", "Chưa có GD import", inReview.Count);
+            Add(
+                ReconciliationService.NoImportedTransaction,
+                FormatReasonDescription(WorkTransactionStatus.InReview, null),
+                inReview.Count);
         }
 
         return dict
@@ -546,23 +563,29 @@ public sealed class QaDashboardService(
             .ToList();
     }
 
+    /// <summary>A NOT_MATCHED code without a reason (should not happen; kept visible instead of dropped).</summary>
+    private const string UnknownReason = "UNKNOWN_MISMATCH";
+
+    /// <summary>Labels shared with the reconciliation screen and its export; an IN_REVIEW code waits for the file.</summary>
     private static string FormatReasonDescription(string status, string? reason)
     {
         if (status == WorkTransactionStatus.InReview)
         {
-            return "Chưa có GD import";
+            return ReconciliationService.ReasonLabel(ReconciliationService.NoImportedTransaction);
         }
 
-        return reason switch
-        {
-            "EMPLOYEE_MISMATCH" => "Sai mã nhân viên",
-            "PRODUCT_MISMATCH" => "Sai sản phẩm",
-            "REFER_ID_MISSING" or "REFER_MISMATCH" => "Thiếu Refer ID",
-            "AMOUNT_MISMATCH" => "Lệch số tiền",
-            "METRIC_TYPE_MISMATCH" => "Sai loại chỉ số",
-            "KPI_TARGET_NOT_ASSIGNED" => "Chưa phân bổ mục tiêu KPI",
-            "KPI_AGGREGATION_NOT_SUPPORTED" => "Phương pháp tổng hợp KPI không hỗ trợ",
-            _ => string.IsNullOrWhiteSpace(reason) ? "Không khớp" : reason,
-        };
+        return string.IsNullOrWhiteSpace(reason) ? "Không khớp" : ReconciliationService.ReasonLabel(reason);
     }
+
+    private sealed record TransactionRow(
+        string Status,
+        string? Reason,
+        DateTimeOffset CreatedAt,
+        Guid EmployeeId,
+        string EmployeeCode,
+        string FullName,
+        string? JobTitle,
+        string? DepartmentName);
+
+    private sealed record ChartRow(string Status, DateTimeOffset CreatedAt);
 }
