@@ -21,7 +21,8 @@ public sealed class AuthService(
     IDistributedCache cache,
     IAuthSessionStore sessionStore,
     IConfiguration configuration,
-    IOptions<SystemParametersOptions>? parameters = null) : IAuthService
+    IOptions<SystemParametersOptions>? parameters = null,
+    ISystemAlertNotifier? systemAlerts = null) : IAuthService
 {
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan DefaultRefreshTokenLifetime = TimeSpan.FromHours(12);
@@ -85,15 +86,25 @@ public sealed class AuthService(
         if (!passwordEncoder.Verify(request.Password, account.PasswordHash))
         {
             account.FailedLoginAttempts++;
+            var justLocked = false;
             if (account.FailedLoginAttempts >= MaxFailedAttempts)
             {
                 account.IsLocked = true;
                 account.LockedUntil = now.Add(LockoutDuration);
+                justLocked = true;
             }
 
             account.UpdatedAt = now;
             RecordAudit(account.Id, "LOGIN_FAILED", ipAddress);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (justLocked && systemAlerts is not null)
+            {
+                await systemAlerts.NotifyAdminsAsync(
+                    "Cảnh báo bảo mật: Tài khoản bị tạm khóa",
+                    $"Tài khoản '{account.Username}' ({account.Employee.EmployeeCode} - {account.Employee.FullName}) đã bị khóa tạm thời ({LockoutDuration.TotalMinutes:0} phút) do đăng nhập sai liên tiếp {account.FailedLoginAttempts} lần (IP: {ipAddress ?? "unknown"}).",
+                    cancellationToken);
+            }
+
             return new AuthResult(
                 null,
                 account.IsLocked ? AuthFailureReason.AccountLocked : AuthFailureReason.InvalidCredentials);
@@ -282,6 +293,14 @@ public sealed class AuthService(
             account.UpdatedAt = now;
             RecordAudit(account.Id, "PASSWORD_CHANGE_FAILED", ipAddress);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (locked && systemAlerts is not null)
+            {
+                await systemAlerts.NotifyAdminsAsync(
+                    "Cảnh báo bảo mật: Khóa tài khoản khi đổi mật khẩu",
+                    $"Tài khoản '{account.Username}' ({account.Employee.EmployeeCode} - {account.Employee.FullName}) đã bị khóa tạm thời ({LockoutDuration.TotalMinutes:0} phút) do nhập sai mật khẩu hiện tại {account.FailedLoginAttempts} lần (IP: {ipAddress ?? "unknown"}).",
+                    cancellationToken);
+            }
+
             throw locked
                 ? new ForbiddenException()
                 : new AppException(

@@ -19,6 +19,8 @@ public static class SidebarCatalog
         "/work-type-detail",
         "/review-verify",
         "/appeals",
+        "/notifications",
+        "/reconciliations",
         "/kpi-definitions",
         "/campaigns",
         "/target-overview",
@@ -43,18 +45,18 @@ public static class SidebarCatalog
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "myTargets", "appeals", "notifications", "myProfile"],
-        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "teamPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "appeals", "notifications", "myProfile"],
-        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
+        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "appeals", "notifications", "myProfile"],
+        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
         ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "appeals", "notifications", "myProfile"],
-        ["qa"] = ["overview", "verificationQueue", "appeals", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
-        ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "kpiDefinitions", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "myProfile"],
+        ["qa"] = ["overview", "reconciliation", "verificationQueue", "appeals", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "notifications", "myProfile"],
+        ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "kpiDefinitions", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "notifications", "myProfile"],
     };
 
     public static IReadOnlySet<string> ItemIds { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "overview", "myWork", "mySubmissions", "myTargets", "myPerformance", "notifications", "myProfile", "employees", "organization",
         "departments", "jobPositions", "reportingLines", "employeeData", "teamWork", "handoverDelegation",
-        "reviewVerify", "teamPerformance", "targetsAndCampaigns", "targetOverview", "branchWork", "branchPerformance", "departmentPerformance",
+        "reviewVerify", "reconciliation", "teamPerformance", "targetsAndCampaigns", "targetOverview", "branchWork", "branchPerformance", "departmentPerformance",
         "appeals", "reportingStructure", "verificationQueue", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "accounts",
         "rolesPermissions", "accessPolicies", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "tasks", "personalKpis", "review", "positions",
         "kpiDefinitions", "workTypes", "targets", "reports", "audit", "users", "settings",

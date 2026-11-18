@@ -2,320 +2,904 @@
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
-    <main class="workspace-content evaluation-page">
-      <!-- Title -->
-      <header class="ui-page-header">
-        <div class="ui-page-heading">
-          <h1 class="ui-page-title page-title">{{localization.evaluations.pageTitle}}</h1>
+    <main class="workspace-content evaluation-page" [attr.aria-busy]="loading()">
+      <!-- Breadcrumb navigation -->
+      <nav class="breadcrumb-trail" aria-label="Breadcrumb">
+        <span class="breadcrumb-item">{{localization.evaluations.dashboard.breadcrumbUnit}}</span>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-item font-semibold">{{departmentName()}}</span>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-current">{{localization.evaluations.dashboard.breadcrumbTitle}}</span>
+      </nav>
+
+      <!-- Page Header -->
+      <header class="page-header">
+        <div class="page-heading">
+          <h1 class="page-title font-heading">
+            {{localization.evaluations.dashboard.pageTitle}}
+          </h1>
+        </div>
+        <div class="page-actions">
+          <div class="period-select-wrap">
+            <select
+              class="period-select period-type-select"
+              [value]="selectedPeriodType()"
+              (change)="onPeriodTypeChange($event)"
+              [attr.aria-label]="localization.evaluations.dashboard.periodTypeAria"
+            >
+              @for (type of periodTypes; track type) {
+                <option [value]="type">{{periodTypeLabel(type)}}</option>
+              }
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </div>
+
+          <div class="period-select-wrap">
+            <select
+              class="period-select"
+              [value]="selectedPeriodId() ?? ''"
+              (change)="onPeriodChange($event)"
+              [attr.aria-label]="localization.evaluations.dashboard.periodAria"
+            >
+              @for (p of filteredPeriods(); track p.id) {
+                <option [value]="p.id">{{p.name}}</option>
+              }
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </div>
+
+          <div class="period-select-wrap">
+            <select
+              class="period-select compare-select"
+              [value]="selectedComparePeriodId() ?? ''"
+              (change)="onCompareChange($event)"
+              [attr.aria-label]="localization.evaluations.dashboard.periodCompareAria"
+            >
+              @for (p of compareOptions(); track p.id) {
+                <option [value]="p.id">
+                  {{localization.evaluations.dashboard.periodComparePrefix}}{{p.name}}
+                </option>
+              }
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </div>
+
+          <button
+            type="button"
+            class="btn-export"
+            [disabled]="exporting() || loading() || !dashboard()"
+            (click)="exportExcel()"
+          >
+            <span>
+              {{exporting()
+                  ? localization.evaluations.dashboard.exporting
+                  : localization.evaluations.dashboard.exportExcel}}
+            </span>
+          </button>
         </div>
       </header>
 
-      <!-- Context Bar -->
-      <section class="context-bar">
-        <div class="context-left">
-          <div class="period-select-wrap">
-            <span class="period-label">{{localization.evaluations.yearLabel}}</span>
-            <select
-              class="period-select year-select"
-              [value]="year()"
-              (change)="onYearChange($event)"
-              [attr.aria-label]="localization.evaluations.yearAria"
-            >
-              @for (item of years(); track item) {
-                <option [value]="item" [selected]="item === year()">{{item}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevronDown" class="select-chevron" />
-          </div>
-
-          <div class="period-select-wrap">
-            <span class="period-label">{{localization.evaluations.quarterLabel}}</span>
-            <select
-              class="period-select quarter-select"
-              [value]="quarter()"
-              (change)="onQuarterChange($event)"
-              [attr.aria-label]="localization.evaluations.quarterAria"
-            >
-              @if (hasYearPeriod()) {
-                <option value="0" [selected]="quarter() === 0">
-                  {{localization.evaluations.wholeYear}}
-                </option>
-              }
-              @for (item of quarterOptions(); track item) {
-                <option [value]="item" [selected]="item === quarter()">
-                  {{quarterOptionText(item)}}
-                </option>
-              }
-            </select>
-            <app-layout-icon name="chevronDown" class="select-chevron" />
-          </div>
-
-          <div class="period-select-wrap">
-            <span class="period-label">{{localization.evaluations.monthLabel}}</span>
-            <select
-              class="period-select month-select"
-              [value]="month()"
-              (change)="onMonthChange($event)"
-              [disabled]="quarter() === 0"
-              [attr.aria-label]="localization.evaluations.monthAria"
-            >
-              @if (hasQuarterPeriod()) {
-                <option value="0" [selected]="month() === 0">
-                  {{localization.evaluations.wholeQuarter}}
-                </option>
-              }
-              @for (item of monthOptions(); track item) {
-                <option [value]="item" [selected]="item === month()">
-                  {{monthOptionText(item)}}
-                </option>
-              }
-            </select>
-            <app-layout-icon name="chevronDown" class="select-chevron" />
-          </div>
-
-          <span class="status-badge evaluating">{{periodStatusText()}}</span>
-
-          <span class="dept-info">
-            {{periodInfo().departmentName ?? localization.evaluations.emptyValue}} ·
-            {{periodInfo().employeeCount}} {{localization.evaluations.unitEmployees}} ·
-            {{localization.evaluations.deadlinePrefix}}
-            {{periodInfo().period?.endDate | appDate}}
-          </span>
+      @if (exportFailed()) {
+        <div class="alert-banner" role="alert">
+          <span>{{localization.evaluations.dashboard.exportError}}</span>
         </div>
+      }
 
-        <div class="context-right">
-          <div class="progress-wrap">
-            <span class="progress-label"
-              >{{localization.evaluations.progressPrefix}} {{periodInfo().completedCount}} /
-              {{periodInfo().employeeCount}}</span
-            >
-            <div
-              class="progress-bar-track"
-              role="progressbar"
-              [attr.aria-valuenow]="periodInfo().progressPercent"
-              aria-valuemin="0"
-              aria-valuemax="100"
-            >
-              <div class="progress-bar-fill" [style.width.%]="periodInfo().progressPercent"></div>
-            </div>
-            <span class="progress-percent">{{progressText()}}</span>
-          </div>
-
-          <button type="button" class="btn-calibrate" disabled>
-            {{localization.evaluations.calibrateButton}}
+      @if (error(); as errMsg) {
+        <div class="alert-banner" role="alert">
+          <span>{{errMsg}}</span>
+          <button type="button" class="btn-retry" (click)="loadDashboard()">
+            {{localization.evaluations.dashboard.retry}}
           </button>
         </div>
+      }
+
+      <!-- 4 Metric Cards -->
+      <section class="metric-grid" aria-label="KPI Summary">
+        <!-- Card 1: Điểm hiệu suất bình quân phòng -->
+        <article class="metric-card">
+          <div class="metric-head">
+            <span class="metric-title">{{localization.evaluations.dashboard.cardScoreTitle}}</span>
+            <span
+              class="metric-pill font-mono"
+              [class.pill-success]="(departmentScoreDelta() ?? 0) >= 0"
+              [class.pill-warning]="(departmentScoreDelta() ?? 0) < 0"
+            >
+              {{cardScorePillText()}}
+            </span>
+          </div>
+          <div class="metric-body">
+            <span class="metric-value font-mono">
+              {{departmentScore() === null ? emptyValue : (departmentScore()! | appNumber: 1)}}
+            </span>
+            <span class="metric-scale font-mono">/ 100</span>
+          </div>
+        </article>
+
+        <!-- Card 2: Tỷ lệ KPI đạt kế hoạch -->
+        <article class="metric-card">
+          <div class="metric-head">
+            <span class="metric-title">{{localization.evaluations.dashboard.cardKpiTitle}}</span>
+            <span class="metric-pill pill-info font-mono">{{cardKpiPillText()}}</span>
+          </div>
+          <div class="metric-body">
+            <span class="metric-value font-mono">
+              {{kpiRate() === null ? emptyValue : (kpiRate()! | appNumber: 1) + '%'}}
+            </span>
+          </div>
+        </article>
+
+        <!-- Card 3: Hoàn thành đúng hạn (SLA) -->
+        <article class="metric-card">
+          <div class="metric-head">
+            <span class="metric-title">{{localization.evaluations.dashboard.cardSlaTitle}}</span>
+            <span class="metric-pill pill-success font-mono">{{localization.evaluations.dashboard.cardSlaPill}}</span>
+          </div>
+          <div class="metric-body">
+            <span class="metric-value font-mono">
+              {{onTimeRate() === null ? emptyValue : (onTimeRate()! | appNumber: 1) + '%'}}
+            </span>
+          </div>
+          <div class="metric-foot">
+            <span class="metric-note">
+              <strong class="font-mono text-dark">{{cardSlaCountText()}}</strong
+              >{{localization.evaluations.dashboard.cardSlaCompleted}}<span class="text-danger font-semibold">{{cardSlaOverdueText()}}</span>
+            </span>
+          </div>
+        </article>
+
+        <!-- Card 4: Cán bộ đã chấm điểm -->
+        <article class="metric-card">
+          <div class="metric-head">
+            <span class="metric-title">{{localization.evaluations.dashboard.cardStaffTitle}}</span>
+            <span class="metric-pill pill-warning font-mono">{{cardStaffPillText()}}</span>
+          </div>
+          <div class="metric-body">
+            <span class="metric-value font-mono"
+              >{{evaluatedStaffCount()}}/{{totalStaffCount()}}</span
+            >
+          </div>
+          <div class="metric-foot">
+            <span class="metric-note">
+              <span class="text-danger font-semibold">{{cardStaffPipText()}}</span>
+              ·
+              <span class="text-warning-dark font-semibold">{{cardStaffAppealText()}}</span>
+              ·
+              <span>{{cardStaffUnscoredText()}}</span>
+            </span>
+          </div>
+        </article>
       </section>
 
-      <!-- Stat Cards -->
-      <section class="ui-stat-strip stat-cards-grid">
-        <button
-          type="button"
-          class="ui-stat-card is-interactive stat-card"
-          [class.is-active]="activeStatFilter() === 'ALL'"
-          (click)="setStatFilter('ALL')"
-        >
-          <span class="stat-title">{{localization.evaluations.cardAll}}</span>
-          <span class="stat-value">{{statSummary().allCount}}</span>
-        </button>
+      <!-- Section 1 (Block 1): Đánh giá & Vận hành phòng -->
+      <section class="block-grid block-1">
+        <!-- Trái: KPI theo nhóm trọng số -->
+        <article class="panel panel-kpi">
+          <div class="panel-head">
+            <h2 class="panel-title font-heading">
+              {{localization.evaluations.dashboard.kpiPanelTitle}}
+            </h2>
+          </div>
 
-        <button
-          type="button"
-          class="ui-stat-card is-interactive stat-card"
-          [class.is-active]="activeStatFilter() === 'NOT_EVALUATED'"
-          (click)="setStatFilter('NOT_EVALUATED')"
-        >
-          <span class="stat-title">{{localization.evaluations.cardNotEvaluated}}</span>
-          <span class="stat-value">{{statSummary().notEvaluatedCount}}</span>
-        </button>
-
-        <button
-          type="button"
-          class="ui-stat-card is-interactive stat-card"
-          [class.is-active]="activeStatFilter() === 'DRAFT'"
-          (click)="setStatFilter('DRAFT')"
-        >
-          <span class="stat-title">{{localization.evaluations.cardDraft}}</span>
-          <span class="stat-value">{{statSummary().draftCount}}</span>
-        </button>
-
-        <button
-          type="button"
-          class="ui-stat-card is-interactive stat-card"
-          [class.is-active]="activeStatFilter() === 'COMPLETED'"
-          (click)="setStatFilter('COMPLETED')"
-        >
-          <span class="stat-title">{{localization.evaluations.cardCompleted}}</span>
-          <span class="stat-value">{{statSummary().completedCount}}</span>
-        </button>
-
-        <button
-          type="button"
-          class="ui-stat-card is-interactive stat-card"
-          [class.is-active]="activeStatFilter() === 'ATTENTION'"
-          (click)="setStatFilter('ATTENTION')"
-        >
-          <span class="stat-title">{{localization.evaluations.cardAttention}}</span>
-          <span class="stat-value">{{statSummary().attentionCount}}</span>
-        </button>
-      </section>
-
-      <!-- Search & Filters Toolbar -->
-      <section class="ui-filter-bar filter-toolbar">
-        <div class="ui-search-field">
-          <app-layout-icon name="search" />
-          <input
-            type="text"
-            class="search-input"
-            [placeholder]="localization.evaluations.searchPlaceholder"
-            [value]="searchKeyword()"
-            (input)="onSearchInput($event)"
-            [attr.aria-label]="localization.evaluations.searchAria"
-          />
-        </div>
-      </section>
-
-      <!-- Evaluation Data Table -->
-      <section class="ui-table-card table-card">
-        <div class="ui-table-wrap table-container">
-          <table class="ui-table evaluation-table">
-            <thead>
-              <tr>
-                <th class="th-code">{{localization.evaluations.colCode}}</th>
-                <th class="th-name">{{localization.evaluations.colName}}</th>
-                <th class="th-position">{{localization.evaluations.colPosition}}</th>
-                <th class="th-quantitative text-right">
-                  {{localization.evaluations.colQuantitative}}
-                </th>
-                <th class="th-qualitative text-right">
-                  {{localization.evaluations.colQualitative}}
-                </th>
-                <th class="th-total text-right">{{localization.evaluations.colTotal}}</th>
-                <th class="th-status text-center">{{localization.evaluations.colStatus}}</th>
-                <th class="th-attention text-center">
-                  {{localization.evaluations.colAttention}}
-                </th>
-                <th class="th-updated text-center">{{localization.evaluations.colUpdated}}</th>
-                <th class="th-action text-right"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of displayedEvaluations(); track item.employeeId) {
+          <div class="kpi-table-wrap">
+            <table class="kpi-table">
+              <thead>
                 <tr>
-                  <td class="td-code">{{item.employeeCode}}</td>
-                  <td class="td-name">{{item.fullName}}</td>
-                  <td class="td-position">{{item.jobPositionTitle}}</td>
-                  <td class="td-quantitative text-right">
-                    @if (item.quantitativeScore !== null) {
-                      {{item.quantitativeScore | appNumber: 2}}
-                      @if (item.quantitativeScoreChange !== null) {
-                        <span
-                          class="score-change"
-                          [class.score-up]="item.quantitativeScoreChange > 0"
-                          [class.score-down]="item.quantitativeScoreChange < 0"
-                          [title]="localization.evaluations.scoreChangeTitle"
-                        >
-                          {{scoreChangeText(item.quantitativeScoreChange)}}
-                        </span>
-                      }
-                    } @else {
-                      <span class="text-muted">{{localization.evaluations.noData}}</span>
-                    }
-                  </td>
-                  <td class="td-qualitative text-right">
-                    @if (item.qualitativeScore !== null) {
-                      {{item.qualitativeScore | appNumber: 2}}
-                    } @else {
-                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
-                    }
-                  </td>
-                  <td class="td-total text-right">
-                    @if (item.totalScore !== null) {
-                      <strong class="total-score">{{item.totalScore | appNumber: 2}}</strong>
-                    } @else {
-                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
-                    }
-                  </td>
-                  <td class="td-status text-center">
-                    @switch (listStatus(item)) {
-                      @case ('DRAFT') {
-                        <span class="badge badge-draft">{{localization.evaluations.statusDraft}}</span>
-                      }
-                      @case ('COMPLETED') {
-                        <span class="badge badge-completed">{{localization.evaluations.statusCompleted}}</span>
-                      }
-                      @case ('NOT_EVALUATED') {
-                        <span class="badge badge-unscored">{{localization.evaluations.statusNotEvaluated}}</span>
-                      }
-                    }
-                  </td>
-                  <td class="td-attention text-center">
-                    @if (needsAttention(item)) {
-                      @if (item.pendingSubmissionCount > 0) {
-                        <a
-                          class="badge badge-warning badge-link"
-                          routerLink="/my-work"
-                          [queryParams]="{ employeeCode: item.employeeCode }"
-                          [attr.aria-label]="pendingReviewLinkText(item)"
-                          >{{item.pendingSubmissionCount}}
-                          {{localization.evaluations.pendingReviewSuffix}}</a
-                        >
-                      }
-                      @if (item.hasOpenDispute) {
-                        <span class="badge badge-danger">{{localization.evaluations.disputeOpen}}</span>
-                      }
-                    } @else {
-                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
-                    }
-                  </td>
-                  <td class="td-updated text-center">
-                    @if (item.updatedAt) {
-                      {{item.updatedAt | appDate}}
-                    } @else {
-                      <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
-                    }
-                  </td>
-                  <td class="td-action text-right">
-                    @if (item.canEvaluate) {
-                      <button
-                        type="button"
-                        class="btn-action evaluate"
-                        (click)="openEvaluationForm(item)"
-                      >
-                        {{localization.evaluations.actionEvaluate}}
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        class="btn-action view"
-                        (click)="openEvaluationForm(item)"
-                      >
-                        {{localization.evaluations.actionView}}
-                      </button>
-                    }
-                  </td>
+                  <th class="th-kpi">{{localization.evaluations.dashboard.colKpi}}</th>
+                  <th class="th-actual text-right">
+                    {{localization.evaluations.dashboard.colActual}}
+                  </th>
+                  <th class="th-rate text-right">
+                    {{localization.evaluations.dashboard.colRate}}
+                  </th>
+                  <th class="th-delta text-center">
+                    {{localization.evaluations.dashboard.colDelta}}
+                  </th>
+                  <th class="th-score text-right">
+                    {{localization.evaluations.dashboard.colScore}}
+                  </th>
                 </tr>
-              } @empty {
-                <tr>
-                  <td colspan="10" class="ui-empty-cell text-muted text-center">
-                    {{listStateText()}}
-                  </td>
-                </tr>
+              </thead>
+              <tbody>
+                @for (group of kpiGroups(); track group.displayOrder; let gIdx = $index) {
+                  <tr class="group-row">
+                    <td colspan="4" class="group-name">
+                      {{kpiGroupHeader(group)}}
+                    </td>
+                    <td class="group-score text-right font-mono">
+                      @if (group.averageScore !== null) {
+                        {{group.averageScore | appNumber: 1}}
+                      }
+                    </td>
+                  </tr>
+                  @for (row of group.kpis; track row.kpiDefinitionId) {
+                    <tr class="item-row">
+                      <td class="td-label">{{row.name}}</td>
+                      <td class="td-actual text-right font-mono font-bold">
+                        {{formatKpiActual(row)}}
+                      </td>
+                      <td
+                        class="td-rate text-right font-mono font-semibold"
+                        [class.text-success]="(row.achievementPercent ?? 0) >= 100"
+                        [class.text-danger]="
+                          row.achievementPercent !== null && row.achievementPercent < 100
+                        "
+                      >
+                        @if (row.achievementPercent !== null) {
+                          {{row.achievementPercent | appNumber: 0}}%
+                        } @else {
+                          <span class="muted">{{emptyValue}}</span>
+                        }
+                      </td>
+                      <td class="change">
+                        @if (row.changeFromPreviousPercent !== null) {
+                          <span class="diverge" [class]="tone(row.changeFromPreviousPercent)">
+                            <span class="half neg">
+                              @if (row.changeFromPreviousPercent < 0) {
+                                <i class="mono">{{signedText(row.changeFromPreviousPercent)}}%</i>
+                                <span
+                                  class="bar"
+                                  [style.width.%]="kpiChangeBarWidth(row.changeFromPreviousPercent)"
+                                ></span>
+                              }
+                            </span>
+                            <span class="axis" aria-hidden="true"></span>
+                            <span class="half pos">
+                              @if (row.changeFromPreviousPercent >= 0) {
+                                <span
+                                  class="bar"
+                                  [style.width.%]="kpiChangeBarWidth(row.changeFromPreviousPercent)"
+                                ></span>
+                                <i class="mono">{{signedText(row.changeFromPreviousPercent)}}%</i>
+                              }
+                            </span>
+                          </span>
+                        } @else {
+                          <span class="muted center-text">{{emptyValue}}</span>
+                        }
+                      </td>
+                      <td class="td-score text-right font-mono font-bold">
+                        @if (kpiConvertedScore(group, row); as convScore) {
+                          {{convScore | appNumber: 1}}
+                        } @else {
+                          <span class="muted">{{emptyValue}}</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="text-muted text-center">
+                      {{localization.evaluations.emptyList}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <!-- Phải: Vận hành công việc & Xu hướng điểm 6 kỳ -->
+        <article class="panel panel-ops">
+          <div class="panel-head">
+            <h2 class="panel-title font-heading">
+              {{localization.evaluations.dashboard.opsPanelTitle}}
+            </h2>
+            <p class="panel-subtitle">{{opsPanelSubtitleText()}}</p>
+          </div>
+
+          <div class="ops-stat-grid">
+            <div class="ops-stat-card ops-success">
+              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsOnTime}}</span>
+              <div class="ops-stat-value font-mono">
+                {{onTimeDone()}}
+                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
+              </div>
+            </div>
+
+            <div class="ops-stat-card ops-danger">
+              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsOverdue}}</span>
+              <div class="ops-stat-value font-mono">
+                {{overdueCount()}}
+                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
+              </div>
+            </div>
+
+            <div class="ops-stat-card ops-info">
+              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsInProgress}}</span>
+              <div class="ops-stat-value font-mono">
+                {{inProgressCount()}}
+                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="trend-section">
+            <div class="trend-head">
+              <h3 class="trend-title font-heading">
+                {{localization.evaluations.dashboard.trendTitle}}
+              </h3>
+            </div>
+            <div class="trend-chart-wrap">
+              <svg
+                class="trend-bar-svg"
+                [attr.viewBox]="'0 0 ' + trendWidth + ' ' + trendHeight"
+                role="img"
+                [attr.aria-label]="localization.evaluations.dashboard.trendTitle"
+              >
+                @for (tick of trendTicks(); track tick.value) {
+                  <line
+                    class="chart-grid"
+                    [attr.x1]="trendLeft"
+                    [attr.x2]="trendWidth - 8"
+                    [attr.y1]="tick.y"
+                    [attr.y2]="tick.y"
+                  />
+                  <text class="chart-tick" [attr.x]="trendLeft - 6" [attr.y]="tick.y + 3">
+                    {{tick.label}}
+                  </text>
+                }
+                @for (bar of trendBars(); track bar.periodId) {
+                  <g [class.is-current]="bar.isCurrent">
+                    @if (bar.average !== null) {
+                      <rect
+                        class="trend-bar"
+                        [attr.x]="bar.x"
+                        [attr.y]="bar.y"
+                        [attr.width]="bar.width"
+                        [attr.height]="bar.height"
+                        rx="4"
+                      />
+                      <text class="chart-val" [attr.x]="bar.center" [attr.y]="bar.y - 5">
+                        {{bar.valueLabel}}
+                      </text>
+                    }
+                    <text class="chart-label" [attr.x]="bar.center" [attr.y]="trendHeight - 16">
+                      {{bar.nameHead}}
+                    </text>
+                    <text
+                      class="chart-label chart-label-sub"
+                      [attr.x]="bar.center"
+                      [attr.y]="trendHeight - 4"
+                    >
+                      {{bar.nameTail}}
+                    </text>
+                  </g>
+                }
+              </svg>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Section 2 (Block 2): Biểu đồ cột hiệu suất cán bộ (có phân trang + chú thích hạng) & Biểu đồ phân bổ công việc & SLA -->
+      <section class="block-grid block-2">
+        <!-- Trái: Biểu đồ cột hiệu suất nhân viên -->
+        <article class="panel panel-staff-chart">
+          <div class="panel-head-row">
+            <div class="panel-head">
+              <h2 class="panel-title font-heading">
+                {{localization.evaluations.dashboard.staffChartTitle}}
+              </h2>
+            </div>
+
+            @if (staffChartTotalPages() > 1 || staffChartBars().length > 0) {
+              <div class="chart-pager">
+                <button
+                  type="button"
+                  class="pager-btn"
+                  [disabled]="staffChartPage() <= 1"
+                  (click)="changeStaffChartPage(-1)"
+                >
+                  ‹ {{localization.evaluations.dashboard.staffChartPrev}}
+                </button>
+                <span class="pager-info font-mono">{{staffChartPageText()}}</span>
+                <button
+                  type="button"
+                  class="pager-btn"
+                  [disabled]="staffChartPage() >= staffChartTotalPages()"
+                  (click)="changeStaffChartPage(1)"
+                >
+                  {{localization.evaluations.dashboard.staffChartNext}} ›
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (staffChartBars().length) {
+            <div class="staff-chart-wrap">
+              <svg
+                class="staff-bar-svg"
+                [attr.viewBox]="'0 0 ' + staffChartWidth + ' ' + staffChartHeight"
+                role="img"
+                [attr.aria-label]="localization.evaluations.dashboard.staffChartTitle"
+              >
+                @for (tick of staffChartTicks(); track tick.value) {
+                  <line
+                    class="chart-grid"
+                    [attr.x1]="staffChartLeft"
+                    [attr.x2]="staffChartWidth - 6"
+                    [attr.y1]="tick.y"
+                    [attr.y2]="tick.y"
+                  />
+                  <text class="chart-tick" [attr.x]="staffChartLeft - 5" [attr.y]="tick.y + 3">
+                    {{tick.label}}
+                  </text>
+                }
+                @for (bar of staffChartBars(); track bar.employeeId) {
+                  <g>
+                    <rect
+                      class="staff-col-bar"
+                      [class]="staffBarClass(bar.tierCode)"
+                      [attr.x]="bar.x"
+                      [attr.y]="bar.y"
+                      [attr.width]="bar.width"
+                      [attr.height]="bar.height"
+                      rx="3"
+                    />
+                    <text class="chart-val" [attr.x]="bar.center" [attr.y]="bar.y - 4">
+                      {{bar.scoreLabel}}
+                    </text>
+                    <text
+                      class="chart-label"
+                      [attr.x]="bar.center"
+                      [attr.y]="staffChartHeight - 12"
+                    >
+                      {{bar.shortName}}
+                    </text>
+                    <text
+                      class="chart-label chart-label-sub"
+                      [attr.x]="bar.center"
+                      [attr.y]="staffChartHeight - 2"
+                    >
+                      {{bar.employeeCode}}
+                    </text>
+                  </g>
+                }
+              </svg>
+            </div>
+          } @else {
+            <p class="text-muted text-center">
+              {{localization.evaluations.dashboard.staffChartEmpty}}
+            </p>
+          }
+
+          <div class="tier-mini-legend">
+            <div class="tier-mini-chips">
+              <span class="tier-mini-title">{{localization.evaluations.dashboard.tierLegendTitle}}</span>
+              @for (tier of tierItems(); track tier.tierCode) {
+                <span class="tier-mini-chip">
+                  <i [class]="'tier-dot ' + staffBarClass(tier.tierCode)" aria-hidden="true"></i>
+                  <b>{{tier.tierCode}}</b>
+                  <small class="font-mono"
+                    >({{tierShortRangeText(tier)}} · {{tier.count}})</small
+                  >
+                </span>
               }
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </div>
+        </article>
 
-        <!-- Table Footer -->
-        <div class="table-footer">
-          <span class="footer-summary">{{footerSummaryText()}}</span>
-        </div>
+        <!-- Phải: Biểu đồ phân bổ công việc & SLA -->
+        <article class="panel panel-task-chart">
+          <div class="panel-head-row">
+            <div class="panel-head">
+              <h2 class="panel-title font-heading">
+                {{localization.evaluations.dashboard.taskChartTitle}}
+              </h2>
+            </div>
+
+            <div class="task-chart-actions">
+              <div class="view-toggle" role="group">
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  [class.is-active]="taskViewMode() === 'dept'"
+                  (click)="setTaskViewMode('dept')"
+                >
+                  {{localization.evaluations.dashboard.taskViewDept}}
+                </button>
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  [class.is-active]="taskViewMode() === 'staff'"
+                  (click)="setTaskViewMode('staff')"
+                >
+                  {{localization.evaluations.dashboard.taskViewStaff}}
+                </button>
+              </div>
+
+              @if (
+                taskViewMode() === 'staff' &&
+                (staffChartTotalPages() > 1 || staffTaskStackedBars().length > 0)
+              ) {
+                <div class="chart-pager">
+                  <button
+                    type="button"
+                    class="pager-btn"
+                    [disabled]="staffChartPage() <= 1"
+                    (click)="changeStaffChartPage(-1)"
+                  >
+                    ‹ {{localization.evaluations.dashboard.staffChartPrev}}
+                  </button>
+                  <span class="pager-info font-mono">{{staffChartPageText()}}</span>
+                  <button
+                    type="button"
+                    class="pager-btn"
+                    [disabled]="staffChartPage() >= staffChartTotalPages()"
+                    (click)="changeStaffChartPage(1)"
+                  >
+                    {{localization.evaluations.dashboard.staffChartNext}} ›
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (taskViewMode() === 'dept') {
+            <div class="task-dist-summary">
+              <div class="task-dist-metric">
+                <span class="task-dist-label">{{localization.evaluations.dashboard.taskChartTotal}}</span>
+                <strong class="task-dist-val font-mono">
+                  {{totalTrackedTasks()}}
+                  <small>{{localization.evaluations.dashboard.opsTaskUnit}}</small>
+                </strong>
+              </div>
+              <div class="task-dist-metric">
+                <span class="task-dist-label">{{localization.evaluations.dashboard.taskChartSlaRate}}</span>
+                <strong class="task-dist-val font-mono text-success">
+                  {{onTimeRate() === null ? emptyValue : (onTimeRate()! | appNumber: 1) + '%'}}
+                </strong>
+              </div>
+            </div>
+
+            <div
+              class="task-stack-track"
+              role="img"
+              [attr.aria-label]="localization.evaluations.dashboard.taskChartTitle"
+            >
+              @for (seg of taskDistributionSegments(); track seg.key) {
+                <span [class]="'task-seg seg-' + seg.key" [style.width.%]="seg.sharePercent"></span>
+              }
+            </div>
+
+            <div class="task-dist-bars">
+              @for (seg of taskDistributionSegments(); track seg.key) {
+                <div class="task-bar-row">
+                  <div class="task-bar-head">
+                    <span class="task-bar-name">
+                      <i [class]="'task-dot seg-' + seg.key" aria-hidden="true"></i>
+                      {{seg.label}}
+                    </span>
+                    <span class="task-bar-stats font-mono">
+                      <b>{{seg.count}}</b> {{localization.evaluations.dashboard.opsTaskUnit}} ·
+                      {{seg.sharePercent | appNumber: 1}}%
+                    </span>
+                  </div>
+                  <div class="task-bar-track">
+                    <span
+                      [class]="'task-bar-fill seg-' + seg.key"
+                      [style.width.%]="seg.sharePercent"
+                    ></span>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            @if (staffTaskStackedBars().length) {
+              <div class="staff-chart-wrap">
+                <svg
+                  class="staff-bar-svg"
+                  [attr.viewBox]="'0 0 ' + staffChartWidth + ' ' + staffChartHeight"
+                  role="img"
+                  [attr.aria-label]="localization.evaluations.dashboard.taskChartTitle"
+                >
+                  @for (tick of staffTaskChartTicks(); track tick.value) {
+                    <line
+                      class="chart-grid"
+                      [attr.x1]="staffChartLeft"
+                      [attr.x2]="staffChartWidth - 6"
+                      [attr.y1]="tick.y"
+                      [attr.y2]="tick.y"
+                    />
+                    <text class="chart-tick" [attr.x]="staffChartLeft - 5" [attr.y]="tick.y + 3">
+                      {{tick.label}}
+                    </text>
+                  }
+                  @for (bar of staffTaskStackedBars(); track bar.employeeId) {
+                    <g class="staff-task-col">
+                      @for (seg of bar.segments; track seg.key) {
+                        <rect
+                          [class]="'staff-task-seg seg-' + seg.key"
+                          [attr.x]="bar.x"
+                          [attr.y]="seg.y"
+                          [attr.width]="bar.width"
+                          [attr.height]="seg.height"
+                          rx="2"
+                        />
+                      }
+                      <text class="chart-val" [attr.x]="bar.center" [attr.y]="bar.topY - 4">
+                        {{bar.slaLabel}}
+                      </text>
+                      <text
+                        class="chart-label"
+                        [attr.x]="bar.center"
+                        [attr.y]="staffChartHeight - 12"
+                      >
+                        {{bar.shortName}}
+                      </text>
+                      <text
+                        class="chart-label chart-label-sub"
+                        [attr.x]="bar.center"
+                        [attr.y]="staffChartHeight - 2"
+                      >
+                        {{bar.employeeCode}}
+                      </text>
+                    </g>
+                  }
+                </svg>
+              </div>
+            } @else {
+              <p class="text-muted text-center">
+                {{localization.evaluations.dashboard.taskChartEmpty}}
+              </p>
+            }
+
+            <div class="tier-mini-legend">
+              <div class="tier-mini-chips">
+                @for (seg of taskDistributionSegments(); track seg.key) {
+                  <span class="tier-mini-chip">
+                    <i [class]="'task-dot seg-' + seg.key" aria-hidden="true"></i>
+                    <b>{{seg.label}}</b>
+                  </span>
+                }
+              </div>
+            </div>
+          }
+        </article>
       </section>
 
-      <!-- Bottom Alert Banner -->
-      <section class="banner-alert">
-        <strong class="banner-bold">{{localization.evaluations.bannerNoteBold}}</strong>
-        <span class="banner-text"> {{bannerText()}}</span>
+      <!-- Section 3 (Block 3): Bảng tổng hợp cán bộ -->
+      <section class="section-block block-3">
+        <article class="panel panel-table">
+          <header class="table-panel-header">
+            <div class="table-title-group">
+              <h2 class="panel-title font-heading">
+                {{localization.evaluations.dashboard.section3Title}}
+              </h2>
+            </div>
+
+            <div class="table-filters">
+              <span class="delta-legend">
+                {{localization.evaluations.dashboard.colDelta}}: <i class="legend-dot up"></i
+                >{{localization.evaluations.dashboard.legendIncrease}}
+                <i class="legend-dot down"></i
+                >{{localization.evaluations.dashboard.legendDecrease}}
+              </span>
+
+              <select
+                class="filter-select"
+                [value]="positionFilter()"
+                (change)="onPositionFilterChange($event)"
+                [attr.aria-label]="localization.evaluations.dashboard.filterPosition"
+              >
+                <option value="">{{localization.evaluations.dashboard.allPositions}}</option>
+                @for (pos of availablePositions(); track pos) {
+                  <option [value]="pos">{{pos}}</option>
+                }
+              </select>
+
+              <select
+                class="filter-select"
+                [value]="tierFilter()"
+                (change)="onTierFilterChange($event)"
+                [attr.aria-label]="localization.evaluations.dashboard.filterTier"
+              >
+                <option value="">{{localization.evaluations.dashboard.allTiers}}</option>
+                <option value="A1">{{localization.evaluations.dashboard.tierBadge.A1}}</option>
+                <option value="A2">{{localization.evaluations.dashboard.tierBadge.A2}}</option>
+                <option value="A3">{{localization.evaluations.dashboard.tierBadge.A3}}</option>
+                <option value="B">{{localization.evaluations.dashboard.tierBadge.B}}</option>
+                <option value="C">{{localization.evaluations.dashboard.tierBadge.C}}</option>
+                <option value="NONE">
+                  {{localization.evaluations.dashboard.tierBadge.NONE}}
+                </option>
+              </select>
+
+              <select
+                class="filter-select"
+                [value]="statusFilter()"
+                (change)="onStatusFilterChange($event)"
+                [attr.aria-label]="localization.evaluations.dashboard.filterStatus"
+              >
+                <option value="">{{localization.evaluations.dashboard.allStatuses}}</option>
+                <option value="FINAL">{{localization.evaluations.dashboard.status.FINAL}}</option>
+                <option value="APPEAL">
+                  {{localization.evaluations.dashboard.status.APPEAL}}
+                </option>
+                <option value="PIP">{{localization.evaluations.dashboard.status.PIP}}</option>
+                <option value="PENDING">
+                  {{localization.evaluations.dashboard.status.PENDING}}
+                </option>
+              </select>
+
+              <select
+                class="filter-select"
+                [value]="sortBy()"
+                (change)="onSortChange($event)"
+                [attr.aria-label]="localization.evaluations.dashboard.sortBy"
+              >
+                <option value="scoreDesc">
+                  {{localization.evaluations.dashboard.sortScoreDesc}}
+                </option>
+                <option value="scoreAsc">
+                  {{localization.evaluations.dashboard.sortScoreAsc}}
+                </option>
+                <option value="changeAsc">
+                  {{localization.evaluations.dashboard.sortChangeAsc}}
+                </option>
+                <option value="slaAsc">{{localization.evaluations.dashboard.sortSlaAsc}}</option>
+                <option value="nameAsc">
+                  {{localization.evaluations.dashboard.sortNameAsc}}
+                </option>
+              </select>
+
+              <div class="search-box">
+                <app-layout-icon name="search" class="search-icon" />
+                <input
+                  type="text"
+                  class="search-input"
+                  [placeholder]="localization.evaluations.dashboard.searchPlaceholder"
+                  [value]="searchKeyword()"
+                  (input)="onSearchInput($event)"
+                  [attr.aria-label]="localization.evaluations.dashboard.searchAria"
+                />
+              </div>
+            </div>
+          </header>
+
+          <div class="table-container">
+            <table class="staff-table">
+              <thead>
+                <tr>
+                  <th class="th-staff">{{localization.evaluations.dashboard.colStaff}}</th>
+                  @for (group of profileGroups(); track group.name) {
+                    <th class="text-right">{{group.name}}</th>
+                  }
+                  <th class="text-right">{{localization.evaluations.dashboard.colTotal}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colDelta}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colTier}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colSla}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colStatus}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colAction}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of pagedFilteredStaff(); track item.employeeId) {
+                  <tr>
+                    <td>
+                      <div class="staff-cell">
+                        <span class="staff-name font-bold">{{item.fullName}}</span>
+                        <span class="staff-meta font-mono"
+                          >{{item.employeeCode}} · {{item.jobPositionTitle}}</span
+                        >
+                      </div>
+                    </td>
+                    @for (group of profileGroups(); track group.name) {
+                      <td class="text-right font-mono">
+                        @if (staffGroupScore(item, group.name); as gScore) {
+                          {{gScore | appNumber: 1}}
+                        }
+                      </td>
+                    }
+                    <td
+                      class="text-right font-mono font-bold"
+                      [class.text-danger]="item.tierCode === 'C' || item.tierCode === 'D'"
+                      [class.text-muted]="item.totalScore === null"
+                    >
+                      {{item.totalScore === null ? emptyValue : (item.totalScore | appNumber: 1)}}
+                    </td>
+                    <td class="change">
+                      @if (item.scoreDelta !== null) {
+                        <span class="diverge" [class]="tone(item.scoreDelta)">
+                          <span class="half neg">
+                            @if (item.scoreDelta < 0) {
+                              <i class="mono">{{signedText(item.scoreDelta)}}</i>
+                              <span
+                                class="bar"
+                                [style.width.%]="staffChangeBarWidth(item.scoreDelta)"
+                              ></span>
+                            }
+                          </span>
+                          <span class="axis" aria-hidden="true"></span>
+                          <span class="half pos">
+                            @if (item.scoreDelta >= 0) {
+                              <span
+                                class="bar"
+                                [style.width.%]="staffChangeBarWidth(item.scoreDelta)"
+                              ></span>
+                              <i class="mono">{{signedText(item.scoreDelta)}}</i>
+                            }
+                          </span>
+                        </span>
+                      } @else {
+                        <span class="muted center-text">{{emptyValue}}</span>
+                      }
+                    </td>
+                    <td class="text-center">
+                      <span
+                        class="badge-tier"
+                        [class]="
+                          'badge-tier-' + (item.tierCode ? item.tierCode.toLowerCase() : 'none')
+                        "
+                      >
+                        {{tierBadgeText(item.tierCode)}}
+                      </span>
+                    </td>
+                    <td
+                      class="text-center font-mono"
+                      [class.text-danger]="
+                        item.onTimeSlaPercent !== null && item.onTimeSlaPercent < 85
+                      "
+                    >
+                      {{item.onTimeSlaPercent === null
+                          ? emptyValue
+                          : (item.onTimeSlaPercent | appNumber: 1) + '%'}}
+                    </td>
+                    <td class="text-center">
+                      <span
+                        class="badge-status"
+                        [class]="'badge-status-' + item.status.toLowerCase()"
+                      >
+                        {{statusText(item.status)}}
+                      </span>
+                    </td>
+                    <td class="text-center">
+                      @if (item.canOpenForm) {
+                        <button type="button" class="btn-view-link" (click)="openStaffForm(item)">
+                          {{localization.evaluations.dashboard.actionView}}
+                        </button>
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td [attr.colspan]="7 + profileGroups().length" class="text-muted text-center">
+                      {{localization.evaluations.emptyList}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <footer class="table-footer">
+            <span class="footer-summary">
+              {{paginationText()}}
+            </span>
+            <div class="chart-pager">
+              <button
+                type="button"
+                class="pager-btn"
+                [disabled]="staffChartPage() <= 1"
+                (click)="changeStaffChartPage(-1)"
+              >
+                ‹ {{localization.evaluations.dashboard.staffChartPrev}}
+              </button>
+              <span class="pager-info font-mono">{{staffChartPageText()}}</span>
+              <button
+                type="button"
+                class="pager-btn"
+                [disabled]="staffChartPage() >= staffChartTotalPages()"
+                (click)="changeStaffChartPage(1)"
+              >
+                {{localization.evaluations.dashboard.staffChartNext}} ›
+              </button>
+            </div>
+          </footer>
+        </article>
       </section>
     </main>
   </div>

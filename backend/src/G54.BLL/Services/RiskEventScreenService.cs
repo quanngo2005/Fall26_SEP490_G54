@@ -19,7 +19,8 @@ public sealed class RiskEventScreenService(
     IPermissionService permissions,
     IStorageService storage,
     ILogger<RiskEventScreenService> logger,
-    IOptions<SystemParametersOptions>? parameters = null) : IRiskEventScreenService
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : IRiskEventScreenService
 {
     public const string RecordedState = "RECORDED";
     public const string ReversedState = "REVERSED";
@@ -200,6 +201,13 @@ public sealed class RiskEventScreenService(
         await db.SaveChangesAsync(cancellationToken);
 
         LogAction(logger, "REVERSE", riskEvent.Id, caller.Id, null);
+        if (notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.RiskEventReversed(riskEvent, riskEvent.Employee, caller),
+                cancellationToken);
+        }
+
         var reversed = await EventQuery().FirstAsync(e => e.Id == riskEventId, cancellationToken);
         return await BuildDetailsAsync(reversed, caller, cancellationToken);
     }

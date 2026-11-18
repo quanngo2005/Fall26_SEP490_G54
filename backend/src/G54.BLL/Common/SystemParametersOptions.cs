@@ -32,6 +32,9 @@ public sealed class SystemParametersOptions
     public decimal RiskPenaltyCritical { get; set; } = 20m;
     public decimal UnitUnderperformanceThresholdPercent { get; set; } = 70m;
     public decimal UnitPenaltyMultiplier { get; set; } = 0.8m;
+    public decimal EvalKpiMetThresholdPercent { get; set; } = 100m;
+    public decimal EvalKpiNearThresholdPercent { get; set; } = 85m;
+    public int EvalCommentMaxLength { get; set; } = 1000;
 
     // Group 4: Quota & Ranking Distribution (QUOTA_RANKING)
     public decimal TierAQuotaPercent { get; set; } = 20m;

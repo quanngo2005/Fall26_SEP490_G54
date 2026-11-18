@@ -16,7 +16,8 @@ namespace G54.BLL.Services;
 public sealed class WorkTransactionService(
     AppDbContext db,
     TimeProvider time,
-    IOptions<SystemParametersOptions>? parameters = null) : IWorkTransactionService
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : IWorkTransactionService
 {
     private const int DefaultMaxCodes = 10;
     private const int MaxCodeLength = 100;
@@ -86,6 +87,7 @@ public sealed class WorkTransactionService(
         }
 
         await CompleteIfAllMatchedAsync(work, ct);
+        await NotifyMismatchedAsync([(work, added)], ct);
         return await ToDtoAsync(work, ct);
     }
 
@@ -154,6 +156,10 @@ public sealed class WorkTransactionService(
         {
             await CompleteIfAllMatchedAsync(works[workId], ct);
         }
+
+        await NotifyMismatchedAsync(
+            pending.GroupBy(p => p.WorkId).Select(g => (works[g.Key], (IReadOnlyCollection<WorkTransaction>)g.ToList())),
+            ct);
 
         return new ReconcileSummaryDto(
             pending.Count(i => i.Status == WorkTransactionStatus.Matched),
@@ -281,6 +287,46 @@ public sealed class WorkTransactionService(
         return fileReferrer is { } fromFile
             ? (null, new VerifiedResultRecorder.ImportedReferral(fromFile, TaskHandover.DefaultReferrerSharePercent))
             : (null, null);
+    }
+
+    private async Task NotifyMismatchedAsync(
+        IEnumerable<(Work Work, IReadOnlyCollection<WorkTransaction> Items)> workGroups,
+        CancellationToken ct)
+    {
+        if (notifier is null)
+        {
+            return;
+        }
+
+        var mismatchedByWork = workGroups
+            .Select(g => (
+                g.Work,
+                Mismatched: g.Items
+                    .Where(i => i.Status == WorkTransactionStatus.NotMatched)
+                    .Select(i => (i.TransactionCode, i.Reason))
+                    .ToList()))
+            .Where(g => g.Mismatched.Count > 0)
+            .ToList();
+        if (mismatchedByWork.Count == 0)
+        {
+            return;
+        }
+
+        var assigneeIds = mismatchedByWork.Select(g => g.Work.AssigneeEmployeeId).Distinct().ToList();
+        var assignees = await db.Employees.AsNoTracking()
+            .Where(e => assigneeIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, ct);
+
+        var drafts = new List<NotificationDraft>();
+        foreach (var (work, mismatched) in mismatchedByWork)
+        {
+            if (assignees.TryGetValue(work.AssigneeEmployeeId, out var assignee))
+            {
+                drafts.AddRange(AutomaticNotifications.TransactionMismatched(work, assignee, mismatched));
+            }
+        }
+
+        await notifier.TryPublishAsync(drafts, ct);
     }
 
     private async Task CompleteIfAllMatchedAsync(Work work, CancellationToken ct)

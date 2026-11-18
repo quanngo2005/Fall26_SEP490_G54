@@ -210,6 +210,7 @@ public sealed class WorkDetailServiceTests
         var work = await CreateWorkAsync(env, "Xác minh", "Tạo tài khoản", "Kích hoạt OTP", "Hướng dẫn");
         await env.Service.SetChecklistItemAsync(work.Id, work.ChecklistItems![0].Id, env.Assignee.Id, new WorkChecklistItemStateDto { IsDone = true });
         await env.Service.SetChecklistItemAsync(work.Id, work.ChecklistItems![1].Id, env.Assignee.Id, new WorkChecklistItemStateDto { IsDone = true });
+        env.Notifier.Drafts.Clear();
 
         var detail = await env.Service.UpdatePlanAsync(work.Id, env.Manager.Id, new UpdateWorkPlanDto
         {
@@ -274,6 +275,7 @@ public sealed class WorkDetailServiceTests
         var env = await CreateEnvAsync([CreateAll]);
         using var db = env.Db;
         var work = await CreateWorkAsync(env, "A");
+        env.Notifier.Drafts.Clear();
 
         await env.Service.UpdatePlanAsync(work.Id, env.Manager.Id, new UpdateWorkPlanDto { PlannedEndDate = work.PlannedEndDate });
 
@@ -287,6 +289,7 @@ public sealed class WorkDetailServiceTests
         var env = await CreateEnvAsync([CreateAll]);
         using var db = env.Db;
         var work = await CreateWorkAsync(env, "A");
+        env.Notifier.Drafts.Clear();
 
         await env.Service.UpdatePlanAsync(work.Id, env.Manager.Id, new UpdateWorkPlanDto { PlannedEndDate = work.PlannedEndDate, Note = "Nhớ gọi trước" });
 

@@ -366,6 +366,76 @@ public sealed class NotificationServiceTests : IDisposable
         Assert.Equal(_colleague.Id, await Service().GetEmployeeIdAsync(_colleague.Id));
     }
 
+    [Fact]
+    public async Task GetMine_FiltersByReadOnlyTypeSeverityAndKeyword_AndRejectsInvalidEnums()
+    {
+        await ArrangeAsync();
+        _db.Notifications.AddRange(
+            new Notification
+            {
+                RecipientEmployeeId = _colleague.Id,
+                Type = NotificationType.Announcement,
+                Severity = NotificationSeverity.Normal,
+                Title = "Họp định kỳ",
+                Body = "Báo cáo tuần",
+                CreatedAt = Now.AddHours(-3),
+                ReadAt = Now.AddHours(-2),
+            },
+            new Notification
+            {
+                RecipientEmployeeId = _colleague.Id,
+                Type = NotificationType.TransactionMismatch,
+                Severity = NotificationSeverity.Important,
+                Title = "Mã giao dịch đối soát không khớp",
+                Body = "TX-999 sai sản phẩm",
+                CreatedAt = Now.AddHours(-1),
+            },
+            new Notification
+            {
+                RecipientEmployeeId = _colleague.Id,
+                Type = NotificationType.SystemAlert,
+                Severity = NotificationSeverity.Important,
+                Title = "Cảnh báo lỗi hệ thống",
+                Body = "TraceId abc-123",
+                CreatedAt = Now,
+            });
+        await _db.SaveChangesAsync();
+
+        var readOnly = await Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Unread = false });
+        Assert.Single(readOnly.Items);
+        Assert.True(readOnly.Items[0].IsRead);
+
+        var byType = await Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Type = "TRANSACTION_MISMATCH" });
+        Assert.Equal("TRANSACTION_MISMATCH", Assert.Single(byType.Items).Type);
+
+        var bySeverity = await Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Severity = "IMPORTANT" });
+        Assert.Equal(2, bySeverity.TotalCount);
+
+        var byKeywordRead = await Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Unread = true, Type = "SYSTEM_ALERT" });
+        Assert.Equal("SYSTEM_ALERT", Assert.Single(byKeywordRead.Items).Type);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Type = "NOT_A_TYPE" }));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service().GetMineAsync(_colleague.Id, new NotificationFilterDto { Severity = "URGENT" }));
+    }
+
+    [Fact]
+    public async Task GetSendableRecipients_RespectsDeptAndAllScope_AndExcludesSender()
+    {
+        await ArrangeAsync();
+
+        var deptRecipients = await Service("Dept").GetSendableRecipientsAsync(_manager.Id);
+        Assert.Equal(2, deptRecipients.Count);
+        Assert.DoesNotContain(deptRecipients, r => r.Id == _manager.Id || r.Id == _outsider.Id);
+
+        var allRecipients = await Service("All").GetSendableRecipientsAsync(_manager.Id);
+        Assert.Equal(3, allRecipients.Count);
+        Assert.Contains(allRecipients, r => r.Id == _outsider.Id);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(sendScope: null).GetSendableRecipientsAsync(_manager.Id));
+    }
+
     private sealed class FixedTime : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;

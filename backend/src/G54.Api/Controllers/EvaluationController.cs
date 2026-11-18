@@ -17,6 +17,8 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class EvaluationController(IEvaluationService service) : ControllerBase
 {
+    private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     /// <summary>
     /// Gets the evaluation form pre-populated with employee details, criteria structure, and quantitative ledger actuals.
     /// </summary>
@@ -28,10 +30,36 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     public async Task<ActionResult<ApiResponse<EvaluationFormDto>>> GetEvaluationForm(
         [FromQuery] Guid employeeId,
         [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the employee's performance evaluation report for the selected period (`/evaluations/form`) to an Excel workbook (`.xlsx`).
+    /// </summary>
+    [HttpGet("form/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<IActionResult> ExportEvaluationForm(
+        [FromQuery] Guid employeeId,
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportEvaluationFormAsync(
+            employeeId,
+            periodId,
+            User.GetRequiredUserId(),
+            comparePeriodId,
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>
@@ -82,6 +110,54 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets the Department Evaluation &amp; Performance Dashboard overview for the caller's department (`/evaluations`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard")]
+    [ProducesResponseType<ApiResponse<DepartmentEvaluationDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<DepartmentEvaluationDashboardDto>>> GetDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the Department Evaluation &amp; Performance Dashboard (`/evaluations`) to an Excel workbook (`.xlsx`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<IActionResult> ExportDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>
