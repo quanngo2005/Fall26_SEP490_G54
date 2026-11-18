@@ -65,7 +65,8 @@ public sealed class EvaluationAcknowledgeTests : IDisposable
         _db,
         NullLogger<EvaluationService>.Instance,
         new FakePermissionService(null),
-        new PerformanceScoreCalculator(_db, new PerformanceScoreFormula()));
+        new PerformanceScoreCalculator(_db, new PerformanceScoreFormula()),
+        new RecordingNotifier());
 
     private Employee AddEmployee(string code, Department department, JobPosition position)
     {

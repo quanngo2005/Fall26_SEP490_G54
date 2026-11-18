@@ -113,6 +113,7 @@ Các sự kiện **đã có** thông báo (người nhận → `type`). Người
 | Trưởng phòng trình duyệt bảng hiệu chuẩn | Mọi Giám đốc chi nhánh đang hoạt động và quản lý trực tiếp của người trình (`IMPORTANT`) | `CALIBRATION_SUBMITTED`, `relatedType = EVALUATION_PERIOD` |
 | Giám đốc chi nhánh duyệt / trả lại hiệu chuẩn | Các Trưởng phòng của phòng đó (`IMPORTANT`) | `CALIBRATION_DECIDED` |
 | Khóa kỳ đánh giá (công bố kết quả) | Mọi nhân viên đang hoạt động có đánh giá trong kỳ (`IMPORTANT`) | `RESULT_PUBLISHED` |
+| Kỳ đánh giá bị khóa khi kết quả còn `SUBMITTED` / `UNDER_REVIEW`, kết quả được chuyển sang kỳ kế tiếp | Người nộp kết quả (`IMPORTANT`), mỗi người một thông báo | `RESULT_CARRIED_OVER`, `relatedType = EVALUATION_PERIOD` (kỳ nhận kết quả) |
 | Duyệt / từ chối kế hoạch chiến dịch | Người tham gia chiến dịch (`IMPORTANT` khi từ chối) | `CAMPAIGN_DECIDED` |
 | Duyệt KPI | Người trình và người yêu cầu KPI (`IMPORTANT`) | `KPI_APPROVED` / `KPI_REJECTED` |
 | Duyệt / từ chối hồ sơ đánh giá | Mọi Admin đang hoạt động (`IMPORTANT`) | `EVALUATION_PROFILE_DECIDED` |

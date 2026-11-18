@@ -97,6 +97,24 @@ internal static class AutomaticNotifications
             work.Id);
     }
 
+    /// <summary>
+    /// A period was locked while a submitter's result was still SUBMITTED/UNDER_REVIEW: the result was carried over
+    /// to <paramref name="nextPeriod"/>, so each distinct submitter is told where their pending result now lives.
+    /// No clean way exists yet to resolve "the department manager" of an arbitrary department from BLL (the only
+    /// such resolution lives as a private heuristic inside DepartmentService), so only submitters are notified.
+    /// </summary>
+    public static List<NotificationDraft> ResultSubmissionsCarriedOver(IReadOnlyCollection<Guid> submitterEmployeeIds, EvaluationPeriod nextPeriod) =>
+        submitterEmployeeIds
+            .Select(employeeId => new NotificationDraft(
+                employeeId,
+                NotificationType.ResultCarriedOver,
+                "Kết quả của bạn được chuyển sang kỳ mới",
+                $"Kỳ đánh giá đã được khóa khi kết quả của bạn còn đang chờ xử lý; kết quả đã được chuyển sang kỳ {nextPeriod.Code} - {nextPeriod.Name}.",
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                nextPeriod.Id))
+            .ToList();
+
     /// <summary>A manager assigned a new work item to an employee.</summary>
     public static NotificationDraft? WorkAssigned(Work work, Employee assignee, Employee creator)
     {

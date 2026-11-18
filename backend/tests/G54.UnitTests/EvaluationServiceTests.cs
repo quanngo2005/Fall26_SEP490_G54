@@ -23,7 +23,8 @@ public sealed class EvaluationServiceTests
         return new AppDbContext(options);
     }
 
-    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(bool seedDowngradeConfiguration = true)
+    private static (AppDbContext Context, EvaluationService Service) CreateTestEnvironment(
+        bool seedDowngradeConfiguration = true, INotifier? notifier = null)
     {
         var context = CreateInMemoryDbContext();
         if (seedDowngradeConfiguration)
@@ -39,7 +40,11 @@ public sealed class EvaluationServiceTests
             new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE"),
             new UserPermissionDto("evaluation", "finalize", "All", "EVALUATION_FINALIZE"));
         var service = new EvaluationService(
-            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            context,
+            NullLogger<EvaluationService>.Instance,
+            permissions,
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            notifier ?? new RecordingNotifier());
         return (context, service);
     }
 
@@ -599,7 +604,11 @@ public sealed class EvaluationServiceTests
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"));
         var service = new EvaluationService(
-            context, NullLogger<EvaluationService>.Instance, permissions, new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            context,
+            NullLogger<EvaluationService>.Instance,
+            permissions,
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier());
         var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
         var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
         await AddScoredEvaluationAsync(context, staff, period, profile, 98m);
@@ -975,6 +984,290 @@ public sealed class EvaluationServiceTests
         Assert.Contains("APPROVAL_COMMENTS", updatedEval.Comment);
     }
 
+    // ----- Carry-over: a result still SUBMITTED/UNDER_REVIEW when the period locks moves to the next period -----
+
+    private static ResultSubmission AddResultSubmission(
+        AppDbContext context, Employee submitter, SubmissionStatus status, DateTimeOffset submittedAt, Guid? carriedOverToPeriodId = null)
+    {
+        var submission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = Guid.NewGuid(),
+            SubmitterEmployeeId = submitter.Id,
+            SubmissionNo = 1,
+            Status = status,
+            SubmittedAt = submittedAt,
+            UpdatedAt = submittedAt,
+            CarriedOverToPeriodId = carriedOverToPeriodId,
+        };
+        context.ResultSubmissions.Add(submission);
+        return submission;
+    }
+
+    private static EvaluationPeriod MonthPeriod(string code, DateOnly start, DateOnly end, PeriodStatus status = PeriodStatus.Open) => new()
+    {
+        Id = Guid.NewGuid(),
+        Code = code,
+        Name = code,
+        PeriodType = PeriodType.Month,
+        StartDate = start,
+        EndDate = end,
+        Status = status,
+        UpdatedAt = DateTimeOffset.UtcNow,
+    };
+
+    private sealed class ThrowingNotifier : INotifier
+    {
+        public Task PublishAsync(IReadOnlyCollection<NotificationDraft> drafts, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("notifier is down");
+
+        public Task TryPublishAsync(IReadOnlyCollection<NotificationDraft> drafts, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("notifier is down");
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_CarriesOverPendingResults_ToTheNextPeriod_AndNotifiesSubmitters()
+    {
+        var notifier = new RecordingNotifier();
+        var (context, service) = CreateTestEnvironment(notifier: notifier);
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var nextPeriod = MonthPeriod("2026-11", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+        context.EvaluationPeriods.Add(nextPeriod);
+
+        var otherSubmitter = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV777",
+            FullName = "Nhân viên khác",
+            Email = "other@progest.local",
+            DepartmentId = staff.DepartmentId,
+            JobPositionId = staff.JobPositionId,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        context.Employees.Add(otherSubmitter);
+
+        var submittedAt = new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero);
+        var s1 = AddResultSubmission(context, staff, SubmissionStatus.Submitted, submittedAt);
+        var s2 = AddResultSubmission(context, otherSubmitter, SubmissionStatus.UnderReview, submittedAt);
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal("LOCKED", result.PeriodStatus);
+        Assert.Equal(2, result.CarriedOverResults);
+        Assert.Equal(nextPeriod.Id, result.CarriedOverToPeriodId);
+        Assert.Equal(0, result.PendingWithoutTargetPeriod);
+
+        Assert.Equal(nextPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == s1.Id)).CarriedOverToPeriodId);
+        Assert.Equal(nextPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == s2.Id)).CarriedOverToPeriodId);
+
+        Assert.Equal(2, notifier.Drafts.Count);
+        Assert.All(notifier.Drafts, d => Assert.Equal(NotificationType.ResultCarriedOver, d.Type));
+        Assert.Contains(notifier.Drafts, d => d.RecipientEmployeeId == staff.Id);
+        Assert.Contains(notifier.Drafts, d => d.RecipientEmployeeId == otherSubmitter.Id);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_CarriesOverToTheNextPeriod_EvenWithAGapBetweenPeriods()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        // A gap of a few days between the locked period and the next one of the same type is fine.
+        var nextPeriod = MonthPeriod("2026-11-gap", period.EndDate.AddDays(3), period.EndDate.AddDays(33));
+        context.EvaluationPeriods.Add(nextPeriod);
+        var submission = AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal(nextPeriod.Id, result.CarriedOverToPeriodId);
+        Assert.Equal(1, result.CarriedOverResults);
+        Assert.Equal(nextPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == submission.Id)).CarriedOverToPeriodId);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_SkipsAnInReviewPeriod_AndCarriesOverToTheNextOpenOne()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var inReview = MonthPeriod("2026-11-review", period.EndDate.AddDays(1), period.EndDate.AddDays(30));
+        inReview.Status = PeriodStatus.InReview;
+        var open = MonthPeriod("2026-12-open", period.EndDate.AddDays(31), period.EndDate.AddDays(61));
+        context.EvaluationPeriods.AddRange(inReview, open);
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal(open.Id, result.CarriedOverToPeriodId);
+        Assert.Equal(1, result.CarriedOverResults);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_WithNoNextPeriod_StillLocks_AndLeavesPendingResultsUnchanged()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var submittedAt = new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero);
+        var s1 = AddResultSubmission(context, staff, SubmissionStatus.Submitted, submittedAt);
+        var s2 = AddResultSubmission(context, staff, SubmissionStatus.UnderReview, submittedAt);
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal("LOCKED", result.PeriodStatus);
+        Assert.Equal(0, result.CarriedOverResults);
+        Assert.Null(result.CarriedOverToPeriodId);
+        Assert.Equal(2, result.PendingWithoutTargetPeriod);
+
+        var stored1 = await context.ResultSubmissions.SingleAsync(r => r.Id == s1.Id);
+        var stored2 = await context.ResultSubmissions.SingleAsync(r => r.Id == s2.Id);
+        Assert.Null(stored1.CarriedOverToPeriodId);
+        Assert.Null(stored2.CarriedOverToPeriodId);
+        Assert.Equal(SubmissionStatus.Submitted, stored1.Status);
+        Assert.Equal(SubmissionStatus.UnderReview, stored2.Status);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_DoesNotCarryOverApprovedRejectedOrDraftSubmissions()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var nextPeriod = MonthPeriod("2026-11", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+        context.EvaluationPeriods.Add(nextPeriod);
+        var submittedAt = new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero);
+        var approved = AddResultSubmission(context, staff, SubmissionStatus.Approved, submittedAt);
+        var rejected = AddResultSubmission(context, staff, SubmissionStatus.Rejected, submittedAt);
+        var draft = AddResultSubmission(context, staff, SubmissionStatus.Draft, submittedAt);
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal(0, result.CarriedOverResults);
+        Assert.Null(result.CarriedOverToPeriodId);
+        foreach (var id in new[] { approved.Id, rejected.Id, draft.Id })
+        {
+            Assert.Null((await context.ResultSubmissions.SingleAsync(r => r.Id == id)).CarriedOverToPeriodId);
+        }
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_ACarriedResult_IsCarriedAgain_WhenItsNewPeriodAlsoLocks()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var nextPeriod = MonthPeriod("2026-11", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+        var thirdPeriod = MonthPeriod("2026-12", new DateOnly(2026, 12, 1), new DateOnly(2026, 12, 31));
+        context.EvaluationPeriods.AddRange(nextPeriod, thirdPeriod);
+        var submission = AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var first = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+        Assert.Equal(nextPeriod.Id, first.CarriedOverToPeriodId);
+        Assert.Equal(nextPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == submission.Id)).CarriedOverToPeriodId);
+
+        var second = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(nextPeriod.Id), manager.Id);
+
+        Assert.Equal("LOCKED", second.PeriodStatus);
+        Assert.Equal(thirdPeriod.Id, second.CarriedOverToPeriodId);
+        Assert.Equal(1, second.CarriedOverResults);
+        Assert.Equal(thirdPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == submission.Id)).CarriedOverToPeriodId);
+    }
+
+    [Fact]
+    public async Task FinalizeAndLockPeriodAsync_WhenTheNotifierThrows_StillLocksAndCarriesOver()
+    {
+        var (context, service) = CreateTestEnvironment(notifier: new ThrowingNotifier());
+        var (_, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var nextPeriod = MonthPeriod("2026-11", new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+        context.EvaluationPeriods.Add(nextPeriod);
+        var submission = AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var result = await service.FinalizeAndLockPeriodAsync(new FinalizeEvaluationPeriodRequestDto(period.Id), manager.Id);
+
+        Assert.Equal("LOCKED", result.PeriodStatus);
+        Assert.Equal(1, result.CarriedOverResults);
+        Assert.Equal(nextPeriod.Id, (await context.ResultSubmissions.SingleAsync(r => r.Id == submission.Id)).CarriedOverToPeriodId);
+        Assert.Equal(PeriodStatus.Locked, (await context.EvaluationPeriods.SingleAsync(p => p.Id == period.Id)).Status);
+    }
+
+    // ----- Pre-close check: IN_REVIEW_SUBMISSIONS is non-blocking, and its count uses the business-day boundary -----
+
+    private static async Task<(AppDbContext Context, EvaluationService Service, EvaluationPeriod Period, Employee Manager, Employee Staff)>
+        PrepareForPreCloseCheckAsync()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (_, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        // Pre-close passes every other item: the department's only evaluation is FINAL, and the Core Banking
+        // import covers the whole period.
+        var profile = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id);
+        await AddScoredEvaluationAsync(context, staff, period, profile, 90m, PerformanceEvaluationStatus.Final);
+        var progress = await context.ActualProgresses.SingleAsync();
+        progress.ProgressDate = period.EndDate;
+        await context.SaveChangesAsync();
+
+        return (context, service, period, manager, staff);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheckAsync_InReviewSubmissions_IsNonBlocking_WhileEverythingElsePasses()
+    {
+        var (context, service, period, manager, staff) = await PrepareForPreCloseCheckAsync();
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var overview = await service.GetPreCloseCheckAsync(period.Id, manager.Id);
+
+        var inReviewItem = overview.Items.Single(i => i.Code == "IN_REVIEW_SUBMISSIONS");
+        Assert.False(inReviewItem.IsPassed);
+        Assert.False(inReviewItem.IsBlocking);
+        Assert.True(overview.CanPublish);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheckAsync_InReviewCount_UsesTheBusinessDayBoundary_NotUtcMidnight()
+    {
+        var (context, service, period, manager, staff) = await PrepareForPreCloseCheckAsync();
+        // 23:30 Vietnam time on the period's last day (Oct 31) = 16:30 UTC -> inside the period.
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 31, 16, 30, 0, TimeSpan.Zero));
+        // 00:30 Vietnam time the next day (Nov 1) = 17:30 UTC on Oct 31 -> outside the period.
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 31, 17, 30, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var overview = await service.GetPreCloseCheckAsync(period.Id, manager.Id);
+
+        Assert.Equal(1, overview.Items.Single(i => i.Code == "IN_REVIEW_SUBMISSIONS").RemainingCount);
+    }
+
+    [Fact]
+    public async Task GetPreCloseCheckAsync_InReviewCount_IncludesResultsOfTeamMembers()
+    {
+        var (context, service, period, manager, staff) = await PrepareForPreCloseCheckAsync();
+        var team = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "D-SALES-T1",
+            Name = "Nhóm 1",
+            LevelType = DepartmentLevelType.Team,
+            ParentDepartmentId = staff.DepartmentId,
+            Status = RecordStatus.Active,
+            LastSyncAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        context.Departments.Add(team);
+        staff.DepartmentId = team.Id;
+        AddResultSubmission(context, staff, SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 15, 4, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+
+        var overview = await service.GetPreCloseCheckAsync(period.Id, manager.Id);
+
+        Assert.Equal(1, overview.Items.Single(i => i.Code == "IN_REVIEW_SUBMISSIONS").RemainingCount);
+    }
+
     // ----- BR-31: Disputed_Pending scores are hidden from ranking and block the lock --------
 
     private static async Task<(Employee Peer, PerformanceEvaluation Disputed, PerformanceEvaluation Ranked)> SeedDisputedAndRankedAsync(
@@ -1118,6 +1411,7 @@ public sealed class EvaluationServiceTests
             service.FinalizeAndLockPeriodAsync(request, manager.Id));
 
         Assert.Equal(ErrorCodes.Conflict, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
     }
 
     // ----- Qualitative scores: keyed by the root group of the profile tree ---------------------
@@ -1153,7 +1447,8 @@ public sealed class EvaluationServiceTests
             null,
             new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
             new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT")),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier());
 
     [Fact]
     public async Task SubmitEvaluationAsync_Complete_ThrowsValidation_WhenCommentIsBlank()
@@ -1775,6 +2070,7 @@ public sealed class EvaluationServiceTests
             NullLogger<EvaluationService>.Instance,
             permissions,
             new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier(),
             parameters: options);
 
         var validText = new string('a', 60);
@@ -1890,6 +2186,7 @@ public sealed class EvaluationServiceTests
             NullLogger<EvaluationService>.Instance,
             permissions,
             new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier(),
             time: fixedTime,
             parameters: options);
 
@@ -1990,7 +2287,8 @@ public sealed class EvaluationServiceTests
                 new UserPermissionDto("evaluation", "read", "All", "EVALUATION_READ"),
                 new UserPermissionDto("evaluation", "submit", "All", "EVALUATION_SUBMIT"),
                 new UserPermissionDto("evaluation", "calibrate", "All", "EVALUATION_CALIBRATE")),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier());
         return (context, check, service, interceptor);
     }
 
