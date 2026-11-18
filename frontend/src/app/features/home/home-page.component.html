@@ -3,14 +3,18 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content">
-      <section class="welcome-card">
-        <p class="eyebrow">{{localization.home.workspace}}</p>
-        <h1>
-          {{localization.home.welcome}},
-          {{currentUser()?.fullName ?? localization.home.fallbackName}}.
-        </h1>
-        <p>{{localization.home.signedIn}}</p>
-      </section>
+      @if (showQaDashboard()) {
+        <app-qa-dashboard />
+      } @else {
+        <section class="welcome-card">
+          <p class="eyebrow">{{localization.home.workspace}}</p>
+          <h1>
+            {{localization.home.welcome}},
+            {{currentUser()?.fullName ?? localization.home.fallbackName}}.
+          </h1>
+          <p>{{localization.home.signedIn}}</p>
+        </section>
+      }
     </main>
   </div>
 </div>
