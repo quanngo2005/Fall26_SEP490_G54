@@ -286,7 +286,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000002b', 'RISK_EVENT_RESOLVE', 'Giải quyết sự kiện rủi ro', 'risk_event', 'resolve'),
  ('5eed0000-0000-0000-0009-00000000002c', 'RISK_EVENT_REVERSE', 'Gỡ điểm phạt sự kiện rủi ro', 'risk_event', 'reverse'),
  ('5eed0000-0000-0000-0009-00000000002d', 'SYSTEM_PARAMETER_VIEW',   'Xem tham số hệ thống',      'system_parameter', 'view'),
- ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update')
+ ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update'),
+ ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -319,6 +320,7 @@ FROM (VALUES
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
     ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
     ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
+    ('QA', 'NOTIFICATION_READ', 'Own'), ('VERIFIER', 'NOTIFICATION_READ', 'Own'), ('HR_OFFICER', 'NOTIFICATION_READ', 'Own'),
     ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('QA', 'TRANSACTION_IMPORT_MANAGE', 'All'),
@@ -332,7 +334,17 @@ FROM (VALUES
     ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
     -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).
     ('ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
-    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All')
+    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
+    -- Reconciliation (docs/api/RECONCILIATION_CONTRACT.md); the migration GrantReconciliationRead grants the same on an existing database.
+    ('QA', 'RECONCILIATION_READ', 'All'), ('ADMIN', 'RECONCILIATION_READ', 'All'), ('SYSTEM_ADMIN', 'RECONCILIATION_READ', 'All'),
+    ('BRANCH_MANAGER', 'RECONCILIATION_READ', 'Branch'), ('MANAGER', 'RECONCILIATION_READ', 'Dept'),
+    ('DEPT_MANAGER', 'RECONCILIATION_READ', 'Dept'),
+    -- The verifier is the QA of the system (the sidebar maps VERIFIER to the QA workspace): same grants as QA; the migration
+    -- GrantQaPermissionsToVerifier does it on an existing database.
+    ('VERIFIER', 'RECONCILIATION_READ', 'All'), ('VERIFIER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'),
+    ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
+    ('VERIFIER', 'RISK_EVENT_CREATE', 'All'), ('VERIFIER', 'RISK_EVENT_READ', 'All'), ('VERIFIER', 'RISK_EVENT_CONFIRM', 'All'), ('VERIFIER', 'RISK_EVENT_DISMISS', 'All'), ('VERIFIER', 'RISK_EVENT_RESOLVE', 'All'), ('VERIFIER', 'RISK_EVENT_REVERSE', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
@@ -2531,3 +2543,80 @@ FROM verified_work_result vr
 WHERE vr.work_transaction_id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
   AND EXISTS (SELECT 1 FROM actual_progress WHERE id = '5eed0000-0000-0000-0045-000000000001')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- Demo notifications (GB-914: inbox, bell dropdown, filters, deep links)
+-- ============================================================================
+INSERT INTO notification (id, recipient_employee_id, sender_employee_id, type, severity, title, body, related_type, related_id, created_at, read_at)
+SELECT n.id::uuid, rec.id, snd.id, n.type, n.severity, n.title, n.body, n.related_type, n.related_id::uuid, now() - n.age, CASE WHEN n.is_read THEN now() - (n.age / 2) END
+FROM (VALUES
+    -- Demo Employee (NV012: employee@bpms.com)
+    ('5eed0000-0000-0000-0050-000000000001', 'NV012', 'NV011', 'ANNOUNCEMENT', 'IMPORTANT',
+     'Họp triển khai chỉ tiêu Quý 4/2026',
+     'Đề nghị toàn bộ cán bộ Phòng Kinh doanh có mặt tại phòng họp tầng 3 lúc 08:30 sáng mai để rà soát tiến độ huy động vốn cuối năm.',
+     NULL, NULL, interval '15 minutes', FALSE),
+    ('5eed0000-0000-0000-0050-000000000002', 'NV012', 'NV011', 'SUBMISSION_DECIDED', 'IMPORTANT',
+     'Kết quả công việc bị từ chối',
+     'Hồ sơ nộp #1 của công việc DEMO-REJECTED-NV012 - Hồ sơ huy động tiền gửi bị từ chối đã bị từ chối bởi Demo Manager. Ý kiến: Thiếu chữ ký xác nhận trên chứng từ huy động.',
+     'SUBMISSION', '5eed0000-0000-0000-0017-0000000000a1', interval '2 hours', FALSE),
+    ('5eed0000-0000-0000-0050-000000000003', 'NV012', 'NV011', 'WORK_ASSIGNED', 'NORMAL',
+     'Bạn được giao công việc mới',
+     'Demo Manager đã giao cho bạn công việc W-2026-0007 - Mở tài khoản cho KH khu Đống Đa (hạn 31/12/2026).',
+     'WORK', '5eed0000-0000-0000-0016-000000000007', interval '5 hours', FALSE),
+    ('5eed0000-0000-0000-0050-000000000004', 'NV012', NULL, 'TARGET_REVISED', 'IMPORTANT',
+     'Chỉ tiêu của bạn đã được phân bổ',
+     'Chỉ tiêu KH_MOI (Khách hàng mới) Quý 4/2026 đã được kích hoạt với định mức 30 khách hàng. Vui lòng xác nhận hoặc gửi phản hồi.',
+     'TARGET', '5eed0000-0000-0000-0015-00000000000f', interval '1 day', TRUE),
+
+    -- Teller / Sales Officer NV004 (chau.le@progest.local)
+    ('5eed0000-0000-0000-0050-000000000005', 'NV004', NULL, 'TRANSACTION_MISMATCH', 'IMPORTANT',
+     'Mã giao dịch đối soát không khớp',
+     'Công việc W-DEMO-TX-NOTMATCHED - Classic card - codes not matched có 2 mã giao dịch không khớp Core Banking: TX-DEMO-002 (sai mã sản phẩm), TX-DEMO-003 (sai mã nhân viên).',
+     'WORK', '5eed0000-0000-0000-0042-000000000002', interval '30 minutes', FALSE),
+    ('5eed0000-0000-0000-0050-000000000006', 'NV004', 'NV002', 'ANNOUNCEMENT', 'NORMAL',
+     'Nhắc nhở hoàn tất đối soát mã giao dịch thẻ',
+     'Các giao dịch viên và chuyên viên kinh doanh kiểm tra lại các mã giao dịch đang ở trạng thái Không khớp trước kỳ khóa sổ tháng.',
+     'WORK', '5eed0000-0000-0000-0016-000000000001', interval '4 hours', FALSE),
+
+    -- Demo Manager (NV011: manager@bpms.com)
+    ('5eed0000-0000-0000-0050-000000000007', 'NV011', 'NV012', 'APPEAL_FILED', 'IMPORTANT',
+     'Khiếu nại kết quả mới cần xử lý',
+     'Demo Employee đã gửi khiếu nại kết quả cho hồ sơ mẫu cần đối chiếu lại kết quả: Đề nghị rà soát chứng từ bổ sung.',
+     NULL, NULL, interval '45 minutes', FALSE),
+    ('5eed0000-0000-0000-0050-000000000008', 'NV011', 'NV001', 'ANNOUNCEMENT', 'IMPORTANT',
+     'Rà soát hiệu chuẩn xếp hạng cấp Phòng trước hạn khóa sổ',
+     'Đề nghị các Trưởng phòng hoàn tất chấm điểm định tính và gửi bảng hiệu chuẩn thứ hạng về Ban Giám đốc chi nhánh đúng hạn.',
+     NULL, NULL, interval '3 hours', FALSE),
+    ('5eed0000-0000-0000-0050-000000000009', 'NV011', 'NV004', 'SUBMISSION_SUBMITTED', 'NORMAL',
+     'Hồ sơ kết quả chờ thẩm định',
+     'Lê Minh Châu đã nộp kết quả công việc đang chờ thẩm định trong kỳ.',
+     NULL, NULL, interval '1 day', TRUE),
+
+    -- Branch Manager (NV001: an.nguyen@progest.local)
+    ('5eed0000-0000-0000-0050-00000000000a', 'NV001', 'NV002', 'CALIBRATION_SUBMITTED', 'IMPORTANT',
+     'Bảng hiệu chuẩn phòng ban chờ phê duyệt',
+     'Trần Thị Bình đã trình duyệt bảng hiệu chuẩn xếp hạng của Phòng Kinh doanh cho kỳ đánh giá Quý 3/2026.',
+     'EVALUATION_PERIOD', '5eed0000-0000-0000-000f-000000000002', interval '1 hour', FALSE),
+    ('5eed0000-0000-0000-0050-00000000000b', 'NV001', NULL, 'WORK_OVERDUE', 'NORMAL',
+     'Tổng hợp cảnh báo tiến độ công việc chi nhánh',
+     'Hệ thống ghi nhận một số đầu việc chiến dịch sắp chạm mốc hạn chót Quý 4/2026, đề nghị theo dõi trên bảng điều hành.',
+     NULL, NULL, interval '6 hours', TRUE),
+
+    -- System Admin (NV013: sysadmin@bpms.com)
+    ('5eed0000-0000-0000-0050-00000000000c', 'NV013', NULL, 'IMPORT_COMPLETED_WITH_ERRORS', 'IMPORTANT',
+     'Import giao dịch Core Banking có dòng cảnh báo đối soát',
+     ' Lô import demo-transactions.xlsx đã hoàn tất; một số mã giao dịch của nhân viên đang ở trạng thái lệch sản phẩm/nhân sự cần theo dõi.',
+     'IMPORT_BATCH', '5eed0000-0000-0000-0040-000000000001', interval '25 minutes', FALSE),
+    ('5eed0000-0000-0000-0050-00000000000d', 'NV013', 'NV001', 'KPI_APPROVED', 'IMPORTANT',
+     'KPI đã được phê duyệt ban hành',
+     'KPI THE_TD - Thẻ tín dụng đã được Giám đốc chi nhánh phê duyệt và có hiệu lực áp dụng.',
+     'KPI', '5eed0000-0000-0000-0005-000000000007', interval '3 hours', FALSE),
+    ('5eed0000-0000-0000-0050-00000000000e', 'NV013', NULL, 'SYSTEM_ALERT', 'IMPORTANT',
+     'Cảnh báo bảo mật: Giám sát đăng nhập sai nhiều lần',
+     'Hệ thống phát hiện phiên đăng nhập sai mật khẩu liên tiếp vượt ngưỡng cảnh báo và đã kích hoạt cơ chế khóa tạm thời tự động.',
+     NULL, NULL, interval '2 days', TRUE)
+) AS n(id, recipient_code, sender_code, type, severity, title, body, related_type, related_id, age, is_read)
+JOIN employee rec ON rec.employee_code = n.recipient_code
+LEFT JOIN employee snd ON snd.employee_code = n.sender_code
+ON CONFLICT DO NOTHING;
+

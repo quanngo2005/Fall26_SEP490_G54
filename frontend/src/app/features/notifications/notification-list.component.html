@@ -1,0 +1,354 @@
+@let t = localization.notificationCenter;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <p class="ui-breadcrumb">{{t.breadcrumb}}</p>
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{t.title}}</h1>
+            @if (unreadCount() > 0) {
+              <app-status-badge tone="info">
+                {{i18n.translate('notificationCenter.unreadBadge', { count: unreadCount() })}}
+              </app-status-badge>
+            }
+          </div>
+          <p class="ui-page-subtitle">{{t.description}}</p>
+        </div>
+        <div class="ui-page-actions">
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="unreadCount() === 0 || markingAll()"
+            (click)="markAllRead()"
+          >
+            {{t.markAllRead}}
+          </button>
+          @if (canSend()) {
+            <button type="button" class="button button-primary" (click)="openSend()">
+              {{t.sendButton}}
+            </button>
+          }
+        </div>
+      </header>
+
+      <form class="ui-filter-bar" (ngSubmit)="applyFilters()">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="search"
+            name="keyword"
+            class="input search-input"
+            [class.has-clear]="keyword()"
+            [ngModel]="keyword()"
+            (ngModelChange)="keyword.set($event)"
+            [placeholder]="t.search"
+            [attr.aria-label]="t.search"
+          />
+          @if (keyword()) {
+            <button
+              type="button"
+              class="ui-search-clear"
+              [attr.aria-label]="t.clearSearch"
+              (click)="keyword.set('')"
+            >
+              ×
+            </button>
+          }
+        </div>
+        <app-ui-select
+          [options]="readOptions()"
+          [value]="readFilter()"
+          [ariaLabel]="t.filterStatus"
+          (valueChange)="readFilter.set($event)"
+        />
+        <app-ui-select
+          [options]="typeOptions()"
+          [value]="typeFilter()"
+          [ariaLabel]="t.filterType"
+          (valueChange)="typeFilter.set($event)"
+        />
+        <app-ui-select
+          [options]="severityOptions()"
+          [value]="severityFilter()"
+          [ariaLabel]="t.filterSeverity"
+          (valueChange)="severityFilter.set($event)"
+        />
+        <button type="submit" class="button button-primary">{{t.apply}}</button>
+        @if (hasFilters()) {
+          <button type="button" class="ui-filter-clear" (click)="clearFilters()">
+            {{t.clear}}
+          </button>
+        }
+      </form>
+
+      @if (loading() && items().length === 0) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>{{t.loading}}</span>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{t.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{t.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="ui-table-card">
+          <div class="ui-table-wrap">
+            <table class="ui-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="col-state">
+                    <span class="visually-hidden">{{t.colState}}</span>
+                  </th>
+                  <th scope="col">{{t.colMessage}}</th>
+                  <th scope="col">{{t.colType}}</th>
+                  <th scope="col">{{t.colSender}}</th>
+                  <th scope="col">{{t.colTime}}</th>
+                  <th scope="col">
+                    <span class="visually-hidden">{{t.colAction}}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of items(); track item.id) {
+                  <tr [class.is-unread]="!item.isRead" [class.is-clickable]="hasLink(item)">
+                    <td class="col-state">
+                      <span
+                        class="state-dot"
+                        [class.is-unread]="!item.isRead"
+                        [class.is-important]="item.severity === 'IMPORTANT'"
+                        [attr.title]="item.isRead ? t.stateRead : t.stateUnread"
+                      ></span>
+                      <span class="visually-hidden">
+                        {{item.isRead ? t.stateRead : t.stateUnread}}
+                      </span>
+                    </td>
+                    <td class="message-cell">
+                      <span class="message-title">{{item.title}}</span>
+                      @if (item.body) {
+                        <span class="message-body">{{item.body}}</span>
+                      }
+                    </td>
+                    <td class="col-nowrap">
+                      <app-status-badge
+                        [tone]="item.severity === 'IMPORTANT' ? 'danger' : 'neutral'"
+                      >
+                        {{typeLabel(item.type)}}
+                      </app-status-badge>
+                    </td>
+                    <td>{{item.senderName ?? t.system}}</td>
+                    <td class="col-mono">{{time(item.createdAt)}}</td>
+                    <td class="col-actions">
+                      <button
+                        type="button"
+                        class="ui-action-btn"
+                        [attr.aria-label]="
+                          i18n.translate('notificationCenter.openFor', { title: item.title })
+                        "
+                        (click)="open(item)"
+                      >
+                        {{hasLink(item) ? t.open : t.markRead}}
+                      </button>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" class="ui-empty-cell">{{t.empty}}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <app-table-pagination
+            [page]="page()"
+            [pageSize]="pageSize"
+            [totalCount]="totalCount()"
+            [rangeText]="i18n.translate('notificationCenter.totalCount', { count: totalCount() })"
+            [alwaysShowPages]="true"
+            [disabled]="loading()"
+            (pageChange)="goToPage($event)"
+          />
+        </div>
+      }
+    </main>
+  </div>
+</div>
+
+@if (sendOpen()) {
+  <div class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="send-title">
+      <header class="modal-header">
+        <h2 id="send-title">{{t.send.title}}</h2>
+        <button
+          type="button"
+          class="modal-close"
+          [attr.aria-label]="t.send.close"
+          [disabled]="sending()"
+          (click)="closeSend()"
+        >
+          ×
+        </button>
+      </header>
+
+      @if (sentCount() !== null) {
+        <div class="modal-body">
+          <p class="sent-note" role="status">
+            {{i18n.translate('notificationCenter.send.sent', { count: sentCount() ?? 0 })}}
+          </p>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="button button-primary" (click)="sendOpen.set(false); load()">
+            {{t.send.done}}
+          </button>
+        </footer>
+      } @else {
+        <form class="modal-body send-form" (ngSubmit)="send()">
+          <div class="field">
+            <label for="send-title-input">{{t.send.subject}}</label>
+            <input
+              id="send-title-input"
+              class="input"
+              name="title"
+              type="text"
+              [maxlength]="titleMax"
+              [ngModel]="sendTitle()"
+              (ngModelChange)="sendTitle.set($event)"
+              [attr.aria-invalid]="titleInvalid() ? 'true' : null"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="send-body-input">{{t.send.body}}</label>
+            <textarea
+              id="send-body-input"
+              class="textarea"
+              name="body"
+              rows="4"
+              [maxlength]="bodyMax"
+              [ngModel]="sendBody()"
+              (ngModelChange)="sendBody.set($event)"
+            ></textarea>
+          </div>
+          <div class="field severity-field">
+            <label for="send-severity">{{t.send.severity}}</label>
+            <app-ui-select
+              triggerId="send-severity"
+              [options]="severitySendOptions()"
+              [value]="sendSeverity()"
+              [ariaLabel]="t.send.severity"
+              (valueChange)="sendSeverity.set($event)"
+            />
+          </div>
+
+          <fieldset class="field target-field">
+            <legend>{{t.send.recipients}}</legend>
+            <label class="choice">
+              <input
+                type="radio"
+                name="target"
+                value="scope"
+                [checked]="sendTarget() === 'scope'"
+                (change)="sendTarget.set('scope')"
+              />
+              {{t.send.targetScope}}
+            </label>
+            <label class="choice">
+              <input
+                type="radio"
+                name="target"
+                value="picked"
+                [checked]="sendTarget() === 'picked'"
+                (change)="sendTarget.set('picked')"
+              />
+              {{t.send.targetPicked}}
+            </label>
+          </fieldset>
+
+          @if (sendTarget() === 'picked') {
+            <div class="picker">
+              <div class="picker-tools">
+                <input
+                  class="input"
+                  type="search"
+                  name="recipientSearch"
+                  [placeholder]="t.send.searchRecipients"
+                  [attr.aria-label]="t.send.searchRecipients"
+                  [ngModel]="sendSearch()"
+                  (ngModelChange)="sendSearch.set($event)"
+                />
+                <button type="button" class="ui-action-btn" (click)="pickAllVisible()">
+                  {{t.send.pickVisible}}
+                </button>
+                <button type="button" class="ui-action-btn" (click)="clearPicked()">
+                  {{t.send.clearPicked}}
+                </button>
+              </div>
+              <p class="picker-count">
+                {{i18n.translate('notificationCenter.send.pickedCount', {
+                    count: sendPicked().size,
+                  })}}
+              </p>
+              @if (recipientsLoading()) {
+                <p class="picker-state" role="status">{{t.loading}}</p>
+              } @else if (recipientsFailed()) {
+                <p class="picker-state field-error" role="alert">
+                  {{t.send.recipientsFailed}}
+                  <button type="button" class="ui-action-btn" (click)="loadRecipients()">
+                    {{t.retry}}
+                  </button>
+                </p>
+              } @else {
+                <ul class="picker-list">
+                  @for (r of visibleRecipients(); track r.id) {
+                    <li>
+                      <label class="choice">
+                        <input
+                          type="checkbox"
+                          [checked]="sendPicked().has(r.id)"
+                          (change)="togglePicked(r.id)"
+                        />
+                        <span>
+                          {{r.fullName}}
+                          <small>{{r.employeeCode}} · {{r.departmentName}}</small>
+                        </span>
+                      </label>
+                    </li>
+                  } @empty {
+                    <li class="picker-state">{{t.send.noRecipients}}</li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+
+          @if (sendError(); as message) {
+            <p class="field-error" role="alert">{{message}}</p>
+          }
+        </form>
+        <footer class="modal-footer">
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="sending()"
+            (click)="closeSend()"
+          >
+            {{t.send.cancel}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="sendBlocked()"
+            (click)="send()"
+          >
+            {{sending() ? t.send.sending : t.send.submit}}
+          </button>
+        </footer>
+      }
+    </div>
+  </div>
+}

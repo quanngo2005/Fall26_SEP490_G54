@@ -15,7 +15,8 @@ public sealed class RiskEventService(
     AppDbContext db,
     ILogger<RiskEventService> logger,
     TimeProvider time,
-    IOptions<SystemParametersOptions>? parameters = null) : IRiskEventService
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : IRiskEventService
 {
     private const int MaxEventTypeLength = 50;
     private const int MaxDescriptionLength = 2000;
@@ -38,10 +39,8 @@ public sealed class RiskEventService(
             throw new ForbiddenException("Bạn không thể ghi nhận sự kiện rủi ro cho chính mình.");
         }
 
-        if (!await db.Employees.AnyAsync(e => e.Id == employeeId, cancellationToken))
-        {
-            throw new NotFoundException("Nhân viên", employeeId);
-        }
+        var subject = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
+            ?? throw new NotFoundException("Nhân viên", employeeId);
 
         var riskEvent = new RiskEvent
         {
@@ -77,6 +76,14 @@ public sealed class RiskEventService(
         }
 
         LogAction(logger, request.Record ? "RECORD" : "CREATE", riskEvent.Id, riskEvent.EmployeeId, caller.Id, null);
+        if (request.Record && notifier is not null)
+        {
+            var penalty = contribution?.ComponentScore is { } s ? Math.Abs(s) : (decimal?)null;
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.RiskEventRecorded(riskEvent, subject, caller, penalty),
+                cancellationToken);
+        }
+
         return ToDto(riskEvent, contribution?.Id);
     }
 
@@ -103,6 +110,17 @@ public sealed class RiskEventService(
         await SaveTransitionAsync(cancellationToken);
 
         LogAction(logger, "CONFIRM", riskEvent.Id, riskEvent.EmployeeId, caller.Id, null);
+        if (notifier is not null)
+        {
+            var subject = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == riskEvent.EmployeeId, cancellationToken);
+            if (subject is not null)
+            {
+                await notifier.TryPublishAsync(
+                    AutomaticNotifications.RiskEventRecorded(riskEvent, subject, caller, Math.Abs(contribution.ComponentScore!.Value)),
+                    cancellationToken);
+            }
+        }
+
         return new RiskEventConfirmationDto(
             riskEvent.Id,
             riskEvent.Code,

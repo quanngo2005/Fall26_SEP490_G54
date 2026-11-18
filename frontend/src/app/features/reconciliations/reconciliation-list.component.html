@@ -1,0 +1,244 @@
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && items().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
+
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{localization.reconciliation.title}}</h1>
+          </div>
+          <p class="ui-page-subtitle auto-note">
+            <app-status-badge tone="info">{{localization.reconciliation.autoBadge}}</app-status-badge>
+            <span>{{localization.reconciliation.autoNote}}</span>
+          </p>
+          <p class="ui-page-subtitle">{{localization.reconciliation.sourceNote}}</p>
+        </div>
+        <div class="ui-page-actions">
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="exporting() || loading() || totalCount() === 0"
+            (click)="exportFile()"
+          >
+            {{exporting()
+                ? localization.reconciliation.exporting
+                : localization.reconciliation.export}}
+          </button>
+        </div>
+      </header>
+
+      @if (notice()) {
+        <div class="ui-banner tone-success" role="status">
+          <span>{{notice()}}</span>
+          <button
+            type="button"
+            class="ui-action-btn"
+            [attr.aria-label]="localization.reconciliation.close"
+            (click)="notice.set(null)"
+          >
+            ×
+          </button>
+        </div>
+      }
+      @if (exportFailed()) {
+        <div class="ui-banner tone-danger" role="alert">
+          <span>{{localization.reconciliation.exportFailed}}</span>
+        </div>
+      }
+
+      <div
+        class="status-cards"
+        role="group"
+        [attr.aria-label]="localization.reconciliation.filterStatus"
+      >
+        @for (card of cards(); track card.key) {
+          <button
+            type="button"
+            class="status-card"
+            [class.is-active]="statusFilter() === card.key"
+            [class.is-danger]="card.key === 'NOT_MATCHED'"
+            [attr.aria-pressed]="statusFilter() === card.key"
+            (click)="setStatus(card.key)"
+          >
+            <span class="status-card-label">{{card.label}}</span>
+            <span class="status-card-count">{{card.count | appNumber}}</span>
+          </button>
+        }
+      </div>
+
+      <div class="ui-filter-bar">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="text"
+            class="input search-input"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="setSearch($event)"
+            [attr.aria-label]="localization.reconciliation.searchPlaceholder"
+            [placeholder]="localization.reconciliation.searchPlaceholder"
+          />
+        </div>
+        <app-ui-select
+          [options]="periodOptions()"
+          [value]="periodFilter()"
+          [ariaLabel]="localization.reconciliation.filterPeriod"
+          (valueChange)="setPeriod($event)"
+        />
+        <label class="date-field">
+          <span>{{localization.reconciliation.dateFrom}}</span>
+          <input
+            type="date"
+            class="input"
+            [ngModel]="dateFrom()"
+            [max]="dateTo() || null"
+            (ngModelChange)="setDate('from', $event)"
+          />
+        </label>
+        <label class="date-field">
+          <span>{{localization.reconciliation.dateTo}}</span>
+          <input
+            type="date"
+            class="input"
+            [ngModel]="dateTo()"
+            [min]="dateFrom() || null"
+            (ngModelChange)="setDate('to', $event)"
+          />
+        </label>
+        @if (options().departments.length > 1) {
+          <app-ui-select
+            [options]="departmentOptions()"
+            [value]="departmentFilter()"
+            [ariaLabel]="localization.reconciliation.filterDepartment"
+            (valueChange)="setDepartment($event)"
+          />
+        }
+        <app-ui-select
+          [options]="jobOptions()"
+          [value]="jobFilter()"
+          [ariaLabel]="localization.reconciliation.filterJob"
+          (valueChange)="setJob($event)"
+        />
+        <app-ui-select
+          [options]="productOptions()"
+          [value]="productFilter()"
+          [ariaLabel]="localization.reconciliation.filterProduct"
+          (valueChange)="setProduct($event)"
+        />
+        <app-ui-select
+          [options]="reasonOptions()"
+          [value]="reasonFilter()"
+          [ariaLabel]="localization.reconciliation.filterReason"
+          (valueChange)="setReason($event)"
+        />
+        <button type="button" class="link-action" (click)="saveFilters()">
+          {{localization.reconciliation.saveFilters}}
+        </button>
+        @if (hasFilters()) {
+          <button type="button" class="link-action" (click)="clearFilters()">
+            {{localization.reconciliation.clearFilters}}
+          </button>
+        }
+      </div>
+
+      @if (loading() && items().length === 0) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{localization.reconciliation.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.reconciliation.loadError}}</p>
+          <button type="button" class="button button-secondary" (click)="retry()">
+            {{localization.reconciliation.retry}}
+          </button>
+        </div>
+      } @else {
+        <div class="ui-table-card">
+          <div class="ui-table-wrap is-sticky">
+            <table class="ui-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{localization.reconciliation.colWork}}</th>
+                  <th scope="col">{{localization.reconciliation.colEmployee}}</th>
+                  <th scope="col">{{localization.reconciliation.colTransaction}}</th>
+                  <th scope="col">{{localization.reconciliation.colProduct}}</th>
+                  <th scope="col" class="col-amount">
+                    {{localization.reconciliation.colAmount}}
+                  </th>
+                  <th scope="col">{{localization.reconciliation.colSubmitted}}</th>
+                  <th scope="col">{{localization.reconciliation.colStatus}}</th>
+                  <th scope="col">{{localization.reconciliation.colReason}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of items(); track item.id) {
+                  <tr
+                    class="is-clickable clickable-row"
+                    tabindex="0"
+                    (click)="open(item)"
+                    (keydown.enter)="open(item)"
+                  >
+                    <td class="col-code">{{item.workCode}}</td>
+                    <td class="col-primary">
+                      {{item.employeeCode}} · {{item.employeeName}}
+                      @if (item.jobTitle) {
+                        <span class="sub-line">{{item.jobTitle}}</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="col-mono">{{item.transactionCode}}</span>
+                      @if (item.customerCif) {
+                        <span class="sub-line">{{item.customerCif}}</span>
+                      }
+                      @if (item.referEmployeeCode) {
+                        <span class="sub-line">
+                          {{i18n.translate('reconciliation.referrerLine', {
+                              code: item.referEmployeeCode,
+                            })}}
+                        </span>
+                      }
+                    </td>
+                    <td>{{item.productCode ?? localization.reconciliation.noValue}}</td>
+                    <td class="col-amount">{{amountText(item.amount)}}</td>
+                    <td class="col-nowrap">{{item.submittedAt | appDate: 'DD/MM HH:mm'}}</td>
+                    <td>
+                      <app-status-badge [tone]="tone(item)">{{statusLabel(item.status)}}</app-status-badge>
+                    </td>
+                    <td>{{reasonLabel(item.reason)}}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="8" class="ui-empty-cell">
+                      {{loading()
+                          ? localization.reconciliation.loading
+                          : localization.reconciliation.empty}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <app-table-pagination
+            [page]="page()"
+            [pageSize]="pageSize()"
+            [totalCount]="totalCount()"
+            [rangeText]="showingText()"
+            [ariaLabel]="localization.common.pageInformation"
+            [disabled]="loading()"
+            (pageChange)="goToPage($event)"
+          />
+        </div>
+
+        <p class="ui-table-footnote">{{localization.reconciliation.footnote}}</p>
+      }
+    </main>
+  </div>
+</div>

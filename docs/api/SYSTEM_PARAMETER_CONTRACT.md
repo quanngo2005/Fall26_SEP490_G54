@@ -59,6 +59,9 @@ Seed mặc định: `ADMIN`, `SYSTEM_ADMIN`. Lỗi chung: `401` không token; `4
 | `riskPenaltyCritical` | `SCORING_QA` | `DECIMAL` | `20` | `0`–`100` | `EvaluationService`, `PerformanceScoreCalculator`, `QaDashboardService` |
 | `unitUnderperformanceThresholdPercent` | `SCORING_QA` | `PERCENT` | `70` | `0`–`100` | BR-41 ngưỡng điểm đơn vị |
 | `unitPenaltyMultiplier` | `SCORING_QA` | `DECIMAL` | `0.8` | `0.1`–`1` | BR-41 hệ số điều chỉnh khi đơn vị dưới ngưỡng |
+| `evalKpiMetThresholdPercent` | `SCORING_QA` | `PERCENT` | `100` | `0`–`200` | `EvaluationService` (ngưỡng KPI Đạt & tô màu tốt trên `/evaluations/form`) |
+| `evalKpiNearThresholdPercent` | `SCORING_QA` | `PERCENT` | `85` | `0`–`200` | `EvaluationService` (ngưỡng KPI Cận đích & tô màu cảnh báo trên `/evaluations/form`) |
+| `evalCommentMaxLength` | `SCORING_QA` | `INTEGER` | `1000` | `50`–`5000` | `EvaluationService` (giới hạn độ dài nhận xét trên `/evaluations/form`) |
 | `tierAQuotaPercent` | `QUOTA_RANKING` | `PERCENT` | `20` | `1`–`100` | `EvaluationService` (Calibration, Submit, Branch Approval, Bell Curve) |
 | `tierBTargetPercent` | `QUOTA_RANKING` | `PERCENT` | `60` | `0`–`100` | `EvaluationService` (Bell Curve) |
 | `tierCTargetPercent` | `QUOTA_RANKING` | `PERCENT` | `15` | `0`–`100` | `EvaluationService` (Bell Curve) |

@@ -4,6 +4,7 @@ import {
   DestroyRef,
   HostListener,
   inject,
+  input,
   OnInit,
   output,
   signal,
@@ -25,6 +26,14 @@ import {
   todayInput,
 } from './risk-event-display';
 
+export interface RiskEventPreset {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  workCode?: string;
+  description?: string;
+}
+
 const MAX_PENALTY = 100;
 const MAX_DESCRIPTION = 2000;
 
@@ -44,6 +53,8 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
   private readonly employeesApi = inject(EmployeeService);
   private readonly destroyRef = inject(DestroyRef);
 
+  /** Opens the form with the employee, work and description already filled in (from the reconciliation screen). */
+  readonly preset = input<RiskEventPreset | null>(null);
   readonly created = output<{ code: string; uploadFailed: boolean }>();
   readonly dismissed = output<void>();
 
@@ -66,6 +77,24 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
   protected readonly showValidation = signal(false);
   protected readonly submitting = signal(false);
   protected readonly errorKey = signal<string | null>(null);
+
+  /** The employees to choose from; a preset employee stays listed even when the first 100 employees do not include them. */
+  protected readonly employeeOptions = computed(() => {
+    const list = this.employees().map((e) => ({
+      id: e.id,
+      employeeCode: e.employeeCode,
+      fullName: e.fullName,
+    }));
+    const preset = this.preset();
+    if (preset && !list.some((e) => e.id === preset.employeeId)) {
+      list.unshift({
+        id: preset.employeeId,
+        employeeCode: preset.employeeCode,
+        fullName: preset.employeeName,
+      });
+    }
+    return list;
+  });
 
   protected readonly employeeValid = computed(() => this.employeeId() !== '');
   protected readonly dateValid = computed(
@@ -90,6 +119,13 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
   );
 
   ngOnInit(): void {
+    const preset = this.preset();
+    if (preset) {
+      this.employeeId.set(preset.employeeId);
+      this.workCode.set(preset.workCode ?? '');
+      this.description.set((preset.description ?? '').slice(0, MAX_DESCRIPTION));
+    }
+
     this.employeesApi
       .list({ status: 'ACTIVE', pageSize: 100 })
       .pipe(

@@ -51,9 +51,14 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('app-change-password-dialog')).toBeNull();
   });
 
-  it('blocks the app behind a popup that cannot be dismissed while a one-time password is in use', () => {
+  it('blocks the app behind a popup that cannot be dismissed while a one-time password is in use', async () => {
     const fixture = create({ mustChangePassword: true });
     const el: HTMLElement = fixture.nativeElement;
+    // The dialog is a deferred block: wait for its chunk to load before looking for it.
+    for (let i = 0; i < 100 && !el.querySelector('app-change-password-dialog'); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      fixture.detectChanges();
+    }
 
     expect(el.querySelector('app-change-password-dialog')).not.toBeNull();
     expect(el.querySelector('.modal-close')).toBeNull();

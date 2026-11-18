@@ -1,0 +1,296 @@
+@let t = localization.reconciliation;
+<div class="workspace-layout">
+  <app-sidebar />
+
+  <div class="workspace-main">
+    <app-header />
+
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <nav class="breadcrumb" [attr.aria-label]="t.title">
+        <a routerLink="/reconciliations">{{t.title}}</a>
+        @if (detail(); as d) {
+          <span aria-hidden="true">/</span>
+          <span>{{d.item.workCode}}</span>
+        }
+      </nav>
+
+      @if (loading() && !detail()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{t.loading}}</p>
+        </div>
+      } @else if (errorKey(); as key) {
+        <div class="state-card state-error" role="alert">
+          <p>{{i18n.translate(key)}}</p>
+          <a class="button button-secondary" routerLink="/reconciliations">{{t.detail.back}}</a>
+        </div>
+      } @else if (detail(); as d) {
+        @if (notice()) {
+          <div class="ui-banner tone-success" role="status">
+            <span>{{notice()}}</span>
+            <button
+              type="button"
+              class="ui-action-btn"
+              [attr.aria-label]="t.close"
+              (click)="notice.set(null)"
+            >
+              ×
+            </button>
+          </div>
+        }
+
+        <header class="detail-head">
+          <div class="detail-title">
+            <h1 class="ui-page-title">
+              {{i18n.translate('reconciliation.detail.title', {
+                  work: d.item.workCode,
+                  code: d.item.transactionCode,
+                })}}
+            </h1>
+            <app-status-badge [tone]="tone(d.item.status)">{{statusLabel(d.item.status)}}</app-status-badge>
+            <app-status-badge tone="info">{{t.autoBadge}}</app-status-badge>
+          </div>
+
+          <div class="detail-actions">
+            @if (
+              d.actions.canFlag ||
+              d.actions.canRecordRisk ||
+              d.actions.flagBlockedReason !== 'NO_PERMISSION'
+            ) {
+              @if (d.actions.flagBlockedReason !== 'NO_PERMISSION') {
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  [disabled]="!d.actions.canFlag"
+                  [attr.title]="flagBlockedText(d.actions.flagBlockedReason) || null"
+                  (click)="flagging.set(true)"
+                >
+                  {{t.detail.flag}}
+                </button>
+              }
+              @if (d.actions.canRecordRisk) {
+                <button
+                  type="button"
+                  class="button button-primary"
+                  (click)="recordingRisk.set(true)"
+                >
+                  <span class="plus" aria-hidden="true">+</span> {{t.detail.recordRisk}}
+                </button>
+              }
+            } @else {
+              <span class="view-only">{{t.detail.viewOnly}}</span>
+            }
+          </div>
+        </header>
+
+        <div class="detail-grid">
+          <div class="detail-main">
+            <div class="info-cards">
+              <section class="info-card" [attr.aria-label]="t.detail.submissionCard">
+                <h2 class="card-label">{{t.detail.submissionCard}}</h2>
+                <p class="card-strong">
+                  {{d.item.employeeName}}
+                  @if (d.item.jobTitle) {
+                    · {{d.item.jobTitle}}
+                  }
+                </p>
+                <p class="card-sub">
+                  {{i18n.translate('reconciliation.detail.sentAt', {
+                      time: i18n.formatDate(d.item.submittedAt, 'DD/MM/YYYY HH:mm:ss'),
+                    })}}
+                  @if (d.work.workTypeName) {
+                    ·
+                    {{i18n.translate('reconciliation.detail.workType', {
+                        type: d.work.workTypeName,
+                      })}}
+                  }
+                </p>
+                @if (d.submission; as submission) {
+                  <p class="card-sub">
+                    {{i18n.translate('reconciliation.detail.version', {
+                        no: submission.submissionNo,
+                      })}}
+                  </p>
+                } @else {
+                  <p class="card-sub">{{t.detail.noSubmission}}</p>
+                }
+              </section>
+
+              <section class="info-card" [attr.aria-label]="t.detail.importCard">
+                <h2 class="card-label">{{t.detail.importCard}}</h2>
+                @if (d.import; as file) {
+                  <p class="card-strong">{{file.fileName}}</p>
+                  <p class="card-sub">
+                    {{i18n.translate('reconciliation.detail.importedAt', {
+                        time: i18n.formatDate(file.importedAt, 'DD/MM/YYYY HH:mm'),
+                      })}}
+                    @if (file.importedByName) {
+                      ·
+                      {{i18n.translate('reconciliation.detail.importedBy', {
+                          name: file.importedByName,
+                        })}}
+                    }
+                  </p>
+                } @else {
+                  <p class="card-strong">{{t.detail.noImportTitle}}</p>
+                  <p class="card-sub">{{t.detail.noImport}}</p>
+                }
+              </section>
+            </div>
+
+            <section class="compare-card" [attr.aria-label]="t.detail.compareTitle">
+              <header class="compare-head">
+                <h2>{{t.detail.compareTitle}}</h2>
+                @if (d.import) {
+                  <span class="compare-summary">{{summaryText(d)}}</span>
+                }
+              </header>
+
+              @if (d.siblings.length > 1) {
+                <div class="siblings" role="group" [attr.aria-label]="t.detail.siblings">
+                  <span class="card-sub">{{t.detail.siblings}}</span>
+                  @for (sibling of d.siblings; track sibling.id) {
+                    <button
+                      type="button"
+                      class="sibling-chip"
+                      [class.is-current]="sibling.id === d.item.id"
+                      [attr.aria-current]="sibling.id === d.item.id ? 'true' : null"
+                      (click)="openSibling(sibling)"
+                    >
+                      <span class="col-mono">{{sibling.transactionCode}}</span>
+                      <app-status-badge [tone]="tone(sibling.status)">{{statusLabel(sibling.status)}}</app-status-badge>
+                    </button>
+                  }
+                </div>
+              }
+
+              <div class="table-scroll">
+                <table class="compare-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{{t.detail.colField}}</th>
+                      <th scope="col">{{t.detail.colDeclared}}</th>
+                      <th scope="col">{{t.detail.colImported}}</th>
+                      <th scope="col">{{t.detail.colResult}}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (field of d.fields; track field.field) {
+                      @let kind = resultKind(field, d.import !== null);
+                      <tr [class.is-mismatch]="kind === 'mismatch'">
+                        <th scope="row">{{fieldLabel(field)}}</th>
+                        <td
+                          [class.muted-cell]="field.declared === null || field.field === 'AMOUNT'"
+                        >
+                          {{declaredText(field)}}
+                        </td>
+                        <td
+                          [class.muted-cell]="field.imported === null || d.import === null"
+                          [class.bad-cell]="kind === 'mismatch'"
+                        >
+                          {{importedText(field, d.import !== null)}}
+                        </td>
+                        <td>
+                          <span class="result-chip" [class]="'result-chip kind-' + kind">
+                            {{resultLabel(kind)}}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside class="explain" role="note">
+              <strong>{{t.detail.explainTitle}}</strong>
+              <p>{{t.detail.explainText}}</p>
+              @if (d.item.reason) {
+                <p>
+                  <strong>
+                    {{i18n.translate('reconciliation.detail.reasonLine', {
+                        reason: reasonLabel(d.item.reason),
+                      })}}</strong
+                  >
+                </p>
+              }
+            </aside>
+          </div>
+
+          <div class="detail-side">
+            <section class="side-card" [attr.aria-label]="t.appeal.title">
+              <header class="side-head">
+                <h2>{{t.appeal.title}}</h2>
+                <span class="side-badge">{{t.appeal.badge[d.appeal.state]}}</span>
+              </header>
+              <p class="side-text">{{appealText(d)}}</p>
+              @if (d.appeal.appealId && canOpenAppeal()) {
+                <a class="side-link" [routerLink]="['/appeals/department', d.appeal.appealId]">
+                  {{t.appeal.open}}
+                </a>
+              }
+            </section>
+
+            @if (canAct()) {
+              <section class="side-card" [attr.aria-label]="t.detail.actionsTitle">
+                <header class="side-head">
+                  <h2>{{t.detail.actionsTitle}}</h2>
+                </header>
+                <p class="side-text">
+                  <strong>{{t.detail.flag}}.</strong>
+                  {{d.actions.canFlag
+                      ? t.detail.flagHint
+                      : flagBlockedText(d.actions.flagBlockedReason)}}
+                </p>
+                @if (d.actions.canRecordRisk) {
+                  <p class="side-text">
+                    <strong>{{t.detail.recordRisk}}.</strong> {{t.detail.riskHint}}
+                  </p>
+                }
+              </section>
+            }
+
+            <section class="side-card" [attr.aria-label]="t.history.title">
+              <header class="side-head">
+                <h2>{{t.history.title}}</h2>
+              </header>
+              <ol class="timeline">
+                @for (entry of d.history; track $index) {
+                  <li>
+                    <span
+                      class="dot"
+                      [class]="'dot tone-' + historyTone(entry)"
+                      aria-hidden="true"
+                    ></span>
+                    <div>
+                      <p class="timeline-text">{{historyText(entry)}}</p>
+                      <p class="timeline-time">{{entry.at | appDate: 'DD/MM/YYYY HH:mm'}}</p>
+                    </div>
+                  </li>
+                } @empty {
+                  <li class="side-text">{{t.history.empty}}</li>
+                }
+              </ol>
+            </section>
+          </div>
+        </div>
+      }
+
+      @if (flagging() && detail()?.actions?.flagSubmissionId; as submissionId) {
+        <app-reconciliation-flag-modal
+          [submissionId]="submissionId"
+          (flagged)="onFlagged()"
+          (dismissed)="flagging.set(false)"
+        />
+      }
+
+      @if (recordingRisk()) {
+        <app-risk-event-create-modal
+          [preset]="riskPreset()"
+          (created)="onRiskRecorded($event)"
+          (dismissed)="recordingRisk.set(false)"
+        />
+      }
+    </main>
+  </div>
+</div>

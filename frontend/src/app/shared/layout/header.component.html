@@ -45,14 +45,9 @@
     </div>
 
     <!-- Notifications -->
-    <button
-      class="icon-action notification-btn"
-      type="button"
-      [attr.aria-label]="localization.common.notifications"
-    >
-      <app-layout-icon name="bell" />
-      <span class="notification-badge" aria-hidden="true">3</span>
-    </button>
+    @if (user()) {
+      <app-notification-bell />
+    }
 
     <!-- User account -->
     @if (user(); as account) {
