@@ -160,6 +160,15 @@ export const routes: Routes = [
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
   },
   {
+    path: 'evaluations/department-ranking',
+    canActivate: [authGuard, departmentEvaluationGuard],
+    title: 'Xếp hạng Phòng',
+    loadComponent: () =>
+      import('./features/evaluations/department-ranking/department-ranking.component').then(
+        (m) => m.DepartmentRankingComponent,
+      ),
+  },
+  {
     path: 'branch-performance',
     canActivate: [authGuard, organizationGuard],
     title: 'Hiệu suất chi nhánh',

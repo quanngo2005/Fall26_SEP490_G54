@@ -774,6 +774,10 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     this.staffChartPage.set(1);
   }
 
+  openDepartmentRanking(): void {
+    void this.router.navigate(['/evaluations/department-ranking']);
+  }
+
   exportExcel(): void {
     const data = this.dashboard();
     if (!data || this.exporting()) return;

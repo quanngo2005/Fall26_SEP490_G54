@@ -66,6 +66,14 @@
 
           <button
             type="button"
+            class="btn-secondary"
+            (click)="openDepartmentRanking()"
+          >
+            {{localization.evaluations.departmentRanking.pageTitle}}
+          </button>
+
+          <button
+            type="button"
             class="btn-export"
             [disabled]="exporting() || loading() || !dashboard()"
             (click)="exportExcel()"

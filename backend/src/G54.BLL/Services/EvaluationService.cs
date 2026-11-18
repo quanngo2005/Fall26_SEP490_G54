@@ -977,6 +977,17 @@ public sealed partial class EvaluationService(
         SubmitCalibrationRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default)
+        => await SubmitDepartmentCalibrationAsync(request, currentUserId, enforceTierAQuota: true, cancellationToken);
+
+    /// <summary>
+    /// The ranking board applies its own slot rules (`RankingSlotQuota`) instead of the Tier A percent quota (BR-37),
+    /// so it saves through this path with <paramref name="enforceTierAQuota"/> set to false.
+    /// </summary>
+    internal async Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
+        SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        bool enforceTierAQuota,
+        CancellationToken cancellationToken)
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         await EnsureDepartmentInScopeAsync(currentUserId, "calibrate", reviewer, request.DepartmentId, cancellationToken);
@@ -1028,7 +1039,7 @@ public sealed partial class EvaluationService(
         var tierACount = adjustmentMap.Values.Count(a => a.CalibratedTier is "A1" or "A2" or "A3");
 
         // BR-37: Quota validation when submitting to executive
-        if (!request.IsDraft)
+        if (!request.IsDraft && enforceTierAQuota)
         {
             if (tierACount > maxTierAQuota)
             {

@@ -56,6 +56,35 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<RankingBoardOverviewDto> GetRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardExportDto> ExportRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingCompareDto> GetRankingCompareAsync(
+        Guid periodId,
+        Guid employeeId1,
+        Guid employeeId2,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<BranchApprovalOverviewDto> GetBranchApprovalOverviewAsync(
         Guid periodId,
         Guid currentUserId,

@@ -2134,6 +2134,63 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.RankingSlotQuota", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer")
+                        .HasColumnName("headcount");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_slot_quota_pkey");
+
+                    b.HasIndex(new[] { "DepartmentId", "TierCode" }, "uq_ranking_slot_quota_department_tier")
+                        .IsUnique();
+
+                    b.ToTable("ranking_slot_quota", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
+
+                            t.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B')");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4136,6 +4193,18 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_ranking_policy_period");
 
                     b.Navigation("EvaluationPeriod");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.RankingSlotQuota", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ranking_slot_quota_department");
+
+                    b.Navigation("Department");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>

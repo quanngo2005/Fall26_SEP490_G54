@@ -1,0 +1,313 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content evaluation-page">
+      <nav class="breadcrumb-trail" aria-label="Breadcrumb">
+        <span class="breadcrumb-item">{{localization.evaluations.departmentRanking.breadcrumbUnit}}</span>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-item font-semibold">{{localization.evaluations.departmentRanking.breadcrumbDept}}</span>
+        <span class="breadcrumb-separator">/</span>
+        <span class="breadcrumb-current">{{localization.evaluations.departmentRanking.breadcrumbCurrent}}</span>
+      </nav>
+
+      <header class="page-header ranking-header">
+        <div class="ranking-title-row">
+          <h1 class="page-title font-heading">{{localization.evaluations.departmentRanking.pageTitle}}</h1>
+          <span class="status-chip">{{localization.evaluations.departmentRanking.statusLabel}}</span>
+        </div>
+        <div class="page-actions">
+          <button type="button" class="btn-secondary">{{localization.evaluations.departmentRanking.saveDraft}}</button>
+          <button type="button" class="btn-secondary">{{localization.evaluations.departmentRanking.exportExcel}}</button>
+          @if (lockReached) {
+            <button type="button" class="btn-export">{{localization.evaluations.departmentRanking.sendToDirector}}</button>
+          }
+        </div>
+      </header>
+
+      <div class="filter-row">
+        <label class="filter-field">
+          <span class="filter-label">{{localization.evaluations.departmentRanking.periodLabel}}</span>
+          <span class="period-select-wrap">
+            <select class="period-select" [attr.aria-label]="localization.evaluations.departmentRanking.periodAria">
+              <option>Q3/2026</option>
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </span>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">{{localization.evaluations.departmentRanking.periodTypeLabel}}</span>
+          <span class="period-select-wrap">
+            <select class="period-select period-type-select" [attr.aria-label]="localization.evaluations.departmentRanking.periodTypeAria">
+              <option>{{localization.evaluations.departmentRanking.periodTypes.QUARTER}}</option>
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </span>
+        </label>
+        <label class="filter-field">
+          <span class="filter-label">{{localization.evaluations.departmentRanking.compareLabel}}</span>
+          <span class="period-select-wrap">
+            <select class="period-select compare-select" [attr.aria-label]="localization.evaluations.departmentRanking.compareAria">
+              <option>Q2/2026</option>
+            </select>
+            <app-layout-icon name="chevron-down" class="select-chevron" />
+          </span>
+        </label>
+        <div class="lock-notice" role="status">
+          {{lockNoticeText()}}
+        </div>
+      </div>
+
+      <section class="ranking-grid">
+        <!-- Row 1: staff ranking, full width -->
+        <article class="panel staff-panel">
+          <div class="panel-head-row">
+            <h2 class="panel-title">{{localization.evaluations.departmentRanking.staffCardTitle}}</h2>
+            <span class="meta">{{staffCardMetaText()}}</span>
+          </div>
+          <div class="staff-scroll">
+            <table class="ranking-table staff-table">
+              <thead>
+                <tr>
+                  <th class="stt-col">{{localization.evaluations.departmentRanking.colStt}}</th>
+                  <th>{{localization.evaluations.departmentRanking.colName}}</th>
+                  <th class="num-col">{{localization.evaluations.departmentRanking.colSla}}</th>
+                  <th class="num-col">{{localization.evaluations.departmentRanking.colTarget}}</th>
+                  <th class="num-col">{{localization.evaluations.departmentRanking.colRisk}}</th>
+                  <th class="num-col">{{localization.evaluations.departmentRanking.colPenalty}}</th>
+                  <th class="num-col">{{localization.evaluations.departmentRanking.colScore}}</th>
+                  <th class="tier-col">{{localization.evaluations.departmentRanking.colSystemTier}}</th>
+                  <th class="tier-col">{{localization.evaluations.departmentRanking.colFinalTier}}</th>
+                  <th>{{localization.evaluations.departmentRanking.colReason}}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of staffRows; track row.code) {
+                  <tr>
+                    <td class="stt-col font-mono">{{row.stt}}</td>
+                    <td>
+                      <div class="staff-name">{{row.name}}</div>
+                      <div class="staff-code font-mono">{{row.code}}</div>
+                    </td>
+                    <td class="num-col">
+                      <div class="font-mono">{{row.sla.value}}</div>
+                      @if (row.sla.delta) {
+                        <div class="delta font-mono" [class.delta-good]="row.sla.tone === 'good'" [class.delta-bad]="row.sla.tone === 'bad'">{{row.sla.delta}}</div>
+                      }
+                    </td>
+                    <td class="num-col">
+                      <div class="font-mono">{{row.target.value}}</div>
+                      @if (row.target.delta) {
+                        <div class="delta font-mono" [class.delta-good]="row.target.tone === 'good'" [class.delta-bad]="row.target.tone === 'bad'">{{row.target.delta}}</div>
+                      }
+                    </td>
+                    <td class="num-col">
+                      <div class="font-mono">{{row.risk.value}}</div>
+                      @if (row.risk.delta) {
+                        <div class="delta font-mono" [class.delta-good]="row.risk.tone === 'good'" [class.delta-bad]="row.risk.tone === 'bad'">{{row.risk.delta}}</div>
+                      }
+                    </td>
+                    <td class="num-col">
+                      <div class="font-mono">{{row.penalty.value}}</div>
+                      @if (row.penalty.delta) {
+                        <div class="delta font-mono" [class.delta-good]="row.penalty.tone === 'good'" [class.delta-bad]="row.penalty.tone === 'bad'">{{row.penalty.delta}}</div>
+                      }
+                    </td>
+                    <td class="num-col">
+                      <div class="font-mono score-value">{{row.score.value}}</div>
+                      @if (row.score.delta) {
+                        <div class="delta font-mono" [class.delta-good]="row.score.tone === 'good'" [class.delta-bad]="row.score.tone === 'bad'">{{row.score.delta}}</div>
+                      }
+                    </td>
+                    <td class="tier-col"><span class="tier-badge" [ngClass]="tierClass(row.systemTier)">{{row.systemTier}}</span></td>
+                    <td class="tier-col">
+                      <span class="tier-select" [class.tier-select-changed]="row.tierChanged">
+                        <span class="tier-badge" [ngClass]="tierClass(row.finalTier)">{{row.finalTier}}</span>
+                        <app-layout-icon name="chevron-down" class="select-chevron" />
+                      </span>
+                    </td>
+                    <td>
+                      @if (row.reason) {
+                        <span class="reason-box">{{row.reason}}</span>
+                      } @else if (row.reasonRequired) {
+                        <span class="reason-box reason-missing">{{localization.evaluations.departmentRanking.reasonRequired}}</span>
+                      } @else {
+                        <span class="reason-box reason-empty">—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="staff-footer meta">{{staffFooterText()}}</p>
+        </article>
+
+        <!-- Row 2 left: comparison -->
+        <article class="panel compare-panel">
+          <h2 class="panel-title">{{localization.evaluations.departmentRanking.compareTitle}}</h2>
+          <p class="meta">{{compareMetaText()}}</p>
+          <div class="compare-pickers">
+            <div class="compare-picker">NV002 · Trần Thị Bình</div>
+            <div class="compare-picker">NV010 · Đặng Ngọc Oanh</div>
+          </div>
+          <table class="ranking-table compare-table">
+            <thead>
+              <tr>
+                <th>{{localization.evaluations.departmentRanking.compareColMetric}}</th>
+                <th class="num-col">NV002</th>
+                <th class="num-col">NV010</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{{localization.evaluations.departmentRanking.compareScore}}</td>
+                <td class="num-col winner font-mono">99.88 ▲ +16.21</td>
+                <td class="num-col font-mono">83.67</td>
+              </tr>
+              <tr>
+                <td>{{localization.evaluations.departmentRanking.compareTarget}}</td>
+                <td class="num-col winner font-mono">3/6 ▲ +3</td>
+                <td class="num-col font-mono">0/6</td>
+              </tr>
+              <tr>
+                <td>{{localization.evaluations.departmentRanking.compareSla}}</td>
+                <td class="num-col muted">—</td>
+                <td class="num-col muted">—</td>
+              </tr>
+              <tr>
+                <td>{{localization.evaluations.departmentRanking.compareRisk}}</td>
+                <td class="num-col winner font-mono">0 ▼ 1</td>
+                <td class="num-col font-mono">1</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-subtitle">{{localization.evaluations.departmentRanking.compareGroupsTitle}}</p>
+          <table class="ranking-table compare-table">
+            <tbody>
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="group-toggle"
+                    [attr.aria-expanded]="isExpanded('business')"
+                    (click)="toggleGroup('business')"
+                  >{{isExpanded('business') ? '▾' : '▸'}}</button>
+                  {{localization.evaluations.departmentRanking.compareGroupBusiness}}
+                </td>
+                <td class="num-col winner font-mono">104.40 ▲ +22.54</td>
+                <td class="num-col font-mono">81.86</td>
+              </tr>
+              @if (isExpanded('business')) {
+                <tr class="sub-row">
+                  <td>Giải ngân tín dụng</td>
+                  <td class="num-col font-mono">119.00</td>
+                  <td class="num-col muted">—</td>
+                </tr>
+                <tr class="sub-row">
+                  <td>Huy động vốn</td>
+                  <td class="num-col winner font-mono">108.00 ▲ +36.00</td>
+                  <td class="num-col font-mono">72.00</td>
+                </tr>
+                <tr class="sub-row">
+                  <td>Khách hàng mới</td>
+                  <td class="num-col font-mono">85.00</td>
+                  <td class="num-col winner font-mono">95.00 ▲ +10.00</td>
+                </tr>
+              }
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="group-toggle"
+                    [attr.aria-expanded]="isExpanded('service')"
+                    (click)="toggleGroup('service')"
+                  >{{isExpanded('service') ? '▾' : '▸'}}</button>
+                  {{localization.evaluations.departmentRanking.compareGroupService}}
+                </td>
+                <td class="num-col font-mono">84.00</td>
+                <td class="num-col font-mono">84.00</td>
+              </tr>
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="group-toggle"
+                    [attr.aria-expanded]="isExpanded('compliance')"
+                    (click)="toggleGroup('compliance')"
+                  >{{isExpanded('compliance') ? '▾' : '▸'}}</button>
+                  {{localization.evaluations.departmentRanking.compareGroupCompliance}}
+                </td>
+                <td class="num-col winner font-mono">100.00 ▲ +9.00</td>
+                <td class="num-col font-mono">91.00</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="meta legend">{{localization.evaluations.departmentRanking.compareLegend}}</p>
+          <p class="meta legend">{{localization.evaluations.departmentRanking.compareLegendNote}}</p>
+        </article>
+
+        <!-- Row 2 right: tier distribution -->
+        <article class="panel tier-panel">
+          <h2 class="panel-title">{{localization.evaluations.departmentRanking.tierCardTitle}}</h2>
+          <table class="ranking-table tier-table">
+            <thead>
+              <tr>
+                <th>{{localization.evaluations.departmentRanking.colTier}}</th>
+                <th class="num-col">{{localization.evaluations.departmentRanking.colShare}}</th>
+                <th class="num-col">{{localization.evaluations.departmentRanking.colSlots}}</th>
+                <th class="num-col">{{localization.evaluations.departmentRanking.colActual}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of tierRows; track row.tier) {
+                <tr>
+                  <td><span class="tier-badge" [ngClass]="tierClass(row.tier)">{{row.tier}}</span></td>
+                  <td class="num-col font-mono">{{row.share}}</td>
+                  <td class="num-col font-mono">{{row.slots}}</td>
+                  <td class="num-col font-mono">
+                    {{row.actual}}
+                    @if (row.tier !== 'C' && row.actual === row.slots) {
+                      <span class="tick" [attr.aria-label]="localization.evaluations.departmentRanking.slotsFilledAria">✓</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>{{localization.evaluations.departmentRanking.totalLabel}}</td>
+                <td class="num-col font-mono">100%</td>
+                <td class="num-col font-mono">{{totalSlots}}</td>
+                <td class="num-col font-mono">
+                  {{totalActual}}
+                  @if (totalActual === totalSlots) {
+                    <span class="tick" [attr.aria-label]="localization.evaluations.departmentRanking.slotsFilledAria">✓</span>
+                  }
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+          <div class="tier-notes">
+            <p>{{localization.evaluations.departmentRanking.tierNotesSlots}}</p>
+            <p>{{localization.evaluations.departmentRanking.tierNotesActual}}</p>
+            <p>{{localization.evaluations.departmentRanking.tierNotesTick}}</p>
+          </div>
+        </article>
+
+        <article class="panel rules-panel">
+          <h2 class="panel-title">{{localization.evaluations.departmentRanking.rulesTitle}}</h2>
+          <ul class="rules-list">
+            <li>{{localization.evaluations.departmentRanking.rule1}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule2}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule3}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule4}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule5}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule6}}</li>
+            <li>{{localization.evaluations.departmentRanking.rule7}}</li>
+          </ul>
+        </article>
+      </section>
+    </main>
+  </div>
+</div>
