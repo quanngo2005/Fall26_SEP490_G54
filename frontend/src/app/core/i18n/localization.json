@@ -393,6 +393,93 @@
         "invalidCredentials": "Email hoặc mật khẩu không chính xác.",
         "failed": "Không thể đăng nhập. Vui lòng thử lại."
       },
+      "qaDashboard": {
+        "title": "Tổng quan kiểm soát chất lượng",
+        "loading": "Đang tải tổng quan…",
+        "loadError": "Không tải được số liệu tổng quan. Vui lòng thử lại.",
+        "retry": "Thử lại",
+        "filters": {
+          "ariaLabel": "Bộ lọc tổng quan",
+          "period": "Kỳ",
+          "periodName": "Tháng {name}",
+          "department": "Phòng ban",
+          "jobPosition": "Vị trí",
+          "all": "Tất cả",
+          "reset": "Đặt lại",
+          "asOf": "Dữ liệu đến {time}",
+          "refresh": "Làm mới dữ liệu"
+        },
+        "notice": {
+          "deadline": "Kỳ {period} khoá KPI lúc {time} ngày {date}, còn {days} ngày.",
+          "deadlineToday": "Kỳ {period} khoá KPI lúc {time} hôm nay ({date}).",
+          "deadlinePassed": "Kỳ {period} đã qua hạn khoá KPI ({time} ngày {date}).",
+          "inReview": "{count} mã giao dịch chưa có trong file import sẽ không được tính nếu chưa import kịp.",
+          "locked": "Kỳ {period} đã khoá. Số liệu dưới đây là số liệu chốt của kỳ.",
+          "importLink": "Import giao dịch"
+        },
+        "cards": {
+          "ariaLabel": "Việc cần xử lý",
+          "open": "Mở {label}",
+          "notMatched": "Giao dịch không khớp",
+          "oldest": "cũ nhất {days} ngày",
+          "oldestToday": "phát sinh hôm nay",
+          "inReview": "Chờ file giao dịch",
+          "importBy": "hạn import {date}",
+          "qaQueue": "Hàng chờ QA",
+          "samples": "{count} mẫu",
+          "flags": "{count} cờ",
+          "aiSegments": "{count} ghi âm AI",
+          "riskEvents": "Sự kiện rủi ro kỳ này",
+          "openEvents": "{count} chưa đóng",
+          "penalty": "−{points} điểm"
+        },
+        "reasons": {
+          "title": "Vì sao mã giao dịch chưa được tính",
+          "summary": "{count} mã · tháng {period}",
+          "legendImport": "chờ import ({count})",
+          "legendMismatch": "không khớp, nhân viên cần sửa ({count})",
+          "viewReconciliation": "Xem đối soát",
+          "rowAria": "{label}: {count} mã giao dịch. Mở đối soát",
+          "empty": "Không có mã giao dịch nào bị treo trong kỳ này.",
+          "labels": {
+            "NO_IMPORTED_TRANSACTION": "Chưa có trong file đã import",
+            "EMPLOYEE_MISMATCH": "Sai nhân viên thực hiện",
+            "PRODUCT_MISMATCH": "Sai sản phẩm",
+            "REFERRER_MISMATCH": "Thiếu hoặc sai người giới thiệu",
+            "REFERRER_NOT_CREDITED": "Thiếu hoặc sai người giới thiệu",
+            "CUSTOMER_MISMATCH": "Sai mã khách hàng (CIF)",
+            "TRANSACTION_BEFORE_HANDOVER": "Giao dịch trước ngày bàn giao"
+          }
+        },
+        "employees": {
+          "title": "Nhân viên có nhiều mã không khớp",
+          "viewReconciliation": "Xem đối soát",
+          "colEmployee": "Nhân viên",
+          "colPosition": "Vị trí",
+          "colNotMatched": "Không khớp",
+          "colOpenFlags": "Cờ mở",
+          "rowAria": "Xem mã không khớp của {name}",
+          "range": "{from}–{to} / {total} nhân viên",
+          "pagination": "Phân trang nhân viên",
+          "empty": "Không có nhân viên nào có mã giao dịch không khớp."
+        },
+        "trend": {
+          "title": "Mã giao dịch chưa khớp theo tuần",
+          "legendCount": "số mã chưa khớp",
+          "legendAverage": "trung bình {weeks} tuần",
+          "averageShort": "TB {value}",
+          "weekShort": "T{week}",
+          "matchShort": "khớp {rate}",
+          "summary": "Tuần {week}: {open} / {total} mã chưa khớp",
+          "rate": "tỷ lệ khớp {rate}",
+          "up": "tăng {diff} điểm so với tuần {week}",
+          "down": "giảm {diff} điểm so với tuần {week}",
+          "same": "không đổi so với tuần {week}",
+          "chartAria": "Số mã giao dịch chưa khớp theo tuần",
+          "barAria": "Tuần {week}: {open} / {total} mã chưa khớp",
+          "empty": "Chưa có mã giao dịch nào trong {weeks} tuần gần nhất."
+        }
+      },
       "home": {
         "workspace": "KHÔNG GIAN LÀM VIỆC",
         "welcome": "Xin chào",
@@ -4798,6 +4885,93 @@
         "accountLocked": "Your account is locked. Please contact your administrator.",
         "invalidCredentials": "The email or password is incorrect.",
         "failed": "We could not sign you in. Please try again."
+      },
+      "qaDashboard": {
+        "title": "Quality assurance overview",
+        "loading": "Loading the overview…",
+        "loadError": "Could not load the overview figures. Please try again.",
+        "retry": "Try again",
+        "filters": {
+          "ariaLabel": "Overview filters",
+          "period": "Period",
+          "periodName": "{name}",
+          "department": "Department",
+          "jobPosition": "Position",
+          "all": "All",
+          "reset": "Reset",
+          "asOf": "Data as of {time}",
+          "refresh": "Refresh data"
+        },
+        "notice": {
+          "deadline": "Period {period} locks KPIs at {time} on {date}, {days} days left.",
+          "deadlineToday": "Period {period} locks KPIs at {time} today ({date}).",
+          "deadlinePassed": "Period {period} passed its KPI lock deadline ({time} on {date}).",
+          "inReview": "Transaction codes not in an imported file yet: {count}. They will not count unless imported in time.",
+          "locked": "Period {period} is locked. The figures below are final for the period.",
+          "importLink": "Import transactions"
+        },
+        "cards": {
+          "ariaLabel": "Work to handle",
+          "open": "Open {label}",
+          "notMatched": "Unmatched transactions",
+          "oldest": "oldest {days} days",
+          "oldestToday": "raised today",
+          "inReview": "Waiting for transaction file",
+          "importBy": "import by {date}",
+          "qaQueue": "QA queue",
+          "samples": "{count} samples",
+          "flags": "{count} flags",
+          "aiSegments": "{count} AI recordings",
+          "riskEvents": "Risk events this period",
+          "openEvents": "{count} open",
+          "penalty": "−{points} points"
+        },
+        "reasons": {
+          "title": "Why transaction codes are not counted",
+          "summary": "{count} codes · {period}",
+          "legendImport": "waiting for import ({count})",
+          "legendMismatch": "unmatched, employee must fix ({count})",
+          "viewReconciliation": "View reconciliation",
+          "rowAria": "{label}: {count} transaction codes. Open reconciliation",
+          "empty": "No transaction codes are pending in this period.",
+          "labels": {
+            "NO_IMPORTED_TRANSACTION": "Not in an imported file",
+            "EMPLOYEE_MISMATCH": "Wrong employee",
+            "PRODUCT_MISMATCH": "Wrong product",
+            "REFERRER_MISMATCH": "Missing or wrong referrer",
+            "REFERRER_NOT_CREDITED": "Missing or wrong referrer",
+            "CUSTOMER_MISMATCH": "Wrong customer code (CIF)",
+            "TRANSACTION_BEFORE_HANDOVER": "Transaction before the handover date"
+          }
+        },
+        "employees": {
+          "title": "Employees with most unmatched codes",
+          "viewReconciliation": "View reconciliation",
+          "colEmployee": "Employee",
+          "colPosition": "Position",
+          "colNotMatched": "Unmatched",
+          "colOpenFlags": "Open flags",
+          "rowAria": "View unmatched codes of {name}",
+          "range": "{from}–{to} / {total} employees",
+          "pagination": "Employee pagination",
+          "empty": "No employee has unmatched transaction codes."
+        },
+        "trend": {
+          "title": "Unmatched transaction codes by week",
+          "legendCount": "unmatched codes",
+          "legendAverage": "{weeks}-week average",
+          "averageShort": "Avg {value}",
+          "weekShort": "W{week}",
+          "matchShort": "matched {rate}",
+          "summary": "Week {week}: {open} / {total} codes unmatched",
+          "rate": "match rate {rate}",
+          "up": "up {diff} pts from week {week}",
+          "down": "down {diff} pts from week {week}",
+          "same": "unchanged from week {week}",
+          "chartAria": "Unmatched transaction codes by week",
+          "barAria": "Week {week}: {open} / {total} codes unmatched",
+          "empty": "No transaction codes in the last {weeks} weeks."
+        }
       },
       "home": {
         "workspace": "YOUR WORKSPACE",
