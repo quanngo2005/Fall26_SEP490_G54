@@ -124,7 +124,8 @@ describe('WorkBoardComponent', () => {
       return of({ items, totalCount: items.length, page: filter.page ?? 1, pageSize: 50 });
     });
     employees = jasmine.createSpyObj<EmployeeService>('EmployeeService', ['me', 'byCode']);
-    departments = jasmine.createSpyObj<DepartmentService>('DepartmentService', ['members']);
+    departments = jasmine.createSpyObj<DepartmentService>('DepartmentService', ['list', 'members']);
+    departments.list.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 100 }));
     departments.members.and.returnValue(
       of({
         items: [
@@ -607,6 +608,33 @@ describe('WorkBoardComponent', () => {
 
       expect(fixture.componentInstance['initialsOf'](null)).toBe('');
       expect(fixture.componentInstance['initialsOf']('Nguyễn Văn A')).toBe('VA');
+    });
+
+    it('switches to workload monitor view and opens work detail from overdue alert', () => {
+      const fixture = create();
+      const el = root(fixture);
+
+      el.querySelector<HTMLButtonElement>('#work-view-monitor')?.click();
+      fixture.detectChanges();
+
+      expect(el.querySelector('app-work-workload-monitor')).toBeTruthy();
+      expect(text(el.querySelector('h1'))).toBe('Giám sát tải việc');
+
+      const viewWorkBtn = el.querySelector<HTMLButtonElement>('.alert-action');
+      expect(viewWorkBtn).toBeTruthy();
+      viewWorkBtn!.click();
+      fixture.detectChanges();
+
+      expect(el.querySelector('app-work-detail-drawer')).toBeTruthy();
+    });
+
+    it('opens workload monitor directly when query param view=monitor is set', async () => {
+      await configure('DEPT_MANAGER', { view: 'monitor' });
+      const fixture = create();
+      const el = root(fixture);
+
+      expect(el.querySelector('app-work-workload-monitor')).toBeTruthy();
+      expect(el.querySelector('#work-view-monitor')?.getAttribute('aria-pressed')).toBe('true');
     });
   });
 });
