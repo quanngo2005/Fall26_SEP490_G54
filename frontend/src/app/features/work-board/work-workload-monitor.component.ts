@@ -142,6 +142,7 @@ export function isMonitorWorkOverdue(
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
     './work-workload-monitor.component.scss',
+    './work-workload-monitor.component.part2.scss',
   ],
 })
 export class WorkWorkloadMonitorComponent extends LocalizedComponent {

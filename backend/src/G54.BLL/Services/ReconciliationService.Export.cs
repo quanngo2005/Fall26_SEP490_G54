@@ -92,7 +92,8 @@ public sealed partial class ReconciliationService
         _ => "Chờ đối chiếu",
     };
 
-    private static string ReasonLabel(string? reason) => reason switch
+    /// <summary>Vietnamese label of a reason code; the QA dashboard uses it too, so both screens say the same.</summary>
+    internal static string ReasonLabel(string? reason) => reason switch
     {
         null or "" => string.Empty,
         "EMPLOYEE_MISMATCH" => "Sai mã nhân viên",
