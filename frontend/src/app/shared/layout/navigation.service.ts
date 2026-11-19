@@ -29,6 +29,8 @@ export type MenuKey =
   | 'handoverDelegation'
   | 'reviewVerify'
   | 'reconciliation'
+  | 'dataImport'
+  | 'importHistory'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
   | 'targetOverview'
@@ -138,13 +140,12 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   ],
   qa: [
     'overview',
+    'dataImport',
+    'importHistory',
     'reconciliation',
     'verificationQueue',
     'appeals',
-    'escalatedCases',
-    'auditReview',
     'riskEvents',
-    'reportsAnalytics',
     'notifications',
     'myProfile',
   ],
@@ -159,6 +160,8 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'systemParameters',
     'rankingStudio',
     'systemAudit',
+    'dataImport',
+    'importHistory',
     'notifications',
     'myProfile',
   ],
@@ -197,6 +200,19 @@ const ITEMS: readonly NavigationItem[] = [
     icon: 'reviewVerify',
     route: '/reconciliations',
     permission: 'RECONCILIATION_READ',
+  },
+  {
+    id: 'dataImport',
+    icon: 'employeeData',
+    route: '/data-import',
+    // SCR-ADM-06 upload and SCR-ADM-07 history (UC29/UC31/UC33), same permission as the API.
+    permission: 'TRANSACTION_IMPORT_MANAGE',
+  },
+  {
+    id: 'importHistory',
+    icon: 'systemAudit',
+    route: '/import-history',
+    permission: 'TRANSACTION_IMPORT_MANAGE',
   },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   {
@@ -296,6 +312,8 @@ export class NavigationService {
     '/work-type-detail',
     '/review-verify',
     '/reconciliations',
+    '/data-import',
+    '/import-history',
     '/appeals',
     '/notifications',
     '/kpi-definitions',

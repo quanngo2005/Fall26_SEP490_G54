@@ -10,6 +10,7 @@ import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/a
 import { departmentEvaluationGuard } from './core/department-evaluation.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 import { reconciliationGuard } from './core/reconciliation.guard';
+import { transactionImportGuard } from './core/transaction-import.guard';
 
 export const routes: Routes = [
   {
@@ -62,8 +63,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'data-import',
+    canActivate: [authGuard, transactionImportGuard],
+    title: 'Nhập dữ liệu',
+    loadComponent: () =>
+      import('./features/data-import/data-import.component').then((m) => m.DataImportComponent),
+  },
+  {
     path: 'import-history',
-    canActivate: [authGuard, adminGuard],
+    canActivate: [authGuard, transactionImportGuard],
     title: 'Lịch sử nhập',
     loadComponent: () =>
       import('./features/import-history/import-history-list.component').then(
