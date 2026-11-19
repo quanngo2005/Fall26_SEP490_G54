@@ -136,6 +136,7 @@
       } @else if (view() === 'handovers') {
         <app-handover-list
           [members]="members()"
+          [initialDirection]="isTeam() ? 'ALL' : 'INCOMING'"
           (openWork)="selectedId.set($event)"
           (changed)="showToast($event.kind, $event.text)"
         />

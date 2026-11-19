@@ -40,6 +40,7 @@ export interface HandoverListItem {
   workTypeName: string | null;
   customerName: string | null;
   customerCif: string | null;
+  targetValue: number | null;
   plannedEndDate: string | null;
   fromEmployeeId: string;
   fromEmployeeCode: string;

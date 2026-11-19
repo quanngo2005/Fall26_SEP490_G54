@@ -69,6 +69,7 @@ public sealed record HandoverListItemDto(
     string? WorkTypeName,
     string? CustomerName,
     string? CustomerCif,
+    decimal? TargetValue,
     DateOnly? PlannedEndDate,
     Guid FromEmployeeId,
     string FromEmployeeCode,

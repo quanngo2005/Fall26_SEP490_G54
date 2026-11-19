@@ -39,6 +39,7 @@ public sealed partial class HandoverService
             "ALL" => q.Where(h =>
                 h.ToEmployeeId == caller.Id
                 || h.FromEmployeeId == caller.Id
+                || h.ApprovedBy == caller.Id
                 || h.FromEmployee.ManagerId == caller.Id
                 || h.ToEmployee.ManagerId == caller.Id),
             _ => q.Where(h => h.ToEmployeeId == caller.Id),
@@ -119,6 +120,7 @@ public sealed partial class HandoverService
                 h.Work.WorkType != null ? h.Work.WorkType.Name : null,
                 h.Work.CustomerName,
                 h.Work.CustomerCif,
+                h.Work.TargetValue,
                 h.Work.PlannedEndDate,
                 h.FromEmployeeId,
                 h.FromEmployee.EmployeeCode,
@@ -168,6 +170,7 @@ public sealed partial class HandoverService
                     h.Work.WorkType != null ? h.Work.WorkType.Name : null,
                     h.Work.CustomerName,
                     h.Work.CustomerCif,
+                    h.Work.TargetValue,
                     h.Work.PlannedEndDate,
                     h.FromEmployeeId,
                     h.FromEmployee.EmployeeCode,
@@ -214,6 +217,7 @@ public sealed partial class HandoverService
         r.WorkTypeName,
         r.CustomerName,
         r.CustomerCif,
+        r.TargetValue,
         r.PlannedEndDate,
         r.FromEmployeeId,
         r.FromEmployeeCode,
@@ -276,6 +280,7 @@ public sealed partial class HandoverService
         string? WorkTypeName,
         string? CustomerName,
         string? CustomerCif,
+        decimal? TargetValue,
         DateOnly? PlannedEndDate,
         Guid FromEmployeeId,
         string FromEmployeeCode,

@@ -245,6 +245,12 @@
             <dt>{{localization.work.handoverList.cif}}</dt>
             <dd>{{detail.customerCif || localization.work.handoverList.notProvided}}</dd>
           </div>
+          @if (detail.targetValue !== null) {
+            <div>
+              <dt>{{localization.work.handoverList.targetValue}}</dt>
+              <dd>{{i18n.formatNumber(detail.targetValue, 0)}}</dd>
+            </div>
+          }
           <div>
             <dt>{{localization.work.handoverList.targetDate}}</dt>
             <dd>

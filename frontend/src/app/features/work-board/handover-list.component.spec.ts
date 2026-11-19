@@ -15,6 +15,7 @@ const item = (overrides: Partial<HandoverListItem> = {}): HandoverListItem => ({
   workTypeName: 'E-banking',
   customerName: 'Trần Thị B',
   customerCif: 'CIF 0012345',
+  targetValue: null,
   plannedEndDate: '2026-10-27',
   fromEmployeeId: 'e-1',
   fromEmployeeCode: 'NV01',

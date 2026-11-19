@@ -90,6 +90,9 @@ public sealed class HandoverQueryServiceTests : IDisposable
         var asManager = await service.GetHandoverAsync(handoverId, managerId);
         Assert.Equal(handoverId, asManager.Id);
 
+        var allAsManager = await service.ListHandoversAsync(managerId, new HandoverListQueryDto { Direction = "ALL" });
+        Assert.Equal(2, allAsManager.TotalCount);
+
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetHandoverAsync(handoverId, outsiderId));
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetHandoverAsync(Guid.NewGuid(), salesId));
     }
