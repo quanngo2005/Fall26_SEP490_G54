@@ -28,7 +28,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED", "PENDING_RESIGNATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "handover_status", new[] { "PENDING", "ACCEPTED", "REJECTED", "CANCELLED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_aggregation_type", new[] { "SUM", "RATIO", "AVG", "NO_AGGREGATION", "BALANCE" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_history_action", new[] { "CALCULATED", "STATUS_CHANGED", "APPROVED", "DISPUTED", "DISPUTE_WITHDRAWN", "APPEAL_RESOLVED" });
@@ -694,6 +694,56 @@ namespace G54.DAL.Migrations
                     b.ToTable("employee", null, t =>
                         {
                             t.HasCheckConstraint("ck_employee_no_self_manager", "manager_id IS NULL OR manager_id <> id");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.EmployeeTargetAck", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.HasKey("Id")
+                        .HasName("employee_target_ack_pkey");
+
+                    b.HasIndex(new[] { "EmployeeId", "Year" }, "uq_employee_target_ack_employee_year")
+                        .IsUnique();
+
+                    b.ToTable("employee_target_ack", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_employee_target_ack_status", "status IN ('PENDING', 'CONFIRMED', 'RECONFIRM')");
                         });
                 });
 
@@ -2723,6 +2773,44 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
 
+                    b.Property<decimal?>("ProposedQ1")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("proposed_q1");
+
+                    b.Property<decimal?>("ProposedQ2")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("proposed_q2");
+
+                    b.Property<decimal?>("ProposedQ3")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("proposed_q3");
+
+                    b.Property<decimal?>("ProposedQ4")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("proposed_q4");
+
+                    b.Property<decimal?>("ProposedYear")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("proposed_year");
+
+                    b.Property<DateTimeOffset?>("RepliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("replied_at");
+
+                    b.Property<Guid?>("RepliedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("replied_by");
+
+                    b.Property<string>("Reply")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reply");
+
                     b.Property<Guid>("TargetAssignmentId")
                         .HasColumnType("uuid")
                         .HasColumnName("target_assignment_id");
@@ -2734,6 +2822,8 @@ namespace G54.DAL.Migrations
                     b.HasKey("Id")
                         .HasName("target_assignment_feedback_pkey");
 
+                    b.HasIndex("RepliedBy");
+
                     b.HasIndex(new[] { "EmployeeId" }, "ix_target_assignment_feedback_employee");
 
                     b.HasIndex(new[] { "TargetAssignmentId" }, "ix_target_assignment_feedback_target");
@@ -2741,6 +2831,107 @@ namespace G54.DAL.Migrations
                     b.ToTable("target_assignment_feedback", null, t =>
                         {
                             t.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+
+                            t.HasCheckConstraint("ck_target_assignment_feedback_replied_by_time", "(replied_by IS NULL) = (replied_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_target_assignment_feedback_reply_len", "reply IS NULL OR char_length(reply) <= 500");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TargetChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("basis");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("KpiDefinitionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("kpi_definition_id");
+
+                    b.Property<decimal?>("NewValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("new_value");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<decimal?>("OldValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("old_value");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("period");
+
+                    b.Property<decimal?>("RoundingStep")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("rounding_step");
+
+                    b.Property<string>("ScopeJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("scope_json");
+
+                    b.Property<int>("Tier")
+                        .HasColumnType("integer")
+                        .HasColumnName("tier");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("unit");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("integer")
+                        .HasColumnName("year");
+
+                    b.HasKey("Id")
+                        .HasName("target_change_log_pkey");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex(new[] { "EmployeeId", "Year" }, "ix_target_change_log_employee_year");
+
+                    b.HasIndex(new[] { "KpiDefinitionId" }, "ix_target_change_log_kpi");
+
+                    b.ToTable("target_change_log", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_target_change_log_action", "action IN ('SUGGEST', 'MANUAL', 'PUBLISH', 'ADJUST', 'FEEDBACK', 'REPLY')");
+
+                            t.HasCheckConstraint("ck_target_change_log_tier", "tier IN (1, 2, 3)");
                         });
                 });
 
@@ -3730,6 +3921,18 @@ namespace G54.DAL.Migrations
                     b.Navigation("Manager");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.EmployeeTargetAck", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_employee_target_ack_employee");
+
+                    b.Navigation("Employee");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.EvaluationPeriod", b =>
                 {
                     b.HasOne("G54.DAL.Entities.EvaluationPeriod", "ParentPeriod")
@@ -4301,6 +4504,12 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_target_assignment_feedback_employee");
 
+                    b.HasOne("G54.DAL.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("RepliedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_assignment_feedback_replied_by");
+
                     b.HasOne("G54.DAL.Entities.TargetAssignment", "TargetAssignment")
                         .WithMany()
                         .HasForeignKey("TargetAssignmentId")
@@ -4311,6 +4520,34 @@ namespace G54.DAL.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("TargetAssignment");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.TargetChangeLog", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_change_log_department");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_target_change_log_employee");
+
+                    b.HasOne("G54.DAL.Entities.KpiDefinition", "KpiDefinition")
+                        .WithMany()
+                        .HasForeignKey("KpiDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_target_change_log_kpi");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("KpiDefinition");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TaskHandover", b =>
