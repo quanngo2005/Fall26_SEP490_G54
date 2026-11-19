@@ -87,8 +87,7 @@ public sealed class PermissionService(
         }
 
         var isAdmin = account.UserRoles.Any(ur =>
-            string.Equals(ur.Role.Code, "ADMIN", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(ur.Role.Code, "Admin", StringComparison.OrdinalIgnoreCase));
+            string.Equals(ur.Role.Code, RoleCodes.SystemAdmin, StringComparison.OrdinalIgnoreCase));
 
         var permissionDict = new Dictionary<string, UserPermissionDto>(StringComparer.OrdinalIgnoreCase);
 

@@ -314,7 +314,7 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
             ["Jwt:Issuer"] = Issuer,
             ["Jwt:Audience"] = Issuer,
         }).Build();
-        string[] roles = who switch { "admin" or "admin2" => ["ADMIN"], "bm" => ["BRANCH_MANAGER"], _ => [] };
+        string[] roles = who switch { "admin" or "admin2" => ["SYSTEM_ADMIN"], "bm" => ["BRANCH_MANAGER"], _ => [] };
         return new JwtTokenProvider(configuration).CreateAccessToken(
             account.Id, account.Employee.Email, account.Employee.FullName, roles, [], TimeSpan.FromMinutes(30)).Value;
     }
@@ -356,7 +356,7 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
         db.AddRange(job, group, period);
         await db.SaveChangesAsync();
 
-        var adminRole = await RoleAsync(db, "ADMIN", now);
+        var adminRole = await RoleAsync(db, "SYSTEM_ADMIN", now);
         var bmRole = await RoleAsync(db, "BRANCH_MANAGER", now);
         foreach (var (who, code, deptId, role) in new[]
         {

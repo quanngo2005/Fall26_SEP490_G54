@@ -17,11 +17,12 @@ the roles `SYSTEM_ADMIN`, `BRANCH_MANAGER` and `DEPT_MANAGER`, and grants it to 
 
 | Role | Scope | Meaning |
 | --- | --- | --- |
-| `SYSTEM_ADMIN`, `ADMIN` | `All` | system administrator |
+| `SYSTEM_ADMIN` | `All` | system administrator |
+| `HR_OFFICER` | `All` | HR officer (read only) |
 | `BRANCH_MANAGER` | `Branch` | branch manager |
-| `DEPT_MANAGER`, `MANAGER` | `Dept` | department manager (`MANAGER` is the seeded manager role) |
+| `DEPT_MANAGER` | `Dept` | department manager |
 
-Every other role (employee, verifier, HR, QA, ...) has no `organization:read` row and receives `403 FORBIDDEN`; holding
+The employee and verifier roles have no `organization:read` row and receives `403 FORBIDDEN`; holding
 `evaluation:read` no longer helps. The wildcard `FULL_ACCESS` permission (development admin) also passes. A missing, expired
 or invalid token receives `401 UNAUTHORIZED`. An administrator can grant the permission to another role by adding a
 `role_permission` row (or through the permission matrix, SCR-ADM-03); no code change is needed. The same permission guards
@@ -172,7 +173,7 @@ higher); no `job-position:manage` is needed.
 
 Assigns a work type to a job position. Requires `job-position:manage` with scope `Dept` or higher (in addition to the
 controller-level `organization:read`). Migration `SeedJobPositionManageAccess` grants it to managers only: `BRANCH_MANAGER`
-(`Branch`) and `DEPT_MANAGER` / `MANAGER` (`Dept`). `SYSTEM_ADMIN` administers the system, not job positions, so it is not granted
+(`Branch`) and `DEPT_MANAGER` (`Dept`). `SYSTEM_ADMIN` administers the system, not job positions, so it is not granted
 and receives `403 FORBIDDEN`. Job positions are global reference data, so the scope is a minimum level, not a data filter.
 
 Body:

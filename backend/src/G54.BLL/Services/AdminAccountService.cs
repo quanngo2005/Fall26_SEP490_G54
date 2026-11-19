@@ -28,7 +28,7 @@ public sealed partial class AdminAccountService(
                 role.Id,
                 role.Code,
                 role.Name,
-                role.Code == "ADMIN" || role.Code == "SYSTEM_ADMIN",
+                role.Code == RoleCodes.SystemAdmin,
                 role.Description,
                 role.UserRoles.Count,
                 role.Status == RecordStatus.Active ? "Active" : "Inactive"))

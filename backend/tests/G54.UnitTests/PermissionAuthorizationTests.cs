@@ -103,7 +103,7 @@ public sealed class PermissionAuthorizationTests
         var claims = new[]
         {
             new Claim("sub", Guid.NewGuid().ToString()),
-            new Claim("role", "ADMIN"),
+            new Claim("role", "SYSTEM_ADMIN"),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         var requirement = new PermissionRequirement("WORK", "DELETE", "All");

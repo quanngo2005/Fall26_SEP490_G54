@@ -22,7 +22,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             ('NV016', 'EMPLOYEE'), ('NV017', 'EMPLOYEE'), ('NV019', 'EMPLOYEE'), ('NV021', 'EMPLOYEE'),
             ('NV013', 'SYSTEM_ADMIN'),
             ('NV014', 'VERIFIER'),
-            ('NV022', 'QA')
+            ('NV022', 'VERIFIER')
         ),
         removed AS (
             DELETE FROM user_role ur
@@ -193,13 +193,13 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         }
 
         var adminRole = await _dbContext.Roles
-            .SingleOrDefaultAsync(candidate => candidate.Code == "ADMIN", cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Code == "SYSTEM_ADMIN", cancellationToken);
         if (adminRole is null)
         {
             adminRole = new Role
             {
-                Code = "ADMIN",
-                Name = "Administrator",
+                Code = "SYSTEM_ADMIN",
+                Name = "System Administrator",
                 Description = "Full access for local development only.",
                 UpdatedAt = DateTimeOffset.UtcNow,
                 Status = RecordStatus.Active,

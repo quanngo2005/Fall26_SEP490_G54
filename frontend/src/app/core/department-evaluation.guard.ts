@@ -1,19 +1,14 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
-import { BRANCH_EVALUATION_PERMISSION } from './branch-evaluation.guard';
+import { BRANCH_EVALUATION_PERMISSION, BRANCH_EVALUATION_ROUTE } from './branch-evaluation.guard';
 import { FULL_ACCESS_PERMISSION, normalizePermission } from './organization.guard';
+import { hasRole, ROLE, RoleCode } from './role-codes';
 
-export const DEPARTMENT_MANAGER_ROLES: readonly string[] = [
-  'DEPARTMENT_MANAGER',
-  'DEPT_MANAGER',
-  'MANAGER',
-];
-
-export const FORBIDDEN_DEPARTMENT_EVALUATION_ROLES: readonly string[] = [
-  'BRANCH_MANAGER',
-  'ADMIN',
-  'SYSTEM_ADMIN',
+/** Branch managers and system administrators use the branch screens, not the department evaluation overview. */
+export const FORBIDDEN_DEPARTMENT_EVALUATION_ROLES: readonly RoleCode[] = [
+  ROLE.branchManager,
+  ROLE.systemAdmin,
 ];
 
 export const DEPARTMENT_EVALUATION_PERMISSIONS: readonly string[] = [
@@ -25,13 +20,7 @@ export function canViewDepartmentEvaluation(
   roles: readonly string[] | null | undefined,
   permissions: readonly string[] | null | undefined,
 ): boolean {
-  const normRoles = (roles ?? []).map((r) =>
-    r
-      .trim()
-      .toUpperCase()
-      .replace(/[.:\-\s]+/g, '_'),
-  );
-  if (normRoles.some((r) => FORBIDDEN_DEPARTMENT_EVALUATION_ROLES.includes(r))) {
+  if (hasRole(roles, ...FORBIDDEN_DEPARTMENT_EVALUATION_ROLES)) {
     return false;
   }
 
@@ -43,7 +32,7 @@ export function canViewDepartmentEvaluation(
     return false;
   }
 
-  if (normRoles.some((r) => DEPARTMENT_MANAGER_ROLES.includes(r))) {
+  if (hasRole(roles, ROLE.deptManager)) {
     return true;
   }
 
@@ -61,15 +50,12 @@ export const departmentEvaluationGuard: CanActivateFn = () => {
   }
 
   const router = inject(Router);
-  const normRoles = (user?.roles ?? []).map((r) =>
-    r
-      .trim()
-      .toUpperCase()
-      .replace(/[.:\-\s]+/g, '_'),
-  );
   const normPerms = (user?.permissions ?? []).map(normalizePermission);
-  if (normRoles.includes('BRANCH_MANAGER') || normPerms.includes(BRANCH_EVALUATION_PERMISSION)) {
-    return router.parseUrl('/evaluations/branch-periods');
+  if (
+    hasRole(user?.roles, ROLE.branchManager) ||
+    normPerms.includes(BRANCH_EVALUATION_PERMISSION)
+  ) {
+    return router.parseUrl(BRANCH_EVALUATION_ROUTE);
   }
 
   return router.parseUrl('/home');

@@ -18,7 +18,7 @@ authorization.
 | `POST /{id}/approve`, `POST /{id}/reject` | permission `kpi:approve`, scope `All` |
 
 `kpi:request` and `kpi:approve` are granted to BRANCH_MANAGER (migration `AddObjectiveWeightAndKpiRequestApproval`);
-ADMIN passes every permission policy.
+SYSTEM_ADMIN passes every permission policy.
 
 ## Endpoints (all implemented)
 
@@ -156,7 +156,7 @@ Known limits:
   KPI" approval would need versioning and is not built.
 - `GET` endpoints are `[Authorize]` only, so any signed-in user can read `rejectReason`, `requestNote` and `requestedBy`
   (an employee id) of a KPI. Not restricted, to leave the permission of the existing reads unchanged.
-- `ADMIN` passes every permission policy, so an Admin other than the one who submitted a KPI can approve it.
+- `SYSTEM_ADMIN` passes every permission policy, so an Admin other than the one who submitted a KPI can approve it.
 - `requested_by` and `submitted_by` are foreign keys without an index of their own (no query filters on them); the KPI table
   is small.
 

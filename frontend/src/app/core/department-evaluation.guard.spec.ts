@@ -30,20 +30,20 @@ describe('departmentEvaluationGuard', () => {
   });
 
   it('allows department managers', () => {
-    as(['DEPARTMENT_MANAGER'], ['EVALUATION_READ', 'EVALUATION_SUBMIT']);
+    as(['DEPT_MANAGER'], ['EVALUATION_READ', 'EVALUATION_SUBMIT']);
     expect(run()).toBeTrue();
 
     as(['DEPT_MANAGER'], ['EVALUATION_READ', 'EVALUATION_CALIBRATE']);
     expect(run()).toBeTrue();
   });
 
-  it('rejects branch managers and redirects to /evaluations/branch-periods', () => {
+  it('rejects branch managers and redirects to /branch-performance/evaluations', () => {
     as(['BRANCH_MANAGER'], ['EVALUATION_READ', 'EVALUATION_FINALIZE']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations/branch-periods').toString());
+    expect(String(run())).toBe(router.parseUrl('/branch-performance/evaluations').toString());
   });
 
   it('rejects admins and redirects to /home', () => {
-    as(['ADMIN'], ['FULL_ACCESS']);
+    as(['SYSTEM_ADMIN'], ['FULL_ACCESS']);
     expect(String(run())).toBe(router.parseUrl('/home').toString());
   });
 
@@ -53,9 +53,9 @@ describe('departmentEvaluationGuard', () => {
   });
 
   it('evaluates helper function directly', () => {
-    expect(canViewDepartmentEvaluation(['DEPARTMENT_MANAGER'], ['EVALUATION_SUBMIT'])).toBeTrue();
+    expect(canViewDepartmentEvaluation(['DEPT_MANAGER'], ['EVALUATION_SUBMIT'])).toBeTrue();
     expect(canViewDepartmentEvaluation(['BRANCH_MANAGER'], ['EVALUATION_FINALIZE'])).toBeFalse();
-    expect(canViewDepartmentEvaluation(['ADMIN'], ['FULL_ACCESS'])).toBeFalse();
+    expect(canViewDepartmentEvaluation(['SYSTEM_ADMIN'], ['FULL_ACCESS'])).toBeFalse();
     expect(canViewDepartmentEvaluation(['EMPLOYEE'], ['EVALUATION_READ'])).toBeFalse();
   });
 

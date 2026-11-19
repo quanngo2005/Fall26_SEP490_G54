@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using G54.BLL.Common.Constants;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 
@@ -16,10 +17,8 @@ public sealed class PermissionAuthorizationHandler(IPermissionService permission
             return;
         }
 
-        if (context.User.IsInRole("ADMIN")
-            || context.User.IsInRole("Admin")
-            || context.User.HasClaim("role", "ADMIN")
-            || context.User.HasClaim("role", "Admin"))
+        if (context.User.IsInRole(RoleCodes.SystemAdmin)
+            || context.User.HasClaim("role", RoleCodes.SystemAdmin))
         {
             context.Succeed(requirement);
             return;

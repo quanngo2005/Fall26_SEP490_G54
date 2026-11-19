@@ -27,6 +27,17 @@
 | QA / Inspector | Risk events (penalty points), reconciliation review, quality flags, QA dashboard |
 | HR Officer | Views/exports locked ranking records (xlsx/PDF) |
 
+### Roles (6, no aliases)
+The database, JWT role claims and sidebar use exactly these codes (`RoleCodes.cs` in the backend, `role-codes.ts` in the frontend). Migration `ConsolidateRoles` merged ADMIN → SYSTEM_ADMIN, MANAGER → DEPT_MANAGER, QA → VERIFIER.
+| Actor | Role code | Sidebar workspace | Notes |
+|---|---|---|---|
+| Teller, Sales Officer | `EMPLOYEE` | employee | |
+| Department Manager | `DEPT_MANAGER` | departmentManager | |
+| Branch Manager | `BRANCH_MANAGER` | branchManager | holds `evaluation:finalize` (Branch) |
+| HR Officer | `HR_OFFICER` | hr | read-only: employees, organization, evaluation results |
+| QA / Inspector | `VERIFIER` | qa | |
+| System Admin | `SYSTEM_ADMIN` | admin | only role that skips permission checks |
+
 ## 4. Key business decisions
 - **KPI sources (23/10):** all results come from Core Banking transaction imports + service-rating imports. Matched results are auto-approved; manual approval only for work outside the WorkType list.
 - Employee submits a **transaction or CIF code** per work item; system reconciles with imported data → Matched / Not Matched / In Review.

@@ -13,7 +13,7 @@ calculating performance scores; this contract only manages them.
 | `POST`, `PUT`, `PATCH /{id}/status`, `DELETE` | permission `kpi:manage`, scope `All` |
 | `POST /{id}/approve`, `POST /{id}/reject` | permission `evaluation-profile:approve`, scope `All` |
 
-ADMIN passes every permission policy. The seed grants `kpi:manage` to ADMIN only, so in practice only ADMIN
+SYSTEM_ADMIN passes every permission policy. The seed grants `kpi:manage` to SYSTEM_ADMIN only, so in practice only SYSTEM_ADMIN
 can write; `evaluation-profile:approve` is granted to BRANCH_MANAGER (the Admin writes, the Branch Manager approves).
 401 when unauthenticated, 403 when the permission is missing.
 
