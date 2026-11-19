@@ -38,7 +38,7 @@ is no request cancellation: the frontend blocks repeated requests.
 
 ## Authorization
 
-`[HasPermission("target", "manage", "Dept")]` on the controller. Seeded roles: `ADMIN` has scope `All`, `MANAGER`
+`[HasPermission("target", "manage", "Dept")]` on the controller. Seeded roles: `SYSTEM_ADMIN` has scope `All`, `DEPT_MANAGER`
 has scope `Department`. Beyond that, the BLL checks:
 
 | Operation | Required |

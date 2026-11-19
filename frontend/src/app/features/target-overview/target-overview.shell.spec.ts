@@ -42,7 +42,7 @@ describe('TargetOverviewComponent', () => {
   });
 
   it('shows the department screen to department managers', () => {
-    expect(render(['MANAGER']).querySelector('main')?.textContent).toContain('department');
+    expect(render(['DEPT_MANAGER']).querySelector('main')?.textContent).toContain('department');
   });
 });
 

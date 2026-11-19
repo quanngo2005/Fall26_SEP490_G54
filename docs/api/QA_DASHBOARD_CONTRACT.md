@@ -9,9 +9,9 @@ and risk event penalty aggregations for QA / Inspector and Branch Management rol
 
 ## Authorization & Permissions
 
-All endpoints require authentication (`[Authorize]`) and QA/Admin read permission:
+All endpoints require authentication (`[Authorize]`) and VERIFIER / SYSTEM_ADMIN read permission:
 - `[HasPermission("quality_flag", "read", PermissionScopes.All)]`
-Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
+Granted to `VERIFIER` (Kiểm soát chất lượng) and `SYSTEM_ADMIN` roles.
 
 ## Endpoints
 

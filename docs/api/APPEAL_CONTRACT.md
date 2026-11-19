@@ -54,9 +54,9 @@ Phạm vi nhìn thấy (theo quyền `verification:decide` của người gọi,
 | Không có hoặc `Own` | Chỉ khiếu nại của mình |
 | `Dept` | Của mình và của nhân sự thuộc phòng ban của mình (gồm phòng ban con) |
 | `Branch` | Của mình và của nhân sự thuộc chi nhánh gần nhất của mình (gồm phòng ban con) |
-| `All` hoặc ADMIN | Tất cả |
+| `All` hoặc SYSTEM_ADMIN | Tất cả |
 
-Migration `GrantAppealDecisionToBranchManager` cấp `verification:decide` ở scope `Branch` cho role `BRANCH_MANAGER`, nên Branch Manager thấy toàn bộ khiếu nại của chi nhánh. Seed phát triển (`seed_dev_data.sql`) đã được sao chép từ role `MANAGER` với scope `Dept` nâng thành `Branch`, nên cũng có quyền này.
+Migration `GrantAppealDecisionToBranchManager` cấp `verification:decide` ở scope `Branch` cho role `BRANCH_MANAGER`, nên Branch Manager thấy toàn bộ khiếu nại của chi nhánh. Seed phát triển (`seed_dev_data.sql`) đã được sao chép từ role `DEPT_MANAGER` với scope `Dept` nâng thành `Branch`, nên cũng có quyền này. Sau migration `ConsolidateRoles` role `MANAGER` không còn; nguồn sao chép là `DEPT_MANAGER`.
 
 ### 2.4 Chi tiết — `GET /appeals/{id}`
 
@@ -64,7 +64,7 @@ Cùng phạm vi như danh sách. Ngoài phạm vi: 403. Không tồn tại: 404.
 
 ### 2.5 Xử lý — `POST /appeals/{id}/decision`
 
-Yêu cầu quyền `verification:decide` với scope `Dept / Branch / All` bao phủ phòng ban người nộp; ADMIN được xử lý. Không được xử lý appeal của mình hoặc submission do mình nộp (422 `MAKER_CANNOT_BE_CHECKER`). Khiếu nại không tồn tại luôn là 404, kể cả khi `decision` không phù hợp.
+Yêu cầu quyền `verification:decide` với scope `Dept / Branch / All` bao phủ phòng ban người nộp; SYSTEM_ADMIN được xử lý. Không được xử lý appeal của mình hoặc submission do mình nộp (422 `MAKER_CANNOT_BE_CHECKER`). Khiếu nại không tồn tại luôn là 404, kể cả khi `decision` không phù hợp.
 
 ```json
 { "decision": "ADJUST", "note": "Bổ sung chứng từ đối soát có chữ ký xác nhận." }

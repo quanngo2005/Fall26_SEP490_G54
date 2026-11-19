@@ -3,6 +3,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
+import { normalizeRole, ROLE, RoleCode } from '../../core/role-codes';
 import {
   SidebarConfiguration,
   SidebarConfigurationService,
@@ -71,19 +72,13 @@ export interface NavigationItem {
   children?: NavigationItem[];
 }
 
-const ROLE_CODES: Readonly<Record<string, WorkspaceRole>> = {
-  EMPLOYEE: 'employee',
-  MANAGER: 'departmentManager',
-  DEPT_MANAGER: 'departmentManager',
-  DEPARTMENT_MANAGER: 'departmentManager',
-  BRANCH_MANAGER: 'branchManager',
-  HR: 'hr',
-  HR_MANAGER: 'hr',
-  QA: 'qa',
-  COMPLIANCE: 'qa',
-  VERIFIER: 'qa',
-  ADMIN: 'admin',
-  SYSTEM_ADMIN: 'admin',
+const ROLE_CODES: Readonly<Record<RoleCode, WorkspaceRole>> = {
+  [ROLE.employee]: 'employee',
+  [ROLE.deptManager]: 'departmentManager',
+  [ROLE.branchManager]: 'branchManager',
+  [ROLE.hrOfficer]: 'hr',
+  [ROLE.verifier]: 'qa',
+  [ROLE.systemAdmin]: 'admin',
 };
 
 export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
@@ -338,15 +333,7 @@ export class NavigationService {
   readonly roles = computed(() => [
     ...new Set(
       (this.auth.currentUser()?.roles ?? [])
-        .map(
-          (code) =>
-            ROLE_CODES[
-              code
-                .trim()
-                .toUpperCase()
-                .replace(/[\s-]+/g, '_')
-            ],
-        )
+        .map((code) => ROLE_CODES[normalizeRole(code) as RoleCode])
         .filter((role): role is WorkspaceRole => role !== undefined),
     ),
   ]);

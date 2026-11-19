@@ -92,7 +92,7 @@ public sealed class AdminAccountsControllerTests
             []);
 
         public Task<IReadOnlyList<RoleSummaryDto>> GetRolesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<RoleSummaryDto>>([new RoleSummaryDto(Guid.NewGuid(), "ADMIN", "Admin", true, null, 1, "Active")]);
+            Task.FromResult<IReadOnlyList<RoleSummaryDto>>([new RoleSummaryDto(Guid.NewGuid(), "SYSTEM_ADMIN", "Admin", true, null, 1, "Active")]);
 
         public Task<PagedResult<UserAccountSummaryDto>> GetAccountsAsync(UserAccountFilterDto filter, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PagedResult<UserAccountSummaryDto>(
