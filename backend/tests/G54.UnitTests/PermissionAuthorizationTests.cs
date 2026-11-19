@@ -95,7 +95,7 @@ public sealed class PermissionAuthorizationTests
     }
 
     [Fact]
-    public async Task AuthorizationHandler_AdminRole_BypassesPermissionCheck()
+    public async Task AuthorizationHandler_SystemAdminRole_DoesNotBypassPermissionCheck()
     {
         var mockService = new FakePermissionService(false);
         var handler = new PermissionAuthorizationHandler(mockService);
@@ -111,7 +111,7 @@ public sealed class PermissionAuthorizationTests
 
         await handler.HandleAsync(context);
 
-        Assert.True(context.HasSucceeded);
+        Assert.False(context.HasSucceeded);
     }
 
     [Fact]

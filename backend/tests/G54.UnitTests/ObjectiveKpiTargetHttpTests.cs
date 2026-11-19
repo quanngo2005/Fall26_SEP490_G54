@@ -357,6 +357,35 @@ public sealed class ObjectiveKpiTargetFixture : IAsyncLifetime, IDisposable
         await db.SaveChangesAsync();
 
         var adminRole = await RoleAsync(db, "SYSTEM_ADMIN", now);
+        // No role skips the permission check, so the system administrator holds what these endpoints need explicitly.
+        foreach (var (resource, action) in new[]
+        {
+            ("objective", "read"), ("objective", "manage"), ("employee", "read"), ("kpi", "read"), ("kpi", "manage"),
+            ("kpi", "request"), ("kpi", "approve"), ("target", "manage"), ("work", "create"), ("work", "read"), ("work", "update"),
+        })
+        {
+            var permission = await db.Permissions.FirstOrDefaultAsync(p => p.Resource == resource && p.Action == action);
+            if (permission is null)
+            {
+                permission = new PermissionRecord
+                {
+                    Id = Guid.NewGuid(),
+                    Code = $"{resource}_{action}".ToUpperInvariant(),
+                    Name = $"{resource}:{action}",
+                    Resource = resource,
+                    Action = action,
+                };
+                db.Permissions.Add(permission);
+                await db.SaveChangesAsync();
+            }
+
+            if (!await db.RolePermissions.AnyAsync(rp => rp.RoleId == adminRole.Id && rp.PermissionId == permission.Id))
+            {
+                db.RolePermissions.Add(new RolePermissionAssignment { Id = Guid.NewGuid(), RoleId = adminRole.Id, PermissionId = permission.Id, Scope = "All" });
+            }
+        }
+
+        await db.SaveChangesAsync();
         var bmRole = await RoleAsync(db, "BRANCH_MANAGER", now);
         foreach (var (who, code, deptId, role) in new[]
         {

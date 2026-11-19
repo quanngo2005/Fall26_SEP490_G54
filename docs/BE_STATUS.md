@@ -62,3 +62,6 @@ un.ps1 -ResetDevData`, which runs it before the migrator; needed when a newer se
 4. Rewrite BR-07 on Refer ID with two KPI items; drop handover approval.
 5. Multipliers, quality ratio, ranking tiers, Publish/Lock, HR export.
 6. Appeals, risk events, QA sampling, system parameters, audit log.
+
+## Roles (GB-742, 2026-11-19)
+Six roles only: `EMPLOYEE`, `DEPT_MANAGER`, `BRANCH_MANAGER`, `HR_OFFICER`, `VERIFIER`, `SYSTEM_ADMIN` (`RoleCodes.cs`). Migration `ConsolidateRoles` merged ADMIN → SYSTEM_ADMIN, MANAGER → DEPT_MANAGER, QA → VERIFIER and added the grants the Screen Authorization Matrix test found missing (HR officer read access, Branch Manager `evaluation:finalize`, verifier `evaluation:read` Own, `ROLE_UPDATE` and `WORK_TYPE_MANAGE`). No role skips permission checks any more (the role-based wildcard was removed): `SYSTEM_ADMIN` holds explicit `role_permission` rows for every permission except `FULL_ACCESS`, `DEPARTMENT_MANAGE`, `EMPLOYEE_MANAGE` and `JOB_POSITION_MANAGE`, because the business rules make departments, job positions and employees view-only / import-only. The bootstrap admin (`DatabaseSeeder`) follows the same exclusions. Endpoints that need an excluded permission (`POST/PUT/DELETE /departments`, `POST /employees`) are therefore unreachable for every role.

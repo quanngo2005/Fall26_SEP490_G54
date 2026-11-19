@@ -8,7 +8,8 @@ namespace G54.DAL.Migrations;
 /// Screen Authorization Matrix test: the role list had grown aliases for the same actor (ADMIN / SYSTEM_ADMIN, MANAGER /
 /// DEPT_MANAGER, QA / VERIFIER). Only six roles remain: EMPLOYEE, DEPT_MANAGER, BRANCH_MANAGER, HR_OFFICER, VERIFIER and
 /// SYSTEM_ADMIN. The removed roles hand their accounts and grants to the surviving one (ADMIN -> SYSTEM_ADMIN, MANAGER ->
-/// DEPT_MANAGER, QA -> VERIFIER) and are deleted. <c>SYSTEM_ADMIN</c> is the only role that skips permission checks.
+/// DEPT_MANAGER, QA -> VERIFIER) and are deleted. No role skips permission checks any more: <c>SYSTEM_ADMIN</c> holds every permission explicitly except the development wildcard and the
+/// department / employee / job position write ones.
 ///
 /// Grants that were missing for the surviving roles, found by the matrix test, are added here as well:
 /// the HR officer reads employees, the organization and evaluation results (every HR screen answered 403); the Branch Manager
@@ -53,6 +54,16 @@ public partial class ConsolidateRoles : Migration
             DELETE FROM user_role WHERE role_id IN (SELECT id FROM role WHERE code IN ('ADMIN', 'MANAGER', 'QA'));
             DELETE FROM role_permission WHERE role_id IN (SELECT id FROM role WHERE code IN ('ADMIN', 'MANAGER', 'QA'));
             DELETE FROM role WHERE code IN ('ADMIN', 'MANAGER', 'QA');
+
+            -- SYSTEM_ADMIN no longer skips permission checks: it holds every permission explicitly, except the development
+            -- wildcard and the ones the business rules keep from it (departments, job positions, employees: view / import only).
+            INSERT INTO role_permission (role_id, permission_id, scope)
+            SELECT r.id, p.id, 'All'
+            FROM role r
+            CROSS JOIN permission p
+            WHERE r.code = 'SYSTEM_ADMIN'
+              AND p.code NOT IN ('FULL_ACCESS', 'DEPARTMENT_MANAGE', 'EMPLOYEE_MANAGE', 'JOB_POSITION_MANAGE')
+            ON CONFLICT DO NOTHING;
 
             -- Grants the matrix test found missing.
             INSERT INTO role_permission (role_id, permission_id, scope)

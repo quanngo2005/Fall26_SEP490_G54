@@ -36,7 +36,7 @@ The database, JWT role claims and sidebar use exactly these codes (`RoleCodes.cs
 | Branch Manager | `BRANCH_MANAGER` | branchManager | holds `evaluation:finalize` (Branch) |
 | HR Officer | `HR_OFFICER` | hr | read-only: employees, organization, evaluation results |
 | QA / Inspector | `VERIFIER` | qa | |
-| System Admin | `SYSTEM_ADMIN` | admin | only role that skips permission checks |
+| System Admin | `SYSTEM_ADMIN` | admin | explicit grants for every permission except department / employee / job position write (view- or import-only) |
 
 ## 4. Key business decisions
 - **KPI sources (23/10):** all results come from Core Banking transaction imports + service-rating imports. Matched results are auto-approved; manual approval only for work outside the WorkType list.

@@ -86,19 +86,7 @@ public sealed class PermissionService(
             return [];
         }
 
-        var isAdmin = account.UserRoles.Any(ur =>
-            string.Equals(ur.Role.Code, RoleCodes.SystemAdmin, StringComparison.OrdinalIgnoreCase));
-
         var permissionDict = new Dictionary<string, UserPermissionDto>(StringComparer.OrdinalIgnoreCase);
-
-        if (isAdmin)
-        {
-            permissionDict["*:*"] = new UserPermissionDto(
-                Resource: "*",
-                Action: "*",
-                Scope: PermissionScopes.All,
-                Code: "FULL_ACCESS");
-        }
 
         var rolePermissions = account.UserRoles
             .SelectMany(ur => ur.Role.RolePermissions)
@@ -112,7 +100,7 @@ public sealed class PermissionService(
             }
 
             var key = $"{rp.Permission.Resource}:{rp.Permission.Action}";
-            var candidateScope = isAdmin ? PermissionScopes.All : rp.Scope;
+            var candidateScope = rp.Scope;
 
             if (permissionDict.TryGetValue(key, out var existing))
             {

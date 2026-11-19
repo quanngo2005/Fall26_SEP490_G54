@@ -2,7 +2,7 @@ namespace G54.BLL.Common.Constants;
 
 /// <summary>
 /// The six roles of the system, one per actor. There are no aliases: the database, the JWT role claims and the sidebar all use
-/// these exact codes. <see cref="SystemAdmin"/> is the only role that skips permission checks.
+/// these exact codes. No role skips permission checks: every role, <see cref="SystemAdmin"/> included, holds explicit grants.
 /// </summary>
 public static class RoleCodes
 {

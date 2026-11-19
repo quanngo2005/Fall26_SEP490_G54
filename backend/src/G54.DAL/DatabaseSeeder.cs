@@ -7,6 +7,10 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 {
     private readonly AppDbContext _dbContext = dbContext;
 
+    /// <summary>Permissions the SYSTEM_ADMIN role never receives automatically.</summary>
+    public static readonly string[] SystemAdminExcludedPermissions =
+        ["FULL_ACCESS", "DEPARTMENT_MANAGE", "EMPLOYEE_MANAGE", "JOB_POSITION_MANAGE"];
+
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
 
     // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
@@ -237,8 +241,11 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        // The system administrator holds every permission explicitly, except the development wildcard and the ones the business
+        // rules keep out of its hands (departments, job positions and employees are view-only or import-only).
         var permissions = await _dbContext.Permissions
             .AsNoTracking()
+            .Where(item => !SystemAdminExcludedPermissions.Contains(item.Code))
             .Select(item => item.Id)
             .ToListAsync(cancellationToken);
         var assignedPermissionIds = await _dbContext.RolePermissions

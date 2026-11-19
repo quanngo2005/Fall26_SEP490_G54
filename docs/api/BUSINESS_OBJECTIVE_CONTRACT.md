@@ -12,7 +12,7 @@ responses use `ApiResponse<T>`. `GET /business-objectives` also feeds the object
 | `POST`, `PUT`, `DELETE` | permission `objective:manage`, scope `All` |
 
 Seeded grants (migration `AddObjectiveWeightAndKpiRequestApproval`): `objective:read` to BRANCH_MANAGER (`Branch`),
-DEPT_MANAGER (`Dept`); `objective:manage` to BRANCH_MANAGER. SYSTEM_ADMIN passes every permission policy.
+DEPT_MANAGER (`Dept`); `objective:manage` to BRANCH_MANAGER. SYSTEM_ADMIN holds the permissions explicitly (no role skips the permission check).
 401 when unauthenticated, 403 when the permission is missing.
 
 Read scope: an objective belongs to the branch (it has no department column), so every scope from `Dept` up reads **every**

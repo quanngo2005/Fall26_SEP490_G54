@@ -20,8 +20,7 @@ covers the nearest branch subtree; `Dept` the caller's own department subtree. A
 returns 403 `FORBIDDEN`. For `/department-dashboard` and `/department-dashboard/export`, only a Department Manager (`evaluation:read` at `Dept` scope without `Branch` or `All` scope) is allowed to access their own department; `BRANCH_MANAGER`, `SYSTEM_ADMIN` and `HR_OFFICER` receive 403 `FORBIDDEN`.
 
 The seed grants `evaluation:read`/`submit` to `DEPT_MANAGER`, `BRANCH_MANAGER` and `SYSTEM_ADMIN`, and
-`evaluation:read` at `Own` to `EMPLOYEE` and `VERIFIER`, and at `All` to `HR_OFFICER` (migration `ConsolidateRoles`). `SYSTEM_ADMIN` passes the
-backend check; the frontend guards the screens (`departmentEvaluationGuard`, `personalEvaluationGuard`).
+`evaluation:read` at `Own` to `EMPLOYEE` and `VERIFIER`, and at `All` to `HR_OFFICER` (migration `ConsolidateRoles`). `SYSTEM_ADMIN` holds `evaluation:read` at `All` explicitly; the frontend guards the screens (`departmentEvaluationGuard`, `personalEvaluationGuard`).
 
 ## `GET /evaluations/periods`
 

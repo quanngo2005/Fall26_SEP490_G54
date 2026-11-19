@@ -25,7 +25,7 @@ Mỗi lần `AppDbContext.SaveChanges`/`SaveChangesAsync` thành công, với m�
 | `GET /audit-logs` | `audit_log:view`, `All` |
 | `GET /audit-logs/{id}` | `audit_log:view`, `All` |
 
-`SYSTEM_ADMIN` có quyền qua `AUDIT_LOG_VIEW` (seed) hoặc wildcard `FULL_ACCESS`. Không có `POST`/`PUT`/`DELETE /audit-logs`
+`SYSTEM_ADMIN` có quyền qua `AUDIT_LOG_VIEW` (seed). Không có `POST`/`PUT`/`DELETE /audit-logs`
 (404/405 theo routing mặc định — route không tồn tại).
 
 Lỗi chung: 401 không token hoặc tài khoản khóa; 403 thiếu quyền `audit_log:view`; 404 không có bản ghi.
