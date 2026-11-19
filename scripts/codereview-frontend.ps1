@@ -95,7 +95,7 @@ $checks = @(
                 Push-Location $frontend
                 try {
                     $cache = Join-Path $frontend "node_modules/.cache"
-                    $script:eslintJob = Start-BackgroundCommand "npx" @("--no-install", "eslint", ".", "--cache", "--cache-location", (Join-Path $cache "eslint/"), "--format", "json", "--output-file", $eslintJson)
+                    $script:eslintJob = Start-BackgroundCommand "npx" @("--no-install", "eslint", ".", "--cache", "--cache-location", (Join-Path $cache "eslint/.eslintcache"), "--format", "json", "--output-file", $eslintJson)
                     $script:prettierJob = Start-BackgroundCommand "npx" @("--no-install", "prettier", "--list-different", "--cache", "--cache-location", (Join-Path $cache "prettier/.cache"), ".")
                     $script:auditJob = Start-BackgroundCommand "npm" @("audit", "--omit=dev", "--json")
                     $script:buildJob = Start-BackgroundCommand "npm" @("run", "build", "--", "--configuration", "production")

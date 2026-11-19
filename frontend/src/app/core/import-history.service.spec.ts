@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpEventType, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
@@ -59,5 +59,44 @@ describe('ImportHistoryService', () => {
     http.expectOne((r) => r.url === url).flush({ success: false, status: 500, data: null });
 
     expect(error).toBeTruthy();
+  });
+  it('uploads the file as multipart field "file" and reports progress then the batch with reconcile', () => {
+    const events: unknown[] = [];
+    const file = new File(['x'], 'tx.xlsx');
+    service.upload(file).subscribe((event) => events.push(event));
+
+    const request = http.expectOne(url);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.reportProgress).toBeTrue();
+    expect((request.request.body as FormData).get('file')).toEqual(jasmine.any(File));
+
+    request.event({ type: HttpEventType.UploadProgress, loaded: 50, total: 100 });
+    const data = {
+      id: 'b1',
+      fileName: 'tx.xlsx',
+      status: 'COMPLETED',
+      totalRows: 3,
+      importedRows: 2,
+      duplicateRows: 0,
+      errorRows: 1,
+      errors: [{ row: 3, field: 'Mã NV*', code: 'EMPLOYEE_NOT_FOUND', message: 'x' }],
+      importedAt: '2026-11-19T01:00:00Z',
+      importedBy: 'u1',
+      reconcile: { matched: 1, notMatched: 0, inReview: 1 },
+    };
+    request.flush({ success: true, status: 201, data });
+
+    expect(events).toEqual([
+      { kind: 'progress', percent: 50 },
+      { kind: 'done', result: data },
+    ]);
+  });
+
+  it('downloads the template as a blob', () => {
+    service.downloadTemplate().subscribe();
+
+    const request = http.expectOne(`${url}/template`);
+    expect(request.request.responseType).toBe('blob');
+    request.flush(new Blob(['x']));
   });
 });

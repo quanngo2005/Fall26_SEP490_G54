@@ -1,5 +1,6 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 import { ImportBatchSummary } from '../../core/import-history.models';
 import { ImportHistoryService } from '../../core/import-history.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -17,6 +18,7 @@ import {
 @Component({
   selector: 'app-import-history-list',
   imports: [
+    RouterLink,
     AppDatePipe,
     HeaderComponent,
     SidebarComponent,
