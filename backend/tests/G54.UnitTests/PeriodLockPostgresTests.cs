@@ -64,7 +64,9 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
         services.AddScoped<INotifier, RecordingNotifier>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
-        services.AddScoped<ITargetAllocationService, TargetAllocationService>();
+        services.AddScoped<ITargetChangeLogService, NoOpTargetChangeLogService>();
+        services.AddScoped<IDepartmentService, NoOpDepartmentService>();
+        services.AddScoped<ITargetSetupService, TargetSetupService>();
         services.AddScoped(provider => new VerificationService(
             provider.GetRequiredService<AppDbContext>(),
             NullLogger<VerificationService>.Instance,
@@ -296,11 +298,11 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
             await db.SaveChangesAsync();
             return row.Id;
         });
-        await RunAsync(sp => sp.GetRequiredService<ITargetAllocationService>()
+        await RunAsync(sp => sp.GetRequiredService<ITargetSetupService>()
             .AllocateDepartmentsAsync(branchYear, new([new(_deptId, _kpiId, 1000m)], null), _adminAccount));
         var deptYear = await RunAsync(async sp =>
             (await sp.GetRequiredService<AppDbContext>().TargetAssignments.SingleAsync(t => t.ParentAssignmentId == branchYear)).Id);
-        await RunAsync(sp => sp.GetRequiredService<ITargetAllocationService>()
+        await RunAsync(sp => sp.GetRequiredService<ITargetSetupService>()
             .AllocateQuartersAsync(deptYear, new([new(_q1Id, _kpiId, 1000m)], null), _adminAccount));
         return deptYear;
     }
@@ -312,14 +314,14 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         await SetStatusAsync(_monthPeriodId, PeriodStatus.Closed);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            RunAsync(sp => sp.GetRequiredService<ITargetAllocationService>().ConfirmAsync(deptYear, _adminAccount)));
+            RunAsync(sp => sp.GetRequiredService<ITargetSetupService>().ConfirmAsync(deptYear, _adminAccount)));
 
         Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
         Assert.Equal(0, await CountAsync(db => db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month)));
         Assert.Equal(0, await CountAsync(db => db.TargetAssignments.Where(t => t.Status == TargetAssignmentStatus.Active)));
 
         await SetStatusAsync(_monthPeriodId, PeriodStatus.Open);
-        await RunAsync(sp => sp.GetRequiredService<ITargetAllocationService>().ConfirmAsync(deptYear, _adminAccount));
+        await RunAsync(sp => sp.GetRequiredService<ITargetSetupService>().ConfirmAsync(deptYear, _adminAccount));
         Assert.Equal(1, await CountAsync(db => db.TargetAssignments.Where(t => t.EvaluationPeriod.PeriodType == PeriodType.Month)));
     }
 
@@ -330,7 +332,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         await SetStatusAsync(_yearId, PeriodStatus.Locked);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            RunAsync(sp => sp.GetRequiredService<ITargetAllocationService>().ConfirmAsync(deptYear, _adminAccount)));
+            RunAsync(sp => sp.GetRequiredService<ITargetSetupService>().ConfirmAsync(deptYear, _adminAccount)));
 
         Assert.Equal(ErrorCodes.PeriodLocked, ex.ErrorCode);
     }
