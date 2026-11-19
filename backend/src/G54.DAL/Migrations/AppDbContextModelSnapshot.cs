@@ -2187,7 +2187,7 @@ namespace G54.DAL.Migrations
                         {
                             t.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
 
-                            t.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B')");
+                            t.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
                         });
                 });
 

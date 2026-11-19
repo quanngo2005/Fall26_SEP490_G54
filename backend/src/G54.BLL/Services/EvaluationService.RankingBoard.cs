@@ -28,10 +28,11 @@ public sealed partial class EvaluationService
     public async Task<RankingBoardOverviewDto> GetRankingBoardAsync(
         Guid periodId,
         Guid? departmentId,
+        Guid? comparePeriodId,
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var calibration = await GetDepartmentCalibrationAsync(periodId, departmentId, null, currentUserId, cancellationToken);
+        var calibration = await GetDepartmentCalibrationAsync(periodId, departmentId, null, currentUserId, includeSubDepartments: true, cancellationToken: cancellationToken);
         var period = await db.EvaluationPeriods.AsNoTracking().FirstAsync(p => p.Id == periodId, cancellationToken);
         var deptId = calibration.Department.Id;
         var rows = calibration.RankedRoster;
@@ -48,11 +49,15 @@ public sealed partial class EvaluationService
             return new RankingBoardTierDto(code, headcount, actual, headcount == actual);
         }).ToList();
 
-        var comparePeriod = await ResolveRankingComparePeriodAsync(period, cancellationToken);
+        var comparePeriod = comparePeriodId is { } requestedCompare
+            ? await db.EvaluationPeriods.AsNoTracking().FirstOrDefaultAsync(p => p.Id == requestedCompare, cancellationToken)
+              ?? throw new NotFoundException("Kỳ so sánh", requestedCompare)
+            : await ResolveRankingComparePeriodAsync(period, cancellationToken);
         var staffRows = await BuildRankingStaffRowsAsync(rows, period, comparePeriod, currentUserId, cancellationToken);
 
         var blockers = BuildRankingSendBlockers(tiers, staffRows);
         var isLocked = IsRankingLocked(period);
+        var isSent = rows.Count > 0 && rows.All(r => r.EvaluationStatus is "IN_REVIEW" or "APPROVED" or "FINAL");
 
         return new RankingBoardOverviewDto(
             deptId,
@@ -63,8 +68,10 @@ public sealed partial class EvaluationService
             comparePeriod?.Id,
             comparePeriod?.Code,
             Params.RankingLockDay,
+            RankingLockDate(period, Params.RankingLockDay),
             isLocked,
-            isLocked && blockers.Count == 0,
+            blockers.Count == 0,
+            isSent,
             blockers,
             tiers,
             staffRows,
@@ -77,7 +84,58 @@ public sealed partial class EvaluationService
         CancellationToken cancellationToken = default)
     {
         await SaveRankingAdjustmentsAsync(request, isDraft: true, currentUserId, cancellationToken);
-        return await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, currentUserId, cancellationToken);
+        return await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, null, currentUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Once the lock day is reached, places each employee with a quantitative score into the tiers A1 to C, in score order,
+    /// up to the slot headcount of each tier, and saves it as the draft. Employees beyond the slots keep their system tier.
+    /// </summary>
+    public async Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(
+        AutoAssignRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var board = await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, null, currentUserId, cancellationToken);
+        if (!board.IsLocked)
+        {
+            throw new BusinessRuleException(ErrorCodes.Conflict, "Chưa đến ngày chốt, chưa thể tự xếp hạng.", 409);
+        }
+
+        var remaining = board.Tiers.ToDictionary(t => t.TierCode, t => t.Headcount ?? 0);
+        var tierIndex = 0;
+        var adjustments = new List<RankingBoardAdjustmentItemDto>();
+        var ranked = board.StaffRows
+            .Where(r => r.QuantitativeScore.Value.HasValue)
+            .OrderByDescending(r => r.QuantitativeScore.Value)
+            .ThenBy(r => r.Rank);
+        foreach (var row in ranked)
+        {
+            while (tierIndex < RankingBoardTierCodes.Length && remaining[RankingBoardTierCodes[tierIndex]] == 0)
+            {
+                tierIndex++;
+            }
+
+            var finalTier = tierIndex < RankingBoardTierCodes.Length
+                ? RankingBoardTierCodes[tierIndex]
+                : row.SystemTier;
+            if (tierIndex < RankingBoardTierCodes.Length)
+            {
+                remaining[finalTier!]--;
+            }
+
+            if (finalTier is not null)
+            {
+                adjustments.Add(new RankingBoardAdjustmentItemDto(row.EmployeeId, finalTier, null));
+            }
+        }
+
+        await SaveRankingAdjustmentsAsync(
+            new SaveRankingBoardRequestDto(request.DepartmentId, request.PeriodId, adjustments),
+            isDraft: true,
+            currentUserId,
+            cancellationToken);
+        return await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, null, currentUserId, cancellationToken);
     }
 
     public async Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(
@@ -87,14 +145,7 @@ public sealed partial class EvaluationService
     {
         await EnsureBranchScopeAsync(currentUserId, "finalize", cancellationToken);
 
-        var board = await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, currentUserId, cancellationToken);
-        if (!board.IsLocked)
-        {
-            throw new BusinessRuleException(
-                ErrorCodes.Conflict,
-                $"Chưa đến ngày chốt xếp hạng ({board.RankingLockDay}), chưa thể gửi giám đốc chi nhánh.", 409);
-        }
-
+        var board = await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, null, currentUserId, cancellationToken);
         var blockers = board.SendBlockers;
         if (blockers.Count > 0)
         {
@@ -117,7 +168,7 @@ public sealed partial class EvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var board = await GetRankingBoardAsync(periodId, departmentId, currentUserId, cancellationToken);
+        var board = await GetRankingBoardAsync(periodId, departmentId, null, currentUserId, cancellationToken);
 
         using var workbook = new XLWorkbook();
         workbook.Style.Font.FontName = "Segoe UI";
@@ -230,7 +281,7 @@ public sealed partial class EvaluationService
         var employeeIds = rows.Select(r => r.EmployeeId).ToList();
         var compareRows = comparePeriod is null
             ? []
-            : (await GetDepartmentCalibrationAsync(comparePeriod.Id, rows.Count > 0 ? rows[0].DepartmentId : null, null, currentUserId, cancellationToken))
+            : (await GetDepartmentCalibrationAsync(comparePeriod.Id, rows.Count > 0 ? rows[0].DepartmentId : null, null, currentUserId, includeSubDepartments: true, cancellationToken: cancellationToken))
                 .RankedRoster;
 
         var risks = await LoadRiskEventsByEmployeeAsync(employeeIds, period, cancellationToken);
@@ -243,27 +294,36 @@ public sealed partial class EvaluationService
         {
             var row = rows[i];
             var previous = compareRows.FirstOrDefault(r => r.EmployeeId == row.EmployeeId);
-            var sla = (await LoadEmployeeSlaSummaryAsync(row.EmployeeId, period, cancellationToken)).OnTimeRatePercent;
+            var sla = await LoadEmployeeSlaSummaryAsync(row.EmployeeId, period, cancellationToken);
             var prevSla = comparePeriod is null
                 ? null
                 : (await LoadEmployeeSlaSummaryAsync(row.EmployeeId, comparePeriod, cancellationToken)).OnTimeRatePercent;
-            var riskCount = risks.GetValueOrDefault(row.EmployeeId)?.Count ?? 0;
+            var employeeRisks = risks.GetValueOrDefault(row.EmployeeId) ?? [];
+            var riskCount = employeeRisks.Count;
             var prevRiskCount = compareRisks.GetValueOrDefault(row.EmployeeId)?.Count;
-            var penalty = (risks.GetValueOrDefault(row.EmployeeId) ?? []).Sum(r => RiskPenalty(r, Params));
+            var penalty = employeeRisks.Sum(r => RiskPenalty(r, Params));
             var prevPenalty = comparePeriod is null
                 ? (decimal?)null
                 : (compareRisks.GetValueOrDefault(row.EmployeeId) ?? []).Sum(r => RiskPenalty(r, Params));
-            var (achieved, total) = await LoadRankingCriteriaCountAsync(row.EmployeeId, period, cancellationToken);
+            var (achieved, total, criteria) = await LoadRankingCriteriaAsync(row.EmployeeId, period, cancellationToken);
+            var confirmedRisks = employeeRisks
+                .Where(r => r.Status is RiskEventStatus.Confirmed or RiskEventStatus.Resolved)
+                .Select(r => new RankingBoardRiskEventDto(r.Code, r.Description, r.Severity.ToString()))
+                .ToList();
 
             staffRows.Add(new RankingBoardStaffRowDto(
                 i + 1,
                 row.EmployeeId,
                 row.EmployeeCode,
                 row.FullName,
-                DeltaOf(sla, prevSla),
+                DeltaOf(sla.OnTimeRatePercent, prevSla),
+                sla.OnTimeCompletedCount,
+                sla.CompletedWithDeadlineCount,
                 achieved,
                 total,
+                criteria,
                 DeltaOf(riskCount, prevRiskCount),
+                confirmedRisks,
                 DeltaOf(penalty, prevPenalty),
                 DeltaOf(row.TotalScore, previous?.TotalScore),
                 row.ProposedTier,
@@ -275,7 +335,7 @@ public sealed partial class EvaluationService
         return staffRows;
     }
 
-    private async Task<(int? Achieved, int? Total)> LoadRankingCriteriaCountAsync(
+    private async Task<(int? Achieved, int? Total, IReadOnlyList<RankingBoardCriterionDto> Criteria)> LoadRankingCriteriaAsync(
         Guid employeeId,
         EvaluationPeriod period,
         CancellationToken cancellationToken)
@@ -286,7 +346,7 @@ public sealed partial class EvaluationService
             cancellationToken);
         if (profile is null)
         {
-            return (null, null);
+            return (null, null, []);
         }
 
         var employee = await db.Employees.AsNoTracking().FirstAsync(e => e.Id == employeeId, cancellationToken);
@@ -296,8 +356,17 @@ public sealed partial class EvaluationService
             cancellationToken))[employeeId];
 
         var kpis = scored.Groups.Where(g => !g.IsQualitative).SelectMany(g => g.Kpis).ToList();
-        var achieved = kpis.Count(k => k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value >= Params.EvalKpiMetThresholdPercent);
-        return (achieved, kpis.Count);
+        var criteria = kpis
+            .Where(k => k.TargetValue.HasValue)
+            .Select(k => new RankingBoardCriterionDto(
+                k.Name,
+                k.ActualValue,
+                k.TargetValue!.Value,
+                k.Unit,
+                k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value >= Params.EvalKpiMetThresholdPercent))
+            .ToList();
+        var achieved = criteria.Count(c => c.IsAchieved);
+        return (achieved, kpis.Count, criteria);
     }
 
     private static RankingBoardDeltaDto DeltaOf(decimal? value, decimal? previous) =>
@@ -330,15 +399,11 @@ public sealed partial class EvaluationService
         IReadOnlyList<RankingBoardStaffRowDto> staffRows)
     {
         var blockers = new List<string>();
-        foreach (var tier in tiers.Where(t => t.TierCode != "C"))
+        foreach (var tier in tiers)
         {
             if (tier.Headcount is null)
             {
                 blockers.Add($"Hạng {tier.TierCode} chưa cấu hình slot.");
-            }
-            else if (!tier.IsFilled)
-            {
-                blockers.Add($"Hạng {tier.TierCode} chưa đủ slot ({tier.ActualCount}/{tier.Headcount}).");
             }
         }
 
@@ -370,7 +435,8 @@ public sealed partial class EvaluationService
             new SubmitCalibrationRequestDto(request.DepartmentId, request.PeriodId, adjustments, null, isDraft),
             currentUserId,
             enforceTierAQuota: false,
-            cancellationToken);
+            includeSubDepartments: true,
+            cancellationToken: cancellationToken);
     }
 
     private static void WriteRankingRow(IXLWorksheet sheet, int row, params string[] values)
@@ -426,7 +492,7 @@ public sealed partial class EvaluationService
         };
 
         var sla = (await LoadEmployeeSlaSummaryAsync(employeeId, period, cancellationToken)).OnTimeRatePercent;
-        var counts = await LoadRankingCriteriaCountAsync(employeeId, period, cancellationToken);
+        var counts = await LoadRankingCriteriaAsync(employeeId, period, cancellationToken);
         var risks = (await LoadRiskEventsByEmployeeAsync([employeeId], period, cancellationToken)).GetValueOrDefault(employeeId) ?? [];
 
         decimal? criteriaRate = counts.Total is > 0

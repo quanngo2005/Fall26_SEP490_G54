@@ -720,11 +720,28 @@ public sealed partial class EvaluationService(
         return result;
     }
 
+    private async Task<List<Guid>> RosterDepartmentIdsAsync(
+        Guid departmentId,
+        bool includeSubDepartments,
+        CancellationToken cancellationToken)
+    {
+        if (!includeSubDepartments)
+        {
+            return [departmentId];
+        }
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        return hierarchy.Nodes.ContainsKey(departmentId)
+            ? hierarchy.Subtree(departmentId)
+            : [departmentId];
+    }
+
     public async Task<CalibrationOverviewDto> GetDepartmentCalibrationAsync(
         Guid periodId,
         Guid? departmentId,
         Guid? positionId,
         Guid currentUserId,
+        bool includeSubDepartments = false,
         CancellationToken cancellationToken = default)
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
@@ -741,11 +758,13 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", periodId);
 
+        var rosterDepartments = await RosterDepartmentIdsAsync(targetDeptId, includeSubDepartments, cancellationToken);
+
         var query = db.Employees
             .AsNoTracking()
             .Include(e => e.Department)
             .Include(e => e.JobPosition)
-            .Where(e => e.DepartmentId == targetDeptId && e.Status == EmployeeStatus.Active);
+            .Where(e => rosterDepartments.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active);
 
         if (positionId.HasValue)
         {
@@ -977,16 +996,18 @@ public sealed partial class EvaluationService(
         SubmitCalibrationRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default)
-        => await SubmitDepartmentCalibrationAsync(request, currentUserId, enforceTierAQuota: true, cancellationToken);
+        => await SubmitDepartmentCalibrationAsync(request, currentUserId, enforceTierAQuota: true, includeSubDepartments: false, cancellationToken: cancellationToken);
 
     /// <summary>
     /// The ranking board applies its own slot rules (`RankingSlotQuota`) instead of the Tier A percent quota (BR-37),
-    /// so it saves through this path with <paramref name="enforceTierAQuota"/> set to false.
+    /// so it saves through this path with <paramref name="enforceTierAQuota"/> set to false. It also covers the
+    /// sub-departments (teams) it displays, so <paramref name="includeSubDepartments"/> follows the same roster.
     /// </summary>
     internal async Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
         SubmitCalibrationRequestDto request,
         Guid currentUserId,
         bool enforceTierAQuota,
+        bool includeSubDepartments,
         CancellationToken cancellationToken)
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
@@ -1010,10 +1031,11 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(d => d.Id == request.DepartmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", request.DepartmentId);
 
+        var rosterDepartments = await RosterDepartmentIdsAsync(request.DepartmentId, includeSubDepartments, cancellationToken);
         var employees = await db.Employees
             .AsNoTracking()
             .Include(e => e.JobPosition)
-            .Where(e => e.DepartmentId == request.DepartmentId && e.Status == EmployeeStatus.Active)
+            .Where(e => rosterDepartments.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .ToListAsync(cancellationToken);
 
         var employeeMap = employees.ToDictionary(e => e.Id, e => e);

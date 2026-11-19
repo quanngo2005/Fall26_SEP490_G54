@@ -19,15 +19,33 @@ public sealed record RankingBoardStaffRowDto(
     string EmployeeCode,
     string FullName,
     RankingBoardDeltaDto OnTimeSla,
+    int OnTimeCompletedCount,
+    int CompletedWithDeadlineCount,
     int? AchievedCriteria,
     int? TotalCriteria,
+    IReadOnlyList<RankingBoardCriterionDto> Criteria,
     RankingBoardDeltaDto RiskEventCount,
+    IReadOnlyList<RankingBoardRiskEventDto> RiskEvents,
     RankingBoardDeltaDto RiskPenalty,
     RankingBoardDeltaDto QuantitativeScore,
     string? SystemTier,
     string? FinalTier,
     string? AdjustmentReason,
     bool IsConfirmed);
+
+/// <summary>One KPI of the criteria count: its target, its actual value and whether it reached the threshold.</summary>
+public sealed record RankingBoardCriterionDto(
+    string KpiName,
+    decimal? ActualValue,
+    decimal TargetValue,
+    string Unit,
+    bool IsAchieved);
+
+/// <summary>A confirmed risk event of the employee in the period.</summary>
+public sealed record RankingBoardRiskEventDto(
+    string Code,
+    string Description,
+    string Severity);
 
 public sealed record RankingBoardOverviewDto(
     Guid DepartmentId,
@@ -38,8 +56,10 @@ public sealed record RankingBoardOverviewDto(
     Guid? ComparePeriodId,
     string? ComparePeriodCode,
     int RankingLockDay,
+    DateOnly RankingLockDate,
     bool IsLocked,
     bool CanSendToDirector,
+    bool IsSentToDirector,
     IReadOnlyList<string> SendBlockers,
     IReadOnlyList<RankingBoardTierDto> Tiers,
     IReadOnlyList<RankingBoardStaffRowDto> StaffRows,
@@ -54,6 +74,10 @@ public sealed record SaveRankingBoardRequestDto(
     Guid DepartmentId,
     Guid PeriodId,
     IReadOnlyList<RankingBoardAdjustmentItemDto> Adjustments);
+
+public sealed record AutoAssignRankingBoardRequestDto(
+    Guid DepartmentId,
+    Guid PeriodId);
 
 public sealed record RankingBoardSendResultDto(
     Guid DepartmentId,

@@ -1,47 +1,56 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
+import { finalize } from 'rxjs';
+import { EvaluationFormTargetService } from '../../../core/evaluation-form-target.service';
+import { EvaluationService } from '../../../core/evaluation.service';
+import {
+  EvaluationPeriodOption,
+  RankingBoardOverview,
+  RankingBoardStaffRow,
+  RankingTierCode,
+  SaveRankingBoardRequest,
+} from '../../../core/evaluation.models';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
+import { saveFile } from '../../performance-dashboard/performance-page';
 
-export type RankingTier = 'A1' | 'A2' | 'A3' | 'B' | 'C';
-
-export interface RankingMetric {
-  value: string;
-  delta?: string;
-  tone?: 'good' | 'bad';
+interface TierTableRow {
+  tier: RankingTierCode;
+  headcount: number | null;
+  actualCount: number;
+  isFilled: boolean;
+  share: number | null;
 }
 
-export interface RankingStaffRow {
-  stt: number;
-  name: string;
-  code: string;
-  sla: RankingMetric;
-  target: RankingMetric;
-  risk: RankingMetric;
-  penalty: RankingMetric;
-  score: RankingMetric;
-  systemTier: RankingTier;
-  finalTier: RankingTier;
-  reason: string | null;
-  reasonRequired?: boolean;
-  tierChanged?: boolean;
-}
-
-export interface RankingTierRow {
-  tier: RankingTier;
-  share: string;
-  slots: number;
-  actual: number;
-}
-
-const TIER_CLASS: Record<RankingTier, string> = {
+const TIER_CLASS: Record<RankingTierCode, string> = {
   A1: 'tier-a',
   A2: 'tier-a',
   A3: 'tier-a',
   B: 'tier-b',
   C: 'tier-c',
 };
+
+export type ScoreOrder = 'desc' | 'asc';
+
+export type CompositeSort = 'none' | 'scoreChange' | 'sla' | 'criteria' | 'risk';
+
+function compositeSortKey(row: RankingBoardStaffRow, sort: CompositeSort): number | null {
+  switch (sort) {
+    case 'none':
+      return null;
+    case 'scoreChange':
+      return row.quantitativeScore.change === null ? null : Math.abs(row.quantitativeScore.change);
+    case 'sla':
+      return row.onTimeSla.value;
+    case 'criteria':
+      return row.achievedCriteria;
+    case 'risk':
+      return row.riskEventCount.value;
+  }
+}
 
 @Component({
   selector: 'app-department-ranking',
@@ -50,170 +59,479 @@ const TIER_CLASS: Record<RankingTier, string> = {
   templateUrl: './department-ranking.component.html',
   styleUrls: ['./department-ranking.component.scss', '../evaluations.layout.scss'],
 })
-export class DepartmentRankingComponent extends LocalizedComponent {
-  readonly lockReached = true;
+export class DepartmentRankingComponent extends LocalizedComponent implements OnInit {
+  private readonly evaluationService = inject(EvaluationService);
+  private readonly formTarget = inject(EvaluationFormTargetService);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  readonly tierRows: RankingTierRow[] = [
-    { tier: 'A1', share: '5%', slots: 1, actual: 2 },
-    { tier: 'A2', share: '5%', slots: 1, actual: 1 },
-    { tier: 'A3', share: '10%', slots: 2, actual: 1 },
-    { tier: 'B', share: '40%', slots: 8, actual: 8 },
-    { tier: 'C', share: '40%', slots: 8, actual: 8 },
-  ];
-
-  readonly staffRows: RankingStaffRow[] = [
-    {
-      stt: 1,
-      name: 'Nguyễn Văn An',
-      code: 'NV001',
-      sla: { value: '98%', delta: '▲ 2%', tone: 'good' },
-      target: { value: '4/5' },
-      risk: { value: '0' },
-      penalty: { value: '0.0' },
-      score: { value: '94.5', delta: '▲ 2.5' },
-      systemTier: 'A1',
-      finalTier: 'A1',
-      reason: null,
-    },
-    {
-      stt: 2,
-      name: 'Trần Thị Bình',
-      code: 'NV002',
-      sla: { value: '96%', delta: '▼ 1%', tone: 'bad' },
-      target: { value: '4/5', delta: '▲ 1', tone: 'good' },
-      risk: { value: '0' },
-      penalty: { value: '0.0' },
-      score: { value: '91.2', delta: '▼ 1.4' },
-      systemTier: 'A2',
-      finalTier: 'A2',
-      reason: null,
-    },
-    {
-      stt: 3,
-      name: 'Lê Minh Cường',
-      code: 'NV014',
-      sla: { value: '95%', delta: '▲ 3%', tone: 'good' },
-      target: { value: '3/5', delta: '▼ 1', tone: 'bad' },
-      risk: { value: '1', delta: '▲ 1', tone: 'bad' },
-      penalty: { value: '-2.0', delta: '▼ 1.5' },
-      score: { value: '89.8', delta: '▲ 1.8' },
-      systemTier: 'A2',
-      finalTier: 'A1',
-      reason: 'Dẫn dắt dự án Q3',
-      tierChanged: true,
-    },
-    {
-      stt: 4,
-      name: 'Phạm Quốc Dũng',
-      code: 'NV007',
-      sla: { value: '93%', delta: '▼ 2%', tone: 'bad' },
-      target: { value: '4/5' },
-      risk: { value: '0', delta: '▼ 1', tone: 'good' },
-      penalty: { value: '0.0', delta: '▲ 1.0' },
-      score: { value: '88.6' },
-      systemTier: 'A2',
-      finalTier: 'A2',
-      reason: null,
-    },
-    {
-      stt: 5,
-      name: 'Hoàng Thu Hà',
-      code: 'NV021',
-      sla: { value: '92%' },
-      target: { value: '3/5', delta: '▲ 1', tone: 'good' },
-      risk: { value: '1' },
-      penalty: { value: '-1.5' },
-      score: { value: '84.0', delta: '▼ 1.9' },
-      systemTier: 'A3',
-      finalTier: 'A3',
-      reason: null,
-    },
-    {
-      stt: 6,
-      name: 'Đặng Anh Khoa',
-      code: 'NV009',
-      sla: { value: '90%', delta: '▲ 4%', tone: 'good' },
-      target: { value: '3/5' },
-      risk: { value: '2', delta: '▲ 2', tone: 'bad' },
-      penalty: { value: '-3.0', delta: '▼ 1.0' },
-      score: { value: '81.7', delta: '▲ 1.2' },
-      systemTier: 'A3',
-      finalTier: 'B',
-      reason: null,
-      reasonRequired: true,
-      tierChanged: true,
-    },
-    {
-      stt: 7,
-      name: 'Vũ Minh Tuấn',
-      code: 'NV011',
-      sla: { value: '88%', delta: '▼ 1%', tone: 'bad' },
-      target: { value: '3/5', delta: '▲ 1', tone: 'good' },
-      risk: { value: '1', delta: '▲ 1', tone: 'bad' },
-      penalty: { value: '-1.0', delta: '▲ 1.0' },
-      score: { value: '79.4', delta: '▼ 1.6' },
-      systemTier: 'B',
-      finalTier: 'B',
-      reason: null,
-    },
-    {
-      stt: 8,
-      name: 'Bùi Thị Lan',
-      code: 'NV017',
-      sla: { value: '85%', delta: '▼ 2%', tone: 'bad' },
-      target: { value: '2/5', delta: '▼ 1', tone: 'bad' },
-      risk: { value: '0', delta: '▼ 1', tone: 'good' },
-      penalty: { value: '0.0' },
-      score: { value: '74.2', delta: '▲ 1.2' },
-      systemTier: 'C',
-      finalTier: 'C',
-      reason: null,
-    },
-  ];
-
-  readonly expandedGroups = signal<ReadonlySet<string>>(new Set(['business']));
-
-  get totalSlots(): number {
-    return this.tierRows.reduce((sum, row) => sum + row.slots, 0);
+  get emptyValue(): string {
+    return this.localization.evaluations.emptyValue;
   }
 
-  get totalActual(): number {
-    return this.tierRows.reduce((sum, row) => sum + row.actual, 0);
+  formatNumber(value: number, maxDecimals?: number): string {
+    return this.i18n.formatNumber(value, maxDecimals);
+  }
+
+  signed(value: number, maxDecimals: number): string {
+    const arrow = value > 0 ? '▲' : '▼';
+    return `${arrow} ${this.i18n.formatNumber(Math.abs(value), maxDecimals)}`;
   }
 
   lockNoticeText(): string {
-    return this.i18n.translate('evaluations.departmentRanking.lockNotice', { date: '15/11/2026' });
+    const board = this.board();
+    if (!board) return '';
+    if (board.isSentToDirector) {
+      return this.localization.evaluations.departmentRanking.noticeSent;
+    }
+    if (board.isLocked) {
+      return this.localization.evaluations.departmentRanking.noticeLocked;
+    }
+    const [year, month, day] = board.rankingLockDate.split('-');
+    return this.i18n.translate('evaluations.departmentRanking.noticeScheduled', {
+      date: `${day}/${month}/${year}`,
+    });
   }
 
-  staffCardMetaText(): string {
-    return this.i18n.translate('evaluations.departmentRanking.staffCardMeta', { compare: 'Q2/2026' });
+  lockNoticeTone(): 'sent' | 'locked' | 'pending' {
+    const board = this.board();
+    if (board?.isSentToDirector) return 'sent';
+    return board?.isLocked ? 'locked' : 'pending';
   }
 
   staffFooterText(): string {
-    return this.i18n.translate('evaluations.departmentRanking.staffFooter', { total: 20 });
-  }
-
-  compareMetaText(): string {
-    return this.i18n.translate('evaluations.departmentRanking.compareMeta', { period: '2026-10' });
-  }
-
-  tierClass(tier: RankingTier): string {
-    return TIER_CLASS[tier];
-  }
-
-  isExpanded(group: string): boolean {
-    return this.expandedGroups().has(group);
-  }
-
-  toggleGroup(group: string): void {
-    this.expandedGroups.update((current) => {
-      const next = new Set(current);
-      if (next.has(group)) {
-        next.delete(group);
-      } else {
-        next.add(group);
-      }
-      return next;
+    return this.i18n.translate('evaluations.departmentRanking.staffFooter', {
+      total: this.staffRows().length,
     });
+  }
+
+  periodTypeLabel(type: string): string {
+    const dict = this.localization.evaluations.departmentRanking.periodTypes as Record<
+      string,
+      string
+    >;
+    return dict[type] ?? type;
+  }
+
+  readonly periods = signal<EvaluationPeriodOption[]>([]);
+  readonly selectedPeriodId = signal<string | null>(null);
+  readonly selectedComparePeriodId = signal<string | null>(null);
+  readonly selectedPeriodType = signal<string>('');
+
+  readonly board = signal<RankingBoardOverview | null>(null);
+  readonly loading = signal<boolean>(false);
+  readonly saving = signal<boolean>(false);
+  readonly exporting = signal<boolean>(false);
+  readonly sending = signal<boolean>(false);
+  readonly errorMessage = signal<string | null>(null);
+  readonly toastMessage = signal<string | null>(null);
+  readonly toastType = signal<'success' | 'error'>('success');
+  readonly confirmSendOpen = signal<boolean>(false);
+  readonly confirmCancelOpen = signal<boolean>(false);
+  /** True while the manager is calibrating tiers; shows the system tier and reason columns. */
+  readonly adjusting = signal<boolean>(false);
+
+  /** Edits made on the page that have not been saved yet, keyed by employee id. */
+  private readonly pendingTier = signal<ReadonlyMap<string, RankingTierCode>>(new Map());
+  private readonly pendingReason = signal<ReadonlyMap<string, string>>(new Map());
+
+  readonly periodTypes = computed(() => [...new Set(this.periods().map((p) => p.periodType))]);
+
+  readonly filteredPeriods = computed(() =>
+    this.periods().filter((p) => p.periodType === this.selectedPeriodType()),
+  );
+
+  readonly comparePeriods = computed(() =>
+    this.filteredPeriods().filter((p) => p.id !== this.selectedPeriodId()),
+  );
+
+  readonly staffRows = computed<RankingBoardStaffRow[]>(() => this.board()?.staffRows ?? []);
+
+  readonly scoreOrder = signal<ScoreOrder>('desc');
+  readonly compositeSort = signal<CompositeSort>('none');
+
+  /** Staff rows in the chosen order; the composite sort wins when set, otherwise the score order applies. */
+  readonly displayRows = computed<RankingBoardStaffRow[]>(() => {
+    const composite = this.compositeSort();
+    const rows = [...this.staffRows()];
+    if (composite === 'none') {
+      const direction = this.scoreOrder() === 'desc' ? -1 : 1;
+      return rows.sort((a, b) => {
+        const diff = (a.quantitativeScore.value ?? 0) - (b.quantitativeScore.value ?? 0);
+        return diff === 0 ? a.rank - b.rank : diff * direction;
+      });
+    }
+    const direction = composite === 'risk' ? 1 : -1;
+    return rows.sort((a, b) => {
+      const keyA = compositeSortKey(a, composite);
+      const keyB = compositeSortKey(b, composite);
+      if (keyA === keyB) return a.rank - b.rank;
+      if (keyA === null) return 1;
+      if (keyB === null) return -1;
+      return (keyA - keyB) * direction;
+    });
+  });
+
+  readonly tierOptions: RankingTierCode[] = ['A1', 'A2', 'A3', 'B', 'C'];
+
+  /** Tier table rows: A1–B from the board, plus C as the remaining eligible employees (no slot). */
+  readonly tierTableRows = computed<TierTableRow[]>(() => {
+    const total = this.staffRows().length;
+    return (this.board()?.tiers ?? []).map((tier) => ({
+      tier: tier.tierCode,
+      headcount: tier.headcount,
+      actualCount: tier.actualCount,
+      isFilled: tier.isFilled,
+      share: tier.headcount === null || total === 0 ? null : (tier.headcount / total) * 100,
+    }));
+  });
+
+  readonly totalSlots = computed(() =>
+    this.tierTableRows().reduce((sum, row) => sum + (row.headcount ?? 0), 0),
+  );
+
+  readonly totalActual = computed(() =>
+    this.tierTableRows().reduce((sum, row) => sum + row.actualCount, 0),
+  );
+
+  readonly allSlotsFilled = computed(() => {
+    const rows = this.tierTableRows();
+    return rows.length > 0 && rows.every((row) => row.isFilled);
+  });
+
+  readonly lockReached = computed(() => this.board()?.isLocked ?? false);
+
+  readonly canSend = computed(() => this.board()?.canSendToDirector ?? false);
+
+  /** Hạng hệ thống và lý do điều chỉnh chỉ hiện với kỳ đang diễn ra (hôm nay nằm trong khoảng ngày của kỳ). */
+  readonly isCurrentPeriod = computed(() => {
+    const period = this.periods().find((p) => p.id === this.selectedPeriodId());
+    if (!period) return false;
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return period.startDate <= todayKey && todayKey <= period.endDate;
+  });
+
+  readonly sendBlockers = computed(() => this.board()?.sendBlockers ?? []);
+
+  ngOnInit(): void {
+    this.evaluationService
+      .periods()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (periods) => {
+          this.periods.set(periods);
+          const first = periods[0] ?? null;
+          if (!first) return;
+          this.selectedPeriodType.set(first.periodType);
+          this.selectedPeriodId.set(first.id);
+          this.loadBoard(first.id, null);
+        },
+        error: () =>
+          this.errorMessage.set(this.localization.evaluations.departmentRanking.loadError),
+      });
+  }
+
+  onPeriodTypeChange(event: Event): void {
+    const periodType = (event.target as HTMLSelectElement).value;
+    this.selectedPeriodType.set(periodType);
+    const first = this.periods().find((p) => p.periodType === periodType);
+    if (first) this.onPeriodSelected(first.id);
+  }
+
+  onPeriodChange(event: Event): void {
+    const periodId = (event.target as HTMLSelectElement).value;
+    if (periodId) this.onPeriodSelected(periodId);
+  }
+
+  onComparePeriodChange(event: Event): void {
+    const comparePeriodId = (event.target as HTMLSelectElement).value || null;
+    const periodId = this.selectedPeriodId();
+    if (!periodId) return;
+    this.selectedComparePeriodId.set(comparePeriodId);
+    this.loadBoard(periodId, comparePeriodId);
+  }
+
+  saveDraft(): void {
+    const request = this.buildRequest();
+    if (!request || this.saving()) return;
+    this.saving.set(true);
+    this.evaluationService
+      .saveRankingBoardDraft(request)
+      .pipe(
+        finalize(() => this.saving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (board) => {
+          this.applyBoard(board);
+          this.showToast(this.localization.evaluations.departmentRanking.draftSaved, 'success');
+        },
+        error: () =>
+          this.showToast(this.localization.evaluations.departmentRanking.saveError, 'error'),
+      });
+  }
+
+  exportExcel(): void {
+    const periodId = this.selectedPeriodId();
+    const departmentId = this.board()?.departmentId;
+    if (!periodId || !departmentId || this.exporting()) return;
+    this.exporting.set(true);
+    this.evaluationService
+      .exportRankingBoard(periodId, departmentId)
+      .pipe(
+        finalize(() => this.exporting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (blob) => saveFile(blob, `xep-hang-phong-${this.board()?.periodCode ?? 'ky'}.xlsx`),
+        error: () =>
+          this.showToast(this.localization.evaluations.departmentRanking.exportError, 'error'),
+      });
+  }
+
+  toggleAdjusting(): void {
+    if (this.adjusting()) {
+      this.confirmCancelOpen.set(true);
+      return;
+    }
+    const periodId = this.selectedPeriodId();
+    const departmentId = this.board()?.departmentId;
+    if (!periodId || !departmentId || this.saving()) return;
+    this.saving.set(true);
+    this.evaluationService
+      .autoAssignRankingBoard({ departmentId, periodId })
+      .pipe(
+        finalize(() => this.saving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (board) => {
+          this.applyBoard(board);
+          this.adjusting.set(true);
+        },
+        error: () =>
+          this.showToast(this.localization.evaluations.departmentRanking.saveError, 'error'),
+      });
+  }
+
+  closeConfirmCancel(): void {
+    this.confirmCancelOpen.set(false);
+  }
+
+  onScoreOrderChange(event: Event): void {
+    this.scoreOrder.set((event.target as HTMLSelectElement).value as ScoreOrder);
+    this.compositeSort.set('none');
+  }
+
+  onCompositeSortChange(event: Event): void {
+    this.compositeSort.set((event.target as HTMLSelectElement).value as CompositeSort);
+  }
+
+  confirmCancelAdjusting(): void {
+    this.confirmCancelOpen.set(false);
+    this.adjusting.set(false);
+    const request = this.buildCancelRequest();
+    if (!request || this.saving()) {
+      this.pendingTier.set(new Map());
+      this.pendingReason.set(new Map());
+      return;
+    }
+    this.saving.set(true);
+    this.evaluationService
+      .saveRankingBoardDraft(request)
+      .pipe(
+        finalize(() => this.saving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (board) => this.applyBoard(board),
+        error: () =>
+          this.showToast(this.localization.evaluations.departmentRanking.saveError, 'error'),
+      });
+  }
+
+  openConfirmSend(): void {
+    if (this.canSend()) this.confirmSendOpen.set(true);
+  }
+
+  closeConfirmSend(): void {
+    this.confirmSendOpen.set(false);
+  }
+
+  confirmSend(): void {
+    const request = this.buildRequest();
+    if (!request || this.sending()) return;
+    this.sending.set(true);
+    this.evaluationService
+      .sendRankingBoardToDirector(request)
+      .pipe(
+        finalize(() => {
+          this.sending.set(false);
+          this.confirmSendOpen.set(false);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.showToast(this.localization.evaluations.departmentRanking.sentToast, 'success');
+          this.reloadBoard();
+        },
+        error: (error: { status?: number }) => {
+          const message =
+            error.status === 409
+              ? this.localization.evaluations.departmentRanking.sendBlocked
+              : this.localization.evaluations.departmentRanking.sendError;
+          this.showToast(message, 'error');
+          this.reloadBoard();
+        },
+      });
+  }
+
+  finalTierOf(row: RankingBoardStaffRow): RankingTierCode | null {
+    return this.pendingTier().get(row.employeeId) ?? row.finalTier;
+  }
+
+  reasonOf(row: RankingBoardStaffRow): string {
+    return this.pendingReason().get(row.employeeId) ?? row.adjustmentReason ?? '';
+  }
+
+  isTierChanged(row: RankingBoardStaffRow): boolean {
+    const final = this.finalTierOf(row);
+    return final !== null && final !== row.systemTier;
+  }
+
+  isReasonMissing(row: RankingBoardStaffRow): boolean {
+    return this.isTierChanged(row) && this.reasonOf(row).trim() === '';
+  }
+
+  setFinalTier(row: RankingBoardStaffRow, event: Event): void {
+    const tier = (event.target as HTMLSelectElement).value as RankingTierCode;
+    this.pendingTier.update((map) => new Map(map).set(row.employeeId, tier));
+  }
+
+  setReason(row: RankingBoardStaffRow, event: Event): void {
+    const reason = (event.target as HTMLInputElement).value;
+    this.pendingReason.update((map) => new Map(map).set(row.employeeId, reason));
+  }
+
+  openEmployeeForm(row: RankingBoardStaffRow): void {
+    const periodId = this.selectedPeriodId();
+    if (!periodId) return;
+    this.formTarget.save({ employeeId: row.employeeId, periodId });
+    void this.router.navigate(['/evaluations/form']);
+  }
+
+  onTimeText(row: RankingBoardStaffRow): string {
+    return this.localization.evaluations.departmentRanking.hoverOnTime
+      .replace('{onTime}', String(row.onTimeCompletedCount))
+      .replace('{total}', String(row.completedWithDeadlineCount));
+  }
+
+  riskTitleText(row: RankingBoardStaffRow): string {
+    return this.localization.evaluations.departmentRanking.hoverRiskTitle.replace(
+      '{count}',
+      String(row.riskEvents.length),
+    );
+  }
+
+  placePopup(event: MouseEvent, popup: HTMLElement): void {
+    const anchor = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    popup.style.top = `${anchor.bottom + 6}px`;
+    popup.style.left = `${anchor.right}px`;
+    popup.style.transform = 'translateX(-100%)';
+  }
+
+  deltaTone(delta: number | null, higherIsBetter: boolean): 'good' | 'bad' | null {
+    if (delta === null || delta === 0) return null;
+    return delta > 0 === higherIsBetter ? 'good' : 'bad';
+  }
+
+  tierClass(tier: RankingTierCode | null): string {
+    return tier ? TIER_CLASS[tier] : '';
+  }
+
+  private onPeriodSelected(periodId: string): void {
+    this.selectedPeriodId.set(periodId);
+    this.selectedComparePeriodId.set(null);
+    this.loadBoard(periodId, null);
+  }
+
+  private loadBoard(periodId: string, comparePeriodId: string | null): void {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    this.evaluationService
+      .rankingBoard(periodId, null, comparePeriodId)
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (board) => {
+          this.applyBoard(board);
+          this.restoreAdjusting(board);
+        },
+        error: () =>
+          this.errorMessage.set(this.localization.evaluations.departmentRanking.loadError),
+      });
+  }
+
+  private applyBoard(board: RankingBoardOverview): void {
+    this.board.set(board);
+    this.selectedComparePeriodId.set(board.comparePeriodId);
+    this.pendingTier.set(new Map());
+    this.pendingReason.set(new Map());
+  }
+
+  private restoreAdjusting(board: RankingBoardOverview): void {
+    this.adjusting.set(
+      board.staffRows.some(
+        (row) =>
+          (row.finalTier !== null && row.finalTier !== row.systemTier) || !!row.adjustmentReason,
+      ),
+    );
+  }
+
+  private reloadBoard(): void {
+    const periodId = this.selectedPeriodId();
+    if (periodId) this.loadBoard(periodId, this.selectedComparePeriodId());
+  }
+
+  private buildCancelRequest(): SaveRankingBoardRequest | null {
+    const board = this.board();
+    if (!board) return null;
+    const adjustments = board.staffRows
+      .filter(
+        (row) =>
+          row.systemTier !== null && (row.finalTier !== row.systemTier || !!row.adjustmentReason),
+      )
+      .map((row) => ({
+        employeeId: row.employeeId,
+        finalTier: row.systemTier as RankingTierCode,
+        reason: null,
+      }));
+    return { departmentId: board.departmentId, periodId: board.periodId, adjustments };
+  }
+
+  private buildRequest(): SaveRankingBoardRequest | null {
+    const board = this.board();
+    if (!board) return null;
+    const adjustments = this.staffRows().flatMap((row) => {
+      const finalTier = this.finalTierOf(row);
+      if (!finalTier) return [];
+      return [
+        {
+          employeeId: row.employeeId,
+          finalTier,
+          reason: this.isTierChanged(row) ? this.reasonOf(row).trim() || null : null,
+        },
+      ];
+    });
+    return { departmentId: board.departmentId, periodId: board.periodId, adjustments };
+  }
+
+  private showToast(message: string, type: 'success' | 'error'): void {
+    this.toastType.set(type);
+    this.toastMessage.set(message);
   }
 }

@@ -171,9 +171,10 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> GetRankingBoard(
         [FromQuery] Guid periodId,
         [FromQuery] Guid? departmentId,
+        [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetRankingBoardAsync(periodId, departmentId, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.GetRankingBoardAsync(periodId, departmentId, comparePeriodId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -190,6 +191,23 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         CancellationToken cancellationToken)
     {
         var result = await service.SaveRankingBoardDraftAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Once the lock day is reached, assigns the final tiers A1 to C by quantitative score and tier slots, and saves them as the draft (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/auto-assign")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> AutoAssignRankingBoard(
+        [FromBody] AutoAssignRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AutoAssignRankingBoardAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -264,7 +282,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             departmentId,
             positionId,
             User.GetRequiredUserId(),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }

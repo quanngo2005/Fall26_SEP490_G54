@@ -49,6 +49,7 @@ public interface IEvaluationService
         Guid? departmentId,
         Guid? positionId,
         Guid currentUserId,
+        bool includeSubDepartments = false,
         CancellationToken cancellationToken = default);
 
     Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
@@ -59,11 +60,17 @@ public interface IEvaluationService
     Task<RankingBoardOverviewDto> GetRankingBoardAsync(
         Guid periodId,
         Guid? departmentId,
+        Guid? comparePeriodId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
     Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
         SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(
+        AutoAssignRankingBoardRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 

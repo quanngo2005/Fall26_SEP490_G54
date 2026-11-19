@@ -276,6 +276,100 @@ export interface BranchApprovalOverview {
   disputedPendingCount: number;
 }
 
+export type RankingTierCode = 'A1' | 'A2' | 'A3' | 'B' | 'C';
+
+export interface RankingBoardTier {
+  tierCode: 'A1' | 'A2' | 'A3' | 'B';
+  headcount: number | null;
+  actualCount: number;
+  isFilled: boolean;
+}
+
+export interface RankingBoardDelta {
+  value: number | null;
+  previousValue: number | null;
+  change: number | null;
+}
+
+export interface RankingBoardCriterion {
+  kpiName: string;
+  actualValue: number | null;
+  targetValue: number;
+  unit: string;
+  isAchieved: boolean;
+}
+
+export interface RankingBoardRiskEvent {
+  code: string;
+  description: string;
+  severity: string;
+}
+
+export interface RankingBoardStaffRow {
+  rank: number;
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  onTimeSla: RankingBoardDelta;
+  onTimeCompletedCount: number;
+  completedWithDeadlineCount: number;
+  achievedCriteria: number | null;
+  totalCriteria: number | null;
+  criteria: RankingBoardCriterion[];
+  riskEventCount: RankingBoardDelta;
+  riskEvents: RankingBoardRiskEvent[];
+  riskPenalty: RankingBoardDelta;
+  quantitativeScore: RankingBoardDelta;
+  systemTier: RankingTierCode | null;
+  finalTier: RankingTierCode | null;
+  adjustmentReason: string | null;
+  isConfirmed: boolean;
+}
+
+export interface RankingBoardOverview {
+  departmentId: string;
+  departmentName: string;
+  periodId: string;
+  periodCode: string;
+  periodName: string;
+  comparePeriodId: string | null;
+  comparePeriodCode: string | null;
+  rankingLockDay: number;
+  rankingLockDate: string;
+  isLocked: boolean;
+  canSendToDirector: boolean;
+  isSentToDirector: boolean;
+  sendBlockers: string[];
+  tiers: RankingBoardTier[];
+  staffRows: RankingBoardStaffRow[];
+  generatedAt: string;
+}
+
+export interface RankingBoardAdjustmentItem {
+  employeeId: string;
+  finalTier: RankingTierCode;
+  reason: string | null;
+}
+
+export interface SaveRankingBoardRequest {
+  departmentId: string;
+  periodId: string;
+  adjustments: RankingBoardAdjustmentItem[];
+}
+
+export interface AutoAssignRankingBoardRequest {
+  departmentId: string;
+  periodId: string;
+}
+
+export interface RankingBoardSendResult {
+  departmentId: string;
+  periodId: string;
+  status: string;
+  sentAt: string;
+  message: string;
+}
+
 export interface CalibrationEmployeeRow {
   employeeId: string;
   employeeCode: string;

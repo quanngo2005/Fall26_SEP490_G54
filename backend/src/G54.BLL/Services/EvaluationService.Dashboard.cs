@@ -599,7 +599,8 @@ public sealed partial class EvaluationService
             onTimeCompletedCount,
             overdueCount,
             inProgressCount,
-            onTimeRatePercent);
+            onTimeRatePercent,
+            onTimeCompletedCount + lateCompletedCount);
     }
 
     private static List<DepartmentEvaluationProfileGroupColumnDto> BuildDashboardProfileGroupColumns(

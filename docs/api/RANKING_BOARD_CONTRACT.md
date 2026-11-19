@@ -58,21 +58,78 @@ Lỗi: 400 `VALIDATION_ERROR` (thiếu, trùng hoặc số âm), 401, 403, 404 `
 
 Quyền xem: `evaluation:read` (scope `Dept`). Quyền thao tác gửi giám đốc: `evaluation:finalize` (scope `Branch`).
 
-### GET /evaluations/ranking-board?periodId={guid}&comparePeriodId={guid}&departmentId={guid}
+### GET /evaluations/ranking-board?periodId={guid}&departmentId={guid?}&comparePeriodId={guid?}
 
-Trả về bảng hạng theo phòng cho kỳ đã chọn: slot từng hạng (`headcount`, `actualCount`), danh sách nhân viên xếp theo điểm giảm dần (SLA, đạt chỉ tiêu, sự kiện rủi ro, phạt, điểm định lượng, hạng hệ thống, hạng chốt, lý do điều chỉnh) và chênh lệch so với kỳ so sánh. Đính kèm `rankingLockDay`, `isLocked` (đã tới ngày chốt), `canSendToDirector` và `sendBlockers` (lý do bị chặn).
+Phạm vi: chỉ phòng của người đăng nhập. Bỏ trống `departmentId` thì dùng phòng của người gọi. Bỏ trống `comparePeriodId` thì dùng kỳ cùng loại ngay trước đó (`comparePeriodId` trong response là kỳ đã dùng, có thể `null`).
+
+Response 200 (`data`):
+
+```json
+{
+  "departmentId": "guid",
+  "departmentName": "string",
+  "periodId": "guid",
+  "periodCode": "string",
+  "periodName": "string",
+  "comparePeriodId": "guid | null",
+  "comparePeriodCode": "string | null",
+  "rankingLockDay": 20,
+  "rankingLockDate": "2026-11-20",
+  "isLocked": true,
+  "canSendToDirector": false,
+  "isSentToDirector": false,
+  "sendBlockers": ["string"],
+  "tiers": [
+    { "tierCode": "A1", "headcount": 2, "actualCount": 0, "isFilled": false }
+  ],
+  "staffRows": [
+    {
+      "rank": 1,
+      "employeeId": "guid",
+      "employeeCode": "string",
+      "fullName": "string",
+      "onTimeSla": { "value": 92.5, "previousValue": 90.0, "change": 2.5 },
+      "achievedCriteria": 3,
+      "totalCriteria": 4,
+      "riskEventCount": { "value": 1, "previousValue": 2, "change": -1 },
+      "riskPenalty": { "value": 1.5, "previousValue": 0, "change": 1.5 },
+      "quantitativeScore": { "value": 88.2, "previousValue": 85.0, "change": 3.2 },
+      "systemTier": "A3",
+      "finalTier": "A3",
+      "adjustmentReason": null,
+      "isConfirmed": true
+    }
+  ],
+  "generatedAt": "2026-11-19T00:00:00Z"
+}
+```
+
+- `tiers` chỉ có A1, A2, A3, B. Hạng C không có dòng riêng; FE tính `C = tổng nhân viên − tổng actualCount của A1–B`.
+- Delta `change = value − previousValue`, `null` khi thiếu một trong hai giá trị.
+- `systemTier`, `finalTier`: `null` khi nhân viên chưa có điểm.
+- `sendBlockers`: danh sách lý do bằng tiếng Việt, rỗng khi `canSendToDirector = true`.
+- `rankingLockDate`: ngày chốt cụ thể của kỳ (`yyyy-MM-dd`), tính từ `rankingLockDay` và loại kỳ (tháng, quý, năm).
+- `isSentToDirector`: `true` khi đã gửi giám đốc chi nhánh, tức mọi đánh giá của nhân viên trong bảng đã ở `IN_REVIEW` trở lên (có ít nhất một nhân viên).
+
+Lỗi: 400 `VALIDATION_ERROR` (thiếu `periodId`; hiện đang trả 404, cần thống nhất), 401, 403, 404 `NOT_FOUND` (kỳ, kỳ so sánh hoặc phòng không tồn tại).
 
 ### POST /evaluations/ranking-board/draft
 
-Lưu nháp hạng chốt và lý do điều chỉnh. Request: `{ periodId, departmentId, adjustments: [{ employeeId, finalTier, reason }] }`. Không kiểm tra slot và không yêu cầu đủ xác nhận.
+Lưu nháp hạng chốt và lý do điều chỉnh. Request: `{ departmentId, periodId, adjustments: [{ employeeId, finalTier, reason }] }`. Không kiểm tra slot và không yêu cầu đủ xác nhận. Response 200: cùng dạng với GET.
+
+### POST /evaluations/ranking-board/auto-assign
+
+Chỉ dùng khi đã tới ngày chốt (`isLocked = true`); chưa tới ngày chốt trả 409 `CONFLICT`. Request: `{ departmentId, periodId }`. BE xếp hạng chốt A1 → C theo thứ tự điểm định lượng giảm dần, mỗi hạng nhận tối đa `headcount` người; nhân viên vượt slot giữ hạng hệ thống. Kết quả được lưu ngay vào bản nháp và ghi đè toàn bộ hạng chốt cũ; lý do điều chỉnh để trống. Response 200: cùng dạng với GET. Quyền `evaluation:calibrate` (scope `Dept`).
 
 ### POST /evaluations/ranking-board/send-to-director
 
-Gửi giám đốc chi nhánh. Chỉ được gọi khi đã tới ngày chốt. Bị chặn (409 `CONFLICT`) khi: A1/A2/A3/B chưa đủ đúng slot, có nhân viên chưa xác nhận, hoặc hạng chốt khác hạng hệ thống nhưng thiếu lý do.
+Request giống draft. BE lưu hạng chốt trước, sau đó kiểm tra điều kiện trên dữ liệu đã lưu. Chỉ được gửi khi đã tới ngày chốt. Bị chặn (409 `CONFLICT`) khi: A1/A2/A3/B chưa đủ đúng slot, có nhân viên chưa xác nhận, hoặc hạng chốt khác hạng hệ thống nhưng thiếu lý do. Quyền `evaluation:finalize` (scope `Branch`); DEPT_MANAGER nhận 403.
 
-### GET /evaluations/ranking-board/export?periodId={guid}&departmentId={guid}
+Response 200: `{ departmentId, periodId, status, sentAt, message }`.
 
-File Excel `.xlsx` của bảng xếp hạng.
+### GET /evaluations/ranking-board/export?periodId={guid}&departmentId={guid?}
+
+File Excel `.xlsx` của bảng xếp hạng (hai sheet: "Hạng" và "Nhân viên"). Dùng kỳ so sánh tự động.
 
 ### GET /evaluations/ranking-compare?periodId={guid}&employeeIds={guid}&employeeIds={guid}
 

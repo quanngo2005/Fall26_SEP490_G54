@@ -1415,7 +1415,7 @@ public partial class AppDbContext : DbContext
             entity.ToTable("ranking_slot_quota", table =>
             {
                 table.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
-                table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B')");
+                table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
             });
 
             entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier").IsUnique();

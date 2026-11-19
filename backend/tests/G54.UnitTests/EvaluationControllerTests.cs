@@ -374,6 +374,7 @@ public sealed class EvaluationControllerTests
             Guid? departmentId,
             Guid? positionId,
             Guid currentUserId,
+            bool includeSubDepartments = false,
             CancellationToken cancellationToken = default)
         {
             LastCalibrationRequest = (periodId, departmentId, positionId, currentUserId);
@@ -387,10 +388,13 @@ public sealed class EvaluationControllerTests
             return Task.FromResult(new CalibrationSubmitResultDto(request.DepartmentId, request.PeriodId, "DRAFT", 0, 0, true, DateTimeOffset.UtcNow, "saved"));
         }
 
-        public Task<RankingBoardOverviewDto> GetRankingBoardAsync(Guid periodId, Guid? departmentId, Guid currentUserId, CancellationToken cancellationToken = default)
+        public Task<RankingBoardOverviewDto> GetRankingBoardAsync(Guid periodId, Guid? departmentId, Guid? comparePeriodId, Guid currentUserId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(SaveRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(AutoAssignRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(SaveRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)

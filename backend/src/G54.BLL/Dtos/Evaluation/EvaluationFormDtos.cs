@@ -109,7 +109,8 @@ public sealed record EvaluationSlaSummaryDto(
     int OnTimeCompletedCount,
     int OverdueCount,
     int InProgressCount,
-    decimal? OnTimeRatePercent);
+    decimal? OnTimeRatePercent,
+    int CompletedWithDeadlineCount = 0);
 
 public sealed record EvaluationFormSettingsDto(
     int MaxCommentLength,

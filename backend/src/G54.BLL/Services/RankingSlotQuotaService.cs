@@ -32,7 +32,7 @@ public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuota
         if (codes.Count != RankingSlotTierCodes.All.Count
             || RankingSlotTierCodes.All.Any(code => codes.Count(c => c == code) != 1))
         {
-            errors.Add("Phải nhập đúng một slot cho mỗi hạng A1, A2, A3 và B.");
+            errors.Add("Phải nhập đúng một slot cho mỗi hạng A1, A2, A3, B và C.");
         }
 
         if (request.Slots.Any(s => s.Headcount is null or < 0))

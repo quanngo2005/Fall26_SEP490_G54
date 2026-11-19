@@ -30,6 +30,16 @@ INSERT INTO department (id, code, name, description, parent_department_id, level
  ('5eed0000-0000-0000-0001-00000000000a', 'CN-HN-DVKH',  'Phòng Dịch vụ khách hàng',    'Khối giao dịch viên (Teller) - dịch vụ khách hàng', '5eed0000-0000-0000-0001-000000000001', 'DEPARTMENT')
 ON CONFLICT DO NOTHING;
 
+-- Ranking slot quotas (absolute headcount per tier). A quota is a ceiling, not
+-- a target: a tier may stay below its headcount, which blocks nothing.
+INSERT INTO ranking_slot_quota (id, department_id, tier_code, headcount, created_at, is_deleted) VALUES
+ (md5('evaluation-demo-slot-KD-A1')::uuid, '5eed0000-0000-0000-0001-000000000002', 'A1', 1, now(), FALSE),
+ (md5('evaluation-demo-slot-KD-A2')::uuid, '5eed0000-0000-0000-0001-000000000002', 'A2', 1, now(), FALSE),
+ (md5('evaluation-demo-slot-KD-A3')::uuid, '5eed0000-0000-0000-0001-000000000002', 'A3', 1, now(), FALSE),
+ (md5('evaluation-demo-slot-KD-B')::uuid,  '5eed0000-0000-0000-0001-000000000002', 'B',  1, now(), FALSE),
+ (md5('evaluation-demo-slot-KD-C')::uuid,  '5eed0000-0000-0000-0001-000000000002', 'C',  2, now(), FALSE)
+ON CONFLICT DO NOTHING;
+
 -- ---------------------------------------------------------------------------
 -- KPI catalog
 -- ---------------------------------------------------------------------------
