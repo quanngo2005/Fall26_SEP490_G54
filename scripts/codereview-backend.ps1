@@ -139,6 +139,8 @@ $checks = @(
     @{ Id = "BE-01"; Severity = "Gate"; Name = "Restore"; Test = {
             $run = Invoke-Logged { dotnet restore $solution }
             Add-MsBuildDiagnostics $run.Lines
+            # The NuGet audit needs only the restore result, so it overlaps the build and tests; SEC-BE-H01 collects it.
+            if ($run.ExitCode -eq 0) { $script:auditJob = Start-BackgroundCommand "dotnet" @("list", $solution, "package", "--vulnerable", "--include-transitive") }
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-02"; Severity = "Gate"; Name = "Release build (warnings as errors)"; Test = {
             $run = Invoke-Logged { dotnet build $solution -c Release --no-restore }
@@ -153,7 +155,7 @@ $checks = @(
             $script:efAvailable = ($LASTEXITCODE -eq 0)
             if ($script:efAvailable) {
                 $dalProject = Join-Path $backend "src/G54.DAL"
-                $script:efJob = Start-BackgroundCommand "dotnet" @("ef", "migrations", "has-pending-model-changes", "--project", $dalProject, "--startup-project", $dalProject, "--context", "AppDbContext")
+                $script:efJob = Start-BackgroundCommand "dotnet" @("ef", "migrations", "has-pending-model-changes", "--no-build", "--configuration", "Release", "--project", $dalProject, "--startup-project", $dalProject, "--context", "AppDbContext")
             }
             $run = Invoke-Logged { dotnet test $solution -c Release --no-build --settings (Join-Path $backend "coverlet.runsettings") --collect:"XPlat Code Coverage" --logger "trx;LogFileName=tests.trx" --results-directory $testResults }
             $script:cobertura = Get-ChildItem -Path $testResults -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -204,7 +206,7 @@ $checks = @(
                 return (Skip-Check "dotnet-ef is not installed (dotnet tool install -g dotnet-ef --version 8.*)")
             }
             $dal = Join-Path $backend "src/G54.DAL"
-            $run = if ($script:efJob) { Receive-BackgroundCommand $script:efJob } else { Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext } }
+            $run = if ($script:efJob) { Receive-BackgroundCommand $script:efJob } else { Invoke-Logged { dotnet ef migrations has-pending-model-changes --no-build --configuration Release --project $dal --startup-project $dal --context AppDbContext } }
             if ($run.ExitCode -ne 0 -and ($run.Lines -join "`n") -match 'Changes have been made to the model') {
                 Add-Finding "the EF model changed without a migration: run dotnet ef migrations add <Name> --project backend/src/G54.DAL"
             }
@@ -238,7 +240,7 @@ $checks = @(
     @{ Id = "SEC-BE-C05"; Severity = "Critical"; Name = "JWT validation flags are never disabled"; Test = { Find-Pattern $csFiles '(ValidateIssuerSigningKey|ValidateLifetime|ValidateIssuer|ValidateAudience)\s*=\s*false' "JWT validation disabled" } },
     @{ Id = "SEC-BE-C07"; Severity = "Critical"; Name = "No insecure deserialization"; Test = { Find-Pattern $csFiles 'BinaryFormatter|TypeNameHandling\.(All|Auto|Objects)' "insecure deserializer" } },
     @{ Id = "SEC-BE-H01"; Severity = "High"; Name = "No High/Critical vulnerable NuGet packages"; Test = {
-            $run = Invoke-Logged { dotnet list $solution package --vulnerable --include-transitive }
+            $run = if ($script:auditJob) { Receive-BackgroundCommand $script:auditJob } else { Invoke-Logged { dotnet list $solution package --vulnerable --include-transitive } }
             if ($run.ExitCode -ne 0) { Add-Finding "dotnet list package --vulnerable failed (no network?)"; return $false }
             $bad = @($run.Lines | Where-Object { $_ -match '^\s*>\s*\S+.*\b(High|Critical)\b' })
             foreach ($line in $bad) { Add-Finding "vulnerable package: $(($line.Trim() -replace '^>\s*', '') -replace '\s{2,}', ' | ')" }
@@ -293,6 +295,7 @@ $checks = @(
     @{ Id = "BE-22"; Severity = "Low"; Name = "No TODO/FIXME/HACK left in source"; Test = { Find-Pattern $csFiles '\b(TODO|FIXME|HACK)\b' "unfinished work" } }
 )
 
-$exitCode = Invoke-Review "Backend Review Report" $checks $report
+try { $exitCode = Invoke-Review "Backend Review Report" $checks $report }
+finally { Get-Job | Remove-Job -Force }
 Remove-Item -LiteralPath $testResults -Recurse -Force -ErrorAction SilentlyContinue
 exit $exitCode

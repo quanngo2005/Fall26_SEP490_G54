@@ -80,9 +80,10 @@ public sealed class WorkTransactionService(
 
         await db.SaveChangesAsync(ct);
         var importedByCode = await LoadImportedByCodeAsync(codes, ct);
+        var carriedOver = await VerifiedResultRecorder.CarriedOverPeriodsAsync(db, [work.Id], ct);
         foreach (var item in added)
         {
-            await ReconcileAsync(item, work, importedByCode.GetValueOrDefault(item.TransactionCode), ct);
+            await ReconcileAsync(item, work, importedByCode.GetValueOrDefault(item.TransactionCode), carriedOver.GetValueOrDefault(work.Id), ct);
             await db.SaveChangesAsync(ct);
         }
 
@@ -145,10 +146,16 @@ public sealed class WorkTransactionService(
             .Where(w => workIds.Contains(w.Id))
             .ToDictionaryAsync(w => w.Id, ct);
         var importedByCode = await LoadImportedByCodeAsync(pending.Select(p => p.TransactionCode), ct);
+        var carriedOver = await VerifiedResultRecorder.CarriedOverPeriodsAsync(db, workIds, ct);
 
         foreach (var item in pending)
         {
-            await ReconcileAsync(item, works[item.WorkId], importedByCode.GetValueOrDefault(NormalizeCode(item.TransactionCode)), ct);
+            await ReconcileAsync(
+                item,
+                works[item.WorkId],
+                importedByCode.GetValueOrDefault(NormalizeCode(item.TransactionCode)),
+                carriedOver.GetValueOrDefault(item.WorkId),
+                ct);
             await db.SaveChangesAsync(ct);
         }
 
@@ -189,7 +196,8 @@ public sealed class WorkTransactionService(
 
     // A code with no imported row yet, or one that cannot be credited yet (no target, locked period), stays IN_REVIEW
     // with the error code as reason so it is retried by the next import; a mismatch is final.
-    private async Task ReconcileAsync(WorkTransaction item, Work work, ImportedTransaction? imported, CancellationToken ct)
+    private async Task ReconcileAsync(
+        WorkTransaction item, Work work, ImportedTransaction? imported, EvaluationPeriod? carriedOverToPeriod, CancellationToken ct)
     {
         var now = time.GetUtcNow();
         if (imported is null)
@@ -217,7 +225,7 @@ public sealed class WorkTransactionService(
         {
             try
             {
-                var referrerCredited = await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, referral, now, ct);
+                var referrerCredited = await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, carriedOverToPeriod, referral, now, ct);
                 item.ImportedTransactionId = imported.Id;
                 Set(item, WorkTransactionStatus.Matched, referrerCredited ? null : ReasonReferrerNotCredited, now);
             }

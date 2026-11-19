@@ -36,6 +36,14 @@ Follows `API_CONVENTIONS.md`. Imports are described in `TRANSACTION_IMPORT_CONTR
   `KPI_CASA` = deposits − withdrawals) and per-customer counting (`KPI_NEW_CUST`, `KPI_CROSS_SELL`).
 - The manual verification and the ACCEPT appeal decision (`VerifiedResultRecorder.RecordAsync`) apply the same referrer
   rule: a handover referrer without a target loses only their share (`SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`).
+- **Late import of a carried-over result** (see `EVALUATION_PERIOD_CONTRACT.md` §7): when the work's latest
+  `result_submission` has `carried_over_to_period_id` set (its original period locked while the result was still
+  `SUBMITTED`/`UNDER_REVIEW`), the credit uses the carried-over period's `StartDate` as the progress/target-lookup
+  date instead of the imported transaction's own date, whenever the transaction date falls before that period's
+  start. This lets the ledger post into the period the result now belongs to instead of its original (now locked)
+  period, so matching a code for such a work does **not** fail with 409 `PERIOD_LOCKED`. A transaction for a work
+  with no carried-over result is unaffected: still credited (or blocked) against its own transaction date, and
+  still 409 `PERIOD_LOCKED` when that period is `LOCKED`/`CLOSED`.
 
 ## Endpoints (authenticated; only the work's assignee, otherwise 403)
 

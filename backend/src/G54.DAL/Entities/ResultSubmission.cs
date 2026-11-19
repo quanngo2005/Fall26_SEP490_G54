@@ -21,7 +21,13 @@ public partial class ResultSubmission
 
     public SubmissionStatus Status { get; set; }
 
+    /// <summary>When the period that owned this submission was locked while still SUBMITTED/UNDER_REVIEW, the next
+    /// open period of the same type that it was carried over to (BR carry-over); <c>null</c> when not carried over.</summary>
+    public Guid? CarriedOverToPeriodId { get; set; }
+
     public virtual ICollection<Appeal> Appeals { get; set; } = new List<Appeal>();
+
+    public virtual EvaluationPeriod? CarriedOverToPeriod { get; set; }
 
     public virtual ICollection<Evidence> Evidences { get; set; } = new List<Evidence>();
 
