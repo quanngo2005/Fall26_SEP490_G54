@@ -346,7 +346,7 @@ Response `data`:
   "departmentId": "guid",
   "departmentName": "Phòng Giao dịch",
   "status": "ACTIVE",
-  "department": { "year": 400000000, "q1": 100000000, "q2": 100000000, "q3": 100000000, "q4": 100000000 },
+  "department": { "year": 400000000, "q1": 100000000, "q2": 100000000, "q3": 100000000, "q4": 100000000, "previousYear": 360000000 },
   "employees": [
     {
       "employeeId": "guid",

@@ -1,4 +1,4 @@
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, OnInit, computed, input, output, signal } from '@angular/core';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { AppNumberPipe } from '../../pipes';
 import {
@@ -28,7 +28,7 @@ import {
   styleUrls: ['../../ui/ui-controls.scss', './suggest-allocation-popover.component.scss'],
   templateUrl: './suggest-allocation-popover.component.html',
 })
-export class SuggestAllocationPopoverComponent extends LocalizedComponent {
+export class SuggestAllocationPopoverComponent extends LocalizedComponent implements OnInit {
   /** D5: a unit with no previous-year history at all disables the whole form. */
   readonly hasHistory = input(true);
   readonly noHistoryReason = input<string | null>(null);
@@ -36,6 +36,18 @@ export class SuggestAllocationPopoverComponent extends LocalizedComponent {
   readonly isTier3 = input(false);
   readonly bufferUnitOptions = input<readonly SuggestionBufferUnitOption[]>([]);
   readonly preview = input<SuggestionPreview | null>(null);
+  /** Scope / period choices the host actually honours; the first one is the default. */
+  readonly scopes = input<readonly SuggestionScope[]>([
+    'CURRENT_KPI',
+    'GROUP',
+    'UNMATCHED',
+    'SELECTED',
+  ]);
+  readonly periodScopes = input<readonly SuggestionPeriodScope[]>([
+    'YEAR_AND_QUARTERS',
+    'YEAR_ONLY',
+    'CURRENT_QUARTER',
+  ]);
 
   readonly cancelled = output<void>();
   readonly created = output<SuggestAllocationRequest>();
@@ -52,6 +64,11 @@ export class SuggestAllocationPopoverComponent extends LocalizedComponent {
   protected readonly roundingMode = signal<SuggestionRoundingMode>('NEAREST');
   protected readonly remainderMethod = signal<SuggestionRemainderMethod>('LARGEST_REMAINDER');
   protected readonly bufferUnitId = signal<string | null>(null);
+
+  ngOnInit(): void {
+    this.scope.set(this.scopes()[0]);
+    this.periodScope.set(this.periodScopes()[0]);
+  }
 
   protected readonly isActualBasis = computed(() => this.basis() === 'ACTUAL_LAST_YEAR');
 

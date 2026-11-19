@@ -558,9 +558,9 @@ describe('BranchQuarterSplitComponent', () => {
       el.textContent?.trim(),
     );
     expect(captions).toEqual(['30 tỷ VND', '30 tỷ VND', '30 tỷ VND', '30 tỷ VND']);
-    // `app-allocation-cell`'s input carries the full, unformatted VND value (unaffected by the display
+    // `app-allocation-cell`'s input carries the full VND value grouped with dots (unaffected by the display
     // abbreviation above it).
-    expect(quarterInputs(fixture)[0].value).toBe('30000000000');
+    expect(quarterInputs(fixture)[0].value).toBe('30.000.000.000');
   });
 
   it('does not add a tỷ/triệu caption for a non-VND unit', () => {

@@ -22,21 +22,22 @@
   border: 1px solid #e2e8f0;
 
   &.is-suggested {
-    background: #eff6ff;
-    border-color: #bfdbfe;
+    background: #dbeafe;
+    border-color: #2563eb;
   }
 
   &.is-manual {
-    border-bottom: 2px solid #9a3412;
+    background: #fef3c7;
+    border-color: #d97706;
   }
 
   &.is-mismatch {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: #fee2e2;
+    border-color: #ef4444;
   }
 
   &.is-locked {
-    background: #f8fafc;
-    border-color: #e2e8f0;
+    background: repeating-linear-gradient(135deg, #e2e8f0 0 4px, #f1f5f9 4px 8px);
+    border-color: #94a3b8;
   }
 }

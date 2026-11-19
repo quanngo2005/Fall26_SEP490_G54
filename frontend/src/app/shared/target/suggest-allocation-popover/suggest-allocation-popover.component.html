@@ -35,42 +35,50 @@
 
       <section class="block">
         <h4>{{text.scopeTitle}}</h4>
-        <label class="radio-row">
-          <input
-            type="radio"
-            name="scope"
-            [checked]="scope() === 'CURRENT_KPI'"
-            (change)="setScope('CURRENT_KPI')"
-          />
-          {{text.scopeCurrentKpi}}
-        </label>
-        <label class="radio-row">
-          <input
-            type="radio"
-            name="scope"
-            [checked]="scope() === 'GROUP'"
-            (change)="setScope('GROUP')"
-          />
-          {{text.scopeGroup}}
-        </label>
-        <label class="radio-row">
-          <input
-            type="radio"
-            name="scope"
-            [checked]="scope() === 'UNMATCHED'"
-            (change)="setScope('UNMATCHED')"
-          />
-          {{text.scopeUnmatched}}
-        </label>
-        <label class="radio-row">
-          <input
-            type="radio"
-            name="scope"
-            [checked]="scope() === 'SELECTED'"
-            (change)="setScope('SELECTED')"
-          />
-          {{text.scopeSelected}}
-        </label>
+        @if (scopes().includes('CURRENT_KPI')) {
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="scope"
+              [checked]="scope() === 'CURRENT_KPI'"
+              (change)="setScope('CURRENT_KPI')"
+            />
+            {{text.scopeCurrentKpi}}
+          </label>
+        }
+        @if (scopes().includes('GROUP')) {
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="scope"
+              [checked]="scope() === 'GROUP'"
+              (change)="setScope('GROUP')"
+            />
+            {{text.scopeGroup}}
+          </label>
+        }
+        @if (scopes().includes('UNMATCHED')) {
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="scope"
+              [checked]="scope() === 'UNMATCHED'"
+              (change)="setScope('UNMATCHED')"
+            />
+            {{text.scopeUnmatched}}
+          </label>
+        }
+        @if (scopes().includes('SELECTED')) {
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="scope"
+              [checked]="scope() === 'SELECTED'"
+              (change)="setScope('SELECTED')"
+            />
+            {{text.scopeSelected}}
+          </label>
+        }
       </section>
 
       @if (isTier3()) {
@@ -98,33 +106,39 @@
 
         <section class="block">
           <h4>{{text.periodTitle}}</h4>
-          <label class="radio-row">
-            <input
-              type="radio"
-              name="periodScope"
-              [checked]="periodScope() === 'YEAR_AND_QUARTERS'"
-              (change)="setPeriodScope('YEAR_AND_QUARTERS')"
-            />
-            {{text.periodYearAndQuarters}}
-          </label>
-          <label class="radio-row">
-            <input
-              type="radio"
-              name="periodScope"
-              [checked]="periodScope() === 'YEAR_ONLY'"
-              (change)="setPeriodScope('YEAR_ONLY')"
-            />
-            {{text.periodYearOnly}}
-          </label>
-          <label class="radio-row">
-            <input
-              type="radio"
-              name="periodScope"
-              [checked]="periodScope() === 'CURRENT_QUARTER'"
-              (change)="setPeriodScope('CURRENT_QUARTER')"
-            />
-            {{text.periodCurrentQuarter}}
-          </label>
+          @if (periodScopes().includes('YEAR_AND_QUARTERS')) {
+            <label class="radio-row">
+              <input
+                type="radio"
+                name="periodScope"
+                [checked]="periodScope() === 'YEAR_AND_QUARTERS'"
+                (change)="setPeriodScope('YEAR_AND_QUARTERS')"
+              />
+              {{text.periodYearAndQuarters}}
+            </label>
+          }
+          @if (periodScopes().includes('YEAR_ONLY')) {
+            <label class="radio-row">
+              <input
+                type="radio"
+                name="periodScope"
+                [checked]="periodScope() === 'YEAR_ONLY'"
+                (change)="setPeriodScope('YEAR_ONLY')"
+              />
+              {{text.periodYearOnly}}
+            </label>
+          }
+          @if (periodScopes().includes('CURRENT_QUARTER')) {
+            <label class="radio-row">
+              <input
+                type="radio"
+                name="periodScope"
+                [checked]="periodScope() === 'CURRENT_QUARTER'"
+                (change)="setPeriodScope('CURRENT_QUARTER')"
+              />
+              {{text.periodCurrentQuarter}}
+            </label>
+          }
         </section>
       }
 

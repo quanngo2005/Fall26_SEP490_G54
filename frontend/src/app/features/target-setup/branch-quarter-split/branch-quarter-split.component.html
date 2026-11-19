@@ -39,6 +39,7 @@
               <app-suggest-allocation-popover
                 class="suggest-popover-anchor"
                 [bufferUnitOptions]="bufferUnitOptions()"
+                [scopes]="['GROUP', 'UNMATCHED']"
                 (cancelled)="closeSuggestPopover()"
                 (created)="onSuggestionCreated($event)"
               />

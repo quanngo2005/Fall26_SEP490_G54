@@ -216,4 +216,43 @@ public sealed class TargetSuggestionServiceTests
 
         Assert.Equal([200m, 300m, 500m], result);
     }
+
+    // =========================================================================
+    // SplitIntoQuarters
+    // =========================================================================
+
+    [Fact]
+    public void SplitIntoQuarters_RowsSumToYearAndColumnsToParentQuarters()
+    {
+        // Real case: department 7/8/9/10 = 34, employees 20 and 14.
+        decimal[] rows = [20m, 14m];
+        decimal[] parent = [7m, 8m, 9m, 10m];
+
+        var result = SuggestionMath.SplitIntoQuarters(rows, [null, null], parent, 1m, SuggestionRoundingMode.Nearest);
+
+        Assert.Equal(20m, result[0].Sum());
+        Assert.Equal(14m, result[1].Sum());
+        for (var q = 0; q < 4; q++)
+        {
+            Assert.Equal(parent[q], result[0][q] + result[1][q]);
+        }
+    }
+
+    [Fact]
+    public void SplitIntoQuarters_KeepsFixedRowAndFillsTheRestToTheColumns()
+    {
+        decimal[] fixedRow = [4m, 5m, 5m, 6m];
+        var result = SuggestionMath.SplitIntoQuarters([20m, 14m], [fixedRow, null], [7m, 8m, 9m, 10m], 1m, SuggestionRoundingMode.Nearest);
+
+        Assert.Equal(fixedRow, result[0]);
+        Assert.Equal([3m, 3m, 4m, 4m], result[1]);
+    }
+
+    [Fact]
+    public void SplitIntoQuarters_FallsBackToTheParentShapeWhenRowsDoNotAddUp()
+    {
+        var result = SuggestionMath.SplitIntoQuarters([10m], [null], [7m, 8m, 9m, 10m], 1m, SuggestionRoundingMode.Nearest);
+
+        Assert.Equal(10m, result[0].Sum());
+    }
 }

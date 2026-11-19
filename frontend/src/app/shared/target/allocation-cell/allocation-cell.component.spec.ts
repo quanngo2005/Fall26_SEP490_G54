@@ -69,6 +69,19 @@ describe('AllocationCellComponent', () => {
     expect(valueChange).toHaveBeenCalledWith(25);
   });
 
+  it('parses dot-grouped input and a comma decimal', () => {
+    const fixture = render({ editable: true, value: 10 });
+    const valueChange = jasmine.createSpy('valueChange');
+    fixture.componentInstance.valueChange.subscribe(valueChange);
+    const input = fixture.nativeElement.querySelector('.cell-input') as HTMLInputElement;
+    input.value = '1.000.000.000';
+    input.dispatchEvent(new Event('blur'));
+    expect(valueChange).toHaveBeenCalledWith(1_000_000_000);
+    input.value = '2,5';
+    input.dispatchEvent(new Event('blur'));
+    expect(valueChange).toHaveBeenCalledWith(2.5);
+  });
+
   it('never renders an editable input when locked', () => {
     const element = render({ editable: true, state: 'LOCKED' }).nativeElement as HTMLElement;
     expect(element.querySelector('.cell-input')).toBeNull();

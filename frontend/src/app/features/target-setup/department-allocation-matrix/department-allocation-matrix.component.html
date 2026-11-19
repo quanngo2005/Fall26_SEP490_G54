@@ -31,6 +31,7 @@
           <app-suggest-allocation-popover
             class="suggest-popover-anchor"
             [bufferUnitOptions]="bufferUnitOptions()"
+            [scopes]="['GROUP', 'UNMATCHED']"
             (cancelled)="closeSuggest()"
             (created)="onSuggestionCreated($event)"
           />
@@ -178,6 +179,16 @@
     <app-cell-legend />
     <span class="muted">{{text.hint}}</span>
   </div>
+
+  @if (showMissingPanel()) {
+    <app-missing-panel
+      [items]="store.missingItems()"
+      [otherBlockers]="missingOtherBlockers()"
+      [canFillZero]="store.canConfirmMissing()"
+      (selectKpi)="openKpi.emit($event)"
+      (fillZero)="store.confirmAllMissing()"
+    />
+  }
 
   <div class="allocation-footer">
     <button type="button" class="button button-secondary" (click)="requestBack()">

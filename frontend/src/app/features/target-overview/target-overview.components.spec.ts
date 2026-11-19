@@ -15,7 +15,6 @@ import {
 } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { BranchTargetOverviewComponent } from './branch-target-overview.component';
-import { DepartmentTargetOverviewComponent } from './department-target-overview.component';
 
 const paged = <T>(items: T[]) => ({ items, totalCount: items.length, page: 1, pageSize: 100 });
 const periods = [
@@ -327,23 +326,5 @@ describe('target overview screens', () => {
     expect(targetApi.list).toHaveBeenCalledWith({ departmentId: 'd1', evaluationPeriodId: 'y' });
     expect(element.querySelector('.subtitle')?.textContent).toContain('Phòng KHCN');
     expect(element.querySelector('.kpi-name')?.textContent).toContain('Tiền gửi');
-  });
-
-  it('department view shows the quota, allocation and feedback counts', async () => {
-    const element = (await render(DepartmentTargetOverviewComponent)).nativeElement as HTMLElement;
-
-    expect(targetApi.list).toHaveBeenCalledWith({ evaluationPeriodId: 'q4' });
-    expect(element.querySelector('.quota-table tbody')?.textContent).toContain('Tiền gửi');
-    expect(element.querySelector('.allocated-open')?.textContent).toContain('40');
-    expect(element.querySelector('.pill-group')?.textContent).toContain('1 góp ý');
-    expect(element.querySelector('.pill-group')?.textContent).toContain('1 chưa xem');
-  });
-
-  it('department view shows the latest comment of an employee in the table', async () => {
-    const fixture = await render(DepartmentTargetOverviewComponent);
-    const element = fixture.nativeElement as HTMLElement;
-
-    expect(targetApi.feedback).toHaveBeenCalledWith('ea');
-    expect(element.querySelector('.comment-text')?.textContent).toContain('Chỉ tiêu quá cao');
   });
 });

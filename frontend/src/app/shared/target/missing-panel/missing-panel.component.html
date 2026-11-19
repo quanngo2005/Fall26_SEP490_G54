@@ -1,0 +1,30 @@
+@let text = this.text();
+<section class="missing-panel" role="alert">
+  <h3>{{text.title}}</h3>
+  @if (items().length > 0) {
+    <ul>
+      @for (item of items(); track item.kpiId) {
+        <li>
+          <strong>{{item.kpiName}}</strong>
+          <span class="missing-detail"
+            >{{text.departmentsMissing}} {{item.departments.join(', ')}}</span
+          >
+          <button type="button" class="missing-link" (click)="selectKpi.emit(item.kpiId)">
+            {{text.goTo}}
+          </button>
+        </li>
+      }
+    </ul>
+    @if (canFillZero()) {
+      <div class="missing-actions">
+        <button type="button" class="button button-secondary" (click)="fillZero.emit()">
+          {{text.fillZero}}
+        </button>
+        <span class="missing-hint">{{text.fillZeroHint}}</span>
+      </div>
+    }
+  }
+  @if (otherBlockers().length > 0) {
+    <p class="missing-other">{{text.otherBlockers}}: {{otherBlockers().join(', ')}}</p>
+  }
+</section>

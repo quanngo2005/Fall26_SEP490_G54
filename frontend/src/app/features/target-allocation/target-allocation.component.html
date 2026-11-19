@@ -48,6 +48,8 @@
                 class="suggest-popover-anchor"
                 [isTier3]="true"
                 [bufferUnitOptions]="bufferUnitOptions()"
+                [scopes]="['GROUP', 'UNMATCHED']"
+                [periodScopes]="['YEAR_AND_QUARTERS', 'YEAR_ONLY']"
                 (cancelled)="cancelSuggest()"
                 (created)="createSuggestion($event)"
               />
@@ -122,14 +124,6 @@
             [activeFilter]="filter()"
             (filterChange)="setFilter($event)"
           />
-          <label class="check">
-            <input
-              type="checkbox"
-              [ngModel]="compareLastYear()"
-              (ngModelChange)="toggleCompare()"
-            />
-            {{localization.targetDm.compareLastYear}}
-          </label>
           @if (newEmployeeCount() > 0) {
             <span class="new-employee-note">
               {{i18n.translate('targetDm.newEmployeeNote', { count: newEmployeeCount() })}}
@@ -171,9 +165,14 @@
                 <td class="ratio-cell">{{localization.targetDm.ratioNotSplit}}</td>
               }
             } @else {
-              <td class="col-dept-target">{{departmentTarget(row.id) | targetMoney}}</td>
+              <td class="col-dept-target">
+                {{departmentTarget(row.id) | appNumber}}
+                @if (departmentDelta(row.id); as delta) {
+                  <span class="compare-delta">{{delta}}</span>
+                }
+              </td>
               <td class="col-remaining" [class.is-off]="remaining(row.id) !== 0">
-                {{remaining(row.id) | targetMoney}}
+                {{remaining(row.id) | appNumber}}
               </td>
               @for (col of employeeColumns(); track col.id) {
                 <td class="employee-cell">
@@ -191,7 +190,7 @@
                       (valueChange)="editYear(row.id, col.id, $event)"
                     />
                   }
-                  @if (compareLastYear() && compared(row.id, col.id) !== null) {
+                  @if (compared(row.id, col.id) !== null) {
                     <span class="compare-delta">{{deltaText(cellYear(row.id, col.id), compared(row.id, col.id))}}</span>
                   }
                 </td>

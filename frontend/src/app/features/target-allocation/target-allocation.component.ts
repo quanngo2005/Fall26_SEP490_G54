@@ -16,7 +16,6 @@ import { AppNumberPipe } from '../../shared/pipes';
 import { AllocationCellComponent } from '../../shared/target/allocation-cell/allocation-cell.component';
 import { CellLegendComponent } from '../../shared/target/cell-legend/cell-legend.component';
 import { KpiGroupTableComponent } from '../../shared/target/kpi-group-table/kpi-group-table.component';
-import { TargetMoneyPipe } from '../../shared/target/pipes/target-money.pipe';
 import { RightDrawerComponent } from '../../shared/target/right-drawer/right-drawer.component';
 import { SuggestAllocationPopoverComponent } from '../../shared/target/suggest-allocation-popover/suggest-allocation-popover.component';
 import { SuggestionPreviewBannerComponent } from '../../shared/target/suggestion-preview-banner/suggestion-preview-banner.component';
@@ -74,7 +73,6 @@ const ZERO: DraftRow = { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 };
     HeaderComponent,
     SidebarComponent,
     AppNumberPipe,
-    TargetMoneyPipe,
     AllocationCellComponent,
     CellLegendComponent,
     KpiGroupTableComponent,
@@ -120,7 +118,6 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
   protected readonly tab = signal<string>('');
   protected readonly search = signal('');
   protected readonly filter = signal<TierStatusFilter>('ALL');
-  protected readonly compareLastYear = signal(false);
   protected readonly suggestOpen = signal(false);
   protected readonly selectedEmployeeId = signal<string | null>(null);
 
@@ -345,10 +342,6 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     this.filter.set(filter);
   }
 
-  protected toggleCompare(): void {
-    this.compareLastYear.update((v) => !v);
-  }
-
   // ---------------------------------------------------------------------------
   // Grid editing
   // ---------------------------------------------------------------------------
@@ -424,8 +417,13 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     this.scheduleAutosave();
   }
 
+  /** Whole-year change of the department target against last year, e.g. `▲ +9,1%` (empty without history). */
+  protected departmentDelta(kpiId: string): string {
+    const row = this.rowOf(kpiId);
+    return row ? this.deltaText(row.department.year, row.department.previousYear ?? null) : '';
+  }
+
   protected compared(kpiId: string, employeeId: string): number | null {
-    if (!this.compareLastYear()) return null;
     const row = this.rowOf(kpiId);
     return row?.employees.find((e) => e.employeeId === employeeId)?.previousYear ?? null;
   }
@@ -489,7 +487,12 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     this.beforeSuggest = this.draft();
     this.lastSuggestBasis = request.basis;
     this.suggestRemainder.set(request.rounding.remainderMethod);
-    const targets = this.tabRows().filter((row) => !this.isRatio(row.kpiId) && !this.published());
+    const targets = this.tabRows().filter(
+      (row) =>
+        !this.isRatio(row.kpiId) &&
+        !this.published() &&
+        (request.scope !== 'UNMATCHED' || !this.kpiMatched(row)),
+    );
     const calls = targets.map((row) => {
       const current = row.employees.map((e) => ({
         unitId: e.employeeId,
@@ -528,24 +531,39 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
       )
       .subscribe((responses) => {
         const filled = new Set<string>();
-        const warnings: string[] = [];
+        const filledKpis = new Set<string>();
+        const warnings = new Set<string>();
         let fallbackCount = 0;
         for (const response of responses) {
-          warnings.push(...response.warnings);
+          response.warnings.forEach((w) => warnings.add(w));
           for (const kpiResult of response.kpis) {
-            warnings.push(...kpiResult.warnings);
+            kpiResult.warnings.forEach((w) => warnings.add(w));
             fallbackCount += kpiResult.cells.some((cell) => cell.usedFallbackAverage) ? 1 : 0;
+            const row = this.rowOf(kpiResult.kpiId);
             for (const cell of kpiResult.cells) {
-              if (cell.year === null) continue;
-              const [q1, q2, q3, q4] = [cell.q1 ?? 0, cell.q2 ?? 0, cell.q3 ?? 0, cell.q4 ?? 0];
+              // Only cells the engine really filled change; fixed cells keep what the grid already has.
+              if (cell.year === null || !cell.overwritten || !row) continue;
+              const [q1, q2, q3, q4] =
+                request.periodScope === 'YEAR_ONLY'
+                  ? splitByQuarterShape(cell.year, [
+                      row.department.q1,
+                      row.department.q2,
+                      row.department.q3,
+                      row.department.q4,
+                    ])
+                  : [cell.q1 ?? 0, cell.q2 ?? 0, cell.q3 ?? 0, cell.q4 ?? 0];
               this.setDraftRow(kpiResult.kpiId, cell.unitId, { year: cell.year, q1, q2, q3, q4 });
-              if (cell.overwritten) filled.add(`${kpiResult.kpiId}|${cell.unitId}`);
+              filled.add(`${kpiResult.kpiId}|${cell.unitId}`);
+              filledKpis.add(kpiResult.kpiId);
             }
           }
         }
-        this.suggestedKpiCount.set(responses.length);
+        this.suggestedKpiCount.set(filledKpis.size);
         this.suggestFallbackCount.set(fallbackCount);
-        this.suggestWarnings.set(warnings);
+        if (filled.size === 0 && responses.length > 0) {
+          warnings.add(this.localization.targetDm.suggestNothingToFill);
+        }
+        this.suggestWarnings.set([...warnings]);
         this.suggested.set(filled);
         this.pushHistory(
           this.i18n.translate('targetDm.historySuggested', {
@@ -581,7 +599,9 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
 
   private draftCurrentValues(kpiId: string, employeeId: string) {
     const v = this.draft()[kpiId]?.[employeeId];
-    return v
+    // A cell nobody has filled yet comes back from the server as 0; send it as empty so "empty only" can fill it.
+    const filled = v && (v.year !== 0 || v.q1 !== 0 || v.q2 !== 0 || v.q3 !== 0 || v.q4 !== 0);
+    return v && filled
       ? { year: v.year, q1: v.q1, q2: v.q2, q3: v.q3, q4: v.q4 }
       : { year: null, q1: null, q2: null, q3: null, q4: null };
   }

@@ -243,7 +243,8 @@ public sealed record DepartmentTargetValuesDto(
     decimal Q1,
     decimal Q2,
     decimal Q3,
-    decimal Q4);
+    decimal Q4,
+    decimal? PreviousYear = null);
 
 public sealed record EmployeeAllocationDto(
     Guid DeptYearId,

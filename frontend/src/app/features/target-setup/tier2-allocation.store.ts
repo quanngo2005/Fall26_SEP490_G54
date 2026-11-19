@@ -68,6 +68,10 @@ function valuesOf(row: KpiAllocation['departments'][number]): DepartmentValues {
   };
 }
 
+function isMissingRow(row: KpiAllocation['departments'][number]): boolean {
+  return row.deptYearId === null && row.headcount > 0;
+}
+
 function draftsOf(allocation: KpiAllocation): Record<string, DepartmentValues> {
   const draft: Record<string, DepartmentValues> = {};
   for (const department of allocation.departments) {
@@ -103,6 +107,8 @@ export class Tier2AllocationStore {
   private readonly drafts = signal<Record<string, Record<string, DepartmentValues>>>({});
   private readonly suggested = signal<ReadonlySet<string>>(new Set());
   private readonly edited = signal<ReadonlySet<string>>(new Set());
+  /** `kpiId:departmentId` of eligible departments with no saved row the user chose to save as 0. */
+  private readonly confirmedEmpty = signal<ReadonlySet<string>>(new Set());
 
   readonly readOnly = computed(() => this.split()?.status !== 'DRAFT');
   readonly lockedQuarters = computed<ReadonlySet<QuarterKey>>(
@@ -179,18 +185,46 @@ export class Tier2AllocationStore {
     return counts.total > 0 && counts.matched === counts.total;
   });
 
+  /**
+   * KPIs where an eligible department has no saved row yet: the server needs one (even a 0) per eligible
+   * department before it lets the year be published, so these block "Tiếp: Phát hành" even when the sums match.
+   */
+  readonly missingItems = computed(() =>
+    this.allocations()
+      .map((allocation) => ({
+        kpiId: allocation.kpiId,
+        kpiName: allocation.kpiName,
+        departments: allocation.departments.filter(isMissingRow).map((d) => d.departmentName),
+      }))
+      .filter((item) => item.departments.length > 0),
+  );
+
+  /** Eligible departments still without a row that the user has not yet marked to save as 0. */
+  readonly canConfirmMissing = computed(() =>
+    this.allocations().some((allocation) =>
+      allocation.departments.some(
+        (d) =>
+          isMissingRow(d) && !this.confirmedEmpty().has(`${allocation.kpiId}:${d.departmentId}`),
+      ),
+    ),
+  );
+
   readonly dirtyKpiIds = computed<string[]>(() => {
     const drafts = this.drafts();
+    const confirmed = this.confirmedEmpty();
     return this.allocations()
       .filter((allocation) => {
         const draft = drafts[allocation.kpiId];
         return (
-          draft !== undefined &&
-          allocation.departments.some((department) => {
-            const saved = valuesOf(department);
-            const current = draft[department.departmentId] ?? saved;
-            return CELL_KEYS.some((key) => unitsOf(current[key]) !== unitsOf(saved[key]));
-          })
+          allocation.departments.some(
+            (d) => isMissingRow(d) && confirmed.has(`${allocation.kpiId}:${d.departmentId}`),
+          ) ||
+          (draft !== undefined &&
+            allocation.departments.some((department) => {
+              const saved = valuesOf(department);
+              const current = draft[department.departmentId] ?? saved;
+              return CELL_KEYS.some((key) => unitsOf(current[key]) !== unitsOf(saved[key]));
+            }))
         );
       })
       .map((allocation) => allocation.kpiId);
@@ -249,6 +283,9 @@ export class Tier2AllocationStore {
     if (this.check(kpiId)?.mismatchedDepartments.has(departmentId)) {
       return 'MISMATCH';
     }
+    if (key === 'year' && this.isMissing(kpiId, departmentId)) {
+      return 'MISMATCH';
+    }
     if (this.suggested().has(id)) {
       return 'SUGGESTED';
     }
@@ -257,9 +294,15 @@ export class Tier2AllocationStore {
 
   setCell(kpiId: string, departmentId: string, key: CellKey, value: number): void {
     const current = this.values(kpiId, departmentId);
-    if (!current || this.readOnly() || unitsOf(current[key]) === unitsOf(value)) {
+    if (!current || this.readOnly()) {
       return;
     }
+    if (unitsOf(current[key]) === unitsOf(value)) {
+      // Typing the value a missing department already shows (0) still means "save this row".
+      this.confirmMissing(kpiId, departmentId);
+      return;
+    }
+    this.confirmMissing(kpiId, departmentId);
     const kpiDraft = { ...(this.drafts()[kpiId] ?? {}) };
     kpiDraft[departmentId] = { ...current, [key]: roundValue(value) };
     this.drafts.set({ ...this.drafts(), [kpiId]: kpiDraft });
@@ -331,6 +374,38 @@ export class Tier2AllocationStore {
         return of(false);
       }),
     );
+  }
+
+  /** True while an eligible department has no saved row for the KPI and the user has not confirmed saving it. */
+  isMissing(kpiId: string, departmentId: string): boolean {
+    const department = this.allocation(kpiId)?.departments.find(
+      (d) => d.departmentId === departmentId,
+    );
+    return (
+      !!department &&
+      isMissingRow(department) &&
+      !this.confirmedEmpty().has(`${kpiId}:${departmentId}`)
+    );
+  }
+
+  /** Marks every missing department row to be saved as 0 (the next "Lưu nháp" creates them). */
+  confirmAllMissing(): void {
+    const next = new Set(this.confirmedEmpty());
+    for (const allocation of this.allocations()) {
+      for (const department of allocation.departments.filter(isMissingRow)) {
+        next.add(`${allocation.kpiId}:${department.departmentId}`);
+      }
+    }
+    this.confirmedEmpty.set(next);
+  }
+
+  private confirmMissing(kpiId: string, departmentId: string): void {
+    const department = this.allocation(kpiId)?.departments.find(
+      (d) => d.departmentId === departmentId,
+    );
+    if (department && isMissingRow(department)) {
+      this.confirmedEmpty.set(new Set(this.confirmedEmpty()).add(`${kpiId}:${departmentId}`));
+    }
   }
 
   acceptSuggestion(): void {
@@ -428,14 +503,20 @@ export class Tier2AllocationStore {
           continue;
         }
         const values = { ...current };
+        let skippedLocked = false;
         for (const key of CELL_KEYS) {
           const value = cell[key];
           if (value === null || (key !== 'year' && locked.has(key))) {
+            skippedLocked ||= value !== null;
             continue;
           }
           values[key] = roundValue(value);
           touched.add(tier2CellId(kpi.kpiId, cell.unitId, key));
           kpiTouched = true;
+        }
+        if (skippedLocked) {
+          // Locked quarters keep their value, so the year follows the quarters to keep the row adding up.
+          values.year = roundValue(QUARTERS.reduce((sum, key) => sum + values[key], 0));
         }
         kpiDraft[cell.unitId] = values;
       }
@@ -474,6 +555,7 @@ export class Tier2AllocationStore {
     this.drafts.set(drafts);
     this.suggested.set(new Set());
     this.edited.set(new Set());
+    this.confirmedEmpty.set(new Set());
     this.pending.set(null);
     this.saveErrors.set(new Map());
   }

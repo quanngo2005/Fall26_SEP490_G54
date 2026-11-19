@@ -15,6 +15,7 @@ import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { QuarterSplitRow, TargetSetup } from '../../../core/target-assignment.models';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
 import { AllocationCellComponent } from '../../../shared/target/allocation-cell/allocation-cell.component';
+import { MissingPanelComponent } from '../../../shared/target/missing-panel/missing-panel.component';
 import { CellLegendComponent } from '../../../shared/target/cell-legend/cell-legend.component';
 import { SuggestAllocationPopoverComponent } from '../../../shared/target/suggest-allocation-popover/suggest-allocation-popover.component';
 import { SuggestionPreviewBannerComponent } from '../../../shared/target/suggestion-preview-banner/suggestion-preview-banner.component';
@@ -69,6 +70,7 @@ function normalizeSearchText(value: string): string {
     SuggestAllocationPopoverComponent,
     SuggestionPreviewBannerComponent,
     TierStatusLineComponent,
+    MissingPanelComponent,
   ],
   providers: [Tier2AllocationStore],
   templateUrl: './department-allocation-matrix.component.html',
@@ -191,6 +193,21 @@ export class DepartmentAllocationMatrixComponent extends LocalizedComponent impl
       this.store.allMatched() &&
       this.store.dirtyKpiIds().length === 0 &&
       this.setupState()?.canPublish === true,
+  );
+
+  /** Server blockers that are not explained by a department still missing its row. */
+  protected readonly missingOtherBlockers = computed(() => {
+    const missing = new Set(this.store.missingItems().map((item) => item.kpiId));
+    return (this.setupState()?.blockers ?? [])
+      .filter((blocker) => !missing.has(blocker.kpiId))
+      .map((blocker) => blocker.kpiName);
+  });
+
+  protected readonly showMissingPanel = computed(
+    () =>
+      !this.readOnly() &&
+      !this.canGoNext() &&
+      (this.store.missingItems().length > 0 || this.missingOtherBlockers().length > 0),
   );
 
   ngOnChanges(changes: SimpleChanges): void {

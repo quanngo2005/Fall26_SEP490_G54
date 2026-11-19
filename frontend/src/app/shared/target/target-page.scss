@@ -30,3 +30,20 @@
   width: auto;
   min-width: 140px;
 }
+
+.period-message {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13.5px;
+
+  &[data-kind='success'] {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+
+  &[data-kind='error'] {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+}

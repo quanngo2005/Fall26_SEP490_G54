@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -8,6 +8,7 @@ import { ApiResponse } from '../../core/api-response.model';
 import { AuthService } from '../../core/auth.service';
 import { DepartmentService } from '../../core/department.service';
 import { DepartmentSummary } from '../../core/department.models';
+import { EmployeeService } from '../../core/employee.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -105,10 +106,18 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly departmentApi = inject(DepartmentService);
   private readonly authApi = inject(AuthService);
+  private readonly employeeApi = inject(EmployeeService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly quarters = QUARTERS;
+
+  /**
+   * Department manager mode: the same overview, locked to the signed-in manager's own department (no branch
+   * switch, heatmap, import or setup actions).
+   */
+  readonly departmentScope = input(false);
+  private readonly ownDepartment = signal<{ id: string; name: string } | null>(null);
 
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
@@ -152,7 +161,14 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
   protected readonly branchName = computed(
     () => this.departments().find((d) => d.levelType === 'BRANCH')?.name ?? '',
   );
+  /** Title name: the manager's department in department mode, otherwise the branch. */
+  protected readonly heading = computed(() =>
+    this.departmentScope() ? (this.ownDepartment()?.name ?? '') : this.branchName(),
+  );
   protected readonly canManageTargets = computed(() => {
+    if (this.departmentScope()) {
+      return false;
+    }
     const permissions = this.authApi.currentUser()?.permissions ?? [];
     return permissions.some((p) => {
       const code = normalizePermission(p);
@@ -166,7 +182,10 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
     return this.departments().filter((d) => branch && d.parentDepartmentId === branch);
   });
   protected readonly selectedDepartmentName = computed(
-    () => this.departmentOptions().find((d) => d.id === this.selectedDepartmentId())?.name ?? '',
+    () =>
+      (this.departmentScope() ? this.ownDepartment()?.name : null) ??
+      this.departmentOptions().find((d) => d.id === this.selectedDepartmentId())?.name ??
+      '',
   );
   protected readonly quarterKpi = computed(
     () => this.kpis().find((k) => k.id === this.quarterKpiId()) ?? null,
@@ -242,14 +261,24 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
       periods: this.evaluationApi.periods(),
       kpis: fetchAllPages((page, pageSize) => this.kpiApi.list({ page, pageSize })),
       departments: fetchAllPages((page, pageSize) => this.departmentApi.list({ page, pageSize })),
+      own: this.departmentScope() ? this.employeeApi.me() : of(null),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ periods, kpis, departments }) => {
+        next: ({ periods, kpis, departments, own }) => {
+          if (own) {
+            this.ownDepartment.set({ id: own.departmentId, name: own.departmentName });
+            this.viewMode.set('DEPARTMENT');
+            this.selectedDepartmentId.set(own.departmentId);
+          }
           this.periods.set(periods);
           this.kpis.set(kpis);
           this.departments.set(departments);
-          this.year.set(this.year() ?? this.years()[0] ?? null);
+          // Open on the current year when it has periods; a year only just created (next year) is not the default.
+          const current = new Date().getFullYear();
+          this.year.set(
+            this.year() ?? (this.years().includes(current) ? current : (this.years()[0] ?? null)),
+          );
           this.reload();
         },
         error: () => {
@@ -299,6 +328,54 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
         queryParams: { step: 2, suggest: 1 },
       });
     }
+  }
+
+  protected readonly creatingYear = signal(false);
+  protected readonly periodMessage = signal<{ kind: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+
+  /** The year after the latest one that has periods: the only year that can be added from here. */
+  protected readonly nextYear = computed(() => (this.years()[0] ?? new Date().getFullYear()) + 1);
+
+  /** Creates the next year's periods (year, half-years, quarters) so its targets can be imported from Excel. */
+  protected createNextYear(): void {
+    const year = this.nextYear();
+    if (this.creatingYear() || !this.canManageTargets()) {
+      return;
+    }
+    this.creatingYear.set(true);
+    this.periodMessage.set(null);
+    this.evaluationApi
+      .createYearPeriods(year)
+      .pipe(
+        switchMap(() => this.evaluationApi.periods()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (periods) => {
+          this.creatingYear.set(false);
+          this.periods.set(periods);
+          this.periodMessage.set({
+            kind: 'success',
+            text: this.i18n.translate('targetOverview.createYearDone', { year }),
+          });
+          this.selectYear(year);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.creatingYear.set(false);
+          const key = error.status === 409 ? 'createYearExists' : 'createYearFailed';
+          this.periodMessage.set({
+            kind: 'error',
+            text: this.i18n.translate(`targetOverview.${key}`, { year }),
+          });
+        },
+      });
+  }
+
+  /** Department mode: continue to the employee allocation screen for the selected year. */
+  protected goToEmployeeAllocation(): void {
+    void this.router.navigate(['/target-allocation'], { queryParams: { year: this.year() } });
   }
 
   protected selectYear(year: number): void {

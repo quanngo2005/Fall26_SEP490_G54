@@ -146,6 +146,7 @@ describe('DepartmentAllocationComponent (W5)', () => {
       initialKpiId?: string;
       setup?: TargetSetup;
       all?: KpiAllocation[];
+      lockedQuarter?: number;
     } = {},
   ): ComponentFixture<DepartmentAllocationComponent> {
     api = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
@@ -153,7 +154,19 @@ describe('DepartmentAllocationComponent (W5)', () => {
       'getAllAllocations',
       'saveKpiAllocation',
     ]);
-    api.getQuarterSplit.and.returnValue(of(split));
+    api.getQuarterSplit.and.returnValue(
+      of(
+        options.lockedQuarter
+          ? {
+              ...split,
+              quarters: split.quarters.map((q) => ({
+                ...q,
+                locked: q.quarter === options.lockedQuarter,
+              })),
+            }
+          : split,
+      ),
+    );
     api.getAllAllocations.and.returnValue(of(options.all ?? allocations()));
     api.saveKpiAllocation.and.callFake((_, kpiId, request: SaveKpiAllocationRequest) =>
       options.save === 'notReady'
@@ -377,6 +390,58 @@ describe('DepartmentAllocationComponent (W5)', () => {
 
     expect(root(fixture).querySelector('.preview-banner')).toBeNull();
     expect(footer(fixture, 'remaining-row')).toEqual(['100', '25', '25', '25', '25']);
+  });
+
+  it('a suggestion leaves a locked quarter alone and the year follows the quarters', () => {
+    const fixture = render({ lockedQuarter: 1 });
+    const cell = (q1: number, q2: number) => ({
+      unitId: 'd2',
+      unitName: 'Văn Quán',
+      year: q1 + q2 + 200,
+      q1,
+      q2,
+      q3: 100,
+      q4: 100,
+      usedFallbackAverage: false,
+      overwritten: true,
+      locked: false,
+      lockReason: null,
+    });
+    suggestApi.suggest.and.returnValue(
+      of({
+        tier: 2,
+        basis: 'TARGET_LAST_YEAR',
+        overwrite: 'UNLOCKED',
+        warnings: [],
+        kpis: [
+          {
+            kpiId: 'k1',
+            kpiCode: 'KPI_1',
+            kpiName: 'Tiền gửi',
+            unit: 'triệu VND',
+            aggregationType: 'SUM',
+            cells: [cell(90, 110)],
+            lockedUnits: [],
+            total: 1000,
+            sumMatches: true,
+            disabledReason: null,
+            warnings: [],
+          },
+        ],
+      } as SuggestTargetsResponseDto),
+    );
+
+    button(fixture, 'Gợi ý phân bổ').click();
+    fixture.detectChanges();
+    button(fixture, 'Tạo gợi ý').click();
+    fixture.detectChanges();
+
+    const row = Array.from(root(fixture).querySelectorAll('tbody tr'))
+      .find((tr) => tr.textContent?.includes('Văn Quán'))!
+      .querySelectorAll('input');
+    const values = Array.from(row).map((input) => Number((input as HTMLInputElement).value));
+    // Locked Q1 has no input (it keeps its saved 75); the year is Q1 + the suggested Q2-Q4, not the suggested year.
+    expect(values).toEqual([75 + 110 + 100 + 100, 110, 100, 100]);
   });
 
   it('saves every changed KPI and shows a toast', () => {

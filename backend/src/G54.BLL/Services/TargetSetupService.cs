@@ -2277,6 +2277,22 @@ public sealed class TargetSetupService(
         var previousYearActualByEmployee = new Dictionary<Guid, decimal>();
         var previousYearPeriod = await uow.EvaluationPeriods.GetYearAsync(year - 1, cancellationToken);
 
+        // The department's own previous-year target for this KPI, so the whole-year figure can show the change.
+        decimal? departmentPreviousYear = null;
+        if (previousYearPeriod is not null)
+        {
+            var previousDepartmentYear = await db.TargetAssignments
+                .AsNoTracking()
+                .Where(t => t.SplitDimension == TargetSplitDimension.Org
+                    && t.EmployeeId == null && t.DepartmentId == departmentId
+                    && t.KpiDefinitionId == kpiId
+                    && t.Status == TargetAssignmentStatus.Active
+                    && t.EvaluationPeriodId == previousYearPeriod.Id)
+                .Select(t => (decimal?)t.TargetValue)
+                .FirstOrDefaultAsync(cancellationToken);
+            departmentPreviousYear = previousDepartmentYear > 0 ? previousDepartmentYear : null;
+        }
+
         if (previousYearPeriod is not null && eligibleEmployeeIds.Count > 0)
         {
             var prevEmployeeYearRows = await db.TargetAssignments
@@ -2400,7 +2416,7 @@ public sealed class TargetSetupService(
             DepartmentId: departmentId,
             DepartmentName: department.Name,
             Status: deptYearRow.Status.ToString().ToUpperInvariant(),
-            Department: new DepartmentTargetValuesDto(deptYearRow.TargetValue, deptQ1, deptQ2, deptQ3, deptQ4),
+            Department: new DepartmentTargetValuesDto(deptYearRow.TargetValue, deptQ1, deptQ2, deptQ3, deptQ4, departmentPreviousYear),
             Employees: employeeRows,
             Totals: new AllocationTotalsDto(totalsYear, totalsQ1, totalsQ2, totalsQ3, totalsQ4),
             Remaining: new AllocationRemainingDto(

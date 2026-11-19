@@ -151,6 +151,80 @@ internal static class SuggestionMath
 
         return baseAmounts;
     }
+
+    /// <summary>
+    /// Splits every row's year amount into 4 quarters so each row sums to its year AND each quarter column sums to
+    /// the parent's quarter (<paramref name="columnTotals"/>), whenever the rows add up to the parent year. A row in
+    /// <paramref name="fixedRows"/> keeps its own quarters untouched. Each free row starts from the parent's quarter
+    /// shape, then amounts move between quarters inside a row until every column is exact. When the rows do not add
+    /// up to the parent (or the parent has no quarters yet) each row just follows the parent's shape.
+    /// </summary>
+    public static decimal[][] SplitIntoQuarters(
+        IReadOnlyList<decimal> rowTotals,
+        IReadOnlyList<decimal[]?> fixedRows,
+        IReadOnlyList<decimal> columnTotals,
+        decimal step,
+        SuggestionRoundingMode mode)
+    {
+        var shape = QuarterShapeOrProgressive(columnTotals);
+        var rows = new decimal[rowTotals.Count][];
+        var free = new List<int>();
+        var remainingColumns = columnTotals.ToArray();
+        for (var i = 0; i < rowTotals.Count; i++)
+        {
+            if (fixedRows[i] is { } fixedQuarters)
+            {
+                rows[i] = fixedQuarters;
+                for (var q = 0; q < 4; q++)
+                {
+                    remainingColumns[q] -= fixedQuarters[q];
+                }
+
+                continue;
+            }
+
+            rows[i] = rowTotals[i] > 0
+                ? DistributeByShare(rowTotals[i], shape, step, mode, SuggestionRemainderMethod.LargestRemainder).ToArray()
+                : [0m, 0m, 0m, 0m];
+            free.Add(i);
+        }
+
+        var freeTotal = free.Sum(i => rowTotals[i]);
+        if (!columnTotals.Any(v => v > 0) || remainingColumns.Any(v => v < 0) || remainingColumns.Sum() != freeTotal)
+        {
+            return rows;
+        }
+
+        // Repair: move amounts between quarters inside a free row until each column hits its target. Each move
+        // keeps the row sum, never goes negative, and fully closes a column gap or empties a cell.
+        for (var guard = 0; guard < 10_000; guard++)
+        {
+            var gap = new decimal[4];
+            for (var q = 0; q < 4; q++)
+            {
+                gap[q] = remainingColumns[q] - free.Sum(i => rows[i][q]);
+            }
+
+            var over = Array.FindIndex(gap, g => g < 0);
+            var under = Array.FindIndex(gap, g => g > 0);
+            if (over < 0 || under < 0)
+            {
+                break;
+            }
+
+            var donor = free.OrderByDescending(i => rows[i][over]).First();
+            var move = Math.Min(Math.Min(-gap[over], gap[under]), rows[donor][over]);
+            if (move <= 0)
+            {
+                break;
+            }
+
+            rows[donor][over] -= move;
+            rows[donor][under] += move;
+        }
+
+        return rows;
+    }
 }
 
 /// <summary>
@@ -234,6 +308,11 @@ public sealed class TargetSuggestionService(
             _ => throw new ValidationException($"remainder.method '{remainder.Method}' không hợp lệ."),
         };
 
+    /// <summary>Whole-number-friendly amount for warning text, grouped with `.` like the UI (1.234.567,5).</summary>
+    private static string Amount(decimal value) =>
+        value.ToString("#,##0.##", System.Globalization.CultureInfo.InvariantCulture)
+            .Replace(',', '').Replace('.', ',').Replace('', '.');
+
     private static bool IsMoneyUnit(string unit) =>
         unit.Contains("VND", StringComparison.OrdinalIgnoreCase)
         || unit.Contains("đồng", StringComparison.OrdinalIgnoreCase)
@@ -253,6 +332,24 @@ public sealed class TargetSuggestionService(
             : unit.Contains("triệu", StringComparison.OrdinalIgnoreCase) ? 1_000_000m
             : 1m;
         return (rounding?.MoneyStep ?? DefaultMoneyStep) / vndPerUnit;
+    }
+
+    /// <summary>A cell the run left as it was keeps the quarters the caller already has for it (all four present).</summary>
+    private static decimal[]?[] FixedQuarterRows(
+        List<Guid> unitIds, bool[] overwritten, Dictionary<Guid, SuggestionCurrentValueDto> currentByUnit)
+    {
+        var rows = new decimal[]?[unitIds.Count];
+        for (var i = 0; i < unitIds.Count; i++)
+        {
+            if (!overwritten[i]
+                && currentByUnit.TryGetValue(unitIds[i], out var c)
+                && c is { Q1: { } q1, Q2: { } q2, Q3: { } q3, Q4: { } q4 })
+            {
+                rows[i] = [q1, q2, q3, q4];
+            }
+        }
+
+        return rows;
     }
 
     private static int? ResolveBufferIndex(List<Guid> unitIds, Guid? bufferUnitId)
@@ -326,7 +423,7 @@ public sealed class TargetSuggestionService(
         {
             if (fixedTotal != total)
             {
-                warnings.Add($"Mọi ô đã bị khóa hoặc đã có giá trị; tổng = {fixedTotal}, chỉ tiêu cần phân bổ = {total}.");
+                warnings.Add($"Mọi ô đã bị khóa hoặc đã có giá trị; tổng = {Amount(fixedTotal)}, chỉ tiêu cần phân bổ = {Amount(total)}.");
             }
 
             return (amounts, overwritten);
@@ -335,7 +432,7 @@ public sealed class TargetSuggestionService(
         var remainderTotal = total - fixedTotal;
         if (remainderTotal < 0m)
         {
-            warnings.Add($"Các ô cố định đã vượt tổng cần phân bổ ({fixedTotal} > {total}); phần còn lại được đặt về 0.");
+            warnings.Add($"Các ô cố định đã vượt tổng cần phân bổ ({Amount(fixedTotal)} > {Amount(total)}); phần còn lại được đặt về 0.");
             remainderTotal = 0m;
         }
 
@@ -387,7 +484,7 @@ public sealed class TargetSuggestionService(
                 {
                     var name = unitNames is not null && i < unitNames.Count ? unitNames[i] : $"#{i + 1}";
                     warnings.Add(
-                        $"{name}: giá trị gợi ý ({amounts[i]}) lệch {deviationPercent:0.#}% so với mốc năm trước ({weights[i]}), vượt ngưỡng cảnh báo ±{ceiling:0.#}%.");
+                        $"{name}: giá trị gợi ý ({Amount(amounts[i])}) lệch {deviationPercent:0.#}% so với mốc năm trước ({Amount(weights[i])}), vượt ngưỡng cảnh báo ±{ceiling:0.#}%.");
                 }
             }
         }
@@ -795,9 +892,13 @@ public sealed class TargetSuggestionService(
             }
             else
             {
+                // A department without its own history (e.g. newly created) gets the per-head average of the
+                // departments that have one, times its headcount, so it is suggested instead of left at 0.
+                var perHead = weightByDept.Sum(kv => kv.Value) / weightByDept.Sum(kv => headcountByDept.GetValueOrDefault(kv.Key, 1));
                 foreach (var deptId in eligibleDeptIds.Where(id => !weightByDept.ContainsKey(id)))
                 {
-                    warnings.Add($"{nameById.GetValueOrDefault(deptId, deptId.ToString())}: không có lịch sử năm trước nên không được gợi ý.");
+                    weightByDept[deptId] = perHead * headcountByDept[deptId];
+                    usedFallback.Add(deptId);
                 }
             }
 
@@ -830,19 +931,13 @@ public sealed class TargetSuggestionService(
                 }
             }
 
+            var quarterRows = SuggestionMath.SplitIntoQuarters(
+                yearAmounts, FixedQuarterRows(orderedDeptIds, overwritten, currentByUnit), branchQuarterValues, step, mode);
             var cells = new List<SuggestedCellDto>();
             for (var i = 0; i < orderedDeptIds.Count; i++)
             {
                 var deptId = orderedDeptIds[i];
-                decimal[] deptQuarters;
-                if (yearAmounts[i] > 0)
-                {
-                    deptQuarters = SuggestionMath.DistributeByShare(yearAmounts[i], SuggestionMath.QuarterShapeOrProgressive(branchQuarterValues), step, mode, SuggestionRemainderMethod.LargestRemainder).ToArray();
-                }
-                else
-                {
-                    deptQuarters = [0m, 0m, 0m, 0m];
-                }
+                var deptQuarters = quarterRows[i];
 
                 cells.Add(new SuggestedCellDto(
                     deptId, nameById.GetValueOrDefault(deptId, deptId.ToString()), yearAmounts[i],
@@ -865,7 +960,7 @@ public sealed class TargetSuggestionService(
             {
                 if (deptQuarterTotals[i] != branchQuarterValues[i])
                 {
-                    warnings.Add($"Quý {i + 1}: tổng gợi ý của các phòng = {deptQuarterTotals[i]}, chỉ tiêu quý của chi nhánh = {branchQuarterValues[i]}. Vui lòng kiểm tra lại trước khi lưu.");
+                    warnings.Add($"Quý {i + 1}: tổng gợi ý của các phòng = {Amount(deptQuarterTotals[i])}, chỉ tiêu quý của chi nhánh = {Amount(branchQuarterValues[i])}. Vui lòng kiểm tra lại trước khi lưu.");
                 }
             }
 
@@ -1065,19 +1160,13 @@ public sealed class TargetSuggestionService(
         }
 
         var nameById = eligibleEmployees.ToDictionary(e => e.Id, e => e.FullName);
+        var quarterRows = SuggestionMath.SplitIntoQuarters(
+            yearAmounts, FixedQuarterRows(orderedEmployeeIds, overwritten, currentByUnit), deptQuarterValues, step, mode);
         var cells = new List<SuggestedCellDto>();
         for (var i = 0; i < orderedEmployeeIds.Count; i++)
         {
             var empId = orderedEmployeeIds[i];
-            decimal[] empQuarters;
-            if (yearAmounts[i] > 0)
-            {
-                empQuarters = SuggestionMath.DistributeByShare(yearAmounts[i], SuggestionMath.QuarterShapeOrProgressive(deptQuarterValues), step, mode, SuggestionRemainderMethod.LargestRemainder).ToArray();
-            }
-            else
-            {
-                empQuarters = [0m, 0m, 0m, 0m];
-            }
+            var empQuarters = quarterRows[i];
 
             cells.Add(new SuggestedCellDto(
                 empId, nameById.GetValueOrDefault(empId, empId.ToString()), yearAmounts[i],

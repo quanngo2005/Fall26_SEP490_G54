@@ -9,7 +9,7 @@
       type="text"
       class="cell-input"
       inputmode="decimal"
-      [value]="value() ?? ''"
+      [value]="display()"
       (blur)="onBlur(input)"
       (keydown)="onKeydown($event, input)"
     />

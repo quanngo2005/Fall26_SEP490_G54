@@ -4,8 +4,8 @@
     <p class="breadcrumb">{{text.breadcrumb}}</p>
     <h1>
       {{text.title}}
-      @if (branchName()) {
-        · {{branchName()}}
+      @if (heading()) {
+        · {{heading()}}
       }
     </h1>
     <p class="subtitle">{{subtitle()}}</p>
@@ -37,6 +37,10 @@
           {{setup()?.status === 'DRAFT' ? text.continueSetup : text.setupYearTargets}}
         </button>
       }
+    } @else if (departmentScope()) {
+      <button type="button" class="button button-primary" (click)="goToEmployeeAllocation()">
+        {{text.allocateToEmployees}}
+      </button>
     } @else {
       <button type="button" class="button button-primary" disabled [title]="text.unavailable">
         {{text.setupYearTargets}}
@@ -66,6 +70,10 @@
   />
 }
 
+@if (periodMessage(); as message) {
+  <p class="period-message" [attr.data-kind]="message.kind" role="status">{{message.text}}</p>
+}
+
 <div class="filter-bar">
   <label class="inline-field">
     {{text.year}}
@@ -80,61 +88,73 @@
       }
     </select>
   </label>
-  <div class="view-switch" role="group" [attr.aria-label]="text.viewBy">
-    <span class="view-switch-label">{{text.viewBy}}</span>
+  @if (canManageTargets()) {
     <button
       type="button"
-      class="view-switch-option"
-      [class.is-active]="viewMode() === 'BRANCH'"
-      [attr.aria-pressed]="viewMode() === 'BRANCH'"
-      (click)="selectViewMode('BRANCH')"
+      class="button button-secondary"
+      [disabled]="creatingYear()"
+      (click)="createNextYear()"
     >
-      {{text.viewBranch}}
+      + {{i18n.translate('targetOverview.createYear', { year: nextYear() })}}
     </button>
-    <button
-      type="button"
-      class="view-switch-option"
-      [class.is-active]="viewMode() === 'DEPARTMENT'"
-      [attr.aria-pressed]="viewMode() === 'DEPARTMENT'"
-      (click)="selectViewMode('DEPARTMENT')"
-    >
-      {{text.viewDepartment}} ▾
-    </button>
-  </div>
-  @if (viewMode() === 'DEPARTMENT') {
-    <select
-      class="select filter-select"
-      [ngModel]="selectedDepartmentId()"
-      (ngModelChange)="selectDepartment($event)"
-      [attr.aria-label]="text.viewDepartment"
-    >
-      @for (item of departmentOptions(); track item.id) {
-        <option [value]="item.id">{{item.name}}</option>
-      }
-    </select>
   }
-  @if (viewMode() === 'BRANCH') {
-    @let bm = bmText();
-    <div class="view-switch" role="group" [attr.aria-label]="bm.tabKpi + ' / ' + bm.tabHeatmap">
+  @if (!departmentScope()) {
+    <div class="view-switch" role="group" [attr.aria-label]="text.viewBy">
+      <span class="view-switch-label">{{text.viewBy}}</span>
       <button
         type="button"
         class="view-switch-option"
-        [class.is-active]="overviewTab() === 'KPI'"
-        [attr.aria-pressed]="overviewTab() === 'KPI'"
-        (click)="selectOverviewTab('KPI')"
+        [class.is-active]="viewMode() === 'BRANCH'"
+        [attr.aria-pressed]="viewMode() === 'BRANCH'"
+        (click)="selectViewMode('BRANCH')"
       >
-        {{bm.tabKpi}}
+        {{text.viewBranch}}
       </button>
       <button
         type="button"
         class="view-switch-option"
-        [class.is-active]="overviewTab() === 'HEATMAP'"
-        [attr.aria-pressed]="overviewTab() === 'HEATMAP'"
-        (click)="selectOverviewTab('HEATMAP')"
+        [class.is-active]="viewMode() === 'DEPARTMENT'"
+        [attr.aria-pressed]="viewMode() === 'DEPARTMENT'"
+        (click)="selectViewMode('DEPARTMENT')"
       >
-        {{bm.tabHeatmap}}
+        {{text.viewDepartment}} ▾
       </button>
     </div>
+    @if (viewMode() === 'DEPARTMENT') {
+      <select
+        class="select filter-select"
+        [ngModel]="selectedDepartmentId()"
+        (ngModelChange)="selectDepartment($event)"
+        [attr.aria-label]="text.viewDepartment"
+      >
+        @for (item of departmentOptions(); track item.id) {
+          <option [value]="item.id">{{item.name}}</option>
+        }
+      </select>
+    }
+    @if (viewMode() === 'BRANCH') {
+      @let bm = bmText();
+      <div class="view-switch" role="group" [attr.aria-label]="bm.tabKpi + ' / ' + bm.tabHeatmap">
+        <button
+          type="button"
+          class="view-switch-option"
+          [class.is-active]="overviewTab() === 'KPI'"
+          [attr.aria-pressed]="overviewTab() === 'KPI'"
+          (click)="selectOverviewTab('KPI')"
+        >
+          {{bm.tabKpi}}
+        </button>
+        <button
+          type="button"
+          class="view-switch-option"
+          [class.is-active]="overviewTab() === 'HEATMAP'"
+          [attr.aria-pressed]="overviewTab() === 'HEATMAP'"
+          (click)="selectOverviewTab('HEATMAP')"
+        >
+          {{bm.tabHeatmap}}
+        </button>
+      </div>
+    }
   }
   <div class="filter-spacer"></div>
   <input

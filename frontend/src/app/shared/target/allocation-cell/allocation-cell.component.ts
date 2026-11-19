@@ -34,14 +34,22 @@ export class AllocationCellComponent extends LocalizedComponent {
     this.state() === 'LOCKED' ? this.lockedReason() || this.text().lockedDefaultReason : null,
   );
 
+  /** Grouped with `.` like the read-only view, so the editable input reads the same (`12.985.855.962`). */
+  protected readonly display = computed(() => {
+    const value = this.value();
+    return value === null ? '' : this.i18n.formatNumber(value);
+  });
+
   protected onBlur(input: HTMLInputElement): void {
     if (!this.editable()) {
       return;
     }
-    const parsed = Number(input.value.replace(/,/g, ''));
+    // vi format: `.` groups thousands, `,` is the decimal separator.
+    const parsed = Number(input.value.replace(/\./g, '').replace(',', '.'));
     if (Number.isFinite(parsed)) {
       this.valueChange.emit(parsed);
     }
+    input.value = this.display();
   }
 
   protected onKeydown(event: KeyboardEvent, input: HTMLInputElement): void {

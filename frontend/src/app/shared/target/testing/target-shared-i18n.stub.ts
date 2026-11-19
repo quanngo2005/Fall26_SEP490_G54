@@ -77,6 +77,14 @@ export const TARGET_SHARED_I18N_STUB = {
   allocationCell: {
     lockedDefaultReason: 'Ô đã khoá hoặc không áp dụng cho dòng này.',
   },
+  missingPanel: {
+    title: 'Còn thiếu trước khi phát hành',
+    departmentsMissing: 'Chưa có dòng cho phòng',
+    otherBlockers: 'KPI chưa đủ điều kiện phát hành',
+    fillZero: 'Đặt 0 cho các phòng thiếu',
+    fillZeroHint: 'Tạo dòng 0 cho các phòng chưa được giao KPI này, rồi bấm Lưu nháp.',
+    goTo: 'Đến KPI',
+  },
   tierStatusLine: {
     matchedOf: 'KPI khớp /',
     mismatched: 'lệch',

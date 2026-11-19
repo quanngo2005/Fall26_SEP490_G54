@@ -512,4 +512,28 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
     {
         public override DateTimeOffset GetUtcNow() => now;
     }
+
+    [Fact]
+    public async Task CreateYear_CreatesYearHalvesAndQuartersAllOpen()
+    {
+        var result = await Service.CreateYearAsync(new CreateYearPeriodsRequestDto(2027));
+
+        Assert.Equal(7, result.CreatedCount);
+        var periods = await _db.EvaluationPeriods.Where(p => p.StartDate.Year == 2027).ToListAsync();
+        Assert.Equal(7, periods.Count);
+        Assert.All(periods, p => Assert.Equal(PeriodStatus.Open, p.Status));
+        var q4 = periods.Single(p => p.Code == "2027-Q4");
+        Assert.Equal(new DateOnly(2027, 10, 1), q4.StartDate);
+        Assert.Equal(new DateOnly(2027, 12, 31), q4.EndDate);
+        Assert.Equal(periods.Single(p => p.Code == "2027-H2").Id, q4.ParentPeriodId);
+    }
+
+    [Fact]
+    public async Task CreateYear_RejectsAnExistingYearAndAnInvalidYear()
+    {
+        await Service.CreateYearAsync(new CreateYearPeriodsRequestDto(2027));
+
+        await Assert.ThrowsAsync<ConflictException>(() => Service.CreateYearAsync(new CreateYearPeriodsRequestDto(2027)));
+        await Assert.ThrowsAsync<ValidationException>(() => Service.CreateYearAsync(new CreateYearPeriodsRequestDto(1800)));
+    }
 }

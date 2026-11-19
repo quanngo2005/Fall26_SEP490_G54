@@ -95,15 +95,7 @@ export const routes: Routes = [
         (m) => m.TargetSetupWizardComponent,
       ),
   },
-  {
-    path: 'target-allocation/overview',
-    canActivate: [authGuard],
-    title: 'Tổng quan mục tiêu',
-    loadComponent: () =>
-      import('./features/target-allocation/dm-overview.component').then(
-        (m) => m.DmOverviewComponent,
-      ),
-  },
+  { path: 'target-allocation/overview', redirectTo: 'target-overview', pathMatch: 'full' },
   {
     path: 'target-allocation',
     canActivate: [authGuard],

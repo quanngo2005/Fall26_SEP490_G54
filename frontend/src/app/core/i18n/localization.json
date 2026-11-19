@@ -2759,6 +2759,10 @@
         "sliceFailed": "Không tải được số liệu theo tuần / ngày."
       },
       "targetOverview": {
+        "createYear": "Tạo kỳ năm {year}",
+        "createYearDone": "Đã tạo kỳ năm {year}. Bạn có thể nhập chỉ tiêu cho năm này.",
+        "createYearFailed": "Không tạo được kỳ năm {year}.",
+        "createYearExists": "Kỳ năm {year} đã tồn tại.",
         "breadcrumb": "Trang chủ / Chỉ tiêu & chiến dịch / Tổng quan mục tiêu",
         "title": "Tổng quan mục tiêu",
         "allocationLabel": "Phân bổ nhân viên",
@@ -3425,7 +3429,7 @@
         "back": "Về bước 2",
         "saveDraft": "Lưu nháp",
         "next": "Tiếp: Phát hành ›",
-        "nextDisabledHint": "Mở khi mọi KPI đã khớp và đã lưu."
+        "nextDisabledHint": "Mở khi mọi KPI đã khớp, mọi phòng đủ điều kiện đã có dòng và đã lưu. Xem khung \"Còn thiếu\" bên dưới."
       },
       "departmentAllocationMatrix": {
         "loading": "Đang tải ma trận phân bổ...",
@@ -4018,6 +4022,14 @@
         "allocationCell": {
           "lockedDefaultReason": "Ô đã khoá hoặc không áp dụng cho dòng này."
         },
+        "missingPanel": {
+          "title": "Còn thiếu trước khi phát hành",
+          "departmentsMissing": "Chưa có dòng cho phòng",
+          "otherBlockers": "KPI chưa đủ điều kiện phát hành",
+          "fillZero": "Đặt 0 cho các phòng thiếu",
+          "fillZeroHint": "Tạo dòng 0 cho các phòng chưa được giao KPI này, rồi bấm Lưu nháp.",
+          "goTo": "Đến KPI"
+        },
         "tierStatusLine": {
           "matchedOf": "KPI khớp /",
           "mismatched": "lệch",
@@ -4067,6 +4079,7 @@
         "drawerEmpty": "Phòng này chưa có KPI nào được phân bổ."
       },
       "targetDm": {
+        "suggestNothingToFill": "Không có ô trống để gợi ý. Chọn \"Ghi đè ô chưa khoá\" để tính lại các ô đã có giá trị.",
         "breadcrumb": "Chỉ tiêu & chiến dịch",
         "w9Title": "Tổng quan mục tiêu",
         "w10Title": "Phân bổ mục tiêu nhân viên",
@@ -6514,6 +6527,10 @@
         "sliceFailed": "The week / day figures could not be loaded."
       },
       "targetOverview": {
+        "createYear": "Create {year} periods",
+        "createYearDone": "Created the {year} periods. You can now import its targets.",
+        "createYearFailed": "Could not create the {year} periods.",
+        "createYearExists": "The {year} periods already exist.",
         "breadcrumb": "Home / Targets & campaigns / Target overview",
         "title": "Target overview",
         "allocationLabel": "Employee allocation",
@@ -7180,7 +7197,7 @@
         "back": "Back to step 2",
         "saveDraft": "Save draft",
         "next": "Next: Publish ›",
-        "nextDisabledHint": "Available once every KPI is matched and saved."
+        "nextDisabledHint": "Available once every KPI is matched, every eligible department has a saved row, and all is saved. See the \"Still missing\" box below."
       },
       "departmentAllocationMatrix": {
         "loading": "Loading the allocation matrix...",
@@ -8248,6 +8265,14 @@
         "allocationCell": {
           "lockedDefaultReason": "This cell is locked or not applicable to this row."
         },
+        "missingPanel": {
+          "title": "Still missing before publishing",
+          "departmentsMissing": "No row yet for",
+          "otherBlockers": "KPIs not ready to publish",
+          "fillZero": "Set 0 for the missing departments",
+          "fillZeroHint": "Creates a 0 row for departments not yet given this KPI, then press Save draft.",
+          "goTo": "Go to KPI"
+        },
         "tierStatusLine": {
           "matchedOf": "KPIs matched /",
           "mismatched": "mismatched",
@@ -8297,6 +8322,7 @@
         "drawerEmpty": "No KPI has been allocated to this department yet."
       },
       "targetDm": {
+        "suggestNothingToFill": "No empty cells to suggest for. Choose \"Overwrite unlocked cells\" to recalculate cells that already have a value.",
         "breadcrumb": "Targets & campaigns",
         "w9Title": "Target overview",
         "w10Title": "Employee target allocation",

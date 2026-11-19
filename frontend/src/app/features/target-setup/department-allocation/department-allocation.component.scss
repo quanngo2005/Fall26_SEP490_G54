@@ -223,3 +223,21 @@
   color: #b45309;
   font-size: 12px;
 }
+
+/* Narrow panes: stack the KPI picker above the table so Year and Q1-Q4 stay visible without sideways scrolling. */
+@media (max-width: 1100px) {
+  .allocation-layout {
+    flex-direction: column;
+  }
+
+  .kpi-picker {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: 320px;
+  }
+
+  .allocation-layout > :not(.kpi-picker) {
+    width: 100%;
+    min-width: 0;
+  }
+}

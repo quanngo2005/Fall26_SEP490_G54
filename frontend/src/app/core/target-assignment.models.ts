@@ -210,6 +210,8 @@ export interface DepartmentAllocationRow {
   /** The department's previous-year actual result (VALID actuals under its previous-year assignments). */
   previousYearActual: number | null;
   matched: boolean;
+  /** `null` while the department has no saved row for this KPI (the server needs one to publish). */
+  deptYearId?: string | null;
 }
 
 export interface DepartmentAllocationMetadata {

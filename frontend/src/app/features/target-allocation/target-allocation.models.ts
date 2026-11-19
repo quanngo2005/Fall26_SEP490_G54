@@ -40,7 +40,8 @@ export interface EmployeeAllocation {
   readonly departmentId: string;
   readonly departmentName: string;
   readonly status: string;
-  readonly department: EmployeeAllocationPeriodValues;
+  /** `previousYear` is the department's own target last year (null without history). */
+  readonly department: EmployeeAllocationPeriodValues & { readonly previousYear?: number | null };
   readonly employees: readonly EmployeeAllocationEmployeeRow[];
   readonly totals: EmployeeAllocationPeriodValues;
   readonly remaining: EmployeeAllocationPeriodValues;
