@@ -2916,7 +2916,8 @@ JOIN employee mgr ON mgr.employee_code = 'NV011'
 WHERE ta.id = '5eed0000-0000-0000-0035-000000000084'
 ON CONFLICT (id) DO UPDATE
 SET comment = EXCLUDED.comment, reply = EXCLUDED.reply;
-=======
+
+-- ============================================================================
 -- Demo notifications (GB-914: inbox, bell dropdown, filters, deep links)
 -- ============================================================================
 INSERT INTO notification (id, recipient_employee_id, sender_employee_id, type, severity, title, body, related_type, related_id, created_at, read_at)
