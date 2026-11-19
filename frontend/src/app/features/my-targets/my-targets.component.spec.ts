@@ -1,31 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
-import { EvaluationPeriodOption } from '../../core/evaluation.models';
-import { EvaluationService } from '../../core/evaluation.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { KpiDefinition } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
-import {
-  SuggestedDailyTarget,
-  TargetAssignment,
-  TargetAssignmentFeedback,
-} from '../../core/target-assignment.models';
-import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { businessClock } from '../work-board/work-board.utils';
+import { MyTargetsApiService } from './my-targets-api.service';
+import { MyTargetYear, MyTargetProgress } from './my-targets.models';
 import { MyTargetsComponent } from './my-targets.component';
-
-/** The running month and the next one, so the month marked "in progress" is the same whenever the test runs. */
-const THIS_MONTH = businessClock(new Date()).date.slice(0, 7);
-const NEXT_MONTH = (() => {
-  const [year, month] = THIS_MONTH.split('-').map(Number);
-  return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
-})();
-const MONTH_NUMBER = THIS_MONTH.slice(5);
+import { TARGET_EMP_I18N_STUB, targetEmpLocalizationStub } from './testing/target-emp-i18n.stub';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
@@ -33,93 +20,103 @@ class HeaderStub {}
 @Component({ selector: 'app-sidebar', standalone: true, template: '' })
 class SidebarStub {}
 
-const ME = { id: 'e1', fullName: 'Trần Quốc Bảo', managerName: 'Phạm Thu Hà' } as EmployeeDetail;
-const PERIOD = {
-  id: 'q4',
-  code: '2026-Q4',
-  name: 'Quý 4/2026',
-  periodType: 'QUARTER',
-  startDate: '2026-10-01',
-  endDate: '2026-12-31',
-  status: 'OPEN',
-  isActive: true,
-} as EvaluationPeriodOption;
+const ME = { id: 'e1', fullName: 'Phạm Thu Hà', managerName: 'Trưởng phòng A' } as EmployeeDetail;
 const KPIS = [
-  { id: 'k1', code: 'HDV', name: 'Tiền gửi', unit: 'VND' },
-  { id: 'k2', code: 'THE', name: 'Mở thẻ', unit: 'HĐ' },
+  { id: 'k1', kpiGroupName: 'Huy động vốn' },
+  { id: 'k2', kpiGroupName: 'Tín dụng' },
 ] as KpiDefinition[];
 
-const target = (
-  id: string,
-  kpiId: string,
-  value: number,
-  extra: Partial<TargetAssignment> = {},
-): TargetAssignment => ({
-  id,
-  kpiDefinitionId: kpiId,
-  evaluationPeriodId: 'q4',
-  departmentId: null,
-  employeeId: 'e1',
-  parentAssignmentId: null,
-  targetValue: value,
-  status: 'ACTIVE',
-  updatedAt: '2026-10-20T09:15:02+07:00',
-  feedbackStatus: 'NOT_VIEWED',
-  feedbackAt: null,
-  ...extra,
-});
+function yearData(overrides: Partial<MyTargetYear> = {}): MyTargetYear {
+  return {
+    year: 2027,
+    employeeId: 'e1',
+    employeeName: 'Phạm Thu Hà',
+    departmentId: 'd1',
+    departmentName: 'Phòng KHCN',
+    ackStatus: 'PENDING',
+    confirmedAt: null,
+    kpis: [
+      {
+        kpiId: 'k1',
+        kpiCode: 'KPI_ACC_OPEN',
+        kpiName: 'Tiền gửi – xử lý',
+        unit: 'tr VND',
+        aggregationType: 'SUM',
+        year: 6400,
+        q1: 1440,
+        q2: 1600,
+        q3: 1760,
+        q4: 1600,
+        previousYearTarget: 6000,
+        previousYearActual: 6120,
+        changed: false,
+        changedOldValue: null,
+        changedNewValue: null,
+        hasFeedback: false,
+      },
+      {
+        kpiId: 'k2',
+        kpiCode: 'KPI_LOAN_NEW',
+        kpiName: 'Thẻ tín dụng kích hoạt',
+        unit: 'thẻ',
+        aggregationType: 'SUM',
+        year: 30,
+        q1: 7,
+        q2: 7,
+        q3: 8,
+        q4: 8,
+        previousYearTarget: null,
+        previousYearActual: null,
+        changed: false,
+        changedOldValue: null,
+        changedNewValue: null,
+        hasFeedback: false,
+      },
+    ],
+    ...overrides,
+  };
+}
 
-const item = (id: string, kpiId: string, months: [string, number, number][]) => ({
-  targetAssignmentId: id,
-  kpiDefinitionId: kpiId,
-  kpiCode: kpiId,
-  unit: 'VND',
-  isWholeNumber: false,
-  targetValue: 1,
-  plannedDaily: 1,
-  plannedWeekly: 5,
-  months: months.map(([month, workingDays, value]) => ({
-    month,
-    workingDays,
-    value,
-    daily: 1,
-    weekly: 5,
-  })),
-});
-
-const DAILY: SuggestedDailyTarget = {
-  employeeId: 'e1',
-  evaluationPeriodId: 'q4',
-  periodStart: '2026-10-01',
-  periodEnd: '2026-12-31',
-  workingDays: 64,
-  items: [
-    item('t1', 'k1', [
-      [THIS_MONTH, 22, 2200],
-      [NEXT_MONTH, 21, 2100],
-    ]),
-    item('t2', 'k2', [
-      [THIS_MONTH, 22, 17],
-      [NEXT_MONTH, 21, 17],
-    ]),
-  ],
-};
-
-const feedback = (
-  type: 'CONFIRM' | 'COMMENT',
-  comment: string | null = null,
-): TargetAssignmentFeedback => ({
-  id: `f-${type}-${comment}`,
-  targetAssignmentId: 't1',
-  employeeId: 'e1',
-  type,
-  comment,
-  createdAt: '2026-10-21T07:02:11+00:00',
-});
+function progressData(): MyTargetProgress {
+  return {
+    year: 2027,
+    period: '2027-Q2',
+    kpis: [
+      {
+        kpiId: 'k1',
+        kpiCode: 'KPI_ACC_OPEN',
+        kpiName: 'Tiền gửi – xử lý',
+        unit: 'tr VND',
+        progress: {
+          target: 1600,
+          achieved: 690,
+          inReviewCount: 3,
+          achievedPercent: 43,
+          expectedPacePercent: 48,
+          paceStatus: 'SLOW',
+        },
+      },
+      {
+        kpiId: 'k2',
+        kpiCode: 'KPI_LOAN_NEW',
+        kpiName: 'Thẻ tín dụng kích hoạt',
+        unit: 'thẻ',
+        progress: {
+          target: 7,
+          achieved: 7,
+          inReviewCount: 0,
+          achievedPercent: 100,
+          expectedPacePercent: 48,
+          paceStatus: 'ACHIEVED',
+        },
+      },
+    ],
+  };
+}
 
 describe('MyTargetsComponent', () => {
-  let targets: jasmine.SpyObj<TargetAssignmentService>;
-  let current: TargetAssignment[];
+  let api: jasmine.SpyObj<MyTargetsApiService>;
+  let queryParamMap: BehaviorSubject<ParamMap>;
   const text = (el: Element | null | undefined) =>
     (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const root = (fixture: ComponentFixture<unknown>) => fixture.nativeElement as HTMLElement;
@@ -128,10 +125,7 @@ describe('MyTargetsComponent', () => {
     fixture.detectChanges();
   };
 
-  async function create(
-    history: TargetAssignmentFeedback[] = [],
-  ): Promise<ComponentFixture<MyTargetsComponent>> {
-    targets.feedback.and.returnValue(of(history));
+  async function create(): Promise<ComponentFixture<MyTargetsComponent>> {
     const fixture = TestBed.createComponent(MyTargetsComponent);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -139,30 +133,54 @@ describe('MyTargetsComponent', () => {
     return fixture;
   }
 
+  function paramMap(entries: Record<string, string>): ParamMap {
+    return {
+      get: (key: string) => entries[key] ?? null,
+      has: (key: string) => key in entries,
+      getAll: (key: string) => (key in entries ? [entries[key]] : []),
+      keys: Object.keys(entries),
+    };
+  }
+
   beforeEach(async () => {
-    // The period is far in the future so the "today" of the test run is always before it ends.
-    const period = { ...PERIOD, startDate: '2020-10-01', endDate: '2099-12-31' };
-    current = [target('t1', 'k1', 6_400_000_000), target('t2', 'k2', 50)];
-    targets = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
-      'mine',
+    // Pin the year query param so the component requests the same year (2027) the mocked
+    // `MyTargetsApiService` responses use, instead of defaulting to the real current year.
+    queryParamMap = new BehaviorSubject(paramMap({ year: '2027' }));
+    api = jasmine.createSpyObj<MyTargetsApiService>('MyTargetsApiService', [
+      'year',
       'confirm',
-      'comment',
-      'suggestedDaily',
       'feedback',
-      'breakdown',
+      'reply',
+      'progress',
     ]);
-    targets.mine.and.callFake(() => of(current));
-    targets.suggestedDaily.and.returnValue(of(DAILY));
+    api.year.and.returnValue(of(yearData()));
+    api.progress.and.returnValue(of(progressData()));
+
     await TestBed.configureTestingModule({
       imports: [MyTargetsComponent],
       providers: [
-        { provide: TargetAssignmentService, useValue: targets },
+        { provide: MyTargetsApiService, useValue: api },
         { provide: EmployeeService, useValue: { me: () => of(ME) } },
-        { provide: EvaluationService, useValue: { periods: () => of([period]) } },
         {
           provide: KpiDefinitionService,
           useValue: { list: () => of({ items: KPIS, totalCount: 2, page: 1, pageSize: 200 }) },
         },
+        {
+          provide: I18nService,
+          useValue: jasmine.createSpyObj(
+            'I18nService',
+            ['formatNumber', 'formatDate', 'translate'],
+            {
+              localization: targetEmpLocalizationStub(),
+              currentLanguage: () => 'vi',
+            },
+          ),
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: { queryParamMap, snapshot: { queryParamMap: queryParamMap.value } },
+        },
+        { provide: Router, useValue: jasmine.createSpyObj('Router', ['navigate']) },
       ],
     })
       .overrideComponent(MyTargetsComponent, {
@@ -170,179 +188,163 @@ describe('MyTargetsComponent', () => {
         add: { imports: [HeaderStub, SidebarStub] },
       })
       .compileComponents();
-    TestBed.inject(I18nService).setLanguage('vi');
+
+    const i18n = TestBed.inject(I18nService);
+    (i18n.formatNumber as jasmine.Spy).and.callFake((v: number | null) =>
+      v === null ? 'N/A' : String(v),
+    );
+    (i18n.formatDate as jasmine.Spy).and.callFake((v: string | null) => (v ? String(v) : '-'));
+    (i18n.translate as jasmine.Spy).and.callFake(
+      (key: string, params?: Record<string, unknown>) => {
+        const path = key.split('.');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let node: any =
+          path[0] === 'targetEmp' ? TARGET_EMP_I18N_STUB : targetEmpLocalizationStub();
+        for (const segment of path.slice(1)) node = node?.[segment];
+        let resolved = String(node ?? key);
+        for (const [k, v] of Object.entries(params ?? {})) {
+          resolved = resolved.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+        }
+        return resolved;
+      },
+    );
   });
 
-  it('shows the quarter with one column per KPI and the month rows of the open quarter', async () => {
+  it('shows the pending banner, summary cards and confirm action', async () => {
     const fixture = await create();
 
-    const heads = Array.from(root(fixture).querySelectorAll('thead th')).map((th) => text(th));
-    expect(heads).toEqual(['KỲ', 'NGÀY ĐI LÀM', 'Tiền gửi (VND)', 'Mở thẻ (HĐ)', 'TÌNH TRẠNG']);
-    const quarter = root(fixture).querySelector('.quarter-row')!;
-    expect(text(quarter)).toContain('Quý 4/2026');
-    expect(text(quarter)).toContain('64');
-    expect(text(quarter)).toContain('Chờ xác nhận');
-    expect(root(fixture).querySelectorAll('.month-row').length).toBe(2);
-    expect(text(root(fixture).querySelector('.total-row'))).toContain('Cả năm 2020');
+    expect(api.year).toHaveBeenCalledWith(2027);
+    expect(text(root(fixture).querySelector('.banner'))).toContain(
+      'Trưởng phòng đã giao 2 chỉ tiêu',
+    );
+    expect(text(root(fixture).querySelector('#my-targets-confirm'))).toContain(
+      'Xác nhận 2 chỉ tiêu',
+    );
+    const cards = root(fixture).querySelectorAll('.summary-card strong');
+    expect(text(cards[0])).toBe('2');
+    expect(root(fixture).querySelectorAll('.targets-table tbody tr').length).toBe(2);
   });
 
-  it('asks for the manager name and the confirm button while the quarter waits', async () => {
-    const fixture = await create();
-
-    expect(text(root(fixture).querySelector('h1'))).toContain('Chờ xác nhận Quý 4');
-    expect(text(root(fixture).querySelector('.subtitle'))).toContain(
-      'Trưởng phòng Phạm Thu Hà giao lúc',
+  it('opens the confirm dialog then confirms', async () => {
+    api.confirm.and.returnValue(
+      of({ year: 2027, ackStatus: 'CONFIRMED', confirmedAt: '2027-01-10T09:00:00Z' }),
     );
-    expect(text(root(fixture).querySelector('#my-targets-confirm'))).toBe(
-      'Xác nhận mục tiêu Quý 4',
-    );
-    expect(root(fixture).querySelector('#my-targets-comment')).not.toBeNull();
-    const sendButtons = Array.from(root(fixture).querySelectorAll('button')).filter(
-      (button) => text(button) === 'Gửi góp ý',
-    );
-    expect(sendButtons.length).withContext('only the button of the feedback box sends').toBe(1);
-  });
-
-  it('confirms every unconfirmed target of the quarter, then reloads', async () => {
-    targets.confirm.and.returnValue(of(feedback('CONFIRM')));
     const fixture = await create();
 
     click(fixture, '#my-targets-confirm');
-    fixture.detectChanges();
+    expect(root(fixture).querySelector('.modal-dialog')).not.toBeNull();
 
-    expect(targets.confirm.calls.allArgs()).toEqual([['t1'], ['t2']]);
-    expect(targets.mine).toHaveBeenCalledTimes(2);
-    expect(text(root(fixture).querySelector('.toast'))).toContain('Đã xác nhận mục tiêu Quý 4');
+    click(fixture, '.modal-footer .button-primary');
+    expect(api.confirm).toHaveBeenCalledWith(2027);
+    expect(api.year).toHaveBeenCalledTimes(2);
   });
 
-  it('treats a 409 (already confirmed) as done and shows an error for any other failure', async () => {
-    targets.confirm.and.returnValue(throwError(() => new HttpErrorResponse({ status: 409 })));
-    const fixture = await create();
-    click(fixture, '#my-targets-confirm');
-    fixture.detectChanges();
-    expect(text(root(fixture).querySelector('.toast'))).toContain('Đã xác nhận mục tiêu');
-
-    targets.confirm.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
-    click(fixture, '#my-targets-confirm');
-    fixture.detectChanges();
-    expect(root(fixture).querySelector('.toast')?.classList).toContain('toast-error');
-  });
-
-  it('shows the banner and the re-confirm button when the manager changed a confirmed target', async () => {
-    const fixture = await create([feedback('CONFIRM')]);
-
-    const banner = root(fixture).querySelector('.banner');
-    expect(text(banner)).toContain(
-      'Mục tiêu Quý 4 đã được Trưởng phòng cập nhật, vui lòng xác nhận lại.',
+  it('shows the reconfirm banner when the manager changed a KPI', async () => {
+    api.year.and.returnValue(
+      of(
+        yearData({
+          ackStatus: 'RECONFIRM',
+          kpis: [
+            {
+              ...yearData().kpis[0],
+              changed: true,
+              changedOldValue: 6000,
+              changedNewValue: 6400,
+            },
+            yearData().kpis[1],
+          ],
+        }),
+      ),
     );
-    expect(text(banner)).toContain('Trạng thái quay về Chờ xác nhận.');
-    expect(text(root(fixture).querySelector('h1'))).toContain('Đã xác nhận Quý 4');
+    const fixture = await create();
+
+    expect(text(root(fixture).querySelector('.banner'))).toContain('Trưởng phòng đã sửa');
     expect(root(fixture).querySelector('#my-targets-reconfirm')).not.toBeNull();
-    expect(root(fixture).querySelector('#my-targets-confirm')).toBeNull();
+    expect(root(fixture).querySelector('.struck')).not.toBeNull();
   });
 
-  it('shows no banner for a quarter that was never confirmed', async () => {
-    const fixture = await create([]);
-
-    expect(root(fixture).querySelector('.banner')).toBeNull();
-  });
-
-  it('sends the feedback to every KPI target and clears the box', async () => {
-    targets.comment.and.returnValue(of(feedback('COMMENT', 'Cần xem lại')));
-    const fixture = await create();
-    const box = root(fixture).querySelector<HTMLTextAreaElement>('#my-targets-comment')!;
-    box.value = '  Cần xem lại  ';
-    box.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-    expect(text(root(fixture).querySelector('.counter'))).toBe('11 / 500');
-
-    click(fixture, '#my-targets-send');
-    fixture.detectChanges();
-
-    expect(targets.comment.calls.allArgs()).toEqual([
-      ['t1', 'Cần xem lại'],
-      ['t2', 'Cần xem lại'],
-    ]);
-    expect(text(root(fixture).querySelector('.toast'))).toContain('Đã gửi góp ý');
-  });
-
-  it('refuses an empty feedback without calling the API', async () => {
+  it('opens the feedback drawer and validates an empty reason', async () => {
     const fixture = await create();
 
-    click(fixture, '#my-targets-send');
+    click(fixture, '.targets-table tbody tr .button-secondary');
+    expect(root(fixture).querySelector('app-right-drawer')).not.toBeNull();
 
-    expect(targets.comment).not.toHaveBeenCalled();
-    expect(text(root(fixture).querySelector('.form-error'))).toBe('Vui lòng nhập góp ý.');
+    click(fixture, '.drawer-footer .button-primary');
+    expect(api.feedback).not.toHaveBeenCalled();
+    expect(root(fixture).querySelector('.form-error')).not.toBeNull();
   });
 
-  it('lists earlier feedback and counts it', async () => {
-    const fixture = await create([feedback('COMMENT', 'Số liệu chưa khớp')]);
-
-    expect(text(root(fixture).querySelector('.feedback-card header'))).toContain(
-      'Lịch sử góp ý: 1',
-    );
-    expect(text(root(fixture).querySelector('.comment-list'))).toContain('Số liệu chưa khớp');
-  });
-
-  it('hides the buttons and the feedback box once the quarter is confirmed', async () => {
-    current = current.map((t) => ({
-      ...t,
-      feedbackStatus: 'CONFIRMED' as const,
-      feedbackAt: '2026-10-21T07:02:11+00:00',
-    }));
-    const fixture = await create();
-
-    expect(text(root(fixture).querySelector('h1'))).toContain('Đã xác nhận Quý 4');
-    expect(text(root(fixture).querySelector('.subtitle'))).toContain('Xác nhận lúc');
-    expect(root(fixture).querySelector('#my-targets-confirm')).toBeNull();
-    expect(root(fixture).querySelector('#my-targets-comment')).toBeNull();
-    expect(text(root(fixture).querySelector('.page-head > .muted'))).toBe(
-      'Đã ấn nút Xác nhận và Gửi góp ý',
-    );
-  });
-
-  it('opens the week panel of the running month and switches to days', async () => {
-    targets.breakdown.and.callFake((id: string, granularity?: 'MONTH' | 'WEEK' | 'DAY') =>
+  it('sends feedback with the typed reason', async () => {
+    api.feedback.and.returnValue(
       of({
-        targetAssignmentId: id,
-        periodStart: `${THIS_MONTH}-01`,
-        periodEnd: `${NEXT_MONTH}-28`,
-        totalValue: 1,
-        workingDays: 1,
-        granularity: granularity ?? 'MONTH',
-        items: [{ start: `${THIS_MONTH}-05`, end: `${THIS_MONTH}-09`, workingDays: 5, value: 10 }],
+        id: 'f1',
+        kpiId: 'k1',
+        employeeId: 'e1',
+        authorName: 'Phạm Thu Hà',
+        reason: 'Khách lớn chuyển phòng',
+        proposedYear: null,
+        proposedQ1: null,
+        proposedQ2: null,
+        proposedQ3: null,
+        proposedQ4: null,
+        reply: null,
+        repliedBy: null,
+        repliedByName: null,
+        repliedAt: null,
+        createdAt: '2027-01-06T10:12:00Z',
       }),
     );
     const fixture = await create();
-    click(fixture, '.month-row .link-button');
+
+    click(fixture, '.targets-table tbody tr .button-secondary');
+    const textarea = root(fixture).querySelector<HTMLTextAreaElement>(
+      '#my-targets-feedback-reason',
+    )!;
+    textarea.value = 'Khách lớn chuyển phòng';
+    textarea.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
-    expect(targets.breakdown).toHaveBeenCalledWith('t1', 'WEEK');
-    expect(text(root(fixture).querySelector('.slice-panel'))).toContain(
-      `05/${MONTH_NUMBER} – 09/${MONTH_NUMBER}`,
+    click(fixture, '.drawer-footer .button-primary');
+    expect(api.feedback).toHaveBeenCalledWith(
+      2027,
+      jasmine.objectContaining({ kpiId: 'k1', reason: 'Khách lớn chuyển phòng' }),
     );
-
-    click(fixture, '.slice-panel .segmented button:last-child');
-    expect(targets.breakdown).toHaveBeenCalledWith('t1', 'DAY');
   });
 
-  it('shows an error with a retry when the targets cannot be loaded', async () => {
-    targets.mine.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+  it('switches to the quarter progress view and filters by bucket', async () => {
     const fixture = await create();
 
-    expect(text(root(fixture).querySelector('.state-error'))).toContain('Không tải được mục tiêu');
-    targets.mine.and.callFake(() => of(current));
-    click(fixture, '.state-error button');
+    queryParamMap.next(paramMap({ view: 'quarter' }));
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.progress).toHaveBeenCalled();
+    expect(root(fixture).querySelectorAll('.targets-table tbody tr').length).toBe(1);
+
+    click(fixture, '.chip-row .chip-filter:nth-child(2)');
+    expect(root(fixture).querySelectorAll('.targets-table tbody tr').length).toBe(2);
+  });
+
+  it('shows an error state with the trace id and a retry', async () => {
+    api.year.and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 500, error: { traceId: 'abc-123' } })),
+    );
+    const fixture = await create();
+
+    expect(text(root(fixture).querySelector('.state-error'))).toContain('abc-123');
+
+    api.year.and.returnValue(of(yearData()));
+    click(fixture, '.state-error button');
     expect(root(fixture).querySelector('.targets-table')).not.toBeNull();
   });
 
-  it('says so when the employee has no quarterly target', async () => {
-    current = [];
+  it('says so when the employee has no targets yet', async () => {
+    api.year.and.returnValue(of(yearData({ kpis: [] })));
     const fixture = await create();
 
-    expect(text(root(fixture).querySelector('.state-card'))).toBe(
-      'Bạn chưa được giao mục tiêu quý nào.',
+    expect(text(root(fixture).querySelector('.state-card'))).toContain(
+      'Bạn chưa được giao chỉ tiêu',
     );
   });
 });

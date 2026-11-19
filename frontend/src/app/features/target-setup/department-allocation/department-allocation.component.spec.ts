@@ -11,6 +11,7 @@ import {
   TargetSetup,
 } from '../../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../../core/target-assignment.service';
+import { SuggestTargetsResponseDto, TargetSetupApiService } from '../target-setup-api.service';
 import { DepartmentAllocationComponent } from './department-allocation.component';
 
 function kpiRow(over: Partial<QuarterSplitRow>): QuarterSplitRow {
@@ -19,13 +20,18 @@ function kpiRow(over: Partial<QuarterSplitRow>): QuarterSplitRow {
     kpiCode: 'KPI_1',
     kpiName: 'Tiền gửi',
     unit: 'triệu VND',
+    groupCode: 'G1',
+    groupName: 'Huy động vốn',
+    aggregationType: 'SUM',
     isRatio: false,
     yearValue: 1000,
     q1: 250,
     q2: 250,
     q3: 250,
     q4: 250,
+    previousYearValue: null,
     previousYear: null,
+    previousYearActual: null,
     sum: 1000,
     diff: 0,
     matched: true,
@@ -35,30 +41,31 @@ function kpiRow(over: Partial<QuarterSplitRow>): QuarterSplitRow {
 
 const split: QuarterSplit = {
   branchYearId: 'by-1',
-  year: 2026,
+  year: 2027,
   status: 'DRAFT',
   importedAt: null,
   fileRatios: null,
   quarters: [1, 2, 3, 4].map((quarter) => ({ periodId: `p${quarter}`, quarter, locked: false })),
   rows: [
     kpiRow({}),
-    kpiRow({ kpiId: 'k2', kpiName: 'Mở thẻ', matched: false, sum: 990, diff: 10 }),
-    kpiRow({ kpiId: 'k3', kpiName: 'Số giao dịch' }),
-    kpiRow({ kpiId: 'k4', kpiName: 'Chất lượng dịch vụ', isRatio: true, yearValue: 4.5 }),
+    kpiRow({ kpiId: 'k2', kpiCode: 'KPI_2', kpiName: 'Số dư CASA' }),
+    kpiRow({ kpiId: 'k3', kpiCode: 'KPI_3', kpiName: 'Mở thẻ', groupCode: 'G2', groupName: 'Thẻ' }),
+    kpiRow({ kpiId: 'k4', kpiCode: 'KPI_4', kpiName: 'Tỷ lệ nợ xấu', isRatio: true }),
   ],
 };
 
 function department(over: Partial<DepartmentAllocationRow>): DepartmentAllocationRow {
   return {
     departmentId: 'd1',
-    departmentName: 'Phòng Giao dịch',
-    headcount: 3,
+    departmentName: 'KHCN',
+    headcount: 8,
     year: 0,
     q1: 0,
     q2: 0,
     q3: 0,
     q4: 0,
     previousYear: null,
+    previousYearActual: null,
     matched: true,
     ...over,
   };
@@ -69,19 +76,51 @@ function allocation(over: Partial<KpiAllocation> = {}): KpiAllocation {
     kpiId: 'k1',
     kpiName: 'Tiền gửi',
     unit: 'triệu VND',
-    workType: 'Teller',
+    workType: 'Sales Officer',
     branch: { year: 1000, q1: 250, q2: 250, q3: 250, q4: 250 },
     departments: [
-      department({ previousYear: 100 }),
-      department({ departmentId: 'd2', departmentName: 'PGD Văn Quán', previousYear: 300 }),
+      department({ year: 600, q1: 150, q2: 150, q3: 150, q4: 150, previousYearActual: 300 }),
+      department({
+        departmentId: 'd2',
+        departmentName: 'Văn Quán',
+        headcount: 6,
+        year: 300,
+        q1: 75,
+        q2: 75,
+        q3: 75,
+        q4: 75,
+        previousYearActual: 100,
+      }),
     ],
-    totals: { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 },
-    remaining: { year: 1000, q1: 250, q2: 250, q3: 250, q4: 250 },
-    hiddenDepartments: [
-      { departmentId: 'd9', departmentName: 'Phòng KHCN', reason: 'no_headcount' },
-    ],
+    totals: { year: 900, q1: 225, q2: 225, q3: 225, q4: 225 },
+    remaining: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25 },
+    hiddenDepartments: [{ departmentId: 'd9', departmentName: 'KHDN', reason: 'no_headcount' }],
     ...over,
   };
+}
+
+/** k1 mismatched (100 left), k2 matched; k3 is not in the bulk response (quarters not ready). */
+function allocations(): KpiAllocation[] {
+  return [
+    allocation(),
+    allocation({
+      kpiId: 'k2',
+      kpiName: 'Số dư CASA',
+      departments: [
+        department({ year: 700, q1: 175, q2: 175, q3: 175, q4: 175 }),
+        department({
+          departmentId: 'd2',
+          departmentName: 'Văn Quán',
+          year: 300,
+          q1: 75,
+          q2: 75,
+          q3: 75,
+          q4: 75,
+        }),
+      ],
+      hiddenDepartments: [],
+    }),
+  ];
 }
 
 const setup: TargetSetup = {
@@ -91,32 +130,31 @@ const setup: TargetSetup = {
   rowCount: 4,
   step: 'ALLOCATE',
   status: 'DRAFT',
-  quarters: { done: 2, total: 3 },
+  quarters: { done: 3, total: 4 },
   allocation: { done: 1, total: 3 },
   canPublish: false,
-  blockers: [{ kpiId: 'k1', kpiCode: 'KPI_1', kpiName: 'Tiền gửi' }],
+  blockers: [],
 };
 
-describe('DepartmentAllocationComponent', () => {
+describe('DepartmentAllocationComponent (W5)', () => {
   let api: jasmine.SpyObj<TargetAssignmentService>;
+  let suggestApi: jasmine.SpyObj<TargetSetupApiService>;
 
   function render(
     options: {
       save?: 'ok' | 'notReady';
-      allocations?: Record<string, KpiAllocation>;
       initialKpiId?: string;
+      setup?: TargetSetup;
+      all?: KpiAllocation[];
     } = {},
   ): ComponentFixture<DepartmentAllocationComponent> {
     api = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
       'getQuarterSplit',
-      'getKpiAllocation',
+      'getAllAllocations',
       'saveKpiAllocation',
     ]);
     api.getQuarterSplit.and.returnValue(of(split));
-    const allocations = options.allocations ?? {};
-    api.getKpiAllocation.and.callFake((_, kpiId) =>
-      of(allocations[kpiId] ?? allocation({ kpiId, kpiName: kpiId })),
-    );
+    api.getAllAllocations.and.returnValue(of(options.all ?? allocations()));
     api.saveKpiAllocation.and.callFake((_, kpiId, request: SaveKpiAllocationRequest) =>
       options.save === 'notReady'
         ? throwError(
@@ -135,16 +173,20 @@ describe('DepartmentAllocationComponent', () => {
             }),
           ),
     );
+    suggestApi = jasmine.createSpyObj<TargetSetupApiService>('TargetSetupApiService', ['suggest']);
 
     TestBed.configureTestingModule({
-      providers: [{ provide: TargetAssignmentService, useValue: api }],
+      providers: [
+        { provide: TargetAssignmentService, useValue: api },
+        { provide: TargetSetupApiService, useValue: suggestApi },
+      ],
     });
     TestBed.inject(I18nService).setLanguage('vi');
 
     const fixture = TestBed.createComponent(DepartmentAllocationComponent);
     fixture.componentRef.setInput('branchYearId', 'by-1');
-    fixture.componentRef.setInput('year', 2026);
-    fixture.componentRef.setInput('setup', setup);
+    fixture.componentRef.setInput('year', 2027);
+    fixture.componentRef.setInput('setup', options.setup ?? setup);
     fixture.componentRef.setInput('initialKpiId', options.initialKpiId ?? null);
     fixture.detectChanges();
     return fixture;
@@ -166,133 +208,235 @@ describe('DepartmentAllocationComponent', () => {
     return found;
   }
 
-  function footerCells(fixture: ComponentFixture<DepartmentAllocationComponent>, row: string) {
-    return Array.from(root(fixture).querySelectorAll(`tfoot .${row} td.num`)).map((cell) =>
-      cell.textContent?.trim(),
+  function cellInputs(
+    fixture: ComponentFixture<DepartmentAllocationComponent>,
+  ): HTMLInputElement[] {
+    return Array.from(root(fixture).querySelectorAll<HTMLInputElement>('tbody .cell-input'));
+  }
+
+  function commit(
+    fixture: ComponentFixture<DepartmentAllocationComponent>,
+    input: HTMLInputElement,
+    value: string,
+  ): void {
+    input.value = value;
+    input.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+  }
+
+  function footer(fixture: ComponentFixture<DepartmentAllocationComponent>, row: string): string[] {
+    return Array.from(root(fixture).querySelectorAll(`tfoot .${row} td`)).map(
+      (cell) => cell.textContent?.trim() ?? '',
     );
   }
 
   afterEach(() => localStorage.clear());
 
-  it('lists the KPIs with their state and opens the first allocatable one', () => {
+  it('shows the tier line and lists KPIs by group with Khớp / Lệch / Chưa', () => {
     const fixture = render();
-    const cards = Array.from(root(fixture).querySelectorAll<HTMLButtonElement>('.kpi-card'));
 
-    expect(cards.map((card) => card.querySelector('.kpi-card-name')?.textContent?.trim())).toEqual([
-      'Tiền gửi',
-      'Mở thẻ',
-      'Số giao dịch',
+    expect(root(fixture).querySelector('.tier-status-line')?.textContent).toContain(
+      'TẦNG 2 · CHI NHÁNH → PHÒNG',
+    );
+    expect(root(fixture).querySelector('.counts')?.textContent?.replace(/\s+/g, ' ')).toContain(
+      '1 / 3',
+    );
+    const cards = Array.from(root(fixture).querySelectorAll<HTMLButtonElement>('.kpi-card'));
+    expect(cards.map((card) => card.querySelector('.state-badge')?.textContent?.trim())).toEqual([
+      'Lệch',
+      'Khớp',
+      'Chưa',
     ]);
-    expect(cards[1].disabled).toBeTrue();
-    expect(cards[1].textContent).toContain('Chưa chia quý xong (bước 2)');
-    expect(cards[2].textContent).toContain('✓ Đủ');
-    expect(root(fixture).textContent).toContain('Chất lượng dịch vụ: ngưỡng chung, không phân bổ.');
-    expect(api.getKpiAllocation).toHaveBeenCalledWith('by-1', 'k1');
+    expect(cards[2].disabled).toBeTrue();
+    expect(root(fixture).querySelector('h2')?.textContent?.trim()).toBe('Tiền gửi');
+    expect(root(fixture).textContent).toContain('1 KPI tỷ lệ / ngưỡng: kế thừa, không phân bổ.');
   });
 
   it('starts on the KPI chosen in step 2', () => {
-    const fixture = render({ initialKpiId: 'k3' });
+    const fixture = render({ initialKpiId: 'k2' });
 
-    expect(api.getKpiAllocation).toHaveBeenCalledOnceWith('by-1', 'k3');
-    expect(root(fixture).querySelector('.kpi-card.is-selected')?.textContent).toContain(
-      'Số giao dịch',
-    );
+    expect(root(fixture).querySelector('h2')?.textContent?.trim()).toBe('Số dư CASA');
   });
 
-  it('fills the year by last year shares and the quarters by the branch ratio with exact totals', () => {
+  it('filters the KPI list with the tier line chips', () => {
     const fixture = render();
 
-    button(fixture, 'Chia năm theo tỷ lệ 2025').click();
-    button(fixture, 'Chia quý theo tỷ lệ của chi nhánh').click();
+    button(fixture, 'Lệch (1)').click();
     fixture.detectChanges();
 
-    expect(footerCells(fixture, 'total-row')).toEqual(['2', '1.000', '250', '250', '250', '250']);
-    expect(footerCells(fixture, 'remaining-row')).toEqual(['0 ✓', '0 ✓', '0 ✓', '0 ✓', '0 ✓']);
-    expect(root(fixture).querySelector('.quarter-banner')).toBeNull();
-    expect(button(fixture, 'Lưu và sang chỉ tiêu tiếp').disabled).toBeFalse();
+    expect(
+      Array.from(root(fixture).querySelectorAll('.kpi-card-name')).map((el) =>
+        el.textContent?.trim(),
+      ),
+    ).toEqual(['Tiền gửi']);
   });
 
-  it('shows the mismatch per department, per column and in the banner', () => {
+  it('renders the columns of the mockup, last year actual share and hidden departments', () => {
+    const fixture = render();
+
+    expect(
+      Array.from(root(fixture).querySelectorAll('thead th')).map((th) => th.textContent?.trim()),
+    ).toEqual(['Phòng', 'Số NV phụ trách', 'Thực tế 2026', 'Năm 2027', 'Q1', 'Q2', 'Q3', 'Q4']);
+    const firstRow = root(fixture).querySelectorAll('tbody tr')[0];
+    expect(firstRow.querySelectorAll('td')[2].textContent?.trim()).toBe('75,0%');
+    expect(root(fixture).querySelector('.not-applicable')?.textContent?.trim()).toBe(
+      'Không có Sales Officer',
+    );
+    expect(footer(fixture, 'remaining-row')).toEqual(['100', '25', '25', '25', '25']);
+  });
+
+  it('has no equal-split or headcount suggestion methods', () => {
+    const fixture = render();
+    const text = root(fixture).textContent ?? '';
+
+    expect(text).not.toContain('Chia đều');
+    expect(text).not.toContain('Theo số GDV');
+  });
+
+  it('marks an edited department red when its quarters stop adding up and keeps Tiếp disabled', () => {
+    const fixture = render({ initialKpiId: 'k2', setup: { ...setup, canPublish: true } });
+
+    commit(fixture, cellInputs(fixture)[0], '800');
+
+    expect(root(fixture).querySelector('tbody .cell.is-mismatch')).not.toBeNull();
+    expect(root(fixture).querySelector('.quarter-banner')?.textContent).toContain(
+      'KHCN có tổng 4 quý khác chỉ tiêu năm',
+    );
+    expect(button(fixture, 'Tiếp: Phát hành ›').disabled).toBeTrue();
+  });
+
+  it('enables Tiếp only when every KPI matches, is saved and the server allows publishing', () => {
+    const matched = allocations()[1];
     const fixture = render({
-      allocations: {
-        k1: allocation({
-          departments: [
-            department({ year: 600, q1: 150, q2: 150, q3: 150, q4: 100 }),
-            department({
-              departmentId: 'd2',
-              departmentName: 'PGD Văn Quán',
+      all: [{ ...matched, kpiId: 'k1' }, matched, { ...matched, kpiId: 'k3' }],
+      setup: { ...setup, canPublish: true },
+    });
+    const emitted = spyOn(fixture.componentInstance.publish, 'emit');
+
+    button(fixture, 'Tiếp: Phát hành ›').click();
+
+    expect(emitted).toHaveBeenCalled();
+  });
+
+  it('"✦ Gợi ý phân bổ" calls POST /target-suggestions tier 2 for the open KPI and previews it', () => {
+    const fixture = render();
+    const response: SuggestTargetsResponseDto = {
+      tier: 2,
+      basis: 'TARGET_LAST_YEAR',
+      overwrite: 'EMPTY_ONLY',
+      warnings: [],
+      kpis: [
+        {
+          kpiId: 'k1',
+          kpiCode: 'KPI_1',
+          kpiName: 'Tiền gửi',
+          unit: 'triệu VND',
+          aggregationType: 'SUM',
+          cells: [
+            {
+              unitId: 'd2',
+              unitName: 'Văn Quán',
               year: 400,
               q1: 100,
               q2: 100,
               q3: 100,
               q4: 100,
-            }),
+              usedFallbackAverage: false,
+              overwritten: true,
+              locked: false,
+              lockReason: null,
+            },
           ],
-        }),
-      },
+          lockedUnits: [],
+          total: 1000,
+          sumMatches: true,
+          disabledReason: null,
+          warnings: [],
+        },
+      ],
+    };
+    suggestApi.suggest.and.returnValue(of(response));
+
+    button(fixture, 'Gợi ý phân bổ').click();
+    fixture.detectChanges();
+    button(fixture, 'Tạo gợi ý').click();
+    fixture.detectChanges();
+
+    const [year, request] = suggestApi.suggest.calls.mostRecent().args;
+    expect(year).toBe(2027);
+    expect(request.tier).toBe(2);
+    expect(request.anchorId).toBe('by-1');
+    expect(request.kpiIds).toEqual(['k1']);
+    expect(request.currentValues.map((value) => value.unitId)).toEqual(['d1', 'd2']);
+    expect(root(fixture).querySelector('.preview-banner')).not.toBeNull();
+    expect(root(fixture).querySelectorAll('tbody .cell.is-suggested').length).toBe(5);
+    expect(footer(fixture, 'remaining-row')).toEqual(['0', '0', '0', '0', '0']);
+
+    button(fixture, 'Hoàn tác').click();
+    fixture.detectChanges();
+
+    expect(root(fixture).querySelector('.preview-banner')).toBeNull();
+    expect(footer(fixture, 'remaining-row')).toEqual(['100', '25', '25', '25', '25']);
+  });
+
+  it('saves every changed KPI and shows a toast', () => {
+    const fixture = render({ initialKpiId: 'k2' });
+    const saved = spyOn(fixture.componentInstance.saved, 'emit');
+
+    commit(fixture, cellInputs(fixture)[1], '200');
+    button(fixture, 'Lưu nháp').click();
+    fixture.detectChanges();
+
+    expect(api.saveKpiAllocation).toHaveBeenCalledTimes(1);
+    const [, kpiId, request] = api.saveKpiAllocation.calls.mostRecent().args;
+    expect(kpiId).toBe('k2');
+    expect(request.departments[0]).toEqual({
+      departmentId: 'd1',
+      year: 700,
+      q1: 200,
+      q2: 175,
+      q3: 175,
+      q4: 175,
     });
-
-    const checks = Array.from(root(fixture).querySelectorAll('tbody .total-cell')).map((cell) =>
-      cell.textContent?.trim(),
-    );
-    expect(checks).toEqual(['lệch 50', '✓']);
-    expect(footerCells(fixture, 'remaining-row')).toEqual(['0 ✓', '0 ✓', '0 ✓', '0 ✓', '50']);
-    const banner = root(fixture).querySelector('.quarter-banner')?.textContent ?? '';
-    expect(banner).toContain('Quý 4 còn thiếu 50 triệu VND');
-    expect(banner).toContain('Phòng Giao dịch có tổng 4 quý khác chỉ tiêu năm của phòng');
-    expect(button(fixture, 'Lưu và sang chỉ tiêu tiếp').disabled).toBeTrue();
-  });
-
-  it('converts the year column between values and percentages', () => {
-    const fixture = render();
-    button(fixture, 'Nhập tỷ lệ %').click();
-    fixture.detectChanges();
-
-    const yearInput = root(fixture).querySelector<HTMLInputElement>('tbody tr input')!;
-    yearInput.dispatchEvent(new Event('focus'));
-    yearInput.value = '25';
-    yearInput.dispatchEvent(new Event('input'));
-    yearInput.dispatchEvent(new Event('blur'));
-    fixture.detectChanges();
-
-    expect(yearInput.value).toBe('25%');
-    button(fixture, 'Nhập giá trị').click();
-    fixture.detectChanges();
-    expect(root(fixture).querySelector<HTMLInputElement>('tbody tr input')!.value).toBe('250');
-  });
-
-  it('saves every department and moves to the next KPI', () => {
-    const fixture = render();
-    button(fixture, 'Chia năm theo tỷ lệ 2025').click();
-    button(fixture, 'Chia quý theo tỷ lệ của chi nhánh').click();
-    fixture.detectChanges();
-    const saved = jasmine.createSpy('saved');
-    fixture.componentInstance.saved.subscribe(saved);
-
-    button(fixture, 'Lưu và sang chỉ tiêu tiếp').click();
-    fixture.detectChanges();
-
-    const request = api.saveKpiAllocation.calls.mostRecent().args[2];
-    expect(request.departments.map((d) => d.departmentId)).toEqual(['d1', 'd2']);
-    expect(request.departments.map((d) => d.year)).toEqual([250, 750]);
     expect(saved).toHaveBeenCalled();
-    expect(api.getKpiAllocation).toHaveBeenCalledWith('by-1', 'k3');
+    expect(root(fixture).querySelector('.quarter-toast')?.textContent).toContain('Đã lưu phân bổ.');
   });
 
-  it('keeps the edits and shows the API error when saving fails', () => {
-    const fixture = render({ save: 'notReady' });
-    button(fixture, 'Chia năm theo tỷ lệ 2025').click();
+  it('keeps the edits and names the KPI when saving fails', () => {
+    const fixture = render({ save: 'notReady', initialKpiId: 'k2' });
+
+    commit(fixture, cellInputs(fixture)[1], '200');
     button(fixture, 'Lưu nháp').click();
     fixture.detectChanges();
 
     expect(root(fixture).querySelector('.quarter-save-error')?.textContent).toContain(
-      'Chỉ tiêu này chưa chia quý xong ở bước 2.',
+      'Số dư CASA: Chỉ tiêu này chưa chia quý xong ở bước 2.',
     );
-    expect(footerCells(fixture, 'total-row')[1]).toBe('1.000');
+    expect(cellInputs(fixture)[1].value).toBe('200');
   });
 
-  it('explains which departments are hidden', () => {
-    const fixture = render();
-    expect(root(fixture).textContent).toContain('Phòng KHCN bị ẩn vì không có Teller.');
+  it('shows the load error state with a retry button', () => {
+    api = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
+      'getQuarterSplit',
+      'getAllAllocations',
+    ]);
+    api.getQuarterSplit.and.returnValue(throwError(() => new Error('boom')));
+    api.getAllAllocations.and.returnValue(of([]));
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: TargetAssignmentService, useValue: api },
+        { provide: TargetSetupApiService, useValue: {} },
+      ],
+    });
+    TestBed.inject(I18nService).setLanguage('vi');
+    const fixture = TestBed.createComponent(DepartmentAllocationComponent);
+    fixture.componentRef.setInput('branchYearId', 'by-1');
+    fixture.componentRef.setInput('year', 2027);
+    fixture.componentRef.setInput('setup', setup);
+    fixture.detectChanges();
+
+    expect(root(fixture).querySelector('.state-error')?.textContent).toContain(
+      'Không tải được phân bổ cho phòng.',
+    );
   });
 });

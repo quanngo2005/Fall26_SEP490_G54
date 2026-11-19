@@ -1,21 +1,30 @@
-import { DepartmentSummary } from '../../core/department.models';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { KpiDefinition } from '../../core/kpi-definition.models';
-import { TargetAssignment } from '../../core/target-assignment.models';
+import { QuarterSplitRow, TargetAssignment } from '../../core/target-assignment.models';
 import {
   availableYears,
-  buildBranchTable,
+  buildBranchQuarterRows,
+  buildDepartmentQuarterRows,
   buildFeedbackRows,
   buildQuotaRows,
+  columnFormat,
   employeeFeedback,
   findQuarterPeriod,
+  groupKpiRows,
   usedKpis,
   valuesByOwner,
 } from './target-overview.utils';
 
-const kpi = (id: string, aggregationType = 'SUM'): KpiDefinition =>
-  ({ id, name: id, unit: 'VND', aggregationType }) as KpiDefinition;
+const kpi = (id: string, aggregationType = 'SUM', kpiGroupName = 'OPERATIONS'): KpiDefinition =>
+  ({
+    id,
+    code: id.toUpperCase(),
+    name: id,
+    unit: 'VND',
+    aggregationType,
+    kpiGroupName,
+  }) as KpiDefinition;
 const period = (type: string, startDate: string): EvaluationPeriodOption =>
   ({ id: `${type}-${startDate}`, periodType: type, startDate }) as EvaluationPeriodOption;
 const assignment = (over: Partial<TargetAssignment>): TargetAssignment => ({
@@ -32,8 +41,6 @@ const assignment = (over: Partial<TargetAssignment>): TargetAssignment => ({
   feedbackAt: null,
   ...over,
 });
-const department = (id: string, parent: string | null, levelType: string): DepartmentSummary =>
-  ({ id, name: id, parentDepartmentId: parent, levelType }) as DepartmentSummary;
 const employee = (id: string, departmentId: string, position = 'Teller'): EmployeeDetail =>
   ({
     id,
@@ -43,6 +50,28 @@ const employee = (id: string, departmentId: string, position = 'Teller'): Employ
     jobPositionTitle: position,
     status: 'ACTIVE',
   }) as EmployeeDetail;
+const quarterSplitRow = (over: Partial<QuarterSplitRow> = {}): QuarterSplitRow => ({
+  kpiId: 'k1',
+  kpiCode: 'KPI_K1',
+  kpiName: 'k1',
+  unit: 'VND',
+  groupCode: 'OPS',
+  groupName: 'OPERATIONS',
+  aggregationType: 'SUM',
+  isRatio: false,
+  yearValue: 100,
+  q1: 25,
+  q2: 25,
+  q3: 25,
+  q4: 25,
+  previousYearValue: 80,
+  previousYear: { q1: 20, q2: 20, q3: 20, q4: 20 },
+  previousYearActual: null,
+  sum: 100,
+  diff: 0,
+  matched: true,
+  ...over,
+});
 
 describe('target overview utils', () => {
   it('finds years and quarter periods from the period list', () => {
@@ -82,57 +111,129 @@ describe('target overview utils', () => {
     expect(employeeFeedback([])).toBe('NOT_VIEWED');
   });
 
-  describe('buildBranchTable', () => {
-    const base = {
-      kpis: [kpi('k1'), kpi('k2')],
-      assignments: [
-        assignment({ departmentId: 'b', kpiDefinitionId: 'k1', targetValue: 100 }),
-        assignment({ departmentId: 'd1', kpiDefinitionId: 'k1', targetValue: 60 }),
-        assignment({ employeeId: 'e1', kpiDefinitionId: 'k1', targetValue: 25 }),
-      ],
-      departments: [department('b', null, 'BRANCH'), department('d1', 'b', 'DEPARTMENT')],
-      employees: [employee('e1', 'd1'), employee('e2', 'd1', 'Sales Officer')],
-      search: '',
-      departmentId: '',
-      position: '',
-    };
-
-    it('shows totals, department values and marks employees without a target', () => {
-      const table = buildBranchTable(base);
-
-      expect(table.total).toEqual([100, 'NONE']);
-      expect(table.departments[0].cells).toEqual([60, 'NONE']);
-      expect(table.departments[0].members.map((m) => m.cells)).toEqual([
-        [25, 'NONE'],
-        ['UNALLOCATED', 'NONE'],
+  describe('buildBranchQuarterRows', () => {
+    it('reports matched, short and not-split SUM rows, and a fixed AVG row', () => {
+      const rows = buildBranchQuarterRows([
+        quarterSplitRow({ kpiId: 'matched' }),
+        quarterSplitRow({
+          kpiId: 'short',
+          yearValue: 100,
+          q1: 10,
+          q2: 10,
+          q3: 10,
+          q4: 30,
+          sum: 60,
+          diff: 40,
+          matched: false,
+        }),
+        quarterSplitRow({
+          kpiId: 'notSplit',
+          q1: null,
+          q2: null,
+          q3: null,
+          q4: null,
+          matched: false,
+        }),
+        quarterSplitRow({
+          kpiId: 'avg',
+          aggregationType: 'AVG',
+          isRatio: true,
+          yearValue: 4.5,
+          previousYearValue: null,
+        }),
       ]);
+
+      expect(rows.map((r) => [r.kpiId, r.state, r.diff])).toEqual([
+        ['matched', 'MATCHED', 0],
+        ['short', 'SHORT', 40],
+        ['notSplit', 'NOT_SPLIT', 0],
+        ['avg', 'FIXED', 0],
+      ]);
+      expect(rows[0].changePercent).toBe(25);
+      expect(rows[3].quarters).toEqual([4.5, 4.5, 4.5, 4.5]);
+      expect(rows[3].changePercent).toBeNull();
+      expect(rows[2].quarters).toEqual(['NONE', 'NONE', 'NONE', 'NONE']);
     });
 
-    it('counts employees of the teams beneath a department', () => {
-      const table = buildBranchTable({
-        ...base,
-        departments: [...base.departments, department('t1', 'd1', 'TEAM')],
-        employees: [...base.employees, employee('e3', 't1')],
-      });
+    it('reports an over-split row as OVER with the absolute diff', () => {
+      const rows = buildBranchQuarterRows([
+        quarterSplitRow({
+          yearValue: 100,
+          q1: 40,
+          q2: 40,
+          q3: 40,
+          q4: 40,
+          sum: 160,
+          diff: -60,
+          matched: false,
+        }),
+      ]);
 
-      expect(table.departments.length).toBe(1);
-      expect(table.departments[0].memberCount).toBe(3);
-      expect(table.departments[0].members.map((m) => m.employee.id)).toEqual(['e1', 'e2', 'e3']);
+      expect(rows[0]).toEqual(jasmine.objectContaining({ state: 'OVER', diff: 60 }));
+    });
+  });
+
+  describe('buildDepartmentQuarterRows', () => {
+    const kpis = [kpi('k1'), kpi('k2', 'AVG', 'SALES')];
+    const yearRows = [
+      assignment({ departmentId: 'd1', kpiDefinitionId: 'k1', targetValue: 120 }),
+      assignment({ departmentId: 'd1', kpiDefinitionId: 'k2', targetValue: 4.5 }),
+    ];
+    const quarterRows = [
+      [assignment({ departmentId: 'd1', kpiDefinitionId: 'k1', targetValue: 30 })],
+      [],
+      [],
+      [assignment({ departmentId: 'd1', kpiDefinitionId: 'k1', targetValue: 50 })],
+    ];
+    const previousYearRows = [
+      assignment({ departmentId: 'd1', kpiDefinitionId: 'k1', targetValue: 100 }),
+    ];
+
+    it('builds one row per KPI the department has a year target for, ordered by group then code', () => {
+      const rows = buildDepartmentQuarterRows(kpis, 'd1', yearRows, quarterRows, previousYearRows);
+
+      expect(rows.map((r) => r.kpiId)).toEqual(['k1', 'k2']);
+      const k1 = rows.find((r) => r.kpiId === 'k1')!;
+      expect(k1.state).toBe('SHORT');
+      expect(k1.diff).toBe(40);
+      expect(k1.quarters).toEqual([30, 'NONE', 'NONE', 50]);
+      expect(k1.changePercent).toBe(20);
+      const k2 = rows.find((r) => r.kpiId === 'k2')!;
+      expect(k2.state).toBe('FIXED');
+      expect(k2.quarters).toEqual([4.5, 4.5, 4.5, 4.5]);
+      expect(k2.changePercent).toBeNull();
     });
 
-    it('filters by position and drops departments without a matching member', () => {
+    it('ignores superseded rows and a KPI without a department-owned year target', () => {
+      const superseded = [
+        assignment({
+          departmentId: 'd1',
+          kpiDefinitionId: 'k1',
+          targetValue: 999,
+          status: 'SUPERSEDED',
+        }),
+        ...yearRows,
+      ];
       expect(
-        buildBranchTable({ ...base, position: 'Sales Officer' }).departments[0].members.map(
-          (m) => m.employee.id,
-        ),
-      ).toEqual(['e2']);
-      expect(buildBranchTable({ ...base, position: 'Manager' }).departments).toEqual([]);
+        buildDepartmentQuarterRows(kpis, 'd1', superseded, quarterRows, previousYearRows).find(
+          (r) => r.kpiId === 'k1',
+        )!.year,
+      ).toBe(120);
+      expect(buildDepartmentQuarterRows([kpi('k3')], 'd1', yearRows, quarterRows, [])).toEqual([]);
     });
+  });
 
-    it('keeps every member when the search matches the department name', () => {
-      expect(buildBranchTable({ ...base, search: 'd1' }).departments[0].members.length).toBe(2);
-      expect(buildBranchTable({ ...base, search: 'e2' }).departments[0].members.length).toBe(1);
-    });
+  it('groups consecutive KPI rows by their KPI group', () => {
+    const rows = buildBranchQuarterRows([
+      quarterSplitRow({ kpiId: 'a', groupName: 'OPS' }),
+      quarterSplitRow({ kpiId: 'b', groupName: 'OPS' }),
+      quarterSplitRow({ kpiId: 'c', groupName: 'SALES' }),
+    ]);
+
+    expect(groupKpiRows(rows).map((g) => [g.groupName, g.rows.map((r) => r.kpiId)])).toEqual([
+      ['OPS', ['a', 'b']],
+      ['SALES', ['c']],
+    ]);
   });
 
   it('builds the department quota and employee feedback rows', () => {
@@ -169,5 +270,21 @@ describe('target overview utils', () => {
       [[15], 'COMMENTED', '2026-10-22T08:00:00+00:00'],
       [['UNALLOCATED'], 'NOT_VIEWED', null],
     ]);
+  });
+
+  it('shows money in tỷ or triệu VND and fraction percentages ×100', () => {
+    const labels = { billionVnd: 'tỷ VND', millionVnd: 'triệu VND' };
+    expect(columnFormat('VND', [160_000_000_000, 8_000_000_000, 'NONE'], labels)).toEqual({
+      divisor: 1_000_000_000,
+      unit: 'tỷ VND',
+    });
+    expect(columnFormat('VND', [160_000_000_000, 500_000_000, 'UNALLOCATED'], labels)).toEqual({
+      divisor: 1_000_000,
+      unit: 'triệu VND',
+    });
+    expect(columnFormat('VND', [900_000], labels)).toEqual({ divisor: 1, unit: 'VND' });
+    expect(columnFormat('%', [0.4, 0.35], labels)).toEqual({ divisor: 0.01, unit: '%' });
+    expect(columnFormat('%', [40], labels)).toEqual({ divisor: 1, unit: '%' });
+    expect(columnFormat('KH', [2000], labels)).toEqual({ divisor: 1, unit: 'KH' });
   });
 });

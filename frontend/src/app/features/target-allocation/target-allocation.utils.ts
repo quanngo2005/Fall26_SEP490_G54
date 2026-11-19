@@ -1,14 +1,3 @@
-/** Monday to Friday between two `YYYY-MM-DD` dates, inclusive (same calendar as the backend breakdown). */
-export function weekdaysBetween(start: string, end: string): number {
-  const last = Date.parse(`${end}T00:00:00Z`);
-  let count = 0;
-  for (let day = Date.parse(`${start}T00:00:00Z`); day <= last; day += 86_400_000) {
-    const weekday = new Date(day).getUTCDay();
-    if (weekday !== 0 && weekday !== 6) count += 1;
-  }
-  return count;
-}
-
 /**
  * Splits `total` into whole units in proportion to `weights`; the units left by rounding go to the
  * first parts, so the parts always add up to `total`.
@@ -30,7 +19,43 @@ export function splitByWeights(total: number, weights: readonly number[]): numbe
   return parts;
 }
 
-/** What is still to hand out: positive = short, negative = too much. Empty cells count as 0. */
-export function remainingOf(target: number, values: readonly (number | null)[]): number {
-  return target - values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+/** Change against a base in percent, to one decimal; null when there is no base to compare with. */
+export function deltaPercent(value: number, base: number | null | undefined): number | null {
+  return base ? Math.round(((value - base) / base) * 1000) / 10 : null;
+}
+
+/** Q1..Q4 proportional to a parent's own quarter shape; without one, progressive 1:2:3:4 (like the engine). */
+export function splitByQuarterShape(
+  year: number,
+  parentQuarters: readonly [number, number, number, number],
+): [number, number, number, number] {
+  const shape = parentQuarters.some((value) => value > 0) ? parentQuarters : [1, 2, 3, 4];
+  const [q1, q2, q3, q4] = splitByWeights(year, shape);
+  return [q1, q2, q3, q4];
+}
+
+/**
+ * W11: editing one quarter of an employee's own cumulative KPI keeps `year` fixed and spreads the
+ * difference over the other three quarters, in proportion to what they already hold (equal split when
+ * they are all 0). Returns the new [q1, q2, q3, q4].
+ */
+export function rebalanceQuarters(
+  year: number,
+  quarters: readonly [number, number, number, number],
+  editedIndex: 0 | 1 | 2 | 3,
+  newValue: number,
+): [number, number, number, number] {
+  const clamped = Math.max(0, Math.min(year, Math.floor(newValue)));
+  const others = [0, 1, 2, 3].filter((index) => index !== editedIndex);
+  const remainder = Math.max(0, year - clamped);
+  const parts = splitByWeights(
+    remainder,
+    others.map((index) => quarters[index]),
+  );
+  const result: [number, number, number, number] = [0, 0, 0, 0];
+  result[editedIndex] = clamped;
+  others.forEach((index, position) => {
+    result[index] = parts[position];
+  });
+  return result;
 }

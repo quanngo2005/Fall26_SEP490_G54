@@ -1,5 +1,12 @@
-/* Department allocation (SCR-STRAT-04-D1 step 3, Figma 2928:3060). Grid, buttons and banners reuse the
-   quarter split styles; only the two-column layout, KPI picker, tabs and footer rows live here. */
+/* W5 tier 2 by KPI (design/v3/w05-t2-by-kpi.png). Grid, buttons and banners reuse the quarter split styles;
+   only the tier bar, two-column layout, KPI list and footer rows live here. */
+.tier-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
 .allocation-layout {
   display: flex;
   align-items: flex-start;
@@ -8,23 +15,42 @@
 
 .kpi-picker {
   display: flex;
-  flex: 0 0 240px;
+  flex: 0 0 280px;
   flex-direction: column;
   gap: 8px;
+  max-height: max(560px, calc(100vh - 220px));
 }
-.picker-title {
-  margin: 0;
-  color: #334155;
-  font:
-    600 12px 'Nunito Sans',
-    sans-serif;
-  letter-spacing: 0.48px;
+.picker-search {
+  width: 100%;
+}
+.picker-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 240px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.picker-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
 }
 .kpi-card {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   border: 0.8px solid #cbd5e1;
@@ -49,6 +75,13 @@
   background: #eef2f6;
   cursor: not-allowed;
 }
+.kpi-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .kpi-card-name {
   color: #0f172a;
   font:
@@ -58,40 +91,15 @@
 .kpi-card.is-unavailable .kpi-card-name {
   color: #475569;
 }
-.kpi-card-status {
-  color: #475569;
-  font-size: 12px;
-}
-.kpi-card-status.is-done {
-  color: #047857;
-  font-weight: 600;
-}
-.kpi-card-status.is-mismatch {
-  color: #b45309;
-  font-weight: 600;
+.kpi-card-meta {
+  color: #64748b;
+  font-size: 11px;
 }
 .picker-note {
   margin: 0;
   color: #475569;
   font-size: 12px;
   line-height: 1.5;
-}
-.publish-button {
-  height: 36px;
-  border: 0.8px solid #2563eb;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #fff;
-  cursor: pointer;
-  font:
-    600 13px 'Nunito Sans',
-    sans-serif;
-}
-.publish-button:disabled {
-  border-color: #cbd5e1;
-  background: #cbd5e1;
-  color: #475569;
-  cursor: not-allowed;
 }
 
 .allocation-main {
@@ -101,38 +109,15 @@
   gap: 12px;
   min-width: 0;
 }
-.allocation-header,
-.allocation-toolbar,
 .allocation-footer {
+  margin-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-.allocation-unit {
-  margin: 0;
-}
-.mode-tabs {
-  display: flex;
-  gap: 4px;
-}
-.mode-tab {
-  height: 36px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: #475569;
-  cursor: pointer;
-  font:
-    500 13px 'Nunito Sans',
-    sans-serif;
-  padding: 0 12px;
-}
-.mode-tab.is-active {
-  border-bottom-color: #2563eb;
-  color: #2563eb;
-  font-weight: 600;
 }
 .search-box {
   display: flex;
@@ -165,16 +150,6 @@
 
 .allocation-table {
   min-width: 860px;
-}
-.cell-text {
-  border: 0;
-  background: none;
-  color: #0f172a;
-  cursor: text;
-  font:
-    400 13px 'Nunito Sans',
-    sans-serif;
-  padding: 0;
 }
 .allocation-table tfoot th,
 .allocation-table tfoot td {
@@ -211,28 +186,40 @@
   color: #b91c1c;
   font-weight: 600;
 }
-.allocation-footer .quarter-help {
-  margin: 0;
-}
-.quarter-button.is-solid {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
+.state-badge {
+  flex: 0 0 auto;
+  border: 0.8px solid transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
 }
-.quarter-button.is-solid:disabled {
+.state-badge.is-matched {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+.state-badge.is-mismatched {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.state-badge.is-empty {
   border-color: #cbd5e1;
-  background: #cbd5e1;
+  background: #f8fafc;
   color: #475569;
-  opacity: 1;
 }
-
-@media (max-width: 1100px) {
-  .allocation-layout {
-    flex-direction: column;
-  }
-  .kpi-picker {
-    flex-basis: auto;
-    width: 100%;
-  }
+.muted {
+  color: #64748b;
+}
+.not-applicable {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+}
+.suggest-warning {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 12px;
 }

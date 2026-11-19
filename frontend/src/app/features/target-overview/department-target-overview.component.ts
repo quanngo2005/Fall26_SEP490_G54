@@ -49,6 +49,7 @@ const NO_TARGETS: LoadedTargets = { yearRows: [], quarterRows: [[], [], [], []] 
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
+    '../../shared/target/target-page.scss',
     '../../shared/ui/workspace-page.part2.scss',
     './target-overview.scss',
   ],

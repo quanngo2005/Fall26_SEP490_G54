@@ -3,394 +3,292 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content alloc-page" [attr.aria-busy]="loading()">
-      <p class="breadcrumb">{{localization.targetAllocation.breadcrumb}}</p>
-
-      <div class="page-head">
-        <h1>
-          {{i18n.translate('targetAllocation.title', { department: departmentName() })}}
-        </h1>
-        <label class="inline-field">
-          {{localization.targetAllocation.period}}
+      <div class="page-toolbar">
+        <div class="page-heading">
+          <p class="breadcrumb">
+            {{localization.targetDm.breadcrumb}} / {{localization.targetDm.w10Title}}
+          </p>
+          <h1>
+            {{i18n.translate('targetDm.w10Heading', { department: departmentName() })}}
+            @if (year()) {
+              <span class="year-chip">{{year()}}</span>
+            }
+            @if (status() === 'DRAFT') {
+              <span class="draft-badge">{{localization.targetDm.draftBadge}}</span>
+            }
+          </h1>
+        </div>
+        <div class="page-actions">
           <select
             class="select"
-            [ngModel]="periodId()"
-            (ngModelChange)="selectPeriod($event)"
-            [attr.aria-label]="localization.targetAllocation.period"
+            [ngModel]="year()"
+            (ngModelChange)="selectYear($event)"
+            [attr.aria-label]="localization.targetDm.yearLabel"
           >
-            @for (item of periods(); track item.id) {
-              <option [value]="item.id">{{item.name}}</option>
+            @for (y of years(); track y) {
+              <option [value]="y">{{localization.targetDm.yearLabel}} {{y}}</option>
             }
           </select>
-        </label>
-        <a routerLink="/target-overview" class="button button-secondary">
-          {{localization.targetAllocation.back}}
-        </a>
+          <button
+            type="button"
+            class="button button-secondary"
+            disabled
+            [title]="localization.targetDm.importDisabledReason"
+          >
+            {{localization.targetDm.importExcel}}
+          </button>
+          <span class="suggest-anchor">
+            <app-suggest-button
+              [label]="localization.targetDm.suggestAllocation"
+              [disabled]="!tabRows().length || published()"
+              (pressed)="openSuggest()"
+            />
+            @if (suggestOpen()) {
+              <app-suggest-allocation-popover
+                class="suggest-popover-anchor"
+                [isTier3]="true"
+                [bufferUnitOptions]="bufferUnitOptions()"
+                (cancelled)="cancelSuggest()"
+                (created)="createSuggestion($event)"
+              />
+            }
+          </span>
+        </div>
       </div>
+
+      @if (notice(); as n) {
+        <p class="notice" [attr.data-kind]="n.kind" role="status">{{n.text}}</p>
+      }
 
       @if (loading()) {
         <div class="state-card" role="status">
           <span class="spinner" aria-hidden="true"></span>
-          <p>{{localization.targetAllocation.loading}}</p>
+          <p>{{localization.targetDm.loading}}</p>
         </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
-          <p>{{localization.targetAllocation.loadFailed}}</p>
+          <p>{{localization.targetDm.loadFailed}}</p>
           <button type="button" class="button button-secondary" (click)="load()">
-            {{localization.targetAllocation.retry}}
+            {{localization.targetDm.retry}}
           </button>
         </div>
-      } @else if (periods().length === 0) {
+      } @else if (rows().length === 0) {
         <div class="state-card">
-          <p>{{localization.targetAllocation.noPeriods}}</p>
-        </div>
-      } @else if (columns().length === 0) {
-        <div class="state-card">
-          <p>{{localization.targetAllocation.noTargets}}</p>
-        </div>
-      } @else if (employees().length === 0 && teams().length === 0) {
-        <div class="state-card">
-          <p>{{localization.targetAllocation.noEmployees}}</p>
+          <p>{{localization.targetDm.noPublishedTier2}}</p>
         </div>
       } @else {
-        <div class="alloc-toolbar">
-          <div class="tabs" role="tablist">
+        <div class="alloc-tabs">
+          @for (t of tabs(); track t.label) {
             <button
               type="button"
-              role="tab"
-              [class.is-active]="position() === ''"
-              [attr.aria-selected]="position() === ''"
-              (click)="position.set('')"
+              class="tab-chip"
+              [class.active]="tab() === t.label"
+              (click)="selectTab(t.label)"
             >
-              {{localization.targetAllocation.allPositions}} · {{employees().length}}
+              {{t.label}} · {{t.employeeCount}} {{localization.targetDm.employeesShort}} ·
+              {{t.kpiCount}} {{localization.targetDm.kpisShort}}
             </button>
-            @for (item of positions(); track item.title) {
-              <button
-                type="button"
-                role="tab"
-                [class.is-active]="position() === item.title"
-                [attr.aria-selected]="position() === item.title"
-                (click)="position.set(item.title)"
-              >
-                {{item.title}} · {{item.count}}
-              </button>
-            }
-          </div>
-          <div class="toolbar-actions">
-            <button
-              type="button"
-              class="button button-secondary"
-              [disabled]="!canSplit()"
-              (click)="split(false)"
-            >
-              {{localization.targetAllocation.splitEqual}}
-            </button>
-            <button
-              type="button"
-              class="button button-secondary"
-              [disabled]="!canSplit()"
-              (click)="split(true)"
-            >
-              {{localization.targetAllocation.splitByDays}}
-            </button>
-            <button
-              type="button"
-              id="allocation-balance"
-              class="button button-secondary"
-              [disabled]="!canSplit()"
-              [attr.title]="localization.targetAllocation.balanceAllHint"
-              (click)="balanceAll()"
-            >
-              {{localization.targetAllocation.balanceAll}}
-            </button>
-            @if (editing()) {
-              <button type="button" class="button button-secondary" (click)="cancelAdjust()">
-                {{localization.targetAllocation.cancelAdjust}}
-              </button>
-            } @else if (anyAllocated()) {
-              <button
-                type="button"
-                id="allocation-adjust"
-                class="button button-secondary"
-                (click)="startAdjust()"
-              >
-                {{localization.targetAllocation.adjust}}
-              </button>
-            }
-            <button
-              type="button"
-              id="allocation-save"
-              class="button button-primary"
-              [disabled]="!canSave()"
-              (click)="save()"
-            >
-              {{saving() ? localization.targetAllocation.saving : localization.targetAllocation.save}}
-            </button>
-          </div>
+          }
         </div>
 
-        @if (editing()) {
-          <label class="field adjust-reason">
-            {{localization.targetAllocation.adjustReason}}
-            <input
-              type="text"
-              class="input"
-              maxlength="1000"
-              [placeholder]="localization.targetAllocation.adjustReasonPlaceholder"
-              [ngModel]="reason()"
-              (ngModelChange)="reason.set($event)"
-            />
-          </label>
-        }
-
-        @if (notice(); as n) {
-          <p class="alloc-notice" [class.is-error]="n.kind === 'error'" role="status">
-            {{n.text}}
-          </p>
-        }
-
-        <div class="alloc-body" [class.has-panel]="selectedId()">
-          <div class="alloc-main">
-            <div class="table-wrap">
-              <table class="alloc-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{{localization.targetAllocation.colEmployee}}</th>
-                    <th scope="col" class="num">{{localization.targetAllocation.colWorkDays}}</th>
-                    @for (column of columns(); track column.kpi.id) {
-                      <th scope="col" class="num">{{column.kpi.name}} ({{column.kpi.unit}})</th>
-                    }
-                    <th scope="col">{{localization.targetAllocation.colFeedback}}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of rows(); track row.employee.id) {
-                    <tr [class.is-selected]="selectedId() === row.employee.id">
-                      <th scope="row">
-                        <button type="button" class="link-button" (click)="select(row.employee.id)">
-                          {{row.employee.fullName}} ›
-                        </button>
-                      </th>
-                      <td class="num">{{workDays()}}</td>
-                      @for (column of columns(); track column.kpi.id) {
-                        <td class="num">
-                          <div class="cell-wrap">
-                            @if (pinned(row.employee.id, column.kpi.id)) {
-                              <button
-                                type="button"
-                                class="pin"
-                                [attr.aria-label]="localization.targetAllocation.unpin"
-                                [attr.title]="localization.targetAllocation.unpin"
-                                (click)="unpin(row.employee.id, column.kpi.id)"
-                              >
-                                📌
-                              </button>
-                            }
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              class="input cell-input"
-                              [class.is-empty]="cell(row.employee.id, column.kpi.id) === null"
-                              [disabled]="isLocked(column.kpi.id)"
-                              [placeholder]="localization.targetAllocation.notEntered"
-                              [attr.aria-label]="row.employee.fullName + ' · ' + column.kpi.name"
-                              [ngModel]="cell(row.employee.id, column.kpi.id)"
-                              (ngModelChange)="edit(row.employee.id, column.kpi.id, $event)"
-                            />
-                          </div>
-                        </td>
-                      }
-                      <td>
-                        <span class="badge" [attr.data-status]="row.feedback">
-                          {{feedbackLabel(row.feedback)}}
-                        </span>
-                      </td>
-                    </tr>
-                  }
-                  @for (group of teamGroups(); track group.team.id) {
-                    <tr class="team-row">
-                      <th scope="row">
-                        {{group.team.name}}
-                        <span class="badge">{{localization.targetAllocation.teamTag}}</span>
-                        <span class="team-meta">
-                          {{i18n.translate('targetAllocation.teamMembers', { count: group.size })}}
-                        </span>
-                      </th>
-                      <td class="num">—</td>
-                      @for (column of columns(); track column.kpi.id) {
-                        <td class="num team-total">
-                          @if (teamTotal(group.team.id, column.kpi.id) !== null) {
-                            {{teamTotal(group.team.id, column.kpi.id) | appNumber}}
-                          } @else {
-                            —
-                          }
-                        </td>
-                      }
-                      <td>—</td>
-                    </tr>
-                    @for (member of group.members; track member.id) {
-                      <tr class="member-row" [class.is-selected]="selectedId() === member.id">
-                        <th scope="row">
-                          <button type="button" class="link-button" (click)="select(member.id)">
-                            {{member.fullName}} ›
-                          </button>
-                        </th>
-                        <td class="num">{{workDays()}}</td>
-                        @for (column of columns(); track column.kpi.id) {
-                          <td class="num">
-                            <div class="cell-wrap">
-                              @if (pinned(member.id, column.kpi.id)) {
-                                <button
-                                  type="button"
-                                  class="pin"
-                                  [attr.aria-label]="localization.targetAllocation.unpin"
-                                  [attr.title]="localization.targetAllocation.unpin"
-                                  (click)="unpin(member.id, column.kpi.id)"
-                                >
-                                  📌
-                                </button>
-                              }
-                              <input
-                                type="number"
-                                min="0"
-                                step="1"
-                                class="input cell-input"
-                                [class.is-empty]="cell(member.id, column.kpi.id) === null"
-                                [disabled]="isLocked(column.kpi.id)"
-                                [placeholder]="localization.targetAllocation.notEntered"
-                                [attr.aria-label]="member.fullName + ' · ' + column.kpi.name"
-                                [ngModel]="cell(member.id, column.kpi.id)"
-                                (ngModelChange)="edit(member.id, column.kpi.id, $event)"
-                              />
-                            </div>
-                          </td>
-                        }
-                        <td>
-                          <span class="badge" [attr.data-status]="memberFeedback(member.id)">
-                            {{feedbackLabel(memberFeedback(member.id))}}
-                          </span>
-                        </td>
-                      </tr>
-                    }
-                  }
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th scope="row" colspan="2">
-                      {{localization.targetAllocation.allocatedRow}}
-                    </th>
-                    @for (column of columns(); track column.kpi.id) {
-                      <td
-                        class="num"
-                        [class.is-bad]="remaining(column.kpi.id) !== 0"
-                        [class.is-good]="remaining(column.kpi.id) === 0"
-                      >
-                        {{allocated(column.kpi.id, column.parent.targetValue) | appNumber}} /
-                        {{column.parent.targetValue | appNumber}}
-                      </td>
-                    }
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            @for (item of shownShortfalls(); track item.kpi.id) {
-              <p class="alloc-notice is-error" role="alert">{{shortfallText(item)}}</p>
-            }
-            @if (anyAllocated() && !editing()) {
-              <p class="alloc-hint">{{localization.targetAllocation.lockedNote}}</p>
-            }
-            <p class="alloc-hint">{{localization.targetAllocation.applyNote}}</p>
-          </div>
-
-          @if (selectedId()) {
-            <aside class="alloc-panel" [attr.aria-label]="selectedName()">
-              <div class="panel-head">
-                <h2>
-                  {{i18n.translate('targetAllocation.panelTitle', {
-                      name: selectedName(),
-                      period: periodLabel(),
-                    })}}
-                </h2>
-                <button
-                  type="button"
-                  class="panel-close"
-                  [attr.aria-label]="localization.targetAllocation.panelClose"
-                  (click)="closePanel()"
-                >
-                  ×
-                </button>
-              </div>
-              <div class="panel-note">
-                <strong>{{localization.targetAllocation.panelAuto}}</strong>
-                <span>{{localization.targetAllocation.panelAutoBody}}</span>
-              </div>
-              <div class="tabs" role="tablist">
-                @for (column of columns(); track column.kpi.id) {
-                  <button
-                    type="button"
-                    role="tab"
-                    [class.is-active]="selectedKpiId() === column.kpi.id"
-                    [attr.aria-selected]="selectedKpiId() === column.kpi.id"
-                    (click)="selectKpi(column.kpi.id)"
-                  >
-                    {{column.kpi.name}}
-                  </button>
-                }
-              </div>
-              @switch (breakdown().state) {
-                @case ('loading') {
-                  <p class="alloc-hint" role="status">
-                    {{localization.targetAllocation.panelLoading}}
-                  </p>
-                }
-                @case ('failed') {
-                  <p class="alloc-notice is-error" role="alert">
-                    {{localization.targetAllocation.panelFailed}}
-                  </p>
-                }
-                @case ('ready') {
-                  @if (breakdown().data; as data) {
-                    <table class="alloc-table panel-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">{{localization.targetAllocation.colMonth}}</th>
-                          <th scope="col" class="num">
-                            {{localization.targetAllocation.colDays}}
-                          </th>
-                          <th scope="col" class="num">
-                            {{localization.targetAllocation.colValue}}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of data.items; track item.start) {
-                          <tr>
-                            <td>{{item.start.slice(5, 7)}}/{{item.start.slice(0, 4)}}</td>
-                            <td class="num">{{item.workingDays}}</td>
-                            <td class="num">{{item.value | appNumber}}</td>
-                          </tr>
-                        }
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <th scope="row">{{localization.targetAllocation.total}}</th>
-                          <td class="num">{{data.workingDays}}</td>
-                          <td class="num">{{data.totalValue | appNumber}}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  }
-                }
-                @default {
-                  <p class="alloc-hint">{{localization.targetAllocation.panelNotSaved}}</p>
-                }
-              }
-            </aside>
+        @if (suggested(); as filled) {
+          <app-suggestion-preview-banner
+            [cellCount]="suggestedCellCount()"
+            [kpiCount]="suggestedKpis()"
+            [basis]="suggestBasis()"
+            [remainderMethod]="suggestRemainder()"
+            [fallbackCount]="suggestFallbackCount()"
+            [fallbackTier]="3"
+            (changeBasis)="openSuggest()"
+            (undo)="undoSuggestion()"
+            (apply)="applySuggestion()"
+          />
+          @for (warning of suggestWarnings(); track $index) {
+            <p class="suggest-warning">⚠ {{warning}}</p>
           }
+        }
+
+        <div class="alloc-toolbar">
+          <input
+            type="search"
+            class="input search-input"
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+            [placeholder]="localization.targetDm.searchPlaceholder"
+          />
+          <app-tier-status-line
+            [tierLabel]="tab()"
+            [counts]="counts()"
+            [activeFilter]="filter()"
+            (filterChange)="setFilter($event)"
+          />
+          <label class="check">
+            <input
+              type="checkbox"
+              [ngModel]="compareLastYear()"
+              (ngModelChange)="toggleCompare()"
+            />
+            {{localization.targetDm.compareLastYear}}
+          </label>
+          @if (newEmployeeCount() > 0) {
+            <span class="new-employee-note">
+              {{i18n.translate('targetDm.newEmployeeNote', { count: newEmployeeCount() })}}
+            </span>
+          }
+        </div>
+
+        <app-cell-legend />
+
+        <div class="alloc-table-wrap">
+          <app-kpi-group-table
+            [groups]="groups()"
+            [rowTemplate]="cols"
+            [extraColumnCount]="2 + employeeColumns().length"
+          >
+            <th groupTableHeaderCells class="col-dept-target">
+              {{localization.targetDm.colDeptTarget}}
+            </th>
+            <th groupTableHeaderCells class="col-remaining">
+              {{localization.targetDm.colRemaining}}
+            </th>
+            @for (col of employeeColumns(); track col.id) {
+              <th groupTableHeaderCells class="col-employee">
+                <button type="button" class="employee-head" (click)="openEmployee(col.id)">
+                  {{col.name}}
+                  @if (col.isNew) {
+                    <span class="new-badge">{{localization.targetDm.newBadge}}</span>
+                  }
+                </button>
+              </th>
+            }
+          </app-kpi-group-table>
+
+          <ng-template #cols let-row let-group="group">
+            @if (isRatio(row.id)) {
+              <td class="col-dept-target">{{localization.targetDm.ratioNotSplit}}</td>
+              <td class="col-remaining">—</td>
+              @for (col of employeeColumns(); track col.id) {
+                <td class="ratio-cell">{{localization.targetDm.ratioNotSplit}}</td>
+              }
+            } @else {
+              <td class="col-dept-target">{{departmentTarget(row.id) | targetMoney}}</td>
+              <td class="col-remaining" [class.is-off]="remaining(row.id) !== 0">
+                {{remaining(row.id) | targetMoney}}
+              </td>
+              @for (col of employeeColumns(); track col.id) {
+                <td class="employee-cell">
+                  @if (isLockedEmployee(row.id, col.id)) {
+                    <app-allocation-cell
+                      state="LOCKED"
+                      [lockedReason]="lockedReason(row.id, col.id)"
+                    />
+                  } @else {
+                    <app-allocation-cell
+                      [value]="cellYear(row.id, col.id)"
+                      [unit]="rowOf(row.id)?.unit ?? ''"
+                      [state]="cellState(row.id, col.id)"
+                      [editable]="!published()"
+                      (valueChange)="editYear(row.id, col.id, $event)"
+                    />
+                  }
+                  @if (compareLastYear() && compared(row.id, col.id) !== null) {
+                    <span class="compare-delta">{{deltaText(cellYear(row.id, col.id), compared(row.id, col.id))}}</span>
+                  }
+                </td>
+              }
+            }
+          </ng-template>
+        </div>
+
+        <div class="alloc-footer">
+          <p class="publish-hint">
+            {{canPublish()
+                ? localization.targetDm.readyToPublish
+                : localization.targetDm.notReadyToPublish}}
+          </p>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!canPublish() || saving()"
+            (click)="publish()"
+          >
+            {{localization.targetDm.publish}}
+          </button>
         </div>
       }
     </main>
   </div>
 </div>
+
+<app-right-drawer
+  [open]="selectedEmployee() !== null"
+  [titleText]="selectedEmployee()?.name ?? ''"
+  [subtitleText]="year() ? localization.targetDm.drawerSubtitle + ' ' + year() : null"
+  (closed)="closeDrawer()"
+>
+  @if (selectedEmployee(); as employee) {
+    <table class="drawer-table">
+      <thead>
+        <tr>
+          <th>{{localization.targetDm.colKpi}}</th>
+          <th>{{localization.targetDm.colYear}}</th>
+          @for (q of quarterKeys; track q; let i = $index) {
+            <th>Q{{i + 1}}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of drawerKpis(); track row.kpiId) {
+          <tr>
+            <td>{{row.kpiName}}</td>
+            <td>{{drawerValue(row.kpiId, 'year') | appNumber}}</td>
+            @for (q of quarterKeys; track q; let i = $index) {
+              <td>
+                <app-allocation-cell
+                  [value]="drawerValue(row.kpiId, q)"
+                  [unit]="row.unit"
+                  state="DEFAULT"
+                  [editable]="!published() && !isLockedEmployee(row.kpiId, employee.id)"
+                  (valueChange)="editQuarter(row.kpiId, i, $event)"
+                />
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p class="drawer-note">{{localization.targetDm.drawerRebalanceNote}}</p>
+
+    <section class="drawer-section">
+      <h3>{{localization.targetDm.historyTitle}}</h3>
+      @if (historyEntries().length === 0) {
+        <p class="drawer-empty">{{localization.targetDm.historyEmpty}}</p>
+      } @else {
+        <ul class="history-list">
+          @for (entry of historyEntries(); track entry.text + entry.at) {
+            <li>{{entry.at}} · {{entry.text}}</li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="drawer-section">
+      <h3>{{localization.targetDm.employeeFeedbackTitle}}</h3>
+      <p class="drawer-empty">{{localization.targetDm.employeeFeedbackUnavailable}}</p>
+    </section>
+  }
+
+  <div drawerFooter class="drawer-footer-actions">
+    <button type="button" class="button button-secondary" (click)="closeDrawer()">
+      {{localization.targetDm.close}}
+    </button>
+    <button
+      type="button"
+      class="button button-primary"
+      [disabled]="saving() || published()"
+      (click)="saveEmployee()"
+    >
+      {{localization.targetDm.saveForEmployee}}
+    </button>
+  </div>
+</app-right-drawer>

@@ -43,61 +43,80 @@
         </nav>
 
         <section class="wizard-body">
-          <!-- Steps 2 and 3 show their own heading, so the step name stays for screen readers only. -->
-          <h2 [class.visually-hidden]="activeStep() === 2 || activeStep() === 3">
+          <!-- Steps 2 to 4 show their own heading, so the step name stays for screen readers only. -->
+          <h2 [class.visually-hidden]="activeStep() !== 1">
             {{activeTitle()}}
           </h2>
           @if (activeStep() === 2 && setup()?.branchYearId; as branchYearId) {
             <app-branch-quarter-split
               [branchYearId]="branchYearId"
               [year]="year() ?? 0"
+              [suggest]="suggestOnOpen()"
               (saved)="refreshSetup()"
               (allocateKpi)="onAllocateKpi($event)"
               (reimport)="openReimport()"
             />
           }
           @if (activeStep() === 3 && setup()?.branchYearId; as branchYearId) {
-            <app-department-allocation
-              [branchYearId]="branchYearId"
-              [year]="year() ?? 0"
-              [setup]="setup()!"
-              [initialKpiId]="allocationKpiId()"
-              (saved)="refreshSetup()"
-              (back)="goToStep(2)"
-              (publish)="goToStep(4)"
-            />
+            <div
+              class="allocation-view-switch"
+              role="tablist"
+              [attr.aria-label]="localization.targetSetup.viewSwitchAria"
+            >
+              <button
+                type="button"
+                role="tab"
+                class="view-switch-tab"
+                [class.is-active]="allocationView() === 'kpi'"
+                [attr.aria-selected]="allocationView() === 'kpi'"
+                (click)="setAllocationView('kpi')"
+              >
+                {{localization.targetSetup.viewKpiTab}}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="view-switch-tab"
+                [class.is-active]="allocationView() === 'matrix'"
+                [attr.aria-selected]="allocationView() === 'matrix'"
+                (click)="setAllocationView('matrix')"
+              >
+                {{localization.targetSetup.viewMatrixTab}}
+              </button>
+            </div>
+            @if (allocationView() === 'kpi') {
+              <app-department-allocation
+                [branchYearId]="branchYearId"
+                [year]="year() ?? 0"
+                [setup]="setup()!"
+                [initialKpiId]="allocationKpiId()"
+                (saved)="refreshSetup()"
+                (back)="goToStep(2)"
+                (publish)="goToStep(4)"
+              />
+            } @else {
+              <app-department-allocation-matrix
+                [branchYearId]="branchYearId"
+                [year]="year() ?? 0"
+                [setup]="setup()!"
+                (saved)="refreshSetup()"
+                (back)="goToStep(2)"
+                (publish)="goToStep(4)"
+                (openKpi)="openKpiView($event)"
+              />
+            }
           }
           @if (activeStep() === 4 && setup(); as state) {
-            @let text = localization.targetSetup;
-            <div class="publish-panel">
-              @if (state.step === 'PUBLISHED') {
-                <p class="publish-done" role="status">{{text.publishedInfo}}</p>
-              } @else {
-                <p class="publish-summary">{{summaryText()}}</p>
-                @if (state.blockers.length > 0) {
-                  <div class="publish-blockers" role="alert">
-                    <p class="publish-blockers-title">{{text.publishBlockersTitle}}</p>
-                    <ul>
-                      @for (blocker of state.blockers; track blocker.kpiId) {
-                        <li>{{blocker.kpiName}}</li>
-                      }
-                    </ul>
-                  </div>
-                }
-                @if (publishError(); as message) {
-                  <div class="publish-error" role="alert">{{message}}</div>
-                }
-                <p class="publish-note">{{text.publishNote}}</p>
-                <button
-                  type="button"
-                  class="button button-primary"
-                  [disabled]="!state.canPublish || publishing()"
-                  (click)="askPublish()"
-                >
-                  {{text.publishButton}}
-                </button>
-              }
-            </div>
+            <app-publish-step
+              [branchYearId]="state.branchYearId!"
+              [year]="year() ?? 0"
+              [setup]="state"
+              [departments]="departments()"
+              [publishing]="publishing()"
+              [error]="publishError()"
+              (back)="goToStep(3)"
+              (publish)="askPublish()"
+            />
           }
         </section>
 
@@ -129,6 +148,68 @@
                   (click)="confirmPublish()"
                 >
                   {{localization.targetSetup.confirmAccept}}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (confirmingLeaveSuggestion()) {
+          <div animate.leave="g54-leave-fade" class="confirm-backdrop">
+            <div
+              animate.leave="g54-leave-pop"
+              class="confirm-dialog"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="leave-suggestion-confirm-title"
+              aria-describedby="leave-suggestion-confirm-body"
+            >
+              <h2 id="leave-suggestion-confirm-title">
+                {{localization.targetSetup.confirmSwitchTitle}}
+              </h2>
+              <p id="leave-suggestion-confirm-body">
+                {{localization.targetSetup.confirmSwitchBody}}
+              </p>
+              <div class="confirm-actions">
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  (click)="cancelLeaveSuggestion()"
+                >
+                  {{localization.targetSetup.confirmSwitchCancel}}
+                </button>
+                <button
+                  type="button"
+                  class="button button-primary"
+                  (click)="confirmLeaveSuggestion()"
+                >
+                  {{localization.targetSetup.confirmSwitchAccept}}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (confirmingViewSwitch(); as pendingView) {
+          <div animate.leave="g54-leave-fade" class="confirm-backdrop">
+            <div
+              animate.leave="g54-leave-pop"
+              class="confirm-dialog"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="view-switch-confirm-title"
+              aria-describedby="view-switch-confirm-body"
+            >
+              <h2 id="view-switch-confirm-title">
+                {{localization.targetSetup.confirmSwitchTitle}}
+              </h2>
+              <p id="view-switch-confirm-body">{{localization.targetSetup.confirmSwitchBody}}</p>
+              <div class="confirm-actions">
+                <button type="button" class="button button-secondary" (click)="cancelViewSwitch()">
+                  {{localization.targetSetup.confirmSwitchCancel}}
+                </button>
+                <button type="button" class="button button-primary" (click)="confirmViewSwitch()">
+                  {{localization.targetSetup.confirmSwitchAccept}}
                 </button>
               </div>
             </div>

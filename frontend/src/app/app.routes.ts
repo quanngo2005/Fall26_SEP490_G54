@@ -96,6 +96,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'target-allocation/overview',
+    canActivate: [authGuard],
+    title: 'Tổng quan mục tiêu',
+    loadComponent: () =>
+      import('./features/target-allocation/dm-overview.component').then(
+        (m) => m.DmOverviewComponent,
+      ),
+  },
+  {
     path: 'target-allocation',
     canActivate: [authGuard],
     title: 'Mục tiêu nhân viên',

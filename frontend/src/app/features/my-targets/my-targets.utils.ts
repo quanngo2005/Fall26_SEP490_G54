@@ -1,267 +1,255 @@
-import { EvaluationPeriodOption } from '../../core/evaluation.models';
-import { KpiDefinition } from '../../core/kpi-definition.models';
-import {
-  SuggestedDailyTarget,
-  TargetAssignment,
-  TargetAssignmentFeedback,
-  TargetBreakdownItem,
-} from '../../core/target-assignment.models';
+import { KPI_GROUP_CATALOG } from '../../shared/target/target-shared.models';
+import { MyTargetKpi, MyTargetProgressKpi, MyTargetYear, PaceStatus } from './my-targets.models';
 
-/** `ENDED` wins over feedback: a finished quarter needs nothing from the employee any more. */
-export type QuarterStatus = 'ENDED' | 'PENDING' | 'CONFIRMED' | 'COMMENTED';
-export type MonthPhase = 'ENDED' | 'CURRENT' | 'PLANNED';
+/** D16: KPI counted "increased" when it is at least 15% above last year's target. */
+export const INCREASE_THRESHOLD_PERCENT = 15;
 
-export interface KpiColumn {
-  id: string;
-  code: string;
-  name: string;
-  unit: string;
+export const MAX_FEEDBACK_REASON_LENGTH = 500;
+
+export type BannerKind = 'PENDING' | 'RECONFIRM' | 'CONFIRMED';
+
+export interface BannerInfo {
+  readonly kind: BannerKind;
+  readonly kpiCount: number;
 }
 
-/** Value per KPI id; null when the KPI has no figure for that row (not assigned, or not spread over the days). */
-export type KpiValues = Readonly<Record<string, number | null>>;
-
-export interface MonthRow {
-  /** `YYYY-MM`. */
-  key: string;
-  start: string;
-  end: string;
-  workingDays: number;
-  values: KpiValues;
-  phase: MonthPhase;
+/** E1/E3 banner selection: the ack status drives which copy and action the page shows. */
+export function bannerFor(data: MyTargetYear): BannerInfo {
+  return { kind: data.ackStatus, kpiCount: data.kpis.length };
 }
 
-export interface QuarterRow {
-  periodId: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  workingDays: number;
-  values: KpiValues;
-  status: QuarterStatus;
-  targets: TargetAssignment[];
-  months: MonthRow[];
-  /** Latest time one of the quarter's targets was set or changed by the manager. */
-  assignedAt: string;
-  /** Latest confirmation or comment, null while nothing was answered. */
-  feedbackAt: string | null;
+/** `(year - previousYearTarget) / previousYearTarget * 100`; null when there is no previous-year target (new KPI). */
+export function deltaVsPreviousYearPercent(kpi: MyTargetKpi): number | null {
+  if (kpi.previousYearTarget === null || kpi.previousYearTarget === 0) return null;
+  return ((kpi.year - kpi.previousYearTarget) / kpi.previousYearTarget) * 100;
 }
 
-export interface YearView {
-  year: number;
-  kpis: KpiColumn[];
-  quarters: QuarterRow[];
-  totalWorkingDays: number;
-  totalValues: KpiValues;
+export function isNewKpi(kpi: MyTargetKpi): boolean {
+  return kpi.previousYearTarget === null;
 }
 
-export interface YearInput {
-  periods: readonly EvaluationPeriodOption[];
-  targets: readonly TargetAssignment[];
-  /** Planned split per quarter id. */
-  daily: Readonly<Record<string, SuggestedDailyTarget>>;
-  kpis: readonly KpiDefinition[];
-  /** Business-day date `YYYY-MM-DD`. */
-  today: string;
+export function isIncreasedOver15(kpi: MyTargetKpi): boolean {
+  const delta = deltaVsPreviousYearPercent(kpi);
+  return delta !== null && delta > INCREASE_THRESHOLD_PERCENT;
 }
 
-const QUARTER = 'QUARTER';
-
-function maxOf(values: readonly string[]): string {
-  return values.reduce((latest, value) => (value > latest ? value : latest), '');
+export interface SummaryCards {
+  readonly kpiCount: number;
+  /** Average of each KPI's delta vs. last year's target, over KPIs that have one; null if none do. */
+  readonly avgDeltaPercent: number | null;
+  readonly increasedCount: number;
+  readonly newCount: number;
+  readonly feedbackCount: number;
 }
 
-function monthEnd(key: string): string {
-  const [year, month] = key.split('-').map(Number);
-  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return `${key}-${String(last).padStart(2, '0')}`;
-}
-
-function phaseOf(start: string, end: string, today: string): MonthPhase {
-  if (today > end) return 'ENDED';
-  return today >= start ? 'CURRENT' : 'PLANNED';
-}
-
-function statusOf(
-  quarter: EvaluationPeriodOption,
-  targets: readonly TargetAssignment[],
-  today: string,
-): QuarterStatus {
-  if (today > quarter.endDate) return 'ENDED';
-  if (
-    targets.some(
-      (target) => target.feedbackStatus !== 'CONFIRMED' && target.feedbackStatus !== 'COMMENTED',
-    )
-  ) {
-    return 'PENDING';
-  }
-  return targets.every((target) => target.feedbackStatus === 'CONFIRMED')
-    ? 'CONFIRMED'
-    : 'COMMENTED';
-}
-
-function monthRows(quarter: SuggestedDailyTarget | undefined, today: string): MonthRow[] {
-  const rows = new Map<string, { workingDays: number; values: Record<string, number | null> }>();
-  for (const item of quarter?.items ?? []) {
-    for (const month of item.months) {
-      const row = rows.get(month.month) ?? { workingDays: month.workingDays, values: {} };
-      row.values[item.kpiDefinitionId] = month.value;
-      rows.set(month.month, row);
-    }
-  }
-  return [...rows.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, row]) => {
-      const start = `${key}-01`;
-      const end = monthEnd(key);
-      return {
-        key,
-        start,
-        end,
-        workingDays: row.workingDays,
-        values: row.values,
-        phase: phaseOf(start, end, today),
-      };
-    });
-}
-
-/**
- * Builds the "My targets" table for one year from the employee's quarter targets. Only quarters the employee actually
- * has targets in are listed; the year shown is the one running today, or the latest one with targets.
- */
-export function buildYearView(input: YearInput): YearView | null {
-  const withTargets = input.periods
-    .filter(
-      (period) =>
-        period.periodType === QUARTER &&
-        input.targets.some((t) => t.evaluationPeriodId === period.id),
-    )
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (withTargets.length === 0) return null;
-
-  const running = withTargets.find(
-    (period) => input.today >= period.startDate && input.today <= period.endDate,
-  );
-  const year = Number((running ?? withTargets[withTargets.length - 1]).startDate.slice(0, 4));
-  const periods = withTargets.filter((period) => Number(period.startDate.slice(0, 4)) === year);
-
-  const kpiIds = new Set(
-    input.targets
-      .filter((t) => periods.some((p) => p.id === t.evaluationPeriodId))
-      .map((t) => t.kpiDefinitionId),
-  );
-  const kpis: KpiColumn[] = input.kpis
-    .filter((kpi) => kpiIds.has(kpi.id))
-    .map((kpi) => ({ id: kpi.id, code: kpi.code, name: kpi.name, unit: kpi.unit }))
-    .sort((a, b) => a.code.localeCompare(b.code));
-
-  /** A KPI is added up over the year only when every quarter spreads it over the days (a SUM KPI). */
-  const additive = (kpiId: string) =>
-    periods.every((period) => {
-      const item = input.daily[period.id]?.items.find((i) => i.kpiDefinitionId === kpiId);
-      return item === undefined || item.months.length > 0;
-    });
-
-  const quarters = periods.map((period): QuarterRow => {
-    const targets = input.targets.filter((t) => t.evaluationPeriodId === period.id);
-    const feedbackTimes = targets
-      .map((t) => t.feedbackAt)
-      .filter((time): time is string => time !== null);
-    return {
-      periodId: period.id,
-      name: period.name,
-      startDate: period.startDate,
-      endDate: period.endDate,
-      workingDays: input.daily[period.id]?.workingDays ?? 0,
-      values: Object.fromEntries(targets.map((t) => [t.kpiDefinitionId, t.targetValue])),
-      status: statusOf(period, targets, input.today),
-      targets,
-      months: monthRows(input.daily[period.id], input.today),
-      assignedAt: maxOf(targets.map((t) => t.updatedAt)),
-      feedbackAt: feedbackTimes.length > 0 ? maxOf(feedbackTimes) : null,
-    };
-  });
-
-  const totalValues = Object.fromEntries(
-    kpis.map((kpi) => {
-      const parts = quarters.map((q) => q.values[kpi.id]).filter((v): v is number => v != null);
-      const total =
-        parts.length > 0 && additive(kpi.id) ? parts.reduce((sum, v) => sum + v, 0) : null;
-      return [kpi.id, total];
-    }),
-  );
-
+export function summaryCards(data: MyTargetYear): SummaryCards {
+  const deltas = data.kpis
+    .map((kpi) => deltaVsPreviousYearPercent(kpi))
+    .filter((delta): delta is number => delta !== null);
   return {
-    year,
-    kpis,
-    quarters,
-    totalWorkingDays: quarters.reduce((sum, q) => sum + q.workingDays, 0),
-    totalValues,
+    kpiCount: data.kpis.length,
+    avgDeltaPercent:
+      deltas.length > 0 ? deltas.reduce((sum, d) => sum + d, 0) / deltas.length : null,
+    increasedCount: data.kpis.filter(isIncreasedOver15).length,
+    newCount: data.kpis.filter(isNewKpi).length,
+    feedbackCount: data.kpis.filter((kpi) => kpi.hasFeedback).length,
   };
 }
 
-/** The quarter still waiting for the employee: the latest one that is not finished and has an unanswered target. */
-export function pendingQuarter(view: YearView): QuarterRow | null {
-  return [...view.quarters].reverse().find((quarter) => quarter.status === 'PENDING') ?? null;
+export interface KpiGroupChip {
+  readonly id: string;
+  readonly name: string;
+  readonly count: number;
+}
+
+export interface KpiGroup {
+  readonly id: string;
+  readonly name: string;
+  readonly kpis: readonly MyTargetKpi[];
+}
+
+/** Joins `kpiId -> kpiGroupName` (from `KpiDefinitionService`), then orders groups per the fixed 7-group catalog. */
+export function groupKpis(
+  kpis: readonly MyTargetKpi[],
+  kpiGroupNameById: ReadonlyMap<string, string>,
+): readonly KpiGroup[] {
+  const byGroup = new Map<string, MyTargetKpi[]>();
+  for (const kpi of kpis) {
+    const groupName = kpiGroupNameById.get(kpi.kpiId) ?? '';
+    const bucket = byGroup.get(groupName) ?? [];
+    bucket.push(kpi);
+    byGroup.set(groupName, bucket);
+  }
+  const order = [...KPI_GROUP_CATALOG, ''];
+  return order
+    .filter((name) => byGroup.has(name))
+    .map((name) => ({ id: name || 'ungrouped', name, kpis: byGroup.get(name) ?? [] }));
+}
+
+export function groupChips(groups: readonly KpiGroup[]): readonly KpiGroupChip[] {
+  return groups.map((g) => ({ id: g.id, name: g.name, count: g.kpis.length }));
+}
+
+/** A "changed" KPI's four quarters plus the year, reused to build the E3 struck-through/new value pairs. */
+export interface ChangedCell {
+  readonly oldValue: number;
+  readonly newValue: number;
 }
 
 /**
- * True when the manager changed a target after the employee had confirmed it: the target is unanswered again but
- * its history still holds an earlier confirmation.
+ * The year total is the only value the change log always carries (`changedOldValue`/`changedNewValue`); quarter
+ * cells have no individual before/after in the DTO, so only the year cell gets the struck-through treatment.
  */
-export function changedAfterConfirm(
-  quarter: QuarterRow,
-  history: Readonly<Record<string, readonly TargetAssignmentFeedback[]>>,
-): boolean {
-  return quarter.targets.some(
-    (target) =>
-      target.feedbackStatus !== 'CONFIRMED' &&
-      (history[target.id] ?? []).some((entry) => entry.type === 'CONFIRM'),
+export function changedYearCell(kpi: MyTargetKpi): ChangedCell | null {
+  if (!kpi.changed || kpi.changedOldValue === null || kpi.changedNewValue === null) return null;
+  return { oldValue: kpi.changedOldValue, newValue: kpi.changedNewValue };
+}
+
+// ---- E4/E6 progress -------------------------------------------------------------------------
+
+export type ProgressBucket = 'NEEDS_ATTENTION' | 'ALL' | 'ON_PACE';
+
+export function inNeedsAttention(status: PaceStatus): boolean {
+  return status === 'SLOW' || status === 'AT_RISK';
+}
+
+export function inOnPace(status: PaceStatus): boolean {
+  return status === 'ACHIEVED' || status === 'ON_PACE';
+}
+
+export interface ProgressCardCounts {
+  readonly onPace: number;
+  readonly slow: number;
+  readonly atRisk: number;
+  readonly inReview: number;
+}
+
+export function progressCardCounts(kpis: readonly MyTargetProgressKpi[]): ProgressCardCounts {
+  return {
+    onPace: kpis.filter((k) => inOnPace(k.progress.paceStatus)).length,
+    slow: kpis.filter((k) => k.progress.paceStatus === 'SLOW').length,
+    atRisk: kpis.filter((k) => k.progress.paceStatus === 'AT_RISK').length,
+    inReview: kpis.reduce((sum, k) => sum + k.progress.inReviewCount, 0),
+  };
+}
+
+export function filterProgress(
+  kpis: readonly MyTargetProgressKpi[],
+  bucket: ProgressBucket,
+): readonly MyTargetProgressKpi[] {
+  if (bucket === 'ALL') return kpis;
+  if (bucket === 'NEEDS_ATTENTION')
+    return kpis.filter((k) => inNeedsAttention(k.progress.paceStatus));
+  return kpis.filter((k) => inOnPace(k.progress.paceStatus));
+}
+
+/** Pace gap, worst (most negative) first — D16 sort order for the quarter-progress table. */
+export function sortByPaceGap(
+  kpis: readonly MyTargetProgressKpi[],
+): readonly MyTargetProgressKpi[] {
+  return [...kpis].sort(
+    (a, b) =>
+      a.progress.achievedPercent -
+      a.progress.expectedPacePercent -
+      (b.progress.achievedPercent - b.progress.expectedPacePercent),
   );
 }
 
-/** Comments the employee left on a quarter, newest first; one comment sent to every KPI target appears once. */
-export function quarterComments(
-  quarter: QuarterRow,
-  history: Readonly<Record<string, readonly TargetAssignmentFeedback[]>>,
-): TargetAssignmentFeedback[] {
-  const all = quarter.targets
-    .flatMap((target) => history[target.id] ?? [])
-    .filter((entry) => entry.type === 'COMMENT')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return all.filter(
-    (entry, index) =>
-      all.findIndex(
-        (other) =>
-          other.comment === entry.comment &&
-          Math.abs(Date.parse(other.createdAt) - Date.parse(entry.createdAt)) < 10_000,
-      ) === index,
-  );
+export function missingToTarget(progress: MyTargetProgressKpi['progress']): number {
+  return Math.max(0, progress.target - progress.achieved);
 }
 
-/** A week or a day of one month for the "by week / day" panel. */
-export interface PeriodSlice {
-  start: string;
-  end: string;
-  values: KpiValues;
+// ---- E6 year view -----------------------------------------------------------------------------
+
+/** D16-adjacent: % of the year elapsed so far, for the "cumulative vs. time elapsed" card. */
+export function yearElapsedPercent(today: string, year: number): number {
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year, 11, 31);
+  const current = Date.parse(`${today}T00:00:00Z`);
+  if (Number.isNaN(current)) return 0;
+  const clamped = Math.max(start, Math.min(end, current));
+  return ((clamped - start) / (end - start)) * 100;
 }
 
-/** Joins the breakdown of each KPI target by bucket and keeps the buckets that start inside the month. */
-export function slicesOfMonth(
-  month: Pick<MonthRow, 'start' | 'end'>,
-  breakdowns: readonly { kpiDefinitionId: string; items: readonly TargetBreakdownItem[] }[],
-): PeriodSlice[] {
-  const slices = new Map<
-    string,
-    { start: string; end: string; values: Record<string, number | null> }
-  >();
-  for (const breakdown of breakdowns) {
-    for (const item of breakdown.items) {
-      if (item.start < month.start || item.start > month.end) continue;
-      const slice = slices.get(item.start) ?? { start: item.start, end: item.end, values: {} };
-      slice.values[breakdown.kpiDefinitionId] = item.value;
-      slices.set(item.start, slice);
-    }
-  }
-  return [...slices.values()].sort((a, b) => a.start.localeCompare(b.start));
+export type QuarterKey = 'Q1' | 'Q2' | 'Q3' | 'Q4';
+export const QUARTER_KEYS: readonly QuarterKey[] = ['Q1', 'Q2', 'Q3', 'Q4'];
+
+export type QuarterCellState = 'ACHIEVED_PAST' | 'MISSED_PAST' | 'CURRENT' | 'FUTURE';
+
+/** Calendar quarter (Jan-Mar, Apr-Jun, ...) end date, `YYYY-MM-DD`, used only to tell past/current/future apart. */
+function quarterEndDate(year: number, quarter: QuarterKey): string {
+  const month = QUARTER_KEYS.indexOf(quarter) * 3 + 2; // 0-based end month index
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+}
+
+function quarterStartDate(year: number, quarter: QuarterKey): string {
+  const month = QUARTER_KEYS.indexOf(quarter) * 3;
+  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+}
+
+type QuarterTimeState = 'PAST' | 'CURRENT' | 'FUTURE';
+
+function quarterTimeState(year: number, quarter: QuarterKey, today: string): QuarterTimeState {
+  if (today < quarterStartDate(year, quarter)) return 'FUTURE';
+  if (today > quarterEndDate(year, quarter)) return 'PAST';
+  return 'CURRENT';
+}
+
+export interface YearViewQuarterCell {
+  readonly quarter: QuarterKey;
+  readonly achieved: number;
+  readonly target: number;
+  /** `null` for a future quarter: nothing has run yet, cell shows "—". */
+  readonly state: QuarterCellState | null;
+}
+
+export interface YearViewRow {
+  readonly kpiId: string;
+  readonly kpiCode: string;
+  readonly kpiName: string;
+  readonly unit: string;
+  readonly yearTarget: number;
+  readonly cumulativeAchieved: number;
+  readonly percentOfYear: number;
+  readonly quarters: readonly YearViewQuarterCell[];
+}
+
+/**
+ * Builds the E6 "year view" table rows: year target/cumulative achieved from the YEAR progress call, each
+ * quarter's achieved/target plus a past/current/future state from the per-quarter progress calls.
+ */
+export function buildYearViewRows(
+  yearKpis: readonly MyTargetProgressKpi[],
+  quarterKpis: Readonly<Record<QuarterKey, readonly MyTargetProgressKpi[]>>,
+  year: number,
+  today: string,
+): readonly YearViewRow[] {
+  return yearKpis.map((yk) => {
+    const quarters = QUARTER_KEYS.map((q): YearViewQuarterCell => {
+      const found = quarterKpis[q].find((k) => k.kpiId === yk.kpiId);
+      const timeState = quarterTimeState(year, q, today);
+      const achieved = found?.progress.achieved ?? 0;
+      const target = found?.progress.target ?? 0;
+      const state: QuarterCellState | null =
+        timeState === 'FUTURE'
+          ? null
+          : timeState === 'CURRENT'
+            ? 'CURRENT'
+            : achieved >= target
+              ? 'ACHIEVED_PAST'
+              : 'MISSED_PAST';
+      return { quarter: q, achieved, target, state };
+    });
+    return {
+      kpiId: yk.kpiId,
+      kpiCode: yk.kpiCode,
+      kpiName: yk.kpiName,
+      unit: yk.unit,
+      yearTarget: yk.progress.target,
+      cumulativeAchieved: yk.progress.achieved,
+      percentOfYear: yk.progress.achievedPercent,
+      quarters,
+    };
+  });
 }
