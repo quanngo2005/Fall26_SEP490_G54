@@ -1537,8 +1537,8 @@ namespace G54.DAL.Migrations
                         .HasColumnName("related_id");
 
                     b.Property<string>("RelatedType")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
                         .HasColumnName("related_type");
 
                     b.Property<Guid?>("SenderEmployeeId")
@@ -1559,8 +1559,8 @@ namespace G54.DAL.Migrations
 
                     b.Property<string>("Type")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
                         .HasColumnName("type");
 
                     b.HasKey("Id");

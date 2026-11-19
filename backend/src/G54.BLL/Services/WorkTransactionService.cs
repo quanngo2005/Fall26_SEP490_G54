@@ -16,10 +16,15 @@ namespace G54.BLL.Services;
 public sealed class WorkTransactionService(
     AppDbContext db,
     TimeProvider time,
-    IOptions<SystemParametersOptions>? parameters = null) : IWorkTransactionService
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : IWorkTransactionService
 {
     private const int DefaultMaxCodes = 10;
     private const int MaxCodeLength = 100;
+    private const string ReasonCustomerMismatch = "CUSTOMER_MISMATCH";
+    private const string ReasonTransactionBeforeHandover = "TRANSACTION_BEFORE_HANDOVER";
+    private const string ReasonReferrerMismatch = "REFERRER_MISMATCH";
+    private const string ReasonReferrerNotCredited = "REFERRER_NOT_CREDITED";
     private int MaxCodes => parameters?.Value.MaxTransactionsPerWork ?? DefaultMaxCodes;
 
     public async Task<WorkTransactionsDto> ListAsync(Guid workId, Guid userId, CancellationToken ct = default)
@@ -83,6 +88,7 @@ public sealed class WorkTransactionService(
         }
 
         await CompleteIfAllMatchedAsync(work, ct);
+        await NotifyMismatchedAsync([(work, added)], ct);
         return await ToDtoAsync(work, ct);
     }
 
@@ -158,6 +164,10 @@ public sealed class WorkTransactionService(
             await CompleteIfAllMatchedAsync(works[workId], ct);
         }
 
+        await NotifyMismatchedAsync(
+            pending.GroupBy(p => p.WorkId).Select(g => (works[g.Key], (IReadOnlyCollection<WorkTransaction>)g.ToList())),
+            ct);
+
         return new ReconcileSummaryDto(
             pending.Count(i => i.Status == WorkTransactionStatus.Matched),
             pending.Count(i => i.Status == WorkTransactionStatus.NotMatched),
@@ -203,13 +213,21 @@ public sealed class WorkTransactionService(
         {
             Set(item, WorkTransactionStatus.NotMatched, "PRODUCT_MISMATCH", now);
         }
+        else if (IsCustomerMismatch(work, imported))
+        {
+            Set(item, WorkTransactionStatus.NotMatched, ReasonCustomerMismatch, now);
+        }
+        else if (await CheckReferralAsync(work, imported, ct) is var (mismatch, referral) && mismatch is not null)
+        {
+            Set(item, WorkTransactionStatus.NotMatched, mismatch, now);
+        }
         else
         {
             try
             {
-                await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, carriedOverToPeriod, now, ct);
+                var referrerCredited = await VerifiedResultRecorder.RecordImportedAsync(db, item, work, imported, carriedOverToPeriod, referral, now, ct);
                 item.ImportedTransactionId = imported.Id;
-                Set(item, WorkTransactionStatus.Matched, null, now);
+                Set(item, WorkTransactionStatus.Matched, referrerCredited ? null : ReasonReferrerNotCredited, now);
             }
             catch (AppException ex) when (ex.ErrorCode == ErrorCodes.MetricTypeMismatch)
             {
@@ -221,6 +239,102 @@ public sealed class WorkTransactionService(
                 Set(item, WorkTransactionStatus.InReview, ex.ErrorCode, now);
             }
         }
+    }
+
+    // The work's customer (CIF), when set, must be the customer of the Core Banking transaction.
+    private static bool IsCustomerMismatch(Work work, ImportedTransaction imported) =>
+        !string.IsNullOrWhiteSpace(work.CustomerCif)
+        && !string.IsNullOrWhiteSpace(imported.CustomerCode)
+        && !string.Equals(work.CustomerCif.Trim(), imported.CustomerCode.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Who referred the customer: the accepted handover of the work, otherwise the file's Refer ID (BR-07) with the default
+    /// 30 % share. Returns a NOT_MATCHED reason instead when the transaction happened before the handover, or when the
+    /// file's Refer ID names someone other than the handover's referrer.
+    /// </summary>
+    private async Task<(string? Mismatch, VerifiedResultRecorder.ImportedReferral? Referral)> CheckReferralAsync(
+        Work work, ImportedTransaction imported, CancellationToken ct)
+    {
+        var handover = await db.TaskHandovers.AsNoTracking()
+            .Where(h => h.WorkId == work.Id && h.Status == HandoverStatus.Accepted)
+            .OrderByDescending(h => h.AcceptedAt ?? h.HandoverAt)
+            .FirstOrDefaultAsync(ct);
+
+        Guid? fileReferrer = null;
+        if (!string.IsNullOrWhiteSpace(imported.ReferEmployeeCode))
+        {
+            var referCode = imported.ReferEmployeeCode.Trim();
+            fileReferrer = await db.Employees.AsNoTracking()
+                .Where(e => e.EmployeeCode == referCode)
+                .Select(e => (Guid?)e.Id)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        // Refer ID of the processor himself is not a referral.
+        if (fileReferrer == work.AssigneeEmployeeId)
+        {
+            fileReferrer = null;
+        }
+
+        if (handover is not null)
+        {
+            var handoverDate = DateOnly.FromDateTime(handover.HandoverAt.ToOffset(TimeProviderExtensions.BusinessUtcOffset).DateTime);
+            if (imported.TransactionDate < handoverDate)
+            {
+                return (ReasonTransactionBeforeHandover, null);
+            }
+
+            if (fileReferrer is { } referrer && referrer != handover.FromEmployeeId)
+            {
+                return (ReasonReferrerMismatch, null);
+            }
+
+            return (null, new VerifiedResultRecorder.ImportedReferral(handover.FromEmployeeId, handover.ReferrerSharePercent));
+        }
+
+        return fileReferrer is { } fromFile
+            ? (null, new VerifiedResultRecorder.ImportedReferral(fromFile, TaskHandover.DefaultReferrerSharePercent))
+            : (null, null);
+    }
+
+    private async Task NotifyMismatchedAsync(
+        IEnumerable<(Work Work, IReadOnlyCollection<WorkTransaction> Items)> workGroups,
+        CancellationToken ct)
+    {
+        if (notifier is null)
+        {
+            return;
+        }
+
+        var mismatchedByWork = workGroups
+            .Select(g => (
+                g.Work,
+                Mismatched: g.Items
+                    .Where(i => i.Status == WorkTransactionStatus.NotMatched)
+                    .Select(i => (i.TransactionCode, i.Reason))
+                    .ToList()))
+            .Where(g => g.Mismatched.Count > 0)
+            .ToList();
+        if (mismatchedByWork.Count == 0)
+        {
+            return;
+        }
+
+        var assigneeIds = mismatchedByWork.Select(g => g.Work.AssigneeEmployeeId).Distinct().ToList();
+        var assignees = await db.Employees.AsNoTracking()
+            .Where(e => assigneeIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, ct);
+
+        var drafts = new List<NotificationDraft>();
+        foreach (var (work, mismatched) in mismatchedByWork)
+        {
+            if (assignees.TryGetValue(work.AssigneeEmployeeId, out var assignee))
+            {
+                drafts.AddRange(AutomaticNotifications.TransactionMismatched(work, assignee, mismatched));
+            }
+        }
+
+        await notifier.TryPublishAsync(drafts, ct);
     }
 
     private async Task CompleteIfAllMatchedAsync(Work work, CancellationToken ct)

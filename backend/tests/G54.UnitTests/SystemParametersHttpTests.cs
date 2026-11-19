@@ -92,7 +92,7 @@ public sealed class SystemParametersHttpTests : IAsyncLifetime, IAsyncDisposable
         {
             if (_api.HasExited)
             {
-                throw new InvalidOperationException($"Test API exited with {_api.ExitCode}: {_apiLog}");
+                throw new InvalidOperationException($"Test API exited with {_api.ExitCode}: {GetApiLog()}");
             }
 
             try
@@ -288,10 +288,23 @@ public sealed class SystemParametersHttpTests : IAsyncLifetime, IAsyncDisposable
         }
     }
 
+    private string GetApiLog()
+    {
+        lock (_apiLog)
+        {
+            return _apiLog.ToString();
+        }
+    }
+
     private async Task<JsonElement> CheckAsync(HttpResponseMessage response, HttpStatusCode expected, string? errorCode = null)
     {
         var text = await response.Content.ReadAsStringAsync();
-        Assert.True(response.StatusCode == expected, $"Expected {(int)expected}, got {(int)response.StatusCode}: {text}\nAPI LOG:\n{_apiLog}");
+        // Build the message only on failure: the API process keeps writing the log on other threads.
+        if (response.StatusCode != expected)
+        {
+            Assert.Fail($"Expected {(int)expected}, got {(int)response.StatusCode}: {text}\nAPI LOG:\n{GetApiLog()}");
+        }
+
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
         Assert.Equal(errorCode is null, root.GetProperty("success").GetBoolean());

@@ -150,12 +150,11 @@ describe('EvaluationService', () => {
     expect(status).toBe(404);
   });
 
-  it('posts the evaluation to /submit with the draft flag and the qualitative scores', () => {
+  it('posts the evaluation to /submit with the draft flag', () => {
     const body: SubmitEvaluationRequest = {
       employeeId: 'e1',
       periodId: period.id,
       comment: 'Good',
-      qualitativeScores: [{ evaluationProfileItemId: 'g1', score: 7 }],
       isDraft: true,
     };
     const result = { evaluationId: 'ev1', status: 'DRAFT' } as unknown as EvaluationResult;
@@ -173,7 +172,6 @@ describe('EvaluationService', () => {
         employeeId: 'e1',
         periodId: period.id,
         comment: null,
-        qualitativeScores: [],
         isDraft: false,
       })
       .subscribe({
@@ -260,5 +258,75 @@ describe('EvaluationService', () => {
         message: 'Locked',
       },
     });
+  });
+
+  it('loads and exports department evaluation dashboard with optional period parameters', () => {
+    service.departmentDashboard('p11', 'p10').subscribe((res) => {
+      expect(res.department.code).toBe('KHCN');
+    });
+
+    const dashReq = http.expectOne((r) => r.url === `${url}/department-dashboard`);
+    expect(dashReq.request.method).toBe('GET');
+    expect(dashReq.request.params.get('periodId')).toBe('p11');
+    expect(dashReq.request.params.get('comparePeriodId')).toBe('p10');
+    dashReq.flush({
+      success: true,
+      status: 200,
+      data: {
+        department: {
+          id: 'd1',
+          code: 'KHCN',
+          name: 'Phòng KHCN',
+          branchName: 'CN Hà Đông',
+          managerName: 'Trần Thị Hương',
+        },
+        period: null,
+        comparePeriod: null,
+        availablePeriods: [],
+        availableComparePeriods: [],
+        metrics: {
+          departmentAverage: null,
+          previousAverage: null,
+          delta: null,
+          branchAverage: null,
+          scoredCount: 0,
+          totalStaffCount: 0,
+          unscoredCount: 0,
+          tierACapPercent: 20,
+          tierAMaxCount: 0,
+          tierACurrentCount: 0,
+          tiers: [],
+          profileGroups: [],
+          trendPoints: [],
+        },
+        kpiGroups: [],
+        workProgress: {
+          completedWorkCount: 0,
+          totalWorkCount: 0,
+          inProgressWorkCount: 0,
+          pendingVerificationCount: 0,
+          overdueWorkCount: 0,
+          slaTrackedWorkCount: 0,
+          onTimeWorkCount: 0,
+          onTimePercent: null,
+          overduePercent: null,
+        },
+        alerts: [],
+        profileGroupColumns: [],
+        staffRows: [],
+      },
+    });
+
+    const expectedBlob = new Blob(['xlsx']);
+    service.exportDepartmentDashboard('p11', 'p10').subscribe((blob) => {
+      expect(blob).toBe(expectedBlob);
+    });
+
+    const exportReq = http.expectOne((r) => r.url === `${url}/department-dashboard/export`);
+    expect(exportReq.request.method).toBe('GET');
+    expect(exportReq.request.params.get('periodId')).toBe('p11');
+    expect(exportReq.request.params.get('comparePeriodId')).toBe('p10');
+    expect(exportReq.request.responseType).toBe('blob');
+    exportReq.flush(expectedBlob);
   });
 });

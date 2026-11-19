@@ -17,7 +17,8 @@ public sealed class TransactionImportService(
     IUnitOfWork uow,
     TimeProvider clock,
     IExcelSheetReader reader,
-    IOptions<SystemParametersOptions> parameters) : ITransactionImportService
+    IOptions<SystemParametersOptions> parameters,
+    INotifier? notifier = null) : ITransactionImportService
 {
     // MSG27 (SRS BR-29): the evaluation period of the transaction date is locked.
     private const string PeriodLockedMessage =
@@ -33,6 +34,7 @@ public sealed class TransactionImportService(
     public async Task<ImportBatchDto> ImportAsync(string fileName, Stream excel, Guid userId, CancellationToken ct = default)
     {
         var (rows, fields) = ReadRows(excel);
+        var importerEmployeeId = await ResolveEmployeeIdAsync(userId, ct);
         var employees = await LoadEmployeesAsync(rows, ct);
         var products = await LoadProductCodesAsync(ct);
         var lockedPeriods = await LoadLockedPeriodsAsync(rows, ct);
@@ -42,15 +44,34 @@ public sealed class TransactionImportService(
         for (var attempt = 0; ; attempt++)
         {
             var existing = await LoadExistingAsync(rows, ct);
-            var (batch, errors) = Build(fileName, userId, rows, fields, employees, products, lockedPeriods, existing);
+            var (batch, errors) = Build(fileName, importerEmployeeId ?? userId, rows, fields, employees, products, lockedPeriods, existing);
             await uow.ImportBatches.AddAsync(batch, ct);
             try
             {
                 await uow.SaveChangesAsync(ct);
+                if (errors.Count > 0 && importerEmployeeId is { } recipientId && notifier is not null)
+                {
+                    await notifier.TryPublishAsync(
+                        [AutomaticNotifications.ImportCompletedWithErrors(recipientId, "giao dịch Core Banking", batch.FileName, batch.ImportedRows, batch.ErrorRows, batch.Id)],
+                        ct);
+                }
+
                 return ToDto(batch, errors);
             }
             catch (DbUpdateException ex) when (attempt < 2 && PostgresConflict.IsUniqueViolation(ex))
             {
+                // Detach the whole failed graph: removing only the batch leaves its rows tracked as Added, and the
+                // next SaveChanges would insert them again (pointing to a batch that no longer exists).
+                foreach (var transaction in batch.Transactions.ToList())
+                {
+                    uow.ImportedTransactions.Remove(transaction);
+                }
+
+                foreach (var error in batch.Errors.ToList())
+                {
+                    uow.Repository<ImportBatchError>().Remove(error);
+                }
+
                 uow.ImportBatches.Remove(batch);
             }
         }
@@ -475,6 +496,12 @@ public sealed class TransactionImportService(
                 400);
         }
     }
+
+    private async Task<Guid?> ResolveEmployeeIdAsync(Guid userId, CancellationToken ct) =>
+        await uow.Employees.Query().AsNoTracking()
+            .Where(e => e.Id == userId || (e.Account != null && e.Account.Id == userId))
+            .Select(e => (Guid?)e.Id)
+            .FirstOrDefaultAsync(ct);
 
     private static string ClampField(string field) =>
         field.Length > MaxFieldLength ? field[..MaxFieldLength] : field;

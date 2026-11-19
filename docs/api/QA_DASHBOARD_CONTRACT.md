@@ -53,7 +53,7 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
     },
     "banner": {
       "inReviewCount": 12,
-      "message": "Còn 12 kết quả In Review chưa có giao dịch import",
+      "message": "Còn 12 mã giao dịch chưa có trong file import",
       "warning": "Tháng 10/2026 khóa KPI lúc 23:59:59 31/10/2026 (BR-29). Sau thời điểm này không import lại được giao dịch của tháng.",
       "hasUnmatchedInReview": true
     },
@@ -65,7 +65,7 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
       },
       "inReview": {
         "count": 12,
-        "subtext": "chờ GD import (MSG13)"
+        "subtext": "hạn import 31/10"
       },
       "qaQueue": {
         "total": 9,
@@ -75,8 +75,9 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
       },
       "riskEvents": {
         "count": 3,
+        "openCount": 2,
         "totalPenaltyPoints": 8.0,
-        "subtext": "tổng phạt -8 điểm"
+        "subtext": "2 chưa đóng · −8 điểm"
       }
     },
     "matchedRateChart": {
@@ -129,9 +130,14 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
     ],
     "commonDiscrepancyReasons": [
       {
+        "reasonCode": "NO_IMPORTED_TRANSACTION",
+        "reason": "Chưa có trong file giao dịch",
+        "count": 12
+      },
+      {
         "reasonCode": "EMPLOYEE_MISMATCH",
         "reason": "Sai mã nhân viên",
-        "count": 4
+        "count": 3
       },
       {
         "reasonCode": "PRODUCT_MISMATCH",
@@ -139,19 +145,14 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
         "count": 2
       },
       {
-        "reasonCode": "REFER_ID_MISSING",
-        "reason": "Thiếu Refer ID",
-        "count": 2
-      },
-      {
-        "reasonCode": "AMOUNT_MISMATCH",
-        "reason": "Lệch số tiền",
+        "reasonCode": "REFERRER_MISMATCH",
+        "reason": "Sai mã người giới thiệu",
         "count": 1
       },
       {
-        "reasonCode": "NO_IMPORTED_TRANSACTION",
-        "reason": "Chưa có GD import",
-        "count": 12
+        "reasonCode": "CUSTOMER_MISMATCH",
+        "reason": "Sai mã CIF khách hàng",
+        "count": 1
       }
     ]
   }
@@ -159,6 +160,17 @@ Granted to `QA` (Kiểm soát chất lượng) and `ADMIN` / `SYS_ADMIN` roles.
 ```
 
 ---
+
+Field rules (updated 2026-11-18, QA-05):
+
+| Field | Rule |
+|---|---|
+| `kpiCards.riskEvents.count`, `totalPenaltyPoints` | Risk events whose `occurredAt` falls in the period, not reversed and **not `DISMISSED`** (a dismissed event counts nowhere else either). |
+| `kpiCards.riskEvents.openCount` | Of those, status `OPEN` or `CONFIRMED` (not yet `RESOLVED`). Always present (`0` when none). |
+| `kpiCards.notMatched.subtext` | `""` when there is no unmatched code (no fake "0 ngày"). |
+| `commonDiscrepancyReasons[].reasonCode` | The `work_transaction.reason` codes of the reconciliation screen (`EMPLOYEE_MISMATCH`, `PRODUCT_MISMATCH`, `CUSTOMER_MISMATCH`, `REFERRER_MISMATCH`, `TRANSACTION_BEFORE_HANDOVER`, …); every `IN_REVIEW` code is reported as `NO_IMPORTED_TRANSACTION`. `reason` is the same label the reconciliation screen and export use. Ordered by `count` descending, so `GET /reconciliations?reason=<code>` opens the matching rows. |
+| `matchedRateChart.weeks[].year` | ISO week-year (Monday 29/12/2025 is week 1 of **2026**), so `(year, weekNumber)` is unique. |
+| `kpiCards.qaQueue` | Pending 5% samples without a flag + OPEN quality flags. AI-flagged call segments are out of scope for now. |
 
 Notes: `weeks[].matchRate` / `currentRate` are `null` when a week has no MATCHED/NOT_MATCHED transactions; `currentRate` is the latest week with data. The 8-week window is anchored on the selected period (not today) and is independent of the period range. `topDiscrepancyEmployees[].flagCount` counts OPEN quality flags. `GET /qa-dashboard/reconciliations` returns `400` for an unknown `status`.
 

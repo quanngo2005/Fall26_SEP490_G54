@@ -13,6 +13,7 @@ import {
   CalibrationOverview,
   DepartmentApprovalResult,
   DepartmentEmployeeEvaluation,
+  DepartmentEvaluationDashboard,
   EvaluationFormModel,
   EvaluationPeriodOption,
   EvaluationResult,
@@ -133,11 +134,56 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  form(employeeId: string, periodId: string): Observable<EvaluationFormModel> {
-    const params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+  departmentDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+  ): Observable<DepartmentEvaluationDashboard> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    return this.http
+      .get<ApiResponse<DepartmentEvaluationDashboard>>(`${this.url}/department-dashboard`, {
+        params,
+      })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportDepartmentDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+  ): Observable<Blob> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    return this.http.get(`${this.url}/department-dashboard/export`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
+  form(
+    employeeId: string,
+    periodId: string,
+    comparePeriodId?: string | null,
+  ): Observable<EvaluationFormModel> {
+    let params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
     return this.http
       .get<ApiResponse<EvaluationFormModel>>(`${this.url}/form`, { params })
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportEvaluationForm(
+    employeeId: string,
+    periodId: string,
+    comparePeriodId?: string | null,
+  ): Observable<Blob> {
+    let params = new HttpParams().set('employeeId', employeeId).set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    return this.http.get(`${this.url}/form/export`, {
+      params,
+      responseType: 'blob',
+    });
   }
 
   submit(request: SubmitEvaluationRequest): Observable<EvaluationResult> {

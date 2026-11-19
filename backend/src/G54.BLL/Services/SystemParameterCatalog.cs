@@ -221,6 +221,12 @@ public static class SystemParameterCatalog
             o => o.UnitUnderperformanceThresholdPercent, (o, v) => o.UnitUnderperformanceThresholdPercent = v),
         Dec("unitPenaltyMultiplier", SystemParameterGroups.ScoringQa, 0.1m, 1m,
             o => o.UnitPenaltyMultiplier, (o, v) => o.UnitPenaltyMultiplier = v),
+        Pct("evalKpiMetThresholdPercent", SystemParameterGroups.ScoringQa, 0, 200,
+            o => o.EvalKpiMetThresholdPercent, (o, v) => o.EvalKpiMetThresholdPercent = v),
+        Pct("evalKpiNearThresholdPercent", SystemParameterGroups.ScoringQa, 0, 200,
+            o => o.EvalKpiNearThresholdPercent, (o, v) => o.EvalKpiNearThresholdPercent = v),
+        Int("evalCommentMaxLength", SystemParameterGroups.ScoringQa, 50, 5000,
+            o => o.EvalCommentMaxLength, (o, v) => o.EvalCommentMaxLength = v),
 
         // Group 4: QUOTA_RANKING
         Pct("tierAQuotaPercent", SystemParameterGroups.QuotaRanking, 1, 100,

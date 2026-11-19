@@ -39,7 +39,7 @@
                   ? localization.riskEvents.form.loadingEmployees
                   : localization.riskEvents.form.employeePlaceholder}}
             </option>
-            @for (employee of employees(); track employee.id) {
+            @for (employee of employeeOptions(); track employee.id) {
               <option [value]="employee.id">
                 {{employee.employeeCode}} · {{employee.fullName}}
               </option>

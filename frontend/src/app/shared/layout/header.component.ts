@@ -5,10 +5,11 @@ import { AuthService } from '../../core/auth.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { LayoutIconComponent } from './layout-icon.component';
 import { NavigationService } from './navigation.service';
+import { NotificationBellComponent } from './notification-bell.component';
 
 @Component({
   selector: 'app-header',
-  imports: [RouterLink, LayoutIconComponent],
+  imports: [RouterLink, LayoutIconComponent, NotificationBellComponent],
   templateUrl: './header.component.html',
   styleUrl: './header.component.scss',
 })

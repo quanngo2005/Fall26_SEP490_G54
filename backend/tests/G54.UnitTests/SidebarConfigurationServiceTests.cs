@@ -74,6 +74,21 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Empty(db.SidebarConfigurations);
     }
 
+    [Fact]
+    public void QaOpensDataImportAndImportHistoryAndHasNoItemsWithoutAScreen()
+    {
+        var qa = SidebarCatalog.Defaults["qa"];
+        Assert.Equal(["overview", "dataImport", "importHistory", "reconciliation"], qa.Take(4));
+        foreach (var dead in new[] { "escalatedCases", "auditReview", "reportsAnalytics" })
+        {
+            Assert.DoesNotContain(dead, qa);
+        }
+        Assert.Contains("dataImport", SidebarCatalog.ItemIds);
+        Assert.Contains("/data-import", SidebarCatalog.Routes);
+        Assert.Contains("/import-history", SidebarCatalog.Routes);
+        Assert.DoesNotContain("/data-import", SidebarCatalog.AdminOnlyRoutes);
+    }
+
     [Theory]
     [InlineData("employee", "unknown")]
     [InlineData("employee", "departments")]

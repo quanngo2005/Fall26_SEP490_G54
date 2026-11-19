@@ -1,6 +1,8 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Common.Validation;
 
@@ -14,6 +16,24 @@ internal static class PeriodLockGuard
     public static void EnsureWritable(EvaluationPeriod? period)
     {
         if (period?.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+        {
+            throw new ConflictException(
+                ErrorCodes.GetDefaultMessage(ErrorCodes.PeriodLocked),
+                ErrorCodes.PeriodLocked);
+        }
+    }
+
+    /// <summary>
+    /// BR-29: throws 409 <see cref="ErrorCodes.PeriodLocked"/> when any evaluation period containing <paramref name="date"/>
+    /// (month, quarter, half-year or year) is locked, so an open month under a locked quarter or year takes no new KPI data.
+    /// Same rule as the transaction import, which rejects a row dated in any locked period.
+    /// </summary>
+    public static async Task EnsureDateWritableAsync(AppDbContext db, DateOnly date, CancellationToken cancellationToken)
+    {
+        var locked = await db.EvaluationPeriods.AnyAsync(
+            p => (p.Status == PeriodStatus.Locked || p.Status == PeriodStatus.Closed) && p.StartDate <= date && p.EndDate >= date,
+            cancellationToken);
+        if (locked)
         {
             throw new ConflictException(
                 ErrorCodes.GetDefaultMessage(ErrorCodes.PeriodLocked),

@@ -21,7 +21,7 @@ public sealed class EvaluationControllerTests
         var employeeId = Guid.NewGuid();
         var periodId = Guid.NewGuid();
 
-        var result = await controller.GetEvaluationForm(employeeId, periodId, CancellationToken.None);
+        var result = await controller.GetEvaluationForm(employeeId, periodId, null, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal((employeeId, periodId, UserId), service.LastFormRequest);
@@ -242,6 +242,39 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetDepartmentDashboard_ForwardsPeriodComparePeriodAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.GetDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardRequest);
+        var data = Assert.IsType<ApiResponse<DepartmentEvaluationDashboardDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("KHCN", data.Department.Code);
+    }
+
+    [Fact]
+    public async Task ExportDepartmentDashboard_ReturnsExcelFileWithExpectedName()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+
+        var result = await controller.ExportDepartmentDashboard(periodId, comparePeriodId, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.ContentType);
+        Assert.Equal("danh-gia-phong-KHCN-2026-M11.xlsx", file.FileDownloadName);
+        Assert.Equal((periodId, comparePeriodId, UserId), service.LastDepartmentDashboardExportRequest);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -268,6 +301,8 @@ public sealed class EvaluationControllerTests
         public FinalizeResultDto FinalizeResult { get; } = new(Guid.NewGuid(), "LOCKED", DateTimeOffset.UtcNow, 12, "locked");
 
         public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormRequest { get; private set; }
+
+        public (Guid EmployeeId, Guid PeriodId, Guid UserId) LastFormExportRequest { get; private set; }
 
         public SubmitEvaluationRequestDto? LastSubmission { get; private set; }
 
@@ -301,10 +336,16 @@ public sealed class EvaluationControllerTests
 
         public Guid LastFinalizeUserId { get; private set; }
 
-        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
+        public Task<EvaluationFormDto> GetEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
         {
             LastFormRequest = (employeeId, periodId, currentUserId);
             return Task.FromResult<EvaluationFormDto>(null!);
+        }
+
+        public Task<EvaluationFormExportDto> ExportEvaluationFormAsync(Guid employeeId, Guid periodId, Guid currentUserId, Guid? comparePeriodId = null, CancellationToken cancellationToken = default)
+        {
+            LastFormExportRequest = (employeeId, periodId, currentUserId);
+            return Task.FromResult(new EvaluationFormExportDto([1, 2, 3], "danh-gia-nhan-vien-EMP01-2026-Q1.xlsx"));
         }
 
         public Task<EvaluationResultDto> SubmitEvaluationAsync(SubmitEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
@@ -399,6 +440,39 @@ public sealed class EvaluationControllerTests
         public AcknowledgePersonalEvaluationRequestDto? LastAcknowledgeRequest { get; private set; }
         public Guid LastAcknowledgeUserId { get; private set; }
         public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardExportRequest { get; private set; }
+
+        public Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardDto(
+                new DepartmentEvaluationDepartmentDto(Guid.NewGuid(), "KHCN", "Phòng KHCN", "Nguyễn Văn A"),
+                null,
+                null,
+                [],
+                [],
+                new DepartmentEvaluationPerformanceDto(91.4m, 90.4m, 1.0m, 10, 12, 2, 1, 1, [], []),
+                new DepartmentEvaluationOperationsDto(142, 10, 14, 93.4m, 12.7m),
+                new DepartmentEvaluationTierDistributionDto(20m, [], []),
+                [],
+                [],
+                DateTimeOffset.UtcNow));
+        }
+
+        public Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastDepartmentDashboardExportRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardExportDto([1, 2, 3], "danh-gia-phong-KHCN-2026-M11.xlsx"));
+        }
 
         public Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(Guid? periodId, Guid currentUserId, CancellationToken cancellationToken = default)
         {

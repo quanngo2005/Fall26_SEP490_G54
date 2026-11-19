@@ -1,4 +1,6 @@
+using ClosedXML.Excel;
 using G54.BLL.Common.Constants;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
 using G54.BLL.Services;
 using G54.DAL;
@@ -606,18 +608,33 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_PreviousPeriod_IgnoresAnEarlierDraftEvenWhenItHoldsAScore()
+    public async Task Form_ComparePeriod_UsesTheSelectedPeriodAndListsTheOptions()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var earlier = context.EvaluationPeriods.Single(p => p.Code == "2026-09");
-        await AddEvaluationAsync(context, s, s.Staff1, earlier, 70m, PerformanceEvaluationStatus.Draft);
+        const decimal earlierScore = 70m;
+        await AddEvaluationAsync(context, s, s.Staff1, earlier, earlierScore, PerformanceEvaluationStatus.Final);
         var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
 
-        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+        var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, earlier.Id);
 
-        Assert.Null(form.PreviousPeriod);
+        Assert.Equal(earlier.Id, form.ComparePeriod!.Id);
+        Assert.Equal(earlierScore, form.PreviousPeriod!.TotalScore);
+        Assert.Contains(form.CompareOptions!, option => option.Id == earlier.Id);
     }
+
+    [Fact]
+    public async Task Form_ComparePeriod_RejectsAPeriodThatIsNotEarlierOfTheSameType()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id, s.Period.Id));
+    }
+
 
     // ----- the calculation ----------------------------------------------------------------------------
 
@@ -675,7 +692,7 @@ public sealed class EvaluationFormTests
     }
 
     [Fact]
-    public async Task Form_Group_WithoutActiveKpis_IsMarkedQualitative()
+    public async Task Form_Group_WithoutActiveKpis_IsExcludedFromForm()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
@@ -685,7 +702,7 @@ public sealed class EvaluationFormTests
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
-        Assert.True(form.CriteriaGroups.Single().IsQualitative);
+        Assert.Empty(form.CriteriaGroups);
     }
 
     [Fact]
@@ -843,10 +860,10 @@ public sealed class EvaluationFormTests
         Assert.Equal(100m, items.Values.Sum());
     }
 
-    // ----- a qualitative group the reviewer has not scored ------------------------------------------
+    // ----- a qualitative-only profile leaves no quantitative criteria to score on the form ------------
 
     [Fact]
-    public async Task Form_QualitativeGroup_WithoutAScore_CountsAsZeroInsteadOfAFullScore()
+    public async Task Form_QualitativeGroup_WithoutActiveKpis_GivesNullQuantitativeScores()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
@@ -856,10 +873,10 @@ public sealed class EvaluationFormTests
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
 
-        var group = form.CriteriaGroups.Single();
-        Assert.True(group.IsQualitative);
-        Assert.Equal(0m, group.GroupScore);
-        Assert.Equal(0m, form.Summary.WeightedScore);
+        Assert.Empty(form.CriteriaGroups);
+        Assert.Null(form.Summary.WeightedScore);
+        Assert.Null(form.Summary.TotalScore);
+        Assert.Null(form.Summary.ProposedTier);
     }
 
     // ----- the previous period keeps the tier that was stored ---------------------------------------
@@ -884,5 +901,140 @@ public sealed class EvaluationFormTests
 
         Assert.Equal(storedTier, form.PreviousPeriod!.Tier);
         Assert.Equal(earlierScore, form.PreviousPeriod.TotalScore);
+    }
+
+    // ----- Excel export of the form (GET /evaluations/form/export) ---------------------------------
+
+    [Fact]
+    public async Task ExportForm_WritesSummaryCriteriaAndRiskSheets()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        await AssignTargetAsync(context, s, s.Staff1, 100m);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.Approved);
+        AddRiskEvent(context, s.Staff1, "RSK-EXP-1", RiskEventSeverity.High, 5m, new DateTimeOffset(2026, 10, 15, 3, 0, 0, TimeSpan.Zero));
+        AddRiskEvent(context, s.Staff1, "RSK-EXP-2", RiskEventSeverity.Medium, 2m, new DateTimeOffset(2026, 10, 16, 3, 0, 0, TimeSpan.Zero));
+        AddRiskEvent(context, s.Staff1, "RSK-EXP-3", RiskEventSeverity.Low, null, new DateTimeOffset(2026, 10, 17, 3, 0, 0, TimeSpan.Zero));
+        await context.SaveChangesAsync();
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var export = await service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal("danh-gia-nhan-vien-S1-2026-10.xlsx", export.FileName);
+        using var workbook = new XLWorkbook(new MemoryStream(export.Content));
+        Assert.Equal(["Tong quan", "Tieu chi & KPI", "Su kien rui ro"], workbook.Worksheets.Select(w => w.Name));
+
+        var summary = workbook.Worksheet("Tong quan");
+        Assert.Equal("BÁO CÁO ĐÁNH GIÁ HIỆU SUẤT NHÂN VIÊN", summary.Cell(1, 1).GetString());
+        Assert.Contains("S1 · Employee S1", summary.Cell(2, 1).GetString(), StringComparison.Ordinal);
+        Assert.Equal("S1", ValueOf(summary, "Mã nhân viên"));
+        Assert.Equal("Employee S1", ValueOf(summary, "Họ và tên"));
+        Assert.Equal("Đã duyệt", ValueOf(summary, "Trạng thái phiếu"));
+        Assert.Equal("Không", ValueOf(summary, "Yêu cầu kèm cặp"));
+
+        var criteria = workbook.Worksheet("Tieu chi & KPI");
+        var kpiRow = criteria.RowsUsed().Single(r => r.Cell(5).GetString() == "HDV");
+        Assert.Equal("Định lượng", kpiRow.Cell(4).GetString());
+        Assert.Equal("Deposits", kpiRow.Cell(6).GetString());
+        Assert.Equal(100m, kpiRow.Cell(9).GetValue<decimal>());
+
+        var risks = workbook.Worksheet("Su kien rui ro");
+        var codes = risks.RowsUsed().Select(r => r.Cell(1).GetString()).Where(c => c.StartsWith("RSK-EXP", StringComparison.Ordinal)).ToList();
+        Assert.Equal(3, codes.Count);
+        var high = risks.RowsUsed().Single(r => r.Cell(1).GetString() == "RSK-EXP-1");
+        Assert.Equal("15/10/2026 03:00", high.Cell(6).GetString());
+        Assert.Equal(5m, high.Cell(5).GetValue<decimal>());
+    }
+
+    [Theory]
+    [InlineData(PerformanceEvaluationStatus.Draft, "Nháp")]
+    [InlineData(PerformanceEvaluationStatus.Calculated, "Đã tính điểm")]
+    [InlineData(PerformanceEvaluationStatus.Disputed, "Đang khiếu nại")]
+    [InlineData(PerformanceEvaluationStatus.Final, "Đã chốt")]
+    public async Task ExportForm_TranslatesTheEvaluationStatus(PerformanceEvaluationStatus status, string label)
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 70m, status);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var export = await service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        using var workbook = new XLWorkbook(new MemoryStream(export.Content));
+        Assert.Equal(label, ValueOf(workbook.Worksheet("Tong quan"), "Trạng thái phiếu"));
+    }
+
+    [Fact]
+    public async Task ExportForm_ReplacesCharactersAFileNameCannotHold()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        s.Staff1.EmployeeCode = "S1/A";
+        await context.SaveChangesAsync();
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        var export = await service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        Assert.Equal("danh-gia-nhan-vien-S1-A-2026-10.xlsx", export.FileName);
+        Assert.NotEmpty(export.Content);
+    }
+
+    [Fact]
+    public async Task ExportForm_OutsideTheReaderScope_IsRefusedLikeTheForm()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            service.ExportEvaluationFormAsync(s.SupportStaff.Id, s.Period.Id, s.Manager.Id));
+    }
+
+    private static string ValueOf(IXLWorksheet sheet, string label) =>
+        sheet.RowsUsed().Single(r => r.Cell(1).GetString() == label).Cell(2).GetString();
+
+    private static void AddRiskEvent(
+        AppDbContext context, Employee employee, string code, RiskEventSeverity severity, decimal? penalty, DateTimeOffset occurredAt) =>
+        context.RiskEvents.Add(new RiskEvent
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            EmployeeId = employee.Id,
+            RecordedBy = employee.Id,
+            EventType = "VIOLATION",
+            Description = code,
+            Severity = severity,
+            Status = RiskEventStatus.Confirmed,
+            PenaltyPoints = penalty,
+            OccurredAt = occurredAt,
+            RecordedAt = occurredAt,
+            UpdatedAt = occurredAt,
+        });
+
+    [Fact]
+    public async Task ExportEvaluationFormAsync_ReturnsAWorkbookWithTheThreeSheetsAndASafeFileName()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.All, PermissionScopes.All);
+
+        var export = await service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
+
+        using var workbook = new ClosedXML.Excel.XLWorkbook(new MemoryStream(export.Content));
+        Assert.Equal(["Tong quan", "Tieu chi & KPI", "Su kien rui ro"], workbook.Worksheets.Select(w => w.Name).ToArray());
+        Assert.EndsWith(".xlsx", export.FileName);
+        Assert.StartsWith("danh-gia-nhan-vien-", export.FileName);
+        Assert.DoesNotContain(export.FileName, c => c is '/' or '\\' or ' ');
+        Assert.Contains(workbook.Worksheet("Tong quan").CellsUsed(), c => c.GetString() == s.Staff1.EmployeeCode);
+    }
+
+    [Fact]
+    public async Task ExportEvaluationFormAsync_ForAnEmployeeTheReaderCannotSee_Throws()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, PermissionScopes.Own, submitScope: null);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => service.ExportEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id));
     }
 }

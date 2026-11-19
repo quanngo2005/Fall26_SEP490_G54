@@ -7,8 +7,17 @@ Routes use the backend origin with no API prefix. Responses use `ApiResponse<T>`
 ## Authorization
 
 Requires permission `evaluation:calculate` with scope `Dept` or higher
-(`[HasPermission("evaluation", "calculate", "Dept")]`). The permission is not part of the seed data:
-`ADMIN` passes (full access); any other role passes only once the permission has been granted to it.
+(`[HasPermission("evaluation", "calculate", "Dept")]`). The permission `EVALUATION_CALCULATE` is created and granted by
+migration `20261116130000_GrantEvaluationCalculate` (and the dev seed), like `EVALUATION_SUBMIT`:
+
+| Role | Scope |
+| --- | --- |
+| `ADMIN`, `SYSTEM_ADMIN` | `All` |
+| `MANAGER`, `DEPT_MANAGER` | `Department` |
+| `BRANCH_MANAGER` | `Branch` |
+
+Employees (`EMPLOYEE`), `HR`, `QA` and `VERIFIER` get 403. Before that migration the permission did not exist, so only
+the development `FULL_ACCESS` wildcard passed.
 
 The BLL additionally restricts the target evaluation to the caller's granted scope, based on the
 department of the evaluated employee:

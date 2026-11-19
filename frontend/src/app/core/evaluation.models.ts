@@ -80,7 +80,7 @@ export interface EvaluationKpiItem {
 }
 
 export interface EvaluationCriterionGroup {
-  /** The root node of the profile tree; also the key of the qualitative score. */
+  /** The root node of the profile tree. */
   evaluationProfileItemId: string;
   groupCode: string;
   groupName: string;
@@ -88,9 +88,6 @@ export interface EvaluationCriterionGroup {
   /** Null when no KPI of the group can be scored. */
   groupScore: number | null;
   kpiItems: EvaluationKpiItem[];
-  qualitativeScore: number | null;
-  qualitativeNotes: string | null;
-  isQualitative: boolean;
 }
 
 export interface EvaluationRiskEvent {
@@ -126,8 +123,6 @@ export interface PerformanceEvaluationState {
   comment: string | null;
   coachingPlan: string | null;
   coachingRequired: boolean;
-  /** The single qualitative score saved with the evaluation; null when none was entered. */
-  generalQualitativeScore: number | null;
 }
 
 export interface PreviousPeriodSummary {
@@ -136,6 +131,27 @@ export interface PreviousPeriodSummary {
   tier: string;
   /** Null when the current total is not available. */
   scoreDifference: number | null;
+}
+
+export interface EvaluationCriteriaSummary {
+  achievedCount: number;
+  nearCount: number;
+  belowCount: number;
+  totalCount: number;
+  achievedRatePercent: number | null;
+}
+
+export interface EvaluationSlaSummary {
+  onTimeCompletedCount: number;
+  overdueCount: number;
+  inProgressCount: number;
+  onTimeRatePercent: number | null;
+}
+
+export interface EvaluationFormSettings {
+  maxCommentLength: number;
+  kpiMetThresholdPercent: number;
+  kpiNearThresholdPercent: number;
 }
 
 export interface EvaluationFormModel {
@@ -151,12 +167,11 @@ export interface EvaluationFormModel {
   openAppealCount: number;
   hasOpenDispute: boolean;
   previousPeriod: PreviousPeriodSummary | null;
-}
-
-export interface QualitativeScoreInput {
-  evaluationProfileItemId: string;
-  score: number;
-  notes?: string | null;
+  criteriaSummary: EvaluationCriteriaSummary;
+  slaSummary: EvaluationSlaSummary;
+  formSettings: EvaluationFormSettings;
+  comparePeriod: EvaluationPeriodOption | null;
+  compareOptions: EvaluationPeriodOption[];
 }
 
 export interface SubmitEvaluationRequest {
@@ -165,9 +180,7 @@ export interface SubmitEvaluationRequest {
   comment: string | null;
   coachingPlan?: string | null;
   coachingRequired?: boolean;
-  qualitativeScores: QualitativeScoreInput[];
   isDraft: boolean;
-  generalQualitativeScore?: number | null;
 }
 
 export interface EvaluationResult {
@@ -425,4 +438,137 @@ export interface PersonalCriteriaLedgerItem {
   workId?: string | null;
   workCode?: string | null;
   workTitle?: string | null;
+}
+
+export interface DepartmentEvaluationDepartment {
+  id: string;
+  code: string;
+  name: string;
+  managerName: string | null;
+}
+
+export interface DepartmentEvaluationGroupKpi {
+  kpiDefinitionId: string;
+  code: string;
+  name: string;
+  unit: string;
+  direction: string;
+  targetValue: number;
+  actualValue: number | null;
+  achievementPercent: number | null;
+  previousAchievementPercent: number | null;
+  changeFromPreviousPercent: number | null;
+  score?: number | null;
+}
+
+export interface DepartmentEvaluationKpiGroup {
+  name: string | null;
+  displayOrder: number;
+  weightPercent: number;
+  averageScore: number | null;
+  kpis: DepartmentEvaluationGroupKpi[];
+}
+
+export interface DepartmentEvaluationTrendPoint {
+  periodId: string;
+  periodCode: string;
+  periodName: string;
+  average: number | null;
+}
+
+export interface DepartmentEvaluationPerformance {
+  average: number | null;
+  previousAverage: number | null;
+  changeFromPrevious: number | null;
+  evaluatedEmployeeCount: number;
+  totalEmployeeCount: number;
+  unscoredEmployeeCount: number;
+  pipCount: number;
+  appealCount: number;
+  kpiGroups: DepartmentEvaluationKpiGroup[];
+  trend: DepartmentEvaluationTrendPoint[];
+}
+
+export interface DepartmentEvaluationOperations {
+  onTimeCompletedCount: number;
+  overdueCount: number;
+  inProgressCount: number;
+  onTimeRatePercent: number | null;
+  loadPerStaff: number | null;
+}
+
+export interface DepartmentEvaluationTierItem {
+  tierCode: string;
+  rankOrder: number;
+  minScore: number;
+  maxScore: number | null;
+  count: number;
+  percent: number;
+}
+
+export type DepartmentEvaluationAlertKind = 'PIP' | 'APPEAL' | 'TOP';
+
+export interface DepartmentEvaluationActionAlert {
+  kind: DepartmentEvaluationAlertKind;
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  tierCode: string | null;
+  totalScore: number | null;
+  metaText: string | null;
+}
+
+export interface DepartmentEvaluationTierDistribution {
+  tierACapPercent: number;
+  tiers: DepartmentEvaluationTierItem[];
+  actionAlerts: DepartmentEvaluationActionAlert[];
+}
+
+export interface DepartmentEvaluationProfileGroupColumn {
+  name: string;
+  displayOrder: number;
+  weightPercent: number;
+}
+
+export interface DepartmentEvaluationStaffGroupScore {
+  groupName: string;
+  displayOrder: number;
+  weightPercent: number;
+  score: number | null;
+}
+
+export type DepartmentEvaluationStaffRowStatus = 'FINAL' | 'APPEAL' | 'PIP' | 'PENDING';
+
+export interface DepartmentEvaluationStaffRow {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  jobPositionId: string;
+  jobPositionTitle: string;
+  groupScores: DepartmentEvaluationStaffGroupScore[];
+  totalScore: number | null;
+  previousTotalScore: number | null;
+  scoreDelta: number | null;
+  tierCode: string | null;
+  onTimeSlaPercent: number | null;
+  status: DepartmentEvaluationStaffRowStatus;
+  evaluationStatus: string;
+  canOpenForm: boolean;
+  onTimeCompletedCount?: number;
+  inProgressCount?: number;
+  overdueCount?: number;
+}
+
+export interface DepartmentEvaluationDashboard {
+  department: DepartmentEvaluationDepartment;
+  period: EvaluationPeriodOption | null;
+  comparePeriod: EvaluationPeriodOption | null;
+  availablePeriods: EvaluationPeriodOption[];
+  compareOptions: EvaluationPeriodOption[];
+  performance: DepartmentEvaluationPerformance;
+  operations: DepartmentEvaluationOperations;
+  tierDistribution: DepartmentEvaluationTierDistribution;
+  profileGroups: DepartmentEvaluationProfileGroupColumn[];
+  staffRows: DepartmentEvaluationStaffRow[];
+  generatedAt: string;
 }

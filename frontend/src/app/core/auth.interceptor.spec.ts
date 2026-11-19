@@ -54,7 +54,18 @@ describe('authInterceptor', () => {
     sessionStorage.clear();
   });
 
-  for (const path of ['/qa-queue', '/qa-queue/FLAG/f1', '/qa-samples', '/quality-flags']) {
+  for (const path of [
+    '/qa-queue',
+    '/qa-dashboard',
+    '/qa-dashboard/filters',
+    '/qa-queue/FLAG/f1',
+    '/qa-samples',
+    '/quality-flags',
+    '/reconciliations',
+    '/transaction-imports',
+    '/transaction-imports/template',
+    '/data-imports/employees/preview',
+  ]) {
     it(`sends the bearer token to the QA endpoint ${path}`, () => {
       localStorage.setItem(
         'g54.auth.session',

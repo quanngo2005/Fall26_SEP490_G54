@@ -8,6 +8,14 @@ public interface IEvaluationService
         Guid employeeId,
         Guid periodId,
         Guid currentUserId,
+        Guid? comparePeriodId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationFormExportDto> ExportEvaluationFormAsync(
+        Guid employeeId,
+        Guid periodId,
+        Guid currentUserId,
+        Guid? comparePeriodId = null,
         CancellationToken cancellationToken = default);
 
     Task<EvaluationResultDto> SubmitEvaluationAsync(
@@ -21,6 +29,18 @@ public interface IEvaluationService
     Task<IReadOnlyList<DepartmentEmployeeEvaluationSummaryDto>> GetDepartmentEmployeesForEvaluationAsync(
         Guid periodId,
         Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 

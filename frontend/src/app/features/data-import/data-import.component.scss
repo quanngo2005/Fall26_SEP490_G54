@@ -1,0 +1,333 @@
+/* SCR-ADM-06. Header, banners and tables come from ../../shared/ui; only the import pieces live here. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.import-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  color: #64748b;
+  font:
+    600 13px/20px 'Nunito Sans',
+    sans-serif;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .step-index {
+    display: inline-grid;
+    width: 24px;
+    height: 24px;
+    place-items: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .is-active {
+    color: #002b49;
+
+    .step-index {
+      border-color: #002b49;
+      background: #002b49;
+      color: #fff;
+    }
+  }
+
+  .is-done .step-index {
+    border-color: #047857;
+    background: #ecfdf5;
+    color: #047857;
+  }
+}
+
+.import-card {
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
+  padding: 20px;
+}
+
+.card-title {
+  margin: 0 0 14px;
+  color: #191c1e;
+  font:
+    600 16px/24px Manrope,
+    sans-serif;
+}
+
+.type-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-chip {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 7px 14px;
+
+  &.is-selected {
+    border-color: #002b49;
+    background: #002b49;
+    color: #fff;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.template-button {
+  margin-left: auto;
+}
+
+.columns-hint {
+  margin: 14px 0;
+  border-radius: 6px;
+  background: #f2f4f6;
+  color: #42474d;
+  font:
+    400 12px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 8px 12px;
+}
+
+.context-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  color: #0369a1;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+  padding: 10px 14px;
+
+  a {
+    color: #002b49;
+    white-space: nowrap;
+  }
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  border: 2px dashed #c3c7ce;
+  border-radius: 8px;
+  background: #f7f9fb;
+  padding: 28px 16px;
+  text-align: center;
+
+  &.is-dragging {
+    border-color: #002b49;
+    background: #eff6ff;
+  }
+
+  &.has-file {
+    border-style: solid;
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+  }
+}
+
+.drop-title,
+.file-name {
+  margin: 0;
+  color: #191c1e;
+  font:
+    600 14px/20px 'Nunito Sans',
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.file-meta {
+  margin: 0;
+  color: #64748b;
+  font:
+    400 12px/18px 'Nunito Sans',
+    sans-serif;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress {
+  height: 8px;
+  margin: 12px 0 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6e8ea;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: #002b49;
+}
+
+.server-steps {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #42474d;
+  font:
+    400 13px/22px 'Nunito Sans',
+    sans-serif;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0 16px;
+}
+
+.stack-bar {
+  display: flex;
+  height: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6e8ea;
+}
+
+.seg-imported,
+.dot-imported {
+  background: #047857;
+}
+
+.seg-duplicate,
+.dot-duplicate {
+  background: #94a3b8;
+}
+
+.seg-error,
+.dot-error {
+  background: #be123c;
+}
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.result-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 0;
+
+  dt {
+    color: #64748b;
+    font:
+      400 12px/18px 'Nunito Sans',
+      sans-serif;
+  }
+
+  dd {
+    margin: 2px 0 0;
+    color: #191c1e;
+    font:
+      700 22px/28px Manrope,
+      sans-serif;
+  }
+
+  .is-error {
+    color: #be123c;
+  }
+}
+
+.reconcile-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    border-left: 3px solid;
+    border-radius: 4px;
+    background: #f7f9fb;
+    font:
+      400 13px/18px 'Nunito Sans',
+      sans-serif;
+    padding: 8px 12px;
+  }
+
+  strong {
+    min-width: 32px;
+    font:
+      700 18px/24px Manrope,
+      sans-serif;
+  }
+
+  a {
+    margin-left: auto;
+    color: #002b49;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .tone-success {
+    border-color: #047857;
+  }
+
+  .tone-danger {
+    border-color: #be123c;
+  }
+
+  .tone-warning {
+    border-color: #b45309;
+  }
+}
+
+@media (max-width: 640px) {
+  .template-button {
+    margin-left: 0;
+  }
+
+  .card-actions .button {
+    width: 100%;
+  }
+}

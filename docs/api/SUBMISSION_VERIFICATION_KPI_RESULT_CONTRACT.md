@@ -131,7 +131,7 @@ vào target ACTIVE của từng nhân sự:
   cộng `rawValue` (số thật, ví dụ 10 thẻ Platinum vẫn là 10); hệ số chỉ được dùng để quy đổi ra điểm khi chấm
   KPI (`weightedActualValue`, xem `PERFORMANCE_EVALUATION_CONTRACT.md`). Đổi hệ số sau đó (bản ghi mới hoặc sửa
   tại chỗ) không làm thay đổi các `WorkResultItem`/`ActualProgress` đã ghi trước đó.
-- Nếu công việc có KPI và nhân viên đã nộp số liệu, **mọi** nhân sự nhận điểm đều phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Thiếu target của bất kỳ ai thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
+- Nếu công việc có KPI và nhân viên đã nộp số liệu, **người xử lý** (người nộp, hoặc người nhận bàn giao) phải có target `ACTIVE` cho KPI đó, với kỳ đánh giá chứa ngày hiện tại (múi giờ nghiệp vụ). Với công việc có bàn giao, **người giới thiệu** không có target cho KPI đó (ví dụ Teller giới thiệu khách gửi tiền có kỳ hạn) chỉ mất phần điểm giới thiệu: người xử lý vẫn được cộng phần của mình (70 %), giống reconcile giao dịch (`WORK_TRANSACTION_CONTRACT.md`). Thiếu target của người xử lý thì toàn bộ yêu cầu bị từ chối với 409 `KPI_TARGET_NOT_ASSIGNED`, message nêu tên và mã nhân sự thiếu target; không ghi `Verification`, `VerifiedWorkResult` hay `WorkResultItem`, submission và công việc giữ nguyên trạng thái để duyệt lại sau khi đã giao target.
 - Công việc không có KPI trong loại công việc, hoặc nhân viên không nộp số liệu KPI, vẫn được duyệt bình thường và không ghi `WorkResultItem`.
 - Target đã đạt hoặc vượt chỉ tiêu mà vẫn `ACTIVE` thì vẫn nhận điểm; không có giới hạn trên (tỷ lệ hoàn thành bị chặn bởi `MaxAchievementPercent` của KPI khi tính điểm đánh giá).
 - Mỗi công việc (Task ID) chỉ được đóng góp KPI một lần. Nếu công việc đã có `WorkResultItem`, yêu cầu bị từ chối với 409 `KPI_ALREADY_CONTRIBUTED` và không ghi nhận gì thêm.
@@ -202,7 +202,7 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Submission ở `DRAFT / REJECTED / WITHDRAWN` | 409 | `VERIFICATION_INVALID_STATE` |
 | Duyệt `APPROVED` cho công việc (Task ID) đã đóng góp KPI trước đó (BR-08) | 409 | `KPI_ALREADY_CONTRIBUTED` |
 | Duyệt `APPROVED` mà kỳ đánh giá của chỉ tiêu đang áp dụng đã `LOCKED` / `CLOSED` (xem `PERIOD_LOCK_CONTRACT.md`) | 409 | `PERIOD_LOCKED` |
-| Duyệt `APPROVED` có KPI và số liệu nộp nhưng một nhân sự nhận điểm chưa có target `ACTIVE` trong kỳ hiện tại | 409 | `KPI_TARGET_NOT_ASSIGNED` |
+| Duyệt `APPROVED` có KPI và số liệu nộp nhưng người xử lý chưa có target `ACTIVE` trong kỳ hiện tại | 409 | `KPI_TARGET_NOT_ASSIGNED` |
 
 ### 3.4 KPI Result
 | Tình huống | HTTP | errorCode |

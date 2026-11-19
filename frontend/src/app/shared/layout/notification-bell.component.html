@@ -1,0 +1,73 @@
+@let t = localization.notificationCenter;
+<div class="bell-root">
+  <button
+    class="icon-action notification-btn"
+    type="button"
+    [attr.aria-label]="bellLabel"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="dialog"
+    aria-controls="notification-panel"
+    (click)="toggle()"
+  >
+    <app-layout-icon name="bell" />
+    @if (notifications.unreadCount() > 0) {
+      <span class="notification-badge" aria-hidden="true">{{badgeText}}</span>
+    }
+  </button>
+
+  @if (open()) {
+    <section id="notification-panel" class="panel" role="dialog" [attr.aria-label]="t.panelTitle">
+      <header class="panel-head">
+        <h2>{{t.panelTitle}}</h2>
+        <button
+          type="button"
+          class="link-button"
+          [disabled]="notifications.unreadCount() === 0"
+          (click)="markAll()"
+        >
+          {{t.markAllRead}}
+        </button>
+      </header>
+
+      <div class="panel-body" [attr.aria-busy]="notifications.recentLoading()">
+        @if (notifications.recentFailed() && notifications.recent().length === 0) {
+          <p class="state state-error" role="alert">{{t.loadFailed}}</p>
+        } @else if (notifications.recentLoading() && notifications.recent().length === 0) {
+          <p class="state" role="status">{{t.loading}}</p>
+        } @else if (notifications.recent().length === 0) {
+          <p class="state">{{t.empty}}</p>
+        } @else {
+          <ul class="items">
+            @for (item of notifications.recent(); track item.id) {
+              <li>
+                <button
+                  type="button"
+                  class="item"
+                  [class.is-unread]="!item.isRead"
+                  [class.is-important]="item.severity === 'IMPORTANT'"
+                  (click)="openItem(item)"
+                >
+                  <span class="dot" aria-hidden="true"></span>
+                  <span class="item-main">
+                    <span class="item-title">{{item.title}}</span>
+                    @if (item.body) {
+                      <span class="item-body">{{item.body}}</span>
+                    }
+                    <span class="item-meta">
+                      <span class="item-type">{{typeLabel(item)}}</span>
+                      <span class="item-time">{{time(item)}}</span>
+                    </span>
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <footer class="panel-foot">
+        <a routerLink="/notifications" (click)="close()">{{t.viewAll}}</a>
+      </footer>
+    </section>
+  }
+</div>
