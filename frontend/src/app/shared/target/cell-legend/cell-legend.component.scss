@@ -1,0 +1,42 @@
+.cell-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12.5px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+
+  &.is-suggested {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.is-manual {
+    border-bottom: 2px solid #9a3412;
+  }
+
+  &.is-mismatch {
+    background: #fef2f2;
+    border-color: #fca5a5;
+  }
+
+  &.is-locked {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
+}

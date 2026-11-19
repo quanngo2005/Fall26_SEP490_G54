@@ -1,0 +1,19 @@
+@let text = this.text();
+<div class="cell-legend" role="list" [attr.aria-label]="text.title">
+  <span class="legend-item" role="listitem">
+    <span class="swatch is-suggested" aria-hidden="true"></span>
+    {{text.suggested}}
+  </span>
+  <span class="legend-item" role="listitem">
+    <span class="swatch is-manual" aria-hidden="true"></span>
+    {{text.manual}}
+  </span>
+  <span class="legend-item" role="listitem">
+    <span class="swatch is-mismatch" aria-hidden="true"></span>
+    {{text.mismatch}}
+  </span>
+  <span class="legend-item" role="listitem">
+    <span class="swatch is-locked" aria-hidden="true"></span>
+    {{text.locked}}
+  </span>
+</div>

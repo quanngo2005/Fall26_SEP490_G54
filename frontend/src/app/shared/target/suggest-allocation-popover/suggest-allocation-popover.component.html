@@ -1,0 +1,272 @@
+@let text = this.text();
+<div class="suggest-popover" role="dialog" aria-modal="true" [attr.aria-label]="text.title">
+  <header class="popover-header">
+    <h3>{{text.title}}</h3>
+  </header>
+
+  @if (!hasHistory()) {
+    <p class="disabled-reason" role="alert">
+      {{text.disabledReasonPrefix}} {{noHistoryReason() || text.noHistoryFallback}}
+    </p>
+  } @else {
+    <div class="popover-body">
+      <section class="block">
+        <h4>{{text.basisTitle}}</h4>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="basis"
+            [checked]="basis() === 'TARGET_LAST_YEAR'"
+            (change)="setBasis('TARGET_LAST_YEAR')"
+          />
+          {{text.basisTargetLastYear}}
+        </label>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="basis"
+            [checked]="basis() === 'ACTUAL_LAST_YEAR'"
+            (change)="setBasis('ACTUAL_LAST_YEAR')"
+          />
+          {{text.basisActualLastYear}}
+          <span class="badge-must-round">{{text.mustRoundBadge}}</span>
+        </label>
+      </section>
+
+      <section class="block">
+        <h4>{{text.scopeTitle}}</h4>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="scope"
+            [checked]="scope() === 'CURRENT_KPI'"
+            (change)="setScope('CURRENT_KPI')"
+          />
+          {{text.scopeCurrentKpi}}
+        </label>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="scope"
+            [checked]="scope() === 'GROUP'"
+            (change)="setScope('GROUP')"
+          />
+          {{text.scopeGroup}}
+        </label>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="scope"
+            [checked]="scope() === 'UNMATCHED'"
+            (change)="setScope('UNMATCHED')"
+          />
+          {{text.scopeUnmatched}}
+        </label>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="scope"
+            [checked]="scope() === 'SELECTED'"
+            (change)="setScope('SELECTED')"
+          />
+          {{text.scopeSelected}}
+        </label>
+      </section>
+
+      @if (isTier3()) {
+        <section class="block">
+          <h4>{{text.employeeTitle}}</h4>
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="employeeScope"
+              [checked]="employeeScope() === 'ALL'"
+              (change)="setEmployeeScope('ALL')"
+            />
+            {{text.employeeAll}}
+          </label>
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="employeeScope"
+              [checked]="employeeScope() === 'NEW_ONLY'"
+              (change)="setEmployeeScope('NEW_ONLY')"
+            />
+            {{text.employeeNewOnly}}
+          </label>
+        </section>
+
+        <section class="block">
+          <h4>{{text.periodTitle}}</h4>
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="periodScope"
+              [checked]="periodScope() === 'YEAR_AND_QUARTERS'"
+              (change)="setPeriodScope('YEAR_AND_QUARTERS')"
+            />
+            {{text.periodYearAndQuarters}}
+          </label>
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="periodScope"
+              [checked]="periodScope() === 'YEAR_ONLY'"
+              (change)="setPeriodScope('YEAR_ONLY')"
+            />
+            {{text.periodYearOnly}}
+          </label>
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="periodScope"
+              [checked]="periodScope() === 'CURRENT_QUARTER'"
+              (change)="setPeriodScope('CURRENT_QUARTER')"
+            />
+            {{text.periodCurrentQuarter}}
+          </label>
+        </section>
+      }
+
+      <section class="block">
+        <h4>{{text.applyTitle}}</h4>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="applyMode"
+            [checked]="applyMode() === 'EMPTY_ONLY'"
+            (change)="setApplyMode('EMPTY_ONLY')"
+          />
+          {{text.applyEmptyOnly}}
+        </label>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="applyMode"
+            [checked]="applyMode() === 'OVERWRITE_UNLOCKED'"
+            (change)="setApplyMode('OVERWRITE_UNLOCKED')"
+          />
+          {{text.applyOverwriteUnlocked}}
+        </label>
+        <p class="note">{{text.applyConstraintNote}}</p>
+      </section>
+
+      <section class="block">
+        <h4>{{text.roundingTitle}}</h4>
+        @if (isActualBasis()) {
+          <label class="field-row">
+            <span>{{text.roundingMoneyStepLabel}}</span>
+            <input
+              #moneyStepInput
+              type="number"
+              min="1"
+              class="step-input"
+              [value]="moneyStep()"
+              (change)="onMoneyStepInput(moneyStepInput.value)"
+            />
+          </label>
+          <label class="field-row">
+            <span>{{text.roundingCountStepLabel}}</span>
+            <input
+              #countStepInput
+              type="number"
+              min="1"
+              class="step-input"
+              [value]="countStep()"
+              (change)="onCountStepInput(countStepInput.value)"
+            />
+          </label>
+          <label class="field-row">
+            <span>{{text.roundingModeLabel}}</span>
+            <select
+              #roundingModeSelect
+              class="mode-select"
+              [value]="roundingMode()"
+              (change)="setRoundingMode($any(roundingModeSelect.value))"
+            >
+              <option value="NEAREST">{{text.roundingModeNearest}}</option>
+              <option value="UP">{{text.roundingModeUp}}</option>
+              <option value="DOWN">{{text.roundingModeDown}}</option>
+            </select>
+          </label>
+        }
+
+        <h4 class="sub">{{text.remainderTitle}}</h4>
+        <label class="radio-row">
+          <input
+            type="radio"
+            name="remainderMethod"
+            [disabled]="!isActualBasis()"
+            [checked]="remainderMethod() === 'LARGEST_REMAINDER'"
+            (change)="setRemainderMethod('LARGEST_REMAINDER')"
+          />
+          {{text.remainderLargest}}
+        </label>
+        @if (isActualBasis()) {
+          <label class="radio-row">
+            <input
+              type="radio"
+              name="remainderMethod"
+              [checked]="remainderMethod() === 'BUFFER_UNIT'"
+              (change)="setRemainderMethod('BUFFER_UNIT')"
+            />
+            {{text.remainderBuffer}}
+          </label>
+          @if (remainderMethod() === 'BUFFER_UNIT') {
+            <label class="field-row">
+              <span>{{text.bufferUnitLabel}}</span>
+              <select
+                #bufferSelect
+                class="mode-select"
+                (change)="onBufferUnitChange(bufferSelect.value)"
+              >
+                <option value="">—</option>
+                @for (option of bufferUnitOptions(); track option.id) {
+                  <option [value]="option.id">{{option.label}}</option>
+                }
+              </select>
+            </label>
+          }
+        }
+      </section>
+
+      @if (preview(); as p) {
+        <section class="block preview">
+          <h4>{{text.previewTitle}}</h4>
+          <p class="preview-line">
+            {{p.cellsToFill | appNumber}} {{text.previewCellsToFill}} {{text.previewInKpis}}
+            {{p.kpiCount | appNumber}} {{text.previewKpis}}
+          </p>
+          <p
+            class="preview-sum"
+            [class.is-ok]="p.sumCheckPassed"
+            [class.is-warn]="!p.sumCheckPassed"
+          >
+            {{p.sumCheckPassed ? text.previewSumOk : text.previewSumMismatch}}
+          </p>
+          @if (p.warnings.length) {
+            <ul class="preview-warnings">
+              @for (warning of p.warnings; track warning) {
+                <li>{{warning}}</li>
+              }
+            </ul>
+          }
+        </section>
+      }
+    </div>
+  }
+
+  <footer class="popover-footer">
+    <button type="button" class="button button-secondary" (click)="cancel()">
+      {{text.cancel}}
+    </button>
+    <button
+      type="button"
+      class="button button-primary"
+      [disabled]="!hasHistory()"
+      (click)="create()"
+    >
+      {{text.createSuggestion}}
+    </button>
+  </footer>
+</div>
