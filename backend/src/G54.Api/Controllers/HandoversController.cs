@@ -18,6 +18,34 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class HandoversController(IHandoverService handoverService) : ControllerBase
 {
+    /// <summary>Lists handover records for SCR-WRK-05.</summary>
+    [HttpGet("handovers")]
+    [HasPermission("handover", "respond", "Own")]
+    [ProducesResponseType<ApiResponse<PagedResult<HandoverListItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<PagedResult<HandoverListItemDto>>>> ListHandovers(
+        [FromQuery] HandoverListQueryDto query,
+        CancellationToken cancellationToken)
+    {
+        var result = await handoverService.ListHandoversAsync(User.GetRequiredUserId(), query, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Gets one handover record for SCR-WRK-05-D1.</summary>
+    [HttpGet("handovers/{id:guid}")]
+    [HasPermission("handover", "respond", "Own")]
+    [ProducesResponseType<ApiResponse<HandoverListItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<HandoverListItemDto>>> GetHandover(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await handoverService.GetHandoverAsync(id, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     /// <summary>Colleagues of the caller's department that a work can be handed over to.</summary>
     [HttpGet("handovers/recipients")]
     [HasPermission("handover", "create", "Own")]
@@ -46,7 +74,7 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
         var result = await handoverService.CreateHandoverAsync(workId, User.GetRequiredUserId(), request, cancellationToken);
         var response = ApiResponse.Ok(
             result,
-            SuccessMessages.GetMessage(result.Status == "ACCEPTED" ? SuccessMessages.HandoverTransferred : SuccessMessages.HandoverRequested),
+            SuccessMessages.GetMessage(SuccessMessages.HandoverTransferred),
             HttpContext.TraceIdentifier);
 
         return StatusCode(StatusCodes.Status201Created, response);

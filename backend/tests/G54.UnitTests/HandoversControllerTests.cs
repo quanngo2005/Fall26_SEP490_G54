@@ -4,6 +4,7 @@ using System.Text.Json;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Handover;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -40,28 +41,24 @@ public sealed class HandoversControllerTests
     }
 
     [Fact]
-    public async Task CreateHandover_Returns201_AndPicksTheMessageByOutcome()
+    public async Task CreateHandover_Returns201_WithTheTransferredMessage()
     {
         var userId = Guid.NewGuid();
         var workId = Guid.NewGuid();
         var service = new RecordingService();
+        service.Detail = service.Detail with { Status = "ACCEPTED" };
         var controller = ControllerFor(service, userId);
         var request = new CreateHandoverRequestDto { ToEmployeeId = Guid.NewGuid(), Reason = "r", Amount = 1m };
 
-        var pending = await controller.CreateHandover(workId, request, CancellationToken.None);
+        var result = await controller.CreateHandover(workId, request, CancellationToken.None);
 
-        var created = Assert.IsType<ObjectResult>(pending.Result);
+        var created = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
         Assert.Equal(userId, service.UserId);
         Assert.Equal(workId, service.WorkId);
         Assert.Same(request, service.Request);
-        Assert.Equal("Gửi yêu cầu bàn giao thành công.", MessageOf(created));
-        Assert.Equal("PENDING", StatusOf(created));
-
-        service.Detail = service.Detail with { Status = "ACCEPTED" };
-        var transferred = await controller.CreateHandover(workId, request, CancellationToken.None);
-
-        Assert.Equal("Đã chuyển công việc cho người nhận.", MessageOf(Assert.IsType<ObjectResult>(transferred.Result)));
+        Assert.Equal("Đã chuyển công việc cho người nhận.", MessageOf(created));
+        Assert.Equal("ACCEPTED", StatusOf(created));
     }
 
     [Fact]
@@ -221,6 +218,54 @@ public sealed class HandoversControllerTests
             return Task.FromResult<IReadOnlyList<HandoverRecipientDto>>(Recipients);
         }
 
+        public Task<PagedResult<HandoverListItemDto>> ListHandoversAsync(
+            Guid userId,
+            HandoverListQueryDto query,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult(new PagedResult<HandoverListItemDto>(ListItems, ListItems.Count, query.Page, query.PageSize));
+        }
+
+        public Task<HandoverListItemDto> GetHandoverAsync(
+            Guid handoverId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult(ListItems.FirstOrDefault(x => x.Id == handoverId)
+                ?? new HandoverListItemDto(
+                    handoverId,
+                    "HO-000001",
+                    Guid.NewGuid(),
+                    "WK-1",
+                    "Work",
+                    "HANDED_OVER",
+                    null,
+                    null,
+                    null,
+                    null,
+                    Guid.NewGuid(),
+                    "NV01",
+                    "From",
+                    "Teller",
+                    Guid.NewGuid(),
+                    "NV02",
+                    "To",
+                    "Sales",
+                    "Reason",
+                    0m,
+                    "ACCEPTED",
+                    "PENDING",
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    true));
+        }
+
+        public List<HandoverListItemDto> ListItems { get; } = [];
         public List<HandoverRecipientDto> Recipients { get; } = [];
 
         public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)

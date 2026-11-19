@@ -45,3 +45,44 @@ public sealed record HandoverRecipientDto(
     string EmployeeCode,
     string FullName,
     string JobPositionTitle);
+
+/// <summary>Query parameters for <c>GET /handovers</c> (SCR-WRK-05).</summary>
+public sealed record HandoverListQueryDto
+{
+    public string? Direction { get; init; }
+    public string? Status { get; init; }
+    public Guid? FromEmployeeId { get; init; }
+    public string? KpiStatus { get; init; }
+    public string? Keyword { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+
+/// <summary>Handover row &amp; detail payload for SCR-WRK-05 and SCR-WRK-05-D1.</summary>
+public sealed record HandoverListItemDto(
+    Guid Id,
+    string HandoverCode,
+    Guid WorkId,
+    string WorkCode,
+    string WorkTitle,
+    string WorkStatus,
+    string? WorkTypeName,
+    string? CustomerName,
+    string? CustomerCif,
+    DateOnly? PlannedEndDate,
+    Guid FromEmployeeId,
+    string FromEmployeeCode,
+    string FromEmployeeName,
+    string FromJobPositionTitle,
+    Guid ToEmployeeId,
+    string ToEmployeeCode,
+    string ToEmployeeName,
+    string ToJobPositionTitle,
+    string Reason,
+    decimal ReferrerSharePercent,
+    string Status,
+    string KpiStatus,
+    DateTimeOffset HandoverAt,
+    DateTimeOffset? AcceptedAt,
+    DateTimeOffset UpdatedAt,
+    bool IsReadOnly);

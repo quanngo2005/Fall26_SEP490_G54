@@ -11,18 +11,22 @@
         {{localization.work.breadcrumbHome}} /
         {{view() === 'monitor'
             ? localization.work.monitor.breadcrumbCurrent
-            : isTeam()
-              ? localization.work.team.breadcrumbCurrent
-              : localization.work.breadcrumbCurrent}}
+            : view() === 'handovers'
+              ? localization.work.handoverList.breadcrumbCurrent
+              : isTeam()
+                ? localization.work.team.breadcrumbCurrent
+                : localization.work.breadcrumbCurrent}}
       </p>
 
       <div class="page-head">
         <h1>
           {{view() === 'monitor'
               ? localization.work.monitor.title
-              : isTeam()
-                ? localization.work.team.title
-                : localization.work.title}}
+              : view() === 'handovers'
+                ? localization.work.handoverList.title
+                : isTeam()
+                  ? localization.work.team.title
+                  : localization.work.title}}
         </h1>
         <div class="head-actions">
           @if (isManager()) {
@@ -65,6 +69,15 @@
               (click)="setView('list')"
             >
               {{localization.work.viewList}}
+            </button>
+            <button
+              type="button"
+              id="work-view-handovers"
+              [class.is-active]="view() === 'handovers'"
+              [attr.aria-pressed]="view() === 'handovers'"
+              (click)="setView('handovers')"
+            >
+              {{localization.work.handoverList.tab}}
             </button>
             @if (isTeam()) {
               <button
@@ -119,6 +132,12 @@
           [defaultDepartmentId]="me()?.departmentId ?? ''"
           [now]="now()"
           (openWork)="selectedId.set($event)"
+        />
+      } @else if (view() === 'handovers') {
+        <app-handover-list
+          [members]="members()"
+          (openWork)="selectedId.set($event)"
+          (changed)="showToast($event.kind, $event.text)"
         />
       } @else {
         <section

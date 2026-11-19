@@ -10,7 +10,6 @@ public static class SuccessMessages
     public const string NoResultsFound = "NO_RESULTS_FOUND";                 // MSG01
     public const string Updated = "UPDATED";                                 // MSG03
     public const string Created = "CREATED";                                 // MSG04
-    public const string HandoverRequested = "HANDOVER_REQUESTED";            // MSG05
     public const string HandoverTransferred = "HANDOVER_TRANSFERRED";
     public const string HandoverAccepted = "HANDOVER_ACCEPTED";
     public const string HandoverRejected = "HANDOVER_REJECTED";
@@ -23,7 +22,6 @@ public static class SuccessMessages
         [NoResultsFound] = ("Không tìm thấy kết quả phù hợp.", "No search results."),
         [Updated] = ("Cập nhật thành công.", "Update successfully."),
         [Created] = ("Tạo mới thành công.", "Create successfully."),
-        [HandoverRequested] = ("Gửi yêu cầu bàn giao thành công.", "Handover request sent successfully."),
         [HandoverTransferred] = ("Đã chuyển công việc cho người nhận.", "Work transferred successfully."),
         [HandoverAccepted] = ("Đã nhận bàn giao công việc.", "Handover accepted successfully."),
         [HandoverRejected] = ("Đã từ chối yêu cầu bàn giao.", "Handover rejected successfully."),

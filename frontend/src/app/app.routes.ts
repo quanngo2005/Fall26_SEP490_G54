@@ -395,6 +395,14 @@ export const routes: Routes = [
       import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },
   {
+    path: 'handovers',
+    canActivate: [authGuard],
+    title: 'Việc được chuyển đến',
+    data: { view: 'handovers' },
+    loadComponent: () =>
+      import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
+  },
+  {
     path: 'kpi-definitions',
     canActivate: [authGuard],
     title: 'KPI Definitions - Cấu hình đo lường hiệu suất',

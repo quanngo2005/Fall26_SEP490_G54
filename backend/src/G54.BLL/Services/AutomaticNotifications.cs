@@ -9,34 +9,6 @@ internal static class AutomaticNotifications
     private const int MaxTitleLength = 200;
     private const int MaxBodyLength = 2000;
 
-    /// <summary>An employee asked to hand a work over: the recipient is told, and so is the requester's manager, who can settle it.</summary>
-    public static List<NotificationDraft> HandoverRequested(TaskHandover handover, Work work, Employee from, Employee to)
-    {
-        var drafts = new List<NotificationDraft>
-        {
-            ForHandover(
-                to.Id,
-                NotificationType.HandoverRequested,
-                "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho bạn. Hãy chấp nhận hoặc từ chối.",
-                NotificationSeverity.Important,
-                handover),
-        };
-
-        if (from.ManagerId is { } managerId && managerId != to.Id)
-        {
-            drafts.Add(ForHandover(
-                managerId,
-                NotificationType.HandoverRequested,
-                "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho {to.FullName}.",
-                NotificationSeverity.Normal,
-                handover));
-        }
-
-        return drafts;
-    }
-
     /// <summary>A handover was settled: whoever did not make the decision hears the outcome.</summary>
     public static List<NotificationDraft> HandoverDecided(TaskHandover handover, Work work, Employee from, Employee to, Guid deciderId)
     {

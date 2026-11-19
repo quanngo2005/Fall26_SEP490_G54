@@ -1,20 +1,23 @@
 # API Contract & Error Mapping — Handover (Yêu cầu bàn giao công việc)
 
 > Nguồn chuẩn cho BE và FE. Mọi thay đổi route / mã lỗi phải cập nhật file này.
-> Trạng thái: các endpoint tạo, chấp nhận và từ chối yêu cầu **đã implement ở BE**, FE chưa có.
+> Trạng thái: các endpoint tạo, chấp nhận, từ chối, danh sách (`GET /handovers`) và chi tiết (`GET /handovers/{id}`) **đã implement ở BE**; màn danh sách/chi tiết FE (`SCR-WRK-05` / `SCR-WRK-05-D1`) đang được triển khai đồng bộ.
 
 ## 1. Phạm vi
 
-Có hai cách bàn giao, cùng dùng `POST /works/{workId}/handovers`:
+Chỉ **quản lý trực tiếp** của assignee (có quyền `handover:set_share`) tạo bàn giao, qua `POST /works/{workId}/handovers`. Nhân viên không tự bàn giao việc của mình, Manager cũng không tự bàn giao việc của chính mình.
 
 | Ai tạo | Kết quả | Người nhận |
 |---|---|---|
-| **Nhân viên** (assignee hiện tại, hoặc Manager bàn giao việc của chính mình) | Yêu cầu `PENDING`, công việc chưa đổi | **Chấp nhận hoặc từ chối** (`accept` / `reject`) |
 | **Quản lý trực tiếp** của assignee (có quyền `handover:set_share`) | **Chuyển ngay**: yêu cầu `ACCEPTED`, công việc sang người nhận và `HANDED_OVER` | **Bắt buộc nhận**, không có accept/reject |
 
+- Khi chuyển, **kỳ vọng KPI của công việc** (`Work.targetValue`) được chuyển từ target tháng của người giao sang target tháng của người nhận, xem mục 3.1.
+- Các yêu cầu `PENDING` cũ (tạo trước khi chỉ còn quản lý được bàn giao) vẫn được người nhận `accept` / `reject` và quản lý xử lý theo mục 4 và 5; không còn tạo mới được.
+
 - **Quản lý trực tiếp của người giao** cũng có thể xử lý một yêu cầu `PENDING` mà không cần người nhận: **duyệt** (chuyển ngay), **đổi người nhận** rồi chuyển ngay, hoặc **từ chối**.
-- Khi người nhận **chấp nhận** (hoặc quản lý chuyển ngay) thì công việc chuyển sang người nhận và sang `HANDED_OVER`.
-- Chưa có endpoint hủy yêu cầu (người giao tự rút) và chưa có danh sách / chi tiết yêu cầu.
+- Khi người nhận **chấp nhận** một yêu cầu `PENDING` cũ (hoặc quản lý chuyển ngay) thì công việc chuyển sang người nhận và sang `HANDED_OVER`.
+- Chưa có endpoint hủy yêu cầu (người giao tự rút).
+- Màn `SCR-WRK-05` & `SCR-WRK-05-D1` dùng `GET /handovers` (phân trang, lọc theo chiều `INCOMING`/`OUTGOING`/`ALL`, trạng thái, người chuyển, trạng thái KPI, từ khóa) và `GET /handovers/{id}`.
 
 Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md`.
 
@@ -22,8 +25,10 @@ Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md`.
 
 | Method | Route | Body | Thành công |
 |---|---|---|---|
+| GET | `/handovers` | — | 200 `PagedResult<HandoverListItemDto>`. Quyền `handover:respond` (`Own`). Query: `direction` (`INCOMING` mặc định / `OUTGOING` / `ALL`), `status` (`PENDING`/`ACCEPTED`/`REJECTED`), `fromEmployeeId` (GUID), `kpiStatus` (`PENDING`/`RECORDED`), `keyword`, `page` (1), `pageSize` (20, max 100) |
+| GET | `/handovers/{id}` | — | 200 `HandoverListItemDto` (chi tiết đầy đủ cho `SCR-WRK-05-D1`). Quyền `handover:respond` (`Own`) + kiểm tra phạm vi người liên quan / quản lý trực tiếp / Admin |
 | GET | `/handovers/recipients` | — | 200 `HandoverRecipientDto[]`: nhân viên `ACTIVE` cùng phòng ban với người gọi (trừ chính họ), sắp theo tên. Quyền `handover:create`. Trường: `id`, `employeeCode`, `fullName`, `jobPositionTitle` |
-| POST | `/works/{workId}/handovers` | JSON `CreateHandoverRequestDto` | 201 `HandoverDetailDto`. Nhân viên: `status = PENDING`, message `MSG05`. Quản lý chuyển ngay: `status = ACCEPTED`, message `HANDOVER_TRANSFERRED` |
+| POST | `/works/{workId}/handovers` | JSON `CreateHandoverRequestDto` | 201 `HandoverDetailDto`, `status = ACCEPTED`, message `HANDOVER_TRANSFERRED`. Quyền `handover:create` |
 | POST | `/handovers/{id}/accept` | — | 200 `HandoverDetailDto` |
 | POST | `/handovers/{id}/reject` | — | 200 `HandoverDetailDto` |
 | POST | `/handovers/{id}/manager/approve` | — | 200 `HandoverDetailDto`, message `HANDOVER_TRANSFERRED` |
@@ -36,12 +41,12 @@ Tất cả yêu cầu `Authorization: Bearer` của nhân viên đang hoạt đ�
 
 | Quyền | Dùng cho | ADMIN | MANAGER | EMPLOYEE |
 |---|---|---|---|---|
-| `handover:create` | Tạo yêu cầu | `All` | `Own` | `Own` |
-| `handover:set_share` | Gửi `referrerSharePercent` khi tạo | `All` | `Own` | không có |
-| `handover:respond` | Người nhận chấp nhận / từ chối | `All` | `Own` | `Own` |
-| `handover:manage` | Quản lý duyệt / đổi người nhận / từ chối | `All` | `Own` | không có |
+| `handover:create` | Chuyển ngay một công việc | `All` | `Own` | không có (migration `RevokeEmployeeHandoverCreate`) |
+| `handover:set_share` | Chuyển ngay (bắt buộc với người gọi) và gửi `referrerSharePercent` | `All` | `Own` | không có |
+| `handover:respond` | Xem danh sách bàn giao; người nhận chấp nhận / từ chối yêu cầu `PENDING` cũ | `All` | `Own` | `Own` |
+| `handover:manage` | Quản lý duyệt / đổi người nhận / từ chối yêu cầu `PENDING` cũ | `All` | `Own` | không có |
 
-Các quyền được seed bởi migration `SeedHandoverCreateAccess`, `SeedHandoverRespondAccess` và `SeedHandoverManageAccess` (và `seed_dev_data.sql` cho môi trường dev); chỉ gán cho role đã tồn tại. Quyền chỉ cho phép gọi API — việc chỉ assignee mới được tạo yêu cầu và chỉ người nhận mới được trả lời vẫn kiểm tra trong service (403 `FORBIDDEN`).
+Các quyền được seed bởi migration `SeedHandoverCreateAccess`, `SeedHandoverRespondAccess` và `SeedHandoverManageAccess` (và `seed_dev_data.sql` cho môi trường dev); chỉ gán cho role đã tồn tại. Quyền chỉ cho phép gọi API: việc chỉ quản lý trực tiếp của assignee mới được chuyển và chỉ người nhận mới được trả lời vẫn kiểm tra trong service (403 `FORBIDDEN`).
 
 ## 3. Tạo yêu cầu — `POST /works/{workId}/handovers`
 
@@ -56,10 +61,18 @@ Các quyền được seed bởi migration `SeedHandoverCreateAccess`, `SeedHand
 
 ### Quy tắc nghiệp vụ
 
-1. Người tạo phải là **assignee hiện tại**, hoặc **quản lý trực tiếp** của assignee (`employee.managerId` của assignee là người gọi) **và** có quyền `handover:set_share` (Manager). Trường hợp thứ hai là **chuyển ngay**: yêu cầu lưu `ACCEPTED`, `acceptedAt` = giờ máy chủ, `approvedBy` = quản lý; `fromEmployeeId` là assignee cũ; công việc đổi `assigneeEmployeeId` sang người nhận và sang `HANDED_OVER` trong cùng lần lưu. Admin không phải quản lý trực tiếp thì không chuyển được (giống hủy / hoàn tất công việc).
+1. Người tạo phải là **quản lý trực tiếp** của assignee (`employee.managerId` của assignee là người gọi) **và** có quyền `handover:set_share` (Manager). Bàn giao là **chuyển ngay**: yêu cầu lưu `ACCEPTED`, `acceptedAt` = giờ máy chủ, `approvedBy` = quản lý; `fromEmployeeId` là assignee cũ; công việc đổi `assigneeEmployeeId` sang người nhận và sang `HANDED_OVER` trong cùng lần lưu. Assignee tự bàn giao, Manager bàn giao việc của chính mình và Admin không phải quản lý trực tiếp đều nhận 403.
 2. Công việc phải ở `NEW` hoặc `IN_PROGRESS` (theo `WorkStateMachine`, action `Handover`).
-3. **BR-01 — ngưỡng số tiền:** `amount` lớn hơn `Handover:AmountThreshold` thì bị chặn (cấu hình trong `appsettings.json` hoặc biến môi trường `Handover__AmountThreshold`; mặc định 500.000.000). `amount` đúng bằng ngưỡng vẫn hợp lệ.
-4. Công việc không được có yêu cầu bàn giao `PENDING` khác (kể cả khi quản lý muốn chuyển ngay: phải đợi yêu cầu đó được trả lời).  Ràng buộc được bảo đảm cả ở DB bằng partial unique index `ux_task_handover_pending_work`, nên hai request đồng thời cũng chỉ một request thành công, request còn lại nhận 409.
+3. **BR-01 — ngưỡng số tiền:** `amount` lớn hơn tham số hệ thống `handoverThresholdVnd` (SCR-ADM-04, mặc định 500.000.000) thì bị chặn. `amount` đúng bằng ngưỡng vẫn hợp lệ.
+4. Công việc không được có yêu cầu bàn giao `PENDING` cũ (phải được trả lời trước). Ràng buộc được bảo đảm cả ở DB bằng partial unique index `ux_task_handover_pending_work`, nên hai request đồng thời cũng chỉ một request thành công, request còn lại nhận 409.
+
+### 3.1. Chuyển kỳ vọng KPI giữa hai target tháng
+
+Trong cùng lần lưu với việc chuyển công việc, với `X = Work.targetValue` (bỏ qua khi `null` hoặc `<= 0`) và mỗi KPI `SUM` đang có hiệu lực của loại công việc (`WorkTypeKpi`), ở **tháng hiện tại** (giờ UTC+7) và **tháng sau**:
+
+- target `ACTIVE` của người giao giảm `min(X, target hiện có)` (không xuống dưới 0), target của người nhận tăng đúng lượng đó, nên tổng hai người không đổi;
+- target đang có hiệu lực (BR-15) được đóng đến hôm qua (`SUPERSEDED`) và thay bằng version mới có hiệu lực từ hôm nay, `changeReason` = `Bàn giao công việc <mã>`, `changedByEmployeeId` = quản lý; target bắt đầu từ hôm nay trở đi (thường là tháng sau) được sửa tại chỗ;
+- **bỏ qua tháng/KPI đó, vẫn chuyển công việc** khi: không có `targetValue` hoặc loại công việc, KPI không có hiệu lực hoặc không phải `SUM`, người giao hoặc người nhận chưa có target, hai target thuộc target cha khác nhau hoặc có target con đang `ACTIVE`, kỳ đã khóa (`LOCKED` / `CLOSED`, hard-lock).
 
 ## 4. Chấp nhận / từ chối — `POST /handovers/{id}/accept|reject`
 
@@ -100,7 +113,7 @@ Chỉ `reassign` có body:
 | Tình huống | HTTP | `errorCode` |
 |---|---|---|
 | Thiếu / sai `toEmployeeId`, `reason`, `amount`, `referrerSharePercent`; bàn giao cho chính assignee hiện tại; người nhận không `ACTIVE` | 400 | `VALIDATION_ERROR` |
-| Không có quyền `handover:create` / `handover:respond` / `handover:manage`; tạo mà không phải assignee hoặc quản lý trực tiếp của assignee; trả lời mà không phải người nhận; xử lý kiểu quản lý mà không phải quản lý trực tiếp của người giao; gửi `referrerSharePercent` mà không có `handover:set_share` | 403 | `FORBIDDEN` |
+| Không có quyền `handover:create` / `handover:respond` / `handover:manage`; tạo mà không phải quản lý trực tiếp của assignee (kể cả assignee tự bàn giao); trả lời mà không phải người nhận; xử lý kiểu quản lý mà không phải quản lý trực tiếp của người giao; gửi `referrerSharePercent` mà không có `handover:set_share` | 403 | `FORBIDDEN` |
 | Không có công việc / người nhận / yêu cầu bàn giao | 404 | `NOT_FOUND` |
 | Công việc không ở trạng thái cho phép bàn giao (lúc tạo hoặc lúc chấp nhận), hoặc đã đổi người phụ trách | 409 | `WORK_INVALID_STATE` |
 | Đã có yêu cầu `PENDING` | 409 | `HANDOVER_ALREADY_PENDING` |
