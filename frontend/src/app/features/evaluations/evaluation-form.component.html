@@ -233,7 +233,7 @@
             <div class="metric-head">
               <span class="metric-title">{{localization.evaluationForm.metricTierTitle}}</span>
               @if (data.currentEvaluation.finalTierCode; as tier) {
-                <span class="metric-pill pill-info font-mono">Tier {{tier}}</span>
+                <span class="metric-pill pill-info font-mono">{{i18n.translate('evaluationForm.proposedTier', { tier })}}</span>
               }
             </div>
             <div class="metric-body">

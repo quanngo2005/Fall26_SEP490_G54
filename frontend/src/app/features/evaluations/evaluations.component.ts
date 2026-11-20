@@ -169,7 +169,7 @@ function sumKpiScores(scores: (number | null | undefined)[]): number | null {
     './evaluations.table.scss',
     './evaluations.layout.scss',
     './evaluations.metric-cards.scss',
-  ], // vite-reload: 1
+  ],
 })
 export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   private readonly evaluationService = inject(EvaluationService);
