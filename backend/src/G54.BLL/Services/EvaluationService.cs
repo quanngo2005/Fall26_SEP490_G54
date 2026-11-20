@@ -32,11 +32,11 @@ public sealed partial class EvaluationService(
     private SystemParametersOptions Params => systemParameters;
     private const decimal DefaultTierACapPercent = 20m;
     /// <summary>
-    /// An evaluation that was never sent for review (still a draft or only calculated) cannot be locked. One definition
+    /// An evaluation that was not yet submitted to the branch (or confirmed by it) cannot be locked. One definition
     /// shared by the approval overview's <c>CanFinalize</c> flag and the finalize action that enforces it.
     /// </summary>
     private static readonly Expression<Func<PerformanceEvaluation, bool>> NotReadyToLock =
-        pe => pe.Status == PerformanceEvaluationStatus.Draft || pe.Status == PerformanceEvaluationStatus.Calculated;
+        pe => pe.Status != PerformanceEvaluationStatus.Submitted && pe.Status != PerformanceEvaluationStatus.Final && pe.Status != PerformanceEvaluationStatus.Disputed;
 
     private static readonly Func<PerformanceEvaluation, bool> NotReadyToLockCompiled = NotReadyToLock.Compile();
 
@@ -69,12 +69,6 @@ public sealed partial class EvaluationService(
             LogLevel.Information,
             new EventId(4, "PeriodFinalized"),
             "Evaluation period {PeriodId} finalized and hard-locked: TotalFinalized={TotalFinalized}");
-
-    private static readonly Action<ILogger, Guid, Guid, DateTimeOffset, Exception?> LogEvaluationAcknowledged =
-        LoggerMessage.Define<Guid, Guid, DateTimeOffset>(
-            LogLevel.Information,
-            new EventId(6, "EvaluationAcknowledged"),
-            "Performance evaluation {EvaluationId} acknowledged by Employee {EmployeeId} at {AcknowledgedAt}");
 
     public async Task<EvaluationFormDto> GetEvaluationFormAsync(
         Guid employeeId,
@@ -174,12 +168,6 @@ public sealed partial class EvaluationService(
         var totalScore = keepsStoredScore ? existingEvaluation!.TotalScore : calculatedTotalScore;
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
-        // Tier on the evaluation form: the calibrated tier when one was assigned, otherwise the tier the score and risks give.
-        var calibratedTier = stored.CalibrationData?.CalibratedTier
-            ?? (totalScore.HasValue
-                ? TierDeterminer.DetermineTier(totalScore.Value, scored.RiskEvents, downgradeConfiguration)
-                : null);
-
         var employeeDto = new EvaluationEmployeeDto(
             employee.Id,
             employee.EmployeeCode,
@@ -210,20 +198,22 @@ public sealed partial class EvaluationService(
             operationsScore,
             totalRiskPenalty,
             totalScore,
-            calibratedTier,
             weightedKpiScore);
 
         var currentEvaluationDto = new PerformanceEvaluationStateDto(
             existingEvaluation?.Id,
             existingEvaluation?.TotalScore,
-            (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToString().ToUpperInvariant(),
+            (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToEnumString(),
             null,
             null,
             existingEvaluation?.CalculatedAt,
             existingEvaluation?.ApprovedAt,
             stored.Comment,
             stored.CoachingPlan,
-            !string.IsNullOrWhiteSpace(stored.CoachingPlan));
+            !string.IsNullOrWhiteSpace(stored.CoachingPlan),
+            FinalTierCode: existingEvaluation?.Status == PerformanceEvaluationStatus.Final && existingEvaluation is not null
+                ? ResolveFinalTierCode(existingEvaluation)
+                : null);
 
         var pendingSubmissionCount = (await LoadPendingSubmissionCountsAsync([employeeId], period, cancellationToken))
             .GetValueOrDefault(employeeId);
@@ -281,6 +271,7 @@ public sealed partial class EvaluationService(
             summaryDto,
             currentEvaluationDto,
             canEdit,
+            canEdit && IsRankingLocked(period),
             pendingSubmissionCount,
             openAppealCount,
             hasOpenDispute,
@@ -406,6 +397,13 @@ public sealed partial class EvaluationService(
             throw new ValidationException("Cần nhập nhận xét trước khi hoàn tất đánh giá.");
         }
 
+        if (!request.IsDraft && !IsRankingLocked(period))
+        {
+            throw new ConflictException(
+                "Chưa đến ngày chốt kỳ đánh giá nên chưa thể hoàn tất đánh giá. Hãy lưu nháp.",
+                ErrorCodes.PeriodNotLockedYet);
+        }
+
         // Qualitative groups are excluded from the evaluation form and do not affect the saved KPI total score.
         var rawScored = (await calculator.CalculateAsync(
             [new PerformanceScoreSubject(employee.Id, employee.DepartmentId, profile, new Dictionary<Guid, QualitativeScoreInputDto>())],
@@ -429,6 +427,7 @@ public sealed partial class EvaluationService(
         }
 
         var stored = ParseStoredComment(existingEvaluation?.Comment, logger);
+        var wasCalculated = existingEvaluation?.Status == PerformanceEvaluationStatus.Calculated;
         var storedComment = BuildStoredComment(
             request.Comment,
             request.CoachingPlan,
@@ -462,6 +461,13 @@ public sealed partial class EvaluationService(
 
         LogEvaluationSaved(logger, request.EmployeeId, request.PeriodId, evaluation.TotalScore, evaluation.Status.ToString(), null);
 
+        if (!request.IsDraft && !wasCalculated && evaluation.Status == PerformanceEvaluationStatus.Calculated && notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.EvaluationCalculated(employee, period, reviewer),
+                cancellationToken);
+        }
+
         var calibratedTier = stored.CalibrationData?.CalibratedTier;
 
         var message = request.IsDraft
@@ -473,7 +479,7 @@ public sealed partial class EvaluationService(
             request.EmployeeId,
             request.PeriodId,
             evaluation.TotalScore,
-            evaluation.Status.ToString().ToUpperInvariant(),
+            evaluation.Status.ToEnumString(),
             calibratedTier,
             evaluation.CalculatedAt,
             message);
@@ -552,7 +558,7 @@ public sealed partial class EvaluationService(
         return employees.Select(emp =>
         {
             evalDict.TryGetValue(emp.Id, out var pe);
-            var status = pe != null ? pe.Status.ToString().ToUpperInvariant() : "NOT_STARTED";
+            var status = pe != null ? pe.Status.ToEnumString() : "NOT_STARTED";
             risksByEmployee.TryGetValue(emp.Id, out var empRisks);
             var tier = pe?.TotalScore != null
                 ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
@@ -885,7 +891,7 @@ public sealed partial class EvaluationService(
                 }
             }
 
-            var evalStatus = pe != null ? pe.Status.ToString().ToUpperInvariant() : "NOT_STARTED";
+            var evalStatus = pe != null ? pe.Status.ToEnumString() : "NOT_STARTED";
 
             unrankedRows.Add(new CalibrationEmployeeRowDto(
                 emp.Id,
@@ -964,13 +970,9 @@ public sealed partial class EvaluationService(
             {
                 overallStatus = "FINAL";
             }
-            else if (rankedRoster.All(r => r.EvaluationStatus == "APPROVED"))
+            else if (rankedRoster.Any(r => r.EvaluationStatus == "SUBMITTED"))
             {
-                overallStatus = "APPROVED";
-            }
-            else if (rankedRoster.Any(r => r.EvaluationStatus == "IN_REVIEW"))
-            {
-                overallStatus = "IN_REVIEW";
+                overallStatus = "SUBMITTED";
             }
             else if (rankedRoster.Any(r => r.EvaluationStatus == "CALCULATED"))
             {
@@ -979,7 +981,7 @@ public sealed partial class EvaluationService(
         }
 
         var canSubmit = period.Status is PeriodStatus.Open or PeriodStatus.InReview
-            && overallStatus is not "FINAL" and not "APPROVED";
+            && overallStatus is not "FINAL";
 
         return new CalibrationOverviewDto(
             deptDto,
@@ -1076,7 +1078,7 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var targetStatus = request.IsDraft
             ? PerformanceEvaluationStatus.Calculated
-            : PerformanceEvaluationStatus.InReview;
+            : PerformanceEvaluationStatus.Submitted;
 
         // An employee without an evaluation gets one scored by the shared calculator, like a form save. Without a profile
         // there is nothing to score, so the request is refused before anything is changed.
@@ -1169,7 +1171,7 @@ public sealed partial class EvaluationService(
             {
                 if (pe.Status is PerformanceEvaluationStatus.Calculated or PerformanceEvaluationStatus.Draft)
                 {
-                    pe.Status = PerformanceEvaluationStatus.InReview;
+                    pe.Status = PerformanceEvaluationStatus.Submitted;
                     pe.UpdatedAt = now;
                 }
             }
@@ -1323,11 +1325,7 @@ public sealed partial class EvaluationService(
                 {
                     status = "FINAL";
                 }
-                else if (deptEvaluations.All(pe => pe.Status == PerformanceEvaluationStatus.Approved))
-                {
-                    status = "APPROVED";
-                }
-                else if (deptEvaluations.Any(pe => pe.Status == PerformanceEvaluationStatus.InReview))
+                else if (deptEvaluations.Any(pe => pe.Status == PerformanceEvaluationStatus.Submitted))
                 {
                     status = "IN_REVIEW";
                 }
@@ -1386,7 +1384,7 @@ public sealed partial class EvaluationService(
             && disputedPendingCount == 0
             && !notReadyToLock
             && deptSummaries.Count > 0
-            && deptSummaries.All(d => d.Status is "IN_REVIEW" or "APPROVED" or "FINAL");
+            && deptSummaries.All(d => d.Status is "IN_REVIEW" or "FINAL");
 
         return new BranchApprovalOverviewDto(
             periodDto,
@@ -1448,10 +1446,10 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var reasonTrimmed = request.Reason.Trim();
 
-        // Only the evaluations under review go back to CALCULATED; an approved or final one is not reopened by a recalibration request.
-        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending() && e.Status is not (PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final)))
+        // Only the evaluations under review go back to CALCULATED; a confirmed or final one is not reopened by a recalibration request.
+        foreach (var pe in evaluations.Where(e => !e.IsDisputedPending() && e.Status is not PerformanceEvaluationStatus.Final))
         {
-            if (pe.Status == PerformanceEvaluationStatus.InReview)
+            if (pe.Status == PerformanceEvaluationStatus.Submitted)
             {
                 pe.Status = PerformanceEvaluationStatus.Calculated;
             }
@@ -1537,9 +1535,9 @@ public sealed partial class EvaluationService(
 
         foreach (var pe in evaluations)
         {
-            if (pe.Status is PerformanceEvaluationStatus.InReview or PerformanceEvaluationStatus.Calculated)
+            if (pe.Status is PerformanceEvaluationStatus.Submitted or PerformanceEvaluationStatus.Calculated)
             {
-                pe.Status = PerformanceEvaluationStatus.Approved;
+                pe.Status = PerformanceEvaluationStatus.Final;
                 if (!string.IsNullOrWhiteSpace(noteTrimmed))
                 {
                     pe.Comment = SetStoredMarker(pe.Comment, ApprovalCommentsMarkerRegex(), "APPROVAL_COMMENTS", noteTrimmed);
@@ -1563,7 +1561,7 @@ public sealed partial class EvaluationService(
         return new DepartmentApprovalResultDto(
             departmentId,
             request.PeriodId,
-            "APPROVED",
+            "FINAL",
             approvedCount,
             "Đã phê duyệt kết quả xếp hạng phòng ban thành công.");
     }
@@ -1655,7 +1653,7 @@ public sealed partial class EvaluationService(
             {
                 unapprovedDepts++;
             }
-            else if (!deptEvals.All(pe => pe.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+            else if (!deptEvals.All(pe => pe.Status is PerformanceEvaluationStatus.Final))
             {
                 unapprovedDepts++;
             }
@@ -1943,13 +1941,13 @@ public sealed partial class EvaluationService(
                     continue;
                 }
 
-                if (dEvals.Any(e => e.Status is PerformanceEvaluationStatus.InReview
-                    or PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+                if (dEvals.Any(e => e.Status is PerformanceEvaluationStatus.Submitted
+                    or PerformanceEvaluationStatus.Final))
                 {
                     submittedDepts++;
                 }
 
-                if (dEvals.All(e => e.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final))
+                if (dEvals.All(e => e.Status is PerformanceEvaluationStatus.Final))
                 {
                     approvedDepts++;
                 }
@@ -2434,9 +2432,6 @@ public sealed partial class EvaluationService(
     [GeneratedRegex(@"<!--\s*APPROVAL_COMMENTS:\s*(.*?)\s*-->", RegexOptions.Singleline)]
     private static partial Regex ApprovalCommentsMarkerRegex();
 
-    [GeneratedRegex(@"<!--\s*ACKNOWLEDGED_AT:\s*(.*?)\s*-->", RegexOptions.Singleline)]
-    private static partial Regex AcknowledgedAtMarkerRegex();
-
     internal sealed record InternalCalibrationData(
         string CalibratedTier,
         string? Reason,
@@ -2449,10 +2444,7 @@ public sealed partial class EvaluationService(
         InternalCalibrationData? CalibrationData,
         string? RecalibrationReason,
         string? ApprovalComments,
-        decimal? GeneralQualitativeScore = null)
-    {
-        public DateTimeOffset? AcknowledgedAt { get; init; }
-    }
+        decimal? GeneralQualitativeScore = null);
 
     private static readonly Action<ILogger, Guid, Exception?> LogQualitativeEntryIgnored =
         LoggerMessage.Define<Guid>(
@@ -2653,18 +2645,6 @@ public sealed partial class EvaluationService(
             working = working.Replace(generalMatch.Value, "");
         }
 
-        DateTimeOffset? acknowledgedAt = null;
-        var ackMatch = AcknowledgedAtMarkerRegex().Match(working);
-        if (ackMatch.Success)
-        {
-            if (DateTimeOffset.TryParse(ackMatch.Groups[1].Value.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedAck))
-            {
-                acknowledgedAt = parsedAck;
-            }
-
-            working = working.Replace(ackMatch.Value, "");
-        }
-
         var clean = working.Trim();
         return new StoredComment(
             string.IsNullOrEmpty(clean) ? null : clean,
@@ -2673,10 +2653,7 @@ public sealed partial class EvaluationService(
             calibData,
             recalibrationReason,
             approvalComments,
-            generalQualitativeScore)
-        {
-            AcknowledgedAt = acknowledgedAt
-        };
+            generalQualitativeScore);
     }
 
     public async Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
@@ -2887,13 +2864,12 @@ public sealed partial class EvaluationService(
         var now = DateTimeOffset.UtcNow;
         var deadlineDate = period.EndDate.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
         var remainingDays = Math.Max(0, (int)Math.Ceiling((deadlineDate - now.UtcDateTime).TotalDays));
-        var evalStatus = (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToString().ToUpperInvariant();
-        var canAppeal = remainingDays > 0 && existingEvaluation?.Status is PerformanceEvaluationStatus.Approved or PerformanceEvaluationStatus.Final;
+        var evalStatus = (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToEnumString();
+        var canAppeal = remainingDays > 0 && existingEvaluation?.Status is PerformanceEvaluationStatus.Calculated or PerformanceEvaluationStatus.Submitted or PerformanceEvaluationStatus.Final;
         var appealDeadlineText = remainingDays > 0
             ? $"23:59 {period.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
             : "—";
 
-        var isAcknowledged = stored.AcknowledgedAt.HasValue;
         var managerFeedback = stored.Comment;
         var riskPenalty = scored?.RiskPenalty ?? 0m;
 
@@ -2918,60 +2894,12 @@ public sealed partial class EvaluationService(
             Criteria: criteria,
             QualityRatio: null,
             RiskPenalty: riskPenalty,
-            ManagerFeedback: managerFeedback,
-            IsAcknowledged: isAcknowledged,
-            AcknowledgedAt: stored.AcknowledgedAt);
+            ManagerFeedback: managerFeedback);
     }
 
-    public async Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
-        AcknowledgePersonalEvaluationRequestDto request,
-        Guid currentUserId,
-        CancellationToken cancellationToken = default)
+    private string ResolveFinalTierCode(PerformanceEvaluation pe)
     {
-        var employee = await ResolveEmployeeAsync(currentUserId, cancellationToken);
-        var pe = await db.PerformanceEvaluations
-            .Include(p => p.EvaluationPeriod)
-            .FirstOrDefaultAsync(p => p.EmployeeId == employee.Id && p.EvaluationPeriodId == request.PeriodId, cancellationToken)
-            ?? throw new NotFoundException("Kết quả đánh giá trong kỳ này", request.PeriodId);
-
-        var stored = ParseStoredComment(pe.Comment, logger);
-        if (stored.AcknowledgedAt.HasValue)
-        {
-            return new AcknowledgePersonalEvaluationResultDto(
-                Success: true,
-                AcknowledgedAt: stored.AcknowledgedAt.Value,
-                Message: "Bạn đã ghi nhận kết quả đánh giá này rồi.");
-        }
-
-        // BR-31: a score under dispute cannot be acknowledged until the appeal is resolved or withdrawn.
-        var openAppealEmployees = await LoadOpenAppealEmployeesAsync([employee.Id], pe.EvaluationPeriod, cancellationToken);
-        var hasOpenAppeal = openAppealEmployees.Count > 0;
-        if (pe.IsDisputedPending() || hasOpenAppeal)
-        {
-            throw PerformanceEvaluationExtensions.DisputePendingConflict(
-                "Điểm đánh giá đang tranh chấp (Disputed_Pending) nên không thể xác nhận kết quả cho đến khi khiếu nại được xử lý hoặc rút lại.");
-        }
-
-        if (pe.Status == PerformanceEvaluationStatus.Draft || !pe.TotalScore.HasValue)
-        {
-            throw new ConflictException(
-                $"Đánh giá đang ở trạng thái {pe.Status.ToEnumString()}, chưa hoàn tất nên không thể xác nhận kết quả.",
-                ErrorCodes.PerformanceEvaluationInvalidState);
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        pe.Comment = SetStoredMarker(pe.Comment, AcknowledgedAtMarkerRegex(), "ACKNOWLEDGED_AT", now.ToString("O"));
-        pe.UpdatedAt = now;
-
-        await SaveEvaluationChangesAsync(
-            "Đánh giá hiệu suất vừa được cập nhật bởi một yêu cầu khác. Hãy tải lại rồi thử lại.",
-            cancellationToken);
-        LogEvaluationAcknowledged(logger, pe.Id, employee.Id, now, null);
-
-        return new AcknowledgePersonalEvaluationResultDto(
-            Success: true,
-            AcknowledgedAt: now,
-            Message: "Ghi nhận kết quả đánh giá thành công.");
+        return ParseStoredComment(pe.Comment, logger).CalibrationData?.CalibratedTier ?? "B";
     }
 
     public async Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(

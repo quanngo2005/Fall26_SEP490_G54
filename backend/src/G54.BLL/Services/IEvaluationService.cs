@@ -131,11 +131,6 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
-    Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
-        AcknowledgePersonalEvaluationRequestDto request,
-        Guid currentUserId,
-        CancellationToken cancellationToken = default);
-
     Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(
         Guid periodId,
         Guid criteriaId,

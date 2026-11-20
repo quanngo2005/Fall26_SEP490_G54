@@ -96,8 +96,7 @@ Response 200 (`data`):
       "quantitativeScore": { "value": 88.2, "previousValue": 85.0, "change": 3.2 },
       "systemTier": "A3",
       "finalTier": "A3",
-      "adjustmentReason": null,
-      "isConfirmed": true
+      "adjustmentReason": null
     }
   ],
   "generatedAt": "2026-11-19T00:00:00Z"
@@ -107,9 +106,9 @@ Response 200 (`data`):
 - `tiers` chỉ có A1, A2, A3, B. Hạng C không có dòng riêng; FE tính `C = tổng nhân viên − tổng actualCount của A1–B`.
 - Delta `change = value − previousValue`, `null` khi thiếu một trong hai giá trị.
 - `systemTier`, `finalTier`: `null` khi nhân viên chưa có điểm.
-- `sendBlockers`: danh sách lý do bằng tiếng Việt, rỗng khi `canSendToDirector = true`.
+- `sendBlockers`: danh sách lý do bằng tiếng Việt, rỗng khi `canSendToDirector = true`. Gồm: còn nhân viên đang khiếu nại (`DISPUTED`); còn nhân viên chưa ở `CALCULATED`; thiếu lý do điều chỉnh hạng; slot hạng không khớp. Không còn cổng thời gian theo ngày khóa.
 - `rankingLockDate`: ngày chốt cụ thể của kỳ (`yyyy-MM-dd`), tính từ `rankingLockDay` và loại kỳ (tháng, quý, năm).
-- `isSentToDirector`: `true` khi đã gửi giám đốc chi nhánh, tức mọi đánh giá của nhân viên trong bảng đã ở `IN_REVIEW` trở lên (có ít nhất một nhân viên).
+- `isSentToDirector`: `true` khi đã gửi giám đốc chi nhánh, tức mọi đánh giá của nhân viên trong bảng đã ở `SUBMITTED` hoặc `FINAL` (có ít nhất một nhân viên).
 
 Lỗi: 400 `VALIDATION_ERROR` (thiếu `periodId`; hiện đang trả 404, cần thống nhất), 401, 403, 404 `NOT_FOUND` (kỳ, kỳ so sánh hoặc phòng không tồn tại).
 

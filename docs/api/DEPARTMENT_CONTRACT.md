@@ -322,9 +322,10 @@ Field definitions:
   Groups are ordered by `displayOrder` (the lowest of the merged roots), then name; KPIs inside by code.
   `weights[]` = one entry per profile owning that root: `jobPositionId`, `jobPositionTitle`, the root's `weightPercent`,
   ordered by title; empty for the `null` group.
-  Each KPI adds `previousAchievementPercent` (same formula on `comparePeriod`, target assignment of that period; `null`
+  Each KPI adds `previousActualValue` (its `actualValue` on `comparePeriod`; `null` without it), `previousAchievementPercent` (same formula on `comparePeriod`, target assignment of that period; `null`
   without `comparePeriod` or data), `achievementChange` (= `achievementPercent - previousAchievementPercent`, `null` if
-  either is `null`) and `campaignActualValue` (BR-26): the part of `actualValue` that came from campaign
+  either is `null`), `weight` (the effective weight of the KPI in its group, in %), `score` (= `achievementPercent × weight / 100`,
+  rounded to 2 decimals, `null` without `achievementPercent`) and `previousScore` (same formula on `previousAchievementPercent`, `null` without it) and `campaignActualValue` (BR-26): the part of `actualValue` that came from campaign
   work, i.e. the sum of `work_result_item.raw_value` of `VALID` verified results whose work has a `business_campaign_id`,
   linked to the same progress rows. Only defined for `SUM` KPIs (`null` for `AVG`/`RATIO`/`NO_AGGREGATION` and when
   `actualValue` is `null`). BAU = `actualValue - campaignActualValue`.

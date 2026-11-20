@@ -32,7 +32,7 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
 
         Assert.Equal(_departmentId, result.DepartmentId);
         Assert.Equal(
-            new (string, int?)[] { ("A1", null), ("A2", null), ("A3", null), ("B", null) },
+            new (string, int?)[] { ("A1", null), ("A2", null), ("A3", null), ("B", null), ("C", null) },
             result.Slots.Select(s => (s.TierCode, s.Headcount)).ToList());
     }
 
@@ -44,9 +44,9 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
         var result = await service.UpdateAsync(Request(a1: 2, a2: 3, a3: 4, b: 6));
 
         Assert.Equal(
-            new (string, int?)[] { ("A1", 2), ("A2", 3), ("A3", 4), ("B", 6) },
+            new (string, int?)[] { ("A1", 2), ("A2", 3), ("A3", 4), ("B", 6), ("C", 5) },
             result.Slots.Select(s => (s.TierCode, s.Headcount)).ToList());
-        Assert.Equal(4, await _db.RankingSlotQuotas.CountAsync());
+        Assert.Equal(5, await _db.RankingSlotQuotas.CountAsync());
     }
 
     [Fact]
@@ -55,10 +55,10 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
         var service = new RankingSlotQuotaService(_db);
         await service.UpdateAsync(Request(a1: 2, a2: 3, a3: 4, b: 6));
 
-        var result = await service.UpdateAsync(Request(a1: 1, a2: 1, a3: 1, b: 1));
+        var result = await service.UpdateAsync(Request(a1: 1, a2: 1, a3: 1, b: 1, c: 1));
 
-        Assert.Equal(4, await _db.RankingSlotQuotas.CountAsync());
-        Assert.Equal(new int?[] { 1, 1, 1, 1 }, result.Slots.Select(s => s.Headcount).ToList());
+        Assert.Equal(5, await _db.RankingSlotQuotas.CountAsync());
+        Assert.Equal(new int?[] { 1, 1, 1, 1, 1 }, result.Slots.Select(s => s.Headcount).ToList());
     }
 
     [Fact]
@@ -111,6 +111,7 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
             new RankingSlotQuotaDto("A2", 3),
             new RankingSlotQuotaDto("A3", 4),
             new RankingSlotQuotaDto("B", 6),
+            new RankingSlotQuotaDto("C", 5),
         ]);
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.UpdateAsync(request));
@@ -124,11 +125,12 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAsync(Guid.NewGuid()));
     }
 
-    private UpdateRankingSlotQuotasDto Request(int a1, int a2, int a3, int b) => new(_departmentId,
+    private UpdateRankingSlotQuotasDto Request(int a1, int a2, int a3, int b, int c = 5) => new(_departmentId,
     [
         new RankingSlotQuotaDto("A1", a1),
         new RankingSlotQuotaDto("A2", a2),
         new RankingSlotQuotaDto("A3", a3),
         new RankingSlotQuotaDto("B", b),
+        new RankingSlotQuotaDto("C", c),
     ]);
 }

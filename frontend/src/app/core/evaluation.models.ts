@@ -3,7 +3,7 @@
 export type EvaluationPeriodStatus = 'OPEN' | 'IN_REVIEW' | 'LOCKED' | 'CLOSED';
 
 export type PerformanceEvaluationStatus =
-  'NOT_STARTED' | 'DRAFT' | 'CALCULATED' | 'IN_REVIEW' | 'APPROVED' | 'DISPUTED' | 'FINAL';
+  'DRAFT' | 'DISPUTED' | 'CALCULATED' | 'SUBMITTED' | 'FINAL';
 
 export interface EvaluationPeriodOption {
   id: string;
@@ -107,9 +107,7 @@ export interface EvaluationCalculationSummary {
   operationsScore: number | null;
   totalRiskPenalty: number;
   totalScore: number | null;
-  proposedTier: string | null;
   weightedScore: number | null;
-  proposedTierExplanation?: string[] | null;
 }
 
 export interface PerformanceEvaluationState {
@@ -123,6 +121,8 @@ export interface PerformanceEvaluationState {
   comment: string | null;
   coachingPlan: string | null;
   coachingRequired: boolean;
+  /** Set only when the record is FINAL. */
+  finalTierCode: string | null;
 }
 
 export interface PreviousPeriodSummary {
@@ -163,6 +163,7 @@ export interface EvaluationFormModel {
   summary: EvaluationCalculationSummary;
   currentEvaluation: PerformanceEvaluationState;
   canEdit: boolean;
+  canComplete: boolean;
   pendingSubmissionCount: number;
   openAppealCount: number;
   hasOpenDispute: boolean;
@@ -323,7 +324,7 @@ export interface RankingBoardStaffRow {
   systemTier: RankingTierCode | null;
   finalTier: RankingTierCode | null;
   adjustmentReason: string | null;
-  isConfirmed: boolean;
+  evaluationStatus: PerformanceEvaluationStatus;
 }
 
 export interface RankingBoardOverview {
@@ -507,18 +508,26 @@ export interface PersonalEvaluationView {
   qualityRatio: number | null;
   riskPenalty: number;
   managerFeedback: string | null;
-  isAcknowledged: boolean;
-  acknowledgedAt: string | null;
 }
 
-export interface AcknowledgePersonalEvaluationRequest {
+export interface EvaluationFlowRequest {
+  employeeId: string;
   periodId: string;
 }
 
-export interface AcknowledgePersonalEvaluationResult {
-  success: boolean;
-  acknowledgedAt: string;
+export interface ReturnEvaluationRequest extends EvaluationFlowRequest {
+  reason: string;
+}
+
+export interface EvaluationFlowResult {
+  evaluationId: string;
+  status: PerformanceEvaluationStatus;
   message: string;
+}
+
+export interface FinalizeEvaluationResult extends EvaluationFlowResult {
+  finalTierCode: string;
+  finalizedAt: string;
 }
 
 export interface PersonalCriteriaLedgerItem {
@@ -550,9 +559,12 @@ export interface DepartmentEvaluationGroupKpi {
   targetValue: number;
   actualValue: number | null;
   achievementPercent: number | null;
+  previousActualValue: number | null;
   previousAchievementPercent: number | null;
   changeFromPreviousPercent: number | null;
+  weight: number | null;
   score?: number | null;
+  previousScore?: number | null;
 }
 
 export interface DepartmentEvaluationKpiGroup {
@@ -629,6 +641,7 @@ export interface DepartmentEvaluationStaffGroupScore {
   displayOrder: number;
   weightPercent: number;
   score: number | null;
+  previousScore?: number | null;
 }
 
 export type DepartmentEvaluationStaffRowStatus = 'FINAL' | 'APPEAL' | 'PIP' | 'PENDING';
@@ -645,6 +658,7 @@ export interface DepartmentEvaluationStaffRow {
   scoreDelta: number | null;
   tierCode: string | null;
   onTimeSlaPercent: number | null;
+  previousOnTimeSlaPercent?: number | null;
   status: DepartmentEvaluationStaffRowStatus;
   evaluationStatus: string;
   canOpenForm: boolean;

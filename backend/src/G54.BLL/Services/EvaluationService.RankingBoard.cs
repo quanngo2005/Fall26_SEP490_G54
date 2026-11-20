@@ -55,9 +55,9 @@ public sealed partial class EvaluationService
             : await ResolveRankingComparePeriodAsync(period, cancellationToken);
         var staffRows = await BuildRankingStaffRowsAsync(rows, period, comparePeriod, currentUserId, cancellationToken);
 
-        var blockers = BuildRankingSendBlockers(tiers, staffRows);
+        var blockers = BuildRankingSendBlockers(tiers, staffRows, calibration.DisputedPendingCount);
         var isLocked = IsRankingLocked(period);
-        var isSent = rows.Count > 0 && rows.All(r => r.EvaluationStatus is "IN_REVIEW" or "APPROVED" or "FINAL");
+        var isSent = rows.Count > 0 && rows.All(r => r.EvaluationStatus is "SUBMITTED" or "FINAL");
 
         return new RankingBoardOverviewDto(
             deptId,
@@ -157,7 +157,7 @@ public sealed partial class EvaluationService
         return new RankingBoardSendResultDto(
             request.DepartmentId,
             request.PeriodId,
-            "IN_REVIEW",
+            "SUBMITTED",
             timeProvider.GetUtcNow(),
             "Đã gửi bảng xếp hạng cho giám đốc chi nhánh.");
     }
@@ -329,7 +329,7 @@ public sealed partial class EvaluationService
                 row.ProposedTier,
                 row.CalibratedTier,
                 row.AdjustmentReason,
-                row.EvaluationStatus is "IN_REVIEW" or "APPROVED" or "FINAL"));
+                row.EvaluationStatus));
         }
 
         return staffRows;
@@ -396,7 +396,8 @@ public sealed partial class EvaluationService
 
     private static List<string> BuildRankingSendBlockers(
         IReadOnlyList<RankingBoardTierDto> tiers,
-        IReadOnlyList<RankingBoardStaffRowDto> staffRows)
+        IReadOnlyList<RankingBoardStaffRowDto> staffRows,
+        int disputedCount)
     {
         var blockers = new List<string>();
         foreach (var tier in tiers)
@@ -407,10 +408,15 @@ public sealed partial class EvaluationService
             }
         }
 
-        var unconfirmed = staffRows.Count(r => !r.IsConfirmed);
-        if (unconfirmed > 0)
+        if (disputedCount > 0)
         {
-            blockers.Add($"Còn {unconfirmed} nhân viên chưa được xác nhận.");
+            blockers.Add($"Còn {disputedCount} nhân viên đang khiếu nại (Disputed).");
+        }
+
+        var notCalculated = staffRows.Count(r => r.EvaluationStatus is not "CALCULATED");
+        if (notCalculated > 0)
+        {
+            blockers.Add($"Còn {notCalculated} nhân viên chưa hoàn tất đánh giá (chưa ở trạng thái Calculated).");
         }
 
         var missingReason = staffRows.Count(r => r.FinalTier is not null && r.FinalTier != r.SystemTier && string.IsNullOrWhiteSpace(r.AdjustmentReason));

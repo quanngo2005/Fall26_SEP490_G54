@@ -359,7 +359,7 @@ public sealed class EvaluationFormTests
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
-        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.InReview);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.Submitted);
         var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
@@ -874,7 +874,6 @@ public sealed class EvaluationFormTests
         Assert.Empty(form.CriteriaGroups);
         Assert.Null(form.Summary.WeightedScore);
         Assert.Null(form.Summary.TotalScore);
-        Assert.Null(form.Summary.ProposedTier);
     }
 
     // ----- the previous period keeps the tier that was stored ---------------------------------------

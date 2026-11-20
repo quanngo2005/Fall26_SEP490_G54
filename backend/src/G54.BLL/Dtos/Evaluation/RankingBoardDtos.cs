@@ -31,7 +31,7 @@ public sealed record RankingBoardStaffRowDto(
     string? SystemTier,
     string? FinalTier,
     string? AdjustmentReason,
-    bool IsConfirmed);
+    string EvaluationStatus);
 
 /// <summary>One KPI of the criteria count: its target, its actual value and whether it reached the threshold.</summary>
 public sealed record RankingBoardCriterionDto(

@@ -37,8 +37,7 @@ const SELECTABLE_PERIOD_TYPES = ['YEAR', 'QUARTER', 'MONTH'];
 const STATUS_KEY_MAP: Readonly<Record<string, string>> = {
   DRAFT: 'statusDraft',
   CALCULATED: 'statusCalculated',
-  IN_REVIEW: 'statusInReview',
-  APPROVED: 'statusApproved',
+  SUBMITTED: 'statusSubmitted',
   DISPUTED: 'statusDisputed',
   FINAL: 'statusFinal',
   PUBLISHED: 'statusPublished',
@@ -119,11 +118,6 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
   readonly evaluation = signal<PersonalEvaluationView | null>(null);
   readonly loading = signal<boolean>(true);
   readonly loadFailed = signal<boolean>(false);
-
-  readonly showAcknowledgeModal = signal<boolean>(false);
-  readonly acknowledgeSuccess = signal<boolean>(false);
-  readonly acknowledging = signal<boolean>(false);
-  readonly acknowledgeError = signal<boolean>(false);
 
   readonly selectedDrilldownCriteria = signal<PersonalEvaluationCriteriaItem | null>(null);
   readonly ledgerItems = signal<readonly PersonalCriteriaLedgerItem[]>([]);
@@ -220,9 +214,7 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
 
   @HostListener('keydown.escape')
   onEscape(): void {
-    if (this.showAcknowledgeModal()) {
-      this.closeAcknowledgeModal();
-    } else if (this.selectedDrilldownCriteria()) {
+    if (this.selectedDrilldownCriteria()) {
       this.closeDrilldown();
     }
   }
@@ -313,7 +305,6 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
   private onPeriodSelected(): void {
     const period = this.selectedPeriod();
     if (period) {
-      this.acknowledgeSuccess.set(false);
       this.closeDrilldown();
       this.loadEvaluation(period.id);
     }
@@ -357,48 +348,6 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
 
   private defaultMonth(): number {
     return this.hasQuarterPeriod() ? 0 : (this.monthOptions().slice(-1)[0] ?? 0);
-  }
-
-  openAcknowledgeModal(): void {
-    if (this.evaluation()?.isAcknowledged) {
-      return;
-    }
-    this.acknowledgeError.set(false);
-    this.showAcknowledgeModal.set(true);
-  }
-
-  closeAcknowledgeModal(): void {
-    this.acknowledgeError.set(false);
-    this.showAcknowledgeModal.set(false);
-  }
-
-  confirmAcknowledge(): void {
-    const evalData = this.evaluation();
-    if (!evalData || evalData.isAcknowledged) {
-      return;
-    }
-
-    this.acknowledging.set(true);
-    this.acknowledgeError.set(false);
-    this.evaluationService
-      .acknowledgePersonalEvaluation(evalData.periodId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => {
-          this.acknowledging.set(false);
-          this.showAcknowledgeModal.set(false);
-          this.acknowledgeSuccess.set(true);
-          this.evaluation.set({
-            ...evalData,
-            isAcknowledged: true,
-            acknowledgedAt: result.acknowledgedAt,
-          });
-        },
-        error: () => {
-          this.acknowledging.set(false);
-          this.acknowledgeError.set(true);
-        },
-      });
   }
 
   openDrilldown(crit: PersonalEvaluationCriteriaItem): void {

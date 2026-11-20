@@ -65,19 +65,13 @@ public sealed record EvaluationRiskEventDto(
     decimal PenaltyPoints,
     DateTimeOffset OccurredAt);
 
-/// <summary>
-/// The scores of the form. TotalScore and WeightedScore are null when the profile has no active quantitative KPI group (N/A, never 0);
-/// ProposedTier is the calibrated tier, or the tier the score and risks give when none was calibrated; null when there is no total score.
-/// </summary>
 public sealed record EvaluationCalculationSummaryDto(
     decimal? BusinessScore,
     decimal? ServiceQualityScore,
     decimal? OperationsScore,
     decimal TotalRiskPenalty,
     decimal? TotalScore,
-    string? ProposedTier,
-    decimal? WeightedScore,
-    IReadOnlyList<string>? ProposedTierExplanation = null);
+    decimal? WeightedScore);
 
 public sealed record PerformanceEvaluationStateDto(
     Guid? Id,
@@ -90,7 +84,8 @@ public sealed record PerformanceEvaluationStateDto(
     string? Comment,
     string? CoachingPlan,
     bool CoachingRequired,
-    decimal? GeneralQualitativeScore = null);
+    decimal? GeneralQualitativeScore = null,
+    string? FinalTierCode = null);
 
 public sealed record PreviousPeriodSummaryDto(
     string PeriodCode,
@@ -126,6 +121,7 @@ public sealed record EvaluationFormDto(
     EvaluationCalculationSummaryDto Summary,
     PerformanceEvaluationStateDto CurrentEvaluation,
     bool CanEdit,
+    bool CanComplete,
     int PendingSubmissionCount,
     int OpenAppealCount,
     bool HasOpenDispute,

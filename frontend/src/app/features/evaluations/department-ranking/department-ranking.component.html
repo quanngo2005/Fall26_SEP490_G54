@@ -31,17 +31,21 @@
         </div>
       }
 
-      <header class="page-header ranking-header">
-        <div class="ranking-title-row">
-          <h1 class="page-title font-heading">
-            {{localization.evaluations.departmentRanking.pageTitle}}
-          </h1>
-          <span class="status-chip">{{localization.evaluations.departmentRanking.statusLabel}}</span>
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">
+              {{localization.evaluations.departmentRanking.pageTitle}}
+            </h1>
+            <app-status-badge tone="info">
+              {{localization.evaluations.departmentRanking.statusLabel}}
+            </app-status-badge>
+          </div>
         </div>
-        <div class="page-actions">
+        <div class="ui-page-actions">
           <button
             type="button"
-            class="btn-secondary"
+            class="button button-secondary"
             [disabled]="saving() || !board()"
             (click)="saveDraft()"
           >
@@ -49,7 +53,7 @@
           </button>
           <button
             type="button"
-            class="btn-secondary"
+            class="button button-secondary"
             [disabled]="exporting() || !board()"
             (click)="exportExcel()"
           >
@@ -57,7 +61,7 @@
           </button>
           <button
             type="button"
-            class="btn-export"
+            class="button button-primary"
             [disabled]="!canSend() || sending()"
             (click)="openConfirmSend()"
           >
@@ -66,56 +70,25 @@
         </div>
       </header>
 
-      <div class="filter-row">
-        <label class="filter-field">
-          <span class="filter-label">{{localization.evaluations.departmentRanking.periodTypeLabel}}</span>
-          <span class="period-select-wrap">
-            <select
-              class="period-select period-type-select"
-              [value]="selectedPeriodType()"
-              [attr.aria-label]="localization.evaluations.departmentRanking.periodTypeAria"
-              (change)="onPeriodTypeChange($event)"
-            >
-              @for (type of periodTypes(); track type) {
-                <option [value]="type">{{periodTypeLabel(type)}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </span>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">{{localization.evaluations.departmentRanking.periodLabel}}</span>
-          <span class="period-select-wrap">
-            <select
-              class="period-select"
-              [value]="selectedPeriodId() ?? ''"
-              [attr.aria-label]="localization.evaluations.departmentRanking.periodAria"
-              (change)="onPeriodChange($event)"
-            >
-              @for (period of filteredPeriods(); track period.id) {
-                <option [value]="period.id">{{period.name}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </span>
-        </label>
-        <label class="filter-field">
-          <span class="filter-label">{{localization.evaluations.departmentRanking.compareLabel}}</span>
-          <span class="period-select-wrap">
-            <select
-              class="period-select compare-select"
-              [value]="selectedComparePeriodId() ?? ''"
-              [attr.aria-label]="localization.evaluations.departmentRanking.compareAria"
-              (change)="onComparePeriodChange($event)"
-            >
-              <option value="">{{localization.evaluations.departmentRanking.compareNone}}</option>
-              @for (period of comparePeriods(); track period.id) {
-                <option [value]="period.id">{{period.name}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </span>
-        </label>
+      <div class="ui-filter-bar">
+        <app-ui-select
+          [options]="periodTypeOptions()"
+          [value]="selectedPeriodType()"
+          [ariaLabel]="localization.evaluations.departmentRanking.periodTypeAria"
+          (valueChange)="onPeriodTypeSelected($event)"
+        />
+        <app-ui-select
+          [options]="periodOptions()"
+          [value]="selectedPeriodId() ?? ''"
+          [ariaLabel]="localization.evaluations.departmentRanking.periodAria"
+          (valueChange)="onPeriodValueSelected($event)"
+        />
+        <app-ui-select
+          [options]="comparePeriodOptions()"
+          [value]="selectedComparePeriodId() ?? ''"
+          [ariaLabel]="localization.evaluations.departmentRanking.compareAria"
+          (valueChange)="onComparePeriodSelected($event)"
+        />
         @if (board(); as data) {
           <div
             class="lock-notice"
@@ -149,46 +122,30 @@
                   role="group"
                   [attr.aria-label]="localization.evaluations.departmentRanking.sortLabel"
                 >
-                  <select
-                    class="period-select sort-select"
+                  <app-ui-select
+                    [options]="statusFilterOptions()"
+                    [value]="statusFilter()"
+                    [ariaLabel]="localization.evaluations.departmentRanking.statusFilterAria"
+                    (valueChange)="onStatusFilterSelected($event)"
+                  />
+                  <app-ui-select
+                    [options]="scoreOrderOptions()"
                     [value]="scoreOrder()"
-                    [attr.aria-label]="localization.evaluations.departmentRanking.sortScoreAria"
-                    (change)="onScoreOrderChange($event)"
-                  >
-                    <option value="desc">
-                      {{localization.evaluations.departmentRanking.sortScoreDesc}}
-                    </option>
-                    <option value="asc">
-                      {{localization.evaluations.departmentRanking.sortScoreAsc}}
-                    </option>
-                  </select>
-                  <select
-                    class="period-select sort-select"
+                    [ariaLabel]="localization.evaluations.departmentRanking.sortScoreAria"
+                    (valueChange)="onScoreOrderSelected($event)"
+                  />
+                  <app-ui-select
+                    [options]="compositeSortOptions()"
                     [value]="compositeSort()"
-                    [attr.aria-label]="localization.evaluations.departmentRanking.sortCompositeAria"
-                    (change)="onCompositeSortChange($event)"
-                  >
-                    <option value="none">
-                      {{localization.evaluations.departmentRanking.sortComposite}}
-                    </option>
-                    <option value="scoreChange">
-                      {{localization.evaluations.departmentRanking.sortScoreChange}}
-                    </option>
-                    <option value="sla">
-                      {{localization.evaluations.departmentRanking.sortSla}}
-                    </option>
-                    <option value="criteria">
-                      {{localization.evaluations.departmentRanking.sortCriteria}}
-                    </option>
-                    <option value="risk">
-                      {{localization.evaluations.departmentRanking.sortRisk}}
-                    </option>
-                  </select>
+                    [ariaLabel]="localization.evaluations.departmentRanking.sortCompositeAria"
+                    (valueChange)="onCompositeSortSelected($event)"
+                  />
                 </div>
                 <button
                   type="button"
-                  class="btn-adjust"
-                  [class.btn-cancel-adjust]="adjusting()"
+                  class="button"
+                  [class.button-primary]="!adjusting()"
+                  [class.button-secondary]="adjusting()"
                   [disabled]="!lockReached() || !isCurrentPeriod() || saving()"
                   (click)="toggleAdjusting()"
                 >
@@ -205,6 +162,7 @@
                     <th class="stt-col">{{localization.evaluations.departmentRanking.colStt}}</th>
                     <th>{{localization.evaluations.departmentRanking.colId}}</th>
                     <th>{{localization.evaluations.departmentRanking.colName}}</th>
+                    <th>{{localization.evaluations.departmentRanking.colStatus}}</th>
                     <th class="num-col">{{localization.evaluations.departmentRanking.colSla}}</th>
                     <th class="num-col">
                       {{localization.evaluations.departmentRanking.colTarget}}
@@ -212,10 +170,10 @@
                     <th class="num-col">
                       {{localization.evaluations.departmentRanking.colRisk}}
                     </th>
-                    <th class="num-col">
+                    <th class="num-col penalty-col">
                       {{localization.evaluations.departmentRanking.colPenalty}}
                     </th>
-                    <th class="num-col">
+                    <th class="num-col score-col">
                       {{localization.evaluations.departmentRanking.colScore}}
                     </th>
                     @if (adjusting()) {
@@ -244,6 +202,19 @@
                         >
                           {{row.fullName}}
                         </button>
+                      </td>
+                      <td>
+                        @switch (row.evaluationStatus) {
+                          @case ('DRAFT') {
+                            <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
+                          }
+                          @case ('CALCULATED') {
+                            <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
+                          }
+                          @case ('DISPUTED') {
+                            <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
+                          }
+                        }
                       </td>
                       <td class="num-col">
                         <div class="metric hover-card" (mouseenter)="placePopup($event, onTimeTip)">
@@ -276,17 +247,9 @@
                           </span>
                           <div #criteriaTip class="hover-popup hover-popup-wide" role="tooltip">
                             <div class="popup-title">
-                              {{localization.evaluations.departmentRanking.hoverCriteria}}
+                              {{criteriaTitleText(row)}}
                             </div>
                             <table class="popup-table">
-                              <thead>
-                                <tr>
-                                  <th>{{localization.evaluations.departmentRanking.colName}}</th>
-                                  <th class="num-col">
-                                    {{localization.evaluations.departmentRanking.hoverCriteriaTarget}}
-                                  </th>
-                                </tr>
-                              </thead>
                               <tbody>
                                 @for (criterion of row.criteria; track criterion.kpiName) {
                                   <tr>
@@ -345,7 +308,7 @@
                           }
                         </div>
                       </td>
-                      <td class="num-col">
+                      <td class="num-col penalty-col">
                         <div class="metric">
                           <span class="font-mono">
                             {{row.riskPenalty.value === null
@@ -366,7 +329,7 @@
                           }
                         </div>
                       </td>
-                      <td class="num-col">
+                      <td class="num-col score-col">
                         <div class="metric">
                           <span class="font-mono score-value">
                             {{row.quantitativeScore.value === null
@@ -402,7 +365,7 @@
                         </td>
                       }
                       <td class="tier-col">
-                        @if (isCurrentPeriod() && adjusting()) {
+                        @if (isCurrentPeriod() && adjusting() && canAdjustRow(row)) {
                           <span
                             class="tier-select"
                             [ngClass]="tierClass(finalTierOf(row))"
@@ -523,11 +486,6 @@
                 </tr>
               </tfoot>
             </table>
-            <div class="tier-notes">
-              <p>{{localization.evaluations.departmentRanking.tierNotesSlots}}</p>
-              <p>{{localization.evaluations.departmentRanking.tierNotesActual}}</p>
-              <p>{{localization.evaluations.departmentRanking.tierNotesTick}}</p>
-            </div>
             @if (board() && !canSend() && sendBlockers().length > 0) {
               <div class="alert-banner error" role="alert">
                 <app-layout-icon name="riskEvents" class="alert-icon" />
@@ -555,10 +513,14 @@
             </h2>
             <p class="meta">{{localization.evaluations.departmentRanking.confirmCancelBody}}</p>
             <div class="confirm-actions">
-              <button type="button" class="btn-secondary" (click)="closeConfirmCancel()">
+              <button type="button" class="button button-secondary" (click)="closeConfirmCancel()">
                 {{localization.evaluations.departmentRanking.confirmCancelNo}}
               </button>
-              <button type="button" class="btn-cancel-adjust" (click)="confirmCancelAdjusting()">
+              <button
+                type="button"
+                class="button button-primary"
+                (click)="confirmCancelAdjusting()"
+              >
                 {{localization.evaluations.departmentRanking.confirmCancelYes}}
               </button>
             </div>
@@ -579,12 +541,12 @@
             </h2>
             <p class="meta">{{localization.evaluations.departmentRanking.confirmSendBody}}</p>
             <div class="confirm-actions">
-              <button type="button" class="btn-secondary" (click)="closeConfirmSend()">
+              <button type="button" class="button button-secondary" (click)="closeConfirmSend()">
                 {{localization.evaluations.departmentRanking.cancel}}
               </button>
               <button
                 type="button"
-                class="btn-export"
+                class="button button-primary"
                 [disabled]="sending()"
                 (click)="confirmSend()"
               >

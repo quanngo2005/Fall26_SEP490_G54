@@ -112,6 +112,10 @@ Các sự kiện **đã có** thông báo (người nhận → `type`). Người
 | Quyết định khiếu nại (chấp nhận / yêu cầu bổ sung / từ chối) | Người gửi khiếu nại (`IMPORTANT`) | `APPEAL_DECIDED` |
 | Trưởng phòng trình duyệt bảng hiệu chuẩn | Mọi Giám đốc chi nhánh đang hoạt động và quản lý trực tiếp của người trình (`IMPORTANT`) | `CALIBRATION_SUBMITTED`, `relatedType = EVALUATION_PERIOD` |
 | Giám đốc chi nhánh duyệt / trả lại hiệu chuẩn | Các Trưởng phòng của phòng đó (`IMPORTANT`) | `CALIBRATION_DECIDED` |
+| Hệ thống tính xong đánh giá, chuyển `DRAFT` → `CALCULATED` | Nhân viên được đánh giá (`IMPORTANT`) | `EVALUATION_CALCULATED`, `relatedType = EVALUATION_PERIOD` |
+| Trưởng phòng nộp đánh giá lên giám đốc (`SUBMITTED`) | Mọi Giám đốc chi nhánh đang hoạt động (`IMPORTANT`) | `EVALUATION_SUBMITTED_TO_BRANCH` |
+| Giám đốc trả về để kiểm tra lại (`CALCULATED`) | Trưởng phòng của nhân viên, kèm lý do (`IMPORTANT`) | `EVALUATION_RETURNED` |
+| Giám đốc xác nhận hạng chốt (`FINAL`) | Trưởng phòng của nhân viên (`IMPORTANT`) | `EVALUATION_FINALIZED` |
 | Khóa kỳ đánh giá (công bố kết quả) | Mọi nhân viên đang hoạt động có đánh giá trong kỳ (`IMPORTANT`) | `RESULT_PUBLISHED` |
 | Duyệt / từ chối kế hoạch chiến dịch | Người tham gia chiến dịch (`IMPORTANT` khi từ chối) | `CAMPAIGN_DECIDED` |
 | Duyệt KPI | Người trình và người yêu cầu KPI (`IMPORTANT`) | `KPI_APPROVED` / `KPI_REJECTED` |

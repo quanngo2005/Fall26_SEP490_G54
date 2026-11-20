@@ -479,6 +479,76 @@ internal static class AutomaticNotifications
             .ToList();
     }
 
+    /// <summary>Department manager completed an employee's evaluation (DRAFT -> CALCULATED) -> the employee is told to review it.</summary>
+    public static List<NotificationDraft> EvaluationCalculated(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer)
+    {
+        if (employee.Id == reviewer.Id)
+        {
+            return [];
+        }
+
+        return
+        [
+            new NotificationDraft(
+                employee.Id,
+                NotificationType.EvaluationCalculated,
+                "Kết quả đánh giá đã sẵn sàng",
+                ClampBody($"Trưởng phòng đã hoàn tất đánh giá kỳ {period.Code} của bạn. Bạn có thể xem tại Đánh giá của tôi."),
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id),
+        ];
+    }
+
+    /// <summary>Branch Manager returned an employee's evaluation to CALCULATED -> department managers hear why.</summary>
+    public static List<NotificationDraft> EvaluationReturned(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer,
+        IEnumerable<Guid> deptManagerEmployeeIds,
+        string reason)
+    {
+        return deptManagerEmployeeIds
+            .Where(id => id != reviewer.Id)
+            .Distinct()
+            .Select(id => new NotificationDraft(
+                id,
+                NotificationType.EvaluationReturned,
+                "Đánh giá nhân viên bị trả lại",
+                ClampBody($"{reviewer.FullName} đã trả lại đánh giá của {employee.FullName} trong kỳ {period.Code}. Lý do: {reason}"),
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id))
+            .ToList();
+    }
+
+    /// <summary>Branch Manager finalized an employee's evaluation -> department managers are told.</summary>
+    public static List<NotificationDraft> EvaluationFinalized(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer,
+        IEnumerable<Guid> deptManagerEmployeeIds)
+    {
+        return deptManagerEmployeeIds
+            .Where(id => id != reviewer.Id)
+            .Distinct()
+            .Select(id => new NotificationDraft(
+                id,
+                NotificationType.EvaluationFinalized,
+                "Đánh giá nhân viên đã hoàn tất",
+                ClampBody($"{reviewer.FullName} đã hoàn tất đánh giá của {employee.FullName} trong kỳ {period.Code}."),
+                NotificationSeverity.Normal,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id))
+            .ToList();
+    }
+
     /// <summary>Campaign plan approved or rejected.</summary>
     public static List<NotificationDraft> CampaignDecided(
         BusinessCampaign campaign,

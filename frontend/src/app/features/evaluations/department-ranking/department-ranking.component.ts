@@ -15,6 +15,7 @@ import {
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
+import { StatusBadgeComponent, UiSelectComponent } from '../../../shared/ui';
 import { saveFile } from '../../performance-dashboard/performance-page';
 
 interface TierTableRow {
@@ -55,9 +56,21 @@ function compositeSortKey(row: RankingBoardStaffRow, sort: CompositeSort): numbe
 @Component({
   selector: 'app-department-ranking',
   standalone: true,
-  imports: [CommonModule, HeaderComponent, SidebarComponent, LayoutIconComponent],
+  imports: [
+    CommonModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    UiSelectComponent,
+  ],
   templateUrl: './department-ranking.component.html',
-  styleUrls: ['./department-ranking.component.scss', '../evaluations.layout.scss'],
+  styleUrls: [
+    '../../../shared/ui/ui-controls.scss',
+    '../../../shared/ui/workspace-page.scss',
+    './department-ranking.component.scss',
+    '../evaluations.layout.scss',
+  ],
 })
 export class DepartmentRankingComponent extends LocalizedComponent implements OnInit {
   private readonly evaluationService = inject(EvaluationService);
@@ -137,6 +150,35 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
 
   readonly periodTypes = computed(() => [...new Set(this.periods().map((p) => p.periodType))]);
 
+  readonly periodTypeOptions = computed(() =>
+    this.periodTypes().map((type) => ({ value: type, label: this.periodTypeLabel(type) })),
+  );
+
+  readonly periodOptions = computed(() =>
+    this.filteredPeriods().map((period) => ({ value: period.id, label: period.name })),
+  );
+
+  readonly comparePeriodOptions = computed(() => [
+    { value: '', label: this.localization.evaluations.departmentRanking.compareNone },
+    ...this.comparePeriods().map((period) => ({ value: period.id, label: period.name })),
+  ]);
+
+  readonly scoreOrderOptions = computed(() => [
+    { value: 'desc', label: this.localization.evaluations.departmentRanking.sortScoreDesc },
+    { value: 'asc', label: this.localization.evaluations.departmentRanking.sortScoreAsc },
+  ]);
+
+  readonly compositeSortOptions = computed(() => {
+    const dict = this.localization.evaluations.departmentRanking;
+    return [
+      { value: 'none', label: dict.sortComposite },
+      { value: 'scoreChange', label: dict.sortScoreChange },
+      { value: 'sla', label: dict.sortSla },
+      { value: 'criteria', label: dict.sortCriteria },
+      { value: 'risk', label: dict.sortRisk },
+    ];
+  });
+
   readonly filteredPeriods = computed(() =>
     this.periods().filter((p) => p.periodType === this.selectedPeriodType()),
   );
@@ -149,11 +191,25 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
 
   readonly scoreOrder = signal<ScoreOrder>('desc');
   readonly compositeSort = signal<CompositeSort>('none');
+  readonly statusFilter = signal<string>('all');
+
+  readonly statusFilterOptions = computed(() => {
+    const dict = this.localization.evaluations.departmentRanking;
+    return [
+      { value: 'all', label: dict.statusFilterAll },
+      { value: 'DRAFT', label: this.localization.evaluationForm.statusDraft },
+      { value: 'CALCULATED', label: this.localization.evaluationForm.statusCalculated },
+      { value: 'DISPUTED', label: this.localization.evaluationForm.statusDisputed },
+    ];
+  });
 
   /** Staff rows in the chosen order; the composite sort wins when set, otherwise the score order applies. */
   readonly displayRows = computed<RankingBoardStaffRow[]>(() => {
     const composite = this.compositeSort();
-    const rows = [...this.staffRows()];
+    const status = this.statusFilter();
+    const rows = this.staffRows().filter(
+      (row) => status === 'all' || row.evaluationStatus === status,
+    );
     if (composite === 'none') {
       const direction = this.scoreOrder() === 'desc' ? -1 : 1;
       return rows.sort((a, b) => {
@@ -212,6 +268,11 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     return period.startDate <= todayKey && todayKey <= period.endDate;
   });
 
+  /** Ranking adjustment is allowed only while the record is CALCULATED or SUBMITTED. */
+  canAdjustRow(row: RankingBoardStaffRow): boolean {
+    return row.evaluationStatus === 'CALCULATED' || row.evaluationStatus === 'SUBMITTED';
+  }
+
   readonly sendBlockers = computed(() => this.board()?.sendBlockers ?? []);
 
   ngOnInit(): void {
@@ -232,20 +293,18 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
       });
   }
 
-  onPeriodTypeChange(event: Event): void {
-    const periodType = (event.target as HTMLSelectElement).value;
+  onPeriodTypeSelected(periodType: string): void {
     this.selectedPeriodType.set(periodType);
     const first = this.periods().find((p) => p.periodType === periodType);
     if (first) this.onPeriodSelected(first.id);
   }
 
-  onPeriodChange(event: Event): void {
-    const periodId = (event.target as HTMLSelectElement).value;
+  onPeriodValueSelected(periodId: string): void {
     if (periodId) this.onPeriodSelected(periodId);
   }
 
-  onComparePeriodChange(event: Event): void {
-    const comparePeriodId = (event.target as HTMLSelectElement).value || null;
+  onComparePeriodSelected(value: string): void {
+    const comparePeriodId = value || null;
     const periodId = this.selectedPeriodId();
     if (!periodId) return;
     this.selectedComparePeriodId.set(comparePeriodId);
@@ -319,13 +378,17 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     this.confirmCancelOpen.set(false);
   }
 
-  onScoreOrderChange(event: Event): void {
-    this.scoreOrder.set((event.target as HTMLSelectElement).value as ScoreOrder);
+  onScoreOrderSelected(value: string): void {
+    this.scoreOrder.set(value as ScoreOrder);
     this.compositeSort.set('none');
   }
 
-  onCompositeSortChange(event: Event): void {
-    this.compositeSort.set((event.target as HTMLSelectElement).value as CompositeSort);
+  onCompositeSortSelected(value: string): void {
+    this.compositeSort.set(value as CompositeSort);
+  }
+
+  onStatusFilterSelected(value: string): void {
+    this.statusFilter.set(value);
   }
 
   confirmCancelAdjusting(): void {
@@ -426,6 +489,12 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     return this.localization.evaluations.departmentRanking.hoverOnTime
       .replace('{onTime}', String(row.onTimeCompletedCount))
       .replace('{total}', String(row.completedWithDeadlineCount));
+  }
+
+  criteriaTitleText(row: RankingBoardStaffRow): string {
+    return this.localization.evaluations.departmentRanking.hoverCriteria
+      .replace('{achieved}', String(row.achievedCriteria ?? this.emptyValue))
+      .replace('{total}', String(row.totalCriteria));
   }
 
   riskTitleText(row: RankingBoardStaffRow): string {

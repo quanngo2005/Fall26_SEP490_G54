@@ -116,34 +116,8 @@
                 <app-layout-icon name="chevronDown" class="select-chevron" />
               </div>
             </div>
-
-            @if (evalData.isAcknowledged) {
-              <span class="badge-acknowledged">
-                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"
-                  />
-                </svg>
-                {{localization.myEvaluation.acknowledgedBadge}}
-              </span>
-            } @else {
-              <button type="button" class="btn-primary ack-btn" (click)="openAcknowledgeModal()">
-                {{localization.myEvaluation.acknowledgeButton}}
-              </button>
-            }
           </div>
         </header>
-
-        @if (acknowledgeSuccess()) {
-          <div class="alert-success" role="status">
-            <svg class="alert-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path
-                d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14Zm-1-4 5-5-1.06-1.06L7 8.88 5.06 6.94 4 8l3 3Z"
-              />
-            </svg>
-            <span>{{localization.myEvaluation.acknowledgeSuccessMsg}}</span>
-          </div>
-        }
 
         <!-- 3 Summary Metric Cards -->
         <section class="summary-cards-grid" aria-label="Metric Summary">
@@ -319,67 +293,6 @@
     </main>
   </div>
 </div>
-
-<!-- Modal Acknowledge Result (UC108) -->
-@if (showAcknowledgeModal()) {
-  @if (evaluation(); as evalData) {
-    <div
-      animate.leave="g54-leave-fade"
-      class="modal-backdrop"
-      role="presentation"
-      (click)="closeAcknowledgeModal()"
-      (keydown.escape)="closeAcknowledgeModal()"
-    >
-      <div
-        animate.leave="g54-leave-pop"
-        class="modal-dialog ack-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ack-dialog-title"
-        tabindex="-1"
-        (click)="$event.stopPropagation()"
-        (keydown)="$event.stopPropagation()"
-      >
-        <header class="modal-header">
-          <h3 id="ack-dialog-title" class="modal-title">
-            {{localization.myEvaluation.acknowledgeModalTitle}}
-          </h3>
-          <button
-            type="button"
-            class="modal-close-btn"
-            [attr.aria-label]="localization.myEvaluation.closeButton"
-            (click)="closeAcknowledgeModal()"
-          >
-            ×
-          </button>
-        </header>
-        <div class="modal-body">
-          <p class="modal-desc">
-            {{i18n.translate('myEvaluation.acknowledgeModalDesc', {
-                period: formatPeriodName(evalData.periodName),
-              })}}
-          </p>
-          @if (acknowledgeError()) {
-            <p class="modal-error" role="alert">{{localization.myEvaluation.acknowledgeError}}</p>
-          }
-        </div>
-        <footer class="modal-footer">
-          <button type="button" class="button button-secondary" (click)="closeAcknowledgeModal()">
-            {{localization.myEvaluation.acknowledgeModalCancel}}
-          </button>
-          <button
-            type="button"
-            class="button button-primary"
-            [disabled]="acknowledging()"
-            (click)="confirmAcknowledge()"
-          >
-            {{localization.myEvaluation.acknowledgeModalConfirm}}
-          </button>
-        </footer>
-      </div>
-    </div>
-  }
-}
 
 <!-- Modal Drilldown Ledger Drawer -->
 @if (selectedDrilldownCriteria(); as crit) {

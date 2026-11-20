@@ -441,22 +441,6 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
-    /// Acknowledges personal performance evaluation result (SCR-EVL-04 - UC108).
-    /// </summary>
-    [HttpPost("personal/acknowledge")]
-    [ProducesResponseType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    [HasPermission("evaluation", "read", "Own")]
-    public async Task<ActionResult<ApiResponse<AcknowledgePersonalEvaluationResultDto>>> AcknowledgePersonalEvaluation(
-        [FromBody] AcknowledgePersonalEvaluationRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await service.AcknowledgePersonalEvaluationAsync(request, User.GetRequiredUserId(), cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
     /// Gets personal criteria transaction ledger details for drilldown (SCR-EVL-04).
     /// </summary>
     [HttpGet("personal/ledger")]

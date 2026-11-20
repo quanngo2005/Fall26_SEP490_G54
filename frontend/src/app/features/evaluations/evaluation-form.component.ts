@@ -15,8 +15,8 @@ import {
   SubmitEvaluationRequest,
 } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
+import { UiSelectComponent, StatusBadgeComponent } from '../../shared/ui';
 import { serverMessage } from '../campaigns/campaign.utils';
 import { saveFile } from '../performance-dashboard/performance-page';
 
@@ -34,15 +34,18 @@ const PERIOD_TYPES: readonly PeriodTypeFilter[] = ['YEAR', 'QUARTER', 'MONTH'];
     FormsModule,
     HeaderComponent,
     SidebarComponent,
-    LayoutIconComponent,
     AppNumberPipe,
+    UiSelectComponent,
+    StatusBadgeComponent,
   ],
   templateUrl: './evaluation-form.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './evaluation-form.component.scss',
     './evaluation-form.layout.scss',
     './evaluations.layout.scss',
+    './evaluations.metric-cards.scss',
   ],
 })
 export class EvaluationFormComponent extends LocalizedComponent {
@@ -92,6 +95,18 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly compareOptions = computed<EvaluationPeriodOption[]>(
     () => this.form()?.compareOptions ?? [],
   );
+  readonly periodTypeOptions = computed(() =>
+    this.periodTypes.map((type) => ({ value: type, label: this.periodTypeLabel(type) })),
+  );
+  readonly periodSelectOptions = computed(() =>
+    this.filteredPeriods().map((p) => ({ value: p.id, label: `${p.code} · ${p.name}` })),
+  );
+  readonly compareSelectOptions = computed(() =>
+    this.compareOptions().map((p) => ({
+      value: p.id,
+      label: `${this.localization.evaluationForm.periodComparePrefix}${p.name}`,
+    })),
+  );
   readonly loading = signal(false);
   readonly failure = signal<LoadFailure | null>(null);
   readonly saving = signal(false);
@@ -110,9 +125,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
 
   readonly hasRosterNavigation = computed(() => this.rosterIndex() >= 0);
 
-  readonly isDraftStatus = computed(() => this.form()?.currentEvaluation.status === 'DRAFT');
-
   readonly canSubmit = computed(() => !!this.form()?.canEdit && !this.saving());
+  readonly completeBlocked = computed(() => this.commentInput().trim().length === 0);
 
   /** The comment differs from what the loaded form holds, so leaving would lose it. */
   readonly hasUnsavedChanges = computed(() => {
@@ -120,8 +134,6 @@ export class EvaluationFormComponent extends LocalizedComponent {
     if (!form || !form.canEdit) return false;
     return this.commentInput() !== (form.currentEvaluation.comment ?? '');
   });
-
-  readonly completeBlocked = computed(() => this.commentInput().trim().length === 0);
 
   readonly stateText = computed(() => {
     const text = this.localization.evaluationForm;
@@ -229,17 +241,34 @@ export class EvaluationFormComponent extends LocalizedComponent {
   });
 
   readonly tierText = computed(() => {
-    const tier = this.form()?.summary.proposedTier;
+    const tier = this.form()?.currentEvaluation.finalTierCode;
     return tier
       ? this.i18n.translate('evaluationForm.proposedTier', { tier })
       : this.localization.evaluations.emptyValue;
   });
 
   readonly tierToneClass = computed(() => {
-    const tier = this.form()?.summary.proposedTier;
+    const tier = this.form()?.currentEvaluation.finalTierCode;
     if (!tier) return '';
     if (tier.startsWith('A')) return 'tier-a';
     return `tier-${tier.toLowerCase()}`;
+  });
+
+  readonly criteriaToneClass = computed(() => {
+    const summary = this.form()?.criteriaSummary;
+    if (!summary || summary.totalCount === 0) return '';
+    const rate = (summary.achievedCount * 100) / summary.totalCount;
+    if (rate >= 80) return 'tone-good';
+    if (rate >= 50) return 'tone-warn';
+    return 'tone-bad';
+  });
+
+  readonly slaToneClass = computed(() => {
+    const rate = this.form()?.slaSummary.onTimeRatePercent ?? null;
+    if (rate === null) return '';
+    if (rate >= 90) return 'tone-good';
+    if (rate >= 70) return 'tone-warn';
+    return 'tone-bad';
   });
 
   constructor() {
@@ -297,15 +326,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
     void this.router.navigate(['/evaluations']);
   }
 
-  onPeriodChange(event: Event): void {
-    const select = event.target as HTMLSelectElement;
-    if (!this.switchPeriod(select.value)) {
-      select.value = this.selectedPeriodId() ?? '';
-    }
+  onPeriodChange(periodId: string): void {
+    this.switchPeriod(periodId);
   }
 
-  onPeriodTypeChange(event: Event): void {
-    const nextType = (event.target as HTMLSelectElement).value as PeriodTypeFilter;
+  onPeriodTypeChange(value: string): void {
+    const nextType = value as PeriodTypeFilter;
     this.selectedPeriodType.set(nextType);
     const firstMatching = this.periodOptions().find((p) => p.periodType === nextType);
     if (firstMatching) {
@@ -313,16 +339,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
     }
   }
 
-  onCompareChange(event: Event): void {
-    const select = event.target as HTMLSelectElement;
-    const compareId = select.value || null;
+  onCompareChange(value: string): void {
+    const compareId = value || null;
     const employeeId = this.form()?.employee.id ?? this.selectedEmployeeId();
     const periodId = this.selectedPeriodId();
     if (!employeeId || !periodId || compareId === this.selectedComparePeriodId()) return;
-    if (!this.confirmLeave()) {
-      select.value = this.selectedComparePeriodId() ?? '';
-      return;
-    }
+    if (!this.confirmLeave()) return;
     this.exportRequest?.unsubscribe();
     this.exporting.set(false);
     this.selectedComparePeriodId.set(compareId);

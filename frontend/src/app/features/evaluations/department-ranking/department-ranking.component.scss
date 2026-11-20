@@ -1,98 +1,18 @@
-.ranking-header {
-  align-items: center;
-}
-
-.ranking-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.status-chip {
-  padding: 4px 10px;
-  border-radius: 5px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font:
-    700 12px Inter,
-    sans-serif;
-}
-
-.btn-secondary {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 6px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  font:
-    700 13px Inter,
-    sans-serif;
-  cursor: pointer;
-}
-
-.btn-cancel-adjust {
-  height: 36px;
-  padding: 0 16px;
-  border-radius: 6px;
-  background: #be123c;
-  border: 1px solid #be123c;
-  color: #fff;
-  font:
-    700 13px Inter,
-    sans-serif;
-  cursor: pointer;
-}
-
-.filter-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-.filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.filter-label {
-  font:
-    600 12px Inter,
-    sans-serif;
-  color: #334155;
-}
-
-.filter-field .period-select {
-  min-width: 180px;
-}
-
-.filter-field .period-type-select {
-  min-width: 140px;
-}
-
-.filter-field .compare-select {
-  min-width: 180px;
-}
-
 .lock-notice {
   flex: none;
   margin-left: auto;
   min-width: 320px;
-  height: 32px;
+  height: 40px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   padding: 0 14px;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid #cbd5e1;
   background: #f1f5f9;
   color: #475569;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
 }
 
@@ -127,16 +47,9 @@
 .panel-title {
   margin: 0 0 12px;
   font:
-    700 15px Inter,
+    700 15px 'Nunito Sans',
     sans-serif;
   color: #0f172a;
-}
-
-.panel-head-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
 }
 
 .panel-head-col {
@@ -166,44 +79,17 @@
 .sort-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.sort-select {
-  height: 30px;
-  min-width: 160px;
-}
-
-.btn-adjust {
-  height: 36px;
-  padding: 0 18px;
-  border-radius: 6px;
-  background: #2563eb;
-  border: 1px solid #1d4ed8;
-  color: #fff;
-  font:
-    700 13px Inter,
-    sans-serif;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgb(37 99 235 / 30%);
-}
-
-.btn-adjust.btn-cancel-adjust {
-  background: #be123c;
-  border-color: #be123c;
-  box-shadow: 0 2px 6px rgb(190 18 60 / 30%);
-}
-
-.btn-adjust:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
+.sort-group app-ui-select {
+  min-width: 164px;
 }
 
 .meta {
   font:
-    400 11.5px Inter,
+    400 11.5px 'Nunito Sans',
     sans-serif;
   color: #64748b;
   margin: 0;
@@ -213,7 +99,7 @@
   width: 100%;
   border-collapse: collapse;
   font:
-    600 13px Inter,
+    600 13px 'Nunito Sans',
     sans-serif;
   color: #0f172a;
 
@@ -221,7 +107,7 @@
     text-align: left;
     padding: 8px 6px;
     font:
-      700 12px Inter,
+      700 12px 'Nunito Sans',
       sans-serif;
     color: #475569;
     background: #f8fafc;
@@ -254,24 +140,27 @@
   border-radius: 4px;
   border: 1px solid;
   font:
-    700 11.5px Inter,
+    700 11.5px 'Nunito Sans',
     sans-serif;
   text-align: center;
 }
 
-.tier-a {
+.tier-a,
+.tier-select.tier-a {
   background: #ecfdf5;
   border-color: #a7f3d0;
   color: #047857;
 }
 
-.tier-b {
+.tier-b,
+.tier-select.tier-b {
   background: #eff6ff;
   border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
-.tier-c {
+.tier-c,
+.tier-select.tier-c {
   background: #fffbeb;
   border-color: #fde68a;
   color: #b45309;
@@ -288,22 +177,6 @@
   border-top: 1px solid #cbd5e1;
   border-bottom: none;
   font-weight: 700;
-}
-
-.tier-notes {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font:
-    400 12px Inter,
-    sans-serif;
-  color: #334155;
-
-  p {
-    margin: 2px 0;
-  }
 }
 
 .staff-scroll {
@@ -325,6 +198,25 @@
   text-align: center;
 }
 
+.ranking-table th.penalty-col {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.penalty-col {
+  background: rgb(254 226 226 / 40%);
+  color: #dc2626;
+}
+
+.ranking-table th.score-col {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.score-col {
+  background: rgb(226 232 240 / 40%);
+}
+
 .tier-col {
   width: 90px;
   text-align: center;
@@ -332,13 +224,13 @@
 
 .staff-name {
   font:
-    600 13.5px Inter,
+    600 13.5px 'Nunito Sans',
     sans-serif;
 }
 
 .delta {
   font:
-    600 10.5px Inter,
+    600 10.5px 'Nunito Sans',
     sans-serif;
   color: #64748b;
   white-space: nowrap;
@@ -373,30 +265,12 @@
   border: 1.5px solid #d97706;
 }
 
-.tier-select.tier-a {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
-}
-
-.tier-select.tier-b {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
-}
-
-.tier-select.tier-c {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #b45309;
-}
-
 .tier-select-input {
   height: 26px;
   border: none;
   background: transparent;
   font:
-    700 12px Inter,
+    700 12px 'Nunito Sans',
     sans-serif;
   color: inherit;
   cursor: pointer;
@@ -409,7 +283,7 @@
   border-radius: 4px;
   border: 1px solid #e2e8f0;
   font:
-    400 12px Inter,
+    400 12px 'Nunito Sans',
     sans-serif;
   color: #1e293b;
   background: #fff;
@@ -428,7 +302,7 @@
   margin: 0;
   padding-left: 18px;
   font:
-    500 12.5px Inter,
+    500 12.5px 'Nunito Sans',
     sans-serif;
 }
 
@@ -455,10 +329,6 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 16px;
-}
-
-.reason-empty {
-  color: #94a3b8;
 }
 
 .staff-footer {

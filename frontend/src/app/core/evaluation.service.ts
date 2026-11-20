@@ -4,8 +4,10 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
-  AcknowledgePersonalEvaluationRequest,
-  AcknowledgePersonalEvaluationResult,
+  EvaluationFlowRequest,
+  EvaluationFlowResult,
+  FinalizeEvaluationResult,
+  ReturnEvaluationRequest,
   ApproveDepartmentRankingRequest,
   BranchApprovalOverview,
   BranchEvaluationPeriodsOverview,
@@ -194,13 +196,21 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  acknowledgePersonalEvaluation(periodId: string): Observable<AcknowledgePersonalEvaluationResult> {
-    const request: AcknowledgePersonalEvaluationRequest = { periodId };
+  submitToBranch(request: EvaluationFlowRequest): Observable<EvaluationFlowResult> {
     return this.http
-      .post<ApiResponse<AcknowledgePersonalEvaluationResult>>(
-        `${this.url}/personal/acknowledge`,
-        request,
-      )
+      .post<ApiResponse<EvaluationFlowResult>>(`${this.url}/submit-to-branch`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  returnToCalculated(request: ReturnEvaluationRequest): Observable<EvaluationFlowResult> {
+    return this.http
+      .post<ApiResponse<EvaluationFlowResult>>(`${this.url}/return-to-calculated`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  finalizeEvaluation(request: EvaluationFlowRequest): Observable<FinalizeEvaluationResult> {
+    return this.http
+      .post<ApiResponse<FinalizeEvaluationResult>>(`${this.url}/finalize`, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 
