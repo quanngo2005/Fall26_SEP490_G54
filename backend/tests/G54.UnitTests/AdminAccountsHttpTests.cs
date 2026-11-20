@@ -168,12 +168,12 @@ public sealed class AdminAccountsHttpTests : IAsyncLifetime, IAsyncDisposable
         var roles = body.GetProperty("data").EnumerateArray().ToList();
         // The migrations seed their own roles, so assert ordering and the roles this test created.
         var names = roles.Select(r => r.GetProperty("name").GetString()!).ToList();
-        Assert.Contains("Administrator", names);
+        Assert.Contains("System Administrator", names);
         var staff = roles.Single(r => r.GetProperty("code").GetString() == "STAFF");
         Assert.Equal(1, staff.GetProperty("accountCount").GetInt32());
         Assert.False(staff.GetProperty("isSystem").GetBoolean());
         Assert.Equal("Active", staff.GetProperty("status").GetString());
-        Assert.True(roles.Single(r => r.GetProperty("code").GetString() == "ADMIN").GetProperty("isSystem").GetBoolean());
+        Assert.True(roles.Single(r => r.GetProperty("code").GetString() == "SYSTEM_ADMIN").GetProperty("isSystem").GetBoolean());
     }
 
     [Fact]
@@ -190,7 +190,7 @@ public sealed class AdminAccountsHttpTests : IAsyncLifetime, IAsyncDisposable
         Assert.Equal(["ADMIN1", "OUTSIDE", "STAFF1"], items.Select(i => i.GetProperty("employeeCode").GetString()));
         var admin = items[0];
         Assert.Equal("Department", admin.GetProperty("departmentName").GetString());
-        Assert.Equal("Administrator", admin.GetProperty("roleName").GetString());
+        Assert.Equal("System Administrator", admin.GetProperty("roleName").GetString());
         Assert.Equal("ACTIVE", admin.GetProperty("status").GetString());
         Assert.False(admin.TryGetProperty("lastLoginAt", out _));
         Assert.False(admin.TryGetProperty("EmployeeCode", out _));
@@ -358,12 +358,12 @@ public sealed class AdminAccountsHttpTests : IAsyncLifetime, IAsyncDisposable
         var rolesResp = await _client.GetAsync("/roles");
         var adminRoleId = (await CheckAsync(rolesResp, HttpStatusCode.OK))
             .GetProperty("data").EnumerateArray()
-            .First(r => r.GetProperty("code").GetString() == "ADMIN")
+            .First(r => r.GetProperty("code").GetString() == "SYSTEM_ADMIN")
             .GetProperty("id").GetGuid();
 
         var updated = await ExchangeAsync("GB-912-07", HttpMethod.Put, $"/user-accounts/{createdId}", new { roleId = adminRoleId });
         Assert.Equal(HttpStatusCode.OK, updated.Status);
-        Assert.Equal("Administrator", updated.Root.GetProperty("data").GetProperty("roleName").GetString());
+        Assert.Equal("System Administrator", updated.Root.GetProperty("data").GetProperty("roleName").GetString());
 
         // 8. Reset password (POST /user-accounts/{id}/reset-password)
         var reset = await ExchangeAsync("GB-912-08", HttpMethod.Post, $"/user-accounts/{createdId}/reset-password");
@@ -486,12 +486,14 @@ public sealed class AdminAccountsHttpTests : IAsyncLifetime, IAsyncDisposable
         var staff = Person("STAFF1", _otherDepartment.Id, job.Id, now);
         staff.IsLocked = true;
         db.Accounts.AddRange(_admin, _outsider, staff);
-        var adminRole = new Role { Id = Guid.NewGuid(), Code = "ADMIN", Name = "Administrator", Status = RecordStatus.Active };
+        var adminRole = db.Roles.SingleOrDefault(role => role.Code == "SYSTEM_ADMIN")
+            ?? new Role { Id = Guid.NewGuid(), Code = "SYSTEM_ADMIN", Name = "Administrator", Status = RecordStatus.Active };
         _staffRole = new Role { Id = Guid.NewGuid(), Code = "STAFF", Name = "Staff", Status = RecordStatus.Active };
-        var permission = new PermissionRecord { Id = Guid.NewGuid(), Code = "ROLE_UPDATE", Name = "Update roles", Resource = "role", Action = "update" };
-        db.Roles.AddRange(adminRole, _staffRole);
-        db.Permissions.Add(permission);
-        db.RolePermissions.Add(new RolePermissionAssignment { Id = Guid.NewGuid(), RoleId = adminRole.Id, PermissionId = permission.Id, Scope = "System" });
+        db.Roles.Add(_staffRole);
+        if (db.Entry(adminRole).State == EntityState.Detached)
+        {
+            db.Roles.Add(adminRole);
+        }
         db.UserRoles.AddRange(
             new UserRole { Id = Guid.NewGuid(), AccountId = _admin.Id, RoleId = adminRole.Id },
             new UserRole { Id = Guid.NewGuid(), AccountId = staff.Id, RoleId = _staffRole.Id });

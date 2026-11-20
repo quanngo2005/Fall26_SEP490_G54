@@ -11,6 +11,8 @@ import { FULL_ACCESS_PERMISSION, normalizePermission } from './organization.guar
  * requests would be rejected.
  */
 export const BRANCH_EVALUATION_PERMISSION = 'EVALUATION_FINALIZE';
+/** Route of the branch evaluation period list (SCR-EVL-03); the guards of the other evaluation screens send branch-level users here. */
+export const BRANCH_EVALUATION_ROUTE = '/branch-performance/evaluations';
 
 export function canViewBranchEvaluations(
   permissions: readonly string[] | null | undefined,

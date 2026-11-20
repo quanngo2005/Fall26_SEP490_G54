@@ -48,7 +48,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task SavedOrderIsSharedWithRoleAndStaleSaveFails()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var employee = await AddAccountAsync(db, "EMPLOYEE");
         var service = new SidebarConfigurationService(db);
         var saved = await service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["myProfile", "overview"] }, CancellationToken.None);
@@ -68,7 +68,7 @@ public sealed class SidebarConfigurationServiceTests
         }
 
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["overview", "reportsComplaints"] }, CancellationToken.None));
         Assert.Empty(db.SidebarConfigurations);
@@ -96,7 +96,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task InvalidMenusCannotBeSaved(string role, string extra)
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, role, new SaveSidebarConfigurationDto { ItemIds = ["overview", extra] }, CancellationToken.None));
         Assert.Empty(db.SidebarConfigurations);
@@ -106,7 +106,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task LockedAccountCannotReadOrSave()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         (await db.Accounts.SingleAsync()).IsLocked = true;
         await db.SaveChangesAsync();
         var service = new SidebarConfigurationService(db);
@@ -117,7 +117,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task RoutesAreSharedAndPreservedByOlderClients()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var employee = await AddAccountAsync(db, "EMPLOYEE");
         var service = new SidebarConfigurationService(db);
         var request = new SaveSidebarConfigurationDto
@@ -138,7 +138,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task TheAdminMenuOffersWorkTypesAndAcceptsItsListRoute()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
 
         var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
@@ -156,7 +156,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task TheAdminMenuOffersSystemParametersAndRankingStudioAndAcceptsTheirRoutes()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
 
         var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
@@ -189,7 +189,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task InvalidOrUnreachableRoutesAreRejected(string role, string item, string route)
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         var request = new SaveSidebarConfigurationDto
         {

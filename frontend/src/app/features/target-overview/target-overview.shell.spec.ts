@@ -36,7 +36,7 @@ describe('TargetOverviewComponent', () => {
   });
 
   it('shows the same screen to department managers, limited to their department', () => {
-    expect(render(['MANAGER']).querySelector('main')?.textContent).toContain('branch');
+    expect(render(['DEPT_MANAGER']).querySelector('main')?.textContent).toContain('branch');
   });
 });
 

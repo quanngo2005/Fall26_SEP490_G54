@@ -1,3 +1,4 @@
+using G54.BLL.Common.Constants;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -7,9 +8,9 @@ namespace G54.BLL.Services;
 /// <summary>Resolves active employee recipients by role or department management scope for automatic notifications.</summary>
 internal static class NotificationRecipients
 {
-    private static readonly string[] AdminRoleCodes = ["ADMIN", "SYSTEM_ADMIN"];
-    private static readonly string[] BranchManagerRoleCodes = ["BRANCH_MANAGER"];
-    private static readonly string[] DeptManagerRoleCodes = ["MANAGER", "DEPT_MANAGER", "DEPARTMENT_MANAGER"];
+    private static readonly string[] AdminRoleCodes = [RoleCodes.SystemAdmin];
+    private static readonly string[] BranchManagerRoleCodes = [RoleCodes.BranchManager];
+    private static readonly string[] DeptManagerRoleCodes = [RoleCodes.DeptManager];
 
     public static Task<List<Guid>> ActiveAdminsAsync(AppDbContext db, CancellationToken ct = default)
         => EmployeesInRolesAsync(db, AdminRoleCodes, null, ct);

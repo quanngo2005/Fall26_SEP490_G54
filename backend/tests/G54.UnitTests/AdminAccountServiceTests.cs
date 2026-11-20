@@ -51,7 +51,7 @@ public sealed class AdminAccountServiceTests : IDisposable
     private readonly Role _admin = new()
     {
         Id = Guid.NewGuid(),
-        Code = "ADMIN",
+        Code = "SYSTEM_ADMIN",
         Name = "Administrator",
         Status = RecordStatus.Active,
         UpdatedAt = Now,

@@ -168,7 +168,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetDashboard_AsQa_ReturnsCamelCaseFiguresOfTheCurrentPeriod()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync("/qa-dashboard");
         var data = (await CheckAsync(response, HttpStatusCode.OK)).GetProperty("data");
 
@@ -209,7 +209,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetDashboard_FilteredByDepartment_OnlyCountsThatSubtree()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync($"/qa-dashboard?periodId={_period.Id}&departmentId={_otherDepartment.Id}");
         var cards = (await CheckAsync(response, HttpStatusCode.OK)).GetProperty("data").GetProperty("kpiCards");
 
@@ -221,7 +221,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetDashboard_UnknownPeriod_Returns404()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync($"/qa-dashboard?periodId={Guid.NewGuid()}");
         await CheckAsync(response, HttpStatusCode.NotFound, "NOT_FOUND");
     }
@@ -229,7 +229,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetDashboard_MalformedPeriodId_Returns400()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync("/qa-dashboard?periodId=not-a-guid");
         await CheckAsync(response, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
     }
@@ -237,7 +237,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetFilters_ListsMonthlyPeriodsWithTheCurrentOneMarked()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync("/qa-dashboard/filters");
         var data = (await CheckAsync(response, HttpStatusCode.OK)).GetProperty("data");
 
@@ -250,7 +250,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetReconciliations_FiltersByStatusAndReason()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync(
             $"/qa-dashboard/reconciliations?periodId={_period.Id}&status=NOT_MATCHED&reason=EMPLOYEE_MISMATCH&pageSize=1");
         var data = (await CheckAsync(response, HttpStatusCode.OK)).GetProperty("data");
@@ -264,7 +264,7 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
     [Fact]
     public async Task GetReconciliations_UnknownStatus_Returns400()
     {
-        Authenticate(_qa, ["QA"]);
+        Authenticate(_qa, ["VERIFIER"]);
         using var response = await _client.GetAsync("/qa-dashboard/reconciliations?status=DONE");
         await CheckAsync(response, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
     }
@@ -329,26 +329,10 @@ public sealed class QaDashboardHttpTests : IAsyncLifetime, IAsyncDisposable
         var b = Person("QA-B", _otherDepartment.Id, job.Id, now);
         db.Accounts.AddRange(_qa, _verifier, _outsider, a, b);
 
-        // QA and its quality_flag:read grant come from the migration AddQualityAssurance. VERIFIER only exists after the dev
-        // seed (seed_dev_data.sql gives it the same grant), so it is created here with that grant.
-        var qaRole = await db.Roles.SingleAsync(r => r.Code == "QA");
-        var verifierRole = await db.Roles.SingleOrDefaultAsync(r => r.Code == "VERIFIER");
-        if (verifierRole is null)
-        {
-            verifierRole = new Role { Id = Guid.NewGuid(), Code = "VERIFIER", Name = "Người duyệt", Status = RecordStatus.Active };
-            db.Roles.Add(verifierRole);
-            var read = await db.Permissions.SingleAsync(p => p.Code == "QUALITY_FLAG_READ");
-            db.RolePermissions.Add(new RolePermissionAssignment
-            {
-                Id = Guid.NewGuid(),
-                RoleId = verifierRole.Id,
-                PermissionId = read.Id,
-                Scope = "All",
-            });
-        }
-
+        // QA staff are verifiers: the migration ConsolidateRoles merged the QA role into VERIFIER, which holds quality_flag:read.
+        var verifierRole = await db.Roles.SingleAsync(r => r.Code == "VERIFIER");
         db.UserRoles.AddRange(
-            new UserRole { Id = Guid.NewGuid(), AccountId = _qa.Id, RoleId = qaRole.Id },
+            new UserRole { Id = Guid.NewGuid(), AccountId = _qa.Id, RoleId = verifierRole.Id },
             new UserRole { Id = Guid.NewGuid(), AccountId = _verifier.Id, RoleId = verifierRole.Id });
 
         // The current calendar month, so the dashboard picks it without a periodId. The database only accepts it inside the

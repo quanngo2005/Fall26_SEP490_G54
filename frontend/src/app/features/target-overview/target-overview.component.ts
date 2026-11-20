@@ -1,10 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { AuthService } from '../../core/auth.service';
+import { hasRole, ROLE } from '../../core/role-codes';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { BranchTargetOverviewComponent } from './branch-target-overview.component';
 
 /** Roles that see the whole branch; everybody else with `TARGET_MANAGE` sees their own department. */
-const BRANCH_VIEW_ROLES = ['BRANCH_MANAGER', 'ADMIN'];
+const BRANCH_VIEW_ROLES = [ROLE.branchManager, ROLE.systemAdmin] as const;
 
 /** SCR-STRAT-03: branch managers see the branch tree, department managers the same screen limited to their department. */
 @Component({
@@ -14,7 +15,8 @@ const BRANCH_VIEW_ROLES = ['BRANCH_MANAGER', 'ADMIN'];
   styleUrls: ['../../shared/ui/workspace-page.scss'],
 })
 export class TargetOverviewComponent {
-  protected readonly branchView = (inject(AuthService).currentUser()?.roles ?? []).some((role) =>
-    BRANCH_VIEW_ROLES.includes(role.toUpperCase()),
+  protected readonly branchView = hasRole(
+    inject(AuthService).currentUser()?.roles,
+    ...BRANCH_VIEW_ROLES,
   );
 }

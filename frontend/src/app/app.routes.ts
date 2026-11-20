@@ -11,6 +11,7 @@ import { departmentEvaluationGuard } from './core/department-evaluation.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 import { reconciliationGuard } from './core/reconciliation.guard';
 import { transactionImportGuard } from './core/transaction-import.guard';
+import { permissionGuard } from './core/permission.guard';
 
 export const routes: Routes = [
   {
@@ -89,7 +90,7 @@ export const routes: Routes = [
   },
   {
     path: 'target-overview',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('TARGET_MANAGE')],
     title: 'Tổng quan mục tiêu',
     loadComponent: () =>
       import('./features/target-overview/target-overview.component').then(
@@ -108,7 +109,7 @@ export const routes: Routes = [
   { path: 'target-allocation/overview', redirectTo: 'target-overview', pathMatch: 'full' },
   {
     path: 'target-allocation',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('TARGET_MANAGE')],
     title: 'Mục tiêu nhân viên',
     loadComponent: () =>
       import('./features/target-allocation/target-allocation.component').then(
@@ -171,7 +172,7 @@ export const routes: Routes = [
   },
   {
     path: 'branch-performance',
-    canActivate: [authGuard, organizationGuard],
+    canActivate: [authGuard, organizationGuard, permissionGuard('CAMPAIGN_READ')],
     title: 'Hiệu suất chi nhánh',
     loadComponent: () =>
       import('./features/branch-performance/branch-performance.component').then(
@@ -198,13 +199,14 @@ export const routes: Routes = [
   },
   {
     path: 'employees',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('EMPLOYEE_READ')],
     title: 'Nhân viên',
     loadComponent: () =>
       import('./features/employees/employee-list.component').then((m) => m.EmployeeListComponent),
   },
   {
     path: 'employee-detail',
+    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -213,6 +215,7 @@ export const routes: Routes = [
   },
   {
     path: 'employee-detail/:code',
+    canActivate: [authGuard],
     title: 'Hồ sơ Cán bộ',
     loadComponent: () =>
       import('./features/employee-detail/employee-detail.component').then(
@@ -228,7 +231,7 @@ export const routes: Routes = [
   },
   {
     path: 'evaluation-profiles',
-    canActivate: [authGuard, organizationGuard],
+    canActivate: [authGuard, organizationGuard, permissionGuard('KPI_READ')],
     title: 'Evaluation Profile',
     loadComponent: () =>
       import('./features/evaluation-profiles/evaluation-profile-list.component').then(
@@ -237,7 +240,7 @@ export const routes: Routes = [
   },
   {
     path: 'evaluation-profiles/:id',
-    canActivate: [authGuard, organizationGuard],
+    canActivate: [authGuard, organizationGuard, permissionGuard('KPI_READ')],
     title: 'Evaluation Profile',
     loadComponent: () =>
       import('./features/evaluation-profiles/evaluation-profile-detail.component').then(
@@ -246,6 +249,7 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail',
+    canActivate: [authGuard],
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(
@@ -254,6 +258,7 @@ export const routes: Routes = [
   },
   {
     path: 'work-type-detail/:id',
+    canActivate: [authGuard],
     title: 'Work Type Detail',
     loadComponent: () =>
       import('./features/work-type-detail/work-type-detail.component').then(
@@ -262,6 +267,7 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify',
+    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
@@ -270,6 +276,7 @@ export const routes: Routes = [
   },
   {
     path: 'review-verify/:submissionId',
+    canActivate: [authGuard],
     title: 'Thẩm định kết quả công việc',
     loadComponent: () =>
       import('./features/review-verify/review-verify.component').then(
@@ -390,14 +397,14 @@ export const routes: Routes = [
   },
   {
     path: 'my-work',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('WORK_READ')],
     title: 'Công việc',
     loadComponent: () =>
       import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },
   {
     path: 'work-monitor',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('WORK_READ')],
     title: 'Giám sát tải việc',
     data: { view: 'monitor' },
     loadComponent: () =>
@@ -405,7 +412,7 @@ export const routes: Routes = [
   },
   {
     path: 'kpi-definitions',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('KPI_MANAGE', 'KPI_APPROVE')],
     title: 'KPI Definitions - Cấu hình đo lường hiệu suất',
     loadComponent: () =>
       import('./features/kpi-definitions/kpi-definitions.component').then(
@@ -414,14 +421,14 @@ export const routes: Routes = [
   },
   {
     path: 'campaigns',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('CAMPAIGN_READ')],
     title: 'Chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-list.component').then((m) => m.CampaignListComponent),
   },
   {
     path: 'campaigns/approval',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('CAMPAIGN_READ')],
     title: 'Duyệt kế hoạch chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-approval.component').then(
@@ -430,7 +437,7 @@ export const routes: Routes = [
   },
   {
     path: 'campaigns/:id',
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard('CAMPAIGN_READ')],
     title: 'Chi tiết chiến dịch',
     loadComponent: () =>
       import('./features/campaigns/campaign-detail.component').then(
