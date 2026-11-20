@@ -28,7 +28,8 @@ public sealed class EvaluationScopeTests
             context,
             NullLogger<EvaluationService>.Instance,
             new FakePermissionService(null, grants),
-            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()));
+            new PerformanceScoreCalculator(context, new PerformanceScoreFormula()),
+            new RecordingNotifier());
     }
 
     private static UserPermissionDto Grant(string action, string scope) => new("evaluation", action, scope, "EVALUATION_" + action.ToUpperInvariant());

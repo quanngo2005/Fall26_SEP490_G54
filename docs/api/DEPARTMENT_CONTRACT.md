@@ -9,8 +9,8 @@ Routes use the backend origin, no API prefix. All responses use `ApiResponse<T>`
 
 Every endpoint requires the permission `organization:read` with scope `Dept` or higher
 (`[HasPermission("organization", "read", "Dept")]`; code `ORGANIZATION_READ`). The migration `SeedOrganizationReadAccess`
-grants it to `SYSTEM_ADMIN` and `ADMIN` (`All`), `BRANCH_MANAGER` (`Branch`) and `DEPT_MANAGER` / `MANAGER` (`Dept`) only.
-Every other role - employee, verifier, HR, QA - has no grant and receives 403 `FORBIDDEN`; holding `evaluation:read` (which
+grants it to `SYSTEM_ADMIN` and `HR_OFFICER` (`All`), `BRANCH_MANAGER` (`Branch`) and `DEPT_MANAGER` (`Dept`) only.
+The employee and verifier roles have no grant and receives 403 `FORBIDDEN`; holding `evaluation:read` (which
 this screen used to borrow) no longer opens it. A missing or invalid token receives 401. The same permission guards
 `/job-positions` (`JOB_POSITION_CONTRACT.md`).
 The BLL validates an active, unlocked database account and additionally restricts data to the scope granted for `organization:read`:
@@ -22,7 +22,7 @@ The BLL validates an active, unlocked database account and additionally restrict
 | `Department` / `Dept` | subtree of the caller's own department |
 
 Write endpoints (`POST`, `PUT`, `PATCH .../status`, `DELETE`) additionally require `department:manage` with scope `All`
-(`ADMIN` via full access) and are not limited to the caller's subtree.
+(`SYSTEM_ADMIN` via full access) and are not limited to the caller's subtree.
 
 A department outside that set returns 403 `FORBIDDEN`; an unknown id returns 404 `NOT_FOUND`.
 List results contain only visible departments.

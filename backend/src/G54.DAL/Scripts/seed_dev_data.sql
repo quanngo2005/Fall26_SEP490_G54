@@ -102,7 +102,7 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, unit, agg
  ('5eed0000-0000-0000-0005-00000000011c', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TRAINING',      'Hoàn thành đào tạo bắt buộc',             'Nhân viên hoàn thành khoá AML/tuân thủ (BR-44)',         '%',      'AVG',            'HIGHER_BETTER')
 ON CONFLICT DO NOTHING;
 
--- Only two job positions; managers hold one of them and get the MANAGER role.
+-- Only two job positions; managers hold one of them and get the DEPT_MANAGER role.
 INSERT INTO job_position (id, code, title, description) VALUES
  ('5eed0000-0000-0000-0006-000000000001', 'SALES',  'Chuyên viên Kinh doanh', 'Bán hàng, phát triển khách hàng'),
  ('5eed0000-0000-0000-0006-000000000002', 'TELLER', 'Giao dịch viên',         'Giao dịch tại quầy')
@@ -217,7 +217,9 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
  ('5eed0000-0000-0000-0007-00000000000b', 'NV011', 'Demo Manager',    'manager@bpms.com',        '0901000011', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
  ('5eed0000-0000-0000-0007-00000000000c', 'NV012', 'Demo Employee',   'employee@bpms.com',       '0901000012', '5eed0000-0000-0000-0001-000000000004', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000b'),
  ('5eed0000-0000-0000-0007-00000000000d', 'NV013', 'Demo System Admin', 'sysadmin@bpms.com',     '0901000013', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-0006-000000000001', NULL),
- ('5eed0000-0000-0000-0007-00000000000e', 'NV014', 'Demo Verifier',     'verifier@bpms.com',     '0901000014', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001')
+ ('5eed0000-0000-0000-0007-00000000000e', 'NV014', 'Demo Verifier',     'verifier@bpms.com',     '0901000014', '5eed0000-0000-0000-0001-000000000002', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
+ -- NV022: demo QA account (role QA; default position like NV013/NV014). Employee import still maps position QA to VERIFIER; role QA is assigned by System Admin.
+ ('5eed0000-0000-0000-0007-000000000016', 'NV022', 'Demo QA',           'qa@bpms.com',           '0901000022', '5eed0000-0000-0000-0001-000000000001', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001')
 ON CONFLICT DO NOTHING;
 
 -- NV015-NV021: staff of the extra departments (KHCN, KHDN: SALES; DVKH: TELLER), so each has headcount in the
@@ -233,17 +235,14 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- Access control (looked up by code so a pre-existing ADMIN role is reused)
+-- Access control: six roles only (EMPLOYEE, DEPT_MANAGER, BRANCH_MANAGER, HR_OFFICER, VERIFIER, SYSTEM_ADMIN)
 -- ---------------------------------------------------------------------------
 INSERT INTO role (id, code, name, description) VALUES
- ('5eed0000-0000-0000-0008-000000000001', 'ADMIN',    'Administrator', 'Quản trị hệ thống'),
- ('5eed0000-0000-0000-0008-000000000002', 'MANAGER',  'Quản lý',       'Giao chỉ tiêu, theo dõi đơn vị'),
  ('5eed0000-0000-0000-0008-000000000003', 'VERIFIER', 'Người duyệt',   'Thẩm định kết quả công việc'),
  ('5eed0000-0000-0000-0008-000000000004', 'EMPLOYEE', 'Nhân viên',     'Thực hiện và nộp kết quả công việc'),
  ('5eed0000-0000-0000-0008-000000000005', 'SYSTEM_ADMIN',   'System Administrator', 'Quản trị hệ thống'),
  ('5eed0000-0000-0000-0008-000000000006', 'BRANCH_MANAGER', 'Giám đốc chi nhánh',   'Quản lý chi nhánh và các phòng ban trực thuộc'),
  ('5eed0000-0000-0000-0008-000000000007', 'DEPT_MANAGER',   'Trưởng phòng',         'Quản lý phòng ban của mình'),
- ('5eed0000-0000-0000-0008-000000000008', 'QA',             'Kiểm soát chất lượng', 'Gắn cờ chất lượng, yêu cầu làm lại và kiểm tra ngẫu nhiên 5% kết quả đã duyệt'),
  ('5eed0000-0000-0000-0008-000000000009', 'HR_OFFICER',     'Chuyên viên nhân sự',  'Quản lý hồ sơ nhân sự và tổ chức')
 ON CONFLICT DO NOTHING;
 
@@ -294,84 +293,81 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000002b', 'RISK_EVENT_RESOLVE', 'Giải quyết sự kiện rủi ro', 'risk_event', 'resolve'),
  ('5eed0000-0000-0000-0009-00000000002c', 'RISK_EVENT_REVERSE', 'Gỡ điểm phạt sự kiện rủi ro', 'risk_event', 'reverse'),
  ('5eed0000-0000-0000-0009-00000000002d', 'SYSTEM_PARAMETER_VIEW',   'Xem tham số hệ thống',      'system_parameter', 'view'),
- ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update')
+ ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update'),
+ ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read'),
+ ('5eed0000-0000-0000-0009-000000000031', 'ROLE_UPDATE', 'Quản lý tài khoản và vai trò', 'role', 'update'),
+ ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
 SELECT r.id, p.id, m.scope
 FROM (VALUES
-    ('ADMIN', 'WORK_READ', 'All'), ('ADMIN', 'WORK_CREATE', 'All'), ('ADMIN', 'WORK_UPDATE', 'All'),
-    ('ADMIN', 'SUBMISSION_READ', 'All'), ('ADMIN', 'SUBMISSION_CREATE', 'All'), ('ADMIN', 'VERIFICATION_DECIDE', 'All'),
-    ('ADMIN', 'KPI_READ', 'All'), ('ADMIN', 'KPI_MANAGE', 'All'), ('ADMIN', 'TARGET_MANAGE', 'All'), ('ADMIN', 'EVALUATION_READ', 'All'),
-    ('ADMIN', 'EMPLOYEE_READ', 'All'), ('ADMIN', 'EVALUATION_SUBMIT', 'All'), ('ADMIN', 'EVALUATION_CALIBRATE', 'All'),
-    ('ADMIN', 'EVALUATION_CALCULATE', 'All'), ('ADMIN', 'EVALUATION_FINALIZE', 'All'), ('ADMIN', 'CAMPAIGN_READ', 'All'), ('ADMIN', 'CAMPAIGN_MANAGE', 'All'), 
-    ('ADMIN', 'HANDOVER_CREATE', 'All'), ('ADMIN', 'HANDOVER_SET_SHARE', 'All'),
-    ('ADMIN', 'HANDOVER_RESPOND', 'All'), ('ADMIN', 'HANDOVER_MANAGE', 'All'),
-    ('MANAGER', 'WORK_READ', 'Department'), ('MANAGER', 'WORK_CREATE', 'Department'), ('MANAGER', 'WORK_UPDATE', 'Department'),
-    ('MANAGER', 'SUBMISSION_READ', 'Department'), ('MANAGER', 'VERIFICATION_DECIDE', 'Department'),
-    ('MANAGER', 'KPI_READ', 'All'), ('MANAGER', 'TARGET_MANAGE', 'Department'), ('MANAGER', 'EVALUATION_READ', 'Department'),
-    ('MANAGER', 'EMPLOYEE_READ', 'Department'), ('MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('MANAGER', 'EVALUATION_CALIBRATE', 'Department'), ('MANAGER', 'EVALUATION_CALCULATE', 'Department'),
-    ('MANAGER', 'CAMPAIGN_READ', 'Department'), ('MANAGER', 'CAMPAIGN_MANAGE', 'Department'), ('MANAGER', 'HANDOVER_CREATE', 'Own'), ('MANAGER', 'HANDOVER_SET_SHARE', 'Own'), ('MANAGER', 'HANDOVER_RESPOND', 'Own'), ('MANAGER', 'HANDOVER_MANAGE', 'Own'),
+    ('SYSTEM_ADMIN', 'WORK_READ', 'All'), ('SYSTEM_ADMIN', 'WORK_CREATE', 'All'), ('SYSTEM_ADMIN', 'WORK_UPDATE', 'All'),
+    ('SYSTEM_ADMIN', 'SUBMISSION_READ', 'All'), ('SYSTEM_ADMIN', 'SUBMISSION_CREATE', 'All'), ('SYSTEM_ADMIN', 'VERIFICATION_DECIDE', 'All'),
+    ('SYSTEM_ADMIN', 'KPI_READ', 'All'), ('SYSTEM_ADMIN', 'KPI_MANAGE', 'All'), ('SYSTEM_ADMIN', 'TARGET_MANAGE', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_READ', 'All'),
+    ('SYSTEM_ADMIN', 'EMPLOYEE_READ', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_SUBMIT', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_CALIBRATE', 'All'),
+    ('SYSTEM_ADMIN', 'EVALUATION_CALCULATE', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_FINALIZE', 'All'), ('SYSTEM_ADMIN', 'CAMPAIGN_READ', 'All'), ('SYSTEM_ADMIN', 'CAMPAIGN_MANAGE', 'All'), 
+    ('SYSTEM_ADMIN', 'HANDOVER_CREATE', 'All'), ('SYSTEM_ADMIN', 'HANDOVER_SET_SHARE', 'All'),
+    ('SYSTEM_ADMIN', 'HANDOVER_RESPOND', 'All'), ('SYSTEM_ADMIN', 'HANDOVER_MANAGE', 'All'),
+    ('DEPT_MANAGER', 'WORK_READ', 'Department'), ('DEPT_MANAGER', 'WORK_CREATE', 'Department'), ('DEPT_MANAGER', 'WORK_UPDATE', 'Department'),
+    ('DEPT_MANAGER', 'SUBMISSION_READ', 'Department'), ('DEPT_MANAGER', 'VERIFICATION_DECIDE', 'Department'),
+    ('DEPT_MANAGER', 'KPI_READ', 'All'), ('DEPT_MANAGER', 'TARGET_MANAGE', 'Department'), ('DEPT_MANAGER', 'EVALUATION_READ', 'Department'),
+    ('DEPT_MANAGER', 'EMPLOYEE_READ', 'Department'), ('DEPT_MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('DEPT_MANAGER', 'EVALUATION_CALIBRATE', 'Department'), ('DEPT_MANAGER', 'EVALUATION_CALCULATE', 'Department'),
+    ('DEPT_MANAGER', 'CAMPAIGN_READ', 'Department'), ('DEPT_MANAGER', 'CAMPAIGN_MANAGE', 'Department'), ('DEPT_MANAGER', 'HANDOVER_CREATE', 'Own'), ('DEPT_MANAGER', 'HANDOVER_SET_SHARE', 'Own'), ('DEPT_MANAGER', 'HANDOVER_RESPOND', 'Own'), ('DEPT_MANAGER', 'HANDOVER_MANAGE', 'Own'),
     ('VERIFIER', 'SUBMISSION_READ', 'Department'), ('VERIFIER', 'VERIFICATION_DECIDE', 'Department'), ('VERIFIER', 'KPI_READ', 'All'),
     ('EMPLOYEE', 'WORK_READ', 'Own'), ('EMPLOYEE', 'WORK_UPDATE', 'Own'), ('EMPLOYEE', 'SUBMISSION_READ', 'Own'),
     ('EMPLOYEE', 'SUBMISSION_CREATE', 'Own'), ('EMPLOYEE', 'KPI_READ', 'All'), ('EMPLOYEE', 'EVALUATION_READ', 'Own'),
     ('EMPLOYEE', 'EMPLOYEE_READ', 'Own'), ('EMPLOYEE', 'HANDOVER_CREATE', 'Own'), ('EMPLOYEE', 'HANDOVER_RESPOND', 'Own'),
-    ('SYSTEM_ADMIN', 'ORGANIZATION_READ', 'All'), ('ADMIN', 'ORGANIZATION_READ', 'All'), ('BRANCH_MANAGER', 'ORGANIZATION_READ', 'Branch'),
-    ('DEPT_MANAGER', 'ORGANIZATION_READ', 'Dept'), ('MANAGER', 'ORGANIZATION_READ', 'Dept'),
+    ('SYSTEM_ADMIN', 'ORGANIZATION_READ', 'All'), ('SYSTEM_ADMIN', 'ORGANIZATION_READ', 'All'), ('BRANCH_MANAGER', 'ORGANIZATION_READ', 'Branch'),
+    ('DEPT_MANAGER', 'ORGANIZATION_READ', 'Dept'), ('DEPT_MANAGER', 'ORGANIZATION_READ', 'Dept'),
     -- Managers only: the system administrator administers the system, not the organization's job positions.
-    ('BRANCH_MANAGER', 'JOB_POSITION_MANAGE', 'Branch'), ('DEPT_MANAGER', 'JOB_POSITION_MANAGE', 'Dept'), ('MANAGER', 'JOB_POSITION_MANAGE', 'Dept'),
+    ('BRANCH_MANAGER', 'JOB_POSITION_MANAGE', 'Branch'), ('DEPT_MANAGER', 'JOB_POSITION_MANAGE', 'Dept'), ('DEPT_MANAGER', 'JOB_POSITION_MANAGE', 'Dept'),
     -- Admin writes evaluation profiles; the Branch Manager approves them (docs/BPMS_AI_Agent_Context.md).
     ('BRANCH_MANAGER', 'EVALUATION_PROFILE_APPROVE', 'All'),
     -- The Branch Manager owns business objectives and approves KPIs; the Department Manager reads objectives of the department.
-    ('MANAGER', 'OBJECTIVE_READ', 'Dept'), ('DEPT_MANAGER', 'OBJECTIVE_READ', 'Dept'), ('BRANCH_MANAGER', 'OBJECTIVE_READ', 'Branch'),
+    ('DEPT_MANAGER', 'OBJECTIVE_READ', 'Dept'), ('DEPT_MANAGER', 'OBJECTIVE_READ', 'Dept'), ('BRANCH_MANAGER', 'OBJECTIVE_READ', 'Branch'),
     ('BRANCH_MANAGER', 'OBJECTIVE_MANAGE', 'All'), ('BRANCH_MANAGER', 'KPI_REQUEST', 'All'), ('BRANCH_MANAGER', 'KPI_APPROVE', 'All'),
-    ('ADMIN', 'AUDIT_LOG_VIEW', 'All'),
-    ('ADMIN', 'NOTIFICATION_READ', 'All'), ('MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
-    ('QA', 'NOTIFICATION_READ', 'Own'), ('VERIFIER', 'NOTIFICATION_READ', 'Own'), ('HR_OFFICER', 'NOTIFICATION_READ', 'Own'),
-    ('ADMIN', 'NOTIFICATION_SEND', 'All'), ('ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('SYSTEM_ADMIN', 'AUDIT_LOG_VIEW', 'All'),
+    ('SYSTEM_ADMIN', 'NOTIFICATION_READ', 'All'), ('DEPT_MANAGER', 'NOTIFICATION_READ', 'Own'), ('EMPLOYEE', 'NOTIFICATION_READ', 'Own'),
+    ('VERIFIER', 'NOTIFICATION_READ', 'Own'), ('VERIFIER', 'NOTIFICATION_READ', 'Own'), ('HR_OFFICER', 'NOTIFICATION_READ', 'Own'),
+    ('HR_OFFICER', 'EMPLOYEE_READ', 'All'), ('HR_OFFICER', 'ORGANIZATION_READ', 'All'), ('HR_OFFICER', 'EVALUATION_READ', 'All'),
+    ('BRANCH_MANAGER', 'EVALUATION_FINALIZE', 'Branch'), ('VERIFIER', 'EVALUATION_READ', 'Own'), ('VERIFIER', 'EVALUATION_READ', 'Own'), ('SYSTEM_ADMIN', 'ROLE_UPDATE', 'All'), ('SYSTEM_ADMIN', 'WORK_TYPE_MANAGE', 'All'),
+    ('SYSTEM_ADMIN', 'NOTIFICATION_SEND', 'All'), ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
-    ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('QA', 'TRANSACTION_IMPORT_MANAGE', 'All'),
-    ('MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('VERIFIER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('DEPT_MANAGER', 'NOTIFICATION_SEND', 'Dept'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
-    ('ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('ADMIN', 'QUALITY_FLAG_READ', 'All'), ('ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('ADMIN', 'QA_SAMPLE_READ', 'All'), ('ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('QA', 'QUALITY_FLAG_CREATE', 'All'), ('QA', 'QUALITY_FLAG_READ', 'All'), ('QA', 'QUALITY_FLAG_REWORK', 'All'), ('QA', 'QUALITY_FLAG_DISMISS', 'All'), ('QA', 'QA_SAMPLE_READ', 'All'), ('QA', 'QA_SAMPLE_DECIDE', 'All'),
+    ('SYSTEM_ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_READ', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'), ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.
-    ('ADMIN', 'RISK_EVENT_CREATE', 'All'), ('ADMIN', 'RISK_EVENT_READ', 'All'), ('ADMIN', 'RISK_EVENT_CONFIRM', 'All'), ('ADMIN', 'RISK_EVENT_DISMISS', 'All'), ('ADMIN', 'RISK_EVENT_RESOLVE', 'All'), ('ADMIN', 'RISK_EVENT_REVERSE', 'All'), ('QA', 'RISK_EVENT_CREATE', 'All'), ('QA', 'RISK_EVENT_READ', 'All'), ('QA', 'RISK_EVENT_CONFIRM', 'All'), ('QA', 'RISK_EVENT_DISMISS', 'All'), ('QA', 'RISK_EVENT_RESOLVE', 'All'), ('QA', 'RISK_EVENT_REVERSE', 'All'),
-    ('MANAGER', 'RISK_EVENT_READ', 'Dept'),
+    ('SYSTEM_ADMIN', 'RISK_EVENT_CREATE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_READ', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_CONFIRM', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_DISMISS', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_RESOLVE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_REVERSE', 'All'), ('VERIFIER', 'RISK_EVENT_CREATE', 'All'), ('VERIFIER', 'RISK_EVENT_READ', 'All'), ('VERIFIER', 'RISK_EVENT_CONFIRM', 'All'), ('VERIFIER', 'RISK_EVENT_DISMISS', 'All'), ('VERIFIER', 'RISK_EVENT_RESOLVE', 'All'), ('VERIFIER', 'RISK_EVENT_REVERSE', 'All'),
+    ('DEPT_MANAGER', 'RISK_EVENT_READ', 'Dept'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
-    ('ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
+    ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
     -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).
-    ('ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
-    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All')
+    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
+    ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_VIEW', 'All'), ('SYSTEM_ADMIN', 'SYSTEM_PARAMETER_UPDATE', 'All'),
+    -- Reconciliation (docs/api/RECONCILIATION_CONTRACT.md); the migration GrantReconciliationRead grants the same on an existing database.
+    ('VERIFIER', 'RECONCILIATION_READ', 'All'), ('SYSTEM_ADMIN', 'RECONCILIATION_READ', 'All'), ('SYSTEM_ADMIN', 'RECONCILIATION_READ', 'All'),
+    ('BRANCH_MANAGER', 'RECONCILIATION_READ', 'Branch'), ('DEPT_MANAGER', 'RECONCILIATION_READ', 'Dept'),
+    ('DEPT_MANAGER', 'RECONCILIATION_READ', 'Dept'),
+    -- The verifier is the QA / inspector of the system (the former QA role was merged into VERIFIER).
+    ('VERIFIER', 'RECONCILIATION_READ', 'All'), ('VERIFIER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'),
+    ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
+    ('VERIFIER', 'RISK_EVENT_CREATE', 'All'), ('VERIFIER', 'RISK_EVENT_READ', 'All'), ('VERIFIER', 'RISK_EVENT_CONFIRM', 'All'), ('VERIFIER', 'RISK_EVENT_DISMISS', 'All'), ('VERIFIER', 'RISK_EVENT_RESOLVE', 'All'), ('VERIFIER', 'RISK_EVENT_REVERSE', 'All')
 ) AS m(role_code, permission_code, scope)
 JOIN role r ON r.code = m.role_code
 JOIN permission p ON p.code = m.permission_code
 ON CONFLICT DO NOTHING;
 
--- Each organization role is usable on its own (one role per account). The same copy the migration
--- GrantWorkAccessToOrganizationRoles performs, repeated here because a fresh database has no MANAGER/ADMIN grants
--- when migrations run. DEPT_MANAGER = MANAGER; BRANCH_MANAGER = MANAGER with department scopes widened to Branch;
--- SYSTEM_ADMIN = ADMIN without the development-only FULL_ACCESS wildcard.
-INSERT INTO role_permission (role_id, permission_id, scope)
-SELECT target.id, rp.permission_id, rp.scope
-FROM role_permission rp
-JOIN role source ON source.id = rp.role_id AND source.code = 'MANAGER'
-JOIN role target ON target.code = 'DEPT_MANAGER'
-ON CONFLICT DO NOTHING;
-
+-- BRANCH_MANAGER inherits the DEPT_MANAGER grants with department scopes widened to Branch (the same copy the migration
+-- GrantWorkAccessToOrganizationRoles performs), because a fresh database has no DEPT_MANAGER grants when migrations run.
 INSERT INTO role_permission (role_id, permission_id, scope)
 SELECT target.id, rp.permission_id,
        CASE WHEN lower(rp.scope) IN ('dept', 'department') THEN 'Branch' ELSE rp.scope END
 FROM role_permission rp
-JOIN role source ON source.id = rp.role_id AND source.code = 'MANAGER'
+JOIN role source ON source.id = rp.role_id AND source.code = 'DEPT_MANAGER'
 JOIN role target ON target.code = 'BRANCH_MANAGER'
-ON CONFLICT DO NOTHING;
-
-INSERT INTO role_permission (role_id, permission_id, scope)
-SELECT target.id, rp.permission_id, rp.scope
-FROM role_permission rp
-JOIN permission p ON p.id = rp.permission_id AND p.code <> 'FULL_ACCESS'
-JOIN role source ON source.id = rp.role_id AND source.code = 'ADMIN'
-JOIN role target ON target.code = 'SYSTEM_ADMIN'
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------------

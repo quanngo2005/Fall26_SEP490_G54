@@ -1212,11 +1212,14 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.WorkId, "ix_result_submission_work");
 
+            entity.HasIndex(e => e.CarriedOverToPeriodId, "ix_result_submission_carried_over_period");
+
             entity.HasIndex(e => new { e.WorkId, e.SubmissionNo }, "uq_result_submission_attempt").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
+            entity.Property(e => e.CarriedOverToPeriodId).HasColumnName("carried_over_to_period_id");
             entity.Property(e => e.Comment).HasColumnName("comment");
             entity.Property(e => e.SubmissionNo)
                 .HasDefaultValue(1)
@@ -1238,6 +1241,11 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Work).WithMany(p => p.ResultSubmissions)
                 .HasForeignKey(d => d.WorkId)
                 .HasConstraintName("fk_result_submission_work");
+
+            entity.HasOne(d => d.CarriedOverToPeriod).WithMany(p => p.CarriedOverResultSubmissions)
+                .HasForeignKey(d => d.CarriedOverToPeriodId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_result_submission_carried_over_period");
 
             entity.Property(e => e.Status)
                 .HasColumnType("submission_status")

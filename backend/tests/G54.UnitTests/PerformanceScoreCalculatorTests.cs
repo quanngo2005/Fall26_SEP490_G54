@@ -1218,7 +1218,7 @@ public sealed class PerformanceScoreCalculatorTests
                 OutsideStaff = outside,
                 QualitativeScore = qualitativeScore,
                 Calculator = calculator,
-                Evaluation = new EvaluationService(db, NullLogger<EvaluationService>.Instance, permissions, calculator),
+                Evaluation = new EvaluationService(db, NullLogger<EvaluationService>.Instance, permissions, calculator, new RecordingNotifier()),
                 Endpoint = new PerformanceEvaluationService(
                     db, permissions, calculator, new FixedTime(Now), NullLogger<PerformanceEvaluationService>.Instance),
             };

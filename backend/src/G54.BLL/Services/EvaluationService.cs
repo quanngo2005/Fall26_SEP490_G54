@@ -6,6 +6,7 @@ using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Validation;
 using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Dtos.SystemParameter;
@@ -22,10 +23,10 @@ public sealed partial class EvaluationService(
     ILogger<EvaluationService> logger,
     IPermissionService permissions,
     IPerformanceScoreCalculator calculator,
+    INotifier notifier,
     TimeProvider? time = null,
     IOptions<SystemParametersOptions>? parameters = null,
-    IRankingPolicyService? rankingPolicies = null,
-    INotifier? notifier = null) : IEvaluationService
+    IRankingPolicyService? rankingPolicies = null) : IEvaluationService
 {
     private readonly TimeProvider timeProvider = time ?? TimeProvider.System;
     private readonly SystemParametersOptions systemParameters = parameters?.Value ?? new SystemParametersOptions();
@@ -69,6 +70,12 @@ public sealed partial class EvaluationService(
             LogLevel.Information,
             new EventId(4, "PeriodFinalized"),
             "Evaluation period {PeriodId} finalized and hard-locked: TotalFinalized={TotalFinalized}");
+
+    private static readonly Action<ILogger, Guid, Exception?> LogCarryOverNotificationFailed =
+        LoggerMessage.Define<Guid>(
+            LogLevel.Warning,
+            new EventId(7, "CarryOverNotificationFailed"),
+            "Could not notify submitters of result carry-over for Period {PeriodId}");
 
     public async Task<EvaluationFormDto> GetEvaluationFormAsync(
         Guid employeeId,
@@ -672,15 +679,13 @@ public sealed partial class EvaluationService(
             return [];
         }
 
-        var periodStart = StartOfBusinessDay(period.StartDate);
-        var periodEndExclusive = StartOfBusinessDay(period.EndDate.AddDays(1));
+        var inPeriod = ResultSubmissionPeriodScope.InPeriod(period.Id, period.StartDate, period.EndDate);
 
         var submitters = await db.ResultSubmissions
             .AsNoTracking()
             .Where(rs => employeeIds.Contains(rs.SubmitterEmployeeId)
-                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview)
-                && rs.SubmittedAt >= periodStart
-                && rs.SubmittedAt < periodEndExclusive)
+                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview))
+            .Where(inPeriod)
             .Select(rs => rs.SubmitterEmployeeId)
             .ToListAsync(cancellationToken);
 
@@ -1589,24 +1594,22 @@ public sealed partial class EvaluationService(
             .Where(d => inScope == null || inScope.Contains(d.Id))
             .ToListAsync(cancellationToken);
 
-        var deptIds = departments.Select(d => d.Id).ToList();
-
+        // Employees of the in-scope units at any level (a department's teams included), so a result submitted by a
+        // team member counts; the department list above stays the unit of the approval check.
         var employees = await db.Employees
             .AsNoTracking()
-            .Where(e => deptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .Where(e => (inScope == null || inScope.Contains(e.DepartmentId)) && e.Status == EmployeeStatus.Active)
             .ToListAsync(cancellationToken);
         var empIds = employees.Select(e => e.Id).ToList();
 
-        var periodStart = period.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var periodEnd = period.EndDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var periodInPeriod = ResultSubmissionPeriodScope.InPeriod(period.Id, period.StartDate, period.EndDate);
 
         // 1. Result submissions in review / un-reconciled
         var inReviewCount = await db.ResultSubmissions
             .AsNoTracking()
             .Where(rs => empIds.Contains(rs.SubmitterEmployeeId)
-                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview)
-                && rs.SubmittedAt >= periodStart
-                && rs.SubmittedAt <= periodEnd)
+                && (rs.Status == SubmissionStatus.Submitted || rs.Status == SubmissionStatus.UnderReview))
+            .Where(periodInPeriod)
             .CountAsync(cancellationToken);
 
         // 2. Ad-hoc work without WorkType pending manual verification
@@ -1681,7 +1684,8 @@ public sealed partial class EvaluationService(
                 inReviewCount,
                 inReviewCount == 0,
                 "SCR-REV-03",
-                "/results/verify"),
+                "/results/verify",
+                IsBlocking: false),
             new(
                 "MANUAL_WORK_ITEMS",
                 "Việc ngoài WorkType chờ duyệt tay",
@@ -1712,7 +1716,7 @@ public sealed partial class EvaluationService(
                 null)
         };
 
-        var canPublish = items.All(i => i.IsPassed);
+        var canPublish = items.Where(i => i.IsBlocking).All(i => i.IsPassed);
         var totalUnresolved = items.Count(i => !i.IsPassed);
 
         var deadlineDays = Math.Max(1, Params.PreCloseDeadlineDays);
@@ -1748,7 +1752,8 @@ public sealed partial class EvaluationService(
         {
             throw new BusinessRuleException(
                 ErrorCodes.Conflict,
-                "Kỳ đánh giá đã được khóa trước đó.");
+                "Kỳ đánh giá đã được khóa trước đó.",
+                409);
         }
 
         var evaluations = await db.PerformanceEvaluations
@@ -1796,10 +1801,45 @@ public sealed partial class EvaluationService(
             }
         }
 
+        // Carry-over: a result still SUBMITTED/UNDER_REVIEW when the period locks has not been through QA/import
+        // reconciliation yet; it is moved to the next open period of the same type so it is not silently stranded
+        // in a locked period. No next period exists yet -> lock proceeds anyway, the results stay as-is.
+        var pendingSubmissions = await db.ResultSubmissions
+            .Where(r => r.Status == SubmissionStatus.Submitted || r.Status == SubmissionStatus.UnderReview)
+            .Where(ResultSubmissionPeriodScope.InPeriod(period.Id, period.StartDate, period.EndDate))
+            .ToListAsync(cancellationToken);
+
+        var nextPeriod = pendingSubmissions.Count == 0
+            ? null
+            : await db.EvaluationPeriods
+                .AsNoTracking()
+                .Where(p => p.PeriodType == period.PeriodType
+                    && p.StartDate > period.EndDate
+                    && p.Status == PeriodStatus.Open)
+                .OrderBy(p => p.StartDate)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        var carriedOverResults = 0;
+        var pendingWithoutTargetPeriod = 0;
+        if (nextPeriod is not null)
+        {
+            foreach (var submission in pendingSubmissions)
+            {
+                submission.CarriedOverToPeriodId = nextPeriod.Id;
+                submission.UpdatedAt = now;
+            }
+
+            carriedOverResults = pendingSubmissions.Count;
+        }
+        else if (pendingSubmissions.Count > 0)
+        {
+            pendingWithoutTargetPeriod = pendingSubmissions.Count;
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         LogPeriodFinalized(logger, request.PeriodId, evaluations.Count, null);
-        if (notifier is not null && evaluations.Count > 0)
+        if (evaluations.Count > 0)
         {
             var evaluatedIds = evaluations.Select(pe => pe.EmployeeId).Distinct().ToList();
             var activeEvaluatedIds = await db.Employees.AsNoTracking()
@@ -1811,12 +1851,29 @@ public sealed partial class EvaluationService(
                 cancellationToken);
         }
 
+        if (carriedOverResults > 0 && nextPeriod is not null)
+        {
+            var submitterIds = pendingSubmissions.Select(r => r.SubmitterEmployeeId).Distinct().ToList();
+            try
+            {
+                await notifier.TryPublishAsync(
+                    AutomaticNotifications.ResultSubmissionsCarriedOver(submitterIds, nextPeriod), cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogCarryOverNotificationFailed(logger, request.PeriodId, ex);
+            }
+        }
+
         return new FinalizeResultDto(
             request.PeriodId,
             "LOCKED",
             now,
             evaluations.Count,
-            "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.");
+            "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.",
+            carriedOverResults,
+            nextPeriod?.Id,
+            pendingWithoutTargetPeriod);
     }
 
     private static readonly string[] BranchPeriodDisplayStatuses =

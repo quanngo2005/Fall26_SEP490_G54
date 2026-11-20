@@ -7,10 +7,14 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 {
     private readonly AppDbContext _dbContext = dbContext;
 
+    /// <summary>Permissions the SYSTEM_ADMIN role never receives automatically.</summary>
+    public static readonly string[] SystemAdminExcludedPermissions =
+        ["FULL_ACCESS", "DEPARTMENT_MANAGE", "EMPLOYEE_MANAGE", "JOB_POSITION_MANAGE"];
+
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
 
     // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
-    // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, NV015/NV018/NV020 heads of the extra departments (department managers), the rest employees.
+    // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, NV022 QA, NV015/NV018/NV020 heads of the extra departments (department managers), the rest employees.
     private const string DemoUserRolesSql = """
         WITH demo(employee_code, role_code) AS (VALUES
             ('NV001', 'BRANCH_MANAGER'),
@@ -21,7 +25,8 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             ('NV010', 'EMPLOYEE'), ('NV012', 'EMPLOYEE'),
             ('NV016', 'EMPLOYEE'), ('NV017', 'EMPLOYEE'), ('NV019', 'EMPLOYEE'), ('NV021', 'EMPLOYEE'),
             ('NV013', 'SYSTEM_ADMIN'),
-            ('NV014', 'VERIFIER')
+            ('NV014', 'VERIFIER'),
+            ('NV022', 'VERIFIER')
         ),
         removed AS (
             DELETE FROM user_role ur
@@ -192,13 +197,13 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         }
 
         var adminRole = await _dbContext.Roles
-            .SingleOrDefaultAsync(candidate => candidate.Code == "ADMIN", cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Code == "SYSTEM_ADMIN", cancellationToken);
         if (adminRole is null)
         {
             adminRole = new Role
             {
-                Code = "ADMIN",
-                Name = "Administrator",
+                Code = "SYSTEM_ADMIN",
+                Name = "System Administrator",
                 Description = "Full access for local development only.",
                 UpdatedAt = DateTimeOffset.UtcNow,
                 Status = RecordStatus.Active,
@@ -236,8 +241,11 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        // The system administrator holds every permission explicitly, except the development wildcard and the ones the business
+        // rules keep out of its hands (departments, job positions and employees are view-only or import-only).
         var permissions = await _dbContext.Permissions
             .AsNoTracking()
+            .Where(item => !SystemAdminExcludedPermissions.Contains(item.Code))
             .Select(item => item.Id)
             .ToListAsync(cancellationToken);
         var assignedPermissionIds = await _dbContext.RolePermissions

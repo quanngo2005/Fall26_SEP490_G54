@@ -56,6 +56,9 @@ let nextSelectId = 0;
     (click)="toggle()"
     (keydown)="onTriggerKeydown($event)"
   >
+    @if (prefix()) {
+      <span class="ui-select-prefix">{{prefix()}}</span>
+    }
     <span class="ui-select-value" [class.is-placeholder]="isPlaceholder()">
       {{selectedLabel()}}
     </span>
@@ -202,6 +205,17 @@ let nextSelectId = 0;
         }
       }
 
+      .ui-select-prefix {
+        flex: 0 0 auto;
+        color: #64748b;
+        font-weight: 400;
+      }
+
+      .ui-select-prefix + .ui-select-value {
+        color: #0f172a;
+        font-weight: 600;
+      }
+
       .ui-select-chevron {
         flex: 0 0 auto;
         width: 15px;
@@ -340,6 +354,8 @@ export class UiSelectComponent<T = string> implements ControlValueAccessor {
   readonly options = input.required<readonly SelectOption<T>[]>();
   readonly placeholder = input<string>('');
   readonly ariaLabel = input<string>('');
+  /** Muted label shown inside the trigger before the value ("Kỳ  Tháng 10/2026"). */
+  readonly prefix = input<string>('');
   readonly triggerId = input<string>('');
   readonly size = input<'md' | 'sm'>('md');
   readonly disabled = input<boolean>(false);

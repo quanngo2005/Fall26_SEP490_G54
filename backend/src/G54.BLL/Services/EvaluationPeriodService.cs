@@ -2,6 +2,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.EvaluationPeriod;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -189,15 +190,15 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
                 ErrorCodes.EvaluationPeriodInvalidState);
         }
 
-        var from = StartOfDay(period.StartDate);
-        var to = StartOfDay(period.EndDate.AddDays(1));
-        var pendingResults = await db.ResultSubmissions.CountAsync(
-            r => (r.Status == SubmissionStatus.Submitted || r.Status == SubmissionStatus.UnderReview)
-                && r.SubmittedAt >= from && r.SubmittedAt < to,
-            cancellationToken);
+        var inPeriod = ResultSubmissionPeriodScope.InPeriod(periodId, period.StartDate, period.EndDate);
+        var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(db.ResultSubmissions, periodId, period.StartDate, period.EndDate);
+        var pendingResults = await db.ResultSubmissions
+            .Where(r => r.Status == SubmissionStatus.Submitted || r.Status == SubmissionStatus.UnderReview)
+            .Where(inPeriod)
+            .CountAsync(cancellationToken);
         var openDisputes = await db.Appeals.CountAsync(
             a => (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
-                && a.ResultSubmission.SubmittedAt >= from && a.ResultSubmission.SubmittedAt < to,
+                && submissionsInPeriod.Contains(a.ResultSubmissionId),
             cancellationToken);
 
         period.Status = PeriodStatus.InReview;
@@ -224,9 +225,6 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
             throw new ValidationException(error);
         }
     }
-
-    private static DateTimeOffset StartOfDay(DateOnly date) =>
-        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime();
 
     private static (string Code, string Name, PeriodType Type, DateOnly Start, DateOnly End) Validate(CreateEvaluationPeriodRequestDto request)
     {

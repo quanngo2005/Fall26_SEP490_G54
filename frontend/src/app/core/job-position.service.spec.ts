@@ -109,7 +109,9 @@ describe('JobPositionService', () => {
   it('encodes the identifier it puts in the path', () => {
     service.detail('a/b c').subscribe();
 
-    http.expectOne(`${url}/a%2Fb%20c`).flush({ success: true, data: { id: 'x' } });
+    const req = http.expectOne(`${url}/a%2Fb%20c`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ success: true, data: { id: 'x' } });
   });
 
   it('rejects an envelope that says it failed or carries no data', () => {

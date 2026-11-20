@@ -58,6 +58,7 @@ import {
 import { AssignWorkDialogComponent } from './assign-work-dialog.component';
 import { HandoverDialogComponent } from './handover-dialog.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
+import { WorkWorkloadMonitorComponent } from './work-workload-monitor.component';
 
 interface ColumnState {
   items: WorkListItem[];
@@ -116,6 +117,7 @@ const emptyColumn = (loading: boolean): ColumnState => ({
     WorkDetailDrawerComponent,
     AssignWorkDialogComponent,
     HandoverDialogComponent,
+    WorkWorkloadMonitorComponent,
   ],
   templateUrl: './work-board.component.html',
   styleUrls: [
@@ -149,7 +151,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   /** A manager can open the department's work; everyone else only has their own. */
   protected readonly isManager = inject(NavigationService).isManager;
   protected readonly isTeam = computed(() => this.scope() === 'team');
-  private me: Pick<EmployeeDetail, 'id' | 'departmentId'> | null = null;
+  protected readonly me = signal<Pick<EmployeeDetail, 'id' | 'departmentId'> | null>(null);
   protected readonly columnDefs = computed(() => (this.isTeam() ? TEAM_COLUMNS : BOARD_COLUMNS));
   /** The one move a card allows: my board starts a work, the department board completes one. */
   private readonly action = computed(
@@ -160,7 +162,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
-  protected readonly view = signal<'board' | 'list'>('board');
+  protected readonly view = signal<'board' | 'list' | 'monitor'>('board');
   protected readonly profileLoading = signal(true);
   protected readonly profileFailed = signal(false);
   protected readonly columns = signal<Record<BoardColumnKey, ColumnState>>(this.emptyColumns(true));
@@ -332,7 +334,7 @@ export class WorkBoardComponent extends LocalizedComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (me) => {
-          this.me = me;
+          this.me.set(me);
           const manager = this.isManager();
           if (manager) {
             this.optional(this.departments.members(me.departmentId, { pageSize: 100 }), (page) =>
@@ -344,6 +346,7 @@ export class WorkBoardComponent extends LocalizedComponent {
           }
           this.profileLoading.set(false);
           const query = this.route.snapshot.queryParamMap;
+          const requestedView = query.get('view') ?? this.route.snapshot.data?.['view'];
           const employeeCode = query.get('employeeCode');
           const linkedKeyword = query.get('keyword');
           const linkedWorkId = query.get('workId');
@@ -351,6 +354,9 @@ export class WorkBoardComponent extends LocalizedComponent {
             this.keyword = linkedKeyword ?? '';
             this.selectedId.set(linkedWorkId);
             this.chooseScope('mine');
+          } else if (manager && requestedView === 'monitor') {
+            this.view.set('monitor');
+            this.chooseScope('team');
           } else if (manager && employeeCode) {
             this.openTeamOfEmployee(employeeCode);
           } else {
@@ -393,6 +399,9 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected chooseScope(scope: WorkScope, employeeId = ''): void {
     if (scope === 'team' && !this.isManager()) return;
     this.scope.set(scope);
+    if (scope === 'mine' && this.view() === 'monitor') {
+      this.view.set('board');
+    }
     this.quick.set(null);
     this.positionId.set('');
     this.employeeId = employeeId;
@@ -405,7 +414,8 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   // ---- Filters and view -----------------------------------------------------------------------
 
-  protected setView(mode: 'board' | 'list'): void {
+  protected setView(mode: 'board' | 'list' | 'monitor'): void {
+    if (mode === 'monitor' && !this.isTeam()) return;
     if (this.view() === mode) return;
     this.view.set(mode);
     if (mode === 'list') this.reloadListFromFirstPage();
@@ -417,7 +427,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   protected applyServerFilters(): void {
-    if (!this.me) return;
+    if (!this.me()) return;
     this.list.update((state) => ({ ...state, page: 1 }));
     this.boardReload.next();
     if (this.view() === 'list') this.listReload.next();
@@ -505,7 +515,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   // ---- Loading --------------------------------------------------------------------------------
 
   private baseFilter(): WorkFilter {
-    const me = this.me;
+    const me = this.me();
     return {
       ...(this.isTeam()
         ? {
@@ -572,7 +582,7 @@ export class WorkBoardComponent extends LocalizedComponent {
     this.listReload
       .pipe(
         switchMap(() => {
-          if (!this.me) return EMPTY;
+          if (!this.me()) return EMPTY;
           this.list.update((state) => ({ ...state, loading: true, failed: false }));
           return this.works
             .list({

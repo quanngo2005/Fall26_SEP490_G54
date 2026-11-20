@@ -2245,6 +2245,10 @@ namespace G54.DAL.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("CarriedOverToPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("carried_over_to_period_id");
+
                     b.Property<string>("Comment")
                         .HasColumnType("text")
                         .HasColumnName("comment");
@@ -2283,6 +2287,8 @@ namespace G54.DAL.Migrations
                         .HasName("result_submission_pkey");
 
                     b.HasIndex("SubmitterEmployeeId");
+
+                    b.HasIndex(new[] { "CarriedOverToPeriodId" }, "ix_result_submission_carried_over_period");
 
                     b.HasIndex(new[] { "WorkId" }, "ix_result_submission_work");
 
@@ -4209,6 +4215,12 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "CarriedOverToPeriod")
+                        .WithMany("CarriedOverResultSubmissions")
+                        .HasForeignKey("CarriedOverToPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_result_submission_carried_over_period");
+
                     b.HasOne("G54.DAL.Entities.Employee", "SubmitterEmployee")
                         .WithMany("ResultSubmissions")
                         .HasForeignKey("SubmitterEmployeeId")
@@ -4222,6 +4234,8 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_result_submission_work");
+
+                    b.Navigation("CarriedOverToPeriod");
 
                     b.Navigation("SubmitterEmployee");
 
@@ -4739,6 +4753,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.EvaluationPeriod", b =>
                 {
+                    b.Navigation("CarriedOverResultSubmissions");
+
                     b.Navigation("InverseParentPeriod");
 
                     b.Navigation("PerformanceContributions");

@@ -5,12 +5,16 @@ import { AuthenticatedUser } from '../../core/auth.models';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { HomePageComponent } from './home-page.component';
+import { QaDashboardComponent } from './qa-dashboard/qa-dashboard.component';
 
 @Component({ selector: 'app-header', template: '' })
 class StubHeaderComponent {}
 
 @Component({ selector: 'app-sidebar', template: '' })
 class StubSidebarComponent {}
+
+@Component({ selector: 'app-qa-dashboard', template: '' })
+class StubQaDashboardComponent {}
 
 describe('HomePageComponent', () => {
   const user = signal<AuthenticatedUser | null>(null);
@@ -23,8 +27,8 @@ describe('HomePageComponent', () => {
       providers: [{ provide: AuthService, useValue: { currentUser: user.asReadonly() } }],
     });
     TestBed.overrideComponent(HomePageComponent, {
-      remove: { imports: [HeaderComponent, SidebarComponent] },
-      add: { imports: [StubHeaderComponent, StubSidebarComponent] },
+      remove: { imports: [HeaderComponent, SidebarComponent, QaDashboardComponent] },
+      add: { imports: [StubHeaderComponent, StubSidebarComponent, StubQaDashboardComponent] },
     });
     fixture = TestBed.createComponent(HomePageComponent);
   });
@@ -49,5 +53,29 @@ describe('HomePageComponent', () => {
     fixture.detectChanges();
     const fallback = TestBed.inject(I18nService).localization.home.fallbackName;
     expect(heading()).toContain(fallback);
+  });
+
+  function signIn(permissions: string[]): void {
+    user.set({ id: 'id', email: 'qa@example.test', fullName: 'QA', roles: [], permissions });
+    fixture.detectChanges();
+  }
+
+  const dashboard = () => (fixture.nativeElement as HTMLElement).querySelector('app-qa-dashboard');
+
+  it('shows the QA dashboard instead of the welcome card with quality_flag:read', () => {
+    signIn(['quality_flag:read']);
+    expect(dashboard()).not.toBeNull();
+    expect(heading()).toBe('');
+  });
+
+  it('shows the QA dashboard with full access', () => {
+    signIn(['full_access']);
+    expect(dashboard()).not.toBeNull();
+  });
+
+  it('keeps the welcome card for everybody else', () => {
+    signIn(['work:read', 'kpi:read']);
+    expect(dashboard()).toBeNull();
+    expect(heading()).toContain('QA');
   });
 });

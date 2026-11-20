@@ -32,6 +32,8 @@ public partial class EvaluationPeriod
 
     public virtual EvaluationPeriod? ParentPeriod { get; set; }
 
+    public virtual ICollection<ResultSubmission> CarriedOverResultSubmissions { get; set; } = new List<ResultSubmission>();
+
     public virtual ICollection<PerformanceContribution> PerformanceContributions { get; set; } = new List<PerformanceContribution>();
 
     public virtual ICollection<PerformanceEvaluation> PerformanceEvaluations { get; set; } = new List<PerformanceEvaluation>();

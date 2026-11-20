@@ -17,12 +17,10 @@ endpoints of the same controller are described in `CALIBRATION_APPROVAL_CONTRACT
 
 The BLL restricts the target department to the caller's granted scope. `All` bypasses the check on `/department-employees`; `Branch`
 covers the nearest branch subtree; `Dept` the caller's own department subtree. A department outside that set
-returns 403 `FORBIDDEN`. For `/department-dashboard` and `/department-dashboard/export`, only a Department Manager (`evaluation:read` at `Dept` scope without `Branch` or `All` scope) is allowed to access their own department; `BRANCH_MANAGER` and `ADMIN` / `SYSTEM_ADMIN` receive 403 `FORBIDDEN`.
+returns 403 `FORBIDDEN`. For `/department-dashboard` and `/department-dashboard/export`, only a Department Manager (`evaluation:read` at `Dept` scope without `Branch` or `All` scope) is allowed to access their own department; `BRANCH_MANAGER`, `SYSTEM_ADMIN` and `HR_OFFICER` receive 403 `FORBIDDEN`.
 
-The seed grants `evaluation:read`/`submit` to `MANAGER`, `DEPT_MANAGER`, `BRANCH_MANAGER` and `ADMIN`, and
-`evaluation:read` at `Own` to `EMPLOYEE`. No role `HR` exists in the seed: HR cannot call these endpoints
-until the permission is granted to it (not part of this task). `ADMIN` passes the backend check; the frontend
-only hides the menu entry for admin and QA (no route guard), so the screen can still be opened by URL.
+The seed grants `evaluation:read`/`submit` to `DEPT_MANAGER`, `BRANCH_MANAGER` and `SYSTEM_ADMIN`, and
+`evaluation:read` at `Own` to `EMPLOYEE` and `VERIFIER`, and at `All` to `HR_OFFICER` (migration `ConsolidateRoles`). `SYSTEM_ADMIN` holds `evaluation:read` at `All` explicitly; the frontend guards the screens (`departmentEvaluationGuard`, `personalEvaluationGuard`).
 
 ## `GET /evaluations/periods`
 
@@ -163,7 +161,7 @@ The modal searches (transaction code, work code or title), filters by status and
 
 ### `GET /evaluations/department-dashboard`
 
-Permission: `evaluation:read` at `Dept` scope (Department Manager only; `BRANCH_MANAGER` and `ADMIN` / `SYSTEM_ADMIN` receive 403 `FORBIDDEN`).
+Permission: `evaluation:read` at `Dept` scope (Department Manager only; `BRANCH_MANAGER`, `SYSTEM_ADMIN` and `HR_OFFICER` receive 403 `FORBIDDEN`).
 Query: `periodId` (GUID, optional; defaults to the latest open or active evaluation period), `comparePeriodId` (GUID, optional; defaults to the latest earlier period of the same `periodType`).
 
 Response `data` (`DepartmentEvaluationDashboardDto`):

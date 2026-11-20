@@ -95,7 +95,7 @@ public sealed class PermissionAuthorizationTests
     }
 
     [Fact]
-    public async Task AuthorizationHandler_AdminRole_BypassesPermissionCheck()
+    public async Task AuthorizationHandler_SystemAdminRole_DoesNotBypassPermissionCheck()
     {
         var mockService = new FakePermissionService(false);
         var handler = new PermissionAuthorizationHandler(mockService);
@@ -103,7 +103,7 @@ public sealed class PermissionAuthorizationTests
         var claims = new[]
         {
             new Claim("sub", Guid.NewGuid().ToString()),
-            new Claim("role", "ADMIN"),
+            new Claim("role", "SYSTEM_ADMIN"),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         var requirement = new PermissionRequirement("WORK", "DELETE", "All");
@@ -111,7 +111,7 @@ public sealed class PermissionAuthorizationTests
 
         await handler.HandleAsync(context);
 
-        Assert.True(context.HasSucceeded);
+        Assert.False(context.HasSucceeded);
     }
 
     [Fact]

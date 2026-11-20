@@ -18,6 +18,7 @@ public enum NotificationType
     [PgName("RATING_ONE_STAR")] RatingOneStar,
     [PgName("RESULT_PUBLISHED")] ResultPublished,
     [PgName("WORK_PLAN_UPDATED")] WorkPlanUpdated,
+    [PgName("RESULT_CARRIED_OVER")] ResultCarriedOver,
     [PgName("WORK_ASSIGNED")] WorkAssigned,
     [PgName("SUBMISSION_SUBMITTED")] SubmissionSubmitted,
     [PgName("SUBMISSION_DECIDED")] SubmissionDecided,
