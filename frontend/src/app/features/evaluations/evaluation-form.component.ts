@@ -188,29 +188,11 @@ export class EvaluationFormComponent extends LocalizedComponent {
     return `${summary.achievedCount} / ${summary.totalCount}`;
   });
 
-  readonly criteriaFootText = computed(() => {
-    const current = this.form();
-    if (!current) return '';
-    const summary = current.criteriaSummary;
-    return this.i18n.translate('evaluationForm.criteriaFoot', {
-      achieved: summary.achievedCount,
-      near: summary.nearCount,
-      below: summary.belowCount,
-      nearThreshold: this.i18n.formatNumber(current.formSettings.kpiNearThresholdPercent, 0),
-    });
-  });
-
   readonly slaValueText = computed(() => {
     const rate = this.form()?.slaSummary.onTimeRatePercent ?? null;
     if (rate === null) return this.localization.evaluations.emptyValue;
     return `${this.i18n.formatNumber(rate, 1)}%`;
   });
-
-  readonly slaFootText = computed(() =>
-    this.i18n.translate('evaluationForm.slaFoot', {
-      late: this.form()?.slaSummary.overdueCount ?? 0,
-    }),
-  );
 
   readonly riskCountPillText = computed(() =>
     this.i18n.translate('evaluationForm.riskCountPill', {

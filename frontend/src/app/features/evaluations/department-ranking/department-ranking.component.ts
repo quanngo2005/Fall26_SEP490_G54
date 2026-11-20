@@ -69,6 +69,7 @@ function compositeSortKey(row: RankingBoardStaffRow, sort: CompositeSort): numbe
     '../../../shared/ui/ui-controls.scss',
     '../../../shared/ui/workspace-page.scss',
     './department-ranking.component.scss',
+    './department-ranking.popup.scss',
     '../evaluations.layout.scss',
   ],
 })

@@ -1,4 +1,4 @@
-.lock-notice {
+﻿.lock-notice {
   flex: none;
   margin-left: auto;
   min-width: 320px;
@@ -345,66 +345,4 @@
   text-align: left;
   cursor: pointer;
   text-decoration: underline;
-}
-
-.hover-card {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.hover-popup {
-  position: fixed;
-  z-index: 1000;
-  display: none;
-  min-width: 220px;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
-  color: #0f172a;
-  font-size: 12px;
-  text-align: left;
-  white-space: normal;
-}
-
-.hover-popup-wide {
-  min-width: 320px;
-}
-
-.hover-card:hover .hover-popup,
-.hover-card:focus-within .hover-popup {
-  display: block;
-}
-
-.popup-title {
-  margin-bottom: 6px;
-  font-weight: 700;
-}
-
-.popup-line {
-  padding: 2px 0;
-}
-
-.popup-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.popup-table th,
-.popup-table td {
-  padding: 3px 4px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.popup-good {
-  color: #15803d;
-  font-weight: 700;
-}
-
-.popup-bad {
-  color: #b91c1c;
-  font-weight: 700;
 }

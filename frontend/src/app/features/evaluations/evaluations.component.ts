@@ -165,6 +165,7 @@ function sumKpiScores(scores: (number | null | undefined)[]): number | null {
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
     './evaluations.component.scss',
+    './evaluations.charts.scss',
     './evaluations.task-chart.scss',
     './evaluations.table.scss',
     './evaluations.layout.scss',

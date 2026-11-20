@@ -618,9 +618,7 @@ describe('EvaluationFormComponent', () => {
       await create();
       expect(component.criteriaValueText()).toBe('3 / 6');
       expect(component.criteriaPillText()).toContain('50');
-      expect(component.criteriaFootText()).toContain('85');
       expect(component.slaValueText()).toContain('96');
-      expect(component.slaFootText()).toContain('1');
     });
 
     it('shows empty value for criteria and SLA when there are no scorable items or SLA tasks', async () => {

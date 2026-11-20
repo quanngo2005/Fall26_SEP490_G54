@@ -1,8 +1,8 @@
-# BPMS – Frontend Status (as of 20/11/2026)
+# BPMS – Frontend Status (as of 21/11/2026)
 
 Counterpart of [`BE_STATUS.md`](BE_STATUS.md). Legend: ✅ done · 🟡 partial · ❌ missing. "Wired" means the screen calls the real API; a route listed here is lazy-loaded in `frontend/src/app/app.routes.ts`.
 
-Quality gate: `scripts/codereview-frontend.ps1` → **ALL CHECKS PASSED** (lint, prettier, 1208 unit tests, production build, i18n key parity).
+Quality gate: `scripts/codereview-frontend.ps1` → **PASSED** (lint, prettier, 1357 unit tests, production build without budget warnings, i18n key parity, 21/11/2026).
 
 ## 1. Screens
 

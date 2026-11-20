@@ -1,3 +1,54 @@
+﻿.task-dist-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.task-bar-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.task-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.task-bar-stats {
+  color: #64748b;
+  font-size: 11.5px;
+
+  b {
+    color: #0f172a;
+  }
+}
+
+.task-bar-track {
+  height: 7px;
+  border-radius: 4px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+
+.task-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+
 .task-dist-summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
