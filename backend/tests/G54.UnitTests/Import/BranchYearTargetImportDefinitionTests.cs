@@ -89,7 +89,7 @@ public sealed class BranchYearTargetImportDefinitionTests
             db,
             new BranchYearTargetImportDefinition(uow, permissions),
             new BranchYearTargetCommitter(uow),
-            new TargetAllocationService(uow, permissions),
+            new TargetSetupService(new UnitOfWork(db), db, permissions, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService()),
             Options.Create(new SystemParametersOptions()),
             TimeProvider.System);
     }

@@ -54,40 +54,9 @@
   gap: 8px;
 }
 
-.quarter-button {
-  height: 36px;
-  box-sizing: border-box;
-  border: 1px solid #8494a9;
-  border-radius: 6px;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font:
-    500 13px 'Nunito Sans',
-    sans-serif;
-  padding: 0 12px;
-  white-space: nowrap;
-}
-.quarter-button:hover:not(:disabled) {
-  background: #f1f5f9;
-}
-.quarter-button:focus-visible,
 .allocate-button:focus-visible {
   outline: 2px solid #002b49;
   outline-offset: 2px;
-}
-.quarter-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-.quarter-button.is-primary {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #2563eb;
-  font-weight: 600;
-}
-.quarter-button.is-primary:hover:not(:disabled) {
-  background: #dbeafe;
 }
 
 .quarter-toast {

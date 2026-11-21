@@ -26,31 +26,28 @@
 
       @if (!readOnly()) {
         <div class="quarter-actions">
-          <button type="button" class="quarter-button is-secondary" (click)="requestReimport()">
+          <button type="button" class="button button-secondary" (click)="requestReimport()">
             {{text.reimport}}
           </button>
-          <button type="button" class="quarter-button is-secondary" (click)="splitEvenly()">
-            {{text.splitEqual}}
-          </button>
+          <span class="suggest-anchor">
+            <app-suggest-button
+              [label]="text.suggestButton"
+              [disabled]="suggestLoading()"
+              (pressed)="openSuggestPopover()"
+            />
+            @if (showSuggestPopover()) {
+              <app-suggest-allocation-popover
+                class="suggest-popover-anchor"
+                [bufferUnitOptions]="bufferUnitOptions()"
+                [scopes]="['GROUP', 'UNMATCHED']"
+                (cancelled)="closeSuggestPopover()"
+                (created)="onSuggestionCreated($event)"
+              />
+            }
+          </span>
           <button
             type="button"
-            class="quarter-button is-secondary"
-            [disabled]="!hasPreviousYear()"
-            (click)="splitByPreviousYear()"
-          >
-            {{previousYearLabel()}}
-          </button>
-          <button
-            type="button"
-            class="quarter-button is-secondary"
-            [disabled]="!hasFileRatios()"
-            (click)="splitByFileRatios()"
-          >
-            {{text.splitFile}}
-          </button>
-          <button
-            type="button"
-            class="quarter-button is-primary"
+            class="button button-primary"
             [disabled]="saving()"
             (click)="save()"
           >
@@ -59,6 +56,31 @@
         </div>
       }
     </div>
+
+    @if (suggestError(); as message) {
+      <div class="quarter-save-error" role="alert">{{message}}</div>
+    }
+
+    @if (pendingSuggestion(); as pending) {
+      <app-suggestion-preview-banner
+        [cellCount]="pending.cellCount"
+        [kpiCount]="pending.kpiCount"
+        [basis]="pending.basis"
+        [remainderMethod]="pending.remainderMethod"
+        [fallbackCount]="pending.fallbackCount"
+        [fallbackTier]="1"
+        (changeBasis)="changeSuggestionBasis()"
+        (undo)="undoPendingSuggestion()"
+        (apply)="applyPendingSuggestion()"
+      />
+      @for (warning of pending.warnings; track $index) {
+        <p class="suggest-warning">⚠ {{warning}}</p>
+      }
+    }
+
+    @if (!readOnly()) {
+      <app-cell-legend />
+    }
 
     @if (toast(); as message) {
       <div animate.leave="g54-leave-rise" class="quarter-toast" role="status" aria-live="polite">
@@ -94,7 +116,7 @@
                 <td class="kpi-cell">{{view.row.kpiName}}</td>
                 <td class="unit-cell">{{view.row.unit}}</td>
                 <td class="num year-cell">
-                  <span class="year-value">{{formatValue(view.row.yearValue)}}</span>
+                  <span class="year-value">{{yearText(view)}}</span>
                   <app-layout-icon name="lock" class="year-lock" />
                   <span class="visually-hidden">{{text.yearLockedAria}}</span>
                 </td>
@@ -113,19 +135,17 @@
                       @if (readOnly()) {
                         <span class="quarter-static">{{formatValue(view.values[key])}}</span>
                       } @else {
-                        <input
-                          type="text"
-                          class="quarter-input"
-                          [class.is-locked]="view.locked[$index]"
-                          [class.is-edited-error]="view.edited[$index]"
-                          inputmode="decimal"
-                          [value]="inputText(view, key)"
-                          [disabled]="view.locked[$index]"
+                        <app-allocation-cell
+                          [value]="view.values[key]"
+                          [state]="cellState(view, key, $index)"
+                          [editable]="!view.locked[$index]"
+                          [lockedReason]="text.yearLockedAria"
                           [attr.aria-label]="quarterAria(view.row, $index)"
-                          (focus)="onQuarterFocus(view, key)"
-                          (input)="onQuarterInput(view, key, $event)"
-                          (blur)="onQuarterBlur(view, key)"
+                          (valueChange)="onCellValueChange(view, key, $event)"
                         />
+                        @if (quarterCaption(view, key); as caption) {
+                          <span class="quarter-caption">{{caption}}</span>
+                        }
                       }
                     </td>
                   }
@@ -146,7 +166,7 @@
               </tr>
             } @empty {
               <tr>
-                <td class="empty-cell" colspan="9">{{text.empty}}</td>
+                <td class="empty-cell" colspan="10">{{text.empty}}</td>
               </tr>
             }
           </tbody>

@@ -13,7 +13,7 @@ namespace G54.UnitTests;
 
 public sealed class TargetAllocationServiceTests
 {
-    private sealed record Fixture(AppDbContext Db, TargetAllocationService Service, Guid BranchId, Guid DeptId,
+    private sealed record Fixture(AppDbContext Db, TargetSetupService Service, Guid BranchId, Guid DeptId,
         Guid KpiId, Guid YearPeriodId, Guid Q1Id, TargetAssignment BranchYearTarget);
 
     private static async Task<Fixture> CreateAsync(PeriodStatus status = PeriodStatus.Open)
@@ -70,7 +70,7 @@ public sealed class TargetAllocationServiceTests
         db.TargetAssignments.Add(branchYearTarget);
         await db.SaveChangesAsync();
 
-        return new Fixture(db, new TargetAllocationService(new UnitOfWork(db), new AllocationPermissions(admin: true)), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
+        return new Fixture(db, new TargetSetupService(new UnitOfWork(db), db, new AllocationPermissions(admin: true), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService()), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class TargetAllocationServiceTests
             (new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31)),
         };
 
-        var result = TargetAllocationService.SplitByWorkingDays(1000m, parts);
+        var result = TargetSetupService.SplitByWorkingDays(1000m, parts);
 
         Assert.Equal(3, result.Count);
         Assert.Equal(1000m, result.Sum());
@@ -98,7 +98,7 @@ public sealed class TargetAllocationServiceTests
             (new DateOnly(2026, 1, 10), new DateOnly(2026, 1, 11)),
         };
 
-        var result = TargetAllocationService.SplitByWorkingDays(100m, parts);
+        var result = TargetSetupService.SplitByWorkingDays(100m, parts);
 
         Assert.Equal(100m, result[0]);
         Assert.Equal(0m, result[1]);
@@ -305,8 +305,8 @@ public sealed class TargetAllocationServiceTests
             f.Service.AllocateQuartersAsync(deptYearTarget.Id, new([new(f.Q1Id, f.KpiId, 1000m)], null), Guid.NewGuid()));
     }
 
-    private static TargetAllocationService NonAdmin(Fixture f) =>
-        new(new UnitOfWork(f.Db), new AllocationPermissions(admin: false));
+    private static TargetSetupService NonAdmin(Fixture f) =>
+        new TargetSetupService(new UnitOfWork(f.Db), f.Db, new AllocationPermissions(admin: false), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
     /// <summary>Adds a sibling department D2 under the branch and an active employee account in <paramref name="departmentId"/>.</summary>
     private static async Task<(Guid SiblingId, Guid AccountId)> SeedScopeAsync(Fixture f, Guid? departmentId = null)

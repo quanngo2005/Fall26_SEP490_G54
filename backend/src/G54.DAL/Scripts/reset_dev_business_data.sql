@@ -21,8 +21,13 @@ TRUNCATE TABLE
     work,
     actual_progress,
     target_assignment_feedback,
+    target_change_log,
+    employee_target_ack,
     target_assignment,
     audit_logs
 CASCADE;
+
+-- Clear any lingering future-year evaluation periods (>= 2027)
+DELETE FROM evaluation_period WHERE code LIKE '2027%';
 
 COMMIT;

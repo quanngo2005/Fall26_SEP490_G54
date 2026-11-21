@@ -8,6 +8,12 @@ public sealed record CreateEvaluationPeriodRequestDto(
     DateOnly? StartDate,
     DateOnly? EndDate);
 
+/// <summary>Body of <c>POST /evaluation-periods/years</c>.</summary>
+public sealed record CreateYearPeriodsRequestDto(int? Year);
+
+/// <summary>The year period created with its 2 half-years and 4 quarters (7 periods, all <c>OPEN</c>).</summary>
+public sealed record CreateYearPeriodsResultDto(Guid YearPeriodId, int Year, int CreatedCount);
+
 public sealed record EvaluationPeriodStatusDto(
     Guid Id,
     string Code,

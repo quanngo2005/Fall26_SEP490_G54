@@ -151,13 +151,21 @@ export interface QuarterSplitRow {
   kpiCode: string;
   kpiName: string;
   unit: string;
+  groupCode: string;
+  groupName: string;
+  /** UPPER_SNAKE: SUM, AVG, RATIO, NO_AGGREGATION. */
+  aggregationType: string;
+  /** True for every non-SUM KPI: the year value applies to each quarter and the row is read-only. */
   isRatio: boolean;
   yearValue: number;
-  q1: number;
-  q2: number;
-  q3: number;
-  q4: number;
+  /** `null` when the quarter has not been split yet. */
+  q1: number | null;
+  q2: number | null;
+  q3: number | null;
+  q4: number | null;
+  previousYearValue: number | null;
   previousYear: QuarterValues | null;
+  previousYearActual: QuarterValues | null;
   sum: number;
   diff: number;
   matched: boolean;
@@ -199,7 +207,11 @@ export interface DepartmentAllocationRow {
   q3: number;
   q4: number;
   previousYear: number | null;
+  /** The department's previous-year actual result (VALID actuals under its previous-year assignments). */
+  previousYearActual: number | null;
   matched: boolean;
+  /** `null` while the department has no saved row for this KPI (the server needs one to publish). */
+  deptYearId?: string | null;
 }
 
 export interface DepartmentAllocationMetadata {

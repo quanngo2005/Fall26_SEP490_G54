@@ -1,0 +1,24 @@
+<span
+  [class]="stateClass()"
+  [attr.title]="tooltip()"
+  [attr.aria-disabled]="state() === 'LOCKED' ? 'true' : null"
+>
+  @if (editable() && state() !== 'LOCKED') {
+    <input
+      #input
+      type="text"
+      class="cell-input"
+      inputmode="decimal"
+      [value]="display()"
+      (blur)="onBlur(input)"
+      (keydown)="onKeydown($event, input)"
+    />
+  } @else if (value() === null) {
+    <span class="cell-empty">—</span>
+  } @else {
+    <span class="cell-value">{{value() | appNumber}}</span>
+  }
+  @if (unit()) {
+    <span class="cell-unit">{{unit()}}</span>
+  }
+</span>

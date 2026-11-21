@@ -61,51 +61,32 @@
   margin: 0;
 }
 
-/* Step 4: publish summary and confirmation. */
-.publish-panel {
+/* Step 3 "Theo chỉ tiêu | Ma trận" switch. */
+.allocation-view-switch {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 12px;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 12px;
 }
-.publish-summary,
-.publish-note {
-  margin: 0;
-  color: #334155;
-  font-size: 13px;
-}
-.publish-note {
+.view-switch-tab {
+  height: 32px;
+  border: 0.8px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
   color: #475569;
-  font-size: 12px;
+  cursor: pointer;
+  font:
+    500 13px 'Nunito Sans',
+    sans-serif;
+  padding: 0 14px;
 }
-.publish-done {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid #a7f3d0;
-  border-radius: 8px;
-  background: #ecfdf5;
-  color: #047857;
-  font-size: 13px;
+.view-switch-tab.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
   font-weight: 600;
 }
-.publish-blockers,
-.publish-error {
-  padding: 10px 12px;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 12px;
-}
-.publish-blockers-title {
-  margin: 0 0 4px;
-  font-weight: 700;
-}
-.publish-blockers ul {
-  margin: 0;
-  padding-left: 18px;
-}
+
 .confirm-backdrop {
   position: fixed;
   inset: 0;

@@ -1,0 +1,230 @@
+@let text = localization.kpiQuarterModal;
+@let row = this.row();
+@let unit = format().unit;
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="close()"
+  (keydown.escape)="close()"
+  role="presentation"
+>
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog kpi-quarter-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="kpi-quarter-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <div>
+        <div class="title-row">
+          <h2 id="kpi-quarter-title">{{kpi().name}}</h2>
+          @if (row) {
+            <span class="state-chip" [class]="'state-chip is-' + state().toLowerCase()">
+              @switch (state()) {
+                @case ('MATCHED') {
+                  ✓ {{text.stateMatched}}
+                }
+                @case ('MISMATCH') {
+                  ⚠ {{text.stateMismatch}} {{shown(row.diff) | appNumber}}
+                }
+                @case ('NOT_SPLIT') {
+                  {{text.stateNotSplit}}
+                }
+                @default {
+                  {{text.stateFixed}}
+                }
+              }
+            </span>
+          }
+        </div>
+        <p class="meta">
+          {{kpi().code}} · {{row?.groupName ?? kpi().kpiGroupName}} ·
+          {{kpi().aggregationType}} · {{unit}} · {{branchName()}} · {{text.year}}
+          {{year()}}
+        </p>
+      </div>
+      <button type="button" class="modal-close" [attr.aria-label]="text.close" (click)="close()">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (loading()) {
+        <p class="state-line" role="status">{{text.loading}}</p>
+      } @else if (failed()) {
+        <div class="state-line" role="alert">
+          {{text.loadFailed}}
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{text.retry}}
+          </button>
+        </div>
+      } @else if (!row) {
+        <p class="state-line">{{split() ? text.notInImport : text.notImported}}</p>
+      } @else {
+        <div class="tiles">
+          <div class="tile">
+            <span class="tile-label">{{text.yearTarget}}</span>
+            <strong>{{shown(row.yearValue) | appNumber}}</strong>
+            <span class="tile-sub">{{unit}}</span>
+          </div>
+          <div class="tile">
+            <span class="tile-label">{{text.vsLastYear}} {{year() - 1}}</span>
+            @if (yearChange() !== null) {
+              <strong [class.up]="yearChange()! >= 0" [class.down]="yearChange()! < 0">
+                {{yearChange()! >= 0 ? '▲' : '▼'}} {{pct(yearChange()!) | appNumber}}%
+              </strong>
+              <span class="tile-sub"
+                >{{shown(row.previousYearValue) | appNumber}} {{unit}}</span
+              >
+            } @else {
+              <strong class="muted">—</strong>
+              <span class="tile-sub">{{text.noLastYear}}</span>
+            }
+          </div>
+          <div class="tile">
+            <span class="tile-label">{{text.actual}}</span>
+            <strong class="muted">—</strong>
+            <span class="tile-sub">{{text.actualUnavailable}}</span>
+          </div>
+        </div>
+
+        @if (state() === 'MATCHED' || state() === 'MISMATCH') {
+          <div class="share">
+            <span class="share-label">{{text.shareTitle}}</span>
+            <div class="share-bar">
+              @for (q of quarters(); track q.number) {
+                @if (q.share) {
+                  <span [class]="'share-segment q' + q.number" [style.flex-grow]="q.share">
+                    Q{{q.number}} · {{pct(q.share, 0) | appNumber}}%
+                  </span>
+                }
+              }
+            </div>
+          </div>
+        }
+
+        <div class="table-wrap">
+          <table class="quarter-table">
+            <thead>
+              <tr>
+                <th>{{text.colQuarter}}</th>
+                <th class="num">{{text.colTarget}}</th>
+                <th class="num">{{text.colShare}}</th>
+                <th class="num">{{text.colLastYear}} {{year() - 1}}</th>
+                <th class="num">{{text.colActual}} {{year()}}</th>
+                <th>{{text.colStatus}}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (q of quarters(); track q.number) {
+                <tr>
+                  <td class="strong">{{text.quarter}} {{q.number}}</td>
+                  <td class="num strong">
+                    {{q.target === null ? '—' : (shown(q.target) | appNumber)}}
+                  </td>
+                  <td class="num muted">
+                    {{q.share === null ? '—' : (pct(q.share, 0) | appNumber) + '%'}}
+                  </td>
+                  <td class="num">
+                    {{q.previous === null ? '—' : (shown(q.previous) | appNumber)}}
+                    @if (q.change !== null) {
+                      <span class="delta" [class.up]="q.change >= 0" [class.down]="q.change < 0">
+                        {{q.change >= 0 ? '▲' : '▼'}} {{pct(q.change) | appNumber}}%
+                      </span>
+                    }
+                  </td>
+                  <td class="num muted">—</td>
+                  <td [class]="'timing ' + (q.timing ?? '').toLowerCase()">
+                    @switch (q.timing) {
+                      @case ('ENDED') {
+                        {{text.ended}}
+                      }
+                      @case ('IN_PROGRESS') {
+                        {{text.inProgress}}
+                      }
+                      @case ('UPCOMING') {
+                        {{text.upcoming}}
+                      }
+                      @default {
+                        —
+                      }
+                    }
+                  </td>
+                </tr>
+              }
+              <tr class="total">
+                <td>{{text.wholeYear}}</td>
+                <td class="num">{{shown(row.yearValue) | appNumber}}</td>
+                <td class="num">{{row.isRatio ? '—' : '100%'}}</td>
+                <td class="num">
+                  {{row.previousYearValue === null
+                      ? '—'
+                      : (shown(row.previousYearValue) | appNumber)}}
+                </td>
+                <td class="num muted">—</td>
+                <td>
+                  @if (state() === 'MATCHED') {
+                    <span class="up">✓ {{text.matched}}</span>
+                  } @else if (state() === 'FIXED') {
+                    <span class="muted">{{text.fixedNote}}</span>
+                  }
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        @if (editable()) {
+          <div class="suggestion">
+            <div>
+              <strong>✦ {{text.suggestionTitle}}</strong>
+              <p>{{text.suggestionRule}} {{text.suggestionLocked}}</p>
+              @if (saveFailed()) {
+                <p class="save-error" role="alert">{{text.saveFailed}}</p>
+              }
+            </div>
+            <div class="suggestion-actions">
+              <button
+                type="button"
+                class="button button-secondary is-accent"
+                [disabled]="saving() || suggesting()"
+                (click)="applySuggestion('TARGET_LAST_YEAR')"
+              >
+                {{text.useSuggestionTarget}}
+              </button>
+              <button
+                type="button"
+                class="button button-secondary is-accent"
+                [disabled]="saving() || suggesting()"
+                (click)="applySuggestion('ACTUAL_LAST_YEAR')"
+              >
+                {{text.useSuggestionActual}}
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <div class="modal-footer">
+      @if (canManage()) {
+        <button type="button" class="link-button" (click)="openSetup()">
+          {{text.viewDepartments}} ›
+        </button>
+      }
+      <span class="spacer"></span>
+      <button type="button" class="button button-secondary" (click)="close()">
+        {{text.close}}
+      </button>
+      @if (canManage()) {
+        <button type="button" class="button button-primary" (click)="openSetup()">
+          {{text.editSplit}}
+        </button>
+      }
+    </div>
+  </div>
+</div>

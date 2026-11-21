@@ -1,0 +1,219 @@
+@let text = localization.departmentAllocationMatrix;
+@let shared = localization.departmentAllocation;
+@if (store.loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (store.failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">
+      {{shared.retry}}
+    </button>
+  </div>
+} @else {
+  <div class="tier-bar">
+    <app-tier-status-line
+      [tierLabel]="shared.tierLabel"
+      [counts]="store.counts()"
+      [activeFilter]="filter()"
+      (filterChange)="filter.set($event)"
+    />
+    @if (!readOnly()) {
+      <span class="suggest-anchor">
+        <app-suggest-button
+          [label]="shared.suggestButton"
+          [disabled]="store.suggestLoading()"
+          (pressed)="openSuggest()"
+        />
+        @if (showSuggest()) {
+          <app-suggest-allocation-popover
+            class="suggest-popover-anchor"
+            [bufferUnitOptions]="bufferUnitOptions()"
+            [scopes]="['GROUP', 'UNMATCHED']"
+            (cancelled)="closeSuggest()"
+            (created)="onSuggestionCreated($event)"
+          />
+        }
+      </span>
+    }
+  </div>
+
+  @if (store.suggestFailed()) {
+    <div class="quarter-save-error" role="alert">{{shared.suggestFailed}}</div>
+  }
+  @if (store.pending(); as pending) {
+    <app-suggestion-preview-banner
+      [cellCount]="pending.cellCount"
+      [kpiCount]="pending.kpiCount"
+      [basis]="pending.basis"
+      [remainderMethod]="pending.remainderMethod"
+      [fallbackCount]="pending.fallbackCount"
+      [fallbackTier]="2"
+      (changeBasis)="changeSuggestionBasis()"
+      (undo)="store.undoSuggestion()"
+      (apply)="store.acceptSuggestion()"
+    />
+    @for (warning of pending.warnings; track $index) {
+      <p class="suggest-warning">⚠ {{warning}}</p>
+    }
+  }
+
+  <div class="matrix-toolbar">
+    <label class="search-box">
+      <app-layout-icon name="search" class="search-icon" />
+      <span class="visually-hidden">{{text.searchAria}}</span>
+      <input
+        type="search"
+        [placeholder]="text.searchPlaceholder"
+        [value]="search()"
+        (input)="onSearch($event)"
+      />
+    </label>
+    <span class="spacer"></span>
+    <div class="period-tabs" role="group" [attr.aria-label]="text.periodAria">
+      <span class="period-label">{{text.periodLabel}}</span>
+      @for (key of periods; track key) {
+        <button
+          type="button"
+          class="period-tab"
+          [class.is-active]="period() === key"
+          [attr.aria-pressed]="period() === key"
+          (click)="period.set(key)"
+        >
+          {{periodLabel(key)}}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (toast(); as message) {
+    <div animate.leave="g54-leave-rise" class="quarter-toast" role="status" aria-live="polite">
+      <span>{{message}}</span>
+    </div>
+  }
+  @if (saveErrorText(); as message) {
+    <div class="quarter-save-error" role="alert">{{message}}</div>
+  }
+
+  <div class="quarter-card">
+    <div class="table-wrap">
+      <table class="quarter-table matrix-table" [attr.aria-label]="text.tableAria">
+        <thead>
+          <tr class="group-head">
+            <th scope="col" class="kpi-col" rowspan="2">{{shared.columnDepartment}}</th>
+            @for (group of groups(); track group.groupCode) {
+              <th scope="colgroup" [attr.colspan]="group.columns.length">{{group.groupName}}</th>
+            }
+          </tr>
+          <tr>
+            @for (column of columns(); track column.row.kpiId) {
+              <th scope="col" class="num">
+                <button
+                  type="button"
+                  class="matrix-col-head"
+                  [disabled]="!column.ready"
+                  [attr.title]="headerTitle(column)"
+                  (click)="requestOpenKpi(column)"
+                >
+                  <span class="matrix-col-name">{{column.row.kpiName}}</span>
+                  <span
+                    class="state-badge"
+                    [class.is-matched]="column.state === 'MATCHED'"
+                    [class.is-mismatched]="column.state === 'MISMATCHED'"
+                    [class.is-empty]="column.state === 'NOT_SPLIT'"
+                    >{{columnChip(column)}}</span
+                  >
+                </button>
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (department of visibleDepartments(); track department.departmentId) {
+            <tr class="quarter-row">
+              <td class="kpi-cell">{{department.departmentName}}</td>
+              @for (column of columns(); track column.row.kpiId) {
+                @let kind = cellKind(column, department.departmentId);
+                <td class="num quarter-cell" [class.not-applicable]="kind === 'hidden'">
+                  @if (kind === 'eligible') {
+                    <app-allocation-cell
+                      [value]="cellValue(column, department.departmentId)"
+                      [state]="cellState(column, department.departmentId)"
+                      [editable]="!readOnly()"
+                      [lockedReason]="lockedReason()"
+                      (valueChange)="onCellChange(column, department.departmentId, $event)"
+                    />
+                  } @else if (kind === 'hidden') {
+                    {{text.notApplicable}}
+                  } @else {
+                    <span class="cell-dash">—</span>
+                  }
+                </td>
+              }
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty-cell" [attr.colspan]="columns().length + 1">{{text.empty}}</td>
+            </tr>
+          }
+        </tbody>
+        @if (visibleDepartments().length > 0) {
+          <tfoot>
+            <tr class="total-row">
+              <th scope="row">{{text.rowTotal}}</th>
+              @for (column of columns(); track column.row.kpiId) {
+                <td class="num" [class.is-mismatch]="totalMismatched(column)">
+                  {{totalText(column)}}
+                </td>
+              }
+            </tr>
+          </tfoot>
+        }
+      </table>
+    </div>
+  </div>
+
+  <div class="matrix-legend">
+    <app-cell-legend />
+    <span class="muted">{{text.hint}}</span>
+  </div>
+
+  @if (showMissingPanel()) {
+    <app-missing-panel
+      [items]="store.missingItems()"
+      [otherBlockers]="missingOtherBlockers()"
+      [canFillZero]="store.canConfirmMissing()"
+      (selectKpi)="openKpi.emit($event)"
+      (fillZero)="store.confirmAllMissing()"
+    />
+  }
+
+  <div class="allocation-footer">
+    <button type="button" class="button button-secondary" (click)="requestBack()">
+      {{shared.back}}
+    </button>
+    @if (!readOnly()) {
+      <div class="quarter-actions">
+        <button
+          type="button"
+          class="button button-secondary"
+          [disabled]="store.saving() || store.dirtyKpiIds().length === 0"
+          (click)="save()"
+        >
+          {{shared.saveDraft}}
+        </button>
+        <button
+          type="button"
+          class="button button-primary"
+          [disabled]="!canGoNext()"
+          [attr.title]="canGoNext() ? null : shared.nextDisabledHint"
+          (click)="requestPublish()"
+        >
+          {{shared.next}}
+        </button>
+      </div>
+    }
+  </div>
+}
