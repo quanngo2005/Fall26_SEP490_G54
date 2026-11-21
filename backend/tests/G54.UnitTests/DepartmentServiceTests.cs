@@ -990,7 +990,7 @@ public sealed class DepartmentServiceTests
 
             Db.PerformanceEvaluations.AddRange(
                 Evaluation(e1, month, profile, 70m, PerformanceEvaluationStatus.Calculated),
-                Evaluation(e2, month, profile, 90m, PerformanceEvaluationStatus.Approved),
+                Evaluation(e2, month, profile, 90m, PerformanceEvaluationStatus.Final),
                 Evaluation(e3, month, profile, 10m, PerformanceEvaluationStatus.Draft),
                 Evaluation(e1, previous, profile, 70m, PerformanceEvaluationStatus.Final),
                 Evaluation(e2, previous, profile, 80m, PerformanceEvaluationStatus.Final));

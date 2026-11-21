@@ -35,7 +35,7 @@ describe('EvaluationService', () => {
     departmentName: 'Nhóm Kinh doanh 1',
     evaluationId: null,
     totalScore: null,
-    evaluationStatus: 'NOT_STARTED',
+    evaluationStatus: 'DRAFT',
     proposedTier: null,
     calculatedAt: null,
     quantitativeScore: null,
@@ -66,7 +66,7 @@ describe('EvaluationService', () => {
 
   it('sends the period as a query parameter and omits an empty department', () => {
     service.departmentEmployees(period.id).subscribe((rows) => {
-      expect(rows[0].evaluationStatus).toBe('NOT_STARTED');
+      expect(rows[0].evaluationStatus).toBe('DRAFT');
       expect(rows[0].totalScore).toBeNull();
     });
     const request = http.expectOne((r) => r.url === `${url}/department-employees`);

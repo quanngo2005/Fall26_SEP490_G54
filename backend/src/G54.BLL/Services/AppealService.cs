@@ -533,8 +533,7 @@ public sealed partial class AppealService(
         foreach (var evaluation in evaluations)
         {
             if (evaluation.Status is not (PerformanceEvaluationStatus.Calculated
-                    or PerformanceEvaluationStatus.InReview
-                    or PerformanceEvaluationStatus.Approved)
+                    or PerformanceEvaluationStatus.Submitted)
                 || evaluation.EvaluationPeriod.Status is PeriodStatus.Locked or PeriodStatus.Closed)
             {
                 continue;

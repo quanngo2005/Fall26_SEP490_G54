@@ -1,4 +1,4 @@
-.panel {
+﻿.panel {
   height: 100%;
   box-sizing: border-box;
   background: #fff;
@@ -29,7 +29,7 @@
 .panel-title {
   margin: 0;
   font:
-    600 16px Manrope,
+    600 16px 'Nunito Sans',
     sans-serif;
   color: #0f172a;
 }
@@ -41,15 +41,14 @@
 .kpi-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 13px;
 
   thead th {
     border-bottom: 1px solid #e2e8f0;
-    color: #475569;
+    color: #64748b;
     font:
-      600 11.5px Inter,
+      700 12px 'Nunito Sans',
       sans-serif;
-    text-transform: uppercase;
     padding: 10px 12px;
     white-space: nowrap;
     vertical-align: middle;
@@ -61,17 +60,68 @@
   }
 
   .group-row td {
-    padding: 12px 8px 8px;
-    background: #e0e0e0;
-    border-top: 1px solid #f1f5f9;
+    padding: 11px 12px;
+    background: #f1f5f9;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    color: #0f172a;
   }
 
   .group-name {
     font:
-      700 12px Inter,
+      700 12.5px 'Nunito Sans',
       sans-serif;
-    color: #334155;
+    color: #0f172a;
     text-transform: uppercase;
+  }
+
+  .group-weight {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .group-tag {
+    padding: 0;
+    background: none;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .group-caret {
+    display: inline-block;
+    color: #002b49;
+    font-size: 12px;
+    transition: transform 0.15s ease;
+  }
+
+  .group-caret.is-open {
+    transform: rotate(90deg);
+  }
+
+  .group-toggle-all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 8px 14px;
+    border: 1px solid #002b49;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    text-transform: inherit;
+    cursor: pointer;
+  }
+
+  .group-sub {
+    color: #0f172a;
+    font-weight: 700;
   }
 
   .group-score {
@@ -95,13 +145,32 @@
     padding-right: 16px;
   }
 
-  .change {
-    padding-left: 16px;
+  .rate-note {
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Nunito Sans', sans-serif;
+    white-space: nowrap;
   }
 
-  .td-label {
-    padding-left: 18px;
-    color: #0f172a;
+  .total-row td {
+    padding: 12px 8px;
+    border-top: 2px solid #e2e8f0;
+    font-size: 15px;
+    background: #002b49;
+    color: #fff;
+  }
+
+  .total-label {
+    font:
+      700 12px 'Nunito Sans',
+      sans-serif;
+    text-transform: uppercase;
+  }
+
+  .item-row td.td-label {
+    padding-left: 32px;
+    color: #475569;
   }
 }
 
@@ -111,156 +180,15 @@
   height: 9px;
   margin-right: 6px;
   border-radius: 2px;
-  background: #1e3a8a;
+  background: #334155;
 
   &[data-index='1'] {
-    background: #3b82f6;
+    background: #64748b;
   }
 
   &[data-index='2'] {
-    background: #93c5fd;
+    background: #cbd5e1;
   }
-}
-
-.ops-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.ops-stat-card {
-  border-radius: 6px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ops-success,
-.ops-danger,
-.ops-info {
-  border: 1px solid #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.ops-danger {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  color: #be123c;
-}
-
-.ops-info {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
-}
-
-.ops-stat-label {
-  font:
-    700 10.5px Inter,
-    sans-serif;
-  text-transform: uppercase;
-}
-
-.ops-stat-value {
-  font-size: 22px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.1;
-}
-
-.ops-stat-unit {
-  font-size: 12px;
-  font-weight: 500;
-  color: #475569;
-}
-
-.trend-title {
-  margin: 0 0 6px;
-  font:
-    600 13px Manrope,
-    sans-serif;
-  color: #0f172a;
-}
-
-.trend-bar-svg,
-.staff-bar-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.staff-bar-svg {
-  max-height: 140px;
-}
-
-.chart-grid {
-  stroke: #f1f5f9;
-  stroke-width: 1;
-}
-
-.chart-tick {
-  fill: #94a3b8;
-  font:
-    10px 'JetBrains Mono',
-    monospace;
-  text-anchor: end;
-}
-
-.trend-bar {
-  fill: #bfdbfe;
-}
-
-.is-current .trend-bar {
-  fill: #1d4ed8;
-}
-
-.chart-val {
-  fill: #0f172a;
-  font:
-    600 10px 'JetBrains Mono',
-    monospace;
-  text-anchor: middle;
-}
-
-.chart-label {
-  fill: #475569;
-  font:
-    500 9.5px Inter,
-    sans-serif;
-  text-anchor: middle;
-}
-
-.chart-label-sub {
-  fill: #64748b;
-  font-size: 9px;
-}
-
-.is-current .chart-label {
-  fill: #0f172a;
-  font-weight: 700;
-}
-
-.staff-bar-a {
-  fill: #059669;
-  background: #059669;
-}
-
-.staff-bar-b {
-  fill: #2563eb;
-  background: #2563eb;
-}
-
-.staff-bar-c {
-  fill: #d97706;
-  background: #d97706;
-}
-
-.staff-bar-none {
-  fill: #94a3b8;
-  background: #94a3b8;
 }
 
 .chart-pager {
@@ -277,7 +205,7 @@
   background: #fff;
   color: #0f172a;
   font:
-    600 11.5px Inter,
+    600 12px 'Nunito Sans',
     sans-serif;
   cursor: pointer;
 

@@ -130,44 +130,6 @@
       cursor: not-allowed;
     }
   }
-
-  .badge-acknowledged {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 12px;
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #c8e6c9;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
-
-    .check-icon {
-      width: 14px;
-      height: 14px;
-    }
-  }
-}
-
-.alert-success {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-  border-radius: 6px;
-  font-size: 13px;
-  margin-bottom: 16px;
-
-  .alert-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
 }
 
 .manager-card {

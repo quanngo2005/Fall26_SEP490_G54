@@ -25,90 +25,77 @@
       } @else {
         @let data = form()!;
 
-        <header class="page-header">
-          <div class="page-heading">
-            <div class="title-row">
-              <h1 class="page-title font-heading">{{data.employee.fullName}}</h1>
-              @if (isDraftStatus()) {
-                <span class="status-pill">{{localization.evaluationForm.statusDraft}}</span>
-              } @else {
-                <span class="status-pill status-pill-done">
-                  {{localization.evaluationForm.statusCompleted}}
-                </span>
+        <header class="ui-page-header">
+          <div class="ui-page-heading">
+            <div class="ui-title-row">
+              <h1 class="ui-page-title">{{data.employee.fullName}}</h1>
+              @switch (data.currentEvaluation.status) {
+                @case ('DRAFT') {
+                  <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
+                }
+                @case ('CALCULATED') {
+                  <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
+                }
+                @case ('SUBMITTED') {
+                  <app-status-badge tone="info">{{localization.evaluationForm.statusSubmitted}}</app-status-badge>
+                }
+                @case ('DISPUTED') {
+                  <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
+                }
+                @default {
+                  <app-status-badge tone="success">{{localization.evaluationForm.statusFinal}}</app-status-badge>
+                }
               }
             </div>
-            <p class="page-subtitle">
+            <p class="ui-page-subtitle">
               {{data.employee.employeeCode}} · {{data.employee.jobPositionTitle}} ·
               {{data.employee.departmentName}}
             </p>
           </div>
 
-          <div class="page-actions">
-            <div class="period-select-wrap">
-              <select
-                class="period-select period-type-select"
-                [value]="selectedPeriodType()"
-                [disabled]="loading() || saving() || exporting()"
-                (change)="onPeriodTypeChange($event)"
-                [attr.aria-label]="localization.evaluationForm.periodTypeAria"
-              >
-                @for (type of periodTypes; track type) {
-                  <option [value]="type">{{periodTypeLabel(type)}}</option>
-                }
-              </select>
-              <app-layout-icon name="chevron-down" class="select-chevron" />
-            </div>
+          <div class="ui-page-actions">
+            <app-ui-select
+              [options]="periodTypeOptions()"
+              [value]="selectedPeriodType()"
+              [disabled]="loading() || saving() || exporting()"
+              [ariaLabel]="localization.evaluationForm.periodTypeAria"
+              (valueChange)="onPeriodTypeChange($event)"
+            />
 
             @if (filteredPeriods().length > 0 && selectedEmployeeId()) {
-              <div class="period-select-wrap">
-                <select
-                  class="period-select"
-                  [attr.aria-label]="localization.evaluationForm.periodSelectAria"
-                  [value]="selectedPeriodId() ?? ''"
-                  [disabled]="loading() || saving() || exporting()"
-                  (change)="onPeriodChange($event)"
-                >
-                  @for (period of filteredPeriods(); track period.id) {
-                    <option [value]="period.id">{{period.code}} · {{period.name}}</option>
-                  }
-                </select>
-                <app-layout-icon name="chevron-down" class="select-chevron" />
-              </div>
+              <app-ui-select
+                [options]="periodSelectOptions()"
+                [value]="selectedPeriodId() ?? ''"
+                [disabled]="loading() || saving() || exporting()"
+                [ariaLabel]="localization.evaluationForm.periodSelectAria"
+                (valueChange)="onPeriodChange($event)"
+              />
             }
 
             @if (compareOptions().length > 0) {
-              <div class="period-select-wrap">
-                <select
-                  class="period-select compare-select"
-                  [value]="selectedComparePeriodId() ?? ''"
-                  [disabled]="loading() || saving() || exporting()"
-                  (change)="onCompareChange($event)"
-                  [attr.aria-label]="localization.evaluationForm.periodCompareAria"
-                >
-                  @for (period of compareOptions(); track period.id) {
-                    <option [value]="period.id">
-                      {{localization.evaluationForm.periodComparePrefix}}{{period.name}}
-                    </option>
-                  }
-                </select>
-                <app-layout-icon name="chevron-down" class="select-chevron" />
-              </div>
+              <app-ui-select
+                [options]="compareSelectOptions()"
+                [value]="selectedComparePeriodId() ?? ''"
+                [disabled]="loading() || saving() || exporting()"
+                [ariaLabel]="localization.evaluationForm.periodCompareAria"
+                (valueChange)="onCompareChange($event)"
+              />
             }
 
             @if (hasRosterNavigation()) {
               <div class="pagination-controls">
                 <button
                   type="button"
-                  class="btn-nav"
+                  class="button button-secondary"
                   [disabled]="rosterIndex() <= 0"
                   (click)="onPrev()"
                 >
                   {{localization.evaluationForm.btnPrev}}
                 </button>
-                <span class="nav-indicator font-mono">{{navIndicatorText()}}</span>
+                <span class="nav-indicator">{{navIndicatorText()}}</span>
                 <button
                   type="button"
-                  class="btn-nav"
+                  class="button button-secondary"
                   [disabled]="rosterIndex() >= roster().length - 1"
                   (click)="onNext()"
                 >
@@ -140,13 +127,19 @@
             <button
               type="button"
               class="button button-primary"
-              [disabled]="!canSubmit() || completeBlocked()"
+              [disabled]="!canSubmit() || !data.canComplete || completeBlocked()"
               (click)="onCompleteEvaluation()"
             >
               {{localization.evaluationForm.btnComplete}}
             </button>
           </div>
         </header>
+
+        @if (data.canEdit && !data.canComplete) {
+          <p class="save-message" role="status">
+            {{localization.evaluationForm.completeLockedNotice}}
+          </p>
+        }
 
         @if (saveMessage(); as message) {
           <p
@@ -169,7 +162,19 @@
           <article class="metric-card">
             <div class="metric-head">
               <span class="metric-title">{{localization.evaluationForm.quantitativeScoreTitle}}</span>
-              <span class="metric-pill font-mono">{{weightedPillText()}}</span>
+              @if (data.previousPeriod && data.previousPeriod.scoreDifference !== null) {
+                <span
+                  class="metric-pill font-mono"
+                  [class.pill-success]="data.previousPeriod.scoreDifference >= 0"
+                  [class.pill-warning]="data.previousPeriod.scoreDifference < 0"
+                >
+                  {{data.previousPeriod.scoreDifference > 0
+                      ? '▲ '
+                      : data.previousPeriod.scoreDifference < 0
+                        ? '▼ '
+                        : ''}}{{weightedPillText()}}
+                </span>
+              }
             </div>
             <div class="metric-body">
               <span
@@ -192,54 +197,47 @@
               <span class="metric-pill pill-info font-mono">{{criteriaPillText()}}</span>
             </div>
             <div class="metric-body">
-              <span class="metric-value font-mono">{{criteriaValueText()}}</span>
+              <span class="metric-value font-mono" [ngClass]="criteriaToneClass()">{{criteriaValueText()}}</span>
             </div>
-            <p class="metric-foot">{{criteriaFootText()}}</p>
           </article>
 
           <article class="metric-card">
             <div class="metric-head">
               <span class="metric-title">{{localization.evaluationForm.metricSlaTitle}}</span>
-              <span class="metric-pill pill-success">{{localization.evaluationForm.metricSlaPill}}</span>
             </div>
             <div class="metric-body">
-              <span class="metric-value font-mono">{{slaValueText()}}</span>
+              <span class="metric-value font-mono" [ngClass]="slaToneClass()">{{slaValueText()}}</span>
             </div>
-            <p class="metric-foot">{{slaFootText()}}</p>
           </article>
 
           <article class="metric-card">
             <div class="metric-head">
               <span class="metric-title">{{localization.evaluationForm.metricRiskTitle}}</span>
-              @if (data.riskEvents.length > 0) {
-                <span class="metric-pill pill-danger">{{localization.evaluationForm.metricRiskPillHas}}</span>
-              }
             </div>
             <div class="metric-body">
-              <span class="metric-value font-mono">{{data.riskEvents.length}}</span>
-              <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
-              <span class="metric-deduction font-mono"
-                >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
+              <span
+                class="metric-value font-mono"
+                [class.text-danger]="data.riskEvents.length > 0"
+                >{{data.riskEvents.length}}</span
               >
+              <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
+              @if (data.summary.totalRiskPenalty > 0) {
+                <span class="metric-deduction font-mono"
+                  >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
+                >
+              }
             </div>
           </article>
 
           <article class="metric-card">
             <div class="metric-head">
               <span class="metric-title">{{localization.evaluationForm.metricTierTitle}}</span>
+              @if (data.currentEvaluation.finalTierCode; as tier) {
+                <span class="metric-pill pill-info font-mono">{{i18n.translate('evaluationForm.proposedTier', { tier })}}</span>
+              }
             </div>
             <div class="metric-body">
-              <span
-                class="metric-value font-mono"
-                [ngClass]="tierToneClass()"
-                [attr.title]="
-                  data.summary.proposedTierExplanation?.length
-                    ? data.summary.proposedTierExplanation?.join(' • ')
-                    : null
-                "
-              >
-                {{tierText()}}
-              </span>
+              <span class="metric-value font-mono" [ngClass]="tierToneClass()">{{tierText()}}</span>
             </div>
           </article>
         </section>

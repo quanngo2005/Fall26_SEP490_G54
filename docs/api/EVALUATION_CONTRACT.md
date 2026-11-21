@@ -46,14 +46,14 @@ The response is not paged. `departmentId` / `departmentName` of a row are the em
 | `departmentId`, `departmentName` | string | department |
 | `evaluationId` | GUID or null | null when no evaluation row exists |
 | `totalScore` | number or null | stored total; null = N/A |
-| `evaluationStatus` | string | `NOT_STARTED` (no row) or `DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL` |
+| `evaluationStatus` | string | `NOT_STARTED` (no row) or `DRAFT / DISPUTED / CALCULATED / SUBMITTED / FINAL` |
 | `proposedTier` | string or null | tier of the stored total |
 | `calculatedAt` | timestamp or null | last calculation |
 | `quantitativeScore` | number or null | weighted mean of the scores of the root groups of the profile tree that own active KPIs, from the same calculation as the form and `POST /performance-evaluations/{id}/calculate` (a KPI without a target or progress is left out of its group); null when the employee has no profile or no scorable KPI |
 | `qualitativeScore` | number or null | the single qualitative score (`generalQualitativeScore`) saved on the evaluation; when none was entered, the mean of the per-group qualitative scores saved on it; null when there is neither |
 | `hasOpenDispute` | bool | evaluation is `DISPUTED` or an appeal on it is `OPEN`/`UNDER_REVIEW` |
 | `pendingSubmissionCount` | number | result submissions of the employee in `SUBMITTED`/`UNDER_REVIEW`, submitted inside the period |
-| `canEvaluate` | bool | caller holds `evaluation:submit` covering the row's own department, period is `OPEN`/`IN_REVIEW`, the row is not the caller, has no open dispute and is not yet `IN_REVIEW` or later |
+| `canEvaluate` | bool | caller holds `evaluation:submit` covering the row's own department, period is `OPEN`/`IN_REVIEW`, the row is not the caller, has no open dispute and is `DRAFT` or `CALCULATED` (or has no row yet) |
 | `updatedAt` | timestamp or null | last update of the evaluation row |
 | `quantitativeScoreChange` | number or null | current `quantitativeScore` minus the quantitative score of the latest earlier period of the same type (`endDate` before the selected period's `startDate`), both from the shared score calculation and rounded to 2 decimals; null when there is no earlier period or either score is null (N/A, never 0) |
 
@@ -84,7 +84,6 @@ typed in a tab that never opened a form, has nothing stored and shows "not found
 | `GET /evaluations/form` | `evaluation:read` | `Own` or higher |
 | `GET /evaluations/form/export` | `evaluation:read` | `Own` or higher |
 | `POST /evaluations/submit` | `evaluation:submit` | `Dept` or higher |
-| `POST /evaluations/personal/acknowledge` | `evaluation:read` | `Own` or higher (the result acknowledged is always the caller's own) |
 
 A caller reads their own form with `Own`; any other employee needs `evaluation:read` covering the employee's
 department (403 `FORBIDDEN` otherwise). Submitting needs `evaluation:submit` covering the department, and the
@@ -100,9 +99,11 @@ Query: `employeeId`, `periodId` (GUID, required), `comparePeriodId` (GUID, optio
 | `criteriaGroups[]` | array | quantitative root groups of the profile tree (`!isQualitative`) in display order: `evaluationProfileItemId`, `groupCode`, `groupName`, `weightPercent` (re-normalised over quantitative groups to add up to 100), `groupScore`, `kpiItems[]`. Qualitative groups without active KPIs are excluded from the form and do not affect the KPI total |
 | `criteriaGroups[].kpiItems[]` | array | `kpiDefinitionId`, `kpiCode`, `kpiName`, `unit`, `weightPercent`, `targetValue`, `actualValue`, `achievementPercent`, `componentScore`. `weightPercent` is the KPI's share of its root group in percent, normalised over active KPIs |
 | `riskEvents[]` | array | risk events of the period that were not dismissed, with `penaltyPoints` |
-| `summary` | object | `weightedScore` (quantitative KPI weighted mean before penalty), `totalRiskPenalty`, `totalScore` (`max(0, weightedScore - totalRiskPenalty)` for `DRAFT` / `CALCULATED`, or the stored score from `IN_REVIEW` on), `proposedTier` (only the `CalibratedTier` assigned on the Ranking/Calibration screen; `null` until calibrated), `businessScore`, `serviceQualityScore`, `operationsScore` |
-| `currentEvaluation` | object | stored state: `id`, `totalScore`, `status` (`DRAFT / CALCULATED / IN_REVIEW / APPROVED / DISPUTED / FINAL`, `DRAFT` when nothing is stored), `comment`, `coachingPlan`, `coachingRequired` |
-| `canEdit` | bool | period is `OPEN`/`IN_REVIEW`, the evaluation is not yet `IN_REVIEW` or later, the caller is not the employee, there is no open dispute, and the caller holds `evaluation:submit` covering the department |
+| `summary` | object | `weightedScore` (quantitative KPI weighted mean before penalty), `totalRiskPenalty`, `totalScore` (`max(0, weightedScore - totalRiskPenalty)` for `DRAFT` / `CALCULATED`, or the stored score from `DISPUTED` / `SUBMITTED` / `FINAL` on), `proposedTier` (only the `CalibratedTier` assigned on the Ranking/Calibration screen; `null` until calibrated), `businessScore`, `serviceQualityScore`, `operationsScore` |
+| `currentEvaluation` | object | stored state: `id`, `totalScore`, `status` (`DRAFT / DISPUTED / CALCULATED / SUBMITTED / FINAL`, `DRAFT` when nothing is stored), `comment`, `coachingPlan`, `coachingRequired` |
+| `canEdit` | bool | period is `OPEN`/`IN_REVIEW`, the evaluation is `DRAFT` or `CALCULATED`, the caller is not the employee, there is no open dispute, and the caller holds `evaluation:submit` covering the department |
+| `canComplete` | bool | `canEdit` and the period is locked for ranking (`rankingLockDay` reached, `IsRankingLocked`). Only then can the DM press "Hoàn tất" (`isDraft = false`); saving a draft is never blocked |
+| `canAppeal` | bool | the employee can file an appeal: remaining appeal days > 0 and the evaluation is `CALCULATED`, `SUBMITTED` or `FINAL` |
 | `pendingSubmissionCount` | number | result submissions of the employee in `SUBMITTED`/`UNDER_REVIEW` inside the period |
 | `openAppealCount` | number | appeals on the stored evaluation in `OPEN`/`UNDER_REVIEW` |
 | `hasOpenDispute` | bool | evaluation is `DISPUTED` or `openAppealCount > 0` |
@@ -124,11 +125,11 @@ Response: raw `.xlsx` workbook (`application/vnd.openxmlformats-officedocument.s
 
 ### `POST /evaluations/submit`
 
-Body: `employeeId`, `periodId`, `comment`, `coachingPlan`, `coachingRequired`, `isDraft`. `data`: `evaluationId`, `employeeId`, `periodId`, `totalScore`, `status` (`DRAFT` when `isDraft`, otherwise `CALCULATED`; saving as a draft an evaluation that is already `CALCULATED` keeps it `CALCULATED`), `proposedTier` (only the `CalibratedTier` assigned on the Ranking/Calibration screen; `null` until calibrated), `calculatedAt`, `message`. `totalScore` and `calculatedAt` are null only when the profile has no quantitative KPI group to score (only possible for a draft).
+Body: `employeeId`, `periodId`, `comment`, `coachingPlan`, `coachingRequired`, `isDraft`. `data`: `evaluationId`, `employeeId`, `periodId`, `totalScore`, `status` (`DRAFT` when `isDraft`, otherwise `CALCULATED`; saving as a draft an evaluation that is already `CALCULATED` keeps it `CALCULATED`). Completing (`isDraft = false`) is allowed only from `rankingLockDay` on; before that the call returns 409 `PERIOD_NOT_LOCKED_YET`. The first transition to `CALCULATED` sends an `EVALUATION_CALCULATED` notification to the employee, `proposedTier` (only the `CalibratedTier` assigned on the Ranking/Calibration screen; `null` until calibrated), `calculatedAt`, `message`. `totalScore` and `calculatedAt` are null only when the profile has no quantitative KPI group to score (only possible for a draft).
 
 Saving scores quantitative KPI groups only (`max(0, quantitativeScore - riskPenalty)`, rounded to 4 decimals) and writes `performance_contribution` rows in one transaction. Qualitative groups without active KPIs are excluded from `/evaluations/form`, never block completion, and do not affect the saved KPI total score. The caller needs only `evaluation:submit` (it does not need `evaluation:calculate`).
 
-The backend validates the free text dynamically: `comment` and `coachingPlan` may not exceed `evalCommentMaxLength` from `system_parameters` (400 `VALIDATION_ERROR` in `EvaluationService.ValidateSubmitText`) and may not contain `<!--` or `-->` (reserved for stored system markers). Completing an evaluation (`isDraft = false`) requires a non-empty `comment` (400 `VALIDATION_ERROR` when null/blank) and at least one quantitative KPI group on the profile (400 `VALIDATION_ERROR` when none; a draft saves with `totalScore = null`). An employee whose active KPIs have no target or progress is not in that case: those KPIs count as 0, so the evaluation can be completed with a low total. Calibration, calibration rejection, and period finalization markers (`CALIBRATION_JSON`, `RECALIBRATION_REASON`, `APPROVAL_COMMENTS`) remain preserved on save. An evaluation can be saved again only while it is `DRAFT` or `CALCULATED`; one that is `IN_REVIEW`, `APPROVED` or `FINAL` is not overwritten (409 `PERFORMANCE_EVALUATION_INVALID_STATE`, nothing is saved; the form's `canEdit` reports the same). Concurrent first saves return 409 `CONFLICT`. Errors: 400 `VALIDATION_ERROR`; 400 `MAKER_CANNOT_BE_CHECKER`; 403 `FORBIDDEN`; 404; 409 `CONFLICT` (period `LOCKED`/`CLOSED`, or a concurrent first save); 409 `PERFORMANCE_EVALUATION_INVALID_STATE` (evaluation already `IN_REVIEW` or later); 409 `EVALUATION_DISPUTE_PENDING` (score under dispute).
+The backend validates the free text dynamically: `comment` and `coachingPlan` may not exceed `evalCommentMaxLength` from `system_parameters` (400 `VALIDATION_ERROR` in `EvaluationService.ValidateSubmitText`) and may not contain `<!--` or `-->` (reserved for stored system markers). Completing an evaluation (`isDraft = false`) requires a non-empty `comment` (400 `VALIDATION_ERROR` when null/blank) and at least one quantitative KPI group on the profile (400 `VALIDATION_ERROR` when none; a draft saves with `totalScore = null`). An employee whose active KPIs have no target or progress is not in that case: those KPIs count as 0, so the evaluation can be completed with a low total. Calibration, calibration rejection, and period finalization markers (`CALIBRATION_JSON`, `RECALIBRATION_REASON`, `APPROVAL_COMMENTS`) remain preserved on save. An evaluation can be saved again only while it is `DRAFT` or `CALCULATED`; one that is `DISPUTED`, `SUBMITTED` or `FINAL` is not overwritten (409 `PERFORMANCE_EVALUATION_INVALID_STATE`, nothing is saved; the form's `canEdit` reports the same). Concurrent first saves return 409 `CONFLICT`. Errors: 400 `VALIDATION_ERROR`; 400 `MAKER_CANNOT_BE_CHECKER`; 403 `FORBIDDEN`; 404; 409 `CONFLICT` (period `LOCKED`/`CLOSED`, or a concurrent first save); 409 `PERIOD_NOT_LOCKED_YET` (completing before `rankingLockDay`); 409 `PERFORMANCE_EVALUATION_INVALID_STATE` (evaluation already `SUBMITTED` or later, or `DISPUTED`); 409 `EVALUATION_DISPUTE_PENDING` (score under dispute).
 
 Notes:
 
@@ -136,19 +137,6 @@ Notes:
 - "Quality ratio" and the "History" link have no data source or target screen yet (waiting for confirmation);
   the form does not show them. The transaction-trace links (SCR-PRF-05) are not part of this scope.
 - Whether HR holds `evaluation:read` depends on the role grants in the database; this task does not change them.
-
-### `POST /evaluations/personal/acknowledge` (UC105, SCR-EVL-04)
-
-Body (`AcknowledgePersonalEvaluationRequestDto`): `periodId` (GUID, required). The result acknowledged is the caller's own evaluation in that period, so there is no way to acknowledge someone else's (no 403 case).
-`data` (`AcknowledgePersonalEvaluationResultDto`): `success` (always true on 200), `acknowledgedAt` (ISO-8601 timestamp), `message`.
-
-Rules:
-- An evaluation under dispute (`DISPUTED` or with an `OPEN`/`UNDER_REVIEW` appeal) cannot be acknowledged and returns 409 `EVALUATION_DISPUTE_PENDING` (BR-31). A closed appeal (`ACCEPTED` / `REJECTED` / `WITHDRAWN`) does not block.
-- An evaluation in `DRAFT` or without a `totalScore` cannot be acknowledged and returns 409 `PERFORMANCE_EVALUATION_INVALID_STATE`.
-- Idempotent: acknowledging an already-acknowledged evaluation returns 200 with the original `acknowledgedAt` unchanged (the check runs before the dispute and state checks, so an acknowledged result stays acknowledged).
-- Two requests saving at once: the one that loses is a 409 `CONFLICT` and nothing is overwritten.
-- Re-saving or recalculating a `DRAFT`/`CALCULATED` evaluation clears `acknowledgedAt` so the employee must acknowledge the updated result.
-- Errors: 400 `VALIDATION_ERROR` (missing `periodId`); 401 `UNAUTHORIZED`; 404 `NOT_FOUND` (no evaluation of the caller in the period); 409 `EVALUATION_DISPUTE_PENDING`; 409 `PERFORMANCE_EVALUATION_INVALID_STATE`; 409 `CONFLICT`.
 
 ## My performance: criterion ledger (`/my-evaluation`)
 
@@ -189,7 +177,7 @@ Response `data` (`DepartmentEvaluationDashboardDto`):
 | `operations` | object | `onTimeCompletedCount`, `overdueCount`, `inProgressCount`, `onTimeRatePercent`, `loadPerStaff`. SLA counts only `Work` items where `PlannedEndDate != null`: `onTimeCompletedCount` = completed (`DONE` / `VERIFIED`) in period with completion business date `<= PlannedEndDate`; `overdueCount` = open overdue (`Status == OVERDUE` or `PlannedEndDate < today`) plus late-completed in period (completion business date `> PlannedEndDate`); `onTimeRatePercent = onTimeCompletedCount / (onTimeCompletedCount + overdueCount) * 100` (null when denominator is 0) |
 | `tierDistribution` | object | `tierACapPercent` (20), `tiers[]` (`tierCode`, `rankOrder`, `minScore`, `maxScore`, `count`, `percent` for all 5 tiers `A1`, `A2`, `A3`, `B`, `C` from `ranking_tier_threshold`), `actionAlerts[]` (`kind`: `PIP` \| `APPEAL`, `employeeId`, `employeeCode`, `fullName`, `tierCode`, `totalScore`, `metaText`) |
 | `profileGroups` | array | ordered root groups of the department's evaluation profiles (`name`, `displayOrder`, `weightPercent`) |
-| `staffRows` | array | `employeeId`, `employeeCode`, `fullName`, `jobPositionId`, `jobPositionTitle`, `groupScores[]` (`groupName`, `displayOrder`, `weightPercent`, `score`), `totalScore`, `previousTotalScore`, `scoreDelta`, `tierCode`, `onTimeSlaPercent`, `status` (`FINAL` \| `APPEAL` \| `PIP` \| `PENDING`), `evaluationStatus`, `canOpenForm` |
+| `staffRows` | array | `employeeId`, `employeeCode`, `fullName`, `jobPositionId`, `jobPositionTitle`, `groupScores[]` (`groupName`, `displayOrder`, `weightPercent`, `score`, `previousScore`), `totalScore`, `previousTotalScore`, `scoreDelta`, `tierCode`, `onTimeSlaPercent`, `previousOnTimeSlaPercent` (SLA of the compare period, `null` when none), `status` (`FINAL` \| `APPEAL` \| `PIP` \| `PENDING`), `evaluationStatus`, `canOpenForm` |
 
 ### `GET /evaluations/department-dashboard/export`
 

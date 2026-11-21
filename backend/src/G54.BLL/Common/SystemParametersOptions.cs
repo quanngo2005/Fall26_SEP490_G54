@@ -16,6 +16,7 @@ public sealed class SystemParametersOptions
     public int ManualApprovalHours { get; set; } = 48;
     public bool WorkOverdueEnabled { get; set; } = true;
     public int WorkOverdueSweepMinutes { get; set; } = 15;
+    public int RankingLockDay { get; set; } = 20;
     public int CampaignExclusivityDays { get; set; } = 7;
 
     // Group 2: Appeals & Disputes (APPEALS)

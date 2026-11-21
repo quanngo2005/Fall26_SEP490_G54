@@ -31,7 +31,7 @@ describe('MyEvaluationComponent', () => {
     periodId: '2026-Q2',
     periodName: 'Quý 2/2026',
     periodCode: '2026-Q2',
-    status: 'Published',
+    status: 'PUBLISHED',
     appealDeadlineText: '23:59 ngày 22/07/2026',
     appealRemainingDays: 3,
     canAppeal: true,
@@ -98,8 +98,6 @@ describe('MyEvaluationComponent', () => {
     qualityRatio: 0.9,
     riskPenalty: 0,
     managerFeedback: 'Dẫn dắt tốt chiến dịch thẻ Q2; cần cải thiện tỷ lệ chốt tiền gửi.',
-    isAcknowledged: false,
-    acknowledgedAt: null,
   };
 
   const mockPeriods: EvaluationPeriodOption[] = [
@@ -183,12 +181,6 @@ describe('MyEvaluationComponent', () => {
             }
           : mockEvalData,
       ),
-    acknowledgePersonalEvaluation: () =>
-      of({
-        success: true,
-        acknowledgedAt: '2026-07-20T10:30:00Z',
-        message: 'ok',
-      }),
     getPersonalCriteriaLedger: () => of(mockLedgerItems),
   };
 
@@ -282,35 +274,6 @@ describe('MyEvaluationComponent', () => {
     const heroTier = fixture.debugElement.query(By.css('.tier-hero-pill'));
     expect(heroTier.nativeElement.textContent.trim()).toBe('B');
     expect(heroTier.classes['tier-b']).toBeTrue();
-  });
-
-  it('opens acknowledge modal and confirms acknowledgment (UC108)', () => {
-    const ackBtn = fixture.debugElement.query(By.css('.ack-btn'));
-    expect(ackBtn).toBeTruthy();
-
-    ackBtn.nativeElement.click();
-    fixture.detectChanges();
-
-    const dialog = fixture.debugElement.query(By.css('.ack-dialog'));
-    expect(dialog).toBeTruthy();
-
-    // Confirm acknowledgment
-    component.confirmAcknowledge();
-    fixture.detectChanges();
-
-    expect(component['evaluation']()?.isAcknowledged).toBeTrue();
-    expect(fixture.debugElement.query(By.css('.alert-success'))).toBeTruthy();
-    expect(fixture.debugElement.query(By.css('.badge-acknowledged'))).toBeTruthy();
-  });
-
-  it('cancels acknowledge modal', () => {
-    component.openAcknowledgeModal();
-    fixture.detectChanges();
-    expect(fixture.debugElement.query(By.css('.ack-dialog'))).toBeTruthy();
-
-    component.closeAcknowledgeModal();
-    fixture.detectChanges();
-    expect(fixture.debugElement.query(By.css('.ack-dialog'))).toBeFalsy();
   });
 
   it('does not render an appeal button on the personal evaluation page', () => {
@@ -459,21 +422,6 @@ describe('MyEvaluationComponent', () => {
 
     expect(component.loadFailed()).toBeFalse();
     expect(component.evaluation()?.periodId).toBe('2026-Q2');
-  });
-
-  it('shows modal error when acknowledge fails and keeps modal open', () => {
-    spyOn(mockEvaluationService, 'acknowledgePersonalEvaluation').and.returnValue(
-      throwError(() => new Error('Server error')),
-    );
-
-    component.openAcknowledgeModal();
-    fixture.detectChanges();
-    component.confirmAcknowledge();
-    fixture.detectChanges();
-
-    expect(component.acknowledging()).toBeFalse();
-    expect(component.acknowledgeError()).toBeTrue();
-    expect(fixture.debugElement.query(By.css('.ack-dialog .modal-error'))).toBeTruthy();
   });
 
   it('shows modal error when ledger drilldown fails', () => {
