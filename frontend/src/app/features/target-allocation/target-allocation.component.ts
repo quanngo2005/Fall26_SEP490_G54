@@ -101,6 +101,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
 
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly noAccess = signal(false);
   protected readonly saving = signal(false);
   protected readonly notice = signal<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -241,6 +242,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
+    this.noAccess.set(false);
     this.employeeApi
       .me()
       .pipe(
@@ -285,6 +287,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     if (this.autosaveHandle) clearTimeout(this.autosaveHandle);
     this.loading.set(true);
     this.failed.set(false);
+    this.noAccess.set(false);
     this.notice.set(null);
     this.closeDrawer();
     this.suggested.set(null);
@@ -321,7 +324,8 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
           this.tab.set(firstTab ?? '');
           this.loading.set(false);
         },
-        error: () => {
+        error: (error: HttpErrorResponse) => {
+          this.noAccess.set(error.status === 403 || error.status === 404);
           this.failed.set(true);
           this.loading.set(false);
         },

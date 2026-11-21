@@ -69,10 +69,14 @@
         </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
-          <p>{{localization.targetDm.loadFailed}}</p>
-          <button type="button" class="button button-secondary" (click)="load()">
-            {{localization.targetDm.retry}}
-          </button>
+          @if (noAccess()) {
+            <p>{{localization.targetDm.noAccess}}</p>
+          } @else {
+            <p>{{localization.targetDm.loadFailed}}</p>
+            <button type="button" class="button button-secondary" (click)="load()">
+              {{localization.targetDm.retry}}
+            </button>
+          }
         </div>
       } @else if (rows().length === 0) {
         <div class="state-card">

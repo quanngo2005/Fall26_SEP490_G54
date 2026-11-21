@@ -44,6 +44,9 @@ interface WizardStepView {
  * `BranchTargetOverviewComponent` does, and shows the four steps: import (modal), quarter split, department
  * allocation and the publish confirmation.
  */
+/** Sentinel for a signed-in user whose department scope holds no branch (e.g. a department manager). */
+const NO_BRANCH = 'NO_BRANCH';
+
 @Component({
   selector: 'app-target-setup-wizard',
   imports: [
@@ -73,6 +76,7 @@ export class TargetSetupWizardComponent extends LocalizedComponent implements On
 
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly noAccess = signal(false);
   protected readonly year = signal<number | null>(null);
   protected readonly setup = signal<TargetSetup | null>(null);
   protected readonly branchId = signal<string | null>(null);
@@ -321,6 +325,7 @@ export class TargetSetupWizardComponent extends LocalizedComponent implements On
 
     this.loading.set(true);
     this.failed.set(false);
+    this.noAccess.set(false);
     fetchAllPages((page, pageSize) => this.departmentApi.list({ page, pageSize }))
       .pipe(
         switchMap((departments) => {
@@ -329,7 +334,7 @@ export class TargetSetupWizardComponent extends LocalizedComponent implements On
           this.branchId.set(branchId);
           return branchId
             ? this.targetApi.getSetup(branchId, year)
-            : throwError(() => new Error('No branch department'));
+            : throwError(() => new Error(NO_BRANCH));
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -339,7 +344,12 @@ export class TargetSetupWizardComponent extends LocalizedComponent implements On
           this.loading.set(false);
           this.applyQueryStepOnce();
         },
-        error: () => {
+        error: (error: unknown) => {
+          this.noAccess.set(
+            (error instanceof Error && error.message === NO_BRANCH) ||
+              (error instanceof HttpErrorResponse &&
+                (error.status === 403 || error.status === 404)),
+          );
           this.failed.set(true);
           this.loading.set(false);
         },

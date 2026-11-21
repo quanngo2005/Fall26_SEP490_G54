@@ -86,7 +86,7 @@ export const TARGET_SHARED_I18N_STUB = {
     goTo: 'Đến KPI',
   },
   tierStatusLine: {
-    matchedOf: 'KPI khớp /',
+    matchedOf: 'KPI khớp',
     mismatched: 'lệch',
     notSplit: 'chưa chia',
     filterAll: 'Tất cả',

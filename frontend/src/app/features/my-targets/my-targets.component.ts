@@ -442,8 +442,17 @@ export class MyTargetsComponent extends LocalizedComponent {
     return changedYearCell(kpi);
   }
 
-  protected number(value: number | null): string {
+  /** VND amounts scale to triệu / tỷ (D15); every other unit keeps the plain grouped number. */
+  protected number(value: number | null, unit?: string): string {
     if (value === null) return '—';
+    if (unit?.toUpperCase() === 'VND') {
+      const vi = this.i18n.currentLanguage() === 'vi';
+      const abs = Math.abs(value);
+      if (abs >= 1_000_000_000)
+        return `${this.i18n.formatNumber(value / 1_000_000_000, 2)} ${vi ? 'tỷ' : 'bn'}`;
+      if (abs >= 1_000_000)
+        return `${this.i18n.formatNumber(value / 1_000_000, 2)} ${vi ? 'tr' : 'm'}`;
+    }
     return this.i18n.formatNumber(value, 0);
   }
 

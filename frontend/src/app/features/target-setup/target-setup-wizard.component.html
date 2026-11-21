@@ -17,10 +17,14 @@
         </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
-          <p>{{localization.targetSetup.loadFailed}}</p>
-          <button type="button" class="button button-secondary" (click)="load()">
-            {{localization.targetSetup.retry}}
-          </button>
+          @if (noAccess()) {
+            <p>{{localization.targetSetup.noAccess}}</p>
+          } @else {
+            <p>{{localization.targetSetup.loadFailed}}</p>
+            <button type="button" class="button button-secondary" (click)="load()">
+              {{localization.targetSetup.retry}}
+            </button>
+          }
         </div>
       } @else {
         <nav class="wizard-stepper" [attr.aria-label]="localization.targetSetup.stepperAria">
