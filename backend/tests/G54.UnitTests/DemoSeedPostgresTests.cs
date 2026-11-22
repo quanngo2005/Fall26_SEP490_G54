@@ -89,7 +89,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         "NV019=EMPLOYEE",
         "NV020=DEPT_MANAGER",
         "NV021=EMPLOYEE",
-        "NV022=QA",
+        "NV022=VERIFIER",
     ];
 
     [PostgresFact]
@@ -126,29 +126,28 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [PostgresFact]
-    public async Task OrganizationRolesAreUsableOnTheirOwnWithTheSameWorkPermissionsAsTheirSourceRole()
+    public async Task OnlyTheSixRolesExistAndEveryOneIsUsableOnItsOwn()
     {
-        // MANAGER's permissions, minus nothing: DEPT_MANAGER must be able to do everything MANAGER can.
-        var deptManager = (await GrantsAsync("DEPT_MANAGER"))
-            .Where(grant => !grant.StartsWith("TRANSACTION_IMPORT_MANAGE=", StringComparison.Ordinal))
-            .ToList();
-        Assert.Equal(await GrantsAsync("MANAGER"), deptManager);
+        var roles = await QueryAsync("SELECT code FROM role ORDER BY code");
+        Assert.Equal(["BRANCH_MANAGER", "DEPT_MANAGER", "EMPLOYEE", "HR_OFFICER", "SYSTEM_ADMIN", "VERIFIER"], roles);
         Assert.Contains("TRANSACTION_IMPORT_MANAGE=All", await GrantsAsync("DEPT_MANAGER"));
+        Assert.Contains("WORK_READ=Department", await GrantsAsync("DEPT_MANAGER"));
     }
 
     [PostgresFact]
     public async Task BranchManagerGetsTheManagerPermissionsWithDepartmentScopesWidenedToBranch()
     {
-        var manager = await GrantsAsync("MANAGER");
+        var manager = await GrantsAsync("DEPT_MANAGER");
         var branch = await GrantsAsync("BRANCH_MANAGER");
 
         var widened = manager
+            .Where(grant => !grant.StartsWith("TRANSACTION_IMPORT_MANAGE=", StringComparison.Ordinal))
             .Select(grant => grant.Replace("=Department", "=Branch", StringComparison.Ordinal).Replace("=Dept", "=Branch", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToList();
         // Approving evaluation profiles, and owning objectives and KPI requests / approvals, are the Branch Manager's own
         // permissions, not copies of the manager's. Reading objectives is the manager's own grant, widened like the others.
-        string[] ownGrants = ["EVALUATION_PROFILE_APPROVE=", "OBJECTIVE_MANAGE=", "KPI_REQUEST=", "KPI_APPROVE=", "TRANSACTION_IMPORT_MANAGE="];
+        string[] ownGrants = ["EVALUATION_PROFILE_APPROVE=", "OBJECTIVE_MANAGE=", "KPI_REQUEST=", "KPI_APPROVE=", "TRANSACTION_IMPORT_MANAGE=", "EVALUATION_FINALIZE="];
         Assert.Equal(widened, branch.Where(grant => !ownGrants.Any(own => grant.StartsWith(own, StringComparison.Ordinal))));
         Assert.Contains("EVALUATION_PROFILE_APPROVE=All", branch);
         Assert.Contains("OBJECTIVE_MANAGE=All", branch);
@@ -163,13 +162,14 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [PostgresFact]
-    public async Task SystemAdminGetsEveryAdminPermissionButNotTheDevelopmentWildcard()
+    public async Task SystemAdminHoldsEveryGrantAtAllScopeButNotTheDevelopmentWildcard()
     {
-        var admin = await GrantsAsync("ADMIN");
         var system = await GrantsAsync("SYSTEM_ADMIN");
 
-        Assert.Equal(admin.Where(g => !g.StartsWith("FULL_ACCESS=", StringComparison.Ordinal)), system);
+        Assert.NotEmpty(system);
         Assert.DoesNotContain(system, g => g.StartsWith("FULL_ACCESS=", StringComparison.Ordinal));
+        Assert.Contains("ROLE_UPDATE=All", system);
+        Assert.Contains("WORK_TYPE_MANAGE=All", system);
         Assert.All(system, grant => Assert.EndsWith("=All", grant, StringComparison.Ordinal));
     }
 
@@ -186,7 +186,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             """);
 
         Assert.Equal(
-            ["ADMIN=All", "BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept", "MANAGER=Dept", "SYSTEM_ADMIN=All"],
+            ["BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept", "HR_OFFICER=All", "SYSTEM_ADMIN=All"],
             holders);
     }
 
@@ -202,7 +202,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
             ORDER BY r.code
             """);
 
-        Assert.Equal(["BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept", "MANAGER=Dept"], holders);
+        Assert.Equal(["BRANCH_MANAGER=Branch", "DEPT_MANAGER=Dept"], holders);
     }
 
     /// <summary>SCR-STRAT-05 needs every feedback state on the Q4 HDV employee targets, and the demo employee needs a target.</summary>
@@ -259,12 +259,12 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     [PostgresFact]
     public async Task SeedingAgainIsIdempotentAndRemovesRolesThatAnEarlierSeedAddedByMistake()
     {
-        // Simulate a database seeded by the previous layout: NV002 also holds MANAGER and VERIFIER.
+        // Simulate a database seeded by the previous layout: NV002 also holds two extra roles.
         await ExecuteAsync("""
             INSERT INTO user_role (account_id, role_id)
             SELECT a.id, r.id FROM account a
             JOIN employee e ON e.id = a.employee_id AND e.employee_code = 'NV002'
-            JOIN role r ON r.code IN ('MANAGER', 'VERIFIER')
+            JOIN role r ON r.code IN ('HR_OFFICER', 'VERIFIER')
             ON CONFLICT DO NOTHING
             """);
         Assert.Equal(["3"], await QueryAsync("""
@@ -336,7 +336,7 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261119090000_RevokeEmployeeHandoverCreate", migrations[^1]);
+        Assert.Equal("20261119140000_ConsolidateRoles", migrations[^1]);
         Assert.Equal("20261117162433_GrantQaPermissionsToVerifier", migrations[^2]);
         Assert.Equal("20261117153644_GrantReconciliationRead", migrations[^3]);
         Assert.Equal("20261116175434_ExpandNotificationsAndPermissions", migrations[^4]);

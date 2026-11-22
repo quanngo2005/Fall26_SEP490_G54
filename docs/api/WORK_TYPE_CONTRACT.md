@@ -24,10 +24,7 @@ Frontend screens using this contract:
 | `GET /work-types`, `GET /work-types/{id}`, `GET /work-types/kpis` (also `GET /kpis`) | `[Authorize]` only (any authenticated account) |
 | `POST /work-types`, `PUT /work-types/{id}`, `PATCH /work-types/{id}/status`, `DELETE /work-types/{id}` | `work-type:manage`, scope `All` |
 
-`work-type:manage` is held through the `ADMIN` role's wildcard `FULL_ACCESS`. `SYSTEM_ADMIN` is accepted by
-the `/work-types` route guard but has **no** `work-type:manage` grant, so activating or deactivating a work
-type as `SYSTEM_ADMIN` returns 403 `FORBIDDEN` and the drawer shows the action error. Granting the permission
-to `SYSTEM_ADMIN` (a seed / migration change) or narrowing the route guard is an open decision.
+`work-type:manage` is granted to `SYSTEM_ADMIN` at `All` (migration `ConsolidateRoles`, GB-742); no other role holds it.
 
 ## Endpoints
 

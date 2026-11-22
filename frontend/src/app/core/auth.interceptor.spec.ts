@@ -61,6 +61,10 @@ describe('authInterceptor', () => {
     '/qa-queue/FLAG/f1',
     '/qa-samples',
     '/quality-flags',
+    '/reconciliations',
+    '/transaction-imports',
+    '/transaction-imports/template',
+    '/data-imports/employees/preview',
   ]) {
     it(`sends the bearer token to the QA endpoint ${path}`, () => {
       localStorage.setItem(

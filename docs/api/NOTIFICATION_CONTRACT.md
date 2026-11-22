@@ -40,14 +40,14 @@ Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md`.
 
 ### Quyền
 
-| Quyền | ADMIN / SYSTEM_ADMIN | BRANCH_MANAGER | DEPT_MANAGER / MANAGER | QA / VERIFIER / HR_OFFICER | EMPLOYEE |
+| Quyền | SYSTEM_ADMIN | BRANCH_MANAGER | DEPT_MANAGER | VERIFIER / HR_OFFICER | EMPLOYEE |
 |---|---|---|---|---|---|
 | `notification:send` | `All` | `Branch` | `Dept` | không có | không có |
 | `notification:read` | `All` | `Own` | `Own` | `Own` | `Own` |
 
 Theo thiết kế, `notification:read` chỉ mở hộp thư **của chính người gọi**; scope `All` của Admin chỉ để khớp quy ước admin có mọi quyền ở `All`, không cho đọc thư của người khác.
 
-Quyền được seed bởi migration `AddNotifications`; `ExpandNotificationsAndPermissions` cấp thêm `notification:read` (`Own`) cho `QA`, `VERIFIER`, `HR_OFFICER` (và `seed_dev_data.sql`).
+Quyền được seed bởi migration `AddNotifications`; `ExpandNotificationsAndPermissions` cấp thêm `notification:read` (`Own`) cho `VERIFIER`, `HR_OFFICER` (và `seed_dev_data.sql`).
 
 ## 3. Gửi thông cáo — `POST /notifications`
 

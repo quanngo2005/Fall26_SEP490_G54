@@ -1,7 +1,7 @@
 # Target Allocation API Contract
 
 Branch Manager allocates yearly KPI targets: Branch-Year (Excel import) -> Department-Year -> Department-Quarter -> auto Month/Week/Day.
-Permission: `target:manage` (ADMIN = All, MANAGER = Department). All responses use the `ApiResponse` envelope.
+Permission: `target:manage` (SYSTEM_ADMIN = All, DEPT_MANAGER = Department). All responses use the `ApiResponse` envelope.
 
 ## Phase 1: year target import
 

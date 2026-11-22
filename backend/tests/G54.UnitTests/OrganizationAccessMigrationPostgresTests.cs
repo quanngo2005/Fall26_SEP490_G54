@@ -95,6 +95,8 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
             DELETE FROM role WHERE code NOT IN ('SYSTEM_ADMIN','BRANCH_MANAGER','DEPT_MANAGER');
             """);
         await db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
+        // Rolling back ConsolidateRoles brings the removed role aliases back; this test only wants what its migration created.
+        await ExecuteAsync("DELETE FROM role WHERE code NOT IN ('SYSTEM_ADMIN','BRANCH_MANAGER','DEPT_MANAGER');");
         await db.GetService<IMigrator>().MigrateAsync(Migration);
     }
 
@@ -178,7 +180,7 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
         }
 
         var accounts = new Dictionary<string, Guid>();
-        foreach (var role in new[] { "SYSTEM_ADMIN", "ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "MANAGER", "EMPLOYEE" })
+        foreach (var role in new[] { "SYSTEM_ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "EMPLOYEE" })
         {
             accounts[role] = await CreateAccountWithRoleAsync(role);
         }
@@ -196,10 +198,8 @@ public sealed class OrganizationAccessMigrationPostgresTests(OrganizationAccessD
         }
 
         Assert.True(canOpen["SYSTEM_ADMIN"]);
-        Assert.True(canOpen["ADMIN"]);
         Assert.True(canOpen["BRANCH_MANAGER"]);
         Assert.True(canOpen["DEPT_MANAGER"]);
-        Assert.True(canOpen["MANAGER"]);
         Assert.False(canOpen["EMPLOYEE"]);
 
         var branch = await service.GetEffectivePermissionsAsync(accounts["BRANCH_MANAGER"], CancellationToken.None);

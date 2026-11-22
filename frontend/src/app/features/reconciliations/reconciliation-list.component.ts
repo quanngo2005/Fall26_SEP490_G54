@@ -9,8 +9,9 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, debounceTime, EMPTY, finalize, of, Subject, switchMap, tap } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -24,6 +25,7 @@ import {
   ReconciliationStatus,
 } from '../../core/reconciliation.models';
 import { ReconciliationService } from '../../core/reconciliation.service';
+import { canManageTransactionImport } from '../../core/transaction-import.guard';
 import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe, AppNumberPipe } from '../../shared/pipes';
 import {
@@ -57,6 +59,7 @@ type StatusCard = { key: 'ALL' | ReconciliationStatus; label: string; count: num
   selector: 'app-reconciliation-list',
   imports: [
     FormsModule,
+    RouterLink,
     SidebarComponent,
     HeaderComponent,
     LayoutIconComponent,
@@ -75,10 +78,16 @@ type StatusCard = { key: 'ALL' | ReconciliationStatus; label: string; count: num
 })
 export class ReconciliationListComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(ReconciliationService);
+  private readonly auth = inject(AuthService);
   private readonly evaluations = inject(EvaluationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  /** SCR-ADM-06 entry point: only those who may import the Core Banking file see it (the API checks the same). */
+  protected readonly canImport = computed(() =>
+    canManageTransactionImport(this.auth.currentUser()?.permissions),
+  );
   private readonly reload = new Subject<void>();
   private readonly searchChanged = new Subject<void>();
 

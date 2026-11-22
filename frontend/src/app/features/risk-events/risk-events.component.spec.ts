@@ -68,7 +68,7 @@ describe('RiskEventsComponent', () => {
   const user = signal<AuthenticatedUser | null>(null);
 
   const as = (permissions: string[]) =>
-    user.set({ id: 'u1', email: 'u@test.local', fullName: 'QA', roles: ['QA'], permissions });
+    user.set({ id: 'u1', email: 'u@test.local', fullName: 'QA', roles: ['VERIFIER'], permissions });
   const open = () => {
     const fixture = TestBed.createComponent(RiskEventsComponent);
     fixture.detectChanges();

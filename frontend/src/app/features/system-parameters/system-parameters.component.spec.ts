@@ -173,7 +173,12 @@ describe('SystemParametersComponent', () => {
         {
           provide: AuthService,
           useValue: {
-            currentUser: signal({ id: 'a', fullName: 'Admin', roles: ['ADMIN'], permissions: [] }),
+            currentUser: signal({
+              id: 'a',
+              fullName: 'Admin',
+              roles: ['SYSTEM_ADMIN'],
+              permissions: [],
+            }),
           },
         },
         {

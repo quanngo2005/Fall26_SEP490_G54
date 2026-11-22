@@ -132,6 +132,36 @@ describe('ReconciliationListComponent', () => {
     expect(body).not.toContain('Not Matched');
   });
 
+  const signIn = (permissions: string[]) =>
+    localStorage.setItem(
+      'g54.auth.session',
+      JSON.stringify({
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        refreshTokenExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        user: { id: 'u1', email: 'qa@test.local', fullName: 'QA', roles: ['QA'], permissions },
+      }),
+    );
+  const importLink = (fixture: { nativeElement: HTMLElement }) =>
+    fixture.nativeElement.querySelector<HTMLAnchorElement>('a[href="/data-import"]');
+
+  it('links to the data import screen for whoever may import the Core Banking file', () => {
+    signIn(['RECONCILIATION_READ', 'TRANSACTION_IMPORT_MANAGE']);
+    const fixture = open();
+
+    expect(importLink(fixture)?.textContent?.trim()).toBe('Nhập file giao dịch');
+    localStorage.removeItem('g54.auth.session');
+  });
+
+  it('hides the data import link from a reader without the import permission', () => {
+    signIn(['RECONCILIATION_READ']);
+    const fixture = open();
+
+    expect(importLink(fixture)).toBeNull();
+    localStorage.removeItem('g54.auth.session');
+  });
+
   it('shows the count of every status on its card', () => {
     const fixture = open();
     const part = (selector: string) =>

@@ -39,7 +39,7 @@ Tất cả yêu cầu `Authorization: Bearer` của nhân viên đang hoạt đ�
 
 ### Quyền
 
-| Quyền | Dùng cho | ADMIN | MANAGER | EMPLOYEE |
+| Quyền | Dùng cho | SYSTEM_ADMIN | DEPT_MANAGER | EMPLOYEE |
 |---|---|---|---|---|
 | `handover:create` | Chuyển ngay một công việc | `All` | `Own` | không có (migration `RevokeEmployeeHandoverCreate`) |
 | `handover:set_share` | Chuyển ngay (bắt buộc với người gọi) và gửi `referrerSharePercent` | `All` | `Own` | không có |

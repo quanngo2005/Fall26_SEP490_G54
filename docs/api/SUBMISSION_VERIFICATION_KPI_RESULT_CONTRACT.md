@@ -144,7 +144,7 @@ vào target ACTIVE của từng nhân sự:
 
 Hai URL này đã nằm trong `EvidenceItemDto` (`previewUrl`, `downloadUrl`) của dossier. Cả hai yêu cầu `Authorization: Bearer`, nên FE phải tải bằng HttpClient rồi tạo blob; không dùng `<a href>` trực tiếp.
 
-Ai được xem: người đã nộp (với evidence của appeal là người đã gửi khiếu nại); người có quyền `verification:decide` với phạm vi (`Dept` / `Branch` / `All`) bao phủ phòng ban của người nộp; ADMIN. Evidence gắn với risk event chỉ mở cho phạm vi `All`. Phản hồi luôn có `Cache-Control: private, no-store`.
+Ai được xem: người đã nộp (với evidence của appeal là người đã gửi khiếu nại); người có quyền `verification:decide` với phạm vi (`Dept` / `Branch` / `All`) bao phủ phòng ban của người nộp; SYSTEM_ADMIN. Evidence gắn với risk event chỉ mở cho phạm vi `All`. Phản hồi luôn có `Cache-Control: private, no-store`.
 
 Quy tắc file khi nộp: tối đa 10 file, mỗi file ≤ 25 MB; đuôi thuộc `.pdf .xlsx .xls .docx .doc .png .jpg .jpeg`; nội dung phải khớp đuôi (kiểm tra chữ ký file: `%PDF`, PNG, JPEG, ZIP cho `.xlsx/.docx`, OLE cho `.xls/.doc`); tên file ≤ 255 ký tự. `mimeType` lưu theo đuôi đã xác thực, không theo `Content-Type` của client. Một file sai thì không file nào của lần nộp đó được lưu. Request `POST /works/{workId}/submissions` cho phép tối đa 251 MB (10 × 25 MB + phần form), giới hạn này chỉ áp cho route đó.
 
@@ -184,7 +184,7 @@ DTO: `backend/src/G54.BLL/Dtos/KpiResult/KpiResultDto.cs`. Một `KpiResultDto` 
 | Work / Submission không tồn tại | 404 | `NOT_FOUND` |
 | Không phải người được giao (context, submit) | 403 | `FORBIDDEN` |
 | Không phải người đã nộp (withdraw) | 403 | `FORBIDDEN` |
-| Evidence: không phải người nộp, không có phạm vi verification bao phủ, không phải ADMIN | 403 | `FORBIDDEN` |
+| Evidence: không phải người nộp, không có phạm vi verification bao phủ, không phải SYSTEM_ADMIN | 403 | `FORBIDDEN` |
 | Evidence không tồn tại hoặc file không còn trên máy chủ | 404 | `NOT_FOUND` |
 | Work đang `SUBMITTED / VERIFIED / DONE / CANCELLED` khi nộp | 409 | `SUBMISSION_INVALID_STATE` |
 | Withdraw khi submission khác `SUBMITTED` | 409 | `SUBMISSION_INVALID_STATE` |

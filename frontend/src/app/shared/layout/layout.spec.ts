@@ -66,11 +66,11 @@ describe('Shared workspace layout', () => {
 
   for (const [role, expected] of [
     ['EMPLOYEE', 'myWork'],
-    ['MANAGER', 'teamWork'],
+    ['DEPT_MANAGER', 'teamWork'],
     ['BRANCH_MANAGER', 'organization'],
-    ['HR', 'employeeData'],
-    ['QA', 'verificationQueue'],
-    ['ADMIN', 'accounts'],
+    ['HR_OFFICER', 'employeeData'],
+    ['VERIFIER', 'verificationQueue'],
+    ['SYSTEM_ADMIN', 'accounts'],
   ] as const) {
     it(`provides the appropriate ${role} workspace`, () => {
       signIn([role]);
@@ -79,6 +79,20 @@ describe('Shared workspace layout', () => {
           .items()
           .map((item) => item.id),
       ).toContain(expected);
+    });
+  }
+  for (const legacy of [
+    'ADMIN',
+    'MANAGER',
+    'QA',
+    'HR',
+    'HR_MANAGER',
+    'DEPARTMENT_MANAGER',
+    'COMPLIANCE',
+  ]) {
+    it(`no longer opens a workspace for the removed role alias ${legacy}`, () => {
+      signIn([legacy]);
+      expect(TestBed.inject(NavigationService).items()).toEqual([]);
     });
   }
   it('does not grant administrative menus to an unknown role or employee', () => {
@@ -90,7 +104,7 @@ describe('Shared workspace layout', () => {
   });
   it('filters permission-protected links even for admin and removes menus on logout', () => {
     // kpiDefinitions is not in admin ROLE_MENUS so it won't appear; verify admin cannot access employee menus
-    signIn(['ADMIN'], []);
+    signIn(['SYSTEM_ADMIN'], []);
     const navigation = TestBed.inject(NavigationService);
     // myWork is employee-only and not in admin's menu
     expect(navigation.items().some((item) => item.id === 'myWork')).toBeFalse();
@@ -98,7 +112,7 @@ describe('Shared workspace layout', () => {
     expect(navigation.items()).toEqual([]);
   });
   it('unions multiple roles without duplicates', () => {
-    signIn(['EMPLOYEE', 'MANAGER', 'QA']);
+    signIn(['EMPLOYEE', 'DEPT_MANAGER', 'VERIFIER']);
     const ids = TestBed.inject(NavigationService)
       .items()
       .map((item) => item.id);
@@ -107,7 +121,7 @@ describe('Shared workspace layout', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
   it('updates rendered header and sidebar text immediately on language switch', () => {
-    signIn(['ADMIN']);
+    signIn(['SYSTEM_ADMIN']);
     const i18n = TestBed.inject(I18nService);
     i18n.setLanguage('vi');
     const header = TestBed.createComponent(HeaderComponent);
@@ -141,7 +155,14 @@ describe('Shared workspace layout', () => {
     sidebar.destroy();
   });
   it('switches all role menus, expanded children, footer and accessibility text in both directions', () => {
-    signIn(['EMPLOYEE', 'MANAGER', 'BRANCH_MANAGER', 'HR', 'QA', 'ADMIN']);
+    signIn([
+      'EMPLOYEE',
+      'DEPT_MANAGER',
+      'BRANCH_MANAGER',
+      'HR_OFFICER',
+      'VERIFIER',
+      'SYSTEM_ADMIN',
+    ]);
     const i18n = TestBed.inject(I18nService);
     const navigation = TestBed.inject(NavigationService);
     navigation.toggleGroup('organization');
