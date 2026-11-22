@@ -36,7 +36,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     private const string Audience = "g54-tests";
     private const string Key = "test-signing-key-test-signing-key-0123456789";
     private static readonly Guid PositionId = Guid.Parse("5eed0000-0000-0000-0006-000000000001");
-    private static readonly string[] ExpectedPermissionGrantedRoles = ["SYSTEM_ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "MANAGER"];
+    private static readonly string[] ExpectedPermissionGrantedRoles = ["SYSTEM_ADMIN", "BRANCH_MANAGER", "DEPT_MANAGER", "HR_OFFICER"];
     private static readonly string[] CoveredRoutes =
     [
         "/departments",
@@ -52,7 +52,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         ["SYSTEM_ADMIN"] = "All",
         ["BRANCH_MANAGER"] = "Branch",
         ["DEPT_MANAGER"] = "Dept",
-        ["MANAGER"] = "Dept",
+        ["HR_OFFICER"] = "All",
     };
 
     private IHost _host = null!;
@@ -129,14 +129,16 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
         "SYSTEM_ADMIN",
         "BRANCH_MANAGER",
         "DEPT_MANAGER",
-        "MANAGER",
-        "ADMIN",
+        "HR_OFFICER",
     };
 
     public static TheoryData<string> BlockedRoles => new()
     {
         "EMPLOYEE",
         "VERIFIER",
+        // Removed role aliases must not open anything any more.
+        "ADMIN",
+        "MANAGER",
         "HR",
         "HR_MANAGER",
         "QA",
@@ -199,11 +201,11 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
     [Fact]
     public async Task ARoleThatIsGrantedLaterGetsAccessWithoutAnyCodeChange()
     {
-        Assert.Equal(HttpStatusCode.Forbidden, (await GetAsync("/job-positions", "HR")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await GetAsync("/job-positions", "VERIFIER")).StatusCode);
 
-        RolePermissionTable.ExtraGrants["HR"] = [new UserPermissionDto("organization", "read", "Dept", "ORGANIZATION_READ")];
-        var granted = await GetAsync("/job-positions", "HR");
-        RolePermissionTable.ExtraGrants.Remove("HR");
+        RolePermissionTable.ExtraGrants["VERIFIER"] = [new UserPermissionDto("organization", "read", "Dept", "ORGANIZATION_READ")];
+        var granted = await GetAsync("/job-positions", "VERIFIER");
+        RolePermissionTable.ExtraGrants.Remove("VERIFIER");
 
         Assert.Equal(HttpStatusCode.OK, granted.StatusCode);
     }
@@ -294,7 +296,7 @@ public sealed class OrganizationAccessTests : IAsyncLifetime
                 yield return new UserPermissionDto("organization", "read", scope, "ORGANIZATION_READ");
             }
 
-            if (role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            if (role.Equals("SYSTEM_ADMIN", StringComparison.OrdinalIgnoreCase))
             {
                 yield return new UserPermissionDto("*", "*", PermissionScopes.All, "FULL_ACCESS");
             }

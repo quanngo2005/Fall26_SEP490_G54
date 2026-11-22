@@ -40,14 +40,14 @@ Envelope, quy ước route, enum, thời gian: xem `API_CONVENTIONS.md`.
 
 ### Quyền
 
-| Quyền | ADMIN / SYSTEM_ADMIN | BRANCH_MANAGER | DEPT_MANAGER / MANAGER | QA / VERIFIER / HR_OFFICER | EMPLOYEE |
+| Quyền | SYSTEM_ADMIN | BRANCH_MANAGER | DEPT_MANAGER | VERIFIER / HR_OFFICER | EMPLOYEE |
 |---|---|---|---|---|---|
 | `notification:send` | `All` | `Branch` | `Dept` | không có | không có |
 | `notification:read` | `All` | `Own` | `Own` | `Own` | `Own` |
 
 Theo thiết kế, `notification:read` chỉ mở hộp thư **của chính người gọi**; scope `All` của Admin chỉ để khớp quy ước admin có mọi quyền ở `All`, không cho đọc thư của người khác.
 
-Quyền được seed bởi migration `AddNotifications`; `ExpandNotificationsAndPermissions` cấp thêm `notification:read` (`Own`) cho `QA`, `VERIFIER`, `HR_OFFICER` (và `seed_dev_data.sql`).
+Quyền được seed bởi migration `AddNotifications`; `ExpandNotificationsAndPermissions` cấp thêm `notification:read` (`Own`) cho `VERIFIER`, `HR_OFFICER` (và `seed_dev_data.sql`).
 
 ## 3. Gửi thông cáo — `POST /notifications`
 
@@ -112,7 +112,12 @@ Các sự kiện **đã có** thông báo (người nhận → `type`). Người
 | Quyết định khiếu nại (chấp nhận / yêu cầu bổ sung / từ chối) | Người gửi khiếu nại (`IMPORTANT`) | `APPEAL_DECIDED` |
 | Trưởng phòng trình duyệt bảng hiệu chuẩn | Mọi Giám đốc chi nhánh đang hoạt động và quản lý trực tiếp của người trình (`IMPORTANT`) | `CALIBRATION_SUBMITTED`, `relatedType = EVALUATION_PERIOD` |
 | Giám đốc chi nhánh duyệt / trả lại hiệu chuẩn | Các Trưởng phòng của phòng đó (`IMPORTANT`) | `CALIBRATION_DECIDED` |
+| Hệ thống tính xong đánh giá, chuyển `DRAFT` → `CALCULATED` | Nhân viên được đánh giá (`IMPORTANT`) | `EVALUATION_CALCULATED`, `relatedType = EVALUATION_PERIOD` |
+| Trưởng phòng nộp đánh giá lên giám đốc (`SUBMITTED`) | Mọi Giám đốc chi nhánh đang hoạt động (`IMPORTANT`) | `EVALUATION_SUBMITTED_TO_BRANCH` |
+| Giám đốc trả về để kiểm tra lại (`CALCULATED`) | Trưởng phòng của nhân viên, kèm lý do (`IMPORTANT`) | `EVALUATION_RETURNED` |
+| Giám đốc xác nhận hạng chốt (`FINAL`) | Trưởng phòng của nhân viên (`IMPORTANT`) | `EVALUATION_FINALIZED` |
 | Khóa kỳ đánh giá (công bố kết quả) | Mọi nhân viên đang hoạt động có đánh giá trong kỳ (`IMPORTANT`) | `RESULT_PUBLISHED` |
+| Kỳ đánh giá bị khóa khi kết quả còn `SUBMITTED` / `UNDER_REVIEW`, kết quả được chuyển sang kỳ kế tiếp | Người nộp kết quả (`IMPORTANT`), mỗi người một thông báo | `RESULT_CARRIED_OVER`, `relatedType = EVALUATION_PERIOD` (kỳ nhận kết quả) |
 | Duyệt / từ chối kế hoạch chiến dịch | Người tham gia chiến dịch (`IMPORTANT` khi từ chối) | `CAMPAIGN_DECIDED` |
 | Duyệt KPI | Người trình và người yêu cầu KPI (`IMPORTANT`) | `KPI_APPROVED` / `KPI_REJECTED` |
 | Duyệt / từ chối hồ sơ đánh giá | Mọi Admin đang hoạt động (`IMPORTANT`) | `EVALUATION_PROFILE_DECIDED` |

@@ -298,6 +298,63 @@ Reject department proposal and request re-calibration (UC106 Alt).
 
 ---
 
+### 2.4a `GET /evaluations/approvals/pre-close-check`
+
+Pre-close operational checklist before finalizing/locking an evaluation period (SCR-EVL-03-M1). Not documented
+before this change; added here alongside the carry-over `isBlocking` field below.
+
+#### Query Parameters
+- `periodId` (`Guid`, required).
+
+#### 200 OK Response (`PreCloseCheckOverviewDto`)
+```json
+{
+  "success": true,
+  "data": {
+    "periodId": "b2c3d4e5-0000-0000-0000-000000000002",
+    "periodCode": "2026-M10",
+    "periodName": "Tháng 10/2026",
+    "startDate": "2026-10-01",
+    "endDate": "2026-10-31",
+    "preCloseDeadline": "2026-11-12T17:00:00Z",
+    "canPublish": false,
+    "totalUnresolvedCount": 2,
+    "items": [
+      {
+        "code": "IN_REVIEW_SUBMISSIONS",
+        "title": "Kết quả In Review (chưa khớp giao dịch import)",
+        "remainingCount": 3,
+        "isPassed": false,
+        "targetScreenCode": "SCR-REV-03",
+        "targetRoute": "/results/verify",
+        "isBlocking": false
+      },
+      {
+        "code": "OPEN_DISPUTES",
+        "title": "Dispute / kháng nghị còn mở",
+        "remainingCount": 1,
+        "isPassed": false,
+        "targetScreenCode": "SCR-APL-03",
+        "targetRoute": "/appeals/resolution",
+        "isBlocking": true
+      }
+    ]
+  },
+  "error": null,
+  "traceId": "0HMS12345678"
+}
+```
+
+`IN_REVIEW_SUBMISSIONS` (and the other per-employee items) count every active employee of the units in the caller's `evaluation:read` scope, teams under a department included; `UNAPPROVED_DEPARTMENTS` counts department-level units only.
+
+`isBlocking` (bool, default `true`) is new: `IN_REVIEW_SUBMISSIONS` is the only non-blocking item (a submission still
+`SUBMITTED`/`UNDER_REVIEW` when the period locks is carried over to the next period instead of blocking the lock,
+see 2.5 below); every other item keeps `isBlocking = true`. `canPublish` is computed from blocking items only:
+`items.Where(i => i.IsBlocking).All(i => i.IsPassed)`. `totalUnresolvedCount` still counts every failing item
+regardless of `isBlocking`, for display purposes.
+
+---
+
 ### 2.5 `POST /evaluations/approvals/finalize`
 
 Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-29).
@@ -312,6 +369,7 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 ```
 
 #### Behavior
+- **Already locked**: rejected with 409 `CONFLICT` ("Kỳ đánh giá đã được khóa trước đó."), nothing is changed.
 - **BR-31**: rejected with 409 `EVALUATION_DISPUTE_PENDING` (nothing is changed) while any evaluation of the period is
   `DISPUTED`.
 - **Not ready**: rejected with 409 `PERFORMANCE_EVALUATION_INVALID_STATE` (nothing is changed) while any evaluation of the period is still `DRAFT` or `CALCULATED`, i.e. was never sent for review; the message gives how many. Only `IN_REVIEW`, `APPROVED` and `FINAL` evaluations can be locked.
@@ -319,6 +377,20 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
 - Sets `evaluation_period.status = LOCKED`.
 - Sets every evaluation in the period that is not yet `FINAL` to `status = FINAL`, `approved_at = NOW()`; an evaluation already `FINAL` keeps its `approved_at`.
 - Immutable lock prevents subsequent modifications.
+- **Carry-over**: a `result_submission` still `SUBMITTED` or `UNDER_REVIEW` for this period (see
+  `EVALUATION_PERIOD_CONTRACT.md` for the exact period-membership rule, including carry-over chaining) is moved to
+  the next `evaluation_period` of the same `period_type` whose `start_date` is after this period's `end_date` and
+  whose status is `OPEN` (an `IN_REVIEW` period no longer takes results and is skipped; nearest by `start_date`; gap between periods is fine) by setting its
+  `carried_over_to_period_id`. This is **not a blocking condition**: when no such next period exists yet, the lock
+  still proceeds and the pending results are left as-is (`pendingWithoutTargetPeriod` reports how many). A late
+  transaction import for a carried-over result's work still posts into the new period instead of 409
+  `PERIOD_LOCKED` (see `WORK_TRANSACTION_CONTRACT.md`).
+- After the lock and carry-over are saved, each distinct submitter of a carried-over result is sent a
+  `RESULT_CARRIED_OVER` notification (`related_type = EVALUATION_PERIOD`, `related_id` = the next period's id). A
+  notification failure is only logged; it never rolls back the lock. (Notifying each submitter's department manager
+  as well was in-scope per the original plan, but dropped: resolving "the department manager" of an arbitrary
+  department is currently only a private heuristic inside `DepartmentService`, not a reusable BLL call — submitters
+  only are notified.)
 
 #### 200 OK Response
 ```json
@@ -329,9 +401,14 @@ Executive digital sign-off and hard-lock of evaluation period (UC106, UC107, BR-
     "periodStatus": "LOCKED",
     "finalizedAt": "2026-10-11T10:00:00Z",
     "totalEvaluationsFinalized": 92,
-    "message": "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công."
+    "message": "Kỳ đánh giá đã được phê chuẩn chính thức và khóa dữ liệu (Hard-Lock) thành công.",
+    "carriedOverResults": 3,
+    "carriedOverToPeriodId": "c3d4e5f6-0000-0000-0000-000000000003",
+    "pendingWithoutTargetPeriod": 0
   },
   "error": null,
   "traceId": "0HMS12345678"
 }
 ```
+`carriedOverResults` (int, default 0), `carriedOverToPeriodId` (uuid, nullable) and `pendingWithoutTargetPeriod`
+(int, default 0) are new fields; `carriedOverToPeriodId` is `null` when nothing was carried over.

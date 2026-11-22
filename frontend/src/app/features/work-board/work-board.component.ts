@@ -57,6 +57,7 @@ import {
 } from './work-board.utils';
 import { AssignWorkDialogComponent } from './assign-work-dialog.component';
 import { HandoverDialogComponent } from './handover-dialog.component';
+import { HandoverListComponent } from './handover-list.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
 import { WorkWorkloadMonitorComponent } from './work-workload-monitor.component';
 
@@ -117,6 +118,7 @@ const emptyColumn = (loading: boolean): ColumnState => ({
     WorkDetailDrawerComponent,
     AssignWorkDialogComponent,
     HandoverDialogComponent,
+    HandoverListComponent,
     WorkWorkloadMonitorComponent,
   ],
   templateUrl: './work-board.component.html',
@@ -162,7 +164,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
-  protected readonly view = signal<'board' | 'list' | 'monitor'>('board');
+  protected readonly view = signal<'board' | 'list' | 'monitor' | 'handovers'>('board');
   protected readonly profileLoading = signal(true);
   protected readonly profileFailed = signal(false);
   protected readonly columns = signal<Record<BoardColumnKey, ColumnState>>(this.emptyColumns(true));
@@ -357,6 +359,9 @@ export class WorkBoardComponent extends LocalizedComponent {
           } else if (manager && requestedView === 'monitor') {
             this.view.set('monitor');
             this.chooseScope('team');
+          } else if (requestedView === 'handovers') {
+            this.view.set('handovers');
+            this.chooseScope(manager ? 'team' : 'mine');
           } else if (manager && employeeCode) {
             this.openTeamOfEmployee(employeeCode);
           } else {
@@ -414,7 +419,7 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   // ---- Filters and view -----------------------------------------------------------------------
 
-  protected setView(mode: 'board' | 'list' | 'monitor'): void {
+  protected setView(mode: 'board' | 'list' | 'monitor' | 'handovers'): void {
     if (mode === 'monitor' && !this.isTeam()) return;
     if (this.view() === mode) return;
     this.view.set(mode);

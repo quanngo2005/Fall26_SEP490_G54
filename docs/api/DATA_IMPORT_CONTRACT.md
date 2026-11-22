@@ -2,7 +2,7 @@
 
 Admin-only, **stateless** employee/organization import from an Excel file exported by HRM (`02_Nhan_su_To_chuc.xlsx`):
 `preview` validates the uploaded file without writing, `commit` takes the same file again, re-validates, commits valid rows and skips invalid rows.
-Permission: `data_import:import` (ADMIN, SYSTEM_ADMIN = `All`). All responses use the `ApiResponse` envelope.
+Permission: `data_import:import` (SYSTEM_ADMIN = `All`). All responses use the `ApiResponse` envelope.
 
 The reusable Excel part lives in `G54.BLL/Common/Import/**` (sheet reader, column/template declaration with alias and accent/note-insensitive header normalization, cell parsers, row error). A new import is a row class + a `TemplateBuilder` column declaration + a service that uses them; there is no engine, rule chain, registry or session store. The employee import is `G54.BLL/Services/EmployeeImportService.cs`.
 

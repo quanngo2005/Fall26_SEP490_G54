@@ -104,7 +104,7 @@ describe('QaDashboardComponent', () => {
     expect(el().querySelector('.notice-link')).toBeNull();
     TestBed.resetTestingModule();
     setup(dashboardFixture(), ['quality_flag:read', 'transaction-import:manage']);
-    expect(el().querySelector('.notice-link')?.getAttribute('href')).toBe('/import-history');
+    expect(el().querySelector('.notice-link')?.getAttribute('href')).toBe('/data-import');
   });
 
   it('hides the notice while the deadline is more than a week away and nothing waits for an import', () => {

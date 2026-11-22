@@ -162,9 +162,9 @@ describe('Configured sidebar navigation', () => {
 
     expect(isManagerOf(['EMPLOYEE'])).toBeFalse();
     expect(isManagerOf(['HR_OFFICER'])).toBeFalse();
-    expect(isManagerOf(['ADMIN'])).toBeFalse();
+    expect(isManagerOf(['SYSTEM_ADMIN'])).toBeFalse();
     expect(isManagerOf(['DEPT_MANAGER'])).toBeTrue();
-    expect(isManagerOf(['manager'])).toBeTrue();
+    expect(isManagerOf(['manager'])).toBeFalse(); // removed alias
     expect(isManagerOf(['BRANCH_MANAGER'])).toBeTrue();
     expect(isManagerOf(['EMPLOYEE', 'DEPT_MANAGER'])).toBeTrue();
   });

@@ -9,34 +9,23 @@ internal static class AutomaticNotifications
     private const int MaxTitleLength = 200;
     private const int MaxBodyLength = 2000;
 
-    /// <summary>An employee asked to hand a work over: the recipient is told, and so is the requester's manager, who can settle it.</summary>
+    /// <summary>An employee asked to hand a work over: their direct manager is told and settles it. The recipient hears only once it is decided.</summary>
     public static List<NotificationDraft> HandoverRequested(TaskHandover handover, Work work, Employee from, Employee to)
     {
-        var drafts = new List<NotificationDraft>
-        {
-            ForHandover(
-                to.Id,
-                NotificationType.HandoverRequested,
-                "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho bạn. Hãy chấp nhận hoặc từ chối.",
-                NotificationSeverity.Important,
-                handover),
-        };
-
-        if (from.ManagerId is { } managerId && managerId != to.Id)
+        var drafts = new List<NotificationDraft>();
+        if (from.ManagerId is { } managerId)
         {
             drafts.Add(ForHandover(
                 managerId,
                 NotificationType.HandoverRequested,
                 "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho {to.FullName}.",
-                NotificationSeverity.Normal,
+                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho {to.FullName}. Hãy duyệt hoặc từ chối.",
+                NotificationSeverity.Important,
                 handover));
         }
 
         return drafts;
     }
-
     /// <summary>A handover was settled: whoever did not make the decision hears the outcome.</summary>
     public static List<NotificationDraft> HandoverDecided(TaskHandover handover, Work work, Employee from, Employee to, Guid deciderId)
     {
@@ -51,11 +40,10 @@ internal static class AutomaticNotifications
                 : ForHandover(from.Id, NotificationType.HandoverRejected, "Yêu cầu bàn giao bị từ chối", $"Yêu cầu bàn giao công việc {details} đã bị từ chối.", NotificationSeverity.Normal, handover));
         }
 
-        if (to.Id != deciderId)
+        // The recipient never saw the request, so they only hear about it once the work is theirs.
+        if (accepted && to.Id != deciderId)
         {
-            drafts.Add(accepted
-                ? ForHandover(to.Id, NotificationType.HandoverTransferred, "Bạn được giao công việc mới", $"Công việc {details} đã được chuyển cho bạn.", NotificationSeverity.Important, handover)
-                : ForHandover(to.Id, NotificationType.HandoverRejected, "Yêu cầu bàn giao bị từ chối", $"Yêu cầu bàn giao công việc {details} đã bị quản lý từ chối.", NotificationSeverity.Normal, handover));
+            drafts.Add(ForHandover(to.Id, NotificationType.HandoverTransferred, "Bạn được giao công việc mới", $"Công việc {details} đã được chuyển cho bạn.", NotificationSeverity.Important, handover));
         }
 
         return drafts;
@@ -96,6 +84,24 @@ internal static class AutomaticNotifications
             NotificationRelatedType.Work,
             work.Id);
     }
+
+    /// <summary>
+    /// A period was locked while a submitter's result was still SUBMITTED/UNDER_REVIEW: the result was carried over
+    /// to <paramref name="nextPeriod"/>, so each distinct submitter is told where their pending result now lives.
+    /// No clean way exists yet to resolve "the department manager" of an arbitrary department from BLL (the only
+    /// such resolution lives as a private heuristic inside DepartmentService), so only submitters are notified.
+    /// </summary>
+    public static List<NotificationDraft> ResultSubmissionsCarriedOver(IReadOnlyCollection<Guid> submitterEmployeeIds, EvaluationPeriod nextPeriod) =>
+        submitterEmployeeIds
+            .Select(employeeId => new NotificationDraft(
+                employeeId,
+                NotificationType.ResultCarriedOver,
+                "Kết quả của bạn được chuyển sang kỳ mới",
+                $"Kỳ đánh giá đã được khóa khi kết quả của bạn còn đang chờ xử lý; kết quả đã được chuyển sang kỳ {nextPeriod.Code} - {nextPeriod.Name}.",
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                nextPeriod.Id))
+            .ToList();
 
     /// <summary>A manager assigned a new work item to an employee.</summary>
     public static NotificationDraft? WorkAssigned(Work work, Employee assignee, Employee creator)
@@ -473,6 +479,76 @@ internal static class AutomaticNotifications
                 "Kết quả đánh giá kỳ đã được công bố",
                 ClampBody($"Kết quả đánh giá hiệu suất kỳ {period.Code} - {period.Name} đã được phê chuẩn và công bố chính thức."),
                 NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id))
+            .ToList();
+    }
+
+    /// <summary>Department manager completed an employee's evaluation (DRAFT -> CALCULATED) -> the employee is told to review it.</summary>
+    public static List<NotificationDraft> EvaluationCalculated(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer)
+    {
+        if (employee.Id == reviewer.Id)
+        {
+            return [];
+        }
+
+        return
+        [
+            new NotificationDraft(
+                employee.Id,
+                NotificationType.EvaluationCalculated,
+                "Kết quả đánh giá đã sẵn sàng",
+                ClampBody($"Trưởng phòng đã hoàn tất đánh giá kỳ {period.Code} của bạn. Bạn có thể xem tại Đánh giá của tôi."),
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id),
+        ];
+    }
+
+    /// <summary>Branch Manager returned an employee's evaluation to CALCULATED -> department managers hear why.</summary>
+    public static List<NotificationDraft> EvaluationReturned(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer,
+        IEnumerable<Guid> deptManagerEmployeeIds,
+        string reason)
+    {
+        return deptManagerEmployeeIds
+            .Where(id => id != reviewer.Id)
+            .Distinct()
+            .Select(id => new NotificationDraft(
+                id,
+                NotificationType.EvaluationReturned,
+                "Đánh giá nhân viên bị trả lại",
+                ClampBody($"{reviewer.FullName} đã trả lại đánh giá của {employee.FullName} trong kỳ {period.Code}. Lý do: {reason}"),
+                NotificationSeverity.Important,
+                NotificationRelatedType.EvaluationPeriod,
+                period.Id,
+                reviewer.Id))
+            .ToList();
+    }
+
+    /// <summary>Branch Manager finalized an employee's evaluation -> department managers are told.</summary>
+    public static List<NotificationDraft> EvaluationFinalized(
+        Employee employee,
+        EvaluationPeriod period,
+        Employee reviewer,
+        IEnumerable<Guid> deptManagerEmployeeIds)
+    {
+        return deptManagerEmployeeIds
+            .Where(id => id != reviewer.Id)
+            .Distinct()
+            .Select(id => new NotificationDraft(
+                id,
+                NotificationType.EvaluationFinalized,
+                "Đánh giá nhân viên đã hoàn tất",
+                ClampBody($"{reviewer.FullName} đã hoàn tất đánh giá của {employee.FullName} trong kỳ {period.Code}."),
+                NotificationSeverity.Normal,
                 NotificationRelatedType.EvaluationPeriod,
                 period.Id,
                 reviewer.Id))

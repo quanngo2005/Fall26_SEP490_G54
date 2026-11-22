@@ -15,9 +15,12 @@ public sealed record DepartmentEvaluationGroupKpiDto(
     decimal TargetValue,
     decimal? ActualValue,
     decimal? AchievementPercent,
+    decimal? PreviousActualValue,
     decimal? PreviousAchievementPercent,
     decimal? ChangeFromPreviousPercent,
-    decimal? Score = null);
+    decimal? Weight = null,
+    decimal? Score = null,
+    decimal? PreviousScore = null);
 
 public sealed record DepartmentEvaluationKpiGroupDto(
     string? Name,
@@ -82,7 +85,8 @@ public sealed record DepartmentEvaluationStaffGroupScoreDto(
     string GroupName,
     int DisplayOrder,
     decimal WeightPercent,
-    decimal? Score);
+    decimal? Score,
+    decimal? PreviousScore = null);
 
 public sealed record DepartmentEvaluationStaffRowDto(
     Guid EmployeeId,
@@ -101,7 +105,8 @@ public sealed record DepartmentEvaluationStaffRowDto(
     bool CanOpenForm,
     int OnTimeCompletedCount = 0,
     int InProgressCount = 0,
-    int OverdueCount = 0);
+    int OverdueCount = 0,
+    decimal? PreviousOnTimeSlaPercent = null);
 
 public sealed record DepartmentEvaluationDashboardDto(
     DepartmentEvaluationDepartmentDto Department,

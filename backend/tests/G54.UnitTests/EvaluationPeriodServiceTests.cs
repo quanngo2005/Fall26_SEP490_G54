@@ -176,6 +176,36 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Close_TimezoneBoundary_IncludesLastBusinessDayNight_ExcludesNextDayEarlyMorning()
+    {
+        var period = await AddPeriodAsync(); // Start = Oct 1, End = Oct 31 (business-day, UTC+7)
+        // 23:30 Vietnam time on the period's last day (Oct 31) = 16:30 UTC -> inside the period.
+        AddSubmission(SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 31, 16, 30, 0, TimeSpan.Zero));
+        // 00:30 Vietnam time the next day (Nov 1) = 17:30 UTC on Oct 31 -> outside the period.
+        AddSubmission(SubmissionStatus.Submitted, new DateTimeOffset(2026, 10, 31, 17, 30, 0, TimeSpan.Zero));
+        await _db.SaveChangesAsync();
+
+        var result = await Service.CloseAsync(period.Id);
+
+        Assert.Equal(1, result.PendingInReviewResults);
+    }
+
+    [Fact]
+    public async Task Close_CarriedOverSubmission_CountsTowardTheTargetPeriod_RegardlessOfWhenItWasSubmitted()
+    {
+        var period = await AddPeriodAsync();
+        // Carried over from a previous period lock: counted in this period even though it was submitted long before
+        // this period's own date window.
+        var submission = AddSubmission(SubmissionStatus.Submitted, Now.AddYears(-1));
+        submission.CarriedOverToPeriodId = period.Id;
+        await _db.SaveChangesAsync();
+
+        var result = await Service.CloseAsync(period.Id);
+
+        Assert.Equal(1, result.PendingInReviewResults);
+    }
+
+    [Fact]
     public async Task Close_UnknownPeriod_IsNotFound() =>
         await Assert.ThrowsAsync<NotFoundException>(() => Service.CloseAsync(Guid.NewGuid()));
 

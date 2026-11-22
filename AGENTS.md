@@ -47,7 +47,7 @@ Run these automatically, without waiting to be asked, before reporting the task 
    - `frontend/**` changed → `./scripts/codereview-frontend.ps1`
    - `backend/**` changed → `./scripts/codereview-backend.ps1`
    - Both changed → run both.
-2. **Fix and rerun** until the generated report (`docs/codereview/reports/FRONTEND_REPORT.md` / `BACKEND_REPORT.md`) ends with `## ALL CHECKS PASSED`. Fix the code; never weaken a check.
+2. **Fix and rerun** until the generated report (`docs/codereview/reports/FRONTEND_REPORT.md` / `BACKEND_REPORT.md`) ends with `## PASSED`. Fix the code; never weaken a check.
 3. **Code review**: load the `code-review` skill (plus `security-review`), walk the `[manual]` items for the changed files, and report findings with `file:line`, severity, risk, and fix. Critical/High findings block completion. Fix the findings yourself, then rerun step 1-2.
 3a. **Manual test**: exercise the change for real, then fix what breaks. Backend: call the new/changed endpoints against the running API (success, validation, auth and not-found cases). Frontend: drive the changed UI in the running app. State exactly what was exercised.
 4. **If a PR exists**, check its CI after pushing (`gh run list --branch <branch>`; `gh run view <id> --log-failed` on failure) and fix any failing job the same way.

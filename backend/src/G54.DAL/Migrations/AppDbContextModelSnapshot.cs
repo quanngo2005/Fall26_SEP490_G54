@@ -32,7 +32,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_direction", new[] { "HIGHER_BETTER", "LOWER_BETTER", "ON_TARGET" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "kpi_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_history_action", new[] { "CALCULATED", "STATUS_CHANGED", "APPROVED", "DISPUTED", "DISPUTE_WITHDRAWN", "APPEAL_RESOLVED" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_status", new[] { "DRAFT", "CALCULATED", "IN_REVIEW", "APPROVED", "DISPUTED", "FINAL" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "performance_evaluation_status", new[] { "DRAFT", "DISPUTED", "CALCULATED", "SUBMITTED", "FINAL" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_status", new[] { "OPEN", "IN_REVIEW", "LOCKED", "CLOSED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "period_type", new[] { "YEAR", "HALF_YEAR", "QUARTER", "MONTH", "WEEK", "DAY" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "record_status", new[] { "ACTIVE", "INACTIVE", "ARCHIVED" });
@@ -2134,6 +2134,63 @@ namespace G54.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.RankingSlotQuota", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("department_id");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer")
+                        .HasColumnName("headcount");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("TierCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("tier_code");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("ranking_slot_quota_pkey");
+
+                    b.HasIndex(new[] { "DepartmentId", "TierCode" }, "uq_ranking_slot_quota_department_tier")
+                        .IsUnique();
+
+                    b.ToTable("ranking_slot_quota", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
+
+                            t.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
+                        });
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.RankingTierThreshold", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2188,6 +2245,10 @@ namespace G54.DAL.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("CarriedOverToPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("carried_over_to_period_id");
+
                     b.Property<string>("Comment")
                         .HasColumnType("text")
                         .HasColumnName("comment");
@@ -2226,6 +2287,8 @@ namespace G54.DAL.Migrations
                         .HasName("result_submission_pkey");
 
                     b.HasIndex("SubmitterEmployeeId");
+
+                    b.HasIndex(new[] { "CarriedOverToPeriodId" }, "ix_result_submission_carried_over_period");
 
                     b.HasIndex(new[] { "WorkId" }, "ix_result_submission_work");
 
@@ -4138,8 +4201,26 @@ namespace G54.DAL.Migrations
                     b.Navigation("EvaluationPeriod");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.RankingSlotQuota", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ranking_slot_quota_department");
+
+                    b.Navigation("Department");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "CarriedOverToPeriod")
+                        .WithMany("CarriedOverResultSubmissions")
+                        .HasForeignKey("CarriedOverToPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_result_submission_carried_over_period");
+
                     b.HasOne("G54.DAL.Entities.Employee", "SubmitterEmployee")
                         .WithMany("ResultSubmissions")
                         .HasForeignKey("SubmitterEmployeeId")
@@ -4153,6 +4234,8 @@ namespace G54.DAL.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_result_submission_work");
+
+                    b.Navigation("CarriedOverToPeriod");
 
                     b.Navigation("SubmitterEmployee");
 
@@ -4670,6 +4753,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.EvaluationPeriod", b =>
                 {
+                    b.Navigation("CarriedOverResultSubmissions");
+
                     b.Navigation("InverseParentPeriod");
 
                     b.Navigation("PerformanceContributions");

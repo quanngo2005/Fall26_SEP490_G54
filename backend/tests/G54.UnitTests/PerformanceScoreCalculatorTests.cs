@@ -514,7 +514,6 @@ public sealed class PerformanceScoreCalculatorTests
 
         Assert.Equal(0m, form.Summary.TotalScore);
         Assert.Equal(0m, form.Summary.WeightedScore);
-        Assert.Equal("C", form.Summary.ProposedTier);
         Assert.Null(form.PreviousPeriod);
     }
 
@@ -529,7 +528,6 @@ public sealed class PerformanceScoreCalculatorTests
 
         Assert.Null(form.Summary.TotalScore);
         Assert.Null(form.Summary.WeightedScore);
-        Assert.Null(form.Summary.ProposedTier);
     }
 
     [Fact]
@@ -539,7 +537,7 @@ public sealed class PerformanceScoreCalculatorTests
         w.AddTarget(w.Hdv, 100m);
         w.AddProgress(w.Hdv, 100m);
         await w.Db.SaveChangesAsync();
-        var evaluation = w.AddEvaluation(w.Staff1, 12.5m, PerformanceEvaluationStatus.InReview);
+        var evaluation = w.AddEvaluation(w.Staff1, 12.5m, PerformanceEvaluationStatus.Submitted);
         await w.Db.SaveChangesAsync();
 
         var form = await w.FormAsync(w.Staff1);
@@ -777,8 +775,7 @@ public sealed class PerformanceScoreCalculatorTests
     }
 
     [Theory]
-    [InlineData(PerformanceEvaluationStatus.InReview)]
-    [InlineData(PerformanceEvaluationStatus.Approved)]
+    [InlineData(PerformanceEvaluationStatus.Submitted)]
     [InlineData(PerformanceEvaluationStatus.Final)]
     public async Task Submit_OverAnEvaluationAlreadySentForReview_IsRefusedAndKeepsItsScoreAndRows(PerformanceEvaluationStatus status)
     {
@@ -1020,7 +1017,7 @@ public sealed class PerformanceScoreCalculatorTests
         using var w = await World.CreateAsync();
         w.AddTarget(w.Hdv, 100m, employee: w.Staff1);
         w.AddProgress(w.Hdv, 100m, owner: w.Staff1);
-        w.AddEvaluation(w.Staff1, 61m, PerformanceEvaluationStatus.InReview);
+        w.AddEvaluation(w.Staff1, 61m, PerformanceEvaluationStatus.Submitted);
         await w.Db.SaveChangesAsync();
 
         var overview = await w.Evaluation.GetDepartmentCalibrationAsync(w.Period.Id, w.Team.Id, null, w.Manager.Id);
@@ -1221,7 +1218,7 @@ public sealed class PerformanceScoreCalculatorTests
                 OutsideStaff = outside,
                 QualitativeScore = qualitativeScore,
                 Calculator = calculator,
-                Evaluation = new EvaluationService(db, NullLogger<EvaluationService>.Instance, permissions, calculator),
+                Evaluation = new EvaluationService(db, NullLogger<EvaluationService>.Instance, permissions, calculator, new RecordingNotifier()),
                 Endpoint = new PerformanceEvaluationService(
                     db, permissions, calculator, new FixedTime(Now), NullLogger<PerformanceEvaluationService>.Instance),
             };

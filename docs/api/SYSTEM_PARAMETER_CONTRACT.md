@@ -47,6 +47,7 @@ Seed mặc định: `ADMIN`, `SYSTEM_ADMIN`. Lỗi chung: `401` không token; `4
 | `manualApprovalHours` | `DEADLINES` | `INTEGER` | `48` | `1`–`168` | SLA duyệt tay việc ngoài WorkType |
 | `workOverdueEnabled` | `DEADLINES` | `BOOLEAN` | `true` | `true`/`false` | `WorkOverdueBackgroundService` |
 | `workOverdueSweepMinutes` | `DEADLINES` | `INTEGER` | `15` | `1`–`1440` | `WorkOverdueBackgroundService` |
+| `rankingLockDay` | `DEADLINES` | `INTEGER` | `20` | `1`–`28` | `EvaluationService` (ngày chốt xếp hạng: đóng kỳ tháng, quý, năm) |
 | `campaignExclusivityDays` | `DEADLINES` | `INTEGER` | `7` | `1`–`90` | `CampaignService` (BR-25) |
 | `appealRejectedHours` | `APPEALS` | `INTEGER` | `48` | `1`–`720` | `AppealService`, `MySubmissionService` (BR-31) |
 | `appealWindowDays` | `APPEALS` | `INTEGER` | `7` | `1`–`30` | Cửa sổ phúc khảo sau công bố kỳ đánh giá |

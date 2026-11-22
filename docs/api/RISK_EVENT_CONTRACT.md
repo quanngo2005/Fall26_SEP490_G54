@@ -26,7 +26,7 @@ OPEN ──confirm──▶ CONFIRMED ──resolve──▶ RESOLVED
 | `POST /risk-events/{id}/dismiss` | `risk_event:dismiss`, `All` |
 | `POST /risk-events/{id}/resolve` | `risk_event:resolve`, `All` |
 
-`ADMIN` có quyền qua wildcard. Các quyền `risk_event:*` chưa được seed cho role QA nào, cần cấp riêng.
+`SYSTEM_ADMIN` được seed đủ quyền `risk_event:*`; `VERIFIER` (QA) được seed đủ quyền `risk_event:*`, `DEPT_MANAGER` và `BRANCH_MANAGER` chỉ đọc.
 
 Lỗi chung: 401 không token hoặc tài khoản khóa; 403 thiếu quyền hoặc thao tác trên sự kiện của chính mình; 404 không có risk event.
 

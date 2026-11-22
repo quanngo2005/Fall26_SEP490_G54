@@ -18,9 +18,9 @@ Quyền `reconciliation:read` (migration `GrantReconciliationRead` và `GrantQaP
 
 | Vai trò | Scope | Thấy |
 |---|---|---|
-| QA, VERIFIER (người kiểm soát chất lượng), ADMIN, SYSTEM_ADMIN | `All` | Mọi phòng ban |
+| VERIFIER (người kiểm soát chất lượng), SYSTEM_ADMIN | `All` | Mọi phòng ban |
 | BRANCH_MANAGER | `Branch` | Chi nhánh của mình (kể cả phòng con) |
-| MANAGER, DEPT_MANAGER | `Dept` | Phòng của mình (kể cả phòng con) |
+| DEPT_MANAGER | `Dept` | Phòng của mình (kể cả phòng con) |
 | EMPLOYEE, HR_OFFICER | không có | 403 |
 
 Mã nằm ngoài phạm vi của người gọi trả **404** (giống mã không tồn tại), không lộ sự tồn tại. Hộp thoại **gắn cờ chất lượng** cần `quality_flag:create`, **ghi sự kiện rủi ro** cần `risk_event:create` (chỉ QA/Verifier và Quản trị có); Trưởng phòng và Giám đốc chi nhánh chỉ xem.

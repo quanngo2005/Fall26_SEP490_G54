@@ -5,6 +5,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.Appeal;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -420,9 +421,8 @@ public sealed partial class AppealService(
             var period = await db.EvaluationPeriods.AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
                 ?? throw new NotFoundException("Kỳ đánh giá", periodId);
-            var from = StartOfBusinessDay(period.StartDate);
-            var to = StartOfBusinessDay(period.EndDate.AddDays(1));
-            query = query.Where(a => a.ResultSubmission.SubmittedAt >= from && a.ResultSubmission.SubmittedAt < to);
+            var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(db.ResultSubmissions, period.Id, period.StartDate, period.EndDate);
+            query = query.Where(a => submissionsInPeriod.Contains(a.ResultSubmissionId));
         }
 
         if (scope == AppealScopes.Mine)
@@ -533,8 +533,7 @@ public sealed partial class AppealService(
         foreach (var evaluation in evaluations)
         {
             if (evaluation.Status is not (PerformanceEvaluationStatus.Calculated
-                    or PerformanceEvaluationStatus.InReview
-                    or PerformanceEvaluationStatus.Approved)
+                    or PerformanceEvaluationStatus.Submitted)
                 || evaluation.EvaluationPeriod.Status is PeriodStatus.Locked or PeriodStatus.Closed)
             {
                 continue;
@@ -576,15 +575,14 @@ public sealed partial class AppealService(
     /// <summary>True when the employee has another appeal in progress on a result submitted in this evaluation's period.</summary>
     private Task<bool> AnotherAppealInProgressAsync(Guid appealId, PerformanceEvaluation evaluation, CancellationToken cancellationToken)
     {
-        var from = StartOfBusinessDay(evaluation.EvaluationPeriod.StartDate);
-        var to = StartOfBusinessDay(evaluation.EvaluationPeriod.EndDate.AddDays(1));
+        var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(
+            db.ResultSubmissions, evaluation.EvaluationPeriodId, evaluation.EvaluationPeriod.StartDate, evaluation.EvaluationPeriod.EndDate);
         return db.Appeals
             .Where(InProgress)
             .AnyAsync(
                 a => a.Id != appealId
                     && a.EmployeeId == evaluation.EmployeeId
-                    && a.ResultSubmission.SubmittedAt >= from
-                    && a.ResultSubmission.SubmittedAt < to,
+                    && submissionsInPeriod.Contains(a.ResultSubmissionId),
                 cancellationToken);
     }
 
@@ -603,8 +601,6 @@ public sealed partial class AppealService(
             .ToListAsync(cancellationToken);
     }
 
-    private static DateTimeOffset StartOfBusinessDay(DateOnly date) =>
-        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime(); // Npgsql only writes UTC offsets.
     private static ConflictException AlreadyOpen()
         => new(ErrorCodes.GetDefaultMessage(ErrorCodes.AppealAlreadyOpen), ErrorCodes.AppealAlreadyOpen);
 

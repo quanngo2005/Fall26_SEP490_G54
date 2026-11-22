@@ -36,10 +36,13 @@ public sealed record QaDashboardQaQueueCardDto(
     int FlagCount,
     string Subtext);
 
+/// <param name="Count">Risk events of the period that still count (not reversed, not dismissed).</param>
+/// <param name="OpenCount">Of those, the ones not closed yet (OPEN or CONFIRMED, i.e. not RESOLVED).</param>
 public sealed record QaDashboardRiskEventsCardDto(
     int Count,
     decimal TotalPenaltyPoints,
-    string Subtext);
+    string Subtext,
+    int OpenCount = 0);
 
 public sealed record QaDashboardCardsDto(
     QaDashboardNotMatchedCardDto NotMatched,
