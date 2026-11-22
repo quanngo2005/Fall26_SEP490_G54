@@ -518,10 +518,9 @@ public sealed class PerformanceEvaluationServiceTests
     }
 
     [Theory]
-    [InlineData(PerformanceEvaluationStatus.InReview)]
-    [InlineData(PerformanceEvaluationStatus.Approved)]
-    [InlineData(PerformanceEvaluationStatus.Disputed)]
+    [InlineData(PerformanceEvaluationStatus.Submitted)]
     [InlineData(PerformanceEvaluationStatus.Final)]
+    [InlineData(PerformanceEvaluationStatus.Disputed)]
     public async Task Calculate_WhenEvaluationIsPastCalculation_ThrowsConflict(PerformanceEvaluationStatus status)
     {
         using var world = await World.CreateAsync();

@@ -182,10 +182,9 @@ public enum EvaluationProfileStatus
 public enum PerformanceEvaluationStatus
 {
     [PgName("DRAFT")] Draft,
-    [PgName("CALCULATED")] Calculated,
-    [PgName("IN_REVIEW")] InReview,
-    [PgName("APPROVED")] Approved,
     [PgName("DISPUTED")] Disputed,
+    [PgName("CALCULATED")] Calculated,
+    [PgName("SUBMITTED")] Submitted,
     [PgName("FINAL")] Final,
 }
 

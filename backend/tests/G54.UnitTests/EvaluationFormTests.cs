@@ -361,7 +361,7 @@ public sealed class EvaluationFormTests
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
-        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.InReview);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.Submitted);
         var service = CreateService(context, PermissionScopes.Dept, PermissionScopes.Dept);
 
         var form = await service.GetEvaluationFormAsync(s.Staff1.Id, s.Period.Id, s.Manager.Id);
@@ -876,7 +876,6 @@ public sealed class EvaluationFormTests
         Assert.Empty(form.CriteriaGroups);
         Assert.Null(form.Summary.WeightedScore);
         Assert.Null(form.Summary.TotalScore);
-        Assert.Null(form.Summary.ProposedTier);
     }
 
     // ----- the previous period keeps the tier that was stored ---------------------------------------
@@ -911,7 +910,7 @@ public sealed class EvaluationFormTests
         using var context = CreateContext();
         var s = await SeedAsync(context);
         await AssignTargetAsync(context, s, s.Staff1, 100m);
-        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.Approved);
+        await AddEvaluationAsync(context, s, s.Staff1, s.Period, 80m, PerformanceEvaluationStatus.Submitted);
         AddRiskEvent(context, s.Staff1, "RSK-EXP-1", RiskEventSeverity.High, 5m, new DateTimeOffset(2026, 10, 15, 3, 0, 0, TimeSpan.Zero));
         AddRiskEvent(context, s.Staff1, "RSK-EXP-2", RiskEventSeverity.Medium, 2m, new DateTimeOffset(2026, 10, 16, 3, 0, 0, TimeSpan.Zero));
         AddRiskEvent(context, s.Staff1, "RSK-EXP-3", RiskEventSeverity.Low, null, new DateTimeOffset(2026, 10, 17, 3, 0, 0, TimeSpan.Zero));
@@ -929,7 +928,7 @@ public sealed class EvaluationFormTests
         Assert.Contains("S1 · Employee S1", summary.Cell(2, 1).GetString(), StringComparison.Ordinal);
         Assert.Equal("S1", ValueOf(summary, "Mã nhân viên"));
         Assert.Equal("Employee S1", ValueOf(summary, "Họ và tên"));
-        Assert.Equal("Đã duyệt", ValueOf(summary, "Trạng thái phiếu"));
+        Assert.Equal("Đã nộp BM", ValueOf(summary, "Trạng thái phiếu"));
         Assert.Equal("Không", ValueOf(summary, "Yêu cầu kèm cặp"));
 
         var criteria = workbook.Worksheet("Tieu chi & KPI");
@@ -948,7 +947,7 @@ public sealed class EvaluationFormTests
 
     [Theory]
     [InlineData(PerformanceEvaluationStatus.Draft, "Nháp")]
-    [InlineData(PerformanceEvaluationStatus.Calculated, "Đã tính điểm")]
+    [InlineData(PerformanceEvaluationStatus.Calculated, "Đã chốt số")]
     [InlineData(PerformanceEvaluationStatus.Disputed, "Đang khiếu nại")]
     [InlineData(PerformanceEvaluationStatus.Final, "Đã chốt")]
     public async Task ExportForm_TranslatesTheEvaluationStatus(PerformanceEvaluationStatus status, string label)

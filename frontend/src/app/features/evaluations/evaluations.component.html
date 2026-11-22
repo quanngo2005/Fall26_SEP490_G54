@@ -13,68 +13,43 @@
       </nav>
 
       <!-- Page Header -->
-      <header class="page-header">
-        <div class="page-heading">
-          <h1 class="page-title font-heading">
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <h1 class="ui-page-title">
             {{localization.evaluations.dashboard.pageTitle}}
           </h1>
         </div>
-        <div class="page-actions">
-          <div class="period-select-wrap">
-            <select
-              class="period-select period-type-select"
-              [value]="selectedPeriodType()"
-              (change)="onPeriodTypeChange($event)"
-              [attr.aria-label]="localization.evaluations.dashboard.periodTypeAria"
-            >
-              @for (type of periodTypes; track type) {
-                <option [value]="type">{{periodTypeLabel(type)}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </div>
-
-          <div class="period-select-wrap">
-            <select
-              class="period-select"
-              [value]="selectedPeriodId() ?? ''"
-              (change)="onPeriodChange($event)"
-              [attr.aria-label]="localization.evaluations.dashboard.periodAria"
-            >
-              @for (p of filteredPeriods(); track p.id) {
-                <option [value]="p.id">{{p.name}}</option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </div>
-
-          <div class="period-select-wrap">
-            <select
-              class="period-select compare-select"
-              [value]="selectedComparePeriodId() ?? ''"
-              (change)="onCompareChange($event)"
-              [attr.aria-label]="localization.evaluations.dashboard.periodCompareAria"
-            >
-              @for (p of compareOptions(); track p.id) {
-                <option [value]="p.id">
-                  {{localization.evaluations.dashboard.periodComparePrefix}}{{p.name}}
-                </option>
-              }
-            </select>
-            <app-layout-icon name="chevron-down" class="select-chevron" />
-          </div>
-
+        <div class="ui-page-actions">
+          <app-ui-select
+            [options]="periodTypeOptions()"
+            [value]="selectedPeriodType()"
+            [ariaLabel]="localization.evaluations.dashboard.periodTypeAria"
+            (valueChange)="onPeriodTypeSelected($event)"
+          />
+          <app-ui-select
+            [options]="periodOptions()"
+            [value]="selectedPeriodId() ?? ''"
+            [ariaLabel]="localization.evaluations.dashboard.periodAria"
+            (valueChange)="onPeriodValueSelected($event)"
+          />
+          <app-ui-select
+            [options]="compareSelectOptions()"
+            [value]="selectedComparePeriodId() ?? ''"
+            [ariaLabel]="localization.evaluations.dashboard.periodCompareAria"
+            (valueChange)="onCompareValueSelected($event)"
+          />
+          <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
+            {{localization.evaluations.departmentRanking.pageTitle}}
+          </button>
           <button
             type="button"
-            class="btn-export"
+            class="button button-primary"
             [disabled]="exporting() || loading() || !dashboard()"
             (click)="exportExcel()"
           >
-            <span>
-              {{exporting()
-                  ? localization.evaluations.dashboard.exporting
-                  : localization.evaluations.dashboard.exportExcel}}
-            </span>
+            {{exporting()
+                ? localization.evaluations.dashboard.exporting
+                : localization.evaluations.dashboard.exportExcel}}
           </button>
         </div>
       </header>
@@ -88,7 +63,7 @@
       @if (error(); as errMsg) {
         <div class="alert-banner" role="alert">
           <span>{{errMsg}}</span>
-          <button type="button" class="btn-retry" (click)="loadDashboard()">
+          <button type="button" class="button button-secondary" (click)="loadDashboard()">
             {{localization.evaluations.dashboard.retry}}
           </button>
         </div>
@@ -97,7 +72,13 @@
       <!-- 4 Metric Cards -->
       <section class="metric-grid" aria-label="KPI Summary">
         <!-- Card 1: Điểm hiệu suất bình quân phòng -->
-        <article class="metric-card">
+        <article
+          class="metric-card metric-card-link"
+          role="button"
+          tabindex="0"
+          (click)="scrollToSection('kpi')"
+          (keydown.enter)="scrollToSection('kpi')"
+        >
           <div class="metric-head">
             <span class="metric-title">{{localization.evaluations.dashboard.cardScoreTitle}}</span>
             <span
@@ -109,7 +90,10 @@
             </span>
           </div>
           <div class="metric-body">
-            <span class="metric-value font-mono">
+            <span
+              class="metric-value font-mono"
+              [ngClass]="valueToneClass(departmentScore(), 80, 60)"
+            >
               {{departmentScore() === null ? emptyValue : (departmentScore()! | appNumber: 1)}}
             </span>
             <span class="metric-scale font-mono">/ 100</span>
@@ -117,49 +101,62 @@
         </article>
 
         <!-- Card 2: Tỷ lệ KPI đạt kế hoạch -->
-        <article class="metric-card">
+        <article
+          class="metric-card metric-card-link"
+          role="button"
+          tabindex="0"
+          (click)="scrollToSection('kpi')"
+          (keydown.enter)="scrollToSection('kpi')"
+        >
           <div class="metric-head">
             <span class="metric-title">{{localization.evaluations.dashboard.cardKpiTitle}}</span>
             <span class="metric-pill pill-info font-mono">{{cardKpiPillText()}}</span>
           </div>
           <div class="metric-body">
-            <span class="metric-value font-mono">
+            <span class="metric-value font-mono" [ngClass]="valueToneClass(kpiRate(), 80, 50)">
               {{kpiRate() === null ? emptyValue : (kpiRate()! | appNumber: 1) + '%'}}
             </span>
           </div>
         </article>
 
         <!-- Card 3: Hoàn thành đúng hạn (SLA) -->
-        <article class="metric-card">
+        <article
+          class="metric-card metric-card-link"
+          role="button"
+          tabindex="0"
+          (click)="scrollToSection('ops')"
+          (keydown.enter)="scrollToSection('ops')"
+        >
           <div class="metric-head">
             <span class="metric-title">{{localization.evaluations.dashboard.cardSlaTitle}}</span>
-            <span class="metric-pill pill-success font-mono">{{localization.evaluations.dashboard.cardSlaPill}}</span>
           </div>
           <div class="metric-body">
-            <span class="metric-value font-mono">
+            <span class="metric-value font-mono" [ngClass]="valueToneClass(onTimeRate(), 90, 70)">
               {{onTimeRate() === null ? emptyValue : (onTimeRate()! | appNumber: 1) + '%'}}
             </span>
-          </div>
-          <div class="metric-foot">
             <span class="metric-note">
-              <strong class="font-mono text-dark">{{cardSlaCountText()}}</strong
-              >{{localization.evaluations.dashboard.cardSlaCompleted}}<span class="text-danger font-semibold">{{cardSlaOverdueText()}}</span>
+              <span class="count-good font-semibold">{{cardSlaDoneText()}}</span>
+              ·
+              <span class="text-danger font-semibold">{{cardSlaOverdueText()}}</span>
             </span>
           </div>
         </article>
 
         <!-- Card 4: Cán bộ đã chấm điểm -->
-        <article class="metric-card">
+        <article
+          class="metric-card metric-card-link"
+          role="button"
+          tabindex="0"
+          (click)="scrollToSection('table')"
+          (keydown.enter)="scrollToSection('table')"
+        >
           <div class="metric-head">
             <span class="metric-title">{{localization.evaluations.dashboard.cardStaffTitle}}</span>
-            <span class="metric-pill pill-warning font-mono">{{cardStaffPillText()}}</span>
           </div>
           <div class="metric-body">
-            <span class="metric-value font-mono"
+            <span class="metric-value font-mono tone-warn"
               >{{evaluatedStaffCount()}}/{{totalStaffCount()}}</span
             >
-          </div>
-          <div class="metric-foot">
             <span class="metric-note">
               <span class="text-danger font-semibold">{{cardStaffPipText()}}</span>
               ·
@@ -174,7 +171,7 @@
       <!-- Section 1 (Block 1): Đánh giá & Vận hành phòng -->
       <section class="block-grid block-1">
         <!-- Trái: KPI theo nhóm trọng số -->
-        <article class="panel panel-kpi">
+        <article class="panel panel-kpi" id="section-kpi">
           <div class="panel-head">
             <h2 class="panel-title font-heading">
               {{localization.evaluations.dashboard.kpiPanelTitle}}
@@ -185,92 +182,133 @@
             <table class="kpi-table">
               <thead>
                 <tr>
-                  <th class="th-kpi">{{localization.evaluations.dashboard.colKpi}}</th>
-                  <th class="th-actual text-right">
-                    {{localization.evaluations.dashboard.colActual}}
+                  <th class="th-kpi">
+                    <button
+                      type="button"
+                      class="group-toggle-all"
+                      [attr.aria-expanded]="hasExpandedKpiGroup()"
+                      (click)="toggleAllKpiGroups()"
+                    >
+                      <span class="group-tag">{{localization.evaluations.dashboard.colCriterion}}</span>
+                      <span class="group-caret" [class.is-open]="hasExpandedKpiGroup()">▸</span>
+                    </button>
                   </th>
-                  <th class="th-rate text-right">
-                    {{localization.evaluations.dashboard.colRate}}
-                  </th>
-                  <th class="th-delta text-center">
-                    {{localization.evaluations.dashboard.colDelta}}
-                  </th>
+                  @if (hasExpandedKpiGroup()) {
+                    <th class="text-center">{{localization.evaluations.dashboard.colWeight}}</th>
+                    <th class="text-center">
+                      {{localization.evaluations.dashboard.colTargetValue}}
+                    </th>
+                    <th class="th-actual text-center">
+                      {{localization.evaluations.dashboard.colActualValue}}
+                    </th>
+                    <th class="th-rate text-center">
+                      {{localization.evaluations.dashboard.colRate}}
+                    </th>
+                  }
                   <th class="th-score text-right">
-                    {{localization.evaluations.dashboard.colScore}}
+                    {{localization.evaluations.dashboard.colEvalScore}}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 @for (group of kpiGroups(); track group.displayOrder; let gIdx = $index) {
                   <tr class="group-row">
-                    <td colspan="4" class="group-name">
-                      {{kpiGroupHeader(group)}}
+                    <td class="group-name">
+                      <span class="group-sub">{{kpiGroupHeader(group)}}</span>
                     </td>
+                    @if (hasExpandedKpiGroup()) {
+                      <td class="text-center font-mono group-weight">
+                        {{weightText(group.weightPercent)}}
+                      </td>
+                      <td colspan="3"></td>
+                    }
                     <td class="group-score text-right font-mono">
-                      @if (group.averageScore !== null) {
-                        {{group.averageScore | appNumber: 1}}
-                      }
+                      <div class="cell-metric justify-end">
+                        <span class="cell-main">
+                          @if (group.averageScore !== null) {
+                            {{group.averageScore | appNumber: 1}}
+                          }
+                        </span>
+                        @let gDelta = groupScoreChange(group);
+                        @if (hasStaffDelta(gDelta)) {
+                          <span class="cell-delta" [ngClass]="tone(gDelta)">
+                            {{staffDeltaText(gDelta)}}
+                          </span>
+                        }
+                      </div>
                     </td>
                   </tr>
-                  @for (row of group.kpis; track row.kpiDefinitionId) {
-                    <tr class="item-row">
-                      <td class="td-label">{{row.name}}</td>
-                      <td class="td-actual text-right font-mono font-bold">
-                        {{formatKpiActual(row)}}
-                      </td>
-                      <td
-                        class="td-rate text-right font-mono font-semibold"
-                        [class.text-success]="(row.achievementPercent ?? 0) >= 100"
-                        [class.text-danger]="
-                          row.achievementPercent !== null && row.achievementPercent < 100
-                        "
-                      >
-                        @if (row.achievementPercent !== null) {
-                          {{row.achievementPercent | appNumber: 0}}%
-                        } @else {
-                          <span class="muted">{{emptyValue}}</span>
-                        }
-                      </td>
-                      <td class="change">
-                        @if (row.changeFromPreviousPercent !== null) {
-                          <span class="diverge" [class]="tone(row.changeFromPreviousPercent)">
-                            <span class="half neg">
-                              @if (row.changeFromPreviousPercent < 0) {
-                                <i class="mono">{{signedText(row.changeFromPreviousPercent)}}%</i>
-                                <span
-                                  class="bar"
-                                  [style.width.%]="kpiChangeBarWidth(row.changeFromPreviousPercent)"
-                                ></span>
+                  @if (hasExpandedKpiGroup()) {
+                    @for (row of group.kpis; track row.kpiDefinitionId) {
+                      <tr class="item-row">
+                        <td class="td-label">
+                          {{row.name}}
+                        </td>
+                        <td class="text-center font-mono muted">{{weightText(row.weight)}}</td>
+                        <td class="text-center font-mono muted">{{targetText(row)}}</td>
+                        <td
+                          class="td-actual text-center font-mono font-bold"
+                          [ngClass]="tone(actualChange(row))"
+                        >
+                          {{actualText(row.actualValue, row.unit)}}
+                        </td>
+                        <td
+                          class="td-rate text-center font-mono"
+                          [ngClass]="tone(row.changeFromPreviousPercent)"
+                        >
+                          @if (row.achievementPercent !== null) {
+                            <span class="font-semibold"
+                              >{{row.achievementPercent | appNumber: 0}}%</span
+                            >
+                            <small class="rate-note">{{rateNoteText(row)}}</small>
+                          } @else {
+                            <span class="muted">{{emptyValue}}</span>
+                          }
+                        </td>
+                        <td class="td-score text-right font-mono font-bold">
+                          <div class="cell-metric justify-end">
+                            <span class="cell-main">
+                              @if (row.score !== null && row.score !== undefined) {
+                                {{row.score | appNumber: 1}}
+                              } @else {
+                                <span class="muted">{{emptyValue}}</span>
                               }
                             </span>
-                            <span class="axis" aria-hidden="true"></span>
-                            <span class="half pos">
-                              @if (row.changeFromPreviousPercent >= 0) {
-                                <span
-                                  class="bar"
-                                  [style.width.%]="kpiChangeBarWidth(row.changeFromPreviousPercent)"
-                                ></span>
-                                <i class="mono">{{signedText(row.changeFromPreviousPercent)}}%</i>
-                              }
-                            </span>
-                          </span>
-                        } @else {
-                          <span class="muted center-text">{{emptyValue}}</span>
-                        }
-                      </td>
-                      <td class="td-score text-right font-mono font-bold">
-                        @if (kpiConvertedScore(group, row); as convScore) {
-                          {{convScore | appNumber: 1}}
-                        } @else {
-                          <span class="muted">{{emptyValue}}</span>
-                        }
-                      </td>
-                    </tr>
+                            @let sDelta = scoreChange(row);
+                            @if (hasStaffDelta(sDelta)) {
+                              <span class="cell-delta" [ngClass]="tone(sDelta)">
+                                {{staffDeltaText(sDelta)}}
+                              </span>
+                            }
+                          </div>
+                        </td>
+                      </tr>
+                    }
                   }
                 } @empty {
                   <tr>
-                    <td colspan="5" class="text-muted text-center">
+                    <td [attr.colspan]="kpiNameColspan() + 1" class="text-muted text-center">
                       {{localization.evaluations.emptyList}}
+                    </td>
+                  </tr>
+                }
+                @if (kpiGroups().length) {
+                  <tr class="total-row">
+                    <td [attr.colspan]="kpiNameColspan()" class="total-label">
+                      {{localization.evaluations.dashboard.totalScoreLabel}}
+                    </td>
+                    <td class="text-right font-mono font-bold">
+                      <div class="cell-metric justify-end">
+                        <span class="cell-main">
+                          {{totalScore() | appNumber: 1}}
+                        </span>
+                        @let tDelta = totalScoreChange();
+                        @if (hasStaffDelta(tDelta)) {
+                          <span class="cell-delta total-delta" [ngClass]="tone(tDelta)">
+                            {{staffDeltaText(tDelta)}}
+                          </span>
+                        }
+                      </div>
                     </td>
                   </tr>
                 }
@@ -280,40 +318,7 @@
         </article>
 
         <!-- Phải: Vận hành công việc & Xu hướng điểm 6 kỳ -->
-        <article class="panel panel-ops">
-          <div class="panel-head">
-            <h2 class="panel-title font-heading">
-              {{localization.evaluations.dashboard.opsPanelTitle}}
-            </h2>
-            <p class="panel-subtitle">{{opsPanelSubtitleText()}}</p>
-          </div>
-
-          <div class="ops-stat-grid">
-            <div class="ops-stat-card ops-success">
-              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsOnTime}}</span>
-              <div class="ops-stat-value font-mono">
-                {{onTimeDone()}}
-                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
-              </div>
-            </div>
-
-            <div class="ops-stat-card ops-danger">
-              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsOverdue}}</span>
-              <div class="ops-stat-value font-mono">
-                {{overdueCount()}}
-                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
-              </div>
-            </div>
-
-            <div class="ops-stat-card ops-info">
-              <span class="ops-stat-label">{{localization.evaluations.dashboard.opsInProgress}}</span>
-              <div class="ops-stat-value font-mono">
-                {{inProgressCount()}}
-                <span class="ops-stat-unit">{{localization.evaluations.dashboard.opsTaskUnit}}</span>
-              </div>
-            </div>
-          </div>
-
+        <article class="panel panel-ops" id="section-ops">
           <div class="trend-section">
             <div class="trend-head">
               <h3 class="trend-title font-heading">
@@ -368,6 +373,98 @@
                 }
               </svg>
             </div>
+            @if (hasExpandedKpiGroup()) {
+              <div class="kpi-chart-wrap">
+                <h4 class="kpi-chart-title font-heading">
+                  {{localization.evaluations.dashboard.kpiChartTitle}}
+                </h4>
+                <svg
+                  class="kpi-chart-svg"
+                  [attr.viewBox]="'0 0 ' + kpiChartWidth() + ' ' + kpiChartHeight"
+                  [attr.width]="kpiChartWidth()"
+                  [style.width.px]="kpiChartWidth()"
+                  role="img"
+                  [attr.aria-label]="localization.evaluations.dashboard.kpiChartTitle"
+                >
+                  @for (bar of kpiChartBars(); track bar.kpiDefinitionId) {
+                    <g
+                      class="kpi-bar-group"
+                      (mouseenter)="showKpiTip($event, bar)"
+                      (mouseleave)="hideKpiTip()"
+                    >
+                      <rect
+                        class="kpi-bar-hit"
+                        [attr.x]="bar.x - 4"
+                        [attr.y]="0"
+                        [attr.width]="bar.width * 2 + 12"
+                        [attr.height]="kpiChartBase"
+                      />
+                      <rect
+                        class="kpi-bar-target"
+                        [attr.x]="bar.x"
+                        [attr.y]="bar.targetY"
+                        [attr.width]="bar.width"
+                        [attr.height]="bar.targetHeight"
+                        rx="3"
+                      />
+                      <rect
+                        [ngClass]="bar.met ? 'kpi-bar-met' : 'kpi-bar-unmet'"
+                        [attr.x]="bar.center + 2"
+                        [attr.y]="bar.actualY"
+                        [attr.width]="bar.width"
+                        [attr.height]="bar.actualHeight"
+                        rx="3"
+                      />
+                      <text class="chart-label" [attr.x]="bar.center" [attr.y]="kpiChartBase + 16">
+                        {{bar.name}}
+                      </text>
+                    </g>
+                  }
+                </svg>
+                <div class="kpi-chart-legend">
+                  <span
+                    ><i class="kpi-swatch kpi-bar-target"></i
+                    >{{localization.evaluations.dashboard.colTargetValue}}</span
+                  >
+                  <span
+                    ><i class="kpi-swatch kpi-bar-met"></i
+                    >{{localization.evaluations.dashboard.kpiChartLegendMet}}</span
+                  >
+                  <span
+                    ><i class="kpi-swatch kpi-bar-unmet"></i
+                    >{{localization.evaluations.dashboard.kpiChartLegendUnmet}}</span
+                  >
+                </div>
+                <div
+                  #kpiTip
+                  class="hover-popup hover-popup-wide"
+                  [class.is-open]="hoveredKpiBar() !== null"
+                  role="tooltip"
+                >
+                  @if (hoveredKpiBar(); as bar) {
+                    <div class="popup-title">{{bar.name}}</div>
+                    <table class="popup-table">
+                      <tbody>
+                        <tr>
+                          <td>{{localization.evaluations.dashboard.colTargetValue}}</td>
+                          <td class="num-col font-mono">{{bar.targetText}}</td>
+                        </tr>
+                        <tr>
+                          <td>{{localization.evaluations.dashboard.colActualValue}}</td>
+                          <td
+                            class="num-col font-mono"
+                            [class.popup-good]="bar.met"
+                            [class.popup-bad]="!bar.met"
+                          >
+                            {{bar.actualText}}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  }
+                </div>
+              </div>
+            }
           </div>
         </article>
       </section>
@@ -661,7 +758,7 @@
 
       <!-- Section 3 (Block 3): Bảng tổng hợp cán bộ -->
       <section class="section-block block-3">
-        <article class="panel panel-table">
+        <article class="panel panel-table" id="section-table">
           <header class="table-panel-header">
             <div class="table-title-group">
               <h2 class="panel-title font-heading">
@@ -671,84 +768,41 @@
 
             <div class="table-filters">
               <span class="delta-legend">
-                {{localization.evaluations.dashboard.colDelta}}: <i class="legend-dot up"></i
-                >{{localization.evaluations.dashboard.legendIncrease}}
+                <i class="legend-dot up"></i>{{localization.evaluations.dashboard.legendIncrease}}
                 <i class="legend-dot down"></i
                 >{{localization.evaluations.dashboard.legendDecrease}}
               </span>
 
-              <select
-                class="filter-select"
+              <app-ui-select
+                [options]="positionFilterOptions()"
                 [value]="positionFilter()"
-                (change)="onPositionFilterChange($event)"
-                [attr.aria-label]="localization.evaluations.dashboard.filterPosition"
-              >
-                <option value="">{{localization.evaluations.dashboard.allPositions}}</option>
-                @for (pos of availablePositions(); track pos) {
-                  <option [value]="pos">{{pos}}</option>
-                }
-              </select>
-
-              <select
-                class="filter-select"
+                [ariaLabel]="localization.evaluations.dashboard.filterPosition"
+                (valueChange)="onPositionFilterSelected($event)"
+              />
+              <app-ui-select
+                [options]="tierFilterOptions()"
                 [value]="tierFilter()"
-                (change)="onTierFilterChange($event)"
-                [attr.aria-label]="localization.evaluations.dashboard.filterTier"
-              >
-                <option value="">{{localization.evaluations.dashboard.allTiers}}</option>
-                <option value="A1">{{localization.evaluations.dashboard.tierBadge.A1}}</option>
-                <option value="A2">{{localization.evaluations.dashboard.tierBadge.A2}}</option>
-                <option value="A3">{{localization.evaluations.dashboard.tierBadge.A3}}</option>
-                <option value="B">{{localization.evaluations.dashboard.tierBadge.B}}</option>
-                <option value="C">{{localization.evaluations.dashboard.tierBadge.C}}</option>
-                <option value="NONE">
-                  {{localization.evaluations.dashboard.tierBadge.NONE}}
-                </option>
-              </select>
-
-              <select
-                class="filter-select"
+                [ariaLabel]="localization.evaluations.dashboard.filterTier"
+                (valueChange)="onTierFilterSelected($event)"
+              />
+              <app-ui-select
+                [options]="statusFilterOptions()"
                 [value]="statusFilter()"
-                (change)="onStatusFilterChange($event)"
-                [attr.aria-label]="localization.evaluations.dashboard.filterStatus"
-              >
-                <option value="">{{localization.evaluations.dashboard.allStatuses}}</option>
-                <option value="FINAL">{{localization.evaluations.dashboard.status.FINAL}}</option>
-                <option value="APPEAL">
-                  {{localization.evaluations.dashboard.status.APPEAL}}
-                </option>
-                <option value="PIP">{{localization.evaluations.dashboard.status.PIP}}</option>
-                <option value="PENDING">
-                  {{localization.evaluations.dashboard.status.PENDING}}
-                </option>
-              </select>
-
-              <select
-                class="filter-select"
+                [ariaLabel]="localization.evaluations.dashboard.filterStatus"
+                (valueChange)="onStatusFilterSelected($event)"
+              />
+              <app-ui-select
+                [options]="sortOptions()"
                 [value]="sortBy()"
-                (change)="onSortChange($event)"
-                [attr.aria-label]="localization.evaluations.dashboard.sortBy"
-              >
-                <option value="scoreDesc">
-                  {{localization.evaluations.dashboard.sortScoreDesc}}
-                </option>
-                <option value="scoreAsc">
-                  {{localization.evaluations.dashboard.sortScoreAsc}}
-                </option>
-                <option value="changeAsc">
-                  {{localization.evaluations.dashboard.sortChangeAsc}}
-                </option>
-                <option value="slaAsc">{{localization.evaluations.dashboard.sortSlaAsc}}</option>
-                <option value="nameAsc">
-                  {{localization.evaluations.dashboard.sortNameAsc}}
-                </option>
-              </select>
+                [ariaLabel]="localization.evaluations.dashboard.sortBy"
+                (valueChange)="onSortSelected($event)"
+              />
 
-              <div class="search-box">
+              <div class="ui-search-field">
                 <app-layout-icon name="search" class="search-icon" />
                 <input
                   type="text"
-                  class="search-input"
+                  class="input"
                   [placeholder]="localization.evaluations.dashboard.searchPlaceholder"
                   [value]="searchKeyword()"
                   (input)="onSearchInput($event)"
@@ -764,12 +818,11 @@
                 <tr>
                   <th class="th-staff">{{localization.evaluations.dashboard.colStaff}}</th>
                   @for (group of profileGroups(); track group.name) {
-                    <th class="text-right">{{group.name}}</th>
+                    <th class="text-center">{{group.name}}</th>
                   }
-                  <th class="text-right">{{localization.evaluations.dashboard.colTotal}}</th>
-                  <th class="text-center">{{localization.evaluations.dashboard.colDelta}}</th>
-                  <th class="text-center">{{localization.evaluations.dashboard.colTier}}</th>
                   <th class="text-center">{{localization.evaluations.dashboard.colSla}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colTotal}}</th>
+                  <th class="text-center">{{localization.evaluations.dashboard.colTier}}</th>
                   <th class="text-center">{{localization.evaluations.dashboard.colStatus}}</th>
                   <th class="text-center">{{localization.evaluations.dashboard.colAction}}</th>
                 </tr>
@@ -786,65 +839,73 @@
                       </div>
                     </td>
                     @for (group of profileGroups(); track group.name) {
-                      <td class="text-right font-mono">
-                        @if (staffGroupScore(item, group.name); as gScore) {
-                          {{gScore | appNumber: 1}}
-                        }
+                      <td class="text-center font-mono">
+                        <div class="cell-metric">
+                          <span class="cell-main">
+                            @if (staffGroupScore(item, group.name); as gScore) {
+                              {{gScore | appNumber: 1}}
+                            } @else {
+                              {{emptyValue}}
+                            }
+                          </span>
+                          @let gDelta = staffGroupScoreChange(item, group.name);
+                          @if (hasStaffDelta(gDelta)) {
+                            <span class="cell-delta" [ngClass]="tone(gDelta)">
+                              {{staffDeltaText(gDelta)}}
+                            </span>
+                          }
+                        </div>
                       </td>
                     }
-                    <td
-                      class="text-right font-mono font-bold"
-                      [class.text-danger]="item.tierCode === 'C' || item.tierCode === 'D'"
-                      [class.text-muted]="item.totalScore === null"
-                    >
-                      {{item.totalScore === null ? emptyValue : (item.totalScore | appNumber: 1)}}
-                    </td>
-                    <td class="change">
-                      @if (item.scoreDelta !== null) {
-                        <span class="diverge" [class]="tone(item.scoreDelta)">
-                          <span class="half neg">
-                            @if (item.scoreDelta < 0) {
-                              <i class="mono">{{signedText(item.scoreDelta)}}</i>
-                              <span
-                                class="bar"
-                                [style.width.%]="staffChangeBarWidth(item.scoreDelta)"
-                              ></span>
-                            }
-                          </span>
-                          <span class="axis" aria-hidden="true"></span>
-                          <span class="half pos">
-                            @if (item.scoreDelta >= 0) {
-                              <span
-                                class="bar"
-                                [style.width.%]="staffChangeBarWidth(item.scoreDelta)"
-                              ></span>
-                              <i class="mono">{{signedText(item.scoreDelta)}}</i>
-                            }
-                          </span>
+                    <td class="text-center font-mono">
+                      <div class="cell-metric">
+                        <span
+                          class="cell-main"
+                          [class.text-danger]="
+                            item.onTimeSlaPercent !== null && item.onTimeSlaPercent < 85
+                          "
+                        >
+                          {{item.onTimeSlaPercent === null
+                              ? emptyValue
+                              : (item.onTimeSlaPercent | appNumber: 1) + '%'}}
                         </span>
-                      } @else {
-                        <span class="muted center-text">{{emptyValue}}</span>
-                      }
+                        @let slaDelta = staffSlaChange(item);
+                        @if (hasStaffDelta(slaDelta)) {
+                          <span class="cell-delta" [ngClass]="tone(slaDelta)">
+                            {{staffDeltaText(slaDelta)}}
+                          </span>
+                        }
+                      </div>
+                    </td>
+                    <td class="text-center font-mono">
+                      <div class="cell-metric">
+                        <span
+                          class="cell-main font-bold"
+                          [class.text-danger]="item.tierCode === 'C' || item.tierCode === 'D'"
+                          [class.text-muted]="item.totalScore === null"
+                        >
+                          {{item.totalScore === null ? emptyValue : (item.totalScore | appNumber: 1)}}
+                        </span>
+                        @if (hasStaffDelta(item.scoreDelta)) {
+                          <span class="cell-delta" [ngClass]="tone(item.scoreDelta)">
+                            {{staffDeltaText(item.scoreDelta)}}
+                          </span>
+                        }
+                      </div>
                     </td>
                     <td class="text-center">
-                      <span
-                        class="badge-tier"
-                        [class]="
-                          'badge-tier-' + (item.tierCode ? item.tierCode.toLowerCase() : 'none')
-                        "
-                      >
-                        {{tierBadgeText(item.tierCode)}}
-                      </span>
-                    </td>
-                    <td
-                      class="text-center font-mono"
-                      [class.text-danger]="
-                        item.onTimeSlaPercent !== null && item.onTimeSlaPercent < 85
-                      "
-                    >
-                      {{item.onTimeSlaPercent === null
-                          ? emptyValue
-                          : (item.onTimeSlaPercent | appNumber: 1) + '%'}}
+                      @if (item.evaluationStatus === 'FINAL') {
+                        <span
+                          class="badge-tier"
+                          [class]="
+                            'badge-tier-' + (item.tierCode ? item.tierCode.toLowerCase() : 'none')
+                          "
+                        >
+                          {{tierBadgeText(item.tierCode)}}
+                        </span>
+                      } @else {
+                        <span class="muted">{{emptyValue}}</span>
+                      }
                     </td>
                     <td class="text-center">
                       <span
