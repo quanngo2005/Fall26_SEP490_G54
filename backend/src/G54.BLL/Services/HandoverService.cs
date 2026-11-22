@@ -30,6 +30,12 @@ public sealed partial class HandoverService(
     /// <summary>Referrer share when none is set: the recipient receives 100%.</summary>
     private const decimal DefaultReferrerSharePercent = 0m;
 
+    private static readonly Action<ILogger, Guid, Guid, Guid, Guid, Exception?> LogHandoverRequested =
+        LoggerMessage.Define<Guid, Guid, Guid, Guid>(
+            LogLevel.Information,
+            new EventId(3, "HandoverRequested"),
+            "Handover audit: Action=REQUEST, HandoverId={HandoverId}, WorkId={WorkId}, FromEmployeeId={FromEmployeeId}, ToEmployeeId={ToEmployeeId}");
+
     private static readonly Action<ILogger, Guid, int, Exception?> LogTargetsMoved =
         LoggerMessage.Define<Guid, int>(
             LogLevel.Information,
@@ -62,13 +68,21 @@ public sealed partial class HandoverService(
             .FirstOrDefaultAsync(w => w.Id == workId, cancellationToken)
             ?? throw new NotFoundException("Công việc", workId);
 
-        // Only the assignee's direct manager hands a work over: the recipient has no say, so the handover is accepted at once.
-        var from = await db.Employees.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.Id == work.AssigneeEmployeeId, cancellationToken)
-            ?? throw new NotFoundException("Nhân viên được giao công việc", work.AssigneeEmployeeId);
-        if (from.ManagerId != caller.Id || !isManager)
+        // The assignee asks and their direct manager settles it (approve, reassign or reject); the recipient has no say.
+        // The direct manager may also transfer the work outright, which is accepted at once.
+        var transfer = work.AssigneeEmployeeId != caller.Id;
+        var from = caller;
+        if (transfer)
         {
-            throw new ForbiddenException("Chỉ quản lý trực tiếp của người đang được giao công việc mới có quyền bàn giao công việc.");
+            var assignee = await db.Employees.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == work.AssigneeEmployeeId, cancellationToken)
+                ?? throw new NotFoundException("Nhân viên được giao công việc", work.AssigneeEmployeeId);
+            if (assignee.ManagerId != caller.Id || !isManager)
+            {
+                throw new ForbiddenException("Chỉ người đang được giao công việc hoặc quản lý trực tiếp của họ mới có quyền bàn giao công việc.");
+            }
+
+            from = assignee;
         }
 
         if (!WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Handover, out var handedOverStatus))
@@ -119,17 +133,18 @@ public sealed partial class HandoverService(
             ToEmployeeId = recipient.Id,
             Reason = input.Reason,
             ReferrerSharePercent = input.ReferrerSharePercent,
-            Status = HandoverStatus.Accepted,
+            Status = transfer ? HandoverStatus.Accepted : HandoverStatus.Pending,
             HandoverAt = now,
-            AcceptedAt = now,
-            ApprovedBy = caller.Id,
+            AcceptedAt = transfer ? now : null,
+            ApprovedBy = transfer ? caller.Id : null,
             UpdatedAt = now,
         };
         db.TaskHandovers.Add(handover);
-        work.AssigneeEmployeeId = recipient.Id;
-        work.Status = handedOverStatus;
-        work.UpdatedAt = now;
-        var movedMonths = await HandoverTargetAdjuster.MoveAsync(db, work, from.Id, recipient.Id, caller.Id, time.GetBusinessToday(), now, cancellationToken);
+        var movedMonths = 0;
+        if (transfer)
+        {
+            movedMonths = await MoveWorkAsync(handover, work, handedOverStatus, caller.Id, now, cancellationToken);
+        }
 
         try
         {
@@ -143,78 +158,35 @@ public sealed partial class HandoverService(
                 ErrorCodes.HandoverAlreadyPending);
         }
 
-        LogHandoverDecided(logger, "TRANSFER", handover.Id, workId, from.Id, recipient.Id, null);
-        LogTargetsMoved(logger, handover.Id, movedMonths, null);
-        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, from, recipient, caller.Id), cancellationToken);
+        if (transfer)
+        {
+            LogHandoverDecided(logger, "TRANSFER", handover.Id, workId, from.Id, recipient.Id, null);
+            LogTargetsMoved(logger, handover.Id, movedMonths, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, from, recipient, caller.Id), cancellationToken);
+        }
+        else
+        {
+            LogHandoverRequested(logger, handover.Id, workId, from.Id, recipient.Id, null);
+            await notifier.TryPublishAsync(AutomaticNotifications.HandoverRequested(handover, work, from, recipient), cancellationToken);
+        }
 
         return Map(handover, work, from, recipient);
     }
 
-    public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-        => DecideAsync(handoverId, userId, accept: true, cancellationToken);
-
-    public Task<HandoverDetailDto> RejectHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-        => DecideAsync(handoverId, userId, accept: false, cancellationToken);
-
-    private async Task<HandoverDetailDto> DecideAsync(Guid handoverId, Guid userId, bool accept, CancellationToken cancellationToken)
+    /// <summary>
+    /// Moves the work to the recipient (it becomes HANDED_OVER) and its expected result from the giver's monthly KPI target
+    /// to the recipient's. Returns how many (KPI, month) pairs were moved.
+    /// </summary>
+    private async Task<int> MoveWorkAsync(TaskHandover handover, Work work, WorkStatus nextStatus, Guid decidedBy, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var caller = await ResolveCallerAsync(userId, cancellationToken);
-
-        var handover = await db.TaskHandovers
-            .Include(h => h.Work)
-            .Include(h => h.FromEmployee)
-            .Include(h => h.ToEmployee)
-            .FirstOrDefaultAsync(h => h.Id == handoverId, cancellationToken)
-            ?? throw new NotFoundException("Yêu cầu bàn giao", handoverId);
-
-        if (handover.ToEmployeeId != caller.Id)
-        {
-            throw new ForbiddenException("Chỉ người nhận bàn giao mới có quyền chấp nhận hoặc từ chối yêu cầu này.");
-        }
-
-        if (handover.Status != HandoverStatus.Pending)
-        {
-            throw new ConflictException(
-                ErrorCodes.GetDefaultMessage(ErrorCodes.HandoverNotPending),
-                ErrorCodes.HandoverNotPending);
-        }
-
-        var now = time.GetUtcNow();
-        var work = handover.Work;
-        if (accept)
-        {
-            AcceptInto(handover, work, now);
-        }
-        else
-        {
-            handover.Status = HandoverStatus.Rejected;
-        }
-
-        handover.UpdatedAt = now;
-        await SaveDecisionAsync(cancellationToken);
-
-        LogHandoverDecided(logger, accept ? "ACCEPT" : "REJECT", handover.Id, work.Id, handover.FromEmployeeId, handover.ToEmployeeId, null);
-        await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, handover.FromEmployee, handover.ToEmployee, caller.Id), cancellationToken);
-
-        return Map(handover, work, handover.FromEmployee, handover.ToEmployee);
-    }
-
-    /// <summary>Accepts a pending handover: the work moves to the recipient and becomes HANDED_OVER.</summary>
-    private static void AcceptInto(TaskHandover handover, Work work, DateTimeOffset now)
-    {
-        if (work.AssigneeEmployeeId != handover.FromEmployeeId
-            || !WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Handover, out var nextStatus))
-        {
-            throw new ConflictException(
-                $"Không thể nhận bàn giao công việc đang ở trạng thái {work.Status.ToEnumString()}.",
-                ErrorCodes.WorkInvalidState);
-        }
-
         handover.Status = HandoverStatus.Accepted;
         handover.AcceptedAt = now;
+        handover.ApprovedBy = decidedBy;
+        handover.UpdatedAt = now;
         work.AssigneeEmployeeId = handover.ToEmployeeId;
         work.Status = nextStatus;
         work.UpdatedAt = now;
+        return await HandoverTargetAdjuster.MoveAsync(db, work, handover.FromEmployeeId, handover.ToEmployeeId, decidedBy, time.GetBusinessToday(), now, cancellationToken);
     }
 
     private async Task SaveDecisionAsync(CancellationToken cancellationToken)

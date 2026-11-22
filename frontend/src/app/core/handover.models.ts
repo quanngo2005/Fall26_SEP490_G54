@@ -60,7 +60,7 @@ export interface HandoverListItem {
   isReadOnly: boolean;
 }
 
-/** Mirrors `HandoverDetailDto`. `status` is `PENDING` until the recipient answers. */
+/** Mirrors `HandoverDetailDto`. `status` is `PENDING` until the requester's direct manager settles it. */
 export interface HandoverDetail {
   id: string;
   workId: string;

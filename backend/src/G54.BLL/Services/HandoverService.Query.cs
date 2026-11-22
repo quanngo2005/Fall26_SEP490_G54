@@ -126,6 +126,7 @@ public sealed partial class HandoverService
                 h.FromEmployee.EmployeeCode,
                 h.FromEmployee.FullName,
                 h.FromEmployee.JobPosition.Title,
+                h.FromEmployee.ManagerId,
                 h.ToEmployeeId,
                 h.ToEmployee.EmployeeCode,
                 h.ToEmployee.FullName,
@@ -176,6 +177,7 @@ public sealed partial class HandoverService
                     h.FromEmployee.EmployeeCode,
                     h.FromEmployee.FullName,
                     h.FromEmployee.JobPosition.Title,
+                    h.FromEmployee.ManagerId,
                     h.ToEmployeeId,
                     h.ToEmployee.EmployeeCode,
                     h.ToEmployee.FullName,
@@ -234,7 +236,7 @@ public sealed partial class HandoverService
         r.HandoverAt,
         r.AcceptedAt,
         r.UpdatedAt,
-        r.Status != HandoverStatus.Pending || r.ToEmployeeId != callerEmployeeId);
+        r.Status != HandoverStatus.Pending || r.FromManagerId != callerEmployeeId);
 
     private static string ParseDirection(string? value)
     {
@@ -286,6 +288,7 @@ public sealed partial class HandoverService
         string FromEmployeeCode,
         string FromEmployeeName,
         string FromJobPositionTitle,
+        Guid? FromManagerId,
         Guid ToEmployeeId,
         string ToEmployeeCode,
         string ToEmployeeName,

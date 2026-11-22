@@ -56,12 +56,14 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
 
     // ---- UC77 Request a handover ----
     [Fact]
-    public async Task UC77_01_EmployeeCannotHandOverTheirOwnWork_Returns403AndKeepsTheWork()
+    public async Task UC77_01_EmployeeRequestsHandover_Returns201PendingAndKeepsTheWork()
     {
         var work = await api.NewWorkAsync("emp1", WorkStatus.InProgress);
         var result = await api.SendAsync("UC77-01", HttpMethod.Post, $"/works/{work}/handovers", "emp1", Request());
-        Assert.Equal(403, result.Code);
-        Assert.Equal("FORBIDDEN", result.ErrorCode);
+        Assert.Equal(201, result.Code);
+        Assert.Equal("PENDING", result.Data.GetProperty("status").GetString());
+        Assert.Equal(0m, result.Data.GetProperty("referrerSharePercent").GetDecimal());
+        Assert.Equal(api.EmployeeIdOf("emp2"), result.Data.GetProperty("toEmployeeId").GetGuid());
         Assert.Equal((api.EmployeeIdOf("emp1"), "InProgress"), await WorkStateAsync(work));
     }
 
@@ -81,11 +83,11 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
     {
         var work = await api.NewWorkAsync("emp1");
         var url = $"/works/{work}/handovers";
-        var self = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", Request("emp1"));
-        var noReason = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", Request(reason: "  "));
-        var noRecipient = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", new { reason = "x", amount = 1 });
-        var negative = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", Request(amount: -1));
-        var inactive = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", Request(toId: api.InactiveEmployeeId));
+        var self = await api.SendAsync("UC77-03", HttpMethod.Post, url, "emp1", Request("emp1"));
+        var noReason = await api.SendAsync("UC77-03", HttpMethod.Post, url, "emp1", Request(reason: "  "));
+        var noRecipient = await api.SendAsync("UC77-03", HttpMethod.Post, url, "emp1", new { reason = "x", amount = 1 });
+        var negative = await api.SendAsync("UC77-03", HttpMethod.Post, url, "emp1", Request(amount: -1));
+        var inactive = await api.SendAsync("UC77-03", HttpMethod.Post, url, "emp1", Request(toId: api.InactiveEmployeeId));
         var badShare = await api.SendAsync("UC77-03", HttpMethod.Post, url, "mgr", Request(share: 101m));
         Assert.All(new[] { self, noReason, noRecipient, negative, inactive, badShare }, r =>
         {
@@ -107,8 +109,8 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
     public async Task UC77_05_AmountAboveTheThreshold_Returns422_ButTheThresholdItselfIsAllowed()
     {
         var work = await api.NewWorkAsync("emp1");
-        var over = await api.SendAsync("UC77-05", HttpMethod.Post, $"/works/{work}/handovers", "mgr", Request(amount: 500_000_001m));
-        var equal = await api.SendAsync("UC77-05", HttpMethod.Post, $"/works/{work}/handovers", "mgr", Request(amount: 500_000_000m));
+        var over = await api.SendAsync("UC77-05", HttpMethod.Post, $"/works/{work}/handovers", "emp1", Request(amount: 500_000_001m));
+        var equal = await api.SendAsync("UC77-05", HttpMethod.Post, $"/works/{work}/handovers", "emp1", Request(amount: 500_000_000m));
         Assert.Equal(422, over.Code);
         Assert.Equal("HANDOVER_AMOUNT_EXCEEDS_THRESHOLD", over.ErrorCode);
         Assert.Equal(201, equal.Code);
@@ -118,9 +120,9 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
     public async Task UC77_06_WrongWorkStateOrAlreadyPending_Returns409()
     {
         var submitted = await api.NewWorkAsync("emp1", WorkStatus.Submitted);
-        var wrongState = await api.SendAsync("UC77-06", HttpMethod.Post, $"/works/{submitted}/handovers", "mgr", Request());
+        var wrongState = await api.SendAsync("UC77-06", HttpMethod.Post, $"/works/{submitted}/handovers", "emp1", Request());
         var (work, _) = await PendingAsync();
-        var second = await api.SendAsync("UC77-06", HttpMethod.Post, $"/works/{work}/handovers", "mgr", Request("emp3"));
+        var second = await api.SendAsync("UC77-06", HttpMethod.Post, $"/works/{work}/handovers", "emp1", Request("emp3"));
         Assert.Equal(409, wrongState.Code);
         Assert.Equal("WORK_INVALID_STATE", wrongState.ErrorCode);
         Assert.Equal(409, second.Code);
@@ -132,99 +134,9 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
     {
         var work = await api.NewWorkAsync("emp1");
         var notAssignee = await api.SendAsync("UC77-07", HttpMethod.Post, $"/works/{work}/handovers", "emp3", Request());
-        var unknown = await api.SendAsync("UC77-07", HttpMethod.Post, $"/works/{Guid.NewGuid()}/handovers", "mgr", Request());
+        var unknown = await api.SendAsync("UC77-07", HttpMethod.Post, $"/works/{Guid.NewGuid()}/handovers", "emp1", Request());
         var anonymous = await api.SendAsync("UC77-07", HttpMethod.Post, $"/works/{work}/handovers", "none", Request());
         Assert.Equal(403, notAssignee.Code);
-        Assert.Equal(404, unknown.Code);
-        Assert.Equal(401, anonymous.Code);
-    }
-
-    // ---- UC78 Accept a handover ----
-    [Fact]
-    public async Task UC78_01_RecipientAccepts_WorkMovesToTheRecipient()
-    {
-        var (work, handover) = await PendingAsync();
-        var result = await api.SendAsync("UC78-01", HttpMethod.Post, $"/handovers/{handover}/accept", "emp2");
-        Assert.Equal(200, result.Code);
-        Assert.Equal("ACCEPTED", result.Data.GetProperty("status").GetString());
-        Assert.NotEqual(System.Text.Json.JsonValueKind.Null, result.Data.GetProperty("acceptedAt").ValueKind);
-        Assert.Equal((api.EmployeeIdOf("emp2"), "HandedOver"), await WorkStateAsync(work));
-    }
-
-    [Fact]
-    public async Task UC78_02_OnlyTheRecipientMayAccept()
-    {
-        var (_, handover) = await PendingAsync();
-        var other = await api.SendAsync("UC78-02", HttpMethod.Post, $"/handovers/{handover}/accept", "emp3");
-        var giver = await api.SendAsync("UC78-02", HttpMethod.Post, $"/handovers/{handover}/accept", "emp1");
-        Assert.Equal(403, other.Code);
-        Assert.Equal("FORBIDDEN", other.ErrorCode);
-        Assert.Equal(403, giver.Code);
-    }
-
-    [Fact]
-    public async Task UC78_03_AcceptTwice_Returns409NotPending()
-    {
-        var (_, handover) = await PendingAsync();
-        await api.SendAsync(null, HttpMethod.Post, $"/handovers/{handover}/accept", "emp2");
-        var again = await api.SendAsync("UC78-03", HttpMethod.Post, $"/handovers/{handover}/accept", "emp2");
-        Assert.Equal(409, again.Code);
-        Assert.Equal("HANDOVER_NOT_PENDING", again.ErrorCode);
-    }
-
-    [Fact]
-    public async Task UC78_04_WorkNoLongerHandable_Returns409InvalidState()
-    {
-        var (work, handover) = await PendingAsync();
-        await api.SendAsync(null, HttpMethod.Patch, $"/works/{work}/status", "mgr", new { status = "Cancelled", reason = "Huỷ" });
-        var result = await api.SendAsync("UC78-04", HttpMethod.Post, $"/handovers/{handover}/accept", "emp2");
-        Assert.Equal(409, result.Code);
-        Assert.Equal("WORK_INVALID_STATE", result.ErrorCode);
-    }
-
-    [Fact]
-    public async Task UC78_05_UnknownHandoverAndNoToken()
-    {
-        var unknown = await api.SendAsync("UC78-05", HttpMethod.Post, $"/handovers/{Guid.NewGuid()}/accept", "emp2");
-        var anonymous = await api.SendAsync("UC78-05", HttpMethod.Post, $"/handovers/{Guid.NewGuid()}/accept", "none");
-        Assert.Equal(404, unknown.Code);
-        Assert.Equal("NOT_FOUND", unknown.ErrorCode);
-        Assert.Equal(401, anonymous.Code);
-    }
-
-    // ---- UC79 Reject a handover ----
-    [Fact]
-    public async Task UC79_01_RecipientRejects_WorkStaysWithTheGiver()
-    {
-        var (work, handover) = await PendingAsync();
-        var result = await api.SendAsync("UC79-01", HttpMethod.Post, $"/handovers/{handover}/reject", "emp2");
-        Assert.Equal(200, result.Code);
-        Assert.Equal("REJECTED", result.Data.GetProperty("status").GetString());
-        Assert.Equal((api.EmployeeIdOf("emp1"), "InProgress"), await WorkStateAsync(work));
-    }
-
-    [Fact]
-    public async Task UC79_02_AfterARejection_TheManagerCanHandTheWorkOverAgain()
-    {
-        var (work, handover) = await PendingAsync();
-        await api.SendAsync(null, HttpMethod.Post, $"/handovers/{handover}/reject", "emp2");
-        var again = await api.SendAsync("UC79-02", HttpMethod.Post, $"/works/{work}/handovers", "mgr", Request("emp3"));
-        Assert.Equal(201, again.Code);
-        Assert.Equal("ACCEPTED", again.Data.GetProperty("status").GetString());
-    }
-
-    [Fact]
-    public async Task UC79_03_RejectPermissionsAndStates()
-    {
-        var (_, handover) = await PendingAsync();
-        var other = await api.SendAsync("UC79-03", HttpMethod.Post, $"/handovers/{handover}/reject", "emp3");
-        await api.SendAsync(null, HttpMethod.Post, $"/handovers/{handover}/reject", "emp2");
-        var again = await api.SendAsync("UC79-03", HttpMethod.Post, $"/handovers/{handover}/reject", "emp2");
-        var unknown = await api.SendAsync("UC79-03", HttpMethod.Post, $"/handovers/{Guid.NewGuid()}/reject", "emp2");
-        var anonymous = await api.SendAsync("UC79-03", HttpMethod.Post, $"/handovers/{handover}/reject", "none");
-        Assert.Equal(403, other.Code);
-        Assert.Equal(409, again.Code);
-        Assert.Equal("HANDOVER_NOT_PENDING", again.ErrorCode);
         Assert.Equal(404, unknown.Code);
         Assert.Equal(401, anonymous.Code);
     }

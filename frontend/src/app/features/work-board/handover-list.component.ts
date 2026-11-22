@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
   DestroyRef,
@@ -35,7 +36,10 @@ import {
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** SCR-WRK-05 & SCR-WRK-05-D1: Incoming / outgoing transferred works list with read-only detail drawer. */
+/**
+ * SCR-WRK-05 & SCR-WRK-05-D1: incoming / outgoing transferred works list with a detail drawer. The recipient only reads;
+ * the requester's direct manager approves, reassigns or rejects a pending request there.
+ */
 @Component({
   selector: 'app-handover-list',
   standalone: true,
@@ -77,6 +81,8 @@ export class HandoverListComponent extends LocalizedComponent {
   protected readonly detailLoading = signal(false);
   protected readonly detailFailed = signal(false);
   protected readonly acting = signal(false);
+  protected readonly reassigning = signal(false);
+  protected readonly newRecipient = signal('');
 
   protected readonly pageSize = PAGE_SIZE;
 
@@ -116,6 +122,19 @@ export class HandoverListComponent extends LocalizedComponent {
         .sort((a, b) => a[1].localeCompare(b[1]))
         .map(([value, label]) => ({ value, label })),
     ];
+  });
+
+  /** Colleagues the manager can give the request to instead: active, and neither the giver nor the current recipient. */
+  protected readonly reassignOptions = computed<SelectOption<string>[]>(() => {
+    const item = this.selected();
+    const t = this.localization.work.handoverList;
+    const options = this.members()
+      .filter(
+        (m) =>
+          m.status === 'ACTIVE' && m.id !== item?.fromEmployeeId && m.id !== item?.toEmployeeId,
+      )
+      .map((m) => ({ value: m.id, label: `${m.fullName} (${m.employeeCode})` }));
+    return [{ value: '', label: t.reassignPlaceholder }, ...options];
   });
 
   protected readonly anyReadOnly = computed(
@@ -187,6 +206,9 @@ export class HandoverListComponent extends LocalizedComponent {
   protected onKeydown(event: KeyboardEvent): void {
     const current = this.selected();
     if (!current) return;
+    // Keys typed in the recipient picker belong to the picker (Esc closes its menu, arrows move in it).
+    if (this.reassigning() && (event.target as HTMLElement | null)?.closest('.reassign-row'))
+      return;
     if (event.key === 'Escape') {
       event.preventDefault();
       this.closeDrawer();
@@ -265,42 +287,69 @@ export class HandoverListComponent extends LocalizedComponent {
     if (this.acting()) return;
     this.selected.set(null);
     this.detailFailed.set(false);
+    this.reassigning.set(false);
+    this.newRecipient.set('');
   }
 
   protected openRelatedWork(workId: string): void {
     this.openWork.emit(workId);
   }
 
-  protected decide(action: 'accept' | 'reject'): void {
+  protected canDecide(item: HandoverListItem): boolean {
+    return !item.isReadOnly && item.status === 'PENDING';
+  }
+
+  protected startReassign(): void {
+    this.newRecipient.set('');
+    this.reassigning.set(true);
+  }
+
+  protected cancelReassign(): void {
+    this.reassigning.set(false);
+    this.newRecipient.set('');
+  }
+
+  protected decide(action: 'approve' | 'reassign' | 'reject'): void {
     const item = this.selected();
-    if (!item || item.isReadOnly || item.status !== 'PENDING' || this.acting()) return;
+    if (!item || !this.canDecide(item) || this.acting()) return;
+    const recipient = this.newRecipient();
+    if (action === 'reassign' && !recipient) return;
+
     this.acting.set(true);
     const call$ =
-      action === 'accept' ? this.handovers.accept(item.id) : this.handovers.reject(item.id);
+      action === 'approve'
+        ? this.handovers.approve(item.id)
+        : action === 'reassign'
+          ? this.handovers.reassign(item.id, recipient)
+          : this.handovers.rejectAsManager(item.id);
     call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.acting.set(false);
-        const key =
-          action === 'accept'
-            ? 'work.handoverList.acceptSuccess'
-            : 'work.handoverList.rejectSuccess';
         this.changed.emit({
           kind: 'success',
-          text: this.i18n.translate(key, { code: item.handoverCode }),
+          text: this.i18n.translate(`work.handoverList.${action}Success`, {
+            code: item.handoverCode,
+          }),
         });
-        this.selected.set(null);
+        this.closeDrawer();
         this.loadTrigger$.next();
       },
-      error: () => {
+      error: (error: HttpErrorResponse) => {
         this.acting.set(false);
-        this.changed.emit({
-          kind: 'error',
-          text: this.localization.work.handoverList.actionError,
-        });
+        this.changed.emit({ kind: 'error', text: this.decideErrorText(error) });
+        if (error.status === 409) this.loadTrigger$.next();
       },
     });
   }
 
+  private decideErrorText(error: HttpErrorResponse): string {
+    const t = this.localization.work.handoverList;
+    const code: unknown = error.error?.errorCode;
+    if (code === 'HANDOVER_NOT_PENDING') return t.alreadyDecided;
+    if (code === 'WORK_INVALID_STATE') return t.workInvalidState;
+    if (error.status === 403) return t.forbidden;
+    return t.actionError;
+  }
   protected statusLabel(status: HandoverStatus): string {
     const t = this.localization.work.handoverList;
     switch (status) {

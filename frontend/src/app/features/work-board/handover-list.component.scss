@@ -259,8 +259,21 @@
   padding: 1rem 1.5rem;
   border-top: 1px solid #e0e3e5;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+.reassign-row {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.reassign-select {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .inline-warn {

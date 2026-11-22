@@ -24,7 +24,7 @@ public sealed class HandoverServiceTests : IDisposable
 
     private RecordingNotifier Notifier { get; } = new();
 
-    private HandoverService ServiceWith(bool canSetShare = true, string? threshold = null)
+    private HandoverService ServiceWith(bool canSetShare = false, string? threshold = null)
     {
         var options = new SystemParametersOptions();
         if (threshold is not null)
@@ -104,42 +104,22 @@ public sealed class HandoverServiceTests : IDisposable
         return (from, to, work);
     }
 
-    /// <summary>A PENDING request, as created before only a manager could hand a work over (the data may still hold some).</summary>
-    private async Task<Guid> SeedPendingAsync(Employee from, Employee to, Work work)
-    {
-        var handover = new TaskHandover
-        {
-            Id = Guid.NewGuid(),
-            WorkId = work.Id,
-            FromEmployeeId = from.Id,
-            ToEmployeeId = to.Id,
-            Reason = "Khach hang o khu vuc khac",
-            ReferrerSharePercent = 0m,
-            Status = HandoverStatus.Pending,
-            HandoverAt = Now,
-            UpdatedAt = Now,
-        };
-        _db.TaskHandovers.Add(handover);
-        await _db.SaveChangesAsync();
-        return handover.Id;
-    }
-
     [Fact]
-    public async Task Create_PersistsAcceptedHandover_AndDefaultsRecipientToFullShare()
+    public async Task Create_PersistsPendingHandover_AndDefaultsRecipientToFullShare()
     {
-        var (manager, sub, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
 
-        var result = await ServiceWith().CreateHandoverAsync(work.Id, manager.Id, Request(to.Id));
+        var result = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
 
-        Assert.Equal("ACCEPTED", result.Status);
+        Assert.Equal("PENDING", result.Status);
         Assert.Equal(0m, result.ReferrerSharePercent);
-        Assert.Equal(sub.Id, result.FromEmployeeId);
+        Assert.Equal(from.Id, result.FromEmployeeId);
         Assert.Equal(to.Id, result.ToEmployeeId);
         Assert.Equal(work.Code, result.WorkCode);
         Assert.Equal(Now, result.HandoverAt);
 
         var stored = await _db.TaskHandovers.SingleAsync();
-        Assert.Equal(HandoverStatus.Accepted, stored.Status);
+        Assert.Equal(HandoverStatus.Pending, stored.Status);
         Assert.Equal(0m, stored.ReferrerSharePercent);
         Assert.Equal("Khach hang o khu vuc khac", stored.Reason);
     }
@@ -147,20 +127,30 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task Create_ResolvesCallerByAccountId()
     {
-        var (manager, sub, to, work) = await ArrangeTransferAsync();
-        var accountId = (await _db.Accounts.SingleAsync(a => a.EmployeeId == manager.Id)).Id;
+        var (from, to, work) = await ArrangeAsync();
+        var accountId = (await _db.Accounts.SingleAsync(a => a.EmployeeId == from.Id)).Id;
 
         var result = await ServiceWith().CreateHandoverAsync(work.Id, accountId, Request(to.Id));
 
-        Assert.Equal(sub.Id, result.FromEmployeeId);
+        Assert.Equal(from.Id, result.FromEmployeeId);
+    }
+
+    [Fact]
+    public async Task Create_DoesNotChangeWorkStatus()
+    {
+        var (from, to, work) = await ArrangeAsync();
+
+        await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+
+        Assert.Equal(WorkStatus.InProgress, (await _db.Works.SingleAsync()).Status);
     }
 
     [Fact]
     public async Task Create_TrimsReason()
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
 
-        var result = await ServiceWith().CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, reason: "  ly do  "));
+        var result = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id, reason: "  ly do  "));
 
         Assert.Equal("ly do", result.Reason);
     }
@@ -171,10 +161,10 @@ public sealed class HandoverServiceTests : IDisposable
     [InlineData(100)]
     public async Task Create_UsesGivenShare_WhenCallerMaySetShare(double share)
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
 
         var result = await ServiceWith(canSetShare: true)
-            .CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, share: (decimal)share));
+            .CreateHandoverAsync(work.Id, from.Id, Request(to.Id, share: (decimal)share));
 
         Assert.Equal((decimal)share, result.ReferrerSharePercent);
     }
@@ -207,21 +197,21 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task Create_AllowsAmountEqualToThreshold()
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
 
         var result = await ServiceWith(threshold: "1000")
-            .CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, amount: 1000m));
+            .CreateHandoverAsync(work.Id, from.Id, Request(to.Id, amount: 1000m));
 
-        Assert.Equal("ACCEPTED", result.Status);
+        Assert.Equal("PENDING", result.Status);
     }
 
     [Fact]
     public async Task Create_RejectsAmountAboveThreshold_AndStoresNothing()
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            ServiceWith(threshold: "1000").CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, amount: 1000.01m)));
+            ServiceWith(threshold: "1000").CreateHandoverAsync(work.Id, from.Id, Request(to.Id, amount: 1000.01m)));
 
         Assert.Equal(ErrorCodes.HandoverAmountExceedsThreshold, ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
@@ -232,15 +222,15 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task Create_UsesDefaultThreshold_WhenNotConfigured()
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
         var service = ServiceWith();
 
-        var atLimit = await service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, amount: 500_000_000m));
-        Assert.Equal("ACCEPTED", atLimit.Status);
+        var atLimit = await service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id, amount: 500_000_000m));
+        Assert.Equal("PENDING", atLimit.Status);
 
-        var (manager2, _, to2, work2) = await ArrangeTransferAsync(suffix: "2");
+        var (from2, to2, work2) = await ArrangeAsync(suffix: "2");
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
-            service.CreateHandoverAsync(work2.Id, manager2.Id, Request(to2.Id, amount: 500_000_001m)));
+            service.CreateHandoverAsync(work2.Id, from2.Id, Request(to2.Id, amount: 500_000_001m)));
     }
 
     [Fact]
@@ -265,10 +255,10 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task Create_ThrowsNotFound_WhenRecipientMissing()
     {
-        var (manager, _, _, work) = await ArrangeTransferAsync();
+        var (from, _, work) = await ArrangeAsync();
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            ServiceWith().CreateHandoverAsync(work.Id, manager.Id, Request(Guid.NewGuid())));
+            ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(Guid.NewGuid())));
     }
 
     [Theory]
@@ -280,54 +270,55 @@ public sealed class HandoverServiceTests : IDisposable
     [InlineData(WorkStatus.Overdue, false)]
     public async Task Create_RespectsWorkStatus(WorkStatus status, bool allowed)
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync(status);
+        var (from, to, work) = await ArrangeAsync(status);
         var service = ServiceWith();
 
         if (allowed)
         {
-            Assert.Equal("ACCEPTED", (await service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id))).Status);
+            Assert.Equal("PENDING", (await service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id))).Status);
             return;
         }
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id)));
+            service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id)));
         Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
     }
 
     [Fact]
     public async Task Create_RejectsHandoverToSelf()
     {
-        var (manager, sub, _, work) = await ArrangeTransferAsync();
+        var (from, _, work) = await ArrangeAsync();
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            ServiceWith().CreateHandoverAsync(work.Id, manager.Id, Request(sub.Id)));
+            ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(from.Id)));
     }
 
     [Fact]
     public async Task Create_RejectsInactiveRecipient()
     {
-        var (manager, _, _, work) = await ArrangeTransferAsync();
+        var from = await AddEmployeeAsync("FROM");
         var inactive = await AddEmployeeAsync("GONE", EmployeeStatus.Inactive);
+        var work = await AddWorkAsync(from);
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            ServiceWith().CreateHandoverAsync(work.Id, manager.Id, Request(inactive.Id)));
+            ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(inactive.Id)));
     }
 
     [Fact]
     public async Task Create_RejectsSecondPendingHandover_ButAllowsAfterItIsClosed()
     {
-        var (manager, sub, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
         var service = ServiceWith();
-        var firstId = await SeedPendingAsync(sub, to, work);
+        var first = await service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
-            service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id)));
+            service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id)));
         Assert.Equal(ErrorCodes.HandoverAlreadyPending, ex.ErrorCode);
 
-        (await _db.TaskHandovers.SingleAsync(h => h.Id == firstId)).Status = HandoverStatus.Rejected;
+        (await _db.TaskHandovers.SingleAsync(h => h.Id == first.Id)).Status = HandoverStatus.Rejected;
         await _db.SaveChangesAsync();
 
-        Assert.Equal("ACCEPTED", (await service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id))).Status);
+        Assert.Equal("PENDING", (await service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id))).Status);
     }
 
     [Fact]
@@ -372,13 +363,13 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task Create_RejectsReasonLongerThan2000_ButAcceptsExactly2000()
     {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
+        var (from, to, work) = await ArrangeAsync();
         var service = ServiceWith();
 
         await Assert.ThrowsAsync<ValidationException>(() =>
-            service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, reason: new string('a', 2001))));
+            service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id, reason: new string('a', 2001))));
 
-        var ok = await service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, reason: new string('a', 2000)));
+        var ok = await service.CreateHandoverAsync(work.Id, from.Id, Request(to.Id, reason: new string('a', 2000)));
         Assert.Equal(2000, ok.Reason.Length);
     }
 
@@ -409,184 +400,12 @@ public sealed class HandoverServiceTests : IDisposable
             ServiceWith().CreateHandoverAsync(Guid.NewGuid(), Guid.NewGuid(), null!));
     }
 
-    private async Task<(Employee From, Employee To, Work Work, Guid HandoverId)> ArrangePendingAsync(
+    private async Task<(Employee Manager, Employee Subordinate, Employee To, Work Work)> ArrangeTransferAsync(
         WorkStatus status = WorkStatus.InProgress)
     {
-        var (from, to, work) = await ArrangeAsync(status);
-        return (from, to, work, await SeedPendingAsync(from, to, work));
-    }
-
-    [Fact]
-    public async Task Accept_MovesWorkToRecipient_AndMarksHandedOver()
-    {
-        var (from, to, work, id) = await ArrangePendingAsync();
-
-        var result = await ServiceWith().AcceptHandoverAsync(id, to.Id);
-
-        Assert.Equal("ACCEPTED", result.Status);
-        Assert.Equal(Now, result.AcceptedAt);
-        Assert.Equal(from.Id, result.FromEmployeeId);
-        Assert.Equal(to.Id, result.ToEmployeeId);
-
-        var storedWork = await _db.Works.SingleAsync(w => w.Id == work.Id);
-        Assert.Equal(to.Id, storedWork.AssigneeEmployeeId);
-        Assert.Equal(WorkStatus.HandedOver, storedWork.Status);
-
-        var stored = await _db.TaskHandovers.SingleAsync();
-        Assert.Equal(HandoverStatus.Accepted, stored.Status);
-        Assert.Equal(Now, stored.AcceptedAt);
-    }
-
-    [Fact]
-    public async Task Accept_WorksWhenWorkIsStillNew()
-    {
-        var (_, to, work, id) = await ArrangePendingAsync(WorkStatus.New);
-
-        await ServiceWith().AcceptHandoverAsync(id, to.Id);
-
-        Assert.Equal(WorkStatus.HandedOver, (await _db.Works.SingleAsync(w => w.Id == work.Id)).Status);
-    }
-
-    [Fact]
-    public async Task Accept_ResolvesCallerByAccountId()
-    {
-        var (_, to, _, id) = await ArrangePendingAsync();
-        var accountId = (await _db.Accounts.SingleAsync(a => a.EmployeeId == to.Id)).Id;
-
-        var result = await ServiceWith().AcceptHandoverAsync(id, accountId);
-
-        Assert.Equal("ACCEPTED", result.Status);
-    }
-
-    [Fact]
-    public async Task Accept_ForbidsAnyoneButTheRecipient()
-    {
-        var (from, _, work, id) = await ArrangePendingAsync();
-        var stranger = await AddEmployeeAsync("OTHER");
-
-        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceWith().AcceptHandoverAsync(id, from.Id));
-        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceWith().AcceptHandoverAsync(id, stranger.Id));
-
-        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
-        Assert.Equal(from.Id, (await _db.Works.SingleAsync(w => w.Id == work.Id)).AssigneeEmployeeId);
-    }
-
-    [Fact]
-    public async Task Accept_ThrowsNotFound_WhenHandoverMissing()
-    {
-        var (_, to, _, _) = await ArrangePendingAsync();
-
-        await Assert.ThrowsAsync<NotFoundException>(() => ServiceWith().AcceptHandoverAsync(Guid.NewGuid(), to.Id));
-    }
-
-    [Fact]
-    public async Task Accept_ThrowsUnauthorized_WhenCallerUnknownOrInactive()
-    {
-        var (_, _, _, id) = await ArrangePendingAsync();
-        var inactive = await AddEmployeeAsync("OFF", EmployeeStatus.Inactive);
-
-        await Assert.ThrowsAsync<UnauthorizedException>(() => ServiceWith().AcceptHandoverAsync(id, Guid.NewGuid()));
-        await Assert.ThrowsAsync<UnauthorizedException>(() => ServiceWith().AcceptHandoverAsync(id, inactive.Id));
-    }
-
-    [Fact]
-    public async Task Accept_RejectsAHandoverThatIsNoLongerPending()
-    {
-        var (_, to, _, id) = await ArrangePendingAsync();
-        var service = ServiceWith();
-        await service.AcceptHandoverAsync(id, to.Id);
-
-        var again = await Assert.ThrowsAsync<ConflictException>(() => service.AcceptHandoverAsync(id, to.Id));
-        var reject = await Assert.ThrowsAsync<ConflictException>(() => service.RejectHandoverAsync(id, to.Id));
-
-        Assert.Equal(ErrorCodes.HandoverNotPending, again.ErrorCode);
-        Assert.Equal(ErrorCodes.HandoverNotPending, reject.ErrorCode);
-    }
-
-    [Theory]
-    [InlineData(WorkStatus.Cancelled)]
-    [InlineData(WorkStatus.Done)]
-    [InlineData(WorkStatus.Overdue)]
-    [InlineData(WorkStatus.HandedOver)]
-    public async Task Accept_Conflicts_WhenWorkCanNoLongerBeHandedOver(WorkStatus status)
-    {
-        var (from, to, work, id) = await ArrangePendingAsync();
-        (await _db.Works.SingleAsync(w => w.Id == work.Id)).Status = status;
-        await _db.SaveChangesAsync();
-
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => ServiceWith().AcceptHandoverAsync(id, to.Id));
-
-        Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
-        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
-        Assert.Equal(from.Id, (await _db.Works.SingleAsync(w => w.Id == work.Id)).AssigneeEmployeeId);
-    }
-
-    [Fact]
-    public async Task Accept_Conflicts_WhenWorkWasReassignedMeanwhile()
-    {
-        var (_, to, work, id) = await ArrangePendingAsync();
-        var someoneElse = await AddEmployeeAsync("ELSE");
-        (await _db.Works.SingleAsync(w => w.Id == work.Id)).AssigneeEmployeeId = someoneElse.Id;
-        await _db.SaveChangesAsync();
-
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => ServiceWith().AcceptHandoverAsync(id, to.Id));
-
-        Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
-    }
-
-    [Fact]
-    public async Task Reject_ClosesTheRequest_AndLeavesTheWorkWithTheRequester()
-    {
-        var (from, to, work, id) = await ArrangePendingAsync();
-
-        var result = await ServiceWith().RejectHandoverAsync(id, to.Id);
-
-        Assert.Equal("REJECTED", result.Status);
-        Assert.Null(result.AcceptedAt);
-
-        var storedWork = await _db.Works.SingleAsync(w => w.Id == work.Id);
-        Assert.Equal(from.Id, storedWork.AssigneeEmployeeId);
-        Assert.Equal(WorkStatus.InProgress, storedWork.Status);
-        Assert.Equal(HandoverStatus.Rejected, (await _db.TaskHandovers.SingleAsync()).Status);
-    }
-
-    [Fact]
-    public async Task Reject_StillWorks_WhenWorkWasCancelledMeanwhile()
-    {
-        var (_, to, work, id) = await ArrangePendingAsync();
-        (await _db.Works.SingleAsync(w => w.Id == work.Id)).Status = WorkStatus.Cancelled;
-        await _db.SaveChangesAsync();
-
-        var result = await ServiceWith().RejectHandoverAsync(id, to.Id);
-
-        Assert.Equal("REJECTED", result.Status);
-    }
-
-    [Fact]
-    public async Task Reject_ForbidsAnyoneButTheRecipient()
-    {
-        var (from, _, _, id) = await ArrangePendingAsync();
-
-        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceWith().RejectHandoverAsync(id, from.Id));
-
-        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
-    }
-
-    [Fact]
-    public async Task Reject_ThrowsNotFound_WhenHandoverMissing()
-    {
-        var (_, to, _, _) = await ArrangePendingAsync();
-
-        await Assert.ThrowsAsync<NotFoundException>(() => ServiceWith().RejectHandoverAsync(Guid.NewGuid(), to.Id));
-    }
-
-    private async Task<(Employee Manager, Employee Subordinate, Employee To, Work Work)> ArrangeTransferAsync(
-        WorkStatus status = WorkStatus.InProgress,
-        string suffix = "")
-    {
-        var manager = await AddEmployeeAsync("BOSS" + suffix);
-        var subordinate = await AddEmployeeAsync("SUB" + suffix, managerId: manager.Id);
-        var to = await AddEmployeeAsync("TO" + suffix);
+        var manager = await AddEmployeeAsync("BOSS");
+        var subordinate = await AddEmployeeAsync("SUB", managerId: manager.Id);
+        var to = await AddEmployeeAsync("TO");
         var work = await AddWorkAsync(subordinate, status);
         return (manager, subordinate, to, work);
     }
@@ -623,20 +442,6 @@ public sealed class HandoverServiceTests : IDisposable
             .CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, share: 25m));
 
         Assert.Equal(25m, result.ReferrerSharePercent);
-    }
-
-    [Fact]
-    public async Task Transfer_LeavesNothingForTheRecipientToDecide()
-    {
-        var (manager, _, to, work) = await ArrangeTransferAsync();
-        var service = ServiceWith(canSetShare: true);
-        var result = await service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id));
-
-        var accept = await Assert.ThrowsAsync<ConflictException>(() => service.AcceptHandoverAsync(result.Id, to.Id));
-        var reject = await Assert.ThrowsAsync<ConflictException>(() => service.RejectHandoverAsync(result.Id, to.Id));
-
-        Assert.Equal(ErrorCodes.HandoverNotPending, accept.ErrorCode);
-        Assert.Equal(ErrorCodes.HandoverNotPending, reject.ErrorCode);
     }
 
     [Fact]
@@ -680,8 +485,8 @@ public sealed class HandoverServiceTests : IDisposable
         await Assert.ThrowsAsync<BusinessRuleException>(() =>
             service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, amount: 101m)));
 
-        // A pending request blocks a transfer until it is answered.
-        await SeedPendingAsync(sub, to, work);
+        // A pending request from the assignee blocks a transfer until it is answered.
+        await service.CreateHandoverAsync(work.Id, sub.Id, Request(to.Id, amount: 1m));
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             service.CreateHandoverAsync(work.Id, manager.Id, Request(to.Id, amount: 1m)));
         Assert.Equal(ErrorCodes.HandoverAlreadyPending, ex.ErrorCode);
@@ -699,24 +504,24 @@ public sealed class HandoverServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ManagerHandingOverTheirOwnWork_IsForbidden()
+    public async Task ManagerHandingOverTheirOwnWork_CreatesAPendingRequest()
     {
         var manager = await AddEmployeeAsync("BOSS");
         var to = await AddEmployeeAsync("TO");
         var work = await AddWorkAsync(manager);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            ServiceWith(canSetShare: true).CreateHandoverAsync(work.Id, manager.Id, Request(to.Id)));
+        var result = await ServiceWith(canSetShare: true).CreateHandoverAsync(work.Id, manager.Id, Request(to.Id));
 
+        Assert.Equal("PENDING", result.Status);
         Assert.Equal(manager.Id, (await _db.Works.SingleAsync(w => w.Id == work.Id)).AssigneeEmployeeId);
-        Assert.Empty(_db.TaskHandovers);
     }
 
     private async Task<(Employee Manager, Employee Subordinate, Employee To, Work Work, Guid HandoverId)> ArrangePendingForManagerAsync(
         WorkStatus status = WorkStatus.InProgress)
     {
         var (manager, sub, to, work) = await ArrangeTransferAsync(status);
-        return (manager, sub, to, work, await SeedPendingAsync(sub, to, work));
+        var created = await ServiceWith().CreateHandoverAsync(work.Id, sub.Id, Request(to.Id));
+        return (manager, sub, to, work, created.Id);
     }
 
     [Fact]
@@ -819,9 +624,9 @@ public sealed class HandoverServiceTests : IDisposable
     [Fact]
     public async Task ManagerDecisions_RejectAHandoverThatIsNoLongerPending()
     {
-        var (manager, _, to, _, id) = await ArrangePendingForManagerAsync();
+        var (manager, _, _, _, id) = await ArrangePendingForManagerAsync();
         var service = ServiceWith();
-        await service.AcceptHandoverAsync(id, to.Id);
+        await service.ApproveByManagerAsync(id, manager.Id);
 
         var approve = await Assert.ThrowsAsync<ConflictException>(() => service.ApproveByManagerAsync(id, manager.Id));
         var reject = await Assert.ThrowsAsync<ConflictException>(() => service.RejectByManagerAsync(id, manager.Id));
@@ -859,29 +664,43 @@ public sealed class HandoverServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Accept_TellsTheRequesterOnly()
+    public async Task Create_TellsOnlyTheRequestersManager()
     {
-        var (from, to, work) = await ArrangeAsync();
-        var handoverId = await SeedPendingAsync(from, to, work);
+        var manager = await AddEmployeeAsync("BOSS");
+        var from = await AddEmployeeAsync("FROM", managerId: manager.Id);
+        var to = await AddEmployeeAsync("TO");
+        var work = await AddWorkAsync(from);
 
-        await ServiceWith().AcceptHandoverAsync(handoverId, to.Id);
+        var handover = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
 
         var draft = Assert.Single(Notifier.Drafts);
-        Assert.Equal(from.Id, draft.RecipientEmployeeId);
-        Assert.Equal(NotificationType.HandoverAccepted, draft.Type);
+        Assert.Equal(manager.Id, draft.RecipientEmployeeId);
+        Assert.Equal(NotificationType.HandoverRequested, draft.Type);
+        Assert.Equal(NotificationRelatedType.Handover, draft.RelatedType);
+        Assert.Equal(handover.Id, draft.RelatedId);
+        Assert.Equal(NotificationSeverity.Important, draft.Severity);
     }
 
     [Fact]
-    public async Task Reject_TellsTheRequesterOnly()
+    public async Task Create_DoesNotTellTheRecipientEvenWhenTheyAreTheManager()
+    {
+        var to = await AddEmployeeAsync("TO");
+        var from = await AddEmployeeAsync("FROM", managerId: to.Id);
+        var work = await AddWorkAsync(from);
+
+        await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+
+        Assert.Equal(to.Id, Assert.Single(Notifier.Drafts).RecipientEmployeeId);
+    }
+
+    [Fact]
+    public async Task Create_ForAnEmployeeWithoutAManager_NotifiesNobody()
     {
         var (from, to, work) = await ArrangeAsync();
-        var handoverId = await SeedPendingAsync(from, to, work);
 
-        await ServiceWith().RejectHandoverAsync(handoverId, to.Id);
+        await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
 
-        var draft = Assert.Single(Notifier.Drafts);
-        Assert.Equal(from.Id, draft.RecipientEmployeeId);
-        Assert.Equal(NotificationType.HandoverRejected, draft.Type);
+        Assert.Empty(Notifier.Drafts);
     }
 
     [Fact]
@@ -897,13 +716,14 @@ public sealed class HandoverServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ManagerApproveAndReject_TellTheRequesterAndTheRecipient()
+    public async Task ManagerApproveAndReject_TellTheRequester_AndTheRecipientOnlyWhenTheWorkIsTheirs()
     {
         var (manager, sub, to, work) = await ArrangeTransferAsync();
         var service = ServiceWith();
-        var approvedId = await SeedPendingAsync(sub, to, work);
+        var approved = await service.CreateHandoverAsync(work.Id, sub.Id, Request(to.Id));
+        Notifier.Drafts.Clear();
 
-        await service.ApproveByManagerAsync(approvedId, manager.Id);
+        await service.ApproveByManagerAsync(approved.Id, manager.Id);
 
         Assert.Equal(
             [(sub.Id, NotificationType.HandoverAccepted), (to.Id, NotificationType.HandoverTransferred)],
@@ -911,13 +731,13 @@ public sealed class HandoverServiceTests : IDisposable
 
         var next = await AddEmployeeAsync("NEXT");
         var secondWork = await AddWorkAsync(sub);
-        var rejectedId = await SeedPendingAsync(sub, next, secondWork);
+        var rejected = await service.CreateHandoverAsync(secondWork.Id, sub.Id, Request(next.Id));
         Notifier.Drafts.Clear();
 
-        await service.RejectByManagerAsync(rejectedId, manager.Id);
+        await service.RejectByManagerAsync(rejected.Id, manager.Id);
 
         Assert.Equal(
-            [(sub.Id, NotificationType.HandoverRejected), (next.Id, NotificationType.HandoverRejected)],
+            [(sub.Id, NotificationType.HandoverRejected)],
             Notifier.Drafts.Select(d => (d.RecipientEmployeeId, d.Type)).ToArray());
     }
 

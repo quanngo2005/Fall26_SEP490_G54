@@ -44,7 +44,7 @@ public sealed class HandoverQueryServiceTests : IDisposable
         Assert.Equal(2, result.TotalCount);
         Assert.Equal(2, result.Items.Count);
         Assert.Contains(result.Items, x => x.WorkCode == "WK-101" && x.KpiStatus == "RECORDED" && x.IsReadOnly);
-        Assert.Contains(result.Items, x => x.WorkCode == "WK-102" && x.KpiStatus == "PENDING" && !x.IsReadOnly);
+        Assert.Contains(result.Items, x => x.WorkCode == "WK-102" && x.KpiStatus == "PENDING" && x.IsReadOnly);
     }
 
     [Fact]
@@ -95,6 +95,21 @@ public sealed class HandoverQueryServiceTests : IDisposable
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetHandoverAsync(handoverId, outsiderId));
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetHandoverAsync(Guid.NewGuid(), salesId));
+    }
+
+    [Fact]
+    public async Task GetHandover_PendingRequest_IsEditableOnlyByTheRequestersManager()
+    {
+        var service = CreateService();
+        var pendingId = await db.TaskHandovers.Where(h => h.Status == HandoverStatus.Pending).Select(h => h.Id).SingleAsync();
+
+        var asManager = await service.GetHandoverAsync(pendingId, managerId);
+        var asRecipient = await service.GetHandoverAsync(pendingId, salesId);
+        var asRequester = await service.GetHandoverAsync(pendingId, tellerId);
+
+        Assert.False(asManager.IsReadOnly);
+        Assert.True(asRecipient.IsReadOnly);
+        Assert.True(asRequester.IsReadOnly);
     }
 
     private HandoverService CreateService() => new(

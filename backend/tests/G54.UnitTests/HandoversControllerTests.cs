@@ -19,8 +19,6 @@ public sealed class HandoversControllerTests
 
     [Theory]
     [InlineData(nameof(HandoversController.CreateHandover), "works/{workId:guid}/handovers", "handover", "create")]
-    [InlineData(nameof(HandoversController.AcceptHandover), "handovers/{id:guid}/accept", "handover", "respond")]
-    [InlineData(nameof(HandoversController.RejectHandover), "handovers/{id:guid}/reject", "handover", "respond")]
     [InlineData(nameof(HandoversController.ApproveHandover), "handovers/{id:guid}/manager/approve", "handover", "manage")]
     [InlineData(nameof(HandoversController.ReassignHandover), "handovers/{id:guid}/manager/reassign", "handover", "manage")]
     [InlineData(nameof(HandoversController.RejectHandoverAsManager), "handovers/{id:guid}/manager/reject", "handover", "manage")]
@@ -41,41 +39,28 @@ public sealed class HandoversControllerTests
     }
 
     [Fact]
-    public async Task CreateHandover_Returns201_WithTheTransferredMessage()
+    public async Task CreateHandover_Returns201_AndPicksTheMessageByOutcome()
     {
         var userId = Guid.NewGuid();
         var workId = Guid.NewGuid();
         var service = new RecordingService();
-        service.Detail = service.Detail with { Status = "ACCEPTED" };
         var controller = ControllerFor(service, userId);
         var request = new CreateHandoverRequestDto { ToEmployeeId = Guid.NewGuid(), Reason = "r", Amount = 1m };
 
-        var result = await controller.CreateHandover(workId, request, CancellationToken.None);
+        var pending = await controller.CreateHandover(workId, request, CancellationToken.None);
 
-        var created = Assert.IsType<ObjectResult>(result.Result);
+        var created = Assert.IsType<ObjectResult>(pending.Result);
         Assert.Equal(StatusCodes.Status201Created, created.StatusCode);
         Assert.Equal(userId, service.UserId);
         Assert.Equal(workId, service.WorkId);
         Assert.Same(request, service.Request);
-        Assert.Equal("Đã chuyển công việc cho người nhận.", MessageOf(created));
-        Assert.Equal("ACCEPTED", StatusOf(created));
-    }
+        Assert.Equal("Gửi yêu cầu bàn giao thành công.", MessageOf(created));
+        Assert.Equal("PENDING", StatusOf(created));
 
-    [Fact]
-    public async Task RecipientActions_UseTheAuthenticatedUser()
-    {
-        var userId = Guid.NewGuid();
-        var handoverId = Guid.NewGuid();
-        var service = new RecordingService();
-        var controller = ControllerFor(service, userId);
+        service.Detail = service.Detail with { Status = "ACCEPTED" };
+        var transferred = await controller.CreateHandover(workId, request, CancellationToken.None);
 
-        var accept = await controller.AcceptHandover(handoverId, CancellationToken.None);
-        Assert.Equal("Đã nhận bàn giao công việc.", MessageOf(Assert.IsType<OkObjectResult>(accept.Result)));
-        Assert.Equal(("accept", handoverId, userId), service.Last);
-
-        var reject = await controller.RejectHandover(handoverId, CancellationToken.None);
-        Assert.Equal("Đã từ chối yêu cầu bàn giao.", MessageOf(Assert.IsType<OkObjectResult>(reject.Result)));
-        Assert.Equal(("reject", handoverId, userId), service.Last);
+        Assert.Equal("Đã chuyển công việc cho người nhận.", MessageOf(Assert.IsType<ObjectResult>(transferred.Result)));
     }
 
     [Fact]
@@ -116,8 +101,6 @@ public sealed class HandoversControllerTests
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             controller.CreateHandover(id, new CreateHandoverRequestDto(), CancellationToken.None));
-        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.AcceptHandover(id, CancellationToken.None));
-        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.RejectHandover(id, CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() => controller.ApproveHandover(id, CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             controller.ReassignHandover(id, new ReassignHandoverRequestDto(), CancellationToken.None));
@@ -268,12 +251,6 @@ public sealed class HandoversControllerTests
 
         public List<HandoverListItemDto> ListItems { get; } = [];
         public List<HandoverRecipientDto> Recipients { get; } = [];
-
-        public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-            => Record("accept", handoverId, userId);
-
-        public Task<HandoverDetailDto> RejectHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-            => Record("reject", handoverId, userId);
 
         public Task<HandoverDetailDto> ApproveByManagerAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
             => Record("approve", handoverId, userId);

@@ -204,40 +204,43 @@ public sealed class HandoverTransferTests : IDisposable
     // ----- Who may hand over ------------------------------------------------------------------
 
     [Fact]
-    public async Task Create_ByTheAssigneeThemselves_IsForbiddenAndChangesNothing()
+    public async Task Create_ByTheAssignee_AsksForApproval_AndMovesNeitherTheWorkNorAnyTarget()
     {
         await ArrangeEmployeesAsync();
         var kpi = await ArrangeTargetsAsync();
         var work = await AddWorkAsync();
 
-        var ex = await Assert.ThrowsAsync<ForbiddenException>(() => HandOverAsync(work, _giver.Id, canSetShare: false));
+        var result = await HandOverAsync(work, _giver.Id, canSetShare: false);
 
-        Assert.Contains("quản lý trực tiếp", ex.Message);
+        Assert.Equal("PENDING", result.Status);
         Assert.Equal(_giver.Id, (await _db.Works.SingleAsync()).AssigneeEmployeeId);
-        Assert.Empty(await _db.TaskHandovers.ToListAsync());
+        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
         Assert.Equal(100m, (await ActiveTargetAsync(kpi, _giver, 10)).TargetValue);
+        Assert.Equal(100m, (await ActiveTargetAsync(kpi, _recipient, 10)).TargetValue);
     }
 
     [Fact]
-    public async Task Create_ByTheAssigneeEvenWithTheManagerPermission_IsForbidden()
+    public async Task Create_ByTheAssignee_TellsTheirManager_AndTheRecipientOnlyAfterTheDecision()
     {
         await ArrangeEmployeesAsync();
         var work = await AddWorkAsync();
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => HandOverAsync(work, _giver.Id, canSetShare: true));
+        await HandOverAsync(work, _giver.Id, canSetShare: false);
 
-        Assert.Empty(await _db.TaskHandovers.ToListAsync());
+        Assert.Equal(_manager.Id, Assert.Single(_notifier.Drafts, d => d.Type == NotificationType.HandoverRequested && d.RecipientEmployeeId == _manager.Id).RecipientEmployeeId);
+        Assert.DoesNotContain(_notifier.Drafts, d => d.RecipientEmployeeId == _recipient.Id);
     }
 
     [Fact]
-    public async Task Create_ByAManagerWhoIsNotTheDirectManager_IsForbidden()
+    public async Task Create_ByAnEmployeeWhoIsNotTheAssigneeOrTheirManager_IsForbidden()
     {
         await ArrangeEmployeesAsync();
-        var otherManager = AddEmployee("OTHER");
+        var stranger = AddEmployee("OTHER");
         await _db.SaveChangesAsync();
         var work = await AddWorkAsync();
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => HandOverAsync(work, otherManager.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => HandOverAsync(work, stranger.Id, canSetShare: false));
+        await Assert.ThrowsAsync<ForbiddenException>(() => HandOverAsync(work, stranger.Id, canSetShare: true));
 
         Assert.Empty(await _db.TaskHandovers.ToListAsync());
     }
@@ -253,6 +256,92 @@ public sealed class HandoverTransferTests : IDisposable
         Assert.Empty(await _db.TaskHandovers.ToListAsync());
     }
 
+    [Fact]
+    public async Task ManagerApprove_MovesTheWorkAndTheExpectedResultBetweenTheTargets()
+    {
+        await ArrangeEmployeesAsync();
+        var kpi = await ArrangeTargetsAsync();
+        var work = await AddWorkAsync(30m);
+        var pending = await HandOverAsync(work, _giver.Id, canSetShare: false);
+
+        var result = await ServiceAt(Now).ApproveByManagerAsync(pending.Id, _manager.Id);
+
+        Assert.Equal("ACCEPTED", result.Status);
+        Assert.Equal(_recipient.Id, (await _db.Works.SingleAsync()).AssigneeEmployeeId);
+        foreach (var month in new[] { 10, 11 })
+        {
+            Assert.Equal(70m, (await ActiveTargetAsync(kpi, _giver, month)).TargetValue);
+            Assert.Equal(130m, (await ActiveTargetAsync(kpi, _recipient, month)).TargetValue);
+        }
+
+        Assert.Equal(_manager.Id, (await _db.TaskHandovers.SingleAsync()).ApprovedBy);
+    }
+
+    [Fact]
+    public async Task ManagerReassign_MovesTheExpectedResultToTheNewRecipient_NotTheRequestedOne()
+    {
+        await ArrangeEmployeesAsync();
+        var kpi = await ArrangeTargetsAsync();
+        var newRecipient = AddEmployee("NEW", _manager.Id);
+        var october = await _db.EvaluationPeriods.SingleAsync(p => p.StartDate.Month == 10);
+        AddTarget(kpi, october, newRecipient, 50m);
+        await _db.SaveChangesAsync();
+        var work = await AddWorkAsync(30m);
+        var pending = await HandOverAsync(work, _giver.Id, canSetShare: false);
+
+        await ServiceAt(Now).ReassignByManagerAsync(pending.Id, _manager.Id, new ReassignHandoverRequestDto { ToEmployeeId = newRecipient.Id });
+
+        Assert.Equal(newRecipient.Id, (await _db.Works.SingleAsync()).AssigneeEmployeeId);
+        Assert.Equal(70m, (await ActiveTargetAsync(kpi, _giver, 10)).TargetValue);
+        Assert.Equal(80m, (await ActiveTargetAsync(kpi, newRecipient, 10)).TargetValue);
+        Assert.Equal(100m, (await ActiveTargetAsync(kpi, _recipient, 10)).TargetValue);
+    }
+
+    [Fact]
+    public async Task ManagerReject_LeavesTheWorkAndEveryTargetAlone()
+    {
+        await ArrangeEmployeesAsync();
+        var kpi = await ArrangeTargetsAsync();
+        var work = await AddWorkAsync(30m);
+        var pending = await HandOverAsync(work, _giver.Id, canSetShare: false);
+
+        var result = await ServiceAt(Now).RejectByManagerAsync(pending.Id, _manager.Id);
+
+        Assert.Equal("REJECTED", result.Status);
+        Assert.Equal(_giver.Id, (await _db.Works.SingleAsync()).AssigneeEmployeeId);
+        Assert.Equal(100m, (await ActiveTargetAsync(kpi, _giver, 10)).TargetValue);
+        Assert.Equal(4, await _db.TargetAssignments.CountAsync());
+    }
+
+    [Fact]
+    public async Task ManagerApprove_WhenTheWorkMeanwhileCannotBeHandedOver_Conflicts_AndMovesNoTarget()
+    {
+        await ArrangeEmployeesAsync();
+        var kpi = await ArrangeTargetsAsync();
+        var work = await AddWorkAsync(30m);
+        var pending = await HandOverAsync(work, _giver.Id, canSetShare: false);
+        (await _db.Works.SingleAsync()).Status = WorkStatus.Cancelled;
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => ServiceAt(Now).ApproveByManagerAsync(pending.Id, _manager.Id));
+
+        Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
+        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
+        Assert.Equal(100m, (await ActiveTargetAsync(kpi, _giver, 10)).TargetValue);
+    }
+
+    [Fact]
+    public async Task ManagerApprove_ByAnyoneButTheRequestersDirectManager_IsForbidden()
+    {
+        await ArrangeEmployeesAsync();
+        var work = await AddWorkAsync();
+        var pending = await HandOverAsync(work, _giver.Id, canSetShare: false);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceAt(Now).ApproveByManagerAsync(pending.Id, _giver.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => ServiceAt(Now).ApproveByManagerAsync(pending.Id, _recipient.Id));
+
+        Assert.Equal(HandoverStatus.Pending, (await _db.TaskHandovers.SingleAsync()).Status);
+    }
     [Fact]
     public async Task Create_ByTheDirectManager_MovesTheWorkAtOnceWithNothingLeftToAccept()
     {
@@ -560,6 +649,191 @@ public sealed class HandoverTransferTests : IDisposable
         Assert.Equal(100m, (await ActiveTargetAsync(kpi, _recipient, 10)).TargetValue);
     }
 
+    // ----- Quarter above the months (what the development seed holds) -------------------------
+
+    private readonly Guid _departmentQuarterId = Guid.NewGuid();
+
+    private EvaluationPeriod AddQuarter(int year, int firstMonth, PeriodStatus status = PeriodStatus.Open)
+    {
+        var start = new DateOnly(year, firstMonth, 1);
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"{year}-Q{(firstMonth - 1) / 3 + 1}",
+            Name = $"{year}-Q{(firstMonth - 1) / 3 + 1}",
+            PeriodType = PeriodType.Quarter,
+            StartDate = start,
+            EndDate = start.AddMonths(3).AddDays(-1),
+            Status = status,
+            UpdatedAt = Now,
+        };
+        _db.EvaluationPeriods.Add(period);
+        return period;
+    }
+
+    /// <summary>
+    /// Each employee holds a quarter target of 300 (a share of the department's quarter) split into the monthly targets
+    /// of October and November. Returns the quarter targets of the giver and the recipient.
+    /// </summary>
+    private async Task<(KpiDefinition Kpi, TargetAssignment GiverQuarter, TargetAssignment RecipientQuarter)> ArrangeQuarterTargetsAsync(
+        decimal monthly = 100m)
+    {
+        var kpi = AddKpi();
+        var quarter = AddQuarter(2026, 10);
+        var months = new[] { AddMonth(2026, 10), AddMonth(2026, 11) };
+        var quarters = new List<TargetAssignment>();
+        foreach (var employee in new[] { _giver, _recipient })
+        {
+            var employeeQuarter = AddTarget(kpi, quarter, employee, 300m);
+            employeeQuarter.ParentAssignmentId = _departmentQuarterId;
+            employeeQuarter.SplitDimension = TargetSplitDimension.Org;
+            quarters.Add(employeeQuarter);
+            foreach (var month in months)
+            {
+                var monthTarget = AddTarget(kpi, month, employee, monthly);
+                monthTarget.ParentAssignmentId = employeeQuarter.Id;
+                monthTarget.SplitDimension = TargetSplitDimension.Period;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return (kpi, quarters[0], quarters[1]);
+    }
+
+    private async Task<decimal> ValueAsync(KpiDefinition kpi, Employee owner, PeriodType type, int? startMonth = null) =>
+        (await _db.TargetAssignments
+            .Include(t => t.EvaluationPeriod)
+            .SingleAsync(t => t.KpiDefinitionId == kpi.Id
+                && t.EmployeeId == owner.Id
+                && t.Status == TargetAssignmentStatus.Active
+                && t.EvaluationPeriod.PeriodType == type
+                && (startMonth == null || t.EvaluationPeriod.StartDate.Month == startMonth))).TargetValue;
+
+    [Fact]
+    public async Task Create_MovesTheQuarterAsWellAsTheMonths_SoTheMonthsStillAddUpToIt()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, _, _) = await ArrangeQuarterTargetsAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        Assert.Equal(70m, await ValueAsync(kpi, _giver, PeriodType.Month, 10));
+        Assert.Equal(70m, await ValueAsync(kpi, _giver, PeriodType.Month, 11));
+        Assert.Equal(240m, await ValueAsync(kpi, _giver, PeriodType.Quarter));
+        Assert.Equal(130m, await ValueAsync(kpi, _recipient, PeriodType.Month, 10));
+        Assert.Equal(130m, await ValueAsync(kpi, _recipient, PeriodType.Month, 11));
+        Assert.Equal(360m, await ValueAsync(kpi, _recipient, PeriodType.Quarter));
+    }
+
+    [Fact]
+    public async Task Create_KeepsWhatTheGiverAndTheRecipientTogetherHold()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, _, _) = await ArrangeQuarterTargetsAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        var quarters = await ValueAsync(kpi, _giver, PeriodType.Quarter) + await ValueAsync(kpi, _recipient, PeriodType.Quarter);
+        Assert.Equal(600m, quarters);
+        Assert.Equal(
+            200m,
+            await ValueAsync(kpi, _giver, PeriodType.Month, 10) + await ValueAsync(kpi, _recipient, PeriodType.Month, 10));
+    }
+
+    [Fact]
+    public async Task Create_ChangesTheQuarterInPlace_ButFreezesThisMonthsOldVersion()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, giverQuarter, _) = await ArrangeQuarterTargetsAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        var quarters = await _db.TargetAssignments
+            .Where(t => t.EmployeeId == _giver.Id && t.EvaluationPeriod.PeriodType == PeriodType.Quarter)
+            .ToListAsync();
+        Assert.Equal(giverQuarter.Id, Assert.Single(quarters).Id);
+        Assert.Equal(1, quarters[0].Version);
+        Assert.Contains("Bàn giao", quarters[0].ChangeReason);
+        Assert.Equal(_manager.Id, quarters[0].ChangedByEmployeeId);
+        var octoberVersions = await _db.TargetAssignments
+            .Where(t => t.EmployeeId == _giver.Id && t.KpiDefinitionId == kpi.Id && t.EvaluationPeriod.PeriodType == PeriodType.Month
+                && t.EvaluationPeriod.StartDate.Month == 10)
+            .ToListAsync();
+        Assert.Equal(2, octoberVersions.Count);
+    }
+
+    [Fact]
+    public async Task Create_QuartersUnderDifferentDepartmentTargets_AreLeftAlone()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, _, recipientQuarter) = await ArrangeQuarterTargetsAsync();
+        recipientQuarter.ParentAssignmentId = Guid.NewGuid();
+        await _db.SaveChangesAsync();
+        var work = await AddWorkAsync(30m);
+
+        var result = await HandOverAsync(work, _manager.Id);
+
+        Assert.Equal("ACCEPTED", result.Status);
+        Assert.Equal(100m, await ValueAsync(kpi, _giver, PeriodType.Month, 10));
+        Assert.Equal(300m, await ValueAsync(kpi, _giver, PeriodType.Quarter));
+        Assert.Equal(300m, await ValueAsync(kpi, _recipient, PeriodType.Quarter));
+    }
+
+    [Fact]
+    public async Task Create_WhenOnlyOneSideHasAQuarter_LeavesEveryTargetAlone()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, _, recipientQuarter) = await ArrangeQuarterTargetsAsync();
+        foreach (var month in await _db.TargetAssignments.Where(t => t.ParentAssignmentId == recipientQuarter.Id).ToListAsync())
+        {
+            month.ParentAssignmentId = null;
+            month.SplitDimension = null;
+        }
+
+        await _db.SaveChangesAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        Assert.Equal(100m, await ValueAsync(kpi, _giver, PeriodType.Month, 10));
+        Assert.Equal(300m, await ValueAsync(kpi, _giver, PeriodType.Quarter));
+        Assert.Equal(100m, await ValueAsync(kpi, _recipient, PeriodType.Month, 10));
+    }
+
+    [Fact]
+    public async Task Create_QuarterThatIsNotActive_LeavesTheMonthsAlone()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, giverQuarter, _) = await ArrangeQuarterTargetsAsync();
+        giverQuarter.Status = TargetAssignmentStatus.Superseded;
+        await _db.SaveChangesAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        Assert.Equal(100m, await ValueAsync(kpi, _giver, PeriodType.Month, 10));
+        Assert.Equal(100m, await ValueAsync(kpi, _recipient, PeriodType.Month, 10));
+        Assert.Equal(300m, await ValueAsync(kpi, _recipient, PeriodType.Quarter));
+    }
+
+    [Fact]
+    public async Task Create_NeverTakesMoreThanTheSmallestTargetInTheGiversChain()
+    {
+        await ArrangeEmployeesAsync();
+        var (kpi, giverQuarter, _) = await ArrangeQuarterTargetsAsync();
+        giverQuarter.TargetValue = 20m;
+        await _db.SaveChangesAsync();
+        var work = await AddWorkAsync(30m);
+
+        await HandOverAsync(work, _manager.Id);
+
+        Assert.True(await ValueAsync(kpi, _giver, PeriodType.Quarter) >= 0m);
+        Assert.Equal(80m, await ValueAsync(kpi, _giver, PeriodType.Month, 10));
+        Assert.Equal(120m, await ValueAsync(kpi, _recipient, PeriodType.Month, 10));
+    }
     // ----- Rules that stay -------------------------------------------------------------------
 
     [Fact]

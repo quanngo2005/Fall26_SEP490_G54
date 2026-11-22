@@ -302,23 +302,59 @@
     </div>
 
     <footer class="drawer-foot">
-      @if (!detail.isReadOnly && detail.status === 'PENDING') {
-        <button
-          type="button"
-          class="button button-secondary"
-          [disabled]="acting()"
-          (click)="decide('reject')"
-        >
-          {{localization.work.handoverList.reject}}
-        </button>
-        <button
-          type="button"
-          class="button button-primary"
-          [disabled]="acting()"
-          (click)="decide('accept')"
-        >
-          {{localization.work.handoverList.accept}}
-        </button>
+      @if (canDecide(detail)) {
+        @if (reassigning()) {
+          <div class="reassign-row">
+            <app-ui-select
+              class="reassign-select"
+              [options]="reassignOptions()"
+              [value]="newRecipient()"
+              [ariaLabel]="localization.work.handoverList.reassignLabel"
+              (valueChange)="newRecipient.set($event)"
+            />
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="acting()"
+              (click)="cancelReassign()"
+            >
+              {{localization.work.handoverList.cancel}}
+            </button>
+            <button
+              type="button"
+              class="button button-primary"
+              [disabled]="acting() || !newRecipient()"
+              (click)="decide('reassign')"
+            >
+              {{localization.work.handoverList.reassignConfirm}}
+            </button>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="acting()"
+            (click)="decide('reject')"
+          >
+            {{localization.work.handoverList.reject}}
+          </button>
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="acting()"
+            (click)="startReassign()"
+          >
+            {{localization.work.handoverList.reassign}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="acting()"
+            (click)="decide('approve')"
+          >
+            {{localization.work.handoverList.approve}}
+          </button>
+        }
       }
       <button type="button" class="button button-primary" (click)="openRelatedWork(detail.workId)">
         {{localization.work.handoverList.openWork}}

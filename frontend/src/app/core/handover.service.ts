@@ -39,24 +39,19 @@ export class HandoverService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  /** Recipient accepts a pending handover request. */
-  accept(id: string): Observable<HandoverDetail> {
-    return this.http
-      .post<ApiResponse<HandoverDetail>>(
-        `${this.baseUrl}/handovers/${encodeURIComponent(id)}/accept`,
-        {},
-      )
-      .pipe(map((response) => this.unwrap(response)));
+  /** The requester's direct manager approves a pending request: the work moves to the recipient. */
+  approve(id: string): Observable<HandoverDetail> {
+    return this.managerAction(id, 'approve');
   }
 
-  /** Recipient rejects a pending handover request. */
-  reject(id: string): Observable<HandoverDetail> {
-    return this.http
-      .post<ApiResponse<HandoverDetail>>(
-        `${this.baseUrl}/handovers/${encodeURIComponent(id)}/reject`,
-        {},
-      )
-      .pipe(map((response) => this.unwrap(response)));
+  /** The requester's direct manager gives the work to another recipient instead. */
+  reassign(id: string, toEmployeeId: string): Observable<HandoverDetail> {
+    return this.managerAction(id, 'reassign', { toEmployeeId });
+  }
+
+  /** The requester's direct manager rejects a pending request: the work stays with the requester. */
+  rejectAsManager(id: string): Observable<HandoverDetail> {
+    return this.managerAction(id, 'reject');
   }
 
   /** Colleagues of the caller's department a work can be handed over to. */
@@ -71,6 +66,19 @@ export class HandoverService {
       .post<ApiResponse<HandoverDetail>>(
         `${this.baseUrl}/works/${encodeURIComponent(workId)}/handovers`,
         request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  private managerAction(
+    id: string,
+    action: 'approve' | 'reassign' | 'reject',
+    body: object = {},
+  ): Observable<HandoverDetail> {
+    return this.http
+      .post<ApiResponse<HandoverDetail>>(
+        `${this.baseUrl}/handovers/${encodeURIComponent(id)}/manager/${action}`,
+        body,
       )
       .pipe(map((response) => this.unwrap(response)));
   }
