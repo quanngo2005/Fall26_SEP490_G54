@@ -1,5 +1,7 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Workflow;
 using G54.BLL.Dtos.Handover;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -68,9 +70,11 @@ public sealed partial class HandoverService
 
         var now = time.GetUtcNow();
         var work = handover.Work;
+        var movedMonths = 0;
         if (action == ManagerAction.Reject)
         {
             handover.Status = HandoverStatus.Rejected;
+            handover.UpdatedAt = now;
         }
         else
         {
@@ -79,14 +83,25 @@ public sealed partial class HandoverService
                 await ReassignRecipientAsync(handover, work, newRecipientId!.Value, cancellationToken);
             }
 
-            AcceptInto(handover, work, now);
-            handover.ApprovedBy = caller.Id;
+            if (work.AssigneeEmployeeId != handover.FromEmployeeId
+                || !WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Handover, out var nextStatus))
+            {
+                throw new ConflictException(
+                    $"Không thể bàn giao công việc đang ở trạng thái {work.Status.ToEnumString()}.",
+                    ErrorCodes.WorkInvalidState);
+            }
+
+            movedMonths = await MoveWorkAsync(handover, work, nextStatus, caller.Id, now, cancellationToken);
         }
 
-        handover.UpdatedAt = now;
         await SaveDecisionAsync(cancellationToken);
 
         LogHandoverDecided(logger, $"MANAGER_{action.ToString().ToUpperInvariant()}", handover.Id, work.Id, handover.FromEmployeeId, handover.ToEmployeeId, null);
+        if (movedMonths > 0)
+        {
+            LogTargetsMoved(logger, handover.Id, movedMonths, null);
+        }
+
         await notifier.TryPublishAsync(AutomaticNotifications.HandoverDecided(handover, work, handover.FromEmployee, handover.ToEmployee, caller.Id), cancellationToken);
 
         return Map(handover, work, handover.FromEmployee, handover.ToEmployee);

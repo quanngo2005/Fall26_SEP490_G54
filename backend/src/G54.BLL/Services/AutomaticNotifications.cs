@@ -9,34 +9,23 @@ internal static class AutomaticNotifications
     private const int MaxTitleLength = 200;
     private const int MaxBodyLength = 2000;
 
-    /// <summary>An employee asked to hand a work over: the recipient is told, and so is the requester's manager, who can settle it.</summary>
+    /// <summary>An employee asked to hand a work over: their direct manager is told and settles it. The recipient hears only once it is decided.</summary>
     public static List<NotificationDraft> HandoverRequested(TaskHandover handover, Work work, Employee from, Employee to)
     {
-        var drafts = new List<NotificationDraft>
-        {
-            ForHandover(
-                to.Id,
-                NotificationType.HandoverRequested,
-                "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho bạn. Hãy chấp nhận hoặc từ chối.",
-                NotificationSeverity.Important,
-                handover),
-        };
-
-        if (from.ManagerId is { } managerId && managerId != to.Id)
+        var drafts = new List<NotificationDraft>();
+        if (from.ManagerId is { } managerId)
         {
             drafts.Add(ForHandover(
                 managerId,
                 NotificationType.HandoverRequested,
                 "Yêu cầu bàn giao công việc",
-                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho {to.FullName}.",
-                NotificationSeverity.Normal,
+                $"{from.FullName} muốn bàn giao công việc {Describe(work)} cho {to.FullName}. Hãy duyệt hoặc từ chối.",
+                NotificationSeverity.Important,
                 handover));
         }
 
         return drafts;
     }
-
     /// <summary>A handover was settled: whoever did not make the decision hears the outcome.</summary>
     public static List<NotificationDraft> HandoverDecided(TaskHandover handover, Work work, Employee from, Employee to, Guid deciderId)
     {
@@ -51,11 +40,10 @@ internal static class AutomaticNotifications
                 : ForHandover(from.Id, NotificationType.HandoverRejected, "Yêu cầu bàn giao bị từ chối", $"Yêu cầu bàn giao công việc {details} đã bị từ chối.", NotificationSeverity.Normal, handover));
         }
 
-        if (to.Id != deciderId)
+        // The recipient never saw the request, so they only hear about it once the work is theirs.
+        if (accepted && to.Id != deciderId)
         {
-            drafts.Add(accepted
-                ? ForHandover(to.Id, NotificationType.HandoverTransferred, "Bạn được giao công việc mới", $"Công việc {details} đã được chuyển cho bạn.", NotificationSeverity.Important, handover)
-                : ForHandover(to.Id, NotificationType.HandoverRejected, "Yêu cầu bàn giao bị từ chối", $"Yêu cầu bàn giao công việc {details} đã bị quản lý từ chối.", NotificationSeverity.Normal, handover));
+            drafts.Add(ForHandover(to.Id, NotificationType.HandoverTransferred, "Bạn được giao công việc mới", $"Công việc {details} đã được chuyển cho bạn.", NotificationSeverity.Important, handover));
         }
 
         return drafts;
