@@ -12,7 +12,6 @@ import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { MyTargetsApiService } from './my-targets-api.service';
 import { MyTargetYear, MyTargetProgress } from './my-targets.models';
 import { MyTargetsComponent } from './my-targets.component';
-import { TARGET_EMP_I18N_STUB, targetEmpLocalizationStub } from './testing/target-emp-i18n.stub';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
@@ -171,7 +170,7 @@ describe('MyTargetsComponent', () => {
             'I18nService',
             ['formatNumber', 'formatDate', 'translate'],
             {
-              localization: targetEmpLocalizationStub(),
+              localization: new I18nService().localization,
               currentLanguage: () => 'vi',
             },
           ),
@@ -199,7 +198,9 @@ describe('MyTargetsComponent', () => {
         const path = key.split('.');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let node: any =
-          path[0] === 'targetEmp' ? TARGET_EMP_I18N_STUB : targetEmpLocalizationStub();
+          path[0] === 'targetEmp'
+            ? new I18nService().localization.targetEmp
+            : new I18nService().localization;
         for (const segment of path.slice(1)) node = node?.[segment];
         let resolved = String(node ?? key);
         for (const [k, v] of Object.entries(params ?? {})) {

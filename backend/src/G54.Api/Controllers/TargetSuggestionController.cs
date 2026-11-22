@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Services;
@@ -14,7 +15,7 @@ namespace G54.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("target-suggestions")]
-[HasPermission("target", "manage", "Department")]
+[HasPermission("target", "manage", PermissionScopes.Dept)]
 public sealed class TargetSuggestionController(ITargetSuggestionService service) : ControllerBase
 {
     [HttpPost("{year:int}")]

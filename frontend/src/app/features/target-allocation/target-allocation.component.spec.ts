@@ -10,14 +10,11 @@ import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { TargetAssignment } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { targetDmLocalizationStub } from './testing/target-dm-i18n.stub';
 import { TargetAllocationApiService } from './target-allocation-api.service';
 import { EmployeeAllocation } from './target-allocation.models';
 import { TargetAllocationComponent } from './target-allocation.component';
 
-// The real HeaderComponent/SidebarComponent read `localization.common`, `.layout`, `.menu`, etc. —
-// dictionaries this spec's `targetDmLocalizationStub()` does not provide. Swap them for empty stubs
-// so this spec only needs the `targetDm`/`targetShared` keys it actually exercises.
+// Swap the real HeaderComponent/SidebarComponent for empty stubs so this spec only renders the screen under test.
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
 
@@ -148,7 +145,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
         {
           provide: I18nService,
           useValue: jasmine.createSpyObj('I18nService', ['formatNumber', 'translate'], {
-            localization: targetDmLocalizationStub(),
+            localization: new I18nService().localization,
             currentLanguage: () => 'vi',
           }),
         },
@@ -165,7 +162,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     i18n.translate.and.callFake((key: string, params?: Record<string, string | number>) => {
       const path = key.split('.').slice(1); // drop the "targetDm" prefix
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let text: any = targetDmLocalizationStub().targetDm;
+      let text: any = new I18nService().localization.targetDm;
       for (const segment of path) text = text?.[segment];
       if (typeof text !== 'string') return key;
       return Object.entries(params ?? {}).reduce(

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace G54.UnitTests;
 
-public sealed class TargetAllocationServiceTests
+public sealed class TargetSetupServiceAllocationTests
 {
     private sealed record Fixture(AppDbContext Db, TargetSetupService Service, Guid BranchId, Guid DeptId,
         Guid KpiId, Guid YearPeriodId, Guid Q1Id, TargetAssignment BranchYearTarget);
