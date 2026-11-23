@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../../core/api-response.model';
+import { environment } from '../../environments/environment';
+import { ApiResponse } from './api-response.model';
 
 /**
  * Target Allocation v3 suggestion engine (docs/api/TARGET_ALLOCATION_CONTRACT.md, "Suggestion engine";
@@ -96,7 +96,7 @@ export interface SuggestTargetsResponseDto {
 }
 
 @Injectable({ providedIn: 'root' })
-export class TargetSetupApiService {
+export class TargetSuggestionService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}/target-suggestions`;
 

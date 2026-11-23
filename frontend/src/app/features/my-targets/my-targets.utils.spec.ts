@@ -1,4 +1,4 @@
-import { MyTargetKpi, MyTargetProgressKpi, MyTargetYear } from './my-targets.models';
+import { MyTargetKpi, MyTargetProgressKpi, MyTargetYear } from '../../core/my-targets.models';
 import {
   bannerFor,
   buildYearViewRows,

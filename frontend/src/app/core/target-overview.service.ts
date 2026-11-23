@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../../core/api-response.model';
+import { environment } from '../../environments/environment';
+import { ApiResponse } from './api-response.model';
 
 /**
  * Calls for the BM overview (W1/W2/W8) that are not yet part of `docs/api/TARGET_ALLOCATION_CONTRACT.md` /
@@ -15,7 +15,7 @@ export interface RemindDepartmentManagerResult {
 }
 
 @Injectable({ providedIn: 'root' })
-export class TargetOverviewApiService {
+export class TargetOverviewService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}/target-assignments`;
 

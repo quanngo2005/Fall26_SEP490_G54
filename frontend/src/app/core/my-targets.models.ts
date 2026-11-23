@@ -2,7 +2,7 @@
  * DTOs for the employee "my-targets" API (Target Allocation v3, BR-36).
  * Contract: docs/api/TARGET_ALLOCATION_CONTRACT.md § "Employee side: my-targets".
  */
-import { KpiAggregationType } from '../../core/kpi-definition.models';
+import { KpiAggregationType } from './kpi-definition.models';
 
 export type AckStatus = 'PENDING' | 'CONFIRMED' | 'RECONFIRM';
 

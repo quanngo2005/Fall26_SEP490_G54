@@ -6,7 +6,7 @@ import { I18nService } from '../../../core/i18n/i18n.service';
 import { KpiDefinition } from '../../../core/kpi-definition.models';
 import { QuarterSplit, QuarterSplitRow } from '../../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../../core/target-assignment.service';
-import { TargetSetupApiService } from '../../target-setup/target-setup-api.service';
+import { TargetSuggestionService } from '../../../core/target-suggestion.service';
 import { KpiQuarterModalComponent } from './kpi-quarter-modal.component';
 
 const kpi = {
@@ -108,7 +108,7 @@ describe('KpiQuarterModalComponent', () => {
       providers: [
         provideRouter([]),
         { provide: TargetAssignmentService, useValue: targetApi },
-        { provide: TargetSetupApiService, useValue: suggestionApi },
+        { provide: TargetSuggestionService, useValue: suggestionApi },
       ],
     });
     TestBed.inject(I18nService).setLanguage('vi');

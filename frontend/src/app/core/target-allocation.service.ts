@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../../core/api-response.model';
+import { environment } from '../../environments/environment';
+import { ApiResponse } from './api-response.model';
 import {
   EmployeeAllocation,
   MyTargetFeedbackReplyResult,
@@ -19,7 +19,7 @@ import {
  * (file ownership: `features/target-allocation/**` only).
  */
 @Injectable({ providedIn: 'root' })
-export class TargetAllocationApiService {
+export class TargetAllocationService {
   private readonly http = inject(HttpClient);
   private readonly assignmentsUrl = `${environment.apiUrl}/target-assignments`;
   private readonly suggestionsUrl = `${environment.apiUrl}/target-suggestions`;

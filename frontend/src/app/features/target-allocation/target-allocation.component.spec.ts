@@ -10,8 +10,8 @@ import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { TargetAssignment } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { TargetAllocationApiService } from './target-allocation-api.service';
-import { EmployeeAllocation } from './target-allocation.models';
+import { TargetAllocationService } from '../../core/target-allocation.service';
+import { EmployeeAllocation } from '../../core/target-allocation.models';
 import { TargetAllocationComponent } from './target-allocation.component';
 
 // Swap the real HeaderComponent/SidebarComponent for empty stubs so this spec only renders the screen under test.
@@ -97,7 +97,7 @@ const deptYearAssignment: TargetAssignment = {
 };
 
 describe('TargetAllocationComponent (W10/W11)', () => {
-  let allocationApi: jasmine.SpyObj<TargetAllocationApiService>;
+  let allocationApi: jasmine.SpyObj<TargetAllocationService>;
   let targetApi: jasmine.SpyObj<TargetAssignmentService>;
 
   async function render(
@@ -106,7 +106,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     targetApi = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', ['list']);
     targetApi.list.and.returnValue(of([deptYearAssignment]));
 
-    allocationApi = jasmine.createSpyObj<TargetAllocationApiService>('TargetAllocationApiService', [
+    allocationApi = jasmine.createSpyObj<TargetAllocationService>('TargetAllocationService', [
       'getEmployeeAllocations',
       'saveEmployeeAllocation',
       'publishEmployees',
@@ -125,7 +125,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
           useValue: { snapshot: { queryParamMap: convertToParamMap({ year: '2027' }) } },
         },
         { provide: TargetAssignmentService, useValue: targetApi },
-        { provide: TargetAllocationApiService, useValue: allocationApi },
+        { provide: TargetAllocationService, useValue: allocationApi },
         {
           provide: EvaluationService,
           useValue: {

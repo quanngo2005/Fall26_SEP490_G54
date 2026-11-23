@@ -10,7 +10,7 @@ import {
   TargetSetup,
 } from '../../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../../core/target-assignment.service';
-import { TargetSetupApiService } from '../target-setup-api.service';
+import { TargetSuggestionService } from '../../../core/target-suggestion.service';
 import { DepartmentAllocationMatrixComponent } from './department-allocation-matrix.component';
 
 function kpiRow(over: Partial<QuarterSplitRow>): QuarterSplitRow {
@@ -165,8 +165,8 @@ describe('DepartmentAllocationMatrixComponent (W6)', () => {
       providers: [
         { provide: TargetAssignmentService, useValue: api },
         {
-          provide: TargetSetupApiService,
-          useValue: jasmine.createSpyObj<TargetSetupApiService>('TargetSetupApiService', [
+          provide: TargetSuggestionService,
+          useValue: jasmine.createSpyObj<TargetSuggestionService>('TargetSuggestionService', [
             'suggest',
           ]),
         },

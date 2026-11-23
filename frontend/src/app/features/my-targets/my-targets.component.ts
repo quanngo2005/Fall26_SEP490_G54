@@ -12,7 +12,7 @@ import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { RightDrawerComponent } from '../../shared/target/right-drawer/right-drawer.component';
 import { PaceBarComponent } from '../../shared/target/pace-bar/pace-bar.component';
 import { businessClock } from '../work-board/work-board.utils';
-import { MyTargetsApiService } from './my-targets-api.service';
+import { MyTargetsService } from '../../core/my-targets.service';
 import {
   AckStatus,
   MyTargetFeedback,
@@ -21,7 +21,7 @@ import {
   MyTargetProgressKpi,
   MyTargetYear,
   ProgressPeriod,
-} from './my-targets.models';
+} from '../../core/my-targets.models';
 import {
   MAX_FEEDBACK_REASON_LENGTH,
   ProgressBucket,
@@ -80,7 +80,7 @@ const CONFLICT = 409;
   ],
 })
 export class MyTargetsComponent extends LocalizedComponent {
-  private readonly api = inject(MyTargetsApiService);
+  private readonly api = inject(MyTargetsService);
   private readonly employees = inject(EmployeeService);
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly route = inject(ActivatedRoute);
@@ -115,7 +115,7 @@ export class MyTargetsComponent extends LocalizedComponent {
   protected readonly sending = signal(false);
   protected readonly toast = signal<{ kind: 'success' | 'error'; text: string } | null>(null);
 
-  /** Feedback sent this session, keyed by kpiId — see the gap note in my-targets-api.service.ts: there is no
+  /** Feedback sent this session, keyed by kpiId — see the gap note in my-targets.service.ts: there is no
    * `GET` endpoint to list a KPI's feedback/reply history yet, so this cache is the only history the UI can show. */
   protected readonly sentFeedback = signal<Record<string, MyTargetFeedback>>({});
 

@@ -4,7 +4,10 @@ import { of, throwError } from 'rxjs';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { QuarterSplit, QuarterSplitRow } from '../../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../../core/target-assignment.service';
-import { SuggestTargetsResponseDto, TargetSetupApiService } from '../target-setup-api.service';
+import {
+  SuggestTargetsResponseDto,
+  TargetSuggestionService,
+} from '../../../core/target-suggestion.service';
 import { BranchQuarterSplitComponent } from './branch-quarter-split.component';
 
 const YEAR = 2026;
@@ -131,7 +134,7 @@ function suggestionResponse(
 
 describe('BranchQuarterSplitComponent', () => {
   let api: jasmine.SpyObj<TargetAssignmentService>;
-  let suggestApi: jasmine.SpyObj<TargetSetupApiService>;
+  let suggestApi: jasmine.SpyObj<TargetSuggestionService>;
   let state: QuarterSplit;
 
   function render(
@@ -167,7 +170,9 @@ describe('BranchQuarterSplitComponent', () => {
           )
         : of(splitState()),
     );
-    suggestApi = jasmine.createSpyObj<TargetSetupApiService>('TargetSetupApiService', ['suggest']);
+    suggestApi = jasmine.createSpyObj<TargetSuggestionService>('TargetSuggestionService', [
+      'suggest',
+    ]);
     if (options.suggestResponse) {
       suggestApi.suggest.and.returnValue(of(options.suggestResponse));
     }
@@ -175,7 +180,7 @@ describe('BranchQuarterSplitComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: TargetAssignmentService, useValue: api },
-        { provide: TargetSetupApiService, useValue: suggestApi },
+        { provide: TargetSuggestionService, useValue: suggestApi },
       ],
     });
     TestBed.inject(I18nService).setLanguage('vi');

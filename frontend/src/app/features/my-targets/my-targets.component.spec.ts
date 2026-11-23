@@ -9,8 +9,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { KpiDefinition } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { MyTargetsApiService } from './my-targets-api.service';
-import { MyTargetYear, MyTargetProgress } from './my-targets.models';
+import { MyTargetsService } from '../../core/my-targets.service';
+import { MyTargetYear, MyTargetProgress } from '../../core/my-targets.models';
 import { MyTargetsComponent } from './my-targets.component';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
@@ -114,7 +114,7 @@ function progressData(): MyTargetProgress {
 }
 
 describe('MyTargetsComponent', () => {
-  let api: jasmine.SpyObj<MyTargetsApiService>;
+  let api: jasmine.SpyObj<MyTargetsService>;
   let queryParamMap: BehaviorSubject<ParamMap>;
   const text = (el: Element | null | undefined) =>
     (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -143,9 +143,9 @@ describe('MyTargetsComponent', () => {
 
   beforeEach(async () => {
     // Pin the year query param so the component requests the same year (2027) the mocked
-    // `MyTargetsApiService` responses use, instead of defaulting to the real current year.
+    // `MyTargetsService` responses use, instead of defaulting to the real current year.
     queryParamMap = new BehaviorSubject(paramMap({ year: '2027' }));
-    api = jasmine.createSpyObj<MyTargetsApiService>('MyTargetsApiService', [
+    api = jasmine.createSpyObj<MyTargetsService>('MyTargetsService', [
       'year',
       'confirm',
       'feedback',
@@ -158,7 +158,7 @@ describe('MyTargetsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [MyTargetsComponent],
       providers: [
-        { provide: MyTargetsApiService, useValue: api },
+        { provide: MyTargetsService, useValue: api },
         { provide: EmployeeService, useValue: { me: () => of(ME) } },
         {
           provide: KpiDefinitionService,

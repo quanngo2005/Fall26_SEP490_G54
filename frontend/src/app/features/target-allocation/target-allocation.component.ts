@@ -35,7 +35,7 @@ import {
   findYearPeriod,
   includesText,
 } from '../target-overview/target-overview.utils';
-import { TargetAllocationApiService } from './target-allocation-api.service';
+import { TargetAllocationService } from '../../core/target-allocation.service';
 import {
   EMPLOYEE_QUARTER_KEYS,
   EmployeeAllocation,
@@ -43,7 +43,7 @@ import {
   EmployeePeriodKey,
   SaveEmployeeAllocationEmployeeRequest,
   SuggestionEngineRequest,
-} from './target-allocation.models';
+} from '../../core/target-allocation.models';
 import { rebalanceQuarters, splitByQuarterShape } from './target-allocation.utils';
 import { SuggestButtonComponent } from '../../shared/target/suggest-button/suggest-button.component';
 
@@ -91,7 +91,7 @@ const ZERO: DraftRow = { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 };
 })
 export class TargetAllocationComponent extends LocalizedComponent implements OnInit {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly allocationApi = inject(TargetAllocationApiService);
+  private readonly allocationApi = inject(TargetAllocationService);
   private readonly evaluationApi = inject(EvaluationService);
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly employeeApi = inject(EmployeeService);

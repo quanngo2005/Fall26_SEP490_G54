@@ -22,7 +22,7 @@ import { ImportBranchTargetModalComponent } from './import-branch-target-modal/i
 import { KpiQuarterModalComponent } from './kpi-quarter-modal/kpi-quarter-modal.component';
 import { AppNumberPipe } from '../../shared/pipes';
 import { TargetCellComponent } from './target-cell.component';
-import { TargetOverviewApiService } from './target-overview-api.service';
+import { TargetOverviewService } from '../../core/target-overview.service';
 import {
   availableYears,
   buildAllocationHeatmap,
@@ -101,7 +101,7 @@ type ReminderState = 'IDLE' | 'SENDING' | 'SENT' | 'ERROR';
 })
 export class BranchTargetOverviewComponent extends LocalizedComponent implements OnInit {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly overviewApi = inject(TargetOverviewApiService);
+  private readonly overviewApi = inject(TargetOverviewService);
   private readonly evaluationApi = inject(EvaluationService);
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly departmentApi = inject(DepartmentService);
@@ -468,7 +468,7 @@ export class BranchTargetOverviewComponent extends LocalizedComponent implements
 
   /**
    * W8 "Nhắc Trưởng phòng". The endpoint is not in `TARGET_ALLOCATION_CONTRACT.md` yet (see
-   * `TargetOverviewApiService`); shows the real success/error response, never a fabricated success.
+   * `TargetOverviewService`); shows the real success/error response, never a fabricated success.
    */
   protected remindDepartmentManager(): void {
     const departmentId = this.drawerDepartmentId();

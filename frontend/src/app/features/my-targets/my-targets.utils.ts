@@ -1,5 +1,10 @@
 import { KPI_GROUP_CATALOG } from '../../shared/target/target-shared.models';
-import { MyTargetKpi, MyTargetProgressKpi, MyTargetYear, PaceStatus } from './my-targets.models';
+import {
+  MyTargetKpi,
+  MyTargetProgressKpi,
+  MyTargetYear,
+  PaceStatus,
+} from '../../core/my-targets.models';
 
 /** D16: KPI counted "increased" when it is at least 15% above last year's target. */
 export const INCREASE_THRESHOLD_PERCENT = 15;

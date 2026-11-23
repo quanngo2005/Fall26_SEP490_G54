@@ -43,8 +43,8 @@ import {
   SuggestionCellDto,
   SuggestTargetsRequestDto,
   SuggestTargetsResponseDto,
-  TargetSetupApiService,
-} from '../target-setup-api.service';
+  TargetSuggestionService,
+} from '../../../core/target-suggestion.service';
 import { SuggestButtonComponent } from '../../../shared/target/suggest-button/suggest-button.component';
 
 type QuarterKey = 'q1' | 'q2' | 'q3' | 'q4';
@@ -145,7 +145,7 @@ function cloneValues(values: Record<string, QuarterValues>): Record<string, Quar
 })
 export class BranchQuarterSplitComponent extends LocalizedComponent implements OnChanges {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly suggestionApi = inject(TargetSetupApiService);
+  private readonly suggestionApi = inject(TargetSuggestionService);
   private readonly destroyRef = inject(DestroyRef);
 
   @Input({ required: true }) branchYearId!: string;
