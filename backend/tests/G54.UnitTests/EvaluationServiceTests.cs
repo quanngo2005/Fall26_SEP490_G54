@@ -1955,6 +1955,10 @@ public sealed class EvaluationServiceTests
             .GetPersonalEvaluationAsync(period.Id, staff.Account!.Id);
 
         Assert.True(view.CanAppeal);
+        Assert.Null(view.Tier);
+        Assert.Null(view.RankingPercentile);
+        Assert.Null(view.RankingPosition);
+        Assert.Null(view.RankingTotalEmployees);
     }
 
     [Fact]

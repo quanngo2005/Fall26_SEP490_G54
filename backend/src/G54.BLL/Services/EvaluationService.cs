@@ -2786,11 +2786,8 @@ public sealed partial class EvaluationService(
         var totalPeScore = keepsStoredScore ? existingEvaluation!.TotalScore : scored?.TotalScore;
 
         var downgradeConfig = await LoadDowngradeConfigurationAsync(cancellationToken);
-        var proposedTier = totalPeScore.HasValue && scored is not null
-            ? TierDeterminer.DetermineTier(totalPeScore.Value, scored.RiskEvents, downgradeConfig)
-            : null;
-
-        var tier = stored.CalibrationData?.CalibratedTier ?? proposedTier;
+        var isFinal = existingEvaluation?.Status == PerformanceEvaluationStatus.Final && existingEvaluation is not null;
+        var finalTier = isFinal ? ResolveFinalTierCode(existingEvaluation!) : null;
         var allTiers = downgradeConfig.Tiers.Select(t => t.TierCode).ToList();
 
         // Anonymous Peer Ranking (BR-36, NFR-07)
@@ -2828,6 +2825,9 @@ public sealed partial class EvaluationService(
 
         var rankingPercentile = $"Top {percentile}%";
         var rankingRoleTitle = employee.JobPosition?.Title ?? "Nhân viên";
+        var finalRankingPercentile = isFinal ? rankingPercentile : null;
+        var finalRankingPosition = isFinal ? (int?)rank : null;
+        var finalRankingTotalEmployees = isFinal ? (int?)totalPeers : null;
 
         // Previous period comparison
         var previousPeriod = await db.EvaluationPeriods
@@ -2858,13 +2858,15 @@ public sealed partial class EvaluationService(
 
         // Criteria mapping
         var criteria = new List<PersonalEvaluationCriteriaItemDto>();
+        var criteriaGroups = new List<PersonalEvaluationCriteriaGroupDto>();
         if (scored is not null)
         {
             foreach (var group in scored.Groups)
             {
+                var groupCriteria = new List<PersonalEvaluationCriteriaItemDto>();
                 if (group.Kpis.Count == 0)
                 {
-                    criteria.Add(new PersonalEvaluationCriteriaItemDto(
+                    var item = new PersonalEvaluationCriteriaItemDto(
                         group.EvaluationProfileItemId,
                         group.Name,
                         group.WeightPercent,
@@ -2874,7 +2876,9 @@ public sealed partial class EvaluationService(
                         HasDrilldown: false,
                         KpiDefinitionId: null,
                         TargetDisplay: "—",
-                        ActualDisplay: "—"));
+                        ActualDisplay: "—");
+                    criteria.Add(item);
+                    groupCriteria.Add(item);
                 }
                 else
                 {
@@ -2901,7 +2905,7 @@ public sealed partial class EvaluationService(
                             ? Math.Round(kpiScore.Value * effectiveWeight / 100m, 1)
                             : (decimal?)null;
 
-                        criteria.Add(new PersonalEvaluationCriteriaItemDto(
+                        var item = new PersonalEvaluationCriteriaItemDto(
                             kpi.KpiDefinitionId,
                             kpi.Name,
                             effectiveWeight,
@@ -2911,24 +2915,92 @@ public sealed partial class EvaluationService(
                             HasDrilldown: kpi.ActualValue.HasValue,
                             KpiDefinitionId: kpi.KpiDefinitionId,
                             TargetDisplay: targetDisplay,
-                            ActualDisplay: actualDisplay));
+                            ActualDisplay: actualDisplay);
+                        criteria.Add(item);
+                        groupCriteria.Add(item);
                     }
                 }
+
+                criteriaGroups.Add(new PersonalEvaluationCriteriaGroupDto(
+                    group.EvaluationProfileItemId,
+                    group.CatalogGroupCode,
+                    group.Name,
+                    group.WeightPercent,
+                    group.Score,
+                    groupCriteria));
             }
         }
 
         // Appeal deadline & status
+        // BR: Manager locks numbers on lock day (Params.RankingLockDay), employee has 2 days to review and appeal.
+        const int AppealReviewDays = 2;
         var now = DateTimeOffset.UtcNow;
-        var deadlineDate = period.EndDate.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
-        var remainingDays = Math.Max(0, (int)Math.Ceiling((deadlineDate - now.UtcDateTime).TotalDays));
+        var lockDate = RankingLockDate(period, Params.RankingLockDay);
+        var effectiveLockDate = lockDate;
+
+        if (existingEvaluation?.CalculatedAt.HasValue == true)
+        {
+            var calcDate = DateOnly.FromDateTime(existingEvaluation.CalculatedAt.Value.UtcDateTime);
+            if (calcDate > effectiveLockDate)
+            {
+                effectiveLockDate = calcDate;
+            }
+        }
+        else if (existingEvaluation != null && existingEvaluation.UpdatedAt != default)
+        {
+            var updateDate = DateOnly.FromDateTime(existingEvaluation.UpdatedAt.UtcDateTime);
+            if (updateDate > effectiveLockDate)
+            {
+                effectiveLockDate = updateDate;
+            }
+        }
+
+        var appealDeadline = effectiveLockDate.AddDays(AppealReviewDays).ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
+        var remainingDays = Math.Max(0, (int)Math.Ceiling((appealDeadline - now.UtcDateTime).TotalDays));
         var evalStatus = (existingEvaluation?.Status ?? PerformanceEvaluationStatus.Draft).ToEnumString();
-        var canAppeal = remainingDays > 0 && existingEvaluation?.Status is PerformanceEvaluationStatus.Calculated or PerformanceEvaluationStatus.Submitted or PerformanceEvaluationStatus.Final;
-        var appealDeadlineText = remainingDays > 0
-            ? $"23:59 {period.EndDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
+        var isCalculated = existingEvaluation?.Status == PerformanceEvaluationStatus.Calculated;
+        var canAppeal = isCalculated && remainingDays > 0;
+        var appealDeadlineText = isCalculated && remainingDays > 0
+            ? $"23:59 {appealDeadline.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}"
             : "—";
+        if (!isCalculated)
+        {
+            remainingDays = 0;
+        }
 
         var managerFeedback = stored.Comment;
         var riskPenalty = scored?.RiskPenalty ?? 0m;
+
+        // Summaries for header cards (matching /form)
+        var kpiMetThreshold = Params.EvalKpiMetThresholdPercent;
+        var kpiNearThreshold = Params.EvalKpiNearThresholdPercent;
+        var allScoredKpis = scored?.Groups.SelectMany(g => g.Kpis).ToList() ?? [];
+        var achievedCount = allScoredKpis.Count(k => k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value >= kpiMetThreshold);
+        var nearCount = allScoredKpis.Count(k => k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value < kpiMetThreshold && k.AchievementPercentCapped.Value >= kpiNearThreshold);
+        var totalCriteriaCount = allScoredKpis.Count;
+        var belowCount = totalCriteriaCount - achievedCount - nearCount;
+        decimal? achievedRatePercent = totalCriteriaCount > 0
+            ? Math.Round((decimal)achievedCount * 100m / totalCriteriaCount, 1, MidpointRounding.AwayFromZero)
+            : null;
+        var criteriaSummary = new EvaluationCriteriaSummaryDto(
+            achievedCount,
+            nearCount,
+            belowCount,
+            totalCriteriaCount,
+            achievedRatePercent);
+
+        var slaSummary = await LoadEmployeeSlaSummaryAsync(employee.Id, period, cancellationToken);
+        var riskCount = scored?.RiskEvents.Count ?? 0;
+        var riskDtos = (scored?.RiskEvents ?? [])
+            .Select(r => new EvaluationRiskEventDto(
+                r.Id,
+                r.Code,
+                r.EventType,
+                r.Description,
+                r.Severity.ToString().ToUpperInvariant(),
+                RiskPenalty(r, parameters?.Value),
+                r.OccurredAt))
+            .ToList();
 
         return new PersonalEvaluationViewDto(
             PeriodId: period.Id,
@@ -2942,16 +3014,21 @@ public sealed partial class EvaluationService(
             ScoreDelta: scoreDelta,
             PreviousPeriodName: previousPeriodName,
             PreviousPeriodScore: previousPeriodScore,
-            Tier: tier,
+            Tier: finalTier,
             AllTiers: allTiers,
-            RankingPercentile: rankingPercentile,
-            RankingPosition: rank,
-            RankingTotalEmployees: totalPeers,
+            RankingPercentile: finalRankingPercentile,
+            RankingPosition: finalRankingPosition,
+            RankingTotalEmployees: finalRankingTotalEmployees,
             RankingRoleTitle: rankingRoleTitle,
             Criteria: criteria,
             QualityRatio: null,
             RiskPenalty: riskPenalty,
-            ManagerFeedback: managerFeedback);
+            ManagerFeedback: managerFeedback,
+            CriteriaGroups: criteriaGroups,
+            CriteriaSummary: criteriaSummary,
+            SlaSummary: slaSummary,
+            RiskCount: riskCount,
+            RiskEvents: riskDtos);
     }
 
     private string ResolveFinalTierCode(PerformanceEvaluation pe)

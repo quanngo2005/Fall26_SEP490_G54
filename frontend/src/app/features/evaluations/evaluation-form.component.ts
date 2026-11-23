@@ -16,7 +16,12 @@ import {
 } from '../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppNumberPipe } from '../../shared/pipes';
-import { UiSelectComponent, StatusBadgeComponent } from '../../shared/ui';
+import {
+  MetricCardComponent,
+  UiSelectComponent,
+  StatusBadgeComponent,
+  RiskSummaryCardComponent,
+} from '../../shared/ui';
 import { serverMessage } from '../campaigns/campaign.utils';
 import { saveFile } from '../performance-dashboard/performance-page';
 
@@ -37,6 +42,8 @@ const PERIOD_TYPES: readonly PeriodTypeFilter[] = ['YEAR', 'QUARTER', 'MONTH'];
     AppNumberPipe,
     UiSelectComponent,
     StatusBadgeComponent,
+    MetricCardComponent,
+    RiskSummaryCardComponent,
   ],
   templateUrl: './evaluation-form.component.html',
   styleUrls: [
@@ -45,7 +52,8 @@ const PERIOD_TYPES: readonly PeriodTypeFilter[] = ['YEAR', 'QUARTER', 'MONTH'];
     './evaluation-form.component.scss',
     './evaluation-form.layout.scss',
     './evaluations.layout.scss',
-    './evaluations.metric-cards.scss',
+    '../../shared/ui/metric-cards.scss',
+    '../../shared/ui/side-cards.scss',
   ],
 })
 export class EvaluationFormComponent extends LocalizedComponent {
@@ -166,12 +174,21 @@ export class EvaluationFormComponent extends LocalizedComponent {
     }),
   );
 
-  readonly weightedPillText = computed(() => {
-    const previous = this.form()?.previousPeriod;
-    if (!previous || previous.scoreDifference === null)
-      return this.localization.evaluations.emptyValue;
-    const sign = previous.scoreDifference > 0 ? '+' : previous.scoreDifference < 0 ? '-' : '';
-    return `${sign}${this.i18n.formatNumber(Math.abs(previous.scoreDifference), 2)}`;
+  readonly scorePillText = computed(() => {
+    const difference = this.form()?.previousPeriod?.scoreDifference ?? null;
+    if (difference === null) return null;
+    const arrow = difference > 0 ? '▲ ' : difference < 0 ? '▼ ' : '';
+    const sign = difference > 0 ? '+' : difference < 0 ? '-' : '';
+    return `${arrow}${sign}${this.i18n.formatNumber(Math.abs(difference), 2)}`;
+  });
+
+  readonly scorePillClass = computed(() =>
+    (this.form()?.previousPeriod?.scoreDifference ?? 0) < 0 ? 'pill-warning' : 'pill-success',
+  );
+
+  readonly tierPillText = computed(() => {
+    const tier = this.form()?.currentEvaluation.finalTierCode;
+    return tier ? this.i18n.translate('evaluationForm.proposedTier', { tier }) : null;
   });
 
   readonly criteriaPillText = computed(() => {
@@ -315,9 +332,17 @@ export class EvaluationFormComponent extends LocalizedComponent {
   onPeriodTypeChange(value: string): void {
     const nextType = value as PeriodTypeFilter;
     this.selectedPeriodType.set(nextType);
-    const firstMatching = this.periodOptions().find((p) => p.periodType === nextType);
-    if (firstMatching) {
-      this.switchPeriod(firstMatching.id);
+    const matching = this.periodOptions().filter((p) => p.periodType === nextType);
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+    const current = matching.find((p) => p.startDate <= today && today <= p.endDate);
+    const targetPeriod = current ?? matching.find((p) => p.isActive) ?? matching[0];
+    if (targetPeriod) {
+      this.switchPeriod(targetPeriod.id);
     }
   }
 

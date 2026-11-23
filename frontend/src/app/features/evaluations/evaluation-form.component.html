@@ -159,87 +159,51 @@
           class="metric-grid"
           [attr.aria-label]="localization.evaluationForm.quantitativeSectionTitle"
         >
-          <article class="metric-card">
-            <div class="metric-head">
-              <span class="metric-title">{{localization.evaluationForm.quantitativeScoreTitle}}</span>
-              @if (data.previousPeriod && data.previousPeriod.scoreDifference !== null) {
-                <span
-                  class="metric-pill font-mono"
-                  [class.pill-success]="data.previousPeriod.scoreDifference >= 0"
-                  [class.pill-warning]="data.previousPeriod.scoreDifference < 0"
-                >
-                  {{data.previousPeriod.scoreDifference > 0
-                      ? '▲ '
-                      : data.previousPeriod.scoreDifference < 0
-                        ? '▼ '
-                        : ''}}{{weightedPillText()}}
-                </span>
+          <app-metric-card
+            [label]="localization.evaluationForm.quantitativeScoreTitle"
+            [pillText]="scorePillText()"
+            [pillClass]="scorePillClass()"
+          >
+            <span
+              class="metric-value font-mono"
+              [ngClass]="scoreToneClass(data.summary.weightedScore)"
+            >
+              @if (data.summary.weightedScore !== null) {
+                {{data.summary.weightedScore | appNumber: 2}}
+              } @else {
+                {{localization.evaluations.emptyValue}}
               }
-            </div>
-            <div class="metric-body">
-              <span
-                class="metric-value font-mono"
-                [ngClass]="scoreToneClass(data.summary.weightedScore)"
+            </span>
+            <span class="metric-scale font-mono">/ 100</span>
+          </app-metric-card>
+
+          <app-metric-card
+            [label]="localization.evaluationForm.metricCriteriaTitle"
+            [pillText]="criteriaPillText()"
+          >
+            <span class="metric-value font-mono" [ngClass]="criteriaToneClass()">{{criteriaValueText()}}</span>
+          </app-metric-card>
+
+          <app-metric-card [label]="localization.evaluationForm.metricSlaTitle">
+            <span class="metric-value font-mono" [ngClass]="slaToneClass()">{{slaValueText()}}</span>
+          </app-metric-card>
+
+          <app-metric-card [label]="localization.evaluationForm.metricRiskTitle">
+            <span class="metric-value font-mono" [class.text-danger]="data.riskEvents.length > 0">{{data.riskEvents.length}}</span>
+            <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
+            @if (data.summary.totalRiskPenalty > 0) {
+              <span class="metric-deduction font-mono"
+                >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
               >
-                @if (data.summary.weightedScore !== null) {
-                  {{data.summary.weightedScore | appNumber: 2}}
-                } @else {
-                  {{localization.evaluations.emptyValue}}
-                }
-              </span>
-              <span class="metric-scale font-mono">/ 100</span>
-            </div>
-          </article>
+            }
+          </app-metric-card>
 
-          <article class="metric-card">
-            <div class="metric-head">
-              <span class="metric-title">{{localization.evaluationForm.metricCriteriaTitle}}</span>
-              <span class="metric-pill pill-info font-mono">{{criteriaPillText()}}</span>
-            </div>
-            <div class="metric-body">
-              <span class="metric-value font-mono" [ngClass]="criteriaToneClass()">{{criteriaValueText()}}</span>
-            </div>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-head">
-              <span class="metric-title">{{localization.evaluationForm.metricSlaTitle}}</span>
-            </div>
-            <div class="metric-body">
-              <span class="metric-value font-mono" [ngClass]="slaToneClass()">{{slaValueText()}}</span>
-            </div>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-head">
-              <span class="metric-title">{{localization.evaluationForm.metricRiskTitle}}</span>
-            </div>
-            <div class="metric-body">
-              <span
-                class="metric-value font-mono"
-                [class.text-danger]="data.riskEvents.length > 0"
-                >{{data.riskEvents.length}}</span
-              >
-              <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
-              @if (data.summary.totalRiskPenalty > 0) {
-                <span class="metric-deduction font-mono"
-                  >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
-                >
-              }
-            </div>
-          </article>
-
-          <article class="metric-card">
-            <div class="metric-head">
-              <span class="metric-title">{{localization.evaluationForm.metricTierTitle}}</span>
-              @if (data.currentEvaluation.finalTierCode; as tier) {
-                <span class="metric-pill pill-info font-mono">{{i18n.translate('evaluationForm.proposedTier', { tier })}}</span>
-              }
-            </div>
-            <div class="metric-body">
-              <span class="metric-value font-mono" [ngClass]="tierToneClass()">{{tierText()}}</span>
-            </div>
-          </article>
+          <app-metric-card
+            [label]="localization.evaluationForm.metricTierTitle"
+            [pillText]="tierPillText()"
+          >
+            <span class="metric-value font-mono" [ngClass]="tierToneClass()">{{tierText()}}</span>
+          </app-metric-card>
         </section>
 
         <div class="main-grid">
@@ -377,29 +341,13 @@
               <span class="char-counter font-mono">{{charCounterText()}}</span>
             </section>
 
-            <section class="side-card">
-              <div class="side-card-head">
-                <h2 class="side-card-title">{{localization.evaluationForm.riskCardTitle}}</h2>
-                <span class="metric-pill pill-danger font-mono">{{riskCountPillText()}}</span>
-              </div>
-              @for (event of data.riskEvents; track event.id) {
-                <div class="risk-row">
-                  <div>
-                    <p class="risk-name">{{event.description}}</p>
-                    <p class="risk-meta">{{event.code}} · {{event.severity}}</p>
-                  </div>
-                  <span class="risk-points font-mono"
-                    >-{{event.penaltyPoints | appNumber: 2}}</span
-                  >
-                </div>
-              }
-              <div class="risk-total">
-                <span>{{localization.evaluationForm.riskTotalLabel}}</span>
-                <span class="risk-points font-mono"
-                  >-{{data.summary.totalRiskPenalty | appNumber: 2}}</span
-                >
-              </div>
-            </section>
+            <app-risk-summary-card
+              [title]="localization.evaluationForm.riskCardTitle"
+              [countText]="riskCountPillText()"
+              [events]="data.riskEvents"
+              [totalLabel]="localization.evaluationForm.riskTotalLabel"
+              [totalPenalty]="data.summary.totalRiskPenalty"
+            />
 
             <section class="side-card">
               <h2 class="side-card-title">{{localization.evaluationForm.attentionTitle}}</h2>

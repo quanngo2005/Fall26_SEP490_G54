@@ -43,17 +43,14 @@ describe('personalEvaluationGuard', () => {
     expect(String(run())).toBe(router.parseUrl('/branch-performance/evaluations').toString());
   });
 
-  it('redirects department managers to /evaluations', () => {
+  it('allows department managers through', () => {
     as(['DEPT_MANAGER'], ['EVALUATION_READ', 'VERIFICATION_DECIDE']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
+    expect(run()).toBeTrue();
   });
 
-  it('redirects users holding manager finalize or verification decide permissions', () => {
+  it('redirects users holding manager finalize permissions', () => {
     as(['EMPLOYEE'], ['EVALUATION_FINALIZE']);
     expect(String(run())).toBe(router.parseUrl('/branch-performance/evaluations').toString());
-
-    as(['EMPLOYEE'], ['VERIFICATION_DECIDE']);
-    expect(String(run())).toBe(router.parseUrl('/evaluations').toString());
   });
 
   it('redirects admins with FULL_ACCESS to /home', () => {

@@ -16,8 +16,14 @@ import { Subscription } from 'rxjs';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
+import {
+  MetricCardComponent,
+  RiskSummaryCardComponent,
+  StatusBadgeComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
+import type { SelectOption, StatusBadgeTone } from '../../shared/ui';
 import {
   findQuarterPeriod,
   findYearPeriod,
@@ -55,26 +61,27 @@ const LEDGER_STATUS_CLASS_MAP: Readonly<Record<string, string>> = {
   NOT_MATCHED: 'ledger-status-rejected',
 };
 
-const ROLE_TITLE_EN: Readonly<Record<string, string>> = {
-  'Chuyên viên Kinh doanh': 'Sales Officer',
-  'Giao dịch viên': 'Teller',
-  'Trưởng phòng': 'Department Manager',
-  'Nhân viên': 'Employee',
+const ROLE_KEY_MAP: Readonly<Record<string, string>> = {
+  'Chuyên viên Kinh doanh': 'roleSalesOfficer',
+  'Giao dịch viên': 'roleTeller',
+  'Trưởng phòng': 'roleDepartmentManager',
+  'Nhân viên': 'roleEmployee',
 };
 
-const UNIT_REPLACEMENTS_EN: readonly [RegExp, string][] = [
-  [/\btỷ VND\b/g, 'B VND'],
-  [/\bkhách hàng\b/g, 'customers'],
-  [/\bhợp đồng\b/g, 'contracts'],
-  [/\bđiểm\b/g, 'pts'],
+const UNIT_KEY_MAP: readonly [RegExp, string][] = [
+  [/\btỷ VND\b/g, 'unitBillionVnd'],
+  [/\bkhách hàng\b/g, 'unitCustomers'],
+  [/\bhợp đồng\b/g, 'unitContracts'],
+  [/\bđiểm\b/g, 'unitPoints'],
 ];
 
-const TIER_CLASS_MAP: Readonly<Record<string, string>> = {
-  A1: 'tier-a1',
-  A2: 'tier-a2',
-  A3: 'tier-a3',
-  B: 'tier-b',
-  C: 'tier-c',
+const STATUS_TONE_MAP: Readonly<Record<string, StatusBadgeTone>> = {
+  DRAFT: 'warning',
+  CALCULATED: 'info',
+  SUBMITTED: 'info',
+  DISPUTED: 'danger',
+  FINAL: 'success',
+  PUBLISHED: 'success',
 };
 
 function periodMonth(period: EvaluationPeriodOption): number {
@@ -90,16 +97,22 @@ function periodMonth(period: EvaluationPeriodOption): number {
     RouterLink,
     HeaderComponent,
     SidebarComponent,
-    LayoutIconComponent,
     AppNumberPipe,
+    StatusBadgeComponent,
+    UiSelectComponent,
+    MetricCardComponent,
+    RiskSummaryCardComponent,
   ],
   templateUrl: './my-evaluation.component.html',
   styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
+    '../evaluations/evaluation-form.component.scss',
+    '../evaluations/evaluation-form.layout.scss',
+    '../../shared/ui/metric-cards.scss',
+    '../../shared/ui/side-cards.scss',
     './my-evaluation.component.scss',
-    './my-evaluation.cards.scss',
-    './my-evaluation.table.scss',
     './my-evaluation.dialogs.scss',
-    './my-evaluation.filter.scss',
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -212,6 +225,30 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
 
   readonly selectedPeriodId = computed(() => this.selectedPeriod()?.id ?? '');
 
+  readonly yearSelectOptions = computed<SelectOption<number>[]>(() =>
+    this.years().map((year) => ({ value: year, label: String(year) })),
+  );
+
+  readonly quarterSelectOptions = computed<SelectOption<number>[]>(() => [
+    ...(this.hasYearPeriod()
+      ? [{ value: 0, label: this.localization.myEvaluation.wholeYear }]
+      : []),
+    ...this.quarterOptions().map((quarter) => ({
+      value: quarter,
+      label: this.quarterOptionText(quarter),
+    })),
+  ]);
+
+  readonly monthSelectOptions = computed<SelectOption<number>[]>(() => [
+    ...(this.hasQuarterPeriod()
+      ? [{ value: 0, label: this.localization.myEvaluation.wholeQuarter }]
+      : []),
+    ...this.monthOptions().map((month) => ({
+      value: month,
+      label: this.monthOptionText(month),
+    })),
+  ]);
+
   @HostListener('keydown.escape')
   onEscape(): void {
     if (this.selectedDrilldownCriteria()) {
@@ -274,21 +311,21 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       });
   }
 
-  onYearChange(event: Event): void {
-    this.year.set(Number((event.target as HTMLSelectElement).value));
+  onYearChange(year: number): void {
+    this.year.set(year);
     this.quarter.set(this.defaultQuarter());
     this.month.set(this.defaultMonth());
     this.onPeriodSelected();
   }
 
-  onQuarterChange(event: Event): void {
-    this.quarter.set(Number((event.target as HTMLSelectElement).value));
+  onQuarterChange(quarter: number): void {
+    this.quarter.set(quarter);
     this.month.set(this.defaultMonth());
     this.onPeriodSelected();
   }
 
-  onMonthChange(event: Event): void {
-    this.month.set(Number((event.target as HTMLSelectElement).value));
+  onMonthChange(month: number): void {
+    this.month.set(month);
     this.onPeriodSelected();
   }
 
@@ -326,10 +363,14 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       String(now.getDate()).padStart(2, '0'),
     ].join('-');
     const current = periods.filter(
-      (period) => period.isActive && period.startDate <= today && today <= period.endDate,
+      (period) => period.startDate <= today && today <= period.endDate,
     );
     return (
-      current.find((period) => period.periodType === 'QUARTER') ??
+      current.find((period) => period.periodType === 'MONTH' && period.isActive) ??
+      current.find((period) => period.periodType === 'MONTH') ??
+      periods.find((period) => period.periodType === 'MONTH' && period.isActive) ??
+      periods.find((period) => period.periodType === 'MONTH') ??
+      current.find((period) => period.periodType === 'QUARTER' && period.isActive) ??
       current[0] ??
       periods.find((period) => period.isActive) ??
       periods[0]
@@ -426,6 +467,15 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       : 'myEvaluation.cardTotalScoreTrendDown';
   }
 
+  scoreDeltaPillText(evalData: PersonalEvaluationView): string | null {
+    if (!evalData.previousPeriodName || evalData.scoreDelta === null) return null;
+    return this.i18n.translate(this.scoreTrendKey(evalData.scoreDelta), {
+      diff: this.i18n.formatNumber(Math.abs(evalData.scoreDelta), 1),
+      prevPeriod: this.formatPeriodName(evalData.previousPeriodName),
+      prevScore: this.i18n.formatNumber(evalData.previousPeriodScore ?? 0, 1),
+    });
+  }
+
   statusLabel(status: string): string {
     const key = STATUS_KEY_MAP[status.toUpperCase()];
     const myEval = this.localization.myEvaluation as Record<string, string>;
@@ -433,13 +483,22 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
   }
 
   formatPeriodName(name: string): string {
-    if (this.i18n.currentLanguage() !== 'en') {
-      return name;
+    const quarter = /^Quý\s+(\d+)\/(\d{4})$/i.exec(name);
+    if (quarter) {
+      return this.i18n.translate('myEvaluation.periodQuarter', {
+        quarter: quarter[1],
+        year: quarter[2],
+      });
     }
-    return name
-      .replace(/^Quý\s+(\d+)\/(\d{4})$/i, 'Q$1/$2')
-      .replace(/^Tháng\s+0?(\d+)\/(\d{4})$/i, 'Month $1/$2')
-      .replace(/^Năm\s+(\d{4})$/i, 'Year $1');
+    const month = /^Tháng\s+0?(\d+)\/(\d{4})$/i.exec(name);
+    if (month) {
+      return this.i18n.translate('myEvaluation.periodMonth', { month: month[1], year: month[2] });
+    }
+    const year = /^Năm\s+(\d{4})$/i.exec(name);
+    if (year) {
+      return this.i18n.translate('myEvaluation.periodYear', { year: year[1] });
+    }
+    return name;
   }
 
   formatAppealDeadline(deadline: string): string {
@@ -449,24 +508,21 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     if (!match) {
       return deadline;
     }
-    return this.i18n.currentLanguage() === 'en'
-      ? `${match[1]} on ${match[2]}`
-      : `${match[1]} ngày ${match[2]}`;
+    return this.i18n.translate('myEvaluation.appealDeadlineAt', { time: match[1], date: match[2] });
   }
 
   formatRoleTitle(roleTitle: string): string {
     const clean = roleTitle.replace(/\s+trong phòng$/i, '').trim();
-    if (this.i18n.currentLanguage() !== 'en') {
-      return clean;
-    }
-    return ROLE_TITLE_EN[clean] ?? clean;
+    const key = ROLE_KEY_MAP[clean];
+    return key ? this.i18n.translate(`myEvaluation.${key}`) : clean;
   }
 
   formatActualTarget(display: string): string {
-    if (this.i18n.currentLanguage() !== 'en') {
-      return display;
-    }
-    return UNIT_REPLACEMENTS_EN.reduce((acc, [pattern, en]) => acc.replace(pattern, en), display);
+    return UNIT_KEY_MAP.reduce(
+      (acc, [pattern, key]) =>
+        acc.replace(pattern, () => this.i18n.translate(`myEvaluation.${key}`)),
+      display,
+    );
   }
 
   formatTarget(crit: PersonalEvaluationCriteriaItem): string {
@@ -483,9 +539,17 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     return this.formatActualTarget(this.splitActualTarget(crit.actualTargetDisplay).actual);
   }
 
-  tierBadgeClass(tier: string | null | undefined): string {
-    const key = tier?.trim().toUpperCase() ?? '';
-    return TIER_CLASS_MAP[key] ?? 'tier-default';
+  tierToneClass(tier?: string | null | undefined): string {
+    const evalData = this.evaluation();
+    const isFinal = evalData?.status === 'FINAL' || evalData?.status === 'PUBLISHED';
+    const effectiveTier = tier !== undefined ? tier : isFinal ? evalData?.tier : null;
+    const key = effectiveTier?.trim().toUpperCase() ?? '';
+    if (!key) return '';
+    return key.startsWith('A') ? 'tier-a' : `tier-${key.toLowerCase()}`;
+  }
+
+  statusTone(status: string): StatusBadgeTone {
+    return STATUS_TONE_MAP[status.toUpperCase()] ?? 'neutral';
   }
 
   private splitActualTarget(display?: string): { actual: string; target: string } {
@@ -501,6 +565,201 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
       actual: `${match[1].trim()}${unitSuffix}`,
       target: `${match[2].trim()}${unitSuffix}`,
     };
+  }
+
+  readonly quantitativeMetaText = computed(() => {
+    const evalData = this.evaluation();
+    if (!evalData) return '';
+    return this.i18n.translate('evaluationForm.quantitativeMeta', {
+      profile:
+        this.formatRoleTitle(evalData.rankingRoleTitle) ||
+        this.localization.evaluationForm.quantitativeSectionTitle,
+      period: evalData.periodCode || this.formatPeriodName(evalData.periodName),
+    });
+  });
+
+  readonly scorePillText = computed(() => {
+    const delta = this.evaluation()?.scoreDelta ?? null;
+    if (delta === null) return null;
+    const arrow = delta > 0 ? '▲ ' : delta < 0 ? '▼ ' : '';
+    const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
+    return `${arrow}${sign}${this.i18n.formatNumber(Math.abs(delta), 2)}`;
+  });
+
+  readonly scorePillClass = computed(() =>
+    (this.evaluation()?.scoreDelta ?? 0) < 0 ? 'pill-warning' : 'pill-success',
+  );
+
+  readonly criteriaSummary = computed(() => {
+    const evalData = this.evaluation();
+    if (!evalData) return null;
+    if (evalData.criteriaSummary) return evalData.criteriaSummary;
+    const kpis = evalData.criteria.filter((c) => c.score !== null);
+    if (kpis.length === 0) return null;
+    const achieved = kpis.filter((c) => (c.score ?? 0) >= 100).length;
+    const rate = Math.round((achieved * 100) / kpis.length);
+    return {
+      achievedCount: achieved,
+      nearCount: 0,
+      belowCount: kpis.length - achieved,
+      totalCount: kpis.length,
+      achievedRatePercent: rate,
+    };
+  });
+
+  readonly criteriaPillText = computed(() => {
+    const rate = this.criteriaSummary()?.achievedRatePercent ?? null;
+    if (rate === null) return this.localization.evaluations.emptyValue;
+    return this.i18n.translate('evaluationForm.criteriaPill', {
+      percent: this.i18n.formatNumber(rate, 0),
+    });
+  });
+
+  readonly criteriaValueText = computed(() => {
+    const summary = this.criteriaSummary();
+    if (!summary || summary.totalCount === 0) return this.localization.evaluations.emptyValue;
+    return `${summary.achievedCount} / ${summary.totalCount}`;
+  });
+
+  readonly criteriaToneClass = computed(() => {
+    const summary = this.criteriaSummary();
+    if (!summary || summary.totalCount === 0) return '';
+    const rate = (summary.achievedCount * 100) / summary.totalCount;
+    if (rate >= 80) return 'tone-good';
+    if (rate >= 50) return 'tone-warn';
+    return 'tone-bad';
+  });
+
+  readonly slaValueText = computed(() => {
+    const rate = this.evaluation()?.slaSummary?.onTimeRatePercent ?? null;
+    if (rate === null) return this.localization.evaluations.emptyValue;
+    return `${this.i18n.formatNumber(rate, 1)}%`;
+  });
+
+  readonly slaToneClass = computed(() => {
+    const rate = this.evaluation()?.slaSummary?.onTimeRatePercent ?? null;
+    if (rate === null) return '';
+    if (rate >= 90) return 'tone-good';
+    if (rate >= 70) return 'tone-warn';
+    return 'tone-bad';
+  });
+
+  readonly riskCount = computed(() => {
+    const evalData = this.evaluation();
+    if (!evalData) return 0;
+    return evalData.riskCount ?? evalData.riskEvents?.length ?? (evalData.riskPenalty > 0 ? 1 : 0);
+  });
+
+  readonly isFinalEvaluation = computed(() => {
+    const status = this.evaluation()?.status?.toUpperCase();
+    return status === 'FINAL' || status === 'PUBLISHED';
+  });
+
+  readonly isCalculatedOrAbove = computed(() => {
+    const status = this.evaluation()?.status?.toUpperCase();
+    return (
+      status === 'CALCULATED' ||
+      status === 'SUBMITTED' ||
+      status === 'DISPUTED' ||
+      status === 'FINAL' ||
+      status === 'PUBLISHED'
+    );
+  });
+
+  readonly statusNoticeText = computed(() => {
+    const evalData = this.evaluation();
+    if (!evalData) return '';
+    const status = evalData.status?.toUpperCase();
+
+    if (status === 'DRAFT') {
+      return this.localization.myEvaluation.noticeDraft;
+    }
+    if (status === 'CALCULATED') {
+      if (evalData.canAppeal && evalData.appealRemainingDays > 0) {
+        return this.i18n.translate('myEvaluation.noticeCalculatedWithAppeal', {
+          deadline: this.formatAppealDeadline(evalData.appealDeadlineText),
+          remainingDays: evalData.appealRemainingDays,
+        });
+      }
+      return this.localization.myEvaluation.noticeCalculated;
+    }
+    if (status === 'DISPUTED') {
+      return this.localization.myEvaluation.noticeDisputed;
+    }
+    if (status === 'SUBMITTED') {
+      return this.localization.myEvaluation.noticeSubmitted;
+    }
+    if (status === 'FINAL' || status === 'PUBLISHED') {
+      return this.localization.myEvaluation.noticeFinal;
+    }
+    return '';
+  });
+
+  readonly statusNoticeToneClass = computed(() => {
+    const status = this.evaluation()?.status?.toUpperCase();
+    switch (status) {
+      case 'DRAFT':
+        return 'text-draft';
+      case 'CALCULATED':
+        return 'text-calculated';
+      case 'DISPUTED':
+        return 'text-disputed';
+      case 'SUBMITTED':
+        return 'text-submitted';
+      case 'FINAL':
+      case 'PUBLISHED':
+        return 'text-final';
+      default:
+        return 'text-draft';
+    }
+  });
+
+  readonly departmentRankingValue = computed(() => {
+    if (!this.isFinalEvaluation()) {
+      return this.localization.evaluations.emptyValue;
+    }
+    return this.evaluation()?.rankingPercentile || this.localization.evaluations.emptyValue;
+  });
+
+  readonly departmentRankingDetail = computed(() => {
+    if (!this.isFinalEvaluation()) {
+      return null;
+    }
+    const evalData = this.evaluation();
+    if (!evalData?.rankingPosition || !evalData?.rankingTotalEmployees) {
+      return null;
+    }
+    return this.i18n.translate('myEvaluation.cardRankingDetail', {
+      rank: evalData.rankingPosition,
+      total: evalData.rankingTotalEmployees,
+      roleName: this.formatRoleTitle(evalData.rankingRoleTitle),
+    });
+  });
+
+  readonly tierText = computed(() => {
+    const evalData = this.evaluation();
+    const tier = this.isFinalEvaluation() ? evalData?.tier : null;
+    return tier
+      ? this.i18n.translate('evaluationForm.proposedTier', { tier })
+      : this.localization.evaluations.emptyValue;
+  });
+
+  readonly tierPillText = computed(() => {
+    const evalData = this.evaluation();
+    const tier = this.isFinalEvaluation() ? evalData?.tier : null;
+    return tier ? this.i18n.translate('evaluationForm.proposedTier', { tier }) : null;
+  });
+
+  scoreToneClass(score: number | null): string {
+    if (score === null) return '';
+    if (score >= 100) return 'tone-good';
+    if (score >= 80) return 'tone-warn';
+    return 'tone-bad';
+  }
+
+  riskPenaltyPillText(evalData: PersonalEvaluationView): string {
+    if (!evalData.riskPenalty) return '';
+    return `-${this.i18n.formatNumber(evalData.riskPenalty, 1)}`;
   }
 
   formatRatio(val: number | null | undefined): string {

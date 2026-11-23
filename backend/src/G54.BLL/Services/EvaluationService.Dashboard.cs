@@ -416,7 +416,13 @@ public sealed partial class EvaluationService
         var openOrActive = selectable
             .Where(p => p.StartDate <= today && p.EndDate >= today)
             .OrderByDescending(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview)
-            .ThenByDescending(p => (int)p.PeriodType)
+            .ThenBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
             .FirstOrDefault();
         if (openOrActive is not null)
         {
@@ -424,13 +430,29 @@ public sealed partial class EvaluationService
         }
 
         var latestOpen = selectable
-            .FirstOrDefault(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview);
+            .Where(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview)
+            .OrderBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
+            .FirstOrDefault();
         if (latestOpen is not null)
         {
             return latestOpen;
         }
 
-        return selectable.FirstOrDefault();
+        return selectable
+            .OrderBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
+            .FirstOrDefault();
     }
 
     private static EvaluationPeriod? ResolveDashboardComparePeriod(

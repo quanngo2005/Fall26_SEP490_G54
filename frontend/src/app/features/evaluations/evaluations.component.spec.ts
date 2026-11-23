@@ -508,4 +508,45 @@ describe('EvaluationsComponent', () => {
     expect(totalDelta?.textContent?.trim()).toBe('▼ 1,1');
     expect(totalDelta?.classList.contains('down')).toBeTrue();
   });
+
+  it('selects active period matching today when selecting period type', () => {
+    const today = new Date();
+    const currentMonthCode = `${today.getFullYear()}-M${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const startOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    const endOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-28`;
+
+    component['dashboard'].set({
+      ...MOCK_DASHBOARD,
+      availablePeriods: [
+        {
+          id: 'old-month',
+          code: '2025-M01',
+          name: 'Tháng 1/2025',
+          startDate: '2025-01-01',
+          endDate: '2025-01-31',
+          periodType: 'MONTH',
+          status: 'LOCKED',
+          isActive: false,
+        },
+        {
+          id: 'curr-month',
+          code: currentMonthCode,
+          name: 'Tháng Hiện Tại',
+          startDate: startOfMonth,
+          endDate: endOfMonth,
+          periodType: 'MONTH',
+          status: 'OPEN',
+          isActive: true,
+        },
+      ],
+    });
+
+    component.onPeriodTypeSelected('MONTH');
+    expect(component.selectedPeriodId()).toBe('curr-month');
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/evaluations/department-dashboard?periodId=curr-month`,
+    );
+    req.flush({ success: true, data: MOCK_DASHBOARD });
+  });
 });
