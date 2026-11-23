@@ -60,10 +60,8 @@ If a script cannot run in your environment (missing PowerShell, execution policy
 
 ## Known Mistakes — Do Not Repeat
 
-Taken from session transcripts (2026-11-16/17). Each one cost a rework cycle or wasted tokens.
 
 **Correctness**
-- **Do not trust unit tests built on invented fixtures for a data query.** Before writing a query that depends on where rows live (assignment level, year, KPI code, status), check the real shape with one SQL against the dev DB. Actual results sit on employee-level assignments and reach the branch only through `ParentAssignmentId`, not through `DepartmentId`.
 - **The manual test (step 3a) is not optional and "API was not running" is not a reason to skip it.** Start what is missing (`docker start docker-postgres-1 docker-redis-1`, then the API) and run it before reporting. If the seed data cannot show the feature (e.g. only a DRAFT year offers it and that year has no history), say so in the plan and add the seed as part of the task.
 - **For a UI change, agree the flow click by click before coding**: what the user clicks, where they land, what is already filled, what is saved. "Add a button" is not a spec.
 - **Money and split maths**: distribute remainders by largest remainder, never dump them on the last quarter; display VND in triệu / trăm triệu / tỷ.
@@ -72,14 +70,11 @@ Taken from session transcripts (2026-11-16/17). Each one cost a rework cycle or 
 **Tool use**
 - GitNexus MCP calls need `repo: "Fall26_SEP490_G54"`; several repos are indexed and the call fails without it.
 - `POST /auth/login` returns `accessToken` at the top level of the JSON, not under `data`. Load the `read-env` skill for the account; do not guess the response shape.
-- `docs/BE_STATUS.md`, `docs/FE_STATUS.md` and `localization.json` have very long lines. Grep for the entry, then read a few lines; never read them whole.
+- `docs/BE_STATUS.md`, `docs/FE_STATUS.md` and `localization.json` read them whole.
 - Run review/build/test scripts in the foreground with a long timeout and `| tail -40`. Do not background them and poll with `sleep`, `true` or `echo`.
 - Do not re-read a file you have not edited since the last read; send independent edits in one message.
 - Subagents must not call `update_plan` or `wrap_up`.
 
-**Session cost**
-- One task per session. Do not carry analysis, Figma design, backend and frontend work in one conversation; past ~150K context every call is expensive. Suggest a new session with a short handoff instead.
-- Do not send a new task to an old subagent. Start a fresh one with a brief (see `orchestrated-coding`).
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
