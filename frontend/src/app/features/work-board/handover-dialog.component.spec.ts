@@ -113,7 +113,7 @@ describe('HandoverDialogComponent', () => {
       return element.querySelector('.form-error')?.textContent ?? '';
     };
 
-    expect(fail(409, 'HANDOVER_ALREADY_PENDING')).toContain('chờ phản hồi');
+    expect(fail(409, 'HANDOVER_ALREADY_PENDING')).toContain('chờ quản lý duyệt');
     expect(fail(409, 'WORK_INVALID_STATE')).toContain('không còn ở trạng thái');
     expect(fail(422, 'HANDOVER_AMOUNT_EXCEEDS_THRESHOLD')).toContain('vượt ngưỡng');
     expect(fail(403)).toContain('không có quyền');

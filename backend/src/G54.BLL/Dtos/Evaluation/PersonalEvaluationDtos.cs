@@ -35,17 +35,7 @@ public sealed record PersonalEvaluationViewDto(
     IReadOnlyList<PersonalEvaluationCriteriaItemDto> Criteria,
     decimal? QualityRatio,
     decimal RiskPenalty,
-    string? ManagerFeedback,
-    bool IsAcknowledged,
-    DateTimeOffset? AcknowledgedAt);
-
-public sealed record AcknowledgePersonalEvaluationRequestDto(
-    [Required] Guid PeriodId);
-
-public sealed record AcknowledgePersonalEvaluationResultDto(
-    bool Success,
-    DateTimeOffset AcknowledgedAt,
-    string Message);
+    string? ManagerFeedback);
 
 public sealed record PersonalCriteriaLedgerItemDto(
     Guid Id,

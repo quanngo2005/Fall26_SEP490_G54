@@ -1,4 +1,13 @@
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
@@ -19,7 +28,8 @@ import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
-import { barWidth, toneOf, TRACK_HEADROOM } from '../performance-dashboard/performance-display';
+import { UiSelectComponent } from '../../shared/ui';
+import { toneOf, TRACK_HEADROOM } from '../performance-dashboard/performance-display';
 import { saveFile } from '../performance-dashboard/performance-page';
 
 export type Tier = 'A1' | 'A2' | 'A3' | 'B' | 'C' | 'D' | 'A';
@@ -46,6 +56,23 @@ export interface ChartTick {
   value: number;
   y: number;
   label: string;
+}
+
+export interface KpiChartBar {
+  kpiDefinitionId: string;
+  name: string;
+  targetY: number;
+  actualY: number;
+  targetHeight: number;
+  actualHeight: number;
+  targetLabel: string;
+  actualLabel: string;
+  targetText: string;
+  actualText: string;
+  met: boolean;
+  x: number;
+  center: number;
+  width: number;
 }
 
 export interface StaffColumnBar {
@@ -105,17 +132,44 @@ const STAFF_CHART_BOTTOM = 24;
 const STAFF_CHART_TOP = 16;
 const STAFF_CHART_TICKS = 3;
 const STAFF_CHART_PAGE_SIZE = 6;
+const KPI_CHART_W = 540;
+const KPI_CHART_SLOT_W = 120;
+const KPI_CHART_H = 216;
+const KPI_CHART_LEFT = 16;
+const KPI_CHART_BOTTOM = 56;
+const KPI_CHART_TOP = 16;
+
+function roundKpi(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function sumKpiScores(scores: (number | null | undefined)[]): number | null {
+  const values = scores.filter((s): s is number => s != null);
+  if (values.length === 0) return null;
+  return roundKpi(values.reduce((sum, s) => sum + s, 0));
+}
 
 @Component({
   selector: 'app-evaluations',
   standalone: true,
-  imports: [CommonModule, HeaderComponent, SidebarComponent, LayoutIconComponent, AppNumberPipe],
+  imports: [
+    CommonModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    AppNumberPipe,
+    UiSelectComponent,
+  ],
   templateUrl: './evaluations.component.html',
   styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './evaluations.component.scss',
+    './evaluations.charts.scss',
     './evaluations.task-chart.scss',
     './evaluations.table.scss',
     './evaluations.layout.scss',
+    './evaluations.metric-cards.scss',
   ],
 })
 export class EvaluationsComponent extends LocalizedComponent implements OnInit {
@@ -139,9 +193,17 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   readonly tierFilter = signal('');
   readonly statusFilter = signal('');
   readonly sortBy = signal<StaffSortKey>('scoreDesc');
+  readonly kpiGroupsExpanded = signal(false);
+  readonly hoveredKpiBar = signal<KpiChartBar | null>(null);
+  @ViewChild('kpiTip') kpiTip?: ElementRef<HTMLElement>;
 
   readonly periodTypes = ALLOWED_PERIOD_TYPES;
   readonly trendWidth = TREND_W;
+  readonly kpiChartWidth = computed(() =>
+    Math.max(KPI_CHART_W, this.allKpis().length * KPI_CHART_SLOT_W + KPI_CHART_LEFT),
+  );
+  readonly kpiChartHeight = KPI_CHART_H;
+  readonly kpiChartBase = KPI_CHART_H - KPI_CHART_BOTTOM;
   readonly trendHeight = TREND_H;
   readonly trendLeft = TREND_LEFT;
   readonly staffChartWidth = STAFF_CHART_W;
@@ -178,6 +240,62 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   readonly compareOptions = computed<EvaluationPeriodOption[]>(() => {
     const currentType = this.currentPeriod()?.periodType ?? this.selectedPeriodType();
     return (this.dashboard()?.compareOptions ?? []).filter((p) => p.periodType === currentType);
+  });
+
+  readonly periodTypeOptions = computed(() =>
+    this.periodTypes.map((type) => ({ value: type, label: this.periodTypeLabel(type) })),
+  );
+
+  readonly periodOptions = computed(() =>
+    this.filteredPeriods().map((p) => ({ value: p.id, label: p.name })),
+  );
+
+  readonly compareSelectOptions = computed(() => [
+    { value: '', label: this.localization.evaluations.dashboard.periodCompareNone },
+    ...this.compareOptions().map((p) => ({
+      value: p.id,
+      label: `${this.localization.evaluations.dashboard.periodComparePrefix}${p.name}`,
+    })),
+  ]);
+
+  readonly positionFilterOptions = computed(() => [
+    { value: '', label: this.localization.evaluations.dashboard.allPositions },
+    ...this.availablePositions().map((pos) => ({ value: pos, label: pos })),
+  ]);
+
+  readonly tierFilterOptions = computed(() => {
+    const dict = this.localization.evaluations.dashboard;
+    return [
+      { value: '', label: dict.allTiers },
+      { value: 'A1', label: dict.tierBadge.A1 },
+      { value: 'A2', label: dict.tierBadge.A2 },
+      { value: 'A3', label: dict.tierBadge.A3 },
+      { value: 'B', label: dict.tierBadge.B },
+      { value: 'C', label: dict.tierBadge.C },
+      { value: 'NONE', label: dict.tierBadge.NONE },
+    ];
+  });
+
+  readonly statusFilterOptions = computed(() => {
+    const dict = this.localization.evaluations.dashboard;
+    return [
+      { value: '', label: dict.allStatuses },
+      { value: 'FINAL', label: dict.status.FINAL },
+      { value: 'APPEAL', label: dict.status.APPEAL },
+      { value: 'PIP', label: dict.status.PIP },
+      { value: 'PENDING', label: dict.status.PENDING },
+    ];
+  });
+
+  readonly sortOptions = computed(() => {
+    const dict = this.localization.evaluations.dashboard;
+    return [
+      { value: 'scoreDesc', label: dict.sortScoreDesc },
+      { value: 'scoreAsc', label: dict.sortScoreAsc },
+      { value: 'changeAsc', label: dict.sortChangeAsc },
+      { value: 'slaAsc', label: dict.sortSlaAsc },
+      { value: 'nameAsc', label: dict.sortNameAsc },
+    ];
   });
 
   readonly pageSubtitleText = computed(() =>
@@ -241,15 +359,17 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     return Math.round((this.metCount() * 1000) / total) / 10;
   });
 
-  readonly maxKpiChange = computed(() =>
-    Math.max(
-      ...this.allKpis()
-        .map((k) => k.changeFromPreviousPercent)
-        .filter((v): v is number => v !== null)
-        .map((v) => Math.abs(v)),
-      1,
-    ),
+  readonly totalScore = computed(() => sumKpiScores(this.allKpis().map((k) => k.score)));
+
+  readonly previousTotalScore = computed(() =>
+    sumKpiScores(this.allKpis().map((k) => k.previousScore)),
   );
+
+  readonly totalScoreChange = computed(() => {
+    const current = this.totalScore();
+    const previous = this.previousTotalScore();
+    return current === null || previous === null ? null : roundKpi(current - previous);
+  });
 
   readonly cardKpiPillText = computed(() =>
     this.i18n.translate('evaluations.dashboard.cardKpiPill', {
@@ -283,6 +403,12 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   readonly cardSlaCountText = computed(() =>
     this.i18n.translate('evaluations.dashboard.cardSlaCount', {
+      count: this.onTimeDone(),
+    }),
+  );
+
+  readonly cardSlaDoneText = computed(() =>
+    this.i18n.translate('evaluations.dashboard.cardSlaDone', {
       count: this.onTimeDone(),
     }),
   );
@@ -349,12 +475,6 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     }),
   );
 
-  readonly opsPanelSubtitleText = computed(() =>
-    this.i18n.translate('evaluations.dashboard.opsPanelSubtitle', {
-      period: this.currentPeriod()?.name ?? '—',
-    }),
-  );
-
   readonly staffChartSubtitleText = computed(() =>
     this.i18n.translate('evaluations.dashboard.staffChartSubtitle', {
       period: this.currentPeriod()?.name ?? '—',
@@ -404,16 +524,6 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
           .map((row) => row.jobPositionTitle)
           .filter((title): title is string => Boolean(title)),
       ),
-    ),
-  );
-
-  readonly maxStaffChange = computed(() =>
-    Math.max(
-      ...this.staff()
-        .map((row) => row.scoreDelta)
-        .filter((v): v is number => v !== null)
-        .map((v) => Math.abs(v)),
-      1,
     ),
   );
 
@@ -543,6 +653,40 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
         height: Math.max(base - y, 2),
         center,
         isCurrent: index === raw.length - 1,
+      };
+    });
+  });
+
+  readonly kpiChartBars = computed<KpiChartBar[]>(() => {
+    const kpis = this.allKpis();
+    if (kpis.length === 0) return [];
+    const chartWidth = this.kpiChartWidth();
+    const slot = (chartWidth - KPI_CHART_LEFT) / kpis.length;
+    const width = Math.min(slot * 0.32, 30);
+    const base = KPI_CHART_H - KPI_CHART_BOTTOM;
+    const plot = base - KPI_CHART_TOP;
+
+    return kpis.map((kpi, index) => {
+      const max = Math.max(kpi.targetValue, kpi.actualValue ?? 0, 1);
+      const targetHeight = (kpi.targetValue / max) * plot;
+      const actualHeight = ((kpi.actualValue ?? 0) / max) * plot;
+      const center = KPI_CHART_LEFT + index * slot + slot / 2;
+      return {
+        kpiDefinitionId: kpi.kpiDefinitionId,
+        name: kpi.name,
+        targetY: base - targetHeight,
+        actualY: base - actualHeight,
+        targetHeight,
+        actualHeight,
+        targetLabel: this.i18n.formatNumber(kpi.targetValue, 1),
+        actualLabel:
+          kpi.actualValue === null ? this.emptyValue : this.i18n.formatNumber(kpi.actualValue, 1),
+        targetText: this.targetText(kpi),
+        actualText: this.actualText(kpi.actualValue, kpi.unit),
+        met: (kpi.achievementPercent ?? 0) >= 100,
+        x: center - width - 2,
+        center,
+        width,
       };
     });
   });
@@ -711,8 +855,8 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
       });
   }
 
-  onPeriodTypeChange(event: Event): void {
-    const nextType = (event.target as HTMLSelectElement).value as PeriodTypeFilter;
+  onPeriodTypeSelected(value: string): void {
+    const nextType = value as PeriodTypeFilter;
     this.selectedPeriodType.set(nextType);
     const firstMatching = this.availablePeriods().find((p) => p.periodType === nextType);
     if (firstMatching) {
@@ -722,15 +866,15 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     }
   }
 
-  onPeriodChange(event: Event): void {
-    const periodId = (event.target as HTMLSelectElement).value || null;
+  onPeriodValueSelected(value: string): void {
+    const periodId = value || null;
     this.selectedPeriodId.set(periodId);
     this.selectedComparePeriodId.set(null);
     this.loadDashboard(periodId, null);
   }
 
-  onCompareChange(event: Event): void {
-    const compareId = (event.target as HTMLSelectElement).value || null;
+  onCompareValueSelected(value: string): void {
+    const compareId = value || null;
     this.selectedComparePeriodId.set(compareId);
     this.loadDashboard(this.selectedPeriodId(), compareId);
   }
@@ -754,24 +898,28 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     this.staffChartPage.set(1);
   }
 
-  onPositionFilterChange(event: Event): void {
-    this.positionFilter.set((event.target as HTMLSelectElement).value);
+  onPositionFilterSelected(value: string): void {
+    this.positionFilter.set(value);
     this.staffChartPage.set(1);
   }
 
-  onTierFilterChange(event: Event): void {
-    this.tierFilter.set((event.target as HTMLSelectElement).value);
+  onTierFilterSelected(value: string): void {
+    this.tierFilter.set(value);
     this.staffChartPage.set(1);
   }
 
-  onStatusFilterChange(event: Event): void {
-    this.statusFilter.set((event.target as HTMLSelectElement).value);
+  onStatusFilterSelected(value: string): void {
+    this.statusFilter.set(value);
     this.staffChartPage.set(1);
   }
 
-  onSortChange(event: Event): void {
-    this.sortBy.set((event.target as HTMLSelectElement).value as StaffSortKey);
+  onSortSelected(value: string): void {
+    this.sortBy.set(value as StaffSortKey);
     this.staffChartPage.set(1);
+  }
+
+  openDepartmentRanking(): void {
+    void this.router.navigate(['/evaluations/department-ranking']);
   }
 
   exportExcel(): void {
@@ -806,49 +954,91 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     if (!group.name) {
       return this.localization.evaluations.dashboard.group.other;
     }
-    return `${group.name} · ${this.i18n.formatNumber(group.weightPercent, 0)}%`;
+    return this.hasExpandedKpiGroup()
+      ? group.name
+      : `${group.name} · ${this.i18n.formatNumber(group.weightPercent, 0)}%`;
   }
 
-  formatKpiActual(kpi: { actualValue: number | null; targetValue: number; unit: string }): string {
-    const actualText =
-      kpi.actualValue === null ? this.emptyValue : this.i18n.formatNumber(kpi.actualValue, 1);
-    const targetText = this.i18n.formatNumber(kpi.targetValue, 1);
-    return `${actualText} / ${targetText} ${kpi.unit}`.trim();
+  hasExpandedKpiGroup(): boolean {
+    return this.kpiGroupsExpanded();
   }
 
-  kpiConvertedScore(
-    group: DepartmentEvaluationKpiGroup,
-    kpi: DepartmentEvaluationGroupKpi,
-  ): number | null {
-    if (kpi.score !== undefined && kpi.score !== null) {
-      return kpi.score;
+  kpiNameColspan(): number {
+    return this.hasExpandedKpiGroup() ? 5 : 1;
+  }
+
+  scrollToSection(id: string): void {
+    document
+      .getElementById(`section-${id}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  valueToneClass(value: number | null, good: number, warn: number): string {
+    if (value === null) return '';
+    if (value >= good) return 'tone-good';
+    if (value >= warn) return 'tone-warn';
+    return 'tone-bad';
+  }
+
+  toggleAllKpiGroups(): void {
+    this.kpiGroupsExpanded.update((open) => !open);
+  }
+
+  weightText(weight: number | null): string {
+    return weight === null ? this.emptyValue : `${this.i18n.formatNumber(weight, 1)}%`;
+  }
+
+  targetText(kpi: DepartmentEvaluationGroupKpi): string {
+    return `${this.i18n.formatNumber(kpi.targetValue, 1)} ${kpi.unit}`.trim();
+  }
+
+  actualText(value: number | null, unit: string): string {
+    if (value === null) return this.emptyValue;
+    return `${this.i18n.formatNumber(value, 1)} ${unit}`.trim();
+  }
+
+  actualChange(kpi: DepartmentEvaluationGroupKpi): number | null {
+    if (kpi.actualValue === null || kpi.previousActualValue === null) return null;
+    return roundKpi(kpi.actualValue - kpi.previousActualValue);
+  }
+
+  scoreChange(kpi: DepartmentEvaluationGroupKpi): number | null {
+    if (kpi.score == null || kpi.previousScore == null) return null;
+    return roundKpi(kpi.score - kpi.previousScore);
+  }
+
+  groupScoreChange(group: DepartmentEvaluationKpiGroup): number | null {
+    const prevKpis = group.kpis.filter((k) => k.previousAchievementPercent != null);
+    if (prevKpis.length === 0 || group.averageScore == null) return null;
+    const prevAvg =
+      prevKpis.reduce((sum, k) => sum + k.previousAchievementPercent!, 0) / prevKpis.length;
+    return roundKpi(group.averageScore - prevAvg);
+  }
+
+  showKpiTip(event: MouseEvent, bar: KpiChartBar): void {
+    this.hoveredKpiBar.set(bar);
+    const tip = this.kpiTip?.nativeElement;
+    if (!tip) return;
+    const anchor = (event.currentTarget as SVGGElement).getBoundingClientRect();
+    tip.style.top = `${anchor.bottom + 6}px`;
+    tip.style.left = `${anchor.left + anchor.width / 2}px`;
+    tip.style.transform = 'translateX(-50%)';
+  }
+
+  hideKpiTip(): void {
+    this.hoveredKpiBar.set(null);
+  }
+
+  rateNoteText(row: DepartmentEvaluationGroupKpi): string {
+    const dict = this.localization.evaluations.dashboard;
+    if (row.achievementPercent === null) return this.emptyValue;
+    if (row.achievementPercent === 100) return dict.rateMet;
+    const gap = (row.actualValue ?? 0) - row.targetValue;
+    const value = `${this.i18n.formatNumber(Math.abs(gap), 1)} ${row.unit}`.trim();
+    if (row.achievementPercent < 100) {
+      return this.i18n.translate('evaluations.dashboard.rateBelow', { value });
     }
-    if (kpi.achievementPercent === null) {
-      return null;
-    }
-    if (group.kpis.length > 0 && group.weightPercent > 0) {
-      const shareWeight = group.weightPercent / group.kpis.length;
-      return Math.round((kpi.achievementPercent * shareWeight) / 10) / 10;
-    }
-    return kpi.achievementPercent;
-  }
-
-  kpiAchievementDelta(achievementPercent: number | null): number | null {
-    if (achievementPercent === null) return null;
-    return Math.round((achievementPercent - 100) * 10) / 10;
-  }
-
-  kpiAchievementBarWidth(achievementPercent: number | null): number {
-    if (achievementPercent === null) return 0;
-    return barWidth(Math.abs(achievementPercent - 100), 30);
-  }
-
-  kpiChangeBarWidth(change: number | null): number {
-    return barWidth(change === null ? null : Math.abs(change), this.maxKpiChange());
-  }
-
-  staffChangeBarWidth(change: number | null): number {
-    return barWidth(change === null ? null : Math.abs(change), this.maxStaffChange());
+    return this.i18n.translate('evaluations.dashboard.rateAbove', { value });
   }
 
   tone(value: number | null): string {
@@ -857,6 +1047,27 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   staffGroupScore(row: DepartmentEvaluationStaffRow, groupName: string): number | null {
     return row.groupScores.find((g) => g.groupName === groupName)?.score ?? null;
+  }
+
+  staffGroupScoreChange(row: DepartmentEvaluationStaffRow, groupName: string): number | null {
+    const group = row.groupScores.find((g) => g.groupName === groupName);
+    if (!group || group.score == null || group.previousScore == null) return null;
+    return Math.round((group.score - group.previousScore) * 100) / 100;
+  }
+
+  staffSlaChange(row: DepartmentEvaluationStaffRow): number | null {
+    if (row.onTimeSlaPercent == null || row.previousOnTimeSlaPercent == null) return null;
+    return Math.round((row.onTimeSlaPercent - row.previousOnTimeSlaPercent) * 100) / 100;
+  }
+
+  hasStaffDelta(change: number | null): boolean {
+    return change != null && Math.abs(change) >= 0.05;
+  }
+
+  staffDeltaText(change: number | null): string {
+    if (change == null) return '';
+    const arrow = change > 0 ? '▲ ' : change < 0 ? '▼ ' : '';
+    return `${arrow}${this.i18n.formatNumber(Math.abs(change), 1)}`;
   }
 
   signedText(change: number): string {

@@ -3,9 +3,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { EvaluationsComponent } from './evaluations.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
+import { UiSelectComponent } from '../../shared/ui';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { DepartmentEvaluationDashboard } from '../../core/evaluation.models';
 import { environment } from '../../../environments/environment';
@@ -106,9 +108,13 @@ const MOCK_DASHBOARD: DepartmentEvaluationDashboard = {
             direction: 'HIGHER_BETTER',
             targetValue: 15,
             actualValue: 11.4,
+            previousActualValue: 12.6,
             achievementPercent: 76,
             previousAchievementPercent: 84,
             changeFromPreviousPercent: -8,
+            weight: 35,
+            score: 26.6,
+            previousScore: 29.4,
           },
           {
             kpiDefinitionId: 'kpi-2',
@@ -118,9 +124,13 @@ const MOCK_DASHBOARD: DepartmentEvaluationDashboard = {
             direction: 'HIGHER_BETTER',
             targetValue: 20,
             actualValue: 21.2,
+            previousActualValue: 20.2,
             achievementPercent: 106,
             previousAchievementPercent: 101,
             changeFromPreviousPercent: 5,
+            weight: 35,
+            score: 37.1,
+            previousScore: 35.4,
           },
         ],
       },
@@ -189,15 +199,34 @@ const MOCK_DASHBOARD: DepartmentEvaluationDashboard = {
       jobPositionId: 'pos-1',
       jobPositionTitle: 'CV Kinh doanh',
       groupScores: [
-        { groupName: 'Kinh doanh', displayOrder: 1, weightPercent: 70, score: 100 },
-        { groupName: 'Dịch vụ', displayOrder: 2, weightPercent: 20, score: 91 },
-        { groupName: 'Tuân thủ', displayOrder: 3, weightPercent: 10, score: 100 },
+        {
+          groupName: 'Kinh doanh',
+          displayOrder: 1,
+          weightPercent: 70,
+          score: 100,
+          previousScore: 92.5,
+        },
+        {
+          groupName: 'Dịch vụ',
+          displayOrder: 2,
+          weightPercent: 20,
+          score: 91,
+          previousScore: 91.0,
+        },
+        {
+          groupName: 'Tuân thủ',
+          displayOrder: 3,
+          weightPercent: 10,
+          score: 100,
+          previousScore: 95.0,
+        },
       ],
       totalScore: 98.2,
       previousTotalScore: 92.7,
       scoreDelta: 5.5,
       tierCode: 'A1',
       onTimeSlaPercent: 98.6,
+      previousOnTimeSlaPercent: 95.0,
       status: 'FINAL',
       evaluationStatus: 'APPROVED',
       canOpenForm: true,
@@ -209,15 +238,34 @@ const MOCK_DASHBOARD: DepartmentEvaluationDashboard = {
       jobPositionId: 'pos-1',
       jobPositionTitle: 'CV Kinh doanh',
       groupScores: [
-        { groupName: 'Kinh doanh', displayOrder: 1, weightPercent: 70, score: 65.7 },
-        { groupName: 'Dịch vụ', displayOrder: 2, weightPercent: 20, score: 78 },
-        { groupName: 'Tuân thủ', displayOrder: 3, weightPercent: 10, score: 69 },
+        {
+          groupName: 'Kinh doanh',
+          displayOrder: 1,
+          weightPercent: 70,
+          score: 65.7,
+          previousScore: 72.0,
+        },
+        {
+          groupName: 'Dịch vụ',
+          displayOrder: 2,
+          weightPercent: 20,
+          score: 78,
+          previousScore: 75.0,
+        },
+        {
+          groupName: 'Tuân thủ',
+          displayOrder: 3,
+          weightPercent: 10,
+          score: 69,
+          previousScore: 70.0,
+        },
       ],
       totalScore: 68.5,
       previousTotalScore: 75.0,
       scoreDelta: -6.5,
       tierCode: 'C',
       onTimeSlaPercent: 81.0,
+      previousOnTimeSlaPercent: 88.0,
       status: 'PIP',
       evaluationStatus: 'CALCULATED',
       canOpenForm: true,
@@ -325,7 +373,10 @@ describe('EvaluationsComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('.staff-col-bar').length).toBe(2);
     expect(component.taskDistributionSegments().length).toBe(3);
     expect(fixture.nativeElement.querySelectorAll('.task-bar-row').length).toBe(3);
-    expect(fixture.nativeElement.querySelectorAll('.diverge').length).toBe(4);
+    component.toggleAllKpiGroups();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.item-row').length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('.total-row').length).toBe(1);
 
     component.setTaskViewMode('staff');
     fixture.detectChanges();
@@ -334,9 +385,11 @@ describe('EvaluationsComponent', () => {
   });
 
   it('reloads dashboard when compare period changes', () => {
-    const select = fixture.nativeElement.querySelector('.compare-select') as HTMLSelectElement;
-    select.value = 'period-10';
-    select.dispatchEvent(new Event('change'));
+    const compareLabel = i18n.translate('evaluations.dashboard.periodCompareAria');
+    const compareSelect = fixture.debugElement
+      .queryAll(By.directive(UiSelectComponent))
+      .find((el) => el.componentInstance.ariaLabel() === compareLabel);
+    compareSelect!.componentInstance.valueChange.emit('period-10');
 
     const req = httpMock.expectOne(
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=period-11&comparePeriodId=period-10`,
@@ -395,5 +448,64 @@ describe('EvaluationsComponent', () => {
 
     expect(text()).toContain('Evaluation & Department Performance');
     expect(text()).not.toContain('Đánh giá & Hiệu suất Phòng ban');
+  });
+
+  it('renders comparison deltas with arrows side-by-side next to main values', () => {
+    const firstRow = fixture.nativeElement.querySelectorAll(
+      '.staff-table tbody tr',
+    )[0] as HTMLElement;
+    expect(firstRow).not.toBeNull();
+
+    // Check cells with .cell-metric
+    const metricCells = firstRow.querySelectorAll('.cell-metric');
+    expect(metricCells.length).toBeGreaterThanOrEqual(5); // 3 groups + SLA + Total
+
+    // Total score delta for Lê Minh Châu is +5.5 => tone 'up', text '▲ 5,5'
+    const deltas = Array.from(firstRow.querySelectorAll('.cell-delta')) as HTMLElement[];
+    const deltaTexts = deltas.map((d) => d.textContent?.trim());
+    expect(deltaTexts).toContain('▲ 5,5');
+    expect(deltas.some((d) => d.classList.contains('up'))).toBeTrue();
+
+    // Second row for Ngô Thanh Mai has negative delta -6.5 => tone 'down', text '▼ 6,5'
+    const secondRow = fixture.nativeElement.querySelectorAll(
+      '.staff-table tbody tr',
+    )[1] as HTMLElement;
+    const secondDeltas = Array.from(secondRow.querySelectorAll('.cell-delta')) as HTMLElement[];
+    const secondDeltaTexts = secondDeltas.map((d) => d.textContent?.trim());
+    expect(secondDeltaTexts).toContain('▼ 6,5');
+    expect(secondDeltas.some((d) => d.classList.contains('down'))).toBeTrue();
+  });
+
+  it('renders evaluation score deltas without color-coding the score itself in department performance breakdown', () => {
+    // Expand KPI groups so item-rows are visible
+    component.toggleAllKpiGroups();
+    fixture.detectChanges();
+
+    const scoreCells = Array.from(
+      fixture.nativeElement.querySelectorAll('.td-score'),
+    ) as HTMLElement[];
+    expect(scoreCells.length).toBe(2);
+
+    // td itself should not have color tone classes
+    for (const td of scoreCells) {
+      expect(td.classList.contains('up')).toBeFalse();
+      expect(td.classList.contains('down')).toBeFalse();
+    }
+
+    // First KPI item has delta -2.8 => text '▼ 2,8' in down tone
+    const firstDelta = scoreCells[0].querySelector('.cell-delta');
+    expect(firstDelta?.textContent?.trim()).toBe('▼ 2,8');
+    expect(firstDelta?.classList.contains('down')).toBeTrue();
+
+    // Second KPI item has delta +1.7 => text '▲ 1,7' in up tone
+    const secondDelta = scoreCells[1].querySelector('.cell-delta');
+    expect(secondDelta?.textContent?.trim()).toBe('▲ 1,7');
+    expect(secondDelta?.classList.contains('up')).toBeTrue();
+
+    // Total row should also show delta
+    const totalRow = fixture.nativeElement.querySelector('.total-row');
+    const totalDelta = totalRow?.querySelector('.cell-delta');
+    expect(totalDelta?.textContent?.trim()).toBe('▼ 1,1');
+    expect(totalDelta?.classList.contains('down')).toBeTrue();
   });
 });

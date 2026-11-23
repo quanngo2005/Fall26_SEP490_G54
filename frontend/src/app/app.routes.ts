@@ -171,6 +171,15 @@ export const routes: Routes = [
       import('./features/evaluations/evaluations.component').then((m) => m.EvaluationsComponent),
   },
   {
+    path: 'evaluations/department-ranking',
+    canActivate: [authGuard, departmentEvaluationGuard],
+    title: 'Xếp hạng Phòng',
+    loadComponent: () =>
+      import('./features/evaluations/department-ranking/department-ranking.component').then(
+        (m) => m.DepartmentRankingComponent,
+      ),
+  },
+  {
     path: 'branch-performance',
     canActivate: [authGuard, organizationGuard, permissionGuard('CAMPAIGN_READ')],
     title: 'Hiệu suất chi nhánh',
@@ -407,6 +416,14 @@ export const routes: Routes = [
     canActivate: [authGuard, permissionGuard('WORK_READ')],
     title: 'Giám sát tải việc',
     data: { view: 'monitor' },
+    loadComponent: () =>
+      import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
+  },
+  {
+    path: 'handovers',
+    canActivate: [authGuard],
+    title: 'Việc được chuyển đến',
+    data: { view: 'handovers' },
     loadComponent: () =>
       import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },

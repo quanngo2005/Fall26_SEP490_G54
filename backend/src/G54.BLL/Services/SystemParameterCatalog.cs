@@ -193,6 +193,8 @@ public static class SystemParameterCatalog
             o => o.WorkOverdueEnabled, (o, v) => o.WorkOverdueEnabled = v),
         Int("workOverdueSweepMinutes", SystemParameterGroups.Deadlines, 1, 1440,
             o => o.WorkOverdueSweepMinutes, (o, v) => o.WorkOverdueSweepMinutes = v),
+        Int("rankingLockDay", SystemParameterGroups.Deadlines, 1, 28,
+            o => o.RankingLockDay, (o, v) => o.RankingLockDay = v),
         Int("campaignExclusivityDays", SystemParameterGroups.Deadlines, 1, 90,
             o => o.CampaignExclusivityDays, (o, v) => o.CampaignExclusivityDays = v),
 

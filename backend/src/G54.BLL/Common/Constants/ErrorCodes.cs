@@ -49,6 +49,9 @@ public static class ErrorCodes
     // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
     public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
 
+    // Evaluation flow (docs/api/EVALUATION_FINAL_FLOW_CONTRACT.md)
+    public const string PeriodNotLockedYet = "PERIOD_NOT_LOCKED_YET";
+
     // Appeal (docs/api/APPEAL_CONTRACT.md)
     public const string AppealInvalidState = "APPEAL_INVALID_STATE";
     public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
@@ -172,6 +175,7 @@ public static class ErrorCodes
         [KpiTypeMismatch] = ("Lỗi ánh xạ: Kiểu chỉ số không đồng nhất (Định lượng vs Định tính).", "Mapping Error: Metric types do not match (Quantitative vs Qualitative)."),
         [DepartmentTransferBlocked] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
         [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
+        [PeriodNotLockedYet] = ("Chưa đến ngày chốt kỳ đánh giá nên chưa thể hoàn tất đánh giá. Hãy lưu nháp.", "The evaluation period has not reached its lock day, so the evaluation cannot be completed yet. Save as draft instead."),
         [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),

@@ -589,4 +589,53 @@ public sealed class EvaluationScopeTests
         Assert.Equal(92m, serviceKpi.TargetValue);
         Assert.Equal(94m, serviceKpi.ActualValue);
     }
+
+    [Fact]
+    public async Task GetDepartmentEvaluationDashboard_IncludesDisputedScoreInDepartmentAverage()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var now = DateTimeOffset.UtcNow;
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        };
+        context.EvaluationPeriods.Add(period);
+        context.PerformanceEvaluations.AddRange(
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.ManagerA.Id,
+                EvaluationPeriodId = period.Id,
+                EvaluationProfileId = Guid.NewGuid(),
+                TotalScore = 70m,
+                Status = PerformanceEvaluationStatus.Final,
+                UpdatedAt = now,
+            },
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.StaffA.Id,
+                EvaluationPeriodId = period.Id,
+                EvaluationProfileId = Guid.NewGuid(),
+                TotalScore = 50m,
+                Status = PerformanceEvaluationStatus.Disputed,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept), Grant("submit", PermissionScopes.Dept));
+        var dashboard = await service.GetDepartmentEvaluationDashboardAsync(period.Id, null, s.ManagerAAccount.Id);
+
+        Assert.Equal(60m, dashboard.Performance.Average);
+        Assert.Equal(2, dashboard.Performance.EvaluatedEmployeeCount);
+        Assert.Equal(1, dashboard.Performance.AppealCount);
+    }
 }

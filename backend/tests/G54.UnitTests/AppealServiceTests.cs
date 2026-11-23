@@ -1352,8 +1352,7 @@ public sealed class AppealServiceTests : IDisposable
 
     [Theory]
     [InlineData(PerformanceEvaluationStatus.Calculated)]
-    [InlineData(PerformanceEvaluationStatus.InReview)]
-    [InlineData(PerformanceEvaluationStatus.Approved)]
+    [InlineData(PerformanceEvaluationStatus.Submitted)]
     public async Task Create_MarksTheScoreOfThePeriodDisputedPending_AndKeepsTheStatusItHad(PerformanceEvaluationStatus before)
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
@@ -1379,7 +1378,7 @@ public sealed class AppealServiceTests : IDisposable
         var draft = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Draft);
         var final = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Final);
         var locked = await AddEvaluationAsync(
-            submitter, PerformanceEvaluationStatus.Approved, periodStatus: PeriodStatus.Locked);
+            submitter, PerformanceEvaluationStatus.Final, periodStatus: PeriodStatus.Locked);
         var otherPeriod = await AddEvaluationAsync(
             submitter, PerformanceEvaluationStatus.Calculated, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
         var others = await AddEvaluationAsync(colleague, PerformanceEvaluationStatus.Calculated);
@@ -1399,13 +1398,13 @@ public sealed class AppealServiceTests : IDisposable
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var submission = await AddSubmissionAsync(submitter);
-        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Submitted);
         var created = await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
 
         await ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(created.Id, submitter.Id);
 
         var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
-        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Submitted, stored.Status);
         Assert.Null(stored.PreDisputeStatus);
         Assert.Null(stored.DisputedAt);
     }
@@ -1436,7 +1435,7 @@ public sealed class AppealServiceTests : IDisposable
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var submission = await AddSubmissionAsync(submitter);
-        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Submitted);
         var resolver = await AddEmployeeAsync("MANAGER", _salesId);
         await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
         var appeal = await _db.Appeals.SingleAsync();
@@ -1445,7 +1444,7 @@ public sealed class AppealServiceTests : IDisposable
             appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = decision, Note = note });
 
         var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
-        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Submitted, stored.Status);
         Assert.Null(stored.PreDisputeStatus);
         Assert.Null(stored.DisputedAt);
         Assert.Equal(88m, stored.TotalScore);
