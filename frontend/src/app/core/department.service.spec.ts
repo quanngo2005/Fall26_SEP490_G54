@@ -50,6 +50,27 @@ describe('DepartmentService', () => {
     service.detail(id).subscribe();
     http.expectOne(`${url}/${id}`).flush({ success: true, data: { id } });
   });
+  it('sends the comparison and member sort, and downloads the export as a file', () => {
+    service.overview(id, 'period-id', 'SAME_LAST_YEAR').subscribe();
+    const overview = http.expectOne((r) => r.url === `${url}/${id}/overview`);
+    expect(overview.request.params.get('compare')).toBe('SAME_LAST_YEAR');
+    overview.flush({ success: true, data: { performance: { average: null } } });
+
+    service.members(id, { compare: 'PREVIOUS', sort: 'TOTAL_ASC' }).subscribe();
+    const members = http.expectOne((r) => r.url === `${url}/${id}/members`);
+    expect(members.request.params.get('compare')).toBe('PREVIOUS');
+    expect(members.request.params.get('sort')).toBe('TOTAL_ASC');
+    members.flush({ success: true, data: { items: [], totalCount: 0, page: 1, pageSize: 20 } });
+
+    service
+      .exportOverview(id, 'period-id', 'PREVIOUS')
+      .subscribe((blob) => expect(blob.size).toBe(1));
+    const file = http.expectOne((r) => r.url === `${url}/${id}/overview/export`);
+    expect(file.request.responseType).toBe('blob');
+    expect(file.request.params.get('periodId')).toBe('period-id');
+    expect(file.request.params.has('compare')).toBeTrue();
+    file.flush(new Blob(['x']));
+  });
   it('propagates HTTP failures and invalid envelopes instead of sample data', () => {
     service.overview(id).subscribe({
       next: () => fail('Unexpected success'),

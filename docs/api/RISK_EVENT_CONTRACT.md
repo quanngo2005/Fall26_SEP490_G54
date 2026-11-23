@@ -26,7 +26,7 @@ OPEN ──confirm──▶ CONFIRMED ──resolve──▶ RESOLVED
 | `POST /risk-events/{id}/dismiss` | `risk_event:dismiss`, `All` |
 | `POST /risk-events/{id}/resolve` | `risk_event:resolve`, `All` |
 
-`ADMIN` có quyền qua wildcard. Các quyền `risk_event:*` chưa được seed cho role QA nào, cần cấp riêng.
+`SYSTEM_ADMIN` được seed đủ quyền `risk_event:*`; `VERIFIER` (QA) được seed đủ quyền `risk_event:*`, `DEPT_MANAGER` và `BRANCH_MANAGER` chỉ đọc.
 
 Lỗi chung: 401 không token hoặc tài khoản khóa; 403 thiếu quyền hoặc thao tác trên sự kiện của chính mình; 404 không có risk event.
 
@@ -86,7 +86,7 @@ Người có quyền QA xác nhận một risk event đang `OPEN` là đúng. C�
 | Không có kỳ đánh giá chứa ngày xảy ra (`occurredAt`, tính theo giờ UTC+7), hoặc kỳ đó `LOCKED` / `CLOSED` | 409 `RISK_EVENT_PERIOD_UNAVAILABLE` |
 | Hai yêu cầu xác nhận đồng thời | một thành công, một 409 `RISK_EVENT_INVALID_STATE` (ràng buộc unique `uq_performance_contribution_risk_event`) |
 
-Nhiều kỳ chứa cùng một ngày: chọn kỳ có `startDate` muộn nhất, rồi `endDate`, rồi `id` (cùng quy tắc với giữ điểm khiếu nại).
+Nhiều kỳ chứa cùng một ngày: chọn kỳ có `startDate` muộn nhất, rồi `endDate`, rồi `id` (cùng quy tắc chọn kỳ với khiếu nại).
 
 ### Dòng contribution được ghi
 

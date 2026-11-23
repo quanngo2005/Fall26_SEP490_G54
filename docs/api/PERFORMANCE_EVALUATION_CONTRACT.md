@@ -7,8 +7,17 @@ Routes use the backend origin with no API prefix. Responses use `ApiResponse<T>`
 ## Authorization
 
 Requires permission `evaluation:calculate` with scope `Dept` or higher
-(`[HasPermission("evaluation", "calculate", "Dept")]`). The permission is not part of the seed data:
-`ADMIN` passes (full access); any other role passes only once the permission has been granted to it.
+(`[HasPermission("evaluation", "calculate", "Dept")]`). The permission `EVALUATION_CALCULATE` is created and granted by
+migration `20261116130000_GrantEvaluationCalculate` (and the dev seed), like `EVALUATION_SUBMIT`:
+
+| Role | Scope |
+| --- | --- |
+| `ADMIN`, `SYSTEM_ADMIN` | `All` |
+| `DEPT_MANAGER` | `Department` |
+| `BRANCH_MANAGER` | `Branch` |
+
+Employees (`EMPLOYEE`), `HR_OFFICER` and `VERIFIER` get 403. Before that migration the permission did not exist, so only
+the development `FULL_ACCESS` wildcard passed.
 
 The BLL additionally restricts the target evaluation to the caller's granted scope, based on the
 department of the evaluated employee:
@@ -64,7 +73,7 @@ identically. The permission check of this endpoint applies only to calls made th
 
 ### Score formula
 
-For one KPI, with `target` and the `weightedActualValue` from step 4 as the actual (for a `RATIO` KPI the actual is
+For one KPI, with `target` (when the target is missing or 0, the KPI's `baselineValue` is used instead) and the `weightedActualValue` from step 4 as the actual (for a `RATIO` KPI the actual is
 `actualValue / actualDenominator`, multiplied by 100 when the unit is `%`):
 
 | `direction` | `achievementPercentRaw` |
@@ -77,7 +86,7 @@ For one KPI, with `target` and the `weightedActualValue` from step 4 as the actu
 - `achievementPercentCapped` is the raw value limited by the KPI's `maxAchievementPercent` when it is set,
   otherwise it equals the raw value. It is never above the raw value.
 - The KPI's `componentScore` is `achievementPercentCapped`.
-- A KPI whose target is 0, or a `RATIO` KPI without a positive denominator, has no score (`null`, shown as N/A).
+- A KPI with no usable target (missing or 0 and no baseline; for `LOWER_BETTER` only a negative one), or a `RATIO` KPI without a positive denominator, has no score (`null`, shown as N/A).
 - The profile is a tree: root nodes are groups, a group has KPI leaves and/or sub-groups (at most 3 levels), and the
   `weightPercent` of a node is relative to its siblings (siblings add up to 100 on an `ACTIVE` profile).
 - An **active** KPI that cannot be scored (no target, no progress, target 0, or a `RATIO` without a denominator)
@@ -88,7 +97,7 @@ For one KPI, with `target` and the `weightedActualValue` from step 4 as the actu
   and normalised over the parts that have a score: `Σ(score × weight) / Σ(weight of parts with a score)`. Because
   an active KPI always has a score (0 when it cannot be scored), only a group without any active KPI has none.
 - `totalScore` is the sum over root groups of `group score × weightPercent / 100` (the weighted score), minus the
-  risk penalty (never below 0), plus the appeal adjustments of the period (`score_entry`). Every root group has a score
+  risk penalty (never below 0). Appeals never add or deduct points: an accepted one records a verified result and the score is recalculated from `actual`. Every root group has a score
   (a KPI group scores 0 when none of its KPIs can be scored, a qualitative group the reviewer has not scored counts as 0,
   the same rule as above), so the total is `null` only when the profile has no root group.
 - The risk penalty is the sum of the penalty of every risk event of the employee inside the period that was not

@@ -62,6 +62,7 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IPermissionService, AllPermissions>();
         services.AddScoped<IWorkingDayCalendar, WeekdayWorkingDayCalendar>();
+        services.AddScoped<INotifier, RecordingNotifier>();
         services.AddScoped<ITargetAssignmentService, TargetAssignmentService>();
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped(provider => new VerificationService(
@@ -453,6 +454,56 @@ public sealed class PeriodLockPostgresTests : IAsyncLifetime
 
         // Two different periods cover today; the one ending first wins, so both approvals land on the same open target row set.
         Assert.Equal(2, await CountAsync(db => db.WorkResultItems));
+    }
+
+    // ----- carried_over_to_period_id: migration / FK sanity against the real schema ------------------------
+
+    [PostgresFact]
+    public async Task ResultSubmission_CarriedOverToPeriodId_PersistsAndRestrictsDeleteOfTheTargetPeriod()
+    {
+        var submission = await RunAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var work = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = $"LK-CO-{Guid.NewGuid():N}"[..14],
+                Title = "Carry-over work",
+                AssigneeEmployeeId = _makerId,
+                CreatedBy = _makerId,
+                Status = WorkStatus.Submitted,
+                Priority = WorkPriority.Medium,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            db.Works.Add(work);
+            var row = new ResultSubmission
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                SubmitterEmployeeId = _makerId,
+                SubmissionNo = 1,
+                Status = SubmissionStatus.Submitted,
+                SubmittedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                CarriedOverToPeriodId = _monthPeriodId,
+            };
+            db.ResultSubmissions.Add(row);
+            await db.SaveChangesAsync();
+            return row.Id;
+        });
+
+        // The column round-trips through the real schema and the FK resolves against evaluation_period.
+        var storedPeriodId = await RunAsync(async sp =>
+            (await sp.GetRequiredService<AppDbContext>().ResultSubmissions.AsNoTracking().SingleAsync(r => r.Id == submission))
+                .CarriedOverToPeriodId);
+        Assert.Equal(_monthPeriodId, storedPeriodId);
+
+        // fk_result_submission_carried_over_period is Restrict: the referenced period cannot be deleted while
+        // a result submission still points to it.
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.EvaluationPeriods.Remove(await db.EvaluationPeriods.SingleAsync(p => p.Id == _monthPeriodId));
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
     }
 
     private sealed class AllPermissions : IPermissionService

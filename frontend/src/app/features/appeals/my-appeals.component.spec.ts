@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AppealListItem } from '../../core/appeal.models';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -29,13 +29,9 @@ const item = (over: Partial<AppealListItem> = {}): AppealListItem => ({
   filedAt: '2026-10-24T10:00:00+00:00',
   decidedAt: null,
   updatedAt: '2026-10-24T10:00:00+00:00',
-  type: 'RESULT',
-  performanceEvaluationId: null,
-  periodCode: null,
   jobPositionTitle: 'Giao dịch viên',
   resolvedByEmployeeName: null,
   note: null,
-  evaluationScore: null,
   ...over,
 });
 const page = (items: AppealListItem[], totalCount = items.length) => ({
@@ -109,9 +105,9 @@ describe('MyAppealsComponent', () => {
     flushInitial([item()]);
     fixture.detectChanges();
     const cells = fixture.nativeElement.querySelectorAll('tbody td');
-    // Columns: code, type, subject, filed on, handler, status, outcome.
-    expect(cells[4].textContent.trim()).toBe('N/A');
-    expect(cells[6].textContent.trim()).toBe('N/A');
+    // Columns: code, subject, filed on, handler, status, outcome.
+    expect(cells[3].textContent.trim()).toBe('N/A');
+    expect(cells[5].textContent.trim()).toBe('N/A');
   });
 
   it('shows an error with a retry button instead of fallback rows', () => {
@@ -150,8 +146,8 @@ describe('MyAppealsComponent', () => {
     flushInitial([]);
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
-    expect(root.querySelector('.page-title-row a')).toBeNull();
-    expect(root.querySelector('.page-title-row h1')?.textContent).toContain('Khiếu nại của tôi');
+    expect(root.querySelector('.ui-page-header a')).toBeNull();
+    expect(root.querySelector('.ui-page-title')?.textContent).toContain('Khiếu nại của tôi');
   });
 
   it('opens the drawer with the detail of the clicked appeal and withdraws only an open one', () => {
@@ -163,7 +159,7 @@ describe('MyAppealsComponent', () => {
     http.expectOne(`${url}/${id}`).flush({
       success: true,
       status: 200,
-      data: { ...item(), reason: 'Lý do khiếu nại', evidences: [], scoreDisputeReason: null },
+      data: { ...item(), reason: 'Lý do khiếu nại', evidences: [] },
     });
     fixture.detectChanges();
     const root: HTMLElement = fixture.nativeElement;
@@ -181,7 +177,6 @@ describe('MyAppealsComponent', () => {
         ...item({ status: 'WITHDRAWN' }),
         reason: 'x',
         evidences: [],
-        scoreDisputeReason: null,
       },
     });
   });
@@ -201,7 +196,6 @@ describe('MyAppealsComponent', () => {
         ...item({ status: 'ACCEPTED' }),
         reason: 'x',
         evidences: [],
-        scoreDisputeReason: null,
       },
     });
     fixture.detectChanges();
@@ -219,7 +213,7 @@ describe('MyAppealsComponent', () => {
     http.expectOne(`${url}/${item().id}`).flush({
       success: true,
       status: 200,
-      data: { ...item(), reason: 'x', evidences: [], scoreDisputeReason: null },
+      data: { ...item(), reason: 'x', evidences: [] },
     });
     fixture.detectChanges();
     spyOn(window, 'confirm').and.returnValue(true);
@@ -231,6 +225,57 @@ describe('MyAppealsComponent', () => {
     expect(fixture.nativeElement.querySelector('.alert-error')?.textContent).toContain(
       'không còn ở trạng thái',
     );
+  });
+
+  describe('opened by link (?appeal=)', () => {
+    const detail = (over: Partial<AppealListItem> = {}) => ({
+      success: true,
+      status: 200,
+      data: {
+        ...item(over),
+        reason: 'Lý do khiếu nại',
+        evidences: [],
+        scoreDisputeReason: null,
+        submittedAt: null,
+        workTypeName: null,
+        referrerEmployeeCode: null,
+        referrerEmployeeName: null,
+      },
+    });
+
+    it('opens the drawer of that appeal as soon as its detail arrives', async () => {
+      const id = item().id;
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([item()]);
+      http.expectOne(`${url}/${id}`).flush(detail());
+      fixture.detectChanges();
+      const drawer = fixture.nativeElement.querySelector('app-my-appeal-drawer');
+      expect(drawer?.textContent).toContain('Lý do khiếu nại');
+      expect(fixture.nativeElement.querySelector('tr.selected-row')).not.toBeNull();
+    });
+
+    it('still opens it when the appeal is not in the list on screen', async () => {
+      const id = 'aaaaaaaa-1111-2222-3333-444455556666';
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([item()]);
+      http.expectOne(`${url}/${id}`).flush(detail({ id }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-my-appeal-drawer')?.textContent).toContain(
+        'Lý do khiếu nại',
+      );
+    });
+
+    it('shows no drawer when the appeal cannot be loaded', async () => {
+      const id = item().id;
+      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      const fixture = open();
+      flushInitial([]);
+      http.expectOne(`${url}/${id}`).flush(null, { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-my-appeal-drawer')).toBeNull();
+    });
   });
 
   it('switches language live without changing the data', () => {

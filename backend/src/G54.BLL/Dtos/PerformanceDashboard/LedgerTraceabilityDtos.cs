@@ -4,7 +4,7 @@ namespace G54.BLL.Dtos.PerformanceDashboard;
 
 // docs/api/TRACEABILITY_CONTRACT.md
 
-/// <summary>One line behind a score: a verified KPI result, a risk penalty or an appeal score entry.</summary>
+/// <summary>One line behind a score: a verified KPI result (an accepted appeal records one too) or a risk penalty.</summary>
 public sealed record LedgerEntryDto(
     Guid Id,
     string Type,
@@ -18,7 +18,7 @@ public sealed record LedgerEntryDto(
     string? WorkCode,
     string? Description);
 
-public sealed record LedgerSummaryDto(decimal ResultPoints, decimal RiskPenaltyPoints, decimal ScoreEntryPoints);
+public sealed record LedgerSummaryDto(decimal ResultPoints, decimal RiskPenaltyPoints);
 
 public sealed record EmployeeLedgerDto(
     DashboardPeriodDto? Period,
@@ -45,15 +45,12 @@ public sealed record LedgerRiskEventDto(
     string Status,
     string Description);
 
-public sealed record LedgerAppealDto(Guid Id, string Status, string Reason);
-
 public sealed record LedgerEntryDetailDto(
     LedgerEntryDto Entry,
     Guid EmployeeId,
     LedgerWorkDto? Work,
     LedgerSubmissionDto? Submission,
     LedgerRiskEventDto? RiskEvent,
-    LedgerAppealDto? Appeal,
     string? RecordedByName);
 
 public sealed record LedgerTransactionDto(

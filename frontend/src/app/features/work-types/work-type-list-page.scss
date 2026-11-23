@@ -1,0 +1,36 @@
+/* Shared header, tabs, banner, filter bar, table, pager and state styles come from ../../shared/ui. */
+
+.list-toolbar {
+  margin-bottom: 16px;
+}
+
+.position-badge {
+  white-space: nowrap;
+}
+
+.col-kpi {
+  min-width: 180px;
+}
+
+.kpi-more {
+  margin-left: 6px;
+  min-height: 20px;
+  font-size: 11.5px;
+  padding: 0 6px;
+}
+
+.muted {
+  color: #94a3b8;
+}
+
+.work-type-row.is-inactive td {
+  color: #94a3b8;
+}
+
+.kpi-select {
+  min-width: 200px;
+}
+
+.empty-cell {
+  color: #94a3b8;
+}

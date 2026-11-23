@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.20" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.34" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
@@ -24,6 +25,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\G54.BLL\G54.BLL.csproj" />
     <ProjectReference Include="..\..\src\G54.Api\G54.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="TestData\*.xlsx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

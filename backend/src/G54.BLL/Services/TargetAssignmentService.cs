@@ -7,6 +7,9 @@ using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.DAL.Entities;
 using G54.DAL.Repositories;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace G54.BLL.Services;
 
@@ -18,8 +21,10 @@ public sealed class TargetAssignmentService(
     ITargetAssignmentRepository targetRepository,
     ITargetAssignmentFeedbackRepository feedbackRepository,
     IRepository<EvaluationPeriod> periodRepository,
+    IRepository<Department> departmentRepository,
     IPermissionService permissions,
     IWorkingDayCalendar workingDayCalendar,
+    INotifier notifier,
     TimeProvider time) : ITargetAssignmentService
 {
     /// <summary>
@@ -34,6 +39,47 @@ public sealed class TargetAssignmentService(
         "hợp đồng", "hop dong", "khách hàng", "khach hang", "giao dịch", "giao dich",
         "contract", "contracts", "customer", "customers", "cái", "cai", "lần", "lan",
     };
+    /// <summary>Saves target rows and turns the database's own rule violations into 4xx answers instead of a 500.</summary>
+    private async Task SaveTargetsAsync()
+    {
+        try
+        {
+            await targetRepository.SaveChangesAsync();
+        }
+        // A deferred trigger fails at commit, where EF rethrows the PostgresException without a DbUpdateException around it.
+        catch (Exception ex) when (ex is DbUpdateException or PostgresException && ToRuleViolation(ex) is not null)
+        {
+            throw ToRuleViolation(ex)!;
+        }
+    }
+
+    private static AppException? ToRuleViolation(Exception ex)
+    {
+        if (PostgresConflict.IsUniqueViolation(ex))
+        {
+            return new ConflictException("Chủ sở hữu này đã có target đang hoạt động cho KPI và kỳ đánh giá này.");
+        }
+
+        if (PostgresConflict.IsForeignKeyViolation(ex))
+        {
+            return new ValidationException("KPI, kỳ đánh giá, phòng ban hoặc nhân viên không tồn tại.");
+        }
+
+        if (PostgresConflict.IsCheckViolation(ex))
+        {
+            return new ValidationException("Giá trị target không hợp lệ (phải từ 0 và đúng độ chính xác cho phép).");
+        }
+
+        if (PostgresConflict.IsRaisedException(ex))
+        {
+            // The hierarchy and SUM rules live in database triggers; keep their text as the detail of the 400.
+            var detail = PostgresConflict.DatabaseMessage(ex);
+            return new ValidationException("Phân bổ target vi phạm quy tắc phân cấp hoặc tổng giá trị.", detail is null ? null : [detail]);
+        }
+
+        return null;
+    }
+
     public async Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto)
     {
         if (!await IsAdminAsync(accountId))
@@ -41,12 +87,21 @@ public sealed class TargetAssignmentService(
             throw new ForbiddenException("Chỉ quản trị viên mới được giao target gốc cho chi nhánh.");
         }
 
-        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value));
+        // The contract hands a root target to a branch only; the database would also accept any other department.
+        var owner = await departmentRepository.GetByIdAsync(dto.DepartmentId!.Value)
+            ?? throw new NotFoundException("Phòng ban", dto.DepartmentId.Value);
+        if (owner.LevelType != DepartmentLevelType.Branch)
+        {
+            throw new ValidationException("Target gốc chỉ được giao cho chi nhánh.");
+        }
 
-        var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason);
+        var period = await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value);
+        PeriodLockGuard.EnsureWritable(period);
+
+        var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason, period?.StartDate ?? default);
         target.DepartmentId = dto.DepartmentId;
         await targetRepository.AddAsync(target);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return ToDto(target);
     }
@@ -62,7 +117,7 @@ public sealed class TargetAssignmentService(
         var children = await NewChildrenAsync(parent, allocations, dto.ChangeReason);
 
         await targetRepository.AddRangeAsync(children);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         // A brand-new employee target has no feedback yet.
         return [.. children.Select(c => ToDtoWithFeedback(c, null))];
@@ -193,22 +248,187 @@ public sealed class TargetAssignmentService(
                 descendant.UpdatedAt = now;
             }
 
-            var next = NewTarget(child.KpiDefinitionId, child.EvaluationPeriodId, value, dto.ChangeReason);
+            var next = NewTarget(child.KpiDefinitionId, child.EvaluationPeriodId, value, dto.ChangeReason, child.EffectiveFrom);
             next.Version = child.Version + 1;
             next.BusinessObjectiveId = child.BusinessObjectiveId;
             next.ParentAssignmentId = child.ParentAssignmentId;
             next.SplitDimension = child.SplitDimension;
             next.DepartmentId = child.DepartmentId;
             next.EmployeeId = child.EmployeeId;
+            next.PreviousVersionId = child.Id;
             replacements.Add(next);
         }
 
         replacements.AddRange(await NewChildrenAsync(parent, added, dto.ChangeReason));
 
         await targetRepository.AddRangeAsync(replacements);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return [.. replacements.Select(next => ToDtoWithFeedback(next, null))];
+    }
+
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto)
+    {
+        // LoadAccessibleAsync enforces the same org-scope permission as split/reallocate (admin, or the caller's
+        // department owns the target's department / the employee's department).
+        var accessible = await LoadAccessibleAsync(accountId, assignmentId);
+        if (accessible.Status != TargetAssignmentStatus.Active)
+        {
+            throw new BusinessRuleException(ErrorCodes.TargetInvalidState, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var current = await targetRepository.GetByIdAsync(assignmentId)
+            ?? throw new NotFoundException("Target", assignmentId);
+        var period = await periodRepository.GetByIdAsync(current.EvaluationPeriodId)
+            ?? throw new NotFoundException("Kỳ đánh giá", current.EvaluationPeriodId);
+
+        PeriodLockGuard.EnsureWritable(period);
+
+        var effectiveDate = dto.EffectiveDate!.Value;
+        if (effectiveDate <= current.EffectiveFrom || effectiveDate > period.EndDate)
+        {
+            throw new ValidationException("Ngày hiệu lực phải sau ngày hiệu lực hiện tại của target và không vượt quá ngày kết thúc kỳ.");
+        }
+
+        PeriodLockGuard.EnsureMonthOpen(period, effectiveDate);
+
+        if (dto.TargetValue!.Value < 0)
+        {
+            throw new ValidationException("Giá trị target phải lớn hơn hoặc bằng 0.");
+        }
+
+        var reason = dto.Reason!;
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+        {
+            throw new ValidationException("Lý do điều chỉnh là bắt buộc và không vượt quá 500 ký tự.");
+        }
+
+        var currentChildren = (await targetRepository.GetCurrentChildrenAsync(current.Id))
+            .Where(child => child.Status == TargetAssignmentStatus.Active)
+            .ToDictionary(OwnerOf);
+        var childAllocations = dto.ChildAllocations ?? [];
+        if (currentChildren.Count > 0)
+        {
+            if (childAllocations.Count == 0)
+            {
+                throw new ValidationException("Target này đang có phân bổ con đang áp dụng nên childAllocations là bắt buộc.");
+            }
+
+            var owners = childAllocations
+                .Select(item => item.EmployeeId.HasValue == item.DepartmentId.HasValue ? (Guid?)null : item.EmployeeId ?? item.DepartmentId)
+                .ToList();
+            if (owners.Contains(null) || owners.Distinct().Count() != owners.Count || !currentChildren.Keys.All(key => owners.Contains(key)))
+            {
+                throw new ValidationException("childAllocations phải gồm mọi đối tượng đang được phân bổ, mỗi đối tượng một lần.");
+            }
+
+            if (childAllocations.Sum(item => item.TargetValue!.Value) != dto.TargetValue!.Value)
+            {
+                throw new ValidationException(ErrorCodes.GetDefaultMessage(ErrorCodes.TargetAllocationNot100Percent), [ErrorCodes.TargetAllocationNot100Percent]);
+            }
+
+            var added = childAllocations.Where(item => !currentChildren.ContainsKey((item.EmployeeId ?? item.DepartmentId)!.Value)).ToList();
+            if (added.Count > 0)
+            {
+                await ValidateOwnersAsync(accessible, added);
+            }
+        }
+        else if (childAllocations.Count > 0)
+        {
+            throw new ValidationException("Target này không có phân bổ con đang áp dụng nên childAllocations phải rỗng.");
+        }
+
+        var now = time.GetUtcNow();
+        var changedByEmployee = await targetRepository.GetAccountEmployeeAsync(accountId);
+        var frozenThrough = effectiveDate.AddDays(-1);
+
+        // Freeze the current version and every ACTIVE descendant (children and below) as of the new effective date.
+        current.Status = TargetAssignmentStatus.Superseded;
+        current.EffectiveTo = frozenThrough;
+        current.UpdatedAt = now;
+        foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(current.Id))
+        {
+            descendant.Status = TargetAssignmentStatus.Superseded;
+            descendant.EffectiveTo = frozenThrough;
+            descendant.UpdatedAt = now;
+        }
+
+        var newCurrent = new TargetAssignment
+        {
+            KpiDefinitionId = current.KpiDefinitionId,
+            EvaluationPeriodId = current.EvaluationPeriodId,
+            DepartmentId = current.DepartmentId,
+            EmployeeId = current.EmployeeId,
+            BusinessObjectiveId = current.BusinessObjectiveId,
+            ParentAssignmentId = current.ParentAssignmentId,
+            SplitDimension = current.SplitDimension,
+            Version = current.Version + 1,
+            TargetValue = dto.TargetValue!.Value,
+            Status = TargetAssignmentStatus.Active,
+            AssignedAt = now,
+            ApprovedAt = now,
+            ChangeReason = reason,
+            CreatedAt = now,
+            UpdatedAt = now,
+            EffectiveFrom = effectiveDate,
+            PreviousVersionId = current.Id,
+            ChangedByEmployeeId = changedByEmployee?.Id,
+        };
+
+        var newChildren = childAllocations.Select(item =>
+        {
+            var owner = (item.EmployeeId ?? item.DepartmentId)!.Value;
+            currentChildren.TryGetValue(owner, out var oldChild);
+            return new TargetAssignment
+            {
+                KpiDefinitionId = newCurrent.KpiDefinitionId,
+                EvaluationPeriodId = newCurrent.EvaluationPeriodId,
+                DepartmentId = item.DepartmentId,
+                EmployeeId = item.EmployeeId,
+                BusinessObjectiveId = newCurrent.BusinessObjectiveId,
+                ParentAssignmentId = newCurrent.Id,
+                SplitDimension = oldChild?.SplitDimension ?? TargetSplitDimension.Org,
+                Version = (oldChild?.Version ?? 0) + 1,
+                TargetValue = item.TargetValue!.Value,
+                Status = TargetAssignmentStatus.Active,
+                AssignedAt = now,
+                ApprovedAt = now,
+                ChangeReason = reason,
+                CreatedAt = now,
+                UpdatedAt = now,
+                EffectiveFrom = effectiveDate,
+                PreviousVersionId = oldChild?.Id,
+                ChangedByEmployeeId = changedByEmployee?.Id,
+            };
+        }).ToList();
+
+        await targetRepository.AddAsync(newCurrent);
+        await targetRepository.AddRangeAsync(newChildren);
+        await targetRepository.SaveChangesAsync();
+
+        var recipientIds = new[] { newCurrent.EmployeeId }
+            .Concat(newChildren.Select(c => c.EmployeeId))
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        if (recipientIds.Count > 0)
+        {
+            var drafts = recipientIds
+                .Select(recipientId => new NotificationDraft(
+                    recipientId,
+                    NotificationType.TargetRevised,
+                    "Target của bạn đã được điều chỉnh",
+                    $"Target đã được điều chỉnh có hiệu lực từ {effectiveDate:yyyy-MM-dd}. Lý do: {reason}",
+                    NotificationSeverity.Important,
+                    NotificationRelatedType.Target,
+                    newCurrent.Id))
+                .ToList();
+            await notifier.PublishAsync(drafts);
+        }
+
+        List<TargetAssignment> all = [newCurrent, .. newChildren];
+        return [.. all.Select(t => ToDtoWithFeedback(t, null))];
     }
 
     /// <summary>
@@ -224,7 +444,7 @@ public sealed class TargetAssignmentService(
         var versions = await targetRepository.GetLatestVersionsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, owners);
         return [.. items.Select(item =>
         {
-            var child = NewTarget(parent.KpiDefinitionId, parent.EvaluationPeriodId, item.TargetValue!.Value, reason);
+            var child = NewTarget(parent.KpiDefinitionId, parent.EvaluationPeriodId, item.TargetValue!.Value, reason, parent.EffectiveFrom);
             child.Version = versions.GetValueOrDefault((item.EmployeeId ?? item.DepartmentId)!.Value) + 1;
             child.BusinessObjectiveId = parent.BusinessObjectiveId;
             child.ParentAssignmentId = parent.Id;
@@ -297,7 +517,8 @@ public sealed class TargetAssignmentService(
 
         var children = dto.Allocations!.Select(item =>
         {
-            var child = NewTarget(parent.KpiDefinitionId, item.EvaluationPeriodId!.Value, item.TargetValue!.Value, dto.ChangeReason);
+            var childPeriodStart = periodMap[item.EvaluationPeriodId!.Value].StartDate;
+            var child = NewTarget(parent.KpiDefinitionId, item.EvaluationPeriodId!.Value, item.TargetValue!.Value, dto.ChangeReason, childPeriodStart);
             child.BusinessObjectiveId = parent.BusinessObjectiveId;
             child.ParentAssignmentId = parent.Id;
             child.SplitDimension = TargetSplitDimension.Period;
@@ -307,7 +528,7 @@ public sealed class TargetAssignmentService(
         }).ToList();
 
         await targetRepository.AddRangeAsync(children);
-        await targetRepository.SaveChangesAsync();
+        await SaveTargetsAsync();
 
         return [.. children.Select(c => ToDto(c))];
     }
@@ -621,7 +842,7 @@ public sealed class TargetAssignmentService(
     private Task<bool> IsAdminAsync(Guid accountId) =>
         permissions.HasPermissionAsync(accountId, "target", "manage", "All", default);
 
-    private TargetAssignment NewTarget(Guid kpiId, Guid periodId, decimal value, string? reason)
+    private TargetAssignment NewTarget(Guid kpiId, Guid periodId, decimal value, string? reason, DateOnly effectiveFrom)
     {
         var now = time.GetUtcNow();
         return new TargetAssignment
@@ -636,6 +857,7 @@ public sealed class TargetAssignmentService(
             ChangeReason = reason,
             CreatedAt = now,
             UpdatedAt = now,
+            EffectiveFrom = effectiveFrom,
         };
     }
 
@@ -666,5 +888,9 @@ public sealed class TargetAssignmentService(
         t.CreatedAt,
         t.UpdatedAt,
         feedbackStatus,
-        feedbackAt);
+        feedbackAt,
+        t.EffectiveFrom,
+        t.EffectiveTo,
+        t.PreviousVersionId,
+        t.ChangedByEmployeeId);
 }

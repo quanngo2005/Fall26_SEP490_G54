@@ -108,6 +108,18 @@ describe('target overview utils', () => {
       ]);
     });
 
+    it('counts employees of the teams beneath a department', () => {
+      const table = buildBranchTable({
+        ...base,
+        departments: [...base.departments, department('t1', 'd1', 'TEAM')],
+        employees: [...base.employees, employee('e3', 't1')],
+      });
+
+      expect(table.departments.length).toBe(1);
+      expect(table.departments[0].memberCount).toBe(3);
+      expect(table.departments[0].members.map((m) => m.employee.id)).toEqual(['e1', 'e2', 'e3']);
+    });
+
     it('filters by position and drops departments without a matching member', () => {
       expect(
         buildBranchTable({ ...base, position: 'Sales Officer' }).departments[0].members.map(

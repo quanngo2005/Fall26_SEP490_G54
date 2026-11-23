@@ -9,9 +9,7 @@ public partial class Appeal
 
     public Guid EmployeeId { get; set; }
 
-    public Guid? ResultSubmissionId { get; set; }
-
-    public Guid? PerformanceEvaluationId { get; set; }
+    public Guid ResultSubmissionId { get; set; }
 
     public Guid? ResolvedBy { get; set; }
 
@@ -23,8 +21,6 @@ public partial class Appeal
 
     public string? Note { get; set; }
 
-    public string? ScoreDisputeReason { get; set; }
-
     public DateTimeOffset UpdatedAt { get; set; }
 
     public AppealStatus Status { get; set; }
@@ -33,9 +29,7 @@ public partial class Appeal
 
     public virtual ICollection<Evidence> Evidences { get; set; } = new List<Evidence>();
 
-    public virtual PerformanceEvaluation? PerformanceEvaluation { get; set; }
-
     public virtual Employee? ResolvedByNavigation { get; set; }
 
-    public virtual ResultSubmission? ResultSubmission { get; set; }
+    public virtual ResultSubmission ResultSubmission { get; set; } = null!;
 }

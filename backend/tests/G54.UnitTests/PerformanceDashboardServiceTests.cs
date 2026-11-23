@@ -212,7 +212,7 @@ public sealed class PerformanceDashboardServiceTests
     {
         using var world = await World.CreateAsync();
         world.AddEvaluation(world.Employee, world.October, 80m, PerformanceEvaluationStatus.Calculated);
-        world.AddEvaluation(world.Employee, world.September, 70.5m, PerformanceEvaluationStatus.Approved);
+        world.AddEvaluation(world.Employee, world.September, 70.5m, PerformanceEvaluationStatus.Final);
         await world.SaveAsync();
 
         var dto = await world.Service(PermissionScopes.Own).GetMyDashboardAsync(world.EmployeeAccount.Id, null);
@@ -428,7 +428,7 @@ public sealed class PerformanceDashboardServiceTests
     {
         using var world = await World.CreateAsync();
         world.AddEvaluation(world.Employee, world.October, 80m, PerformanceEvaluationStatus.Calculated);
-        world.AddEvaluation(world.OtherEmployee, world.October, 90m, PerformanceEvaluationStatus.Approved);
+        world.AddEvaluation(world.OtherEmployee, world.October, 90m, PerformanceEvaluationStatus.Final);
         world.AddEvaluation(world.DeptAManager, world.October, 70m, PerformanceEvaluationStatus.Draft);
         await world.SaveAsync();
 

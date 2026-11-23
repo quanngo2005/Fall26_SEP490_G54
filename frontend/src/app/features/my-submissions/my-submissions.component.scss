@@ -1,0 +1,11 @@
+:host {
+  display: block;
+}
+
+/* The drawer host fills the docked panel that sits below the 56px header. */
+.drawer > app-my-submission-drawer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}

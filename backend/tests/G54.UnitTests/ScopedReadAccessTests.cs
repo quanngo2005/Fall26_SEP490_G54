@@ -80,7 +80,7 @@ public sealed class ScopedReadAccessTests
     };
 
     private static EmployeeService EmployeeServiceFor(AppDbContext db, params UserPermissionDto[] grants) =>
-        new(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, grants));
+        new(db, NullLogger<EmployeeService>.Instance, new FakePermissionService(null, grants), new PlainPasswordEncoder());
 
     // ---- employee:read ------------------------------------------------------------------------------
 

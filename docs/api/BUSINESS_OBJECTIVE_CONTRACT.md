@@ -12,7 +12,7 @@ responses use `ApiResponse<T>`. `GET /business-objectives` also feeds the object
 | `POST`, `PUT`, `DELETE` | permission `objective:manage`, scope `All` |
 
 Seeded grants (migration `AddObjectiveWeightAndKpiRequestApproval`): `objective:read` to BRANCH_MANAGER (`Branch`),
-DEPT_MANAGER and MANAGER (`Dept`); `objective:manage` to BRANCH_MANAGER. ADMIN passes every permission policy.
+DEPT_MANAGER (`Dept`); `objective:manage` to BRANCH_MANAGER. SYSTEM_ADMIN holds the permissions explicitly (no role skips the permission check).
 401 when unauthenticated, 403 when the permission is missing.
 
 Read scope: an objective belongs to the branch (it has no department column), so every scope from `Dept` up reads **every**
@@ -30,7 +30,7 @@ missing) with 403, for the list and the detail alike.
 | PUT | `/business-objectives/{id}` | `BusinessObjectiveSave` (full replacement) | 200 `BusinessObjective` (400, 404, 409) |
 | DELETE | `/business-objectives/{id}` | — | 200 (404, 409 `BUSINESS_OBJECTIVE_IN_USE`) |
 
-The list is not paged and is ordered by `code`. `keyword` matches code or name. Without `status` the list leaves out
+The list is not paged and is ordered by `code`. `keyword` matches code or name, case-insensitively (a part of the text is enough). Without `status` the list leaves out
 `CANCELLED` objectives (the campaign dropdown rule). `status` is UPPER_SNAKE (`DRAFT | ACTIVE | CLOSED | CANCELLED`),
 parsed with `EnumApiFormat.ParseEnum()`; an unknown value or an ordinal is 400 `VALIDATION_ERROR`.
 

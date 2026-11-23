@@ -1,4 +1,3 @@
-import { UpperCasePipe } from '@angular/common';
 import {
   Component,
   computed,
@@ -26,8 +25,15 @@ import {
   RiskState,
 } from '../../core/risk-event.models';
 import { RiskEventService } from '../../core/risk-event.service';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { RiskEventCreateModalComponent } from './risk-event-create-modal.component';
 import { RiskEventDrawerComponent } from './risk-event-drawer.component';
 
@@ -44,17 +50,18 @@ const DEFAULT_DESCENDING = ['occurredAt', 'penalty', 'severity'];
     FormsModule,
     SidebarComponent,
     HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     AppDatePipe,
-    UpperCasePipe,
     RiskEventDrawerComponent,
     RiskEventCreateModalComponent,
   ],
   templateUrl: './risk-events.component.html',
   styleUrls: [
-    '../appeals/appeals-shared.scss',
-    '../appeals/appeals-list.scss',
-    './risk-events-badges.scss',
-    '../../shared/ui/sortable-table.scss',
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './risk-events.component.scss',
   ],
 })
@@ -93,12 +100,33 @@ export class RiskEventsComponent extends LocalizedComponent implements OnInit {
   protected readonly canCreate = computed(() =>
     canCreateRiskEvents(this.auth.currentUser()?.permissions),
   );
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.riskEvents.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
+
+  protected readonly departmentOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.riskEvents.allDepartments },
+    ...this.departments().map((d) => ({ value: d.id, label: d.name })),
+  ]);
+
+  protected readonly severityOptions = computed<SelectOption<RiskSeverity | 'ALL'>[]>(() => [
+    { value: 'ALL', label: this.localization.riskEvents.allSeverities },
+    ...this.severities.map((level) => ({ value: level, label: this.severityLabel(level) })),
+  ]);
+
+  protected readonly stateOptions = computed<SelectOption<RiskState | 'ALL'>[]>(() => [
+    { value: 'ALL', label: this.localization.riskEvents.allStates },
+    {
+      value: 'RECORDED',
+      label: `${this.localization.riskEvents.state.RECORDED} (${this.counts().recorded})`,
+    },
+    {
+      value: 'REVERSED',
+      label: `${this.localization.riskEvents.state.REVERSED} (${this.counts().reversed})`,
+    },
+  ]);
 
   constructor() {
     super();
@@ -257,6 +285,17 @@ export class RiskEventsComponent extends LocalizedComponent implements OnInit {
 
   protected severityLabel(severity: RiskSeverity): string {
     return this.localization.riskEvents.severity[severity];
+  }
+
+  protected severityTone(severity: RiskSeverity): StatusBadgeTone {
+    switch (severity) {
+      case 'LOW':
+        return 'neutral';
+      case 'MEDIUM':
+        return 'warning';
+      default:
+        return 'danger';
+    }
   }
 
   protected stateLabel(item: RiskEventListItem): string {

@@ -22,4 +22,18 @@ public static class PositionMapping
     public static bool IsKnown(string code) => Map.ContainsKey(code);
 
     public static (string JobPositionCode, string RoleCode) Resolve(string code) => Map[code];
+
+    /// <summary>The role an account gets for a <c>job_position.code</c>, or null when the position has no mapping.</summary>
+    public static string? RoleCodeFor(string jobPositionCode)
+    {
+        foreach (var (position, role) in Map.Values)
+        {
+            if (string.Equals(position, jobPositionCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return role;
+            }
+        }
+
+        return null;
+    }
 }

@@ -9,11 +9,25 @@
 
       <p class="breadcrumb">
         {{localization.work.breadcrumbHome}} /
-        {{isTeam() ? localization.work.team.breadcrumbCurrent : localization.work.breadcrumbCurrent}}
+        {{view() === 'monitor'
+            ? localization.work.monitor.breadcrumbCurrent
+            : view() === 'handovers'
+              ? localization.work.handoverList.breadcrumbCurrent
+              : isTeam()
+                ? localization.work.team.breadcrumbCurrent
+                : localization.work.breadcrumbCurrent}}
       </p>
 
       <div class="page-head">
-        <h1>{{isTeam() ? localization.work.team.title : localization.work.title}}</h1>
+        <h1>
+          {{view() === 'monitor'
+              ? localization.work.monitor.title
+              : view() === 'handovers'
+                ? localization.work.handoverList.title
+                : isTeam()
+                  ? localization.work.team.title
+                  : localization.work.title}}
+        </h1>
         <div class="head-actions">
           @if (isManager()) {
             <div class="segmented" role="group" [attr.aria-label]="localization.work.scopeSwitch">
@@ -56,6 +70,26 @@
             >
               {{localization.work.viewList}}
             </button>
+            <button
+              type="button"
+              id="work-view-handovers"
+              [class.is-active]="view() === 'handovers'"
+              [attr.aria-pressed]="view() === 'handovers'"
+              (click)="setView('handovers')"
+            >
+              {{localization.work.handoverList.tab}}
+            </button>
+            @if (isTeam()) {
+              <button
+                type="button"
+                id="work-view-monitor"
+                [class.is-active]="view() === 'monitor'"
+                [attr.aria-pressed]="view() === 'monitor'"
+                (click)="setView('monitor')"
+              >
+                {{localization.work.viewMonitor}}
+              </button>
+            }
           </div>
           @if (!isTeam()) {
             <button
@@ -93,6 +127,19 @@
             {{localization.work.state.retry}}
           </button>
         </div>
+      } @else if (view() === 'monitor' && isTeam()) {
+        <app-work-workload-monitor
+          [defaultDepartmentId]="me()?.departmentId ?? ''"
+          [now]="now()"
+          (openWork)="selectedId.set($event)"
+        />
+      } @else if (view() === 'handovers') {
+        <app-handover-list
+          [members]="members()"
+          [initialDirection]="isTeam() ? 'ALL' : 'INCOMING'"
+          (openWork)="selectedId.set($event)"
+          (changed)="showToast($event.kind, $event.text)"
+        />
       } @else {
         <section
           class="kpis"
@@ -509,6 +556,7 @@
 
 @if (toast(); as t) {
   <div
+    animate.leave="g54-leave-toast"
     class="toast"
     [class.toast-error]="t.kind === 'error'"
     [attr.role]="t.kind === 'error' ? 'alert' : 'status'"
@@ -521,7 +569,7 @@
 }
 
 @if (selectedId(); as id) {
-  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" />
+  <app-work-detail-drawer [workId]="id" (closed)="closeDetail()" (changed)="applyServerFilters()" />
 }
 
 @if (handoverOpen()) {

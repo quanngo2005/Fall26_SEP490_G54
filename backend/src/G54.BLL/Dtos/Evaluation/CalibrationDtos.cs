@@ -66,7 +66,8 @@ public sealed record CalibrationEmployeeRowDto(
     string? DisciplinaryFlag,
     string EvaluationStatus,
     Guid? EvaluationId,
-    DateTimeOffset? CalculatedAt);
+    DateTimeOffset? CalculatedAt,
+    IReadOnlyList<string>? ProposedTierExplanation = null);
 
 public sealed record CalibrationOverviewDto(
     CalibrationDepartmentDto Department,
@@ -155,7 +156,10 @@ public sealed record FinalizeResultDto(
     string PeriodStatus,
     DateTimeOffset FinalizedAt,
     int TotalEvaluationsFinalized,
-    string Message);
+    string Message,
+    int CarriedOverResults = 0,
+    Guid? CarriedOverToPeriodId = null,
+    int PendingWithoutTargetPeriod = 0);
 
 public sealed record AppealWindowDto(
     DateOnly? StartDate,
@@ -208,7 +212,8 @@ public sealed record PreCloseCheckItemDto(
     int RemainingCount,
     bool IsPassed,
     string? TargetScreenCode = null,
-    string? TargetRoute = null);
+    string? TargetRoute = null,
+    bool IsBlocking = true);
 
 public sealed record PreCloseCheckOverviewDto(
     Guid PeriodId,

@@ -17,6 +17,8 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class EvaluationController(IEvaluationService service) : ControllerBase
 {
+    private const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     /// <summary>
     /// Gets the evaluation form pre-populated with employee details, criteria structure, and quantitative ledger actuals.
     /// </summary>
@@ -28,10 +30,36 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     public async Task<ActionResult<ApiResponse<EvaluationFormDto>>> GetEvaluationForm(
         [FromQuery] Guid employeeId,
         [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the employee's performance evaluation report for the selected period (`/evaluations/form`) to an Excel workbook (`.xlsx`).
+    /// </summary>
+    [HttpGet("form/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<IActionResult> ExportEvaluationForm(
+        [FromQuery] Guid employeeId,
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportEvaluationFormAsync(
+            employeeId,
+            periodId,
+            User.GetRequiredUserId(),
+            comparePeriodId,
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
     }
 
     /// <summary>
@@ -85,6 +113,157 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Gets the Department Evaluation &amp; Performance Dashboard overview for the caller's department (`/evaluations`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard")]
+    [ProducesResponseType<ApiResponse<DepartmentEvaluationDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<DepartmentEvaluationDashboardDto>>> GetDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the Department Evaluation &amp; Performance Dashboard (`/evaluations`) to an Excel workbook (`.xlsx`).
+    /// Only accessible to Department Managers (`evaluation:read` at `Dept` scope).
+    /// </summary>
+    [HttpGet("department-dashboard/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<IActionResult> ExportDepartmentDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportDepartmentEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
+    }
+
+    /// <summary>
+    /// Gets the department ranking board for a period: tier slots, the staff ranking and the change against the compare period (SCR-EVAL-04).
+    /// </summary>
+    [HttpGet("ranking-board")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> GetRankingBoard(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? departmentId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetRankingBoardAsync(periodId, departmentId, comparePeriodId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Saves the final tiers and adjustment reasons of the ranking board as a draft (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/draft")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> SaveRankingBoardDraft(
+        [FromBody] SaveRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.SaveRankingBoardDraftAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Once the lock day is reached, assigns the final tiers A1 to C by quantitative score and tier slots, and saves them as the draft (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/auto-assign")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> AutoAssignRankingBoard(
+        [FromBody] AutoAssignRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AutoAssignRankingBoardAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Sends the ranking board to the Branch Director once the lock day is reached and every rule is satisfied (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/send-to-director")]
+    [ProducesResponseType<ApiResponse<RankingBoardSendResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingBoardSendResultDto>>> SendRankingBoardToDirector(
+        [FromBody] SaveRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.SendRankingBoardToDirectorAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the ranking board of a period to an Excel workbook (`.xlsx`) (SCR-EVAL-04).
+    /// </summary>
+    [HttpGet("ranking-board/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<IActionResult> ExportRankingBoard(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportRankingBoardAsync(periodId, departmentId, User.GetRequiredUserId(), cancellationToken);
+        return File(file.Content, ExcelContentType, file.FileName);
+    }
+
+    /// <summary>
+    /// Compares two employees of a period for the ranking board: quantitative score, criteria, SLA, risk events and group scores (reference only).
+    /// </summary>
+    [HttpGet("ranking-compare")]
+    [ProducesResponseType<ApiResponse<RankingCompareDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingCompareDto>>> GetRankingCompare(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid employeeId1,
+        [FromQuery] Guid employeeId2,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetRankingCompareAsync(periodId, employeeId1, employeeId2, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
     /// Gets the department ranking calibration workspace overview including ranked roster, Gaussian Bell curve, and quota tracking (SCR-EVL-02 - UC104).
     /// </summary>
     [HttpGet("calibration")]
@@ -103,7 +282,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             departmentId,
             positionId,
             User.GetRequiredUserId(),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -242,6 +421,39 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             User.GetRequiredUserId(),
             cancellationToken);
 
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets personal performance evaluation details for the current employee (SCR-EVL-04 - UC108, UC109).
+    /// </summary>
+    [HttpGet("personal")]
+    [ProducesResponseType<ApiResponse<PersonalEvaluationViewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<ActionResult<ApiResponse<PersonalEvaluationViewDto>>> GetPersonalEvaluation(
+        [FromQuery] Guid? periodId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPersonalEvaluationAsync(periodId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets personal criteria transaction ledger details for drilldown (SCR-EVL-04).
+    /// </summary>
+    [HttpGet("personal/ledger")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Own")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<PersonalCriteriaLedgerItemDto>>>> GetPersonalCriteriaLedger(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid criteriaId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPersonalCriteriaLedgerAsync(periodId, criteriaId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 }

@@ -1,7 +1,7 @@
 # Audit Log Contract
 
 Trạng thái: ghi log tự động (EF Core `SaveChangesInterceptor`) + API chỉ đọc (`GET` danh sách, `GET` chi tiết)
-**đã triển khai** (backend). Không có frontend, không có POST/PUT/DELETE.
+**đã triển khai** (backend + màn hình SCR-ADM-05 / SCR-ADM-05-D1). Không có POST/PUT/DELETE.
 
 Mọi response dùng envelope `ApiResponse` (xem `API_CONVENTIONS.md`). Entity: `audit_logs`.
 
@@ -25,7 +25,7 @@ Mỗi lần `AppDbContext.SaveChanges`/`SaveChangesAsync` thành công, với m�
 | `GET /audit-logs` | `audit_log:view`, `All` |
 | `GET /audit-logs/{id}` | `audit_log:view`, `All` |
 
-`ADMIN` có quyền qua `AUDIT_LOG_VIEW` (seed) hoặc wildcard `FULL_ACCESS`. Không có `POST`/`PUT`/`DELETE /audit-logs`
+`SYSTEM_ADMIN` có quyền qua `AUDIT_LOG_VIEW` (seed). Không có `POST`/`PUT`/`DELETE /audit-logs`
 (404/405 theo routing mặc định — route không tồn tại).
 
 Lỗi chung: 401 không token hoặc tài khoản khóa; 403 thiếu quyền `audit_log:view`; 404 không có bản ghi.

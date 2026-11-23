@@ -23,13 +23,30 @@ public sealed record SendNotificationResultDto(int RecipientCount);
 
 public sealed record NotificationFilterDto
 {
-    /// <summary>True lists only unread notifications.</summary>
+    /// <summary>True lists only unread notifications; false lists only read notifications.</summary>
     public bool? Unread { get; init; }
+
+    /// <summary>Optional exact <c>NotificationType</c> wire code (e.g. <c>ANNOUNCEMENT</c>, <c>SYSTEM_ALERT</c>).</summary>
+    public string? Type { get; init; }
+
+    /// <summary>Optional <c>NORMAL</c> or <c>IMPORTANT</c>.</summary>
+    public string? Severity { get; init; }
+
+    /// <summary>Optional case-insensitive substring match against title or body.</summary>
+    public string? Keyword { get; init; }
 
     public int Page { get; init; } = 1;
 
     public int PageSize { get; init; } = 20;
 }
+
+public sealed record NotificationRecipientOptionDto(
+    Guid Id,
+    string EmployeeCode,
+    string FullName,
+    Guid DepartmentId,
+    string DepartmentName,
+    string JobPositionTitle);
 
 public sealed record NotificationDto(
     Guid Id,

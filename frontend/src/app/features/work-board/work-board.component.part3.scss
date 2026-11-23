@@ -51,26 +51,28 @@
 .work-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
 
   th {
+    height: 36px;
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
-    color: #475569;
+    color: #64748b;
     font:
-      600 12px/18px Inter,
+      600 13px/18px 'Nunito Sans',
       sans-serif;
-    letter-spacing: 0.04em;
-    padding: 10px 14px;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    padding: 0 14px 2px;
     white-space: nowrap;
+    vertical-align: middle;
   }
 
   td {
+    height: 48px;
     border-bottom: 1px solid #f1f5f9;
     color: #1e293b;
-    padding: 10px 14px;
+    padding: 8px 14px;
     vertical-align: middle;
   }
 
@@ -147,7 +149,6 @@
   color: #fff;
   font-size: 13px;
   padding: 10px 14px;
-  animation: toast-in 0.2s ease;
 
   button {
     border: 0;
@@ -160,13 +161,6 @@
 
   &.toast-error {
     background: #9f1239;
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px);
   }
 }
 
@@ -205,7 +199,7 @@
   color: #002b49;
   cursor: pointer;
   font:
-    600 11px Inter,
+    600 11px 'Nunito Sans',
     sans-serif;
   padding: 3px 10px;
   opacity: 0;
@@ -251,7 +245,7 @@
   border-radius: 50%;
   background: #0284c7;
   color: #fff;
-  font-family: Inter, sans-serif;
+  font-family: 'Nunito Sans', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
 }

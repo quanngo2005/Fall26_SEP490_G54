@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace G54.Api.Controllers;
 
 /// <summary>
-/// Evaluation period lifecycle: create (OPEN) and close (OPEN → IN_REVIEW). Locking stays on
-/// <c>POST /evaluations/approvals/finalize</c>. Contract: docs/api/EVALUATION_PERIOD_CONTRACT.md.
+/// Evaluation period lifecycle: create (OPEN), close (OPEN → IN_REVIEW), and listing/detail queries.
+/// Locking stays on <c>POST /evaluations/approvals/finalize</c>. Contract: docs/api/EVALUATION_PERIOD_CONTRACT.md.
 /// </summary>
 [ApiController]
 [Route("evaluation-periods")]
@@ -19,6 +19,39 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
 public sealed class EvaluationPeriodsController(IEvaluationPeriodService service) : ControllerBase
 {
+    [HttpGet]
+    [HasPermission("evaluation", "read", PermissionScopes.Branch)]
+    [ProducesResponseType<ApiResponse<PagedResult<EvaluationPeriodItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<PagedResult<EvaluationPeriodItemDto>>>> GetPeriods(
+        [FromQuery] EvaluationPeriodFilterDto filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetPeriodsAsync(filter, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:guid}")]
+    [HasPermission("evaluation", "read", PermissionScopes.Branch)]
+    [ProducesResponseType<ApiResponse<EvaluationPeriodItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EvaluationPeriodItemDto>>> GetPeriodById(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetByIdAsync(id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse.Fail(
+                ErrorCodes.NotFound,
+                "Không tìm thấy kỳ đánh giá yêu cầu.",
+                traceId: HttpContext.TraceIdentifier,
+                status: StatusCodes.Status404NotFound));
+        }
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPost]
     [HasPermission("evaluation", "finalize", PermissionScopes.Branch)]
     [ProducesResponseType<ApiResponse<EvaluationPeriodStatusDto>>(StatusCodes.Status201Created)]

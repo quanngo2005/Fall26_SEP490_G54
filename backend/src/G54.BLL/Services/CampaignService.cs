@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -9,13 +10,16 @@ using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace G54.BLL.Services;
 
-public sealed class CampaignService(
+public sealed partial class CampaignService(
     AppDbContext db,
     ILogger<CampaignService> logger,
-    TimeProvider time) : ICampaignService
+    TimeProvider time,
+    IOptions<SystemParametersOptions>? parameters = null,
+    INotifier? notifier = null) : ICampaignService
 {
     /// <summary>Largest value <c>work.target_value</c> (numeric(18,4)) can hold.</summary>
     private const decimal MaxTargetValue = 9_999_999_999_999m;
@@ -67,14 +71,6 @@ public sealed class CampaignService(
             w => w.BusinessCampaignId != null && WorkStatusGroups.Completed.Contains(w.Status),
             cancellationToken);
 
-        var metrics = new CampaignOverviewMetricsDto(
-            totalCampaigns,
-            runningCampaigns,
-            plannedCampaigns,
-            completedCampaigns,
-            totalTasksGenerated,
-            totalCompletedTasks);
-
         var query = allCampaigns;
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -94,6 +90,15 @@ public sealed class CampaignService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var today = time.GetBusinessToday();
+        var metrics = new CampaignOverviewMetricsDto(
+            totalCampaigns,
+            runningCampaigns,
+            plannedCampaigns,
+            completedCampaigns,
+            totalTasksGenerated,
+            totalCompletedTasks,
+            await CountSlowCampaignsAsync(query, today, cancellationToken));
 
         var items = await query
             .OrderByDescending(c => c.UpdatedAt)
@@ -115,8 +120,17 @@ public sealed class CampaignService(
                 c.CampaignWorkTypes.Count,
                 c.Works.Count,
                 c.Works.Count(w => WorkStatusGroups.Completed.Contains(w.Status)),
-                c.UpdatedAt))
+                c.UpdatedAt,
+                0m,
+                0m,
+                0m,
+                null,
+                null,
+                null,
+                null,
+                null))
             .ToListAsync(cancellationToken);
+        items = await AddPaceAsync(items, today, cancellationToken);
 
         return new CampaignListOverviewDto(
             metrics,
@@ -316,7 +330,16 @@ public sealed class CampaignService(
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            // Two requests raced past the duplicate check above; the unique index decides.
+            throw new ConflictException($"Mã chiến dịch '{code}' đã tồn tại trong hệ thống.");
+        }
+
         LogCampaignCreated(logger, campaign.Code, campaign.Id, null);
 
         return await GetCampaignByIdAsync(campaignId, cancellationToken);
@@ -557,6 +580,17 @@ public sealed class CampaignService(
 
         await db.SaveChangesAsync(cancellationToken);
         LogCampaignDecided(logger, id, decision, null);
+        if (notifier is not null && currentEmployee is not null)
+        {
+            var rawParticipantIds = campaign.Participants.Select(p => p.EmployeeId).Distinct().ToList();
+            var participantIds = await db.Employees.AsNoTracking()
+                .Where(e => rawParticipantIds.Contains(e.Id) && e.Status == EmployeeStatus.Active)
+                .Select(e => e.Id)
+                .ToListAsync(cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.CampaignDecided(campaign, currentEmployee, participantIds, decision == "APPROVE", request.Note),
+                cancellationToken);
+        }
 
         return new CampaignDecisionResultDto(
             campaign.Id,
@@ -684,8 +718,9 @@ public sealed class CampaignService(
             : (await GetTargetUnitsAsync([request.WorkTypeId], cancellationToken)).GetValueOrDefault(request.WorkTypeId);
         var generatedWorks = new List<Work>(totalLeads);
         var todayStr = time.GetBusinessToday().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-        var exclusivityEnd = startDate.AddDays(7);
-        var exclusivityNote = $"Khóa độc quyền 7 ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
+        var exclusivityDays = Math.Max(1, parameters?.Value.CampaignExclusivityDays ?? 7);
+        var exclusivityEnd = startDate.AddDays(exclusivityDays);
+        var exclusivityNote = $"Khóa độc quyền {exclusivityDays} ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 
         for (var i = 0; i < totalLeads; i++)
         {
@@ -788,6 +823,15 @@ public sealed class CampaignService(
         db.Works.AddRange(generatedWorks);
         await db.SaveChangesAsync(cancellationToken);
         LogBatchWorkGenerated(logger, campaign.Id, generatedWorks.Count, rule, null);
+        if (notifier is not null)
+        {
+            var countsByAssignee = generatedWorks
+                .GroupBy(w => w.AssigneeEmployeeId)
+                .Select(g => (g.Key, g.Count()));
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.BatchWorksAssigned(campaign, countsByAssignee, creator),
+                cancellationToken);
+        }
 
         return new BatchWorkGenerateResultDto(
             CampaignId: campaign.Id,

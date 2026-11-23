@@ -1,6 +1,8 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
+using G54.BLL.Common.Models;
+using G54.BLL.Common.Validation;
 using G54.BLL.Dtos.EvaluationPeriod;
 using G54.DAL;
 using G54.DAL.Entities;
@@ -21,6 +23,124 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
         [PeriodType.Month] = PeriodType.Quarter,
         [PeriodType.Day] = PeriodType.Month,
     };
+
+    public async Task<PagedResult<EvaluationPeriodItemDto>> GetPeriodsAsync(
+        EvaluationPeriodFilterDto filter,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var page = Math.Max(filter.Page, 1);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+
+        var periodType = EnumApiFormat.ParseEnum<PeriodType>(filter.PeriodType, "periodType");
+        var status = EnumApiFormat.ParseEnum<PeriodStatus>(filter.Status, "status");
+
+        if (filter.Year is < 1900 or > 2100)
+        {
+            throw new ValidationException("Năm tìm kiếm không hợp lệ (hỗ trợ từ 1900 đến 2100).");
+        }
+
+        var query = db.EvaluationPeriods
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var keyword = filter.Keyword.Trim();
+            query = query.Where(p =>
+                p.Code.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                || p.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (periodType.HasValue)
+        {
+            var typeVal = periodType.Value;
+            query = query.Where(p => p.PeriodType == typeVal);
+        }
+
+        if (status.HasValue)
+        {
+            var statusVal = status.Value;
+            query = query.Where(p => p.Status == statusVal);
+        }
+
+        if (filter.ParentPeriodId.HasValue)
+        {
+            var parentId = filter.ParentPeriodId.Value;
+            query = query.Where(p => p.ParentPeriodId == parentId);
+        }
+
+        if (filter.Year.HasValue)
+        {
+            var year = filter.Year.Value;
+            query = query.Where(p => p.StartDate.Year == year || p.EndDate.Year == year);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var rows = await query
+            .OrderByDescending(p => p.StartDate)
+            .ThenBy(p => p.Code)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new
+            {
+                p.Id,
+                p.Code,
+                p.Name,
+                p.PeriodType,
+                p.ParentPeriodId,
+                ParentPeriodCode = p.ParentPeriod != null ? p.ParentPeriod.Code : null,
+                ParentPeriodName = p.ParentPeriod != null ? p.ParentPeriod.Name : null,
+                p.StartDate,
+                p.EndDate,
+                p.Status,
+                p.UpdatedAt,
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = rows.Select(p => new EvaluationPeriodItemDto(
+            p.Id,
+            p.Code,
+            p.Name,
+            p.PeriodType.ToEnumString(),
+            p.ParentPeriodId,
+            p.ParentPeriodCode,
+            p.ParentPeriodName,
+            p.StartDate,
+            p.EndDate,
+            p.Status.ToEnumString(),
+            p.UpdatedAt)).ToList();
+
+        return new PagedResult<EvaluationPeriodItemDto>(items, totalCount, page, pageSize);
+    }
+
+    public async Task<EvaluationPeriodItemDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var period = await db.EvaluationPeriods
+            .AsNoTracking()
+            .Include(p => p.ParentPeriod)
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (period is null)
+        {
+            return null;
+        }
+
+        return new EvaluationPeriodItemDto(
+            period.Id,
+            period.Code,
+            period.Name,
+            period.PeriodType.ToEnumString(),
+            period.ParentPeriodId,
+            period.ParentPeriod?.Code,
+            period.ParentPeriod?.Name,
+            period.StartDate,
+            period.EndDate,
+            period.Status.ToEnumString(),
+            period.UpdatedAt);
+    }
 
     public async Task<EvaluationPeriodStatusDto> CreateAsync(CreateEvaluationPeriodRequestDto request, CancellationToken cancellationToken = default)
     {
@@ -70,16 +190,15 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
                 ErrorCodes.EvaluationPeriodInvalidState);
         }
 
-        var from = StartOfDay(period.StartDate);
-        var to = StartOfDay(period.EndDate.AddDays(1));
-        var pendingResults = await db.ResultSubmissions.CountAsync(
-            r => (r.Status == SubmissionStatus.Submitted || r.Status == SubmissionStatus.UnderReview)
-                && r.SubmittedAt >= from && r.SubmittedAt < to,
-            cancellationToken);
+        var inPeriod = ResultSubmissionPeriodScope.InPeriod(periodId, period.StartDate, period.EndDate);
+        var submissionsInPeriod = ResultSubmissionPeriodScope.IdsInPeriod(db.ResultSubmissions, periodId, period.StartDate, period.EndDate);
+        var pendingResults = await db.ResultSubmissions
+            .Where(r => r.Status == SubmissionStatus.Submitted || r.Status == SubmissionStatus.UnderReview)
+            .Where(inPeriod)
+            .CountAsync(cancellationToken);
         var openDisputes = await db.Appeals.CountAsync(
             a => (a.Status == AppealStatus.Open || a.Status == AppealStatus.UnderReview)
-                && ((a.PerformanceEvaluation != null && a.PerformanceEvaluation.EvaluationPeriodId == periodId)
-                    || (a.ResultSubmission != null && a.ResultSubmission.SubmittedAt >= from && a.ResultSubmission.SubmittedAt < to)),
+                && submissionsInPeriod.Contains(a.ResultSubmissionId),
             cancellationToken);
 
         period.Status = PeriodStatus.InReview;
@@ -106,9 +225,6 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
             throw new ValidationException(error);
         }
     }
-
-    private static DateTimeOffset StartOfDay(DateOnly date) =>
-        new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeProviderExtensions.BusinessUtcOffset).ToUniversalTime();
 
     private static (string Code, string Name, PeriodType Type, DateOnly Start, DateOnly End) Validate(CreateEvaluationPeriodRequestDto request)
     {

@@ -1,15 +1,25 @@
 .drawer {
   position: fixed;
-  top: 0;
+  top: 56px;
   right: 0;
   bottom: 0;
-  z-index: 60;
+  z-index: 45;
   display: flex;
   flex-direction: column;
-  width: min(440px, 100vw);
+  width: clamp(400px, 34vw, 500px);
+  height: calc(100dvh - 56px);
   background: #fff;
   border-left: 1px solid #e2e8f0;
-  box-shadow: -4px 0 16px rgba(15, 23, 42, 0.08);
+  box-shadow: -8px 0 24px rgb(15 23 42 / 8%);
+}
+
+@media (max-width: 1180px) {
+  .drawer {
+    top: 0;
+    z-index: 80;
+    width: min(480px, 100vw);
+    height: 100dvh;
+  }
 }
 
 .drawer-header {

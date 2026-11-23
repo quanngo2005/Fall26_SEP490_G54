@@ -1,32 +1,41 @@
-/* Enterprise tables (DESIGN.md: 36px header, 48px rows) */
+/* Enterprise tables (shared fallback matching .ui-table in data-table.scss) */
 .table-wrap {
   overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  background: #fff;
 }
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 640px;
+  min-width: 560px;
+  font:
+    400 14px/20px 'Nunito Sans',
+    sans-serif;
 }
 th {
   height: 36px;
+  box-sizing: border-box;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 0 12px;
+  font:
+    600 13px/18px 'Nunito Sans',
+    sans-serif;
+  letter-spacing: 0;
+  padding: 0 14px 2px;
   text-align: left;
-  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 td {
   height: 48px;
+  box-sizing: border-box;
   border-top: 1px solid #f1f5f9;
-  color: #475569;
-  font-size: 13px;
-  padding: 8px 12px;
+  color: #1e293b;
+  font-size: 14px;
+  padding: 8px 14px;
+  vertical-align: middle;
 }
 tbody tr:first-child td {
   border-top: 0;
@@ -36,7 +45,7 @@ tbody tr:hover td {
 }
 .empty-cell {
   color: #64748b;
-  padding: 32px 12px;
+  padding: 36px 16px;
   text-align: center;
 }
 

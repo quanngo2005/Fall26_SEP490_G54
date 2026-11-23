@@ -8,6 +8,14 @@ public interface IEvaluationService
         Guid employeeId,
         Guid periodId,
         Guid currentUserId,
+        Guid? comparePeriodId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<EvaluationFormExportDto> ExportEvaluationFormAsync(
+        Guid employeeId,
+        Guid periodId,
+        Guid currentUserId,
+        Guid? comparePeriodId = null,
         CancellationToken cancellationToken = default);
 
     Task<EvaluationResultDto> SubmitEvaluationAsync(
@@ -24,15 +32,63 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<CalibrationOverviewDto> GetDepartmentCalibrationAsync(
         Guid periodId,
         Guid? departmentId,
         Guid? positionId,
         Guid currentUserId,
+        bool includeSubDepartments = false,
         CancellationToken cancellationToken = default);
 
     Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
         SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> GetRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(
+        AutoAssignRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardExportDto> ExportRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingCompareDto> GetRankingCompareAsync(
+        Guid periodId,
+        Guid employeeId1,
+        Guid employeeId2,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
@@ -67,6 +123,17 @@ public interface IEvaluationService
         int? year,
         string? periodType,
         string? status,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
+        Guid? periodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(
+        Guid periodId,
+        Guid criteriaId,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 }

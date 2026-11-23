@@ -1,26 +1,25 @@
-import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
-import { AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
+import { AppealListItem, AppealStatus } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { EmployeeJobPositionOption } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
 import {
-  appealCode,
-  appealSubject,
-  appealSubjectWithScore,
-  OPEN_STATUSES,
-  RESOLVED_STATUSES,
-  typeKey,
-} from './appeal-display';
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
+import { appealCode, appealSubject, OPEN_STATUSES, RESOLVED_STATUSES } from './appeal-display';
 
 type DepartmentTab = 'NEEDS_ACTION' | 'RESOLVED' | 'ALL';
 
@@ -30,13 +29,30 @@ const TAB_STATUSES: Readonly<Record<DepartmentTab, readonly AppealStatus[]>> = {
   ALL: [],
 };
 
+const STATUS_TONE: Readonly<Record<AppealStatus, StatusBadgeTone>> = {
+  OPEN: 'warning',
+  UNDER_REVIEW: 'info',
+  ACCEPTED: 'success',
+  REJECTED: 'danger',
+  WITHDRAWN: 'neutral',
+};
+
 @Component({
   selector: 'app-department-appeals',
-  imports: [FormsModule, SidebarComponent, HeaderComponent, AppDatePipe, UpperCasePipe],
+  imports: [
+    FormsModule,
+    SidebarComponent,
+    HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+    AppDatePipe,
+  ],
   templateUrl: './department-appeals.component.html',
   styleUrls: [
-    './appeals-shared.scss',
-    './appeals-list.scss',
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     './department-appeals.component.scss',
   ],
 })
@@ -50,7 +66,6 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
 
   protected readonly activeTab = signal<DepartmentTab>('NEEDS_ACTION');
   protected readonly searchQuery = signal('');
-  protected readonly typeFilter = signal<AppealType | 'ALL'>('ALL');
   protected readonly periodFilter = signal('ALL');
   protected readonly positionFilter = signal('ALL');
   protected readonly page = signal(1);
@@ -69,17 +84,20 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
     if (!query) return this.items();
     return this.items().filter((item) => {
       const text =
-        `${appealCode(item.id)} ${item.employeeName} ${item.employeeCode} ${appealSubject(item) ?? ''}`.toLowerCase();
+        `${appealCode(item.id)} ${item.employeeName} ${item.employeeCode} ${appealSubject(item)}`.toLowerCase();
       return text.includes(query);
     });
   });
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
+
+  protected readonly positionOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPositions },
+    ...this.positions().map((p) => ({ value: p.id, label: p.title })),
+  ]);
 
   constructor() {
     super();
@@ -148,12 +166,6 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
     this.reload.next();
   }
 
-  protected setType(type: AppealType | 'ALL'): void {
-    this.typeFilter.set(type);
-    this.page.set(1);
-    this.reload.next();
-  }
-
   protected setPeriod(periodId: string): void {
     this.periodFilter.set(periodId);
     this.page.set(1);
@@ -172,22 +184,19 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
   }
 
   protected viewDetail(item: AppealListItem): void {
-    void this.router.navigate(['/appeals/department', item.id]);
+    void this.router.navigate(['/appeals/department', item.id], { state: { appealId: item.id } });
   }
 
   protected statusLabel(status: AppealStatus): string {
     return this.localization.appeals.status[status];
   }
 
-  protected kindLabel(type: AppealType): string {
-    return this.localization.appeals[typeKey(type)];
+  protected statusTone(status: AppealStatus): StatusBadgeTone {
+    return STATUS_TONE[status];
   }
 
   protected subject(item: AppealListItem): string {
-    return (
-      appealSubjectWithScore(item, (score) => this.i18n.formatNumber(score)) ??
-      this.localization.appeals.notAvailable
-    );
+    return appealSubject(item);
   }
 
   protected code(item: AppealListItem): string {
@@ -204,12 +213,10 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
     });
   }
 
-  private baseFilter(): { type?: AppealType; periodId?: string; jobPositionId?: string } {
-    const type = this.typeFilter();
+  private baseFilter(): { periodId?: string; jobPositionId?: string } {
     const period = this.periodFilter();
     const position = this.positionFilter();
     return {
-      ...(type !== 'ALL' ? { type } : {}),
       ...(period !== 'ALL' ? { periodId: period } : {}),
       ...(position !== 'ALL' ? { jobPositionId: position } : {}),
     };

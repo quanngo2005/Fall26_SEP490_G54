@@ -1,5 +1,6 @@
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Dtos.TransactionImport;
 using G54.BLL.Dtos.WorkTransaction;
 using G54.BLL.Services;
 using G54.DAL;
@@ -193,6 +194,99 @@ public sealed class WorkTransactionServiceTests
     }
 
     [Fact]
+    public async Task Add_WorkTypeMappingOnlyNonTransactionKpisBlocksAutomaticMappingAsMetricTypeMismatch()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Kpis[0].Kpi.DataSource = KpiDataSource.ServiceRating;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("NOT_MATCHED", item.Status);
+        Assert.Equal(ErrorCodes.MetricTypeMismatch, item.Reason);
+        Assert.NotEqual("DONE", result.WorkStatus);
+        Assert.Empty(rig.Db.ActualProgresses);
+    }
+
+    [Fact]
+    public async Task Add_MixedKpisCreditOnlyTheTransactionKpiAndMatch()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count), (KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Kpis[1].Kpi.DataSource = KpiDataSource.ServiceRating;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        Assert.Equal("MATCHED", Assert.Single(result.Items).Status);
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(rig.Kpis[0].Target.Id, progress.TargetAssignmentId);
+    }
+
+    [Fact]
+    public async Task Add_MatchesTheImportedCodeIgnoringCaseAndStoresTheCodeUpperCased()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Import("gd-1"); // imported before codes were normalized
+
+        var result = await rig.AddAsync(" Gd-1 ");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("GD-1", item.TransactionCode);
+        Assert.Equal("MATCHED", item.Status);
+    }
+
+    [Fact]
+    public async Task Add_SameCodeInAnotherCase_IsRejectedAsDuplicate()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        await rig.AddAsync("T1");
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => rig.AddAsync("t1"));
+
+        Assert.Equal(ErrorCodes.WorkTransactionDuplicate, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ReconcileBatch_RetriesAnInReviewCodeFromAnEarlierBatchOnceThePeriodIsReopened()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var period = await rig.Db.EvaluationPeriods.SingleAsync();
+        period.Status = PeriodStatus.Locked;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var first = await rig.AddAsync("T1");
+        Assert.Equal("IN_REVIEW", Assert.Single(first.Items).Status);
+        Assert.Equal(ErrorCodes.PeriodLocked, first.Items[0].Reason);
+
+        period.Status = PeriodStatus.Open;
+        await rig.Db.SaveChangesAsync();
+        // A later import that does not contain T1 still retries it.
+        var summary = await rig.Service.ReconcileBatchAsync(Guid.NewGuid());
+
+        Assert.Equal(new ReconcileSummaryDto(1, 0, 0), summary);
+        Assert.Equal("MATCHED", (await rig.Db.WorkTransactions.SingleAsync()).Status);
+        Assert.Equal(WorkStatus.Done, (await rig.Db.Works.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task ReconcileBatch_CountsMatchedNotMatchedAndStillInReviewCodes()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        await rig.AddAsync("T1");
+        await rig.AddAsync("T2");
+        rig.Import("T1");
+        rig.Import("T2", employee: rig.Other);
+
+        var summary = await rig.Service.ReconcileBatchAsync(rig.Db.ImportBatches.Single().Id);
+
+        Assert.Equal(new ReconcileSummaryDto(1, 1, 0), summary);
+    }
+
+    [Fact]
     public async Task Add_WrongEmployeeOrProductIsNotMatchedAndTheWorkIsNotDone()
     {
         var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
@@ -242,6 +336,80 @@ public sealed class WorkTransactionServiceTests
         var other = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
         await other.AddAsync("X1");
         await Assert.ThrowsAsync<ValidationException>(() => other.AddAsync());
+    }
+
+    // ----- Carry-over (FinalizeAndLockPeriodAsync moves a pending result to the next period) -----------------
+
+    [Fact]
+    public async Task Add_TransactionDatedInALockedPeriod_WithCarriedOverResult_CreditsTheNewPeriodInstead()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var oldPeriod = await rig.Db.EvaluationPeriods.SingleAsync();
+        oldPeriod.Status = PeriodStatus.Locked;
+
+        var newPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "P2",
+            Name = "P2",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 12, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            Status = PeriodStatus.Open,
+            UpdatedAt = Now,
+        };
+        rig.Db.EvaluationPeriods.Add(newPeriod);
+        var newTarget = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = rig.Kpis[0].Kpi.Id,
+            EmployeeId = rig.Owner.Id,
+            EvaluationPeriodId = newPeriod.Id,
+            Version = 1,
+            TargetValue = 100m,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+        };
+        rig.Db.TargetAssignments.Add(newTarget);
+        // The work's result submission was carried over to the new period when the old period locked.
+        rig.Db.ResultSubmissions.Add(new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = rig.Work.Id,
+            SubmitterEmployeeId = rig.Owner.Id,
+            SubmissionNo = 1,
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = Now,
+            UpdatedAt = Now,
+            CarriedOverToPeriodId = newPeriod.Id,
+        });
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1"); // TransactionDate = Day, inside the now-locked old period.
+
+        var result = await rig.AddAsync("T1");
+
+        Assert.Equal("MATCHED", Assert.Single(result.Items).Status);
+        var progress = await rig.Db.ActualProgresses.SingleAsync();
+        Assert.Equal(newTarget.Id, progress.TargetAssignmentId);
+        Assert.Equal(newPeriod.StartDate, progress.ProgressDate);
+    }
+
+    [Fact]
+    public async Task Add_TransactionDatedInALockedPeriod_WithoutACarriedOverResult_StaysBlockedByPeriodLock()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        var oldPeriod = await rig.Db.EvaluationPeriods.SingleAsync();
+        oldPeriod.Status = PeriodStatus.Locked;
+        await rig.Db.SaveChangesAsync();
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("IN_REVIEW", item.Status);
+        Assert.Equal(ErrorCodes.PeriodLocked, item.Reason);
+        Assert.Empty(rig.Db.ActualProgresses);
     }
 
     [Fact]

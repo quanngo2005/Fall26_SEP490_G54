@@ -16,6 +16,15 @@ $specFiles = Get-ChildItem -Path $src -Recurse -File -Filter "*.spec.ts"
 $servicesAndComponents = $appTsFiles | Where-Object { $_.FullName -notmatch '[\\/]environments[\\/]' }
 $envFiles = Get-ChildItem -Path (Join-Path $src "environments") -File -Filter "*.ts"
 $prodEnv = Get-Item -LiteralPath (Join-Path $src "environments/environment.ts")
+$eslintJson = Join-Path $work "eslint.json"
+
+<# True when a browser Karma can launch exists: CHROME_BIN, a known install path or a browser on PATH (test-ci.js falls back to Edge on Windows). #>
+function Test-HeadlessBrowser {
+    if ($env:CHROME_BIN -and (Test-Path -LiteralPath $env:CHROME_BIN)) { return $true }
+    $paths = @("C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", "C:\Program Files\Google\Chrome\Application\chrome.exe", "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe")
+    if ($paths | Where-Object { Test-Path -LiteralPath $_ }) { return $true }
+    return [bool](Get-Command google-chrome, google-chrome-stable, chromium, chromium-browser, chrome, msedge -ErrorAction SilentlyContinue)
+}
 $script:eslint = $null
 $script:buildLines = @()
 
@@ -81,10 +90,23 @@ $checks = @(
     @{ Id = "FE-01"; Severity = "Gate"; Name = "Installed dependencies match package-lock.json"; Test = {
             $run = Invoke-Logged { npm ls --depth=0 } $frontend
             foreach ($line in $run.Lines | Where-Object { $_ -match '(?i)\b(missing|invalid|extraneous|UNMET)\b' }) { Add-Finding "$($line.Trim()) - run npm ci in frontend/" }
+            # The slow, independent tools start now and overlap; FE-02..FE-05 and SEC-FE-H01 only collect their results.
+            if ($run.ExitCode -eq 0) {
+                Push-Location $frontend
+                try {
+                    $cache = Join-Path $frontend "node_modules/.cache"
+                    $script:eslintJob = Start-BackgroundCommand "npx" @("--no-install", "eslint", ".", "--cache", "--cache-location", (Join-Path $cache "eslint/.eslintcache"), "--format", "json", "--output-file", $eslintJson)
+                    $script:prettierJob = Start-BackgroundCommand "npx" @("--no-install", "prettier", "--list-different", "--cache", "--cache-location", (Join-Path $cache "prettier/.cache"), ".")
+                    $script:auditJob = Start-BackgroundCommand "npm" @("audit", "--omit=dev", "--json")
+                    $script:buildJob = Start-BackgroundCommand "npm" @("run", "build", "--", "--configuration", "production")
+                    if (Test-HeadlessBrowser) { $script:testJob = Start-BackgroundCommand "node" @("scripts/test-ci.js", "--code-coverage") }
+                }
+                finally { Pop-Location }
+            }
             $run.ExitCode -eq 0 } },
     @{ Id = "FE-02"; Severity = "Gate"; Name = "ESLint (errors)"; Test = {
-            $json = Join-Path $work "eslint.json"
-            $run = Invoke-Logged { npx --no-install eslint . --format json --output-file $json } $frontend
+            $json = $eslintJson
+            $run = if ($script:eslintJob) { Receive-BackgroundCommand $script:eslintJob } else { Invoke-Logged { npx --no-install eslint . --format json --output-file $json } $frontend }
             if (-not (Test-Path -LiteralPath $json)) { Add-Finding "ESLint did not produce a report (configuration error?)"; return $false }
             $parsed = Get-Content -LiteralPath $json -Raw -Encoding utf8 | ConvertFrom-Json
             $script:eslint = @($parsed | ForEach-Object { $_ })
@@ -95,14 +117,18 @@ $checks = @(
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "FE-03"; Severity = "Gate"; Name = "Prettier"; Test = {
-            $run = Invoke-Logged { npx --no-install prettier --list-different . } $frontend
+            $run = if ($script:prettierJob) { Receive-BackgroundCommand $script:prettierJob } else { Invoke-Logged { npx --no-install prettier --list-different . } $frontend }
             foreach ($line in $run.Lines | Where-Object { $_.Trim() }) {
                 if ($line -match '^\[error\]\s*(?<msg>.+)$') { Add-Finding "prettier error: $($Matches['msg'])" }
                 elseif ($line -notmatch '^\[') { Add-Finding "not formatted - run npm run format" "frontend/$($line.Trim())" }
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "FE-04"; Severity = "Gate"; Name = "Unit tests (headless, with coverage)"; Test = {
-            $run = Invoke-Logged { node scripts/test-ci.js --code-coverage } $frontend
+            if (-not $script:testJob -and -not (Test-HeadlessBrowser)) {
+                Add-Finding "no headless browser found: install Chrome/Edge or set CHROME_BIN"
+                return $false
+            }
+            $run = if ($script:testJob) { Receive-BackgroundCommand $script:testJob } else { Invoke-Logged { node scripts/test-ci.js --code-coverage } $frontend }
             Add-AngularErrors $run.Lines
             Add-KarmaFailures $run.Lines
             if (($run.Lines -join "`n") -match 'No binary for|Cannot start (Chrome|Edge)|CHROME_BIN') {
@@ -120,7 +146,7 @@ $checks = @(
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "FE-05"; Severity = "Gate"; Name = "Production build (within budgets)"; Test = {
-            $run = Invoke-Logged { npm run build -- --configuration production } $frontend
+            $run = if ($script:buildJob) { Receive-BackgroundCommand $script:buildJob } else { Invoke-Logged { npm run build -- --configuration production } $frontend }
             $script:buildLines = $run.Lines
             Add-AngularErrors $run.Lines
             $run.ExitCode -eq 0 } },
@@ -150,8 +176,10 @@ $checks = @(
     @{ Id = "SEC-FE-C02"; Severity = "Critical"; Name = "No unreviewed DomSanitizer bypass"; Test = { Find-Pattern $appTsFiles 'bypassSecurityTrust(Html|Url|ResourceUrl|Script|Style)' "sanitizer bypass without // security-reviewed:" 'security-reviewed:' } },
     @{ Id = "SEC-FE-C03"; Severity = "Critical"; Name = "No direct DOM injection or dynamic code execution"; Test = { Find-Pattern $appTsFiles '\.(innerHTML|outerHTML)\s*=|document\.write\(|insertAdjacentHTML\(|\beval\(|new Function\(' "XSS sink" } },
     @{ Id = "SEC-FE-H01"; Severity = "High"; Name = "No High/Critical vulnerabilities in runtime dependencies"; Test = {
-            $run = Invoke-Logged { npm audit --omit=dev --json 2>$null } $frontend
-            try { $audit = ($run.Lines -join "`n") | ConvertFrom-Json }
+            $run = if ($script:auditJob) { Receive-BackgroundCommand $script:auditJob } else { Invoke-Logged { npm audit --omit=dev --json 2>$null } $frontend }
+            # A background job merges stderr into the output, so drop any npm warning lines before the JSON object.
+            $text = $run.Lines -join "`n"
+            try { $audit = $text.Substring([math]::Max($text.IndexOf('{'), 0)) | ConvertFrom-Json }
             catch { Add-Finding "npm audit did not return JSON (no network?)"; return $false }
             $counts = $audit.metadata.vulnerabilities
             if ($counts) { Add-Metric "npm audit (runtime)" "critical $($counts.critical), high $($counts.high), moderate $($counts.moderate), low $($counts.low)" }
@@ -213,6 +241,7 @@ $checks = @(
     @{ Id = "FE-28"; Severity = "Low"; Name = "No TODO/FIXME/HACK left in source"; Test = { Find-Pattern $appFiles '\b(TODO|FIXME|HACK)\b' "unfinished work" } }
 )
 
-$exitCode = Invoke-Review "Frontend Review Report" $checks $report
+try { $exitCode = Invoke-Review "Frontend Review Report" $checks $report }
+finally { Get-Job | Remove-Job -Force }
 Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 exit $exitCode

@@ -34,7 +34,7 @@
     gap: 6px;
     color: #0f172a;
     font:
-      400 13px Inter,
+      400 13px 'Nunito Sans',
       sans-serif;
   }
 }
@@ -43,7 +43,7 @@
   margin: 8px 0 0;
   color: #1d4ed8;
   font:
-    700 12px Inter,
+    700 12px 'Nunito Sans',
     sans-serif;
   letter-spacing: 0.04em;
 }
@@ -62,7 +62,7 @@
   margin: 0;
   color: #64748b;
   font:
-    400 12px Inter,
+    400 12px 'Nunito Sans',
     sans-serif;
 }
 
@@ -80,7 +80,7 @@
   gap: 12px;
   color: #475569;
   font:
-    400 12px Inter,
+    400 12px 'Nunito Sans',
     sans-serif;
 
   summary {
@@ -92,7 +92,7 @@
 .hint {
   color: #64748b;
   font:
-    400 12px Inter,
+    400 12px 'Nunito Sans',
     sans-serif;
 }
 
@@ -109,7 +109,7 @@
   .side {
     color: #94a3b8;
     font:
-      600 14px Inter,
+      600 14px 'Nunito Sans',
       sans-serif;
 
     &.is-active.approve {

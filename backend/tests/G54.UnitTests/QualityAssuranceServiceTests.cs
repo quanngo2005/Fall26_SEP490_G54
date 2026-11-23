@@ -178,6 +178,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
     {
         var (maker, qa, work, submission, result) = await SeedApprovedAsync();
         var flag = await Service.CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
+        _notifier.Drafts.Clear();
 
         var reworked = await Service.RequestReworkAsync(flag.Id, qa.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ."));
 
@@ -293,7 +294,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DecideSample_Failed_RaisesAFlagLinkedToTheSample()
+    public async Task DecideSample_Failed_RaisesAFlagLinkedToTheSampleAndNotifiesSubmitter()
     {
         var (maker, qa, _, submission, _) = await SeedApprovedAsync();
         var sample = await AddSampleAsync(submission);
@@ -307,7 +308,9 @@ public sealed class QualityAssuranceServiceTests : IDisposable
         Assert.Equal(maker.Id, decision.Flag.EmployeeId);
         Assert.Equal(sample.Id, decision.Flag.QaSampleId);
         Assert.Equal(decision.Flag.Id, decision.Sample.QualityFlagId);
-        Assert.Empty(_notifier.Drafts);
+        var draft = Assert.Single(_notifier.Drafts);
+        Assert.Equal(NotificationType.QualityFlagRaised, draft.Type);
+        Assert.Equal(maker.Id, draft.RecipientEmployeeId);
     }
 
     [Fact]

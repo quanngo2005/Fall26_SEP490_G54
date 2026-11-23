@@ -167,11 +167,11 @@ The color palette establishes rigorous enterprise hierarchy through intentional 
 
 ## Typography
 
-The typographic strategy pairs **Manrope** for confident, geometric headings with **Inter** for dense, neutral UI text, accompanied by **JetBrains Mono** for accounting figures, account numbers, and transaction ledgers.
+The typographic strategy standardizes on **Nunito Sans** across headings, UI controls, data tables, and status badges for clean Vietnamese diacritic legibility and softer geometric stroke weight, paired with `font-variant-numeric: tabular-nums` for aligned numeric columns.
 
-- **Manrope:** Delivers architectural presence for titles and page headers without feeling overly decorative or fragile.
-- **Inter:** Ensures legibility in dense forms, data tables, and verification screens at 13px–14px sizes.
-- **JetBrains Mono:** Enforces tabular alignment for monetary sums, routing codes, IBAN numbers, and timestamps to eliminate visual jitter during real-time ledger updates.
+- **Nunito Sans (Headings & Titles):** 600–700 weight (`22px` page titles, `16px`–`18px` section/modal titles) without harsh geometric strokes.
+- **Nunito Sans (Data & Controls):** `14px` standard table cells (`#1E293B`), `13px` sentence-case table headers (`#64748B`), and `13px`–`14px` form controls/dropdowns (`<app-ui-select>`).
+- **Tabular Numerals:** Numeric, code, and timestamp cells apply `font-variant-numeric: tabular-nums` to keep columns aligned without switching to a rigid monospace face.
 
 ## Layout & Spacing
 
@@ -213,22 +213,24 @@ The design system maintains a structured, semi-compact radius value:
 - **Form Controls:** 42px height, 1px border (`#CBD5E1`), `#FFFFFF` background, 14px Inter text. Placeholder text `#94A3B8`. Focused state introduces a 1.5px `#002B49` border with a subtle `0 0 0 3px rgba(0, 43, 73, 0.1)` glow.
 - **Checkboxes & Radios:** 16px square/circle with a 1px border (`#94A3B8`). Selected: Deep Navy fill (`#002B49`) with crisp white checkmark/dot.
 
-### Status Badges
+### Status Badges (`<app-status-badge>`)
 
-- **Configuration:** 22px height, 8px horizontal padding, 11px uppercase `JetBrains Mono` font with medium weight.
+- **Configuration:** 24px height, 6px corner radius (matching `.ui-chip`), 13px sentence-case `Nunito Sans` with a 6px leading status dot.
 - **Variants:**
-  - _Success:_ `#ECFDF5` background, `#047857` text, `#A7F3D0` subtle border.
-  - _Warning:_ `#FFFBEB` background, `#B45309` text, `#FDE68A` subtle border.
-  - _Danger:_ `#FFF1F2` background, `#BE123C` text, `#FECDD3` subtle border.
-  - _Info/Neutral:_ `#F1F5F9` background, `#334155` text, `#E2E8F0` subtle border.
+  - _Success (Quiet Default):_ Transparent background, `#047857` text + emerald dot — keeps healthy rows calm so only abnormal states draw attention.
+  - _Warning:_ `#FFFBEB` background, `#B45309` text, `#FDE68A` border.
+  - _Danger:_ `#FFF1F2` background, `#BE123C` text, `#FECDD3` border.
+  - _Info:_ `#EFF6FF` background, `#1D4ED8` text, `#BFDBFE` border.
+  - _Neutral:_ `#F1F5F9` background, `#334155` text, `#E2E8F0` border.
 
-### Enterprise Tables
+### Enterprise Tables (`shared/ui/data-table.scss` & `<app-table-pagination>`)
 
-- **Header:** 36px height, background `#F8FAFC`, uppercase 12px text (`#64748B`), 1px bottom border (`#E2E8F0`).
-- **Rows:** 48px standard row height, `#FFFFFF` resting, hover state `#F8FAFC`. Alternating zebra stripes are avoided in favor of crisp 1px `#F1F5F9` row dividers.
-- **Numeric & Ledger Cells:** Right-aligned using `JetBrains Mono` with negative spacing optimization.
+- **Header:** 36px height, sticky when scrolling inside `.ui-table-wrap.is-sticky`, background `#F8FAFC`, sentence-case 13px `Nunito Sans` semibold (`#64748B`), 1px bottom border (`#E2E8F0`).
+- **Rows:** 48px standard row height, 14px `Nunito Sans` (`#1E293B`), `#FFFFFF` resting, hover `#F8FAFC`, selected `#EFF6FF` with `inset 3px 0 0 #002B49`. Crisp 1px `#F1F5F9` row dividers.
+- **Numeric & Code Cells:** `.col-num` right-aligned and `.col-mono` using `Nunito Sans` with `font-variant-numeric: tabular-nums`.
+- **Pagination:** Shared `<app-table-pagination>` footer with tabular range summary, Prev/Next + windowed page buttons (Navy `#002B49` active), and custom `<app-ui-select size="sm">` page-size dropdown.
 
-### Modals & Drawers
+### Modals & Drawers (`shared/ui/modal.scss` & `shared/ui/drawer.scss`)
 
-- **Header Section:** 56px height, `#FFFFFF` background, 1px border bottom (`#E2E8F0`), strong title in `Manrope` 18px.
-- **Drawer Panels:** Slide in from right edge for item inspection and transaction drill-downs; fixed width of 480px or 640px, full viewport height, styled with clean `#E2E8F0` left-border dividers.
+- **Header Section:** 56px height, `#FFFFFF` background, 1px border bottom (`#E2E8F0`), strong title in `Nunito Sans` 16px–18px.
+- **Drawer Panels:** Shared `.ui-drawer` / `.drawer` docked below the 56px top header (`height: calc(100dvh - 56px)`, `width: clamp(400px, 34vw, 500px)`) on desktop (`> 1180px`) with synchronized main-pane space reservation, switching automatically to a full-height slide-over with `.ui-drawer-backdrop` on tablet and mobile (`<= 1180px`).

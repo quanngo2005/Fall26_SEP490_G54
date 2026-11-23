@@ -1,5 +1,6 @@
-<div class="modal-backdrop" role="presentation" (click)="dismiss()">
+<div animate.leave="g54-leave-fade" class="modal-backdrop" role="presentation" (click)="dismiss()">
   <div
+    animate.leave="g54-leave-pop"
     class="modal-dialog risk-modal"
     role="dialog"
     aria-modal="true"
@@ -38,7 +39,7 @@
                   ? localization.riskEvents.form.loadingEmployees
                   : localization.riskEvents.form.employeePlaceholder}}
             </option>
-            @for (employee of employees(); track employee.id) {
+            @for (employee of employeeOptions(); track employee.id) {
               <option [value]="employee.id">
                 {{employee.employeeCode}} · {{employee.fullName}}
               </option>

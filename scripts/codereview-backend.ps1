@@ -64,6 +64,7 @@ $intentionallyOpen = @{
     "GET /sidebar-configurations"                          = "SidebarConfigurationService filters by the caller's roles"
     "GET /sidebar-configurations/current"                  = "SidebarConfigurationService filters by the caller's roles"
     "PUT /sidebar-configurations/{role}"                   = "SidebarConfigurationService requires the admin role"
+    "GET /my-dashboard/progress-card"                      = "MyDashboardService resolves the caller and employee from the token, no IDOR possible"
     "GET /target-assignments/mine"                         = "TargetAssignmentService.GetMineAsync resolves the employee from the token"
     "GET /target-assignments/{id:guid}/breakdown"          = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
     "GET /target-assignments/employees/{employeeId:guid}/suggested-daily" = "TargetAssignmentService.GetSuggestedDailyAsync calls EnsureCanViewAsync: the employee or an org-scoped caller"
@@ -83,11 +84,8 @@ $intentionallyOpen = @{
     "GET /work-types/{id:guid}"                            = "catalog read"
     # Ownership/scope enforced in the service (covered by unit tests)
     "POST /submissions/{submissionId:guid}/appeals"        = "AppealService: caller must be the submitter"
-    "POST /performance-evaluations/{evaluationId:guid}/appeals" = "AppealService: caller must be the evaluated employee"
     "POST /appeals/{id:guid}/withdraw"                     = "AppealService: caller must be the filer"
     "GET /appeals"                                         = "AppealService: scoped to own or department"
-    "GET /appeals/{id:guid}/score-entries"                 = "AppealService: same own/department scope as the appeal detail"
-    "POST /appeals/{id:guid}/score-dispute"                = "AppealService: caller must be the filer"
     "GET /appeals/{id:guid}"                               = "AppealService: scoped to own or department"
     "GET /evidence/{id:guid}/download"                     = "EvidenceService.CanViewAsync"
     "GET /evidence/{id:guid}/preview"                      = "EvidenceService.CanViewAsync"
@@ -97,6 +95,8 @@ $intentionallyOpen = @{
     "GET /submissions/{submissionId:guid}"                 = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "GET /works/{workId:guid}/submissions/{submissionId:guid}" = "ResultSubmissionService: submitter/assignee/submission:read scope"
     "POST /submissions/{submissionId:guid}/withdraw"       = "ResultSubmissionService: submitter only"
+    "GET /submissions/mine"                                = "MySubmissionService.GetMineAsync resolves the employee from the token and lists only their own submissions"
+    "GET /submissions/{submissionId:guid}/reconciliation"  = "MySubmissionService.GetDetailAsync: submitter only (403 otherwise)"
     "GET /works/{workId:guid}/transactions"                = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
     "POST /works/{workId:guid}/transactions"               = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
     "DELETE /works/{workId:guid}/transactions/{transactionId:guid}" = "WorkTransactionService.LoadOwnWorkAsync: assignee only"
@@ -139,12 +139,24 @@ $checks = @(
     @{ Id = "BE-01"; Severity = "Gate"; Name = "Restore"; Test = {
             $run = Invoke-Logged { dotnet restore $solution }
             Add-MsBuildDiagnostics $run.Lines
+            # The NuGet audit needs only the restore result, so it overlaps the build and tests; SEC-BE-H01 collects it.
+            if ($run.ExitCode -eq 0) { $script:auditJob = Start-BackgroundCommand "dotnet" @("list", $solution, "package", "--vulnerable", "--include-transitive") }
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-02"; Severity = "Gate"; Name = "Release build (warnings as errors)"; Test = {
             $run = Invoke-Logged { dotnet build $solution -c Release --no-restore }
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-03"; Severity = "Gate"; Name = "Unit tests (with coverage collection)"; Test = {
+            # BE-04 (format) and BE-08 (EF model) do not depend on the test run, so they start now and run while the
+            # tests do; their checks only collect the result. Both use only Debug output / design-time builds, the
+            # tests use the Release output, so they do not touch each other's files.
+            $script:formatJob = Start-BackgroundCommand "dotnet" @("format", $solution, "--verify-no-changes", "--no-restore")
+            dotnet ef --version *> $null
+            $script:efAvailable = ($LASTEXITCODE -eq 0)
+            if ($script:efAvailable) {
+                $dalProject = Join-Path $backend "src/G54.DAL"
+                $script:efJob = Start-BackgroundCommand "dotnet" @("ef", "migrations", "has-pending-model-changes", "--no-build", "--configuration", "Release", "--project", $dalProject, "--startup-project", $dalProject, "--context", "AppDbContext")
+            }
             $run = Invoke-Logged { dotnet test $solution -c Release --no-build --settings (Join-Path $backend "coverlet.runsettings") --collect:"XPlat Code Coverage" --logger "trx;LogFileName=tests.trx" --results-directory $testResults }
             $script:cobertura = Get-ChildItem -Path $testResults -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
             $trxFile = Get-ChildItem -Path $testResults -Recurse -Filter "tests.trx" -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -161,7 +173,7 @@ $checks = @(
             }
             $run.ExitCode -eq 0 } },
     @{ Id = "BE-04"; Severity = "Gate"; Name = "Formatting (dotnet format)"; Test = {
-            $run = Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore }
+            $run = if ($script:formatJob) { Receive-BackgroundCommand $script:formatJob } else { Invoke-Logged { dotnet format $solution --verify-no-changes --no-restore } }
             Add-MsBuildDiagnostics $run.Lines -IncludeWarnings -GroupByFile
             if ($run.ExitCode -ne 0) { Add-Finding "fix with: dotnet format backend/G54.sln" }
             $run.ExitCode -eq 0 } },
@@ -185,13 +197,16 @@ $checks = @(
             }
             $clean } },
     @{ Id = "BE-08"; Severity = "Gate"; Name = "EF model has no changes missing a migration"; Test = {
-            dotnet ef --version *> $null
-            if ($LASTEXITCODE -ne 0) {
+            if ($null -eq $script:efAvailable) {
+                dotnet ef --version *> $null
+                $script:efAvailable = ($LASTEXITCODE -eq 0)
+            }
+            if (-not $script:efAvailable) {
                 if ($env:CI -eq "true") { Add-Finding "dotnet-ef is not installed on the CI runner"; return $false }
                 return (Skip-Check "dotnet-ef is not installed (dotnet tool install -g dotnet-ef --version 8.*)")
             }
             $dal = Join-Path $backend "src/G54.DAL"
-            $run = Invoke-Logged { dotnet ef migrations has-pending-model-changes --project $dal --startup-project $dal --context AppDbContext }
+            $run = if ($script:efJob) { Receive-BackgroundCommand $script:efJob } else { Invoke-Logged { dotnet ef migrations has-pending-model-changes --no-build --configuration Release --project $dal --startup-project $dal --context AppDbContext } }
             if ($run.ExitCode -ne 0 -and ($run.Lines -join "`n") -match 'Changes have been made to the model') {
                 Add-Finding "the EF model changed without a migration: run dotnet ef migrations add <Name> --project backend/src/G54.DAL"
             }
@@ -225,7 +240,7 @@ $checks = @(
     @{ Id = "SEC-BE-C05"; Severity = "Critical"; Name = "JWT validation flags are never disabled"; Test = { Find-Pattern $csFiles '(ValidateIssuerSigningKey|ValidateLifetime|ValidateIssuer|ValidateAudience)\s*=\s*false' "JWT validation disabled" } },
     @{ Id = "SEC-BE-C07"; Severity = "Critical"; Name = "No insecure deserialization"; Test = { Find-Pattern $csFiles 'BinaryFormatter|TypeNameHandling\.(All|Auto|Objects)' "insecure deserializer" } },
     @{ Id = "SEC-BE-H01"; Severity = "High"; Name = "No High/Critical vulnerable NuGet packages"; Test = {
-            $run = Invoke-Logged { dotnet list $solution package --vulnerable --include-transitive }
+            $run = if ($script:auditJob) { Receive-BackgroundCommand $script:auditJob } else { Invoke-Logged { dotnet list $solution package --vulnerable --include-transitive } }
             if ($run.ExitCode -ne 0) { Add-Finding "dotnet list package --vulnerable failed (no network?)"; return $false }
             $bad = @($run.Lines | Where-Object { $_ -match '^\s*>\s*\S+.*\b(High|Critical)\b' })
             foreach ($line in $bad) { Add-Finding "vulnerable package: $(($line.Trim() -replace '^>\s*', '') -replace '\s{2,}', ' | ')" }
@@ -280,6 +295,7 @@ $checks = @(
     @{ Id = "BE-22"; Severity = "Low"; Name = "No TODO/FIXME/HACK left in source"; Test = { Find-Pattern $csFiles '\b(TODO|FIXME|HACK)\b' "unfinished work" } }
 )
 
-$exitCode = Invoke-Review "Backend Review Report" $checks $report
+try { $exitCode = Invoke-Review "Backend Review Report" $checks $report }
+finally { Get-Job | Remove-Job -Force }
 Remove-Item -LiteralPath $testResults -Recurse -Force -ErrorAction SilentlyContinue
 exit $exitCode

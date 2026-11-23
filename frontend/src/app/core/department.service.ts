@@ -11,6 +11,7 @@ import {
   DepartmentMembers,
   DepartmentOverview,
   DepartmentSummary,
+  PerformanceCompareMode,
 } from './department.models';
 
 @Injectable({ providedIn: 'root' })
@@ -30,12 +31,20 @@ export class DepartmentService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  overview(id: string, periodId?: string) {
+  overview(id: string, periodId?: string, compare?: PerformanceCompareMode) {
     return this.http
       .get<ApiResponse<DepartmentOverview>>(`${this.url}/${encodeURIComponent(id)}/overview`, {
-        params: periodId ? new HttpParams().set('periodId', periodId) : new HttpParams(),
+        params: this.params({ periodId, compare }),
       })
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  /** The Excel file of the overview (no envelope); failures propagate. */
+  exportOverview(id: string, periodId?: string, compare?: PerformanceCompareMode) {
+    return this.http.get(`${this.url}/${encodeURIComponent(id)}/overview/export`, {
+      params: this.params({ periodId, compare }),
+      responseType: 'blob',
+    });
   }
 
   members(id: string, filter: DepartmentMemberFilter = {}) {
@@ -46,7 +55,9 @@ export class DepartmentService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  private params(filter: DepartmentFilter | DepartmentMemberFilter) {
+  private params(
+    filter: DepartmentFilter | DepartmentMemberFilter | Record<string, string | undefined>,
+  ) {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filter)) {
       if (value !== undefined && value !== '') params = params.set(key, String(value));

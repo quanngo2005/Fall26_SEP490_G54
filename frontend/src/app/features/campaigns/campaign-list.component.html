@@ -3,12 +3,12 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content" [attr.aria-busy]="loading()">
-      <div class="page-toolbar">
-        <div class="page-heading">
-          <p class="breadcrumb">{{localization.campaign.breadcrumb}}</p>
-          <h1>{{localization.campaign.title}}</h1>
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <p class="ui-breadcrumb">{{localization.campaign.breadcrumb}}</p>
+          <h1 class="ui-page-title">{{localization.campaign.title}}</h1>
         </div>
-        <div class="toolbar-actions">
+        <div class="ui-page-actions">
           @if ((overview()?.metrics?.plannedCampaigns ?? 0) > 0) {
             <a class="button button-secondary" routerLink="/campaigns/approval">
               {{localization.campaign.reviewPlans}}
@@ -18,44 +18,43 @@
             ＋ {{localization.campaign.createPlan}}
           </button>
         </div>
-      </div>
+      </header>
 
-      <div class="tabs" role="tablist">
+      <nav class="ui-tabs" role="tablist">
         @for (tab of tabs; track tab.status) {
           <button
             type="button"
             role="tab"
-            class="tab"
+            class="ui-tab"
             [class.is-active]="status === tab.status"
             [attr.aria-selected]="status === tab.status"
             (click)="selectTab(tab.status)"
           >
-            {{tabLabel(tab.status)}} {{overview()?.metrics?.[tab.count] ?? 0}}
+            {{tabLabel(tab.status)}}
+            <span class="ui-tab-count">{{overview()?.metrics?.[tab.count] ?? 0}}</span>
           </button>
         }
-      </div>
+      </nav>
 
-      <form class="filters" (ngSubmit)="refresh(true)">
-        <input
-          type="search"
-          class="input"
-          name="search"
-          [(ngModel)]="search"
-          [placeholder]="localization.campaign.searchPlaceholder"
-          [attr.aria-label]="localization.campaign.searchPlaceholder"
-        />
-        <select
-          class="select"
+      <form class="ui-filter-bar" (ngSubmit)="refresh(true)">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            type="search"
+            class="input"
+            name="search"
+            [(ngModel)]="search"
+            [placeholder]="localization.campaign.searchPlaceholder"
+            [attr.aria-label]="localization.campaign.searchPlaceholder"
+          />
+        </div>
+        <app-ui-select
           name="objective"
-          [(ngModel)]="objectiveId"
-          (ngModelChange)="refresh(true)"
-          [attr.aria-label]="localization.campaign.allObjectives"
-        >
-          <option value="">{{localization.campaign.allObjectives}}</option>
-          @for (objective of objectives(); track objective.id) {
-            <option [value]="objective.id">{{objective.code}} · {{objective.name}}</option>
-          }
-        </select>
+          [options]="objectiveOptions()"
+          [ngModel]="objectiveId"
+          (ngModelChange)="objectiveId = $event; refresh(true)"
+          [ariaLabel]="localization.campaign.allObjectives"
+        />
       </form>
 
       @if (loading() && !overview()) {
@@ -71,34 +70,34 @@
           </button>
         </div>
       } @else {
-        <section class="panel surface-card">
-          <div class="table-wrap">
-            <table>
+        <section class="ui-table-card">
+          <div class="ui-table-wrap">
+            <table class="ui-table">
               <thead>
                 <tr>
                   <th>{{localization.campaign.colCode}}</th>
                   <th>{{localization.campaign.colName}}</th>
                   <th>{{localization.campaign.colPeriod}}</th>
                   <th>{{localization.campaign.colObjective}}</th>
-                  <th class="num">{{localization.campaign.colPeople}}</th>
+                  <th class="col-num">{{localization.campaign.colPeople}}</th>
                   <th>{{localization.campaign.colProgress}}</th>
-                  <th class="num">{{localization.campaign.colWorks}}</th>
+                  <th class="col-num">{{localization.campaign.colWorks}}</th>
                   <th>{{localization.campaign.colStatus}}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 @for (campaign of overview()?.campaigns?.items ?? []; track campaign.id) {
-                  <tr class="row-link" (click)="open(campaign)">
-                    <td class="mono code">{{campaign.code}}</td>
-                    <td>{{campaign.name}}</td>
-                    <td class="nowrap">
+                  <tr class="is-clickable" (click)="open(campaign)">
+                    <td class="col-code">{{campaign.code}}</td>
+                    <td class="col-primary">{{campaign.name}}</td>
+                    <td class="col-nowrap">
                       {{campaign.startDate | appDate}} – {{campaign.endDate | appDate}}
                     </td>
                     <td [title]="campaign.businessObjectiveName">
                       {{campaign.businessObjectiveCode}}
                     </td>
-                    <td class="num">{{campaign.participantsCount}}</td>
+                    <td class="col-num">{{campaign.participantsCount}}</td>
                     <td>
                       @let percent =
                         progress(campaign.generatedWorksCount, campaign.completedWorksCount);
@@ -113,13 +112,13 @@
                         {{localization.campaign.noValue}}
                       }
                     </td>
-                    <td class="num">{{campaign.generatedWorksCount}}</td>
+                    <td class="col-num">{{campaign.generatedWorksCount}}</td>
                     <td>
-                      <span class="status-badge" [class]="badgeClass(campaign.status)">
+                      <app-status-badge [tone]="badgeTone(campaign.status)">
                         {{statusLabel(campaign.status)}}
-                      </span>
+                      </app-status-badge>
                     </td>
-                    <td>
+                    <td class="col-actions">
                       <a
                         class="link"
                         [routerLink]="['/campaigns', campaign.id]"
@@ -131,33 +130,20 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td class="empty-cell" colspan="9">{{localization.campaign.empty}}</td>
+                    <td class="ui-empty-cell" colspan="9">{{localization.campaign.empty}}</td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
-          <div class="pager">
-            <span>{{rangeText()}}</span>
-            <div class="pager-buttons">
-              <button
-                type="button"
-                class="button button-secondary"
-                [disabled]="loading() || page <= 1"
-                (click)="goToPage(page - 1)"
-              >
-                {{localization.campaign.previous}}
-              </button>
-              <button
-                type="button"
-                class="button button-secondary"
-                [disabled]="loading() || page >= totalPages()"
-                (click)="goToPage(page + 1)"
-              >
-                {{localization.campaign.next}}
-              </button>
-            </div>
-          </div>
+          <app-table-pagination
+            [page]="page"
+            [pageSize]="pageSize"
+            [totalCount]="totalCount()"
+            [rangeText]="rangeText()"
+            [disabled]="loading()"
+            (pageChange)="goToPage($event)"
+          />
         </section>
       }
     </main>

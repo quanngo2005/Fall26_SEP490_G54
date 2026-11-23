@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using ClosedXML.Excel;
 using G54.BLL.Common.Exceptions;
 
@@ -7,12 +6,9 @@ namespace G54.BLL.Common.Import.Reading;
 /// <summary>Reads the first worksheet of an .xlsx workbook with ClosedXML into generic <see cref="RawRow"/>s.</summary>
 public sealed class ClosedXmlSheetReader : IExcelSheetReader
 {
-    // .xlsx is a zip; a small upload can inflate to gigabytes once ClosedXML loads it (zip bomb).
-    private const long MaxUncompressedBytes = 100L * 1024 * 1024;
-
     public ExcelSheetResult Read(Stream excel, int maxRows)
     {
-        EnsureUncompressedSizeWithinLimit(excel);
+        ExcelUploadGuard.EnsureUncompressedSizeWithinLimit(excel);
         using var workbook = new XLWorkbook(excel);
         var worksheet = workbook.Worksheets.FirstOrDefault()
             ?? throw new ValidationException("File Excel không có worksheet nào.");
@@ -63,32 +59,5 @@ public sealed class ClosedXmlSheetReader : IExcelSheetReader
         }
 
         return new ExcelSheetResult(headers, rows);
-    }
-
-    private static void EnsureUncompressedSizeWithinLimit(Stream excel)
-    {
-        if (!excel.CanSeek)
-        {
-            throw new ValidationException("File Excel không đọc được.");
-        }
-
-        var start = excel.Position;
-        try
-        {
-            using var zip = new ZipArchive(excel, ZipArchiveMode.Read, leaveOpen: true);
-            var total = zip.Entries.Sum(e => e.Length);
-            if (total > MaxUncompressedBytes)
-            {
-                throw new ValidationException("File Excel quá lớn sau khi giải nén.");
-            }
-        }
-        catch (InvalidDataException)
-        {
-            throw new ValidationException("File không phải định dạng .xlsx hợp lệ.");
-        }
-        finally
-        {
-            excel.Position = start;
-        }
     }
 }

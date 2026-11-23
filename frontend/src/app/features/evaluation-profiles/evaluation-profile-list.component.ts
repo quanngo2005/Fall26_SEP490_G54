@@ -11,7 +11,14 @@ import {
 } from '../../core/evaluation-profile.models';
 import { EvaluationProfileService } from '../../core/evaluation-profile.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import { EvaluationProfileFormDialogComponent } from './evaluation-profile-form-dialog.component';
 import { evaluationPeriodLabel, parseDate } from './evaluation-profile-period';
 import { evaluationStatusLabel } from './evaluation-profile-status';
@@ -20,13 +27,20 @@ import { evaluationStatusLabel } from './evaluation-profile-status';
 @Component({
   selector: 'app-evaluation-profile-list',
   standalone: true,
-  imports: [FormsModule, HeaderComponent, SidebarComponent, EvaluationProfileFormDialogComponent],
+  imports: [
+    FormsModule,
+    HeaderComponent,
+    SidebarComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
+    EvaluationProfileFormDialogComponent,
+  ],
   templateUrl: './evaluation-profile-list.component.html',
   styleUrls: [
     '../../shared/ui/ui-controls.scss',
     '../../shared/ui/workspace-page.scss',
-    '../../shared/ui/workspace-page.part2.scss',
-    '../work-types/work-type-list.component.scss',
     './evaluation-profile-list.component.scss',
   ],
 })
@@ -76,9 +90,26 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
     return [...byId].map(([id, title]) => ({ id, title }));
   });
 
+  protected readonly positionSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.evaluationProfiles.positionAll },
+    ...this.positionOptions().map((pos) => ({ value: pos.id, label: pos.title })),
+  ]);
+
   protected readonly periodOptions = computed(() => [
     ...new Set(this.allProfiles().map((item) => this.periodLabel(item))),
   ]);
+
+  protected readonly periodSelectOptions = computed<SelectOption[]>(() => [
+    { value: '', label: this.localization.evaluationProfiles.periodAll },
+    ...this.periodOptions().map((label) => ({ value: label, label })),
+  ]);
+
+  protected readonly statusSelectOptions = computed<SelectOption<EvaluationProfileStatus | ''>[]>(
+    () => [
+      { value: '', label: this.localization.evaluationProfiles.statusAll },
+      ...this.statuses.map((item) => ({ value: item, label: this.statusLabel(item) })),
+    ],
+  );
 
   protected readonly pendingProfiles = computed(() =>
     this.allProfiles().filter((item) => item.status === 'PENDING_APPROVAL'),
@@ -129,12 +160,6 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
   protected readonly totalPages = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.currentPageSize())),
   );
-  protected readonly rangeText = computed(() => {
-    const total = this.totalCount();
-    const first = total === 0 ? 0 : (this.currentPage() - 1) * this.currentPageSize() + 1;
-    const last = Math.min(total, first + this.profiles().length - 1);
-    return this.i18n.translate('evaluationProfiles.range', { first, last, total });
-  });
 
   constructor() {
     super();
@@ -168,6 +193,31 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
     this.filterPosition.set(this.position);
     this.filterPeriod.set(this.period);
     this.filterStatus.set(this.status);
+  }
+
+  protected onPositionFilter(value: string): void {
+    this.position = value;
+    this.applyFilter();
+  }
+
+  protected onPeriodFilter(value: string): void {
+    this.period = value;
+    this.applyFilter();
+  }
+
+  protected onStatusFilter(value: EvaluationProfileStatus | ''): void {
+    this.status = value;
+    this.applyFilter();
+  }
+
+  protected onPageSizeChange(size: number): void {
+    this.pageSize = size;
+    this.applyFilter();
+  }
+
+  protected clearKeyword(): void {
+    this.keyword = '';
+    this.applyFilter();
   }
 
   protected clearFilter(): void {
@@ -232,6 +282,19 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
 
   protected statusLabel(status: EvaluationProfileStatus): string {
     return evaluationStatusLabel(this.localization.evaluationProfiles, status);
+  }
+
+  protected statusTone(status: EvaluationProfileStatus): StatusBadgeTone {
+    switch (status) {
+      case 'ACTIVE':
+        return 'success';
+      case 'PENDING_APPROVAL':
+        return 'warning';
+      case 'REJECTED':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 
   protected weightText(value: number): string {

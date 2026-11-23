@@ -5,7 +5,7 @@ import { AppealService } from '../../core/appeal.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { displayBytes } from '../../shared/ui/display';
 import { AppDatePipe } from '../../shared/pipes';
-import { appealCode, appealSubjectWithScore, openBlob, typeKey } from './appeal-display';
+import { appealCode, appealSubject, openBlob } from './appeal-display';
 
 @Component({
   selector: 'app-my-appeal-drawer',
@@ -49,15 +49,28 @@ export class MyAppealDrawerComponent extends LocalizedComponent {
     return appealCode(this.appeal().id);
   }
 
-  protected kindLabel(): string {
-    return this.localization.appeals[typeKey(this.appeal().type)];
+  protected subject(): string {
+    return appealSubject(this.appeal());
   }
 
-  protected subject(): string {
-    return (
-      appealSubjectWithScore(this.appeal(), (score) => this.i18n.formatNumber(score)) ??
-      this.localization.appeals.notAvailable
-    );
+  protected transactionCodesText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    return txs.map((t) => t.transactionCode).join(', ');
+  }
+
+  protected reconciliationText(): string {
+    const txs = this.detail()?.transactions;
+    if (!txs || txs.length === 0) return this.localization.appeals.notAvailable;
+    const labels = this.localization.qaQueue.transactionStatus;
+    return txs
+      .map((t) => {
+        const status = labels[t.status] ?? t.status;
+        return t.reason
+          ? `${t.transactionCode}: ${status} (${t.reason})`
+          : `${t.transactionCode}: ${status}`;
+      })
+      .join(' · ');
   }
 
   protected subtitle(): string {

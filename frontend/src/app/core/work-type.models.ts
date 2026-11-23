@@ -6,7 +6,7 @@ export interface WorkTypeKpiDetail {
   kpiCode: string;
   kpiName: string;
   isRequired: boolean;
-  /** Weight applied to the raw value when a verified result is recorded (BR-48 Task Multiplier). */
+  /** Weight applied to the raw value when a verified result is recorded (task multiplier). */
   multiplier: number;
   /** Date-only, YYYY-MM-DD. */
   effectiveFrom: string;

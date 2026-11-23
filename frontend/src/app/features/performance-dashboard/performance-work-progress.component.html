@@ -1,0 +1,64 @@
+@let text = localization.departmentPerformance;
+@let op = operational();
+<section class="card is-clickable" aria-labelledby="work-progress-title">
+  <div class="card-head">
+    <h2 id="work-progress-title">{{text.workProgressTitle}}</h2>
+    <a class="card-link" [routerLink]="queueLink()"
+      >{{text.openQueue}}<span class="chevron" aria-hidden="true">›</span></a
+    >
+  </div>
+  <p class="eyebrow">{{text.needsMe}}</p>
+  <div class="tiles">
+    <a class="tile review row-link" [routerLink]="queueLink()">
+      <strong class="mono">{{op.pendingReview}}</strong>
+      <span
+        ><b>{{text.pendingReview}}</b
+        ><small>{{text.worksUnit}}</small></span
+      >
+      <span class="chevron" aria-hidden="true">›</span>
+    </a>
+    <a class="tile overdue row-link" [routerLink]="workLink()">
+      <strong class="mono">{{op.overdue}}</strong>
+      <span
+        ><b>{{text.overdue}}</b
+        ><small>{{text.worksUnit}}</small></span
+      >
+      <span class="chevron" aria-hidden="true">›</span>
+    </a>
+    @if (op.escalated !== null) {
+      <a class="tile escalated row-link" [routerLink]="workLink()">
+        <strong class="mono">{{op.escalated}}</strong>
+        <span
+          ><b>{{text.escalated}}</b
+          ><small>{{text.worksUnit}}</small></span
+        >
+        <span class="chevron" aria-hidden="true">›</span>
+      </a>
+    }
+  </div>
+  <p class="eyebrow">{{text.inPeriod}} · {{total()}} {{text.worksUnit}}</p>
+  <div class="stack" role="img" [attr.aria-label]="text.inPeriod">
+    @for (segment of segments(); track segment.key) {
+      <span [class]="'seg ' + segment.key" [style.width.%]="share(segment.count)"></span>
+    }
+  </div>
+  <ul class="legend">
+    @for (segment of segments(); track segment.key) {
+      <li>
+        <span [class]="'dot ' + segment.key" aria-hidden="true"></span>{{segment.label}}
+        <b class="mono">{{segment.count}}</b>
+      </li>
+    }
+  </ul>
+  <p class="eyebrow">{{text.openByType}} · {{openTotal()}}</p>
+  <ul class="mix">
+    @for (item of workMix(); track item.workTypeId) {
+      <li>
+        <span>{{item.name ?? text.noWorkType}}</span
+        ><b class="mono">{{item.count}}</b>
+      </li>
+    } @empty {
+      <li class="muted">{{text.noOpenWork}}</li>
+    }
+  </ul>
+</section>

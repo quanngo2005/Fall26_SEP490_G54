@@ -12,7 +12,10 @@ using Npgsql;
 
 namespace G54.BLL.Services;
 
-public sealed class EvaluationProfileService(AppDbContext db, ILogger<EvaluationProfileService> logger)
+public sealed class EvaluationProfileService(
+    AppDbContext db,
+    ILogger<EvaluationProfileService> logger,
+    INotifier? notifier = null)
     : IEvaluationProfileService
 {
     private const decimal RequiredTotalWeightPercent = 100m;
@@ -111,7 +114,7 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
                 p.EffectiveFrom,
                 p.EffectiveTo,
                 p.Status.ToEnumString(),
-                p.RejectReason,
+                p.Status == EvaluationProfileStatus.Rejected ? p.RejectReason : null,
                 p.PerformanceEvaluations.Count != 0,
                 p.EvaluationProfileItems.Where(i => i.ParentItemId == null).Sum(i => i.WeightPercent),
                 p.UpdatedAt,
@@ -296,6 +299,13 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         await ActivateAsync(profile, cancellationToken);
 
         LogProfileAudit(logger, "APPROVE_EVALUATION_PROFILE", id, null);
+        if (notifier is not null)
+        {
+            var adminIds = await NotificationRecipients.ActiveAdminsAsync(db, cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.EvaluationProfileDecided(profile, null, adminIds, approved: true),
+                cancellationToken);
+        }
     }
 
     public async Task RejectProfileAsync(
@@ -317,6 +327,13 @@ public sealed class EvaluationProfileService(AppDbContext db, ILogger<Evaluation
         await SaveChangesAsync(cancellationToken);
 
         LogProfileAudit(logger, "REJECT_EVALUATION_PROFILE", id, null);
+        if (notifier is not null)
+        {
+            var adminIds = await NotificationRecipients.ActiveAdminsAsync(db, cancellationToken);
+            await notifier.TryPublishAsync(
+                AutomaticNotifications.EvaluationProfileDecided(profile, null, adminIds, approved: false, reason),
+                cancellationToken);
+        }
     }
 
     public async Task DeleteProfileAsync(Guid id, CancellationToken cancellationToken = default)

@@ -1,4 +1,4 @@
-/* Clickable column headers of the QA lists. */
+/* Clickable column headers of the QA lists. Header type and case follow the shared .ui-table (data-table.scss). */
 .data-table th .sort-btn {
   display: inline-flex;
   align-items: center;
@@ -8,16 +8,14 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
   cursor: pointer;
 
   &:hover {
-    color: #1d4ed8;
+    color: #0f172a;
   }
 
   &:focus-visible {
-    outline: 2px solid #2563eb;
+    outline: 2px solid #002b49;
     outline-offset: 2px;
     border-radius: 3px;
   }
@@ -30,7 +28,7 @@
 
 .data-table th[aria-sort='ascending'] .sort-arrow,
 .data-table th[aria-sort='descending'] .sort-arrow {
-  color: #1d4ed8;
+  color: #002b49;
 }
 
 .data-table th.col-penalty .sort-btn {

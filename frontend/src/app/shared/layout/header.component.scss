@@ -14,7 +14,7 @@
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
   color: #0f172a;
-  font-family: Inter, sans-serif;
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 /* ── Page context ─────────────────────────────── */
@@ -84,22 +84,6 @@ button {
 .icon-action:hover {
   background: #f1f5f9;
   color: #0f172a;
-}
-
-.notification-badge {
-  position: absolute;
-  top: 0;
-  left: 16px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: #b91c1c;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
-  text-align: center;
 }
 
 .action-divider {

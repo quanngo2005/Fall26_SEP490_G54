@@ -1,0 +1,103 @@
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid;
+  border-radius: 8px;
+  color: #0f172a;
+  text-decoration: none;
+}
+.tile strong {
+  font-size: 24px;
+}
+.tile span:not(.chevron) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font-size: 14px;
+}
+.tile small {
+  color: #64748b;
+  font-size: 12px;
+}
+.review {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.review strong {
+  color: #1d4ed8;
+}
+.overdue {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.overdue strong {
+  color: #c2410c;
+}
+.escalated {
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+.escalated strong {
+  color: #be123c;
+}
+.stack {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #eef2f7;
+}
+.seg.completed,
+.dot.completed {
+  background: #059669;
+}
+.seg.progress,
+.dot.progress {
+  background: #2563eb;
+}
+.seg.waiting,
+.dot.waiting {
+  background: #94a3b8;
+}
+.seg.overdue,
+.dot.overdue {
+  background: #d97706;
+}
+.legend,
+.mix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 10px 0 18px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+.legend b {
+  margin-left: 6px;
+}
+.mix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  margin-bottom: 0;
+}
+.mix li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}

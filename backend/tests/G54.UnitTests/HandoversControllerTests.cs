@@ -4,6 +4,7 @@ using System.Text.Json;
 using G54.Api.Authorization;
 using G54.Api.Controllers;
 using G54.BLL.Common.Exceptions;
+using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Handover;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -18,8 +19,6 @@ public sealed class HandoversControllerTests
 
     [Theory]
     [InlineData(nameof(HandoversController.CreateHandover), "works/{workId:guid}/handovers", "handover", "create")]
-    [InlineData(nameof(HandoversController.AcceptHandover), "handovers/{id:guid}/accept", "handover", "respond")]
-    [InlineData(nameof(HandoversController.RejectHandover), "handovers/{id:guid}/reject", "handover", "respond")]
     [InlineData(nameof(HandoversController.ApproveHandover), "handovers/{id:guid}/manager/approve", "handover", "manage")]
     [InlineData(nameof(HandoversController.ReassignHandover), "handovers/{id:guid}/manager/reassign", "handover", "manage")]
     [InlineData(nameof(HandoversController.RejectHandoverAsManager), "handovers/{id:guid}/manager/reject", "handover", "manage")]
@@ -65,23 +64,6 @@ public sealed class HandoversControllerTests
     }
 
     [Fact]
-    public async Task RecipientActions_UseTheAuthenticatedUser()
-    {
-        var userId = Guid.NewGuid();
-        var handoverId = Guid.NewGuid();
-        var service = new RecordingService();
-        var controller = ControllerFor(service, userId);
-
-        var accept = await controller.AcceptHandover(handoverId, CancellationToken.None);
-        Assert.Equal("Đã nhận bàn giao công việc.", MessageOf(Assert.IsType<OkObjectResult>(accept.Result)));
-        Assert.Equal(("accept", handoverId, userId), service.Last);
-
-        var reject = await controller.RejectHandover(handoverId, CancellationToken.None);
-        Assert.Equal("Đã từ chối yêu cầu bàn giao.", MessageOf(Assert.IsType<OkObjectResult>(reject.Result)));
-        Assert.Equal(("reject", handoverId, userId), service.Last);
-    }
-
-    [Fact]
     public async Task ManagerActions_UseTheAuthenticatedUser()
     {
         var userId = Guid.NewGuid();
@@ -119,8 +101,6 @@ public sealed class HandoversControllerTests
 
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             controller.CreateHandover(id, new CreateHandoverRequestDto(), CancellationToken.None));
-        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.AcceptHandover(id, CancellationToken.None));
-        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.RejectHandover(id, CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() => controller.ApproveHandover(id, CancellationToken.None));
         await Assert.ThrowsAsync<UnauthorizedException>(() =>
             controller.ReassignHandover(id, new ReassignHandoverRequestDto(), CancellationToken.None));
@@ -221,13 +201,56 @@ public sealed class HandoversControllerTests
             return Task.FromResult<IReadOnlyList<HandoverRecipientDto>>(Recipients);
         }
 
+        public Task<PagedResult<HandoverListItemDto>> ListHandoversAsync(
+            Guid userId,
+            HandoverListQueryDto query,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult(new PagedResult<HandoverListItemDto>(ListItems, ListItems.Count, query.Page, query.PageSize));
+        }
+
+        public Task<HandoverListItemDto> GetHandoverAsync(
+            Guid handoverId,
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            return Task.FromResult(ListItems.FirstOrDefault(x => x.Id == handoverId)
+                ?? new HandoverListItemDto(
+                    handoverId,
+                    "HO-000001",
+                    Guid.NewGuid(),
+                    "WK-1",
+                    "Work",
+                    "HANDED_OVER",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Guid.NewGuid(),
+                    "NV01",
+                    "From",
+                    "Teller",
+                    Guid.NewGuid(),
+                    "NV02",
+                    "To",
+                    "Sales",
+                    "Reason",
+                    0m,
+                    "ACCEPTED",
+                    "PENDING",
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UtcNow,
+                    true));
+        }
+
+        public List<HandoverListItemDto> ListItems { get; } = [];
         public List<HandoverRecipientDto> Recipients { get; } = [];
-
-        public Task<HandoverDetailDto> AcceptHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-            => Record("accept", handoverId, userId);
-
-        public Task<HandoverDetailDto> RejectHandoverAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
-            => Record("reject", handoverId, userId);
 
         public Task<HandoverDetailDto> ApproveByManagerAsync(Guid handoverId, Guid userId, CancellationToken cancellationToken = default)
             => Record("approve", handoverId, userId);

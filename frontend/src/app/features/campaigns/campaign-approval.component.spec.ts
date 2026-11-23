@@ -6,6 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { CampaignDetail, CampaignSummary } from '../../core/campaign.models';
 import { CampaignService } from '../../core/campaign.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { CampaignApprovalComponent } from './campaign-approval.component';
 
@@ -30,6 +31,14 @@ const summary = (id: string, code: string): CampaignSummary => ({
   generatedWorksCount: 0,
   completedWorksCount: 0,
   updatedAt: '2026-10-20T10:00:00Z',
+  progressPercent: 0,
+  timeElapsedPercent: 0,
+  paceGap: 0,
+  kpiCode: null,
+  kpiName: null,
+  targetUnit: null,
+  targetValue: null,
+  actualValue: null,
 });
 
 const detail = (id: string, overrides: Partial<CampaignDetail> = {}): CampaignDetail => ({
@@ -115,6 +124,7 @@ describe('CampaignApprovalComponent', () => {
         add: { imports: [HeaderStub, SidebarStub] },
       })
       .compileComponents();
+    TestBed.inject(I18nService).setLanguage('vi');
   });
 
   it('loads planned campaigns and reviews the first one', async () => {
@@ -124,6 +134,34 @@ describe('CampaignApprovalComponent', () => {
     expect(root.querySelectorAll('.queue-item').length).toBe(2);
     expect(api.detail).toHaveBeenCalledWith('c1');
     expect(root.textContent).toContain('WT-S01');
+  });
+
+  it('breaks participants down by job position', async () => {
+    const person = (employeeId: string, jobPositionTitle: string | null) => ({
+      employeeId,
+      employeeCode: employeeId,
+      fullName: employeeId,
+      jobPositionTitle,
+      departmentName: null,
+      assignedTasksCount: 0,
+      completedTasksCount: 0,
+    });
+    api.detail.and.callFake((id: string) =>
+      of(
+        detail(id, {
+          participants: [
+            person('a', 'SO'),
+            person('b', 'SO'),
+            person('c', 'Teller'),
+            person('d', null),
+          ],
+        }),
+      ),
+    );
+
+    const { root } = await open();
+
+    expect(root.querySelector('.facts')?.textContent).toContain('(2 SO, 1 Teller)');
   });
 
   it('preselects the campaign from the id query parameter', async () => {

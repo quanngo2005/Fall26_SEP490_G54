@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -95,11 +96,12 @@ public sealed class WorkTypeService(AppDbContext db, ILogger<WorkTypeService> lo
 
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword = filter.Keyword.Trim();
+            // ILike is PostgreSQL's case-insensitive LIKE; the user's text is escaped so % and _ match literally.
+            var pattern = LikePattern.Contains(filter.Keyword.Trim());
             query = query.Where(w =>
-                w.Code.Contains(keyword) ||
-                w.Name.Contains(keyword) ||
-                (w.Description != null && w.Description.Contains(keyword)));
+                EF.Functions.ILike(w.Code, pattern, LikePattern.Escape) ||
+                EF.Functions.ILike(w.Name, pattern, LikePattern.Escape) ||
+                (w.Description != null && EF.Functions.ILike(w.Description, pattern, LikePattern.Escape)));
         }
 
         if (status.HasValue)

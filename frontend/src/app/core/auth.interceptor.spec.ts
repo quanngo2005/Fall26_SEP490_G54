@@ -54,7 +54,18 @@ describe('authInterceptor', () => {
     sessionStorage.clear();
   });
 
-  for (const path of ['/qa-queue', '/qa-queue/FLAG/f1', '/qa-samples', '/quality-flags']) {
+  for (const path of [
+    '/qa-queue',
+    '/qa-dashboard',
+    '/qa-dashboard/filters',
+    '/qa-queue/FLAG/f1',
+    '/qa-samples',
+    '/quality-flags',
+    '/reconciliations',
+    '/transaction-imports',
+    '/transaction-imports/template',
+    '/data-imports/employees/preview',
+  ]) {
     it(`sends the bearer token to the QA endpoint ${path}`, () => {
       localStorage.setItem(
         'g54.auth.session',
@@ -87,7 +98,7 @@ describe('authInterceptor', () => {
 
   it('attaches the token to admin configuration and lookup endpoints', () => {
     localStorage.setItem('g54.auth.session', JSON.stringify(refreshedSession));
-    for (const path of ['/sidebar-configurations', '/roles', '/job-positions']) {
+    for (const path of ['/sidebar-configurations', '/roles', '/job-positions', '/audit-logs']) {
       client.get(`${environment.apiUrl}${path}`).subscribe();
       const request = http.expectOne(`${environment.apiUrl}${path}`);
       expect(request.request.headers.get('Authorization')).toBe('Bearer rotated-access-token');

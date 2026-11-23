@@ -69,6 +69,41 @@ describe('RiskEventCreateModalComponent', () => {
 
   afterEach(() => http.verify());
 
+  it('opens with the employee, the work and the description of a preset already filled in', async () => {
+    const fixture = TestBed.createComponent(RiskEventCreateModalComponent);
+    fixture.componentRef.setInput('preset', {
+      employeeId: 'e9',
+      employeeCode: 'NV0999',
+      employeeName: 'Lê Thu Hoa',
+      workCode: 'WK-1051',
+      description: 'Mã giao dịch GD-1 không khớp với file giao dịch.',
+    });
+    fixture.detectChanges();
+    // The preset employee is not among the first 100 active employees, yet stays selectable.
+    http
+      .expectOne((r) => r.url === `${api}/employees`)
+      .flush(
+        envelope({
+          items: [employee('e1', 'NV0310', 'Trần Quốc Bảo')],
+          totalCount: 1,
+          page: 1,
+          pageSize: 100,
+        }),
+      );
+    fixture.detectChanges();
+    // ngModel writes its value on the next microtask.
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(el<HTMLSelectElement>(fixture, '#risk-employee').value).toContain('e9');
+    expect(text(fixture)).toContain('NV0999 · Lê Thu Hoa');
+    expect(el<HTMLTextAreaElement>(fixture, '#risk-description').value).toBe(
+      'Mã giao dịch GD-1 không khớp với file giao dịch.',
+    );
+    expect(el<HTMLInputElement>(fixture, '#risk-work').value).toBe('WK-1051');
+  });
+
   it('offers the active employees, the violation types and the notice', () => {
     const fixture = open();
     const body = text(fixture);

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using System.Net.Mail;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -16,9 +16,8 @@ using Microsoft.Extensions.Options;
 namespace G54.BLL.Services;
 
 /// <summary>
-/// Imports <c>02_Nhan_su_To_chuc.xlsx</c> (exported from HRM): read -> map -> minimal validation -> upsert
-/// branch, department, employee, account in one transaction. The file is trusted, so only what the write
-/// cannot do without is checked; email / code collisions with existing data surface at commit as a 409.
+/// Imports <c>02_Nhan_su_To_chuc.xlsx</c> (exported from HRM): read -> map -> validate -> upsert
+/// branch, department, employee, account in one transaction (committing valid rows and skipping invalid ones).
 /// A new employee's account uses the email as username and a random temporary password returned once.
 /// </summary>
 public sealed class EmployeeImportService(
@@ -26,10 +25,9 @@ public sealed class EmployeeImportService(
     AppDbContext db,
     IExcelSheetReader reader,
     IPasswordEncoder passwordEncoder,
-    IOptions<SystemParametersOptions> parameters) : IEmployeeImportService
+    IOptions<SystemParametersOptions> parameters,
+    INotifier? notifier = null) : IEmployeeImportService
 {
-    private const string PasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-
     private const string BranchCodeHeader = "Mã chi nhánh*";
     private const string BranchNameHeader = "Tên chi nhánh*";
     private const string DeptCodeHeader = "Mã phòng ban*";
@@ -78,14 +76,37 @@ public sealed class EmployeeImportService(
     public async Task<ImportCommitResultDto> CommitAsync(Stream file, CancellationToken cancellationToken)
     {
         var (rows, ctx) = await AnalyzeAsync(file, cancellationToken);
-        if (rows.Any(r => r.Errors.Count > 0))
+        var validRows = rows.Where(r => r.Errors.Count == 0).ToList();
+        if (validRows.Count == 0)
         {
             throw new BusinessRuleException(ErrorCodes.DataImportHasErrors, null, 422);
         }
 
+        var skippedRows = rows
+            .Where(r => r.Errors.Count > 0)
+            .Select(r => new ImportSkippedRowDto(
+                r.RowNumber,
+                r.Errors.Select(e => new ImportErrorDto(e.Column, e.Code, e.Message)).ToList()))
+            .ToList();
+
         try
         {
-            return await uow.ExecuteInTransactionAsync(ct => WriteAsync(rows, ctx, ct), cancellationToken);
+            var result = await uow.ExecuteInTransactionAsync(ct => WriteAsync(validRows, skippedRows, ctx, ct), cancellationToken);
+            if (skippedRows.Count > 0 && notifier is not null)
+            {
+                var adminIds = await NotificationRecipients.ActiveAdminsAsync(db, cancellationToken);
+                var drafts = adminIds
+                    .Select(id => AutomaticNotifications.ImportCompletedWithErrors(
+                        id,
+                        "nhân sự & tổ chức",
+                        "02_Nhan_su_To_chuc.xlsx",
+                        result.Created + result.Updated,
+                        skippedRows.Count))
+                    .ToList();
+                await notifier.TryPublishAsync(drafts, cancellationToken);
+            }
+
+            return result;
         }
         catch (Exception ex) when (PostgresConflict.IsUniqueViolation(ex))
         {
@@ -102,6 +123,11 @@ public sealed class EmployeeImportService(
     {
         var sheet = reader.Read(file, parameters.Value.ImportMaxRows);
         var headerIndex = Template.BuildHeaderIndex(sheet.Headers);
+
+        if (sheet.Rows.Count == 0)
+        {
+            throw new ValidationException("File không có dòng dữ liệu nào (chỉ có dòng tiêu đề hoặc để trống).");
+        }
 
         var rows = sheet.Rows
             .Select(raw =>
@@ -125,8 +151,6 @@ public sealed class EmployeeImportService(
 
     private static void Validate(List<EmployeeOrgRow> rows, ImportContext ctx)
     {
-        var codesInFile = rows.Where(r => r.EmployeeCode is not null).Select(r => r.EmployeeCode!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         foreach (var row in rows)
         {
             Require(row, BranchCodeHeader, row.BranchCode);
@@ -138,6 +162,18 @@ public sealed class EmployeeImportService(
             Require(row, EmailHeader, row.Email);
             Require(row, PositionHeader, row.Position);
             Require(row, StatusHeader, row.StatusText);
+
+            if (row.Email is not null)
+            {
+                if (!IsValidEmail(row.Email))
+                {
+                    row.AddError(EmailHeader, ErrorCodes.DataImportInvalidValue, $"Email '{row.Email}' không đúng định dạng.");
+                }
+                else if (IsEmailOwnedByAnotherEmployee(row, ctx))
+                {
+                    row.AddError(EmailHeader, ErrorCodes.DataImportDuplicate, $"Email '{row.Email}' đã được sử dụng bởi nhân viên khác.");
+                }
+            }
 
             if (row.Position is not null && !PositionMapping.IsKnown(row.Position))
             {
@@ -157,29 +193,105 @@ public sealed class EmployeeImportService(
                 }
             }
 
-            if (row.ManagerCode is null)
-            {
-                continue;
-            }
-
-            if (string.Equals(row.ManagerCode, row.EmployeeCode, StringComparison.OrdinalIgnoreCase))
+            if (row.ManagerCode is not null && string.Equals(row.ManagerCode, row.EmployeeCode, StringComparison.OrdinalIgnoreCase))
             {
                 row.AddError(ManagerCodeHeader, ErrorCodes.DataImportInvalidValue, "Nhân viên không thể tự quản lý mình.");
             }
-            else if (!codesInFile.Contains(row.ManagerCode) && !ctx.EmployeesByCode.ContainsKey(row.ManagerCode))
+        }
+
+        // Duplicate employee codes: keep the first occurrence and flag subsequent rows.
+        foreach (var group in rows
+            .Where(r => r.EmployeeCode is not null)
+            .GroupBy(r => r.EmployeeCode!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1))
+        {
+            var first = group.First();
+            foreach (var row in group.Skip(1))
             {
-                row.AddError(ManagerCodeHeader, ErrorCodes.DataImportReferenceNotFound, $"Mã quản lý '{row.ManagerCode}' không tồn tại.");
+                row.AddError(EmployeeCodeHeader, ErrorCodes.DataImportDuplicate, $"Mã nhân viên '{first.EmployeeCode}' trùng với dòng {first.RowNumber}.");
             }
         }
 
-        // Two rows with one employee code would insert the same employee twice: flag the whole group.
-        foreach (var group in rows.Where(r => r.EmployeeCode is not null).GroupBy(r => r.EmployeeCode!, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+        // Duplicate emails inside the file: keep the first occurrence and flag subsequent rows.
+        foreach (var group in rows
+            .Where(r => r.Email is not null && IsValidEmail(r.Email))
+            .GroupBy(r => r.Email!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1))
         {
-            foreach (var row in group)
+            var first = group.First();
+            foreach (var row in group.Skip(1))
             {
-                row.AddError(EmployeeCodeHeader, ErrorCodes.DataImportDuplicate, $"Mã nhân viên '{group.Key}' trùng lặp trong file.");
+                row.AddError(EmailHeader, ErrorCodes.DataImportDuplicate, $"Email '{first.Email}' trùng với dòng {first.RowNumber}.");
             }
         }
+
+        // Manager codes must exist in the DB or on a VALID row in the file; cascade until stable.
+        bool changed;
+        do
+        {
+            changed = false;
+            var validCodesInFile = rows
+                .Where(r => r.Errors.Count == 0 && r.EmployeeCode is not null)
+                .Select(r => r.EmployeeCode!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in rows)
+            {
+                if (row.ManagerCode is null ||
+                    string.Equals(row.ManagerCode, row.EmployeeCode, StringComparison.OrdinalIgnoreCase) ||
+                    row.Errors.Any(e => e.Column == ManagerCodeHeader))
+                {
+                    continue;
+                }
+
+                if (!validCodesInFile.Contains(row.ManagerCode) && !ctx.EmployeesByCode.ContainsKey(row.ManagerCode))
+                {
+                    var wasValid = row.Errors.Count == 0;
+                    row.AddError(ManagerCodeHeader, ErrorCodes.DataImportReferenceNotFound, $"Mã quản lý '{row.ManagerCode}' không tồn tại.");
+                    if (wasValid)
+                    {
+                        changed = true;
+                    }
+                }
+            }
+        }
+        while (changed);
+    }
+
+    private static bool IsValidEmail(string email)
+    {
+        if (email.Any(char.IsWhiteSpace) || !MailAddress.TryCreate(email, out var parsed) ||
+            !string.Equals(parsed.Address, email, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var at = parsed.Host;
+        return at.Contains('.', StringComparison.Ordinal)
+            && !at.StartsWith('.')
+            && !at.EndsWith('.');
+    }
+
+    private static bool IsEmailOwnedByAnotherEmployee(EmployeeOrgRow row, ImportContext ctx)
+    {
+        if (row.Email is null)
+        {
+            return false;
+        }
+
+        if (ctx.EmployeeCodesByEmail.TryGetValue(row.Email, out var ownerCode) &&
+            !string.Equals(ownerCode, row.EmployeeCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (ctx.AccountOwnerCodesByUsername.TryGetValue(row.Email, out var accountOwnerCode) &&
+            !string.Equals(accountOwnerCode, row.EmployeeCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void Require(EmployeeOrgRow row, string column, string? value)
@@ -217,6 +329,8 @@ public sealed class EmployeeImportService(
     {
         public required Dictionary<string, Department> DepartmentsByCode { get; init; }
         public required Dictionary<string, Employee> EmployeesByCode { get; init; }
+        public required Dictionary<string, string> EmployeeCodesByEmail { get; init; }
+        public required Dictionary<string, string> AccountOwnerCodesByUsername { get; init; }
         public required Dictionary<string, JobPosition> JobPositionsByCode { get; init; }
         public required Dictionary<string, Role> RolesByCode { get; init; }
         public required Dictionary<Guid, Account> AccountsByEmployeeId { get; init; }
@@ -234,6 +348,11 @@ public sealed class EmployeeImportService(
             .OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var emails = rows
+            .Select(r => r.Email)
+            .OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Tracked on purpose: upserts mutate these entities (the repository ListAsync is AsNoTracking).
         var departments = await db.Departments.Where(d => orgCodes.Contains(d.Code)).ToListAsync(ct);
@@ -243,19 +362,60 @@ public sealed class EmployeeImportService(
         var employeeIds = employees.Select(e => e.Id).ToList();
         var accounts = await db.Accounts.Where(a => employeeIds.Contains(a.EmployeeId)).ToListAsync(ct);
 
+        var emailOwners = emails.Count == 0 ? [] : await QueryEmailOwnersAsync(emails, ct);
+        var usernameOwners = emails.Count == 0 ? [] : await QueryUsernameOwnersAsync(emails, ct);
+
+        var employeeCodesByEmail = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (email, employeeCode) in emailOwners)
+        {
+            employeeCodesByEmail.TryAdd(email, employeeCode);
+        }
+
+        var accountOwnerCodesByUsername = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (username, employeeCode) in usernameOwners)
+        {
+            accountOwnerCodesByUsername.TryAdd(username, employeeCode);
+        }
+
         return new ImportContext
         {
             DepartmentsByCode = departments.ToDictionary(d => d.Code, StringComparer.OrdinalIgnoreCase),
             EmployeesByCode = employees.ToDictionary(e => e.EmployeeCode, StringComparer.OrdinalIgnoreCase),
+            EmployeeCodesByEmail = employeeCodesByEmail,
+            AccountOwnerCodesByUsername = accountOwnerCodesByUsername,
             JobPositionsByCode = jobPositions.ToDictionary(j => j.Code, StringComparer.OrdinalIgnoreCase),
             RolesByCode = roles.ToDictionary(r => r.Code, StringComparer.OrdinalIgnoreCase),
             AccountsByEmployeeId = accounts.ToDictionary(a => a.EmployeeId),
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL lower(), using database collation rather than CLR culture.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToLower() to SQL lower().")]
+    private async Task<List<(string Email, string EmployeeCode)>> QueryEmailOwnersAsync(List<string> lowerEmails, CancellationToken ct) =>
+        (await db.Employees.AsNoTracking()
+            .Where(e => e.Email != null && lowerEmails.Contains(e.Email.ToLower()))
+            .Select(e => new { Email = e.Email!, e.EmployeeCode })
+            .ToListAsync(ct))
+        .Select(x => (x.Email, x.EmployeeCode))
+        .ToList();
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL lower(), using database collation rather than CLR culture.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToLower() to SQL lower().")]
+    private async Task<List<(string Username, string EmployeeCode)>> QueryUsernameOwnersAsync(List<string> lowerEmails, CancellationToken ct) =>
+        (await db.Accounts.AsNoTracking()
+            .Where(a => lowerEmails.Contains(a.Username.ToLower()))
+            .Select(a => new { a.Username, a.Employee.EmployeeCode })
+            .ToListAsync(ct))
+        .Select(x => (x.Username, x.EmployeeCode))
+        .ToList();
+
     // ---- write -----------------------------------------------------------------------------------------
 
-    private async Task<ImportCommitResultDto> WriteAsync(List<EmployeeOrgRow> rows, ImportContext ctx, CancellationToken ct)
+    private async Task<ImportCommitResultDto> WriteAsync(
+        List<EmployeeOrgRow> rows,
+        List<ImportSkippedRowDto> skippedRows,
+        ImportContext ctx,
+        CancellationToken ct)
     {
         var departments = new Dictionary<string, Department>(ctx.DepartmentsByCode, StringComparer.OrdinalIgnoreCase);
 
@@ -302,13 +462,14 @@ public sealed class EmployeeImportService(
             ctx.AccountsByEmployeeId.TryGetValue(employee.Id, out var account);
             if (account is null && !row.IsUpdate)
             {
-                var temporaryPassword = RandomNumberGenerator.GetString(PasswordAlphabet, 16);
+                var temporaryPassword = TemporaryPassword.Generate();
                 account = new Account
                 {
                     Id = Guid.NewGuid(),
                     EmployeeId = employee.Id,
                     Username = employee.Email,
                     PasswordHash = passwordEncoder.Encode(temporaryPassword),
+                    MustChangePassword = true,
                 };
                 db.Accounts.Add(account);
                 if (ctx.RolesByCode.TryGetValue(roleCode, out var role))
@@ -335,7 +496,7 @@ public sealed class EmployeeImportService(
         }
 
         await db.SaveChangesAsync(ct);
-        return new ImportCommitResultDto(created, updated, newAccounts);
+        return new ImportCommitResultDto(created, updated, skippedRows.Count, newAccounts, skippedRows);
     }
 
     private void UpsertDepartment(

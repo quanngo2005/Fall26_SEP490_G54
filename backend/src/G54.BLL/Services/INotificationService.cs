@@ -19,6 +19,9 @@ public interface INotificationService
     /// <summary>Marks every unread notification of the caller as read and returns how many it changed.</summary>
     Task<NotificationCountDto> MarkAllReadAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>Active employees inside the caller's <c>notification:send</c> scope (excluding the caller).</summary>
+    Task<IReadOnlyList<NotificationRecipientOptionDto>> GetSendableRecipientsAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>The employee behind a signed-in account; the push channel addresses notifications by employee.</summary>
     Task<Guid> GetEmployeeIdAsync(Guid userId, CancellationToken cancellationToken = default);
 }

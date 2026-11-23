@@ -17,7 +17,8 @@ public sealed partial class VerificationService(
     ILogger<VerificationService> logger,
     TimeProvider time,
     IPermissionService permissions,
-    IQaSamplingPolicy? qaSampling = null) : IVerificationService
+    IQaSamplingPolicy? qaSampling = null,
+    INotifier? notifier = null) : IVerificationService
 {
     private static readonly Action<ILogger, string, Guid, Guid, Exception?> LogVerificationAudit =
         LoggerMessage.Define<string, Guid, Guid>(
@@ -236,10 +237,6 @@ public sealed partial class VerificationService(
             submission.Work.UpdatedAt = now;
             if (dbDecision == VerificationDecision.Approved)
             {
-                var acceptedAppeals = await db.Appeals
-                    .Where(a => a.ResultSubmission!.WorkId == submission.WorkId && a.Status == AppealStatus.Accepted)
-                    .Select(a => a.Id)
-                    .ToListAsync(cancellationToken);
                 // BR-32: a random 5% of manually approved results is queued for QA re-verification.
                 if (qaSampling?.ShouldSample(submission.Work) == true
                     && !await db.QaSamples.AnyAsync(x => x.ResultSubmissionId == submission.Id, cancellationToken))
@@ -252,11 +249,6 @@ public sealed partial class VerificationService(
                         Status = QaSampleStatus.Pending,
                         SampledAt = now,
                     });
-                }
-
-                foreach (var appealId in acceptedAppeals)
-                {
-                    await AppealScoreLedger.RefundAsync(db, appealId, verifier.Id, time.GetBusinessToday(), now, cancellationToken);
                 }
             }
             await db.SaveChangesAsync(cancellationToken);
@@ -271,6 +263,12 @@ public sealed partial class VerificationService(
         }
 
         LogVerificationAudit(logger, normalizedDecision, submission.Id, verifier.Id, null);
+        if (notifier is not null)
+        {
+            await notifier.TryPublishAsync(
+                [AutomaticNotifications.SubmissionDecided(submission, submission.Work, verifier, normalizedDecision, dto.Feedback)],
+                cancellationToken);
+        }
 
         var message = $"Quyết định thẩm định đã được ghi nhận: {actionText}.";
 

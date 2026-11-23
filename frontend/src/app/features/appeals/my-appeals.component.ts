@@ -1,23 +1,28 @@
-import { UpperCasePipe } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
-import { AppealDetail, AppealListItem, AppealStatus, AppealType } from '../../core/appeal.models';
+import { AppealDetail, AppealListItem, AppealStatus } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppDatePipe } from '../../shared/pipes';
-import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
+import {
+  SelectOption,
+  StatusBadgeComponent,
+  StatusBadgeTone,
+  TablePaginationComponent,
+  UiSelectComponent,
+} from '../../shared/ui';
 import {
   appealCode,
   appealErrorKey,
   appealSubject,
-  appealSubjectWithScore,
   OPEN_STATUSES,
   RESOLVED_STATUSES,
-  typeKey,
 } from './appeal-display';
 import { AppealSubmitModalComponent } from './appeal-submit-modal.component';
 import { MyAppealDrawerComponent } from './my-appeal-drawer.component';
@@ -31,22 +36,33 @@ const TAB_STATUSES: Readonly<Record<MineTab, readonly AppealStatus[]>> = {
   RESOLVED: RESOLVED_STATUSES,
 };
 
+const STATUS_TONE: Readonly<Record<AppealStatus, StatusBadgeTone>> = {
+  OPEN: 'warning',
+  UNDER_REVIEW: 'info',
+  ACCEPTED: 'success',
+  REJECTED: 'danger',
+  WITHDRAWN: 'neutral',
+};
+
 @Component({
   selector: 'app-my-appeals',
   imports: [
     FormsModule,
     SidebarComponent,
     HeaderComponent,
+    LayoutIconComponent,
+    StatusBadgeComponent,
+    TablePaginationComponent,
+    UiSelectComponent,
     MyAppealDrawerComponent,
     AppealSubmitModalComponent,
     AppDatePipe,
-    UpperCasePipe,
   ],
   templateUrl: './my-appeals.component.html',
   styleUrls: [
+    '../../shared/ui/ui-controls.scss',
+    '../../shared/ui/workspace-page.scss',
     '../../shared/ui/modal.scss',
-    './appeals-shared.scss',
-    './appeals-list.scss',
     './my-appeals.component.scss',
   ],
 })
@@ -54,12 +70,12 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(AppealService);
   private readonly evaluations = inject(EvaluationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly reload = new Subject<void>();
   private readonly loadDetail = new Subject<string>();
 
   protected readonly activeTab = signal<MineTab>('ALL');
   protected readonly searchQuery = signal('');
-  protected readonly typeFilter = signal<AppealType | 'ALL'>('ALL');
   protected readonly periodFilter = signal('ALL');
   protected readonly page = signal(1);
 
@@ -79,25 +95,31 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   protected readonly notice = signal<string | null>(null);
   protected readonly errorKey = signal<string | null>(null);
 
-  protected readonly selectedAppeal = computed(
-    () => this.items().find((item) => item.id === this.selectedId()) ?? null,
-  );
+  /**
+   * The appeal whose drawer is open. It normally comes from the list; an appeal opened by link (?appeal=) may be
+   * outside the page or filter on screen, so its loaded detail stands in for the list row.
+   */
+  protected readonly selectedAppeal = computed<AppealListItem | null>(() => {
+    const id = this.selectedId();
+    const fromList = this.items().find((item) => item.id === id);
+    if (fromList) return fromList;
+    const loaded = this.detail();
+    return loaded && loaded.id === id ? { ...loaded, jobPositionTitle: null } : null;
+  });
 
   protected readonly filteredItems = computed(() => {
     const query = this.searchQuery().trim().toLowerCase();
     if (!query) return this.items();
     return this.items().filter((item) => {
-      const text = `${appealCode(item.id)} ${appealSubject(item) ?? ''}`.toLowerCase();
+      const text = `${appealCode(item.id)} ${appealSubject(item)}`.toLowerCase();
       return text.includes(query);
     });
   });
 
-  protected readonly pages = computed(() => {
-    const size = this.pageSize();
-    return size > 0
-      ? Array.from({ length: Math.ceil(this.totalCount() / size) }, (_, i) => i + 1)
-      : [];
-  });
+  protected readonly periodOptions = computed<SelectOption<string>[]>(() => [
+    { value: 'ALL', label: this.localization.appeals.allPeriods },
+    ...this.periods().map((p) => ({ value: p.id, label: p.code })),
+  ]);
 
   constructor() {
     super();
@@ -170,6 +192,13 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
       )
       .subscribe((periods) => this.periods.set(periods));
     this.reload.next();
+
+    // Deep link from "View appeal" in the submission history: /appeals/mine?appeal=<id> opens that appeal.
+    const linked = this.route.snapshot.queryParamMap.get('appeal');
+    if (linked) {
+      this.selectedId.set(linked);
+      this.loadDetail.next(linked);
+    }
   }
 
   protected retry(): void {
@@ -178,12 +207,6 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
 
   protected setTab(tab: MineTab): void {
     this.activeTab.set(tab);
-    this.page.set(1);
-    this.reload.next();
-  }
-
-  protected setType(type: AppealType | 'ALL'): void {
-    this.typeFilter.set(type);
     this.page.set(1);
     this.reload.next();
   }
@@ -251,15 +274,12 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     return this.localization.appeals.status[status];
   }
 
-  protected kindLabel(type: AppealType): string {
-    return this.localization.appeals[typeKey(type)];
+  protected statusTone(status: AppealStatus): StatusBadgeTone {
+    return STATUS_TONE[status];
   }
 
   protected subject(item: AppealListItem): string {
-    return (
-      appealSubjectWithScore(item, (score) => this.i18n.formatNumber(score)) ??
-      this.localization.appeals.notAvailable
-    );
+    return appealSubject(item);
   }
 
   protected code(item: AppealListItem): string {
@@ -287,11 +307,9 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
     return key ? this.i18n.translate(key) : '';
   }
 
-  private baseFilter(): { type?: AppealType; periodId?: string } {
-    const type = this.typeFilter();
+  private baseFilter(): { periodId?: string } {
     const period = this.periodFilter();
     return {
-      ...(type !== 'ALL' ? { type } : {}),
       ...(period !== 'ALL' ? { periodId: period } : {}),
     };
   }

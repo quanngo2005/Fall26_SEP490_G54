@@ -1,0 +1,224 @@
+@let text = localization.work.detail.submit;
+<div
+  animate.leave="g54-leave-fade"
+  class="dialog-backdrop"
+  (click)="close()"
+  aria-hidden="true"
+></div>
+<form
+  animate.leave="g54-leave-pop"
+  class="dialog submit-dialog"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="submit-title"
+  novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (ngSubmit)="submit()"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="submit-title">{{title()}}</h2>
+      <p>{{subtitle()}}</p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    @if (state() === 'loading') {
+      <p class="state" role="status">{{text.loading}}</p>
+    } @else if (state() === 'error') {
+      <p class="form-error" role="alert">{{text.loadError}}</p>
+    } @else {
+      @if (deadlineText(); as deadline) {
+        <p class="deadline" [class.is-late]="isLate()" role="note">{{deadline}}</p>
+      }
+
+      <fieldset class="codes-box">
+        <legend>{{text.codesTitle}}</legend>
+        <label for="submit-codes">{{text.codesLabel}}</label>
+        <input
+          id="submit-codes"
+          name="codes"
+          type="text"
+          class="input"
+          autocomplete="off"
+          [class.is-invalid]="attempted() && (codesTooMany || codeTooLong)"
+          [placeholder]="text.codesPlaceholder"
+          [(ngModel)]="codesText"
+        />
+        @if (attempted() && codesTooMany) {
+          <span class="field-error" role="alert">
+            {{i18n.translate('work.detail.submit.errors.tooManyCodes', { max: maxCodes })}}
+          </span>
+        } @else if (attempted() && codeTooLong) {
+          <span class="field-error" role="alert">{{text.errors.codeTooLong}}</span>
+        } @else {
+          <span class="field-hint">{{text.codesHint}}</span>
+        }
+      </fieldset>
+
+      @if (metrics().length > 0) {
+        <fieldset class="metrics-box">
+          <legend>{{text.metricsTitle}}</legend>
+          @for (draft of metrics(); track draft.criteria.kpiDefinitionId; let i = $index) {
+            <div class="metric-row">
+              <div class="metric-name">
+                <strong>{{draft.criteria.code}}</strong>
+                <span>{{draft.criteria.name}}</span>
+              </div>
+              <div class="metric-inputs">
+                <label class="visually-hidden" [for]="'metric-value-' + i">
+                  {{draft.criteria.name}}
+                </label>
+                <input
+                  [id]="'metric-value-' + i"
+                  [name]="'metric-value-' + i"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputmode="decimal"
+                  class="input"
+                  [class.is-invalid]="attempted() && metricValueError(draft)"
+                  [placeholder]="draft.criteria.unit"
+                  [ngModel]="draft.value"
+                  (ngModelChange)="setMetric(i, 'value', $event)"
+                />
+                @if (isRatio(draft)) {
+                  <span class="metric-slash" aria-hidden="true">/</span>
+                  <label class="visually-hidden" [for]="'metric-den-' + i">
+                    {{text.denominator}}
+                  </label>
+                  <input
+                    [id]="'metric-den-' + i"
+                    [name]="'metric-den-' + i"
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputmode="decimal"
+                    class="input"
+                    [class.is-invalid]="attempted() && metricDenominatorError(draft)"
+                    [placeholder]="text.denominator"
+                    [ngModel]="draft.denominator"
+                    (ngModelChange)="setMetric(i, 'denominator', $event)"
+                  />
+                }
+              </div>
+              @if (attempted() && (metricValueError(draft) || metricDenominatorError(draft))) {
+                <span class="field-error" role="alert">
+                  {{isRatio(draft) ? text.errors.ratio : text.errors.metric}}
+                </span>
+              }
+            </div>
+          }
+        </fieldset>
+      }
+
+      <div class="field">
+        <label for="submit-result">{{text.result}} <b aria-hidden="true">*</b></label>
+        <textarea
+          id="submit-result"
+          name="result"
+          class="input"
+          rows="3"
+          [attr.maxlength]="maxResult"
+          [class.is-invalid]="attempted() && resultMissing"
+          [placeholder]="text.resultPlaceholder"
+          [(ngModel)]="result"
+        ></textarea>
+        @if (attempted() && resultMissing) {
+          <span class="field-error" role="alert">{{text.errors.resultRequired}}</span>
+        }
+      </div>
+
+      <div class="field">
+        <span class="field-label" id="submit-evidence-label">{{text.evidence}}</span>
+        <label
+          class="drop-zone"
+          [class.is-dragging]="dragging()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+        >
+          <span class="drop-icon" aria-hidden="true">⇪</span>
+          <span>
+            {{text.dropHint}}
+            <span class="drop-link">{{text.dropPick}}</span>
+            ·
+            {{i18n.translate('work.detail.submit.dropLimit', {
+                types: typeList(),
+                size: maxFileMb(),
+              })}}
+          </span>
+          <input
+            class="visually-hidden"
+            type="file"
+            multiple
+            aria-labelledby="submit-evidence-label"
+            [accept]="acceptAttr()"
+            (change)="onPick($event)"
+          />
+        </label>
+        @if (files().length > 0) {
+          <ul class="file-list">
+            @for (file of files(); track file.name + file.size) {
+              <li class="file-row">
+                <span class="file-name">{{file.name}}</span>
+                <span class="file-size">{{sizeText(file)}}</span>
+                <button
+                  type="button"
+                  class="file-remove"
+                  [attr.aria-label]="
+                    i18n.translate('work.detail.submit.removeFile', { name: file.name })
+                  "
+                  (click)="removeFile(file)"
+                >
+                  ×
+                </button>
+              </li>
+            }
+          </ul>
+        }
+        @for (message of fileErrors(); track message) {
+          <span class="field-error" role="alert">{{message}}</span>
+        }
+        @if (attempted() && nothingToCheck) {
+          <span class="field-error" role="alert">{{text.errors.nothingToCheck}}</span>
+        }
+      </div>
+
+      <div class="notice" role="note">
+        <strong>{{text.infoTitle}}</strong>
+        <span>{{text.infoBody}}</span>
+      </div>
+
+      @if (errorText(); as message) {
+        <p class="form-error" role="alert">{{message}}</p>
+      }
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{text.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{text.cancel}}
+      </button>
+      <button
+        type="submit"
+        class="button button-primary"
+        [disabled]="saving() || state() !== 'ready'"
+      >
+        {{saving() ? text.submitting : text.submit}}
+      </button>
+    </div>
+  </footer>
+</form>

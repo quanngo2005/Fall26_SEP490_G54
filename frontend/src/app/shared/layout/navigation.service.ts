@@ -3,6 +3,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
+import { normalizeRole, ROLE, RoleCode } from '../../core/role-codes';
 import {
   SidebarConfiguration,
   SidebarConfigurationService,
@@ -14,6 +15,7 @@ export type MenuKey =
   | 'overview'
   | 'myWork'
   | 'mySubmissions'
+  | 'myTargets'
   | 'myPerformance'
   | 'notifications'
   | 'myProfile'
@@ -27,6 +29,9 @@ export type MenuKey =
   | 'teamWork'
   | 'handoverDelegation'
   | 'reviewVerify'
+  | 'reconciliation'
+  | 'dataImport'
+  | 'importHistory'
   | 'teamPerformance'
   | 'targetsAndCampaigns'
   | 'targetOverview'
@@ -43,6 +48,8 @@ export type MenuKey =
   | 'rolesPermissions'
   | 'accessPolicies'
   | 'systemConfiguration'
+  | 'systemParameters'
+  | 'rankingStudio'
   | 'systemAudit'
   | 'tasks'
   | 'personalKpis'
@@ -65,19 +72,13 @@ export interface NavigationItem {
   children?: NavigationItem[];
 }
 
-const ROLE_CODES: Readonly<Record<string, WorkspaceRole>> = {
-  EMPLOYEE: 'employee',
-  MANAGER: 'departmentManager',
-  DEPT_MANAGER: 'departmentManager',
-  DEPARTMENT_MANAGER: 'departmentManager',
-  BRANCH_MANAGER: 'branchManager',
-  HR: 'hr',
-  HR_MANAGER: 'hr',
-  QA: 'qa',
-  COMPLIANCE: 'qa',
-  VERIFIER: 'qa',
-  ADMIN: 'admin',
-  SYSTEM_ADMIN: 'admin',
+const ROLE_CODES: Readonly<Record<RoleCode, WorkspaceRole>> = {
+  [ROLE.employee]: 'employee',
+  [ROLE.deptManager]: 'departmentManager',
+  [ROLE.branchManager]: 'branchManager',
+  [ROLE.hrOfficer]: 'hr',
+  [ROLE.verifier]: 'qa',
+  [ROLE.systemAdmin]: 'admin',
 };
 
 export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
@@ -86,6 +87,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myWork',
     'mySubmissions',
     'myPerformance',
+    'myTargets',
     'appeals',
     'notifications',
     'myProfile',
@@ -96,7 +98,9 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'teamWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'teamPerformance',
+    'departmentPerformance',
     'targetOverview',
     'targetsAndCampaigns',
     'appeals',
@@ -110,6 +114,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'branchWork',
     'handoverDelegation',
     'reviewVerify',
+    'reconciliation',
     'branchPerformance',
     'departmentPerformance',
     'targetOverview',
@@ -130,12 +135,12 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   ],
   qa: [
     'overview',
+    'dataImport',
+    'importHistory',
+    'reconciliation',
     'verificationQueue',
     'appeals',
-    'escalatedCases',
-    'auditReview',
     'riskEvents',
-    'reportsAnalytics',
     'notifications',
     'myProfile',
   ],
@@ -147,7 +152,12 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'workTypes',
     'kpiDefinitions',
     'systemConfiguration',
+    'systemParameters',
+    'rankingStudio',
     'systemAudit',
+    'dataImport',
+    'importHistory',
+    'notifications',
     'myProfile',
   ],
 };
@@ -155,10 +165,11 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
-  { id: 'mySubmissions', icon: 'mySubmissions', permission: 'WORK_READ' },
-  { id: 'myPerformance', icon: 'myPerformance', route: '/my-targets' },
+  { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
+  { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
+  { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
-  { id: 'notifications', icon: 'notifications' },
+  { id: 'notifications', icon: 'notifications', route: '/notifications' },
   { id: 'myProfile', icon: 'myProfile', route: '/employee-detail/me' },
   { id: 'employees', icon: 'people', route: '/employees' },
   {
@@ -179,6 +190,25 @@ const ITEMS: readonly NavigationItem[] = [
     route: '/review-verify',
     permission: 'VERIFICATION_DECIDE',
   },
+  {
+    id: 'reconciliation',
+    icon: 'reviewVerify',
+    route: '/reconciliations',
+    permission: 'RECONCILIATION_READ',
+  },
+  {
+    id: 'dataImport',
+    icon: 'employeeData',
+    route: '/data-import',
+    // SCR-ADM-06 upload and SCR-ADM-07 history (UC29/UC31/UC33), same permission as the API.
+    permission: 'TRANSACTION_IMPORT_MANAGE',
+  },
+  {
+    id: 'importHistory',
+    icon: 'systemAudit',
+    route: '/import-history',
+    permission: 'TRANSACTION_IMPORT_MANAGE',
+  },
   { id: 'teamPerformance', icon: 'teamPerformance', route: '/evaluations' },
   {
     id: 'targetOverview',
@@ -196,8 +226,9 @@ const ITEMS: readonly NavigationItem[] = [
   {
     id: 'branchPerformance',
     icon: 'branchPerformance',
-    route: '/branch-performance/evaluations',
-    permission: 'EVALUATION_FINALIZE',
+    route: '/branch-performance',
+    // SCR-PRF-03 reads the branch overview, so it needs what its route guard needs (organizationGuard).
+    permission: 'ORGANIZATION_READ',
   },
   { id: 'departmentPerformance', icon: 'departmentPerformance', route: '/department-performance' },
   {
@@ -215,7 +246,9 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'rolesPermissions', icon: 'people', route: '/roles' },
   { id: 'accessPolicies', icon: 'accessPolicies' },
   { id: 'systemConfiguration', icon: 'systemConfiguration', route: '/sidebar-settings' },
-  { id: 'systemAudit', icon: 'systemAudit' },
+  { id: 'systemParameters', icon: 'sliders', route: '/system-parameters' },
+  { id: 'rankingStudio', icon: 'target', route: '/ranking-studio' },
+  { id: 'systemAudit', icon: 'systemAudit', route: '/audit-logs' },
   // Legacy items for backward compat
   { id: 'tasks', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'personalKpis', icon: 'employeeData', permission: 'KPI_READ' },
@@ -250,23 +283,43 @@ export class NavigationService {
   readonly loadFailed = signal(false);
   readonly catalog = ITEMS;
   readonly workspaceRoles = Object.keys(ROLE_MENUS) as WorkspaceRole[];
+  readonly adminOnlyRoutes: readonly string[] = [
+    '/sidebar-settings',
+    '/system-parameters',
+    '/ranking-studio',
+    '/roles',
+    '/user-accounts',
+    '/audit-logs',
+  ];
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/work-monitor',
     '/my-targets',
+    '/my-evaluation',
     '/departments',
     '/department-performance',
+    '/branch-performance',
     '/employee-detail',
+    '/employee-profile',
     '/work-types',
     '/evaluation-profiles',
     '/work-type-detail',
     '/review-verify',
+    '/reconciliations',
+    '/data-import',
+    '/import-history',
     '/appeals',
+    '/notifications',
     '/kpi-definitions',
     '/campaigns',
+    '/target-overview',
     '/sidebar-settings',
+    '/system-parameters',
+    '/ranking-studio',
     '/roles',
     '/user-accounts',
+    '/audit-logs',
   ];
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -280,15 +333,7 @@ export class NavigationService {
   readonly roles = computed(() => [
     ...new Set(
       (this.auth.currentUser()?.roles ?? [])
-        .map(
-          (code) =>
-            ROLE_CODES[
-              code
-                .trim()
-                .toUpperCase()
-                .replace(/[\s-]+/g, '_')
-            ],
-        )
+        .map((code) => ROLE_CODES[normalizeRole(code) as RoleCode])
         .filter((role): role is WorkspaceRole => role !== undefined),
     ),
   ]);
@@ -364,7 +409,8 @@ export class NavigationService {
     );
     return this.buildItems(ids, routes).filter(
       (item) =>
-        (item.id !== 'systemConfiguration' || this.isAdmin()) &&
+        (!['systemConfiguration', 'systemParameters', 'rankingStudio'].includes(item.id) ||
+          this.isAdmin()) &&
         (!item.permission || [item.permission].flat().some((code) => permissions.has(code))),
     );
   });

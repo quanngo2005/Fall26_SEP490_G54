@@ -4,43 +4,47 @@
   <div class="workspace-main">
     <app-header />
     <main class="workspace-content kpi-page" [attr.aria-busy]="loading()">
-      <p class="breadcrumb">
+      <p class="breadcrumb ui-breadcrumb">
         {{t.breadcrumbHome}} / {{isApprover() ? t.breadcrumbStrategy : t.breadcrumbSystem}} /
         {{t.breadcrumbCurrent}}
       </p>
 
-      <header class="page-head">
-        <div>
-          <h1>{{t.title}}</h1>
-          <p class="subtitle">{{isApprover() ? t.subtitleApprover : t.subtitleAdmin}}</p>
+      <header class="ui-page-header page-head">
+        <div class="ui-page-heading">
+          <h1 class="ui-page-title">{{t.title}}</h1>
+          <p class="ui-page-subtitle subtitle">
+            {{isApprover() ? t.subtitleApprover : t.subtitleAdmin}}
+          </p>
         </div>
-        @if (canManage()) {
-          <button
-            type="button"
-            id="kpi-create"
-            class="button button-primary"
-            (click)="openCreate()"
-          >
-            + {{t.createKpi}}
-          </button>
-        } @else if (canRequest()) {
-          <button
-            type="button"
-            id="kpi-request"
-            class="button button-secondary"
-            (click)="openRequest()"
-          >
-            {{t.requestKpi}}
-          </button>
-        }
+        <div class="ui-page-actions">
+          @if (canManage()) {
+            <button
+              type="button"
+              id="kpi-create"
+              class="button button-primary"
+              (click)="openCreate()"
+            >
+              + {{t.createKpi}}
+            </button>
+          } @else if (canRequest()) {
+            <button
+              type="button"
+              id="kpi-request"
+              class="button button-secondary"
+              (click)="openRequest()"
+            >
+              {{t.requestKpi}}
+            </button>
+          }
+        </div>
       </header>
 
-      <nav class="tabs" role="tablist">
+      <nav class="ui-tabs tabs" role="tablist">
         @for (item of tabs(); track item.id) {
           <button
             type="button"
             role="tab"
-            class="tab"
+            class="ui-tab tab"
             [attr.data-tab]="item.id"
             [class.is-active]="tab() === item.id"
             [attr.aria-selected]="tab() === item.id"
@@ -48,24 +52,27 @@
           >
             {{item.label}}
             @if (tabCount(item.id) !== null) {
-              · {{tabCount(item.id)}}
+              <span class="ui-tab-count">{{tabCount(item.id)}}</span>
             }
           </button>
         }
       </nav>
 
-      <div class="filters" role="search">
-        <input
-          id="kpi-filter-keyword"
-          class="input filter-search"
-          type="search"
-          name="keyword"
-          [placeholder]="t.searchPlaceholder"
-          [attr.aria-label]="t.searchPlaceholder"
-          [(ngModel)]="filters.keyword"
-          (keydown.enter)="refresh(true)"
-          (blur)="refresh(true)"
-        />
+      <div class="filters ui-filter-bar" role="search">
+        <div class="ui-search-field">
+          <app-layout-icon name="search" />
+          <input
+            id="kpi-filter-keyword"
+            class="input filter-search"
+            type="search"
+            name="keyword"
+            [placeholder]="t.searchPlaceholder"
+            [attr.aria-label]="t.searchPlaceholder"
+            [(ngModel)]="filters.keyword"
+            (keydown.enter)="refresh(true)"
+            (blur)="refresh(true)"
+          />
+        </div>
         @if (!isApprover()) {
           <select
             class="select"
@@ -136,12 +143,17 @@
           <button
             type="button"
             id="kpi-save-filters"
-            class="link-button"
+            class="ui-filter-clear"
             (click)="rememberFilters()"
           >
             {{t.saveFilters}}
           </button>
-          <button type="button" id="kpi-clear-filters" class="link-button" (click)="clearFilters()">
+          <button
+            type="button"
+            id="kpi-clear-filters"
+            class="ui-filter-clear"
+            (click)="clearFilters()"
+          >
             {{t.clearFilters}}
           </button>
         }
@@ -160,9 +172,9 @@
           </button>
         </div>
       } @else {
-        <div class="table-card">
-          <div class="table-wrap">
-            <table class="kpi-table">
+        <section class="ui-table-card">
+          <div class="ui-table-wrap">
+            <table class="ui-table kpi-table">
               <thead>
                 <tr>
                   <th scope="col">{{t.colCode}}</th>
@@ -330,40 +342,19 @@
               </tbody>
             </table>
           </div>
-          <footer class="pager">
-            <span class="num">
-              {{rangeText}}
-              @if (isApprover() && tab() === 'PENDING_APPROVAL') {
-                · {{i18n.translate('kpiCatalog.pendingCount', { count: totalCount() })}}
-              }
-            </span>
-            <div class="pager-controls">
-              @for (number of pageNumbers(); track number) {
-                <button
-                  type="button"
-                  class="page-button"
-                  [class.is-active]="number === page"
-                  (click)="goToPage(number)"
-                >
-                  {{number}}
-                </button>
-              }
-              <select
-                class="select"
-                name="pageSize"
-                [attr.aria-label]="t.pageSizeLabel"
-                [ngModel]="pageSize"
-                (ngModelChange)="setPageSize($event)"
-              >
-                @for (size of pageSizes; track size) {
-                  <option [ngValue]="size">
-                    {{i18n.translate('kpiCatalog.perPage', { size })}}
-                  </option>
-                }
-              </select>
-            </div>
-          </footer>
-        </div>
+          <app-table-pagination
+            [page]="page"
+            [pageSize]="pageSize"
+            [totalCount]="totalCount()"
+            [rangeText]="footerText"
+            [pageSizeOptions]="pageSizes"
+            [pageSizeTemplate]="pageSizeTemplate"
+            [pageSizeAriaLabel]="t.pageSizeLabel"
+            [disabled]="loading()"
+            (pageChange)="goToPage($event)"
+            (pageSizeChange)="setPageSize($event)"
+          />
+        </section>
 
         @if (!isApprover()) {
           <div class="notice" role="note">
@@ -414,6 +405,7 @@
 
 @if (notice(); as n) {
   <div
+    animate.leave="g54-leave-toast"
     class="toast"
     [class.toast-error]="n.kind === 'error'"
     [attr.role]="n.kind === 'error' ? 'alert' : 'status'"

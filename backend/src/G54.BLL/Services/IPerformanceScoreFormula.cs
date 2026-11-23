@@ -28,9 +28,10 @@ public sealed record KpiScoreInput(
     KpiDirection Direction,
     KpiAggregationType AggregationType,
     decimal? MaxAchievementPercent,
-    decimal TargetValue,
+    decimal? TargetValue,
     decimal ActualValue,
-    decimal? ActualDenominator);
+    decimal? ActualDenominator,
+    decimal? BaselineValue = null);
 
 public sealed record KpiScoreResult(
     decimal? AchievementPercentRaw,

@@ -1,0 +1,135 @@
+<div class="qa-dashboard">
+  <div class="filters" role="search" [attr.aria-label]="text().filters.ariaLabel">
+    <app-ui-select
+      class="filter period"
+      size="sm"
+      [prefix]="text().filters.period"
+      [ariaLabel]="text().filters.period"
+      [options]="periodOptions()"
+      [value]="selectedPeriod()"
+      (valueChange)="setFilter('period', $event)"
+    />
+    <app-ui-select
+      class="filter"
+      size="sm"
+      [prefix]="text().filters.department"
+      [ariaLabel]="text().filters.department"
+      [options]="departmentOptions()"
+      [value]="query().department"
+      (valueChange)="setFilter('department', $event)"
+    />
+    <app-ui-select
+      class="filter"
+      size="sm"
+      [prefix]="text().filters.jobPosition"
+      [ariaLabel]="text().filters.jobPosition"
+      [options]="jobOptions()"
+      [value]="query().job"
+      (valueChange)="setFilter('job', $event)"
+    />
+    <button type="button" class="reset" [disabled]="!hasFilters()" (click)="resetFilters()">
+      {{text().filters.reset}}
+    </button>
+    <span class="as-of">
+      @if (asOf()) {
+        <span class="as-of-text">{{asOf()}}</span>
+      }
+      <button
+        type="button"
+        class="refresh"
+        [disabled]="loading()"
+        [attr.aria-label]="text().filters.refresh"
+        [title]="text().filters.refresh"
+        (click)="refresh()"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3 9a5 5 0 1 0 1.6-3.7M4.6 2.5v3h3" />
+        </svg>
+      </button>
+    </span>
+  </div>
+
+  @if (failed()) {
+    <div class="state error" role="alert">
+      <p>{{text().loadError}}</p>
+      <button type="button" class="retry" (click)="refresh()">{{text().retry}}</button>
+    </div>
+  } @else if (data(); as dashboard) {
+    <div class="content" [class.is-loading]="loading()" [attr.aria-busy]="loading()">
+      @if (notice(); as n) {
+        <p class="notice" [class.locked]="n.locked" role="status">
+          <span class="notice-text">
+            <strong>{{n.deadline}}</strong>
+            @if (n.detail) {
+              <span>{{n.detail}}</span>
+            }
+          </span>
+          @if (canImport() && !n.locked) {
+            <a class="notice-link" routerLink="/data-import">{{text().notice.importLink}}</a>
+          }
+        </p>
+      }
+
+      <nav class="cards" [attr.aria-label]="text().cards.ariaLabel">
+        @for (card of cards(); track card.id) {
+          <a
+            [class]="'card tone-' + card.tone"
+            [class.is-zero]="card.count === 0"
+            [routerLink]="card.route"
+            [queryParams]="card.params"
+            [attr.aria-label]="cardAria(card)"
+          >
+            <span class="card-head">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20">
+                  @switch (card.tone) {
+                    @case ('red') {
+                      <path d="M4 8h12M4 13h12M12 4l-4 13" />
+                    }
+                    @case ('amber') {
+                      <path d="M5 3h7l4 4v10H5z" />
+                      <path d="M10.5 15V9.5M8 12l2.5-2.5L13 12" />
+                    }
+                    @case ('blue') {
+                      <path d="M4 8l3 3 6-6M4 15h12" />
+                    }
+                    @default {
+                      <path d="M10 3l7 13H3z" />
+                      <path d="M10 8v4M10 14.5v.5" />
+                    }
+                  }
+                </svg>
+              </span>
+              <span class="card-label">{{card.label}}</span>
+              <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6 3.5L10.5 8 6 12.5" />
+              </svg>
+            </span>
+            <span class="card-body">
+              <span class="count">{{card.count}}</span>
+              @if (card.pill) {
+                <span class="pill">{{card.pill}}</span>
+              }
+            </span>
+          </a>
+        }
+      </nav>
+
+      <div class="row">
+        <app-qa-reasons
+          [reasons]="dashboard.commonDiscrepancyReasons"
+          [periodName]="dashboard.period.name"
+          [linkParams]="linkParams()"
+        />
+        <app-qa-employees
+          [employees]="dashboard.topDiscrepancyEmployees"
+          [linkParams]="linkParams()"
+        />
+      </div>
+
+      <app-qa-trend-chart [chart]="dashboard.matchedRateChart" />
+    </div>
+  } @else {
+    <p class="state" role="status">{{text().loading}}</p>
+  }
+</div>

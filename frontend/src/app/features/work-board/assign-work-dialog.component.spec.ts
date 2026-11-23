@@ -96,7 +96,8 @@ describe('AssignWorkDialogComponent', () => {
     const assigned = jasmine.createSpy('assigned');
     fixture.componentInstance.assigned.subscribe(assigned);
     await fillValid();
-    await choose('#assign-priority', 'High');
+    element.querySelector<HTMLButtonElement>('.choice[data-level="High"]')?.click();
+    fixture.detectChanges();
     element.querySelector<HTMLButtonElement>('.add-item')?.click();
     fixture.detectChanges();
     await fixture.whenStable();
@@ -132,5 +133,20 @@ describe('AssignWorkDialogComponent', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
     expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the four priorities, starts on "Thường" and moves the choice with a click', async () => {
+    const labels = Array.from(element.querySelectorAll('.choice')).map((b) =>
+      b.textContent?.trim(),
+    );
+    expect(labels).toEqual(['Thấp', 'Thường', 'Cao', 'Khẩn']);
+    expect(element.querySelector('.choice.on')?.textContent?.trim()).toBe('Thường');
+
+    element.querySelector<HTMLButtonElement>('.choice[data-level="Critical"]')?.click();
+    fixture.detectChanges();
+
+    expect(element.querySelectorAll('.choice.on').length).toBe(1);
+    expect(element.querySelector('.choice.on')?.getAttribute('aria-checked')).toBe('true');
+    expect(element.querySelector('.choice.on')?.textContent?.trim()).toBe('Khẩn');
   });
 });

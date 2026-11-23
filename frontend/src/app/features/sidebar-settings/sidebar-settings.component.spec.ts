@@ -36,7 +36,7 @@ describe('SidebarSettingsComponent', () => {
             currentUser: signal({
               id: 'admin',
               fullName: 'Admin',
-              roles: ['ADMIN'],
+              roles: ['SYSTEM_ADMIN'],
               permissions: [],
             }),
           },
@@ -129,7 +129,7 @@ describe('SidebarSettingsComponent', () => {
     expect(offered).toEqual([
       '',
       ...TestBed.inject(NavigationService).routeOptions.filter(
-        (route) => route !== '/sidebar-settings',
+        (route) => !TestBed.inject(NavigationService).adminOnlyRoutes.includes(route),
       ),
     ]);
     route.value = '';

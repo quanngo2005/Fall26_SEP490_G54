@@ -4,99 +4,97 @@
   <div class="workspace-main">
     <app-header />
 
-    <main class="workspace-content">
-      <div class="master-detail-container" [class.has-detail]="selectedEmployee() !== null">
-        <section class="master-panel">
-          <div class="page-heading">
-            <nav class="breadcrumb" [attr.aria-label]="localization.employeeList.breadcrumbLabel">
-              <ol>
-                <li>{{localization.employeeList.breadcrumbHr}}</li>
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      @if (loading() && filteredEmployees().length > 0) {
+        <div class="refresh-bar" aria-hidden="true"></div>
+      }
 
-                <li aria-current="page">{{localization.employeeList.breadcrumbEmployees}}</li>
-              </ol>
-            </nav>
+      <div class="ui-master-detail" [class.has-drawer]="selectedEmployee() !== null">
+        <section class="ui-master-pane">
+          <header class="ui-page-header">
+            <div class="ui-page-heading">
+              <nav
+                class="ui-breadcrumb breadcrumb"
+                [attr.aria-label]="localization.employeeList.breadcrumbLabel"
+              >
+                <ol>
+                  <li>{{localization.employeeList.breadcrumbHr}}</li>
+                  <li aria-current="page">{{localization.employeeList.breadcrumbEmployees}}</li>
+                </ol>
+              </nav>
 
-            <div class="title-line">
-              <h1>{{localization.employeeList.title}}</h1>
-
-              <span class="read-only-badge">{{localization.employeeList.readOnlyBadge}}</span>
+              <div class="ui-title-row">
+                <h1 class="ui-page-title">{{localization.employeeList.title}}</h1>
+                <span class="ui-chip read-only-badge">
+                  {{localization.employeeList.readOnlyBadge}}
+                </span>
+              </div>
             </div>
-          </div>
+          </header>
 
-          <div class="sync-banner" role="note">
+          <div class="ui-banner sync-banner" role="note">
             <span class="sync-time">
               {{localization.employeeList.syncTimeLabel}}
-
               <strong>{{localization.employee.notAvailable}}</strong>
             </span>
-
             <span class="sync-source">{{localization.employeeList.syncSourceUnavailable}}</span>
           </div>
 
-          <div class="filter-toolbar">
-            <div class="search-box">
-              <app-layout-icon class="search-icon" name="search" />
-
+          <div class="ui-filter-bar">
+            <div class="ui-search-field">
+              <app-layout-icon name="search" />
               <input
                 type="search"
-                class="search-input"
+                class="input search-input"
+                [class.has-clear]="keyword()"
                 [ngModel]="keyword()"
                 (ngModelChange)="onSearchChange($event)"
                 [placeholder]="localization.employeeList.searchPlaceholder"
                 [attr.aria-label]="localization.employeeList.searchPlaceholder"
               />
+              @if (keyword()) {
+                <button
+                  type="button"
+                  class="ui-search-clear"
+                  (click)="onSearchChange('')"
+                  [attr.aria-label]="localization.common.close"
+                >
+                  ×
+                </button>
+              }
             </div>
 
-            <div class="filter-dropdowns">
-              <select
-                class="dropdown-select"
-                [ngModel]="selectedDepartment()"
-                (ngModelChange)="changeDepartment($event)"
-                [disabled]="optionsLoading() || optionsFailed()"
-                [attr.aria-label]="localization.employeeList.filterDepartment"
-              >
-                <option value="">{{localization.employeeList.filterDepartment}}</option>
+            <app-ui-select
+              class="dropdown-select"
+              [options]="departmentSelectOptions()"
+              [value]="selectedDepartment()"
+              [placeholder]="localization.employeeList.filterDepartment"
+              [ariaLabel]="localization.employeeList.filterDepartment"
+              [disabled]="optionsLoading() || optionsFailed()"
+              (valueChange)="changeDepartment($event)"
+            />
 
-                @if (departments().length > 0) {
-                  @for (dept of departments(); track dept.id) {
-                    <option [value]="dept.id">{{dept.code}} · {{dept.name}}</option>
-                  }
-                }
-              </select>
-
-              <select
-                class="dropdown-select"
-                [ngModel]="selectedPosition()"
-                (ngModelChange)="changePosition($event)"
-                [disabled]="optionsLoading() || optionsFailed()"
-                [attr.aria-label]="localization.employeeList.filterPosition"
-              >
-                <option value="">{{localization.employeeList.filterPosition}}</option>
-
-                @if (positions().length > 0) {
-                  @for (pos of positions(); track pos.id) {
-                    <option [value]="pos.id">{{pos.code}} · {{pos.title}}</option>
-                  }
-                }
-              </select>
-            </div>
+            <app-ui-select
+              class="dropdown-select"
+              [options]="positionSelectOptions()"
+              [value]="selectedPosition()"
+              [placeholder]="localization.employeeList.filterPosition"
+              [ariaLabel]="localization.employeeList.filterPosition"
+              [disabled]="optionsLoading() || optionsFailed()"
+              (valueChange)="changePosition($event)"
+            />
           </div>
 
-          <div class="table-card" [attr.aria-busy]="loading()">
-            <div class="table-wrap">
-              <table class="employee-table">
+          <div class="ui-table-card" [attr.aria-busy]="loading()">
+            <div class="ui-table-wrap is-sticky">
+              <table class="ui-table employee-table">
                 <thead>
                   <tr>
                     <th scope="col">{{localization.employeeList.colCode}}</th>
-
                     <th scope="col">{{localization.employeeList.colFullName}}</th>
-
                     <th scope="col">{{localization.employeeList.colDepartment}}</th>
-
                     <th scope="col">{{localization.employeeList.colPosition}}</th>
-
                     <th scope="col">{{localization.employeeList.colStatus}}</th>
-
                     <th scope="col">{{localization.employeeList.colAccount}}</th>
                   </tr>
                 </thead>
@@ -104,56 +102,42 @@
                 <tbody>
                   @for (emp of filteredEmployees(); track emp.id) {
                     <tr
-                      class="employee-row"
+                      class="employee-row is-clickable"
                       [class.is-selected]="selectedEmployeeId() === emp.id"
+                      [attr.aria-selected]="selectedEmployeeId() === emp.id"
                       (click)="selectEmployee(emp)"
                       tabindex="0"
                       (keydown.enter)="selectEmployee(emp)"
                       (keydown.space)="selectEmployee(emp); $event.preventDefault()"
                     >
-                      <td class="font-bold">{{emp.code}}</td>
-
-                      <td>{{emp.fullName}}</td>
-
-                      <td [title]="emp.departmentName">{{emp.departmentCode}}</td>
-
-                      <td [title]="emp.positionTitle">{{emp.positionCode}}</td>
-
+                      <td class="col-mono">{{emp.code}}</td>
+                      <td class="col-primary">{{emp.fullName}}</td>
+                      <td [title]="emp.departmentCode">{{emp.departmentName}}</td>
+                      <td [title]="emp.positionCode">{{emp.positionTitle}}</td>
                       <td>
-                        <span
-                          class="status-pill"
-                          [class.status-active]="emp.status === 'ACTIVE'"
-                          [class.status-missing]="emp.status === 'MISSING_IN_FILE'"
-                          [class.status-terminated]="emp.status === 'TERMINATED'"
-                        >
+                        <app-status-badge [tone]="statusTone(emp.status)">
                           @switch (emp.status) {
                             @case ('ACTIVE') {
                               {{localization.employeeList.statusActive}}
                             }
-
                             @case ('MISSING_IN_FILE') {
                               {{localization.employeeList.statusMissing}}
                             }
-
                             @case ('TERMINATED') {
                               {{localization.employeeList.statusTerminated}}
                             }
-
                             @case ('INACTIVE') {
                               {{localization.employeeList.statusInactive}}
                             }
-
                             @case ('ON_LEAVE') {
                               {{localization.employeeList.statusOnLeave}}
                             }
-
                             @default {
                               {{localization.employee.notAvailable}}
                             }
                           }
-                        </span>
+                        </app-status-badge>
                       </td>
-
                       <td
                         class="account-tag"
                         [class.is-muted]="emp.account === localization.employeeList.accountNone"
@@ -163,7 +147,7 @@
                     </tr>
                   } @empty {
                     <tr>
-                      <td colspan="6" class="empty-cell">
+                      <td colspan="6" class="ui-empty-cell empty-cell">
                         {{listStateText()}}
                       </td>
                     </tr>
@@ -172,41 +156,25 @@
               </table>
             </div>
 
-            <footer class="table-footer">
-              <span class="pagination-info">{{paginationInfoText()}}</span>
-
-              <nav
-                class="pagination-controls"
-                [attr.aria-label]="localization.employeeList.paginationLabel"
-              >
-                <button
-                  type="button"
-                  class="page-btn"
-                  [class.is-active]="page() === paginationPages()[0]"
-                  [disabled]="loading() || paginationPages()[0] === undefined"
-                  (click)="goToPage(paginationPages()[0])"
-                >
-                  {{paginationPages()[0] ?? localization.employee.notAvailable}}
-                </button>
-
-                <button
-                  type="button"
-                  class="page-btn"
-                  [class.is-active]="page() === paginationPages()[1]"
-                  [disabled]="loading() || paginationPages()[1] === undefined"
-                  (click)="goToPage(paginationPages()[1])"
-                >
-                  {{paginationPages()[1] ?? localization.employee.notAvailable}}
-                </button>
-              </nav>
-            </footer>
+            <app-table-pagination
+              [page]="page()"
+              [pageSize]="pageSize()"
+              [totalCount]="totalCount()"
+              [rangeText]="paginationInfoText()"
+              [ariaLabel]="localization.employeeList.paginationLabel"
+              [disabled]="loading()"
+              (pageChange)="goToPage($event)"
+            />
           </div>
 
-          <p class="table-footnote" aria-live="polite">{{listNoteText()}}</p>
+          <p class="ui-table-footnote" aria-live="polite">{{listNoteText()}}</p>
         </section>
 
         @if (selectedEmployee(); as selected) {
-          <app-employee-detail-drawer [employee]="selected" (closeDrawer)="closeDrawer()" />
+          <div class="ui-drawer-backdrop" aria-hidden="true" (click)="closeDrawer()"></div>
+          <aside class="ui-drawer" role="dialog" [attr.aria-label]="selected.fullName">
+            <app-employee-detail-drawer [employee]="selected" (closeDrawer)="closeDrawer()" />
+          </aside>
         }
       </div>
     </main>

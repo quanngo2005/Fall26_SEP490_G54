@@ -1,0 +1,187 @@
+@let text = localization.work.detail.plan;
+<div
+  animate.leave="g54-leave-fade"
+  class="dialog-backdrop"
+  (click)="close()"
+  aria-hidden="true"
+></div>
+<form
+  class="dialog plan-dialog"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="plan-title"
+  novalidate
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (ngSubmit)="submit()"
+>
+  <header class="dialog-head">
+    <div>
+      <h2 id="plan-title">{{text.title}}</h2>
+      <p>
+        {{i18n.translate('work.detail.plan.subtitle', {
+            code: work().code,
+            name: work().assigneeEmployeeName ?? '',
+          })}}
+      </p>
+    </div>
+    <button
+      type="button"
+      class="dialog-close"
+      [attr.aria-label]="localization.common.close"
+      [disabled]="saving()"
+      (click)="close()"
+    >
+      ×
+    </button>
+  </header>
+
+  <div class="dialog-body">
+    <div class="field-row">
+      <div class="field">
+        <label for="plan-due">{{text.dueDate}} *</label>
+        <input
+          id="plan-due"
+          name="dueDate"
+          type="date"
+          class="input"
+          [class.is-invalid]="submitted() && dueMissing"
+          [attr.min]="work().plannedStartDate"
+          [(ngModel)]="dueDate"
+        />
+        @if (submitted() && dueMissing) {
+          <span class="field-error" role="alert">{{text.dueRequired}}</span>
+        } @else if (previousDeadline(); as before) {
+          <span class="field-hint">{{i18n.translate('work.detail.plan.was', { date: before })}}</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="plan-priority">{{text.priority}}</label>
+        <select id="plan-priority" name="priority" class="select" [(ngModel)]="priority">
+          @for (level of priorities; track level) {
+            <option [value]="level">{{localization.work.priority[level]}}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="plan-checklist-label">
+        {{i18n.translate('work.detail.plan.checklist', { done: doneItems().length, total: total() })}}
+      </span>
+
+      <ul class="plan-list" aria-labelledby="plan-checklist-label">
+        @for (item of doneItems(); track item.key) {
+          <li class="plan-row is-locked">
+            <input type="checkbox" checked disabled [attr.aria-label]="item.title" />
+            <span class="plan-title">{{item.title}}</span>
+            <span class="plan-tag">{{text.locked}}</span>
+          </li>
+        }
+      </ul>
+
+      <ul
+        class="plan-list"
+        cdkDropList
+        [cdkDropListData]="openItems()"
+        (cdkDropListDropped)="reorder($event)"
+      >
+        @for (item of openItems(); track item.key; let i = $index) {
+          <li class="plan-row" cdkDrag [class.is-new]="!item.id">
+            <span
+              class="plan-handle"
+              cdkDragHandle
+              role="img"
+              [attr.aria-label]="text.dragHandle"
+              [title]="text.dragHandle"
+              >⠿</span
+            >
+            <input
+              type="text"
+              class="plan-input"
+              [name]="'item-' + item.key"
+              [attr.aria-label]="text.itemPlaceholder"
+              [placeholder]="text.itemPlaceholder"
+              [attr.maxlength]="maxTitle"
+              [class.is-invalid]="submitted() && !item.title.trim()"
+              [value]="item.title"
+              (input)="rename(i, $any($event.target).value)"
+            />
+            @if (!item.id) {
+              <span class="plan-tag is-new">{{text.newBadge}}</span>
+            }
+            <button
+              type="button"
+              class="plan-remove"
+              [attr.aria-label]="text.removeItem"
+              [title]="text.removeItem"
+              (click)="removeItem(i)"
+            >
+              ×
+            </button>
+          </li>
+        }
+      </ul>
+
+      @if (submitted() && hasBlankTitle) {
+        <span class="field-error" role="alert">{{text.titleRequired}}</span>
+      }
+      @if (total() >= maxItems) {
+        <span class="field-hint">{{text.tooMany}}</span>
+      }
+
+      <button
+        type="button"
+        class="button button-secondary plan-add"
+        [disabled]="total() >= maxItems"
+        (click)="addItem()"
+      >
+        {{text.addItem}}
+      </button>
+    </div>
+
+    <div class="field">
+      <label for="plan-note">{{text.note}}</label>
+      <textarea
+        id="plan-note"
+        name="note"
+        class="input"
+        rows="3"
+        [attr.maxlength]="maxNote"
+        [placeholder]="text.notePlaceholder"
+        [(ngModel)]="note"
+      ></textarea>
+    </div>
+
+    <div class="notice" role="note">
+      <strong>{{text.infoTitle}}</strong>
+      <span>
+        @if (total() > 0) {
+          {{i18n.translate('work.detail.plan.infoBody', {
+              done: doneItems().length,
+              total: total(),
+            })}}
+        } @else {
+          {{text.infoBodyNoList}}
+        }
+      </span>
+    </div>
+
+    @if (errorText(); as message) {
+      <p class="form-error" role="alert">{{message}}</p>
+    }
+  </div>
+
+  <footer class="dialog-foot">
+    <span class="hint">{{text.escHint}}</span>
+    <div class="actions">
+      <button type="button" class="button button-secondary" [disabled]="saving()" (click)="close()">
+        {{text.cancel}}
+      </button>
+      <button type="submit" class="button button-primary" [disabled]="saving()">
+        {{saving() ? text.saving : text.save}}
+      </button>
+    </div>
+  </footer>
+</form>

@@ -48,7 +48,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task SavedOrderIsSharedWithRoleAndStaleSaveFails()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var employee = await AddAccountAsync(db, "EMPLOYEE");
         var service = new SidebarConfigurationService(db);
         var saved = await service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["myProfile", "overview"] }, CancellationToken.None);
@@ -68,10 +68,25 @@ public sealed class SidebarConfigurationServiceTests
         }
 
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, "employee", new SaveSidebarConfigurationDto { ItemIds = ["overview", "reportsComplaints"] }, CancellationToken.None));
         Assert.Empty(db.SidebarConfigurations);
+    }
+
+    [Fact]
+    public void QaOpensDataImportAndImportHistoryAndHasNoItemsWithoutAScreen()
+    {
+        var qa = SidebarCatalog.Defaults["qa"];
+        Assert.Equal(["overview", "dataImport", "importHistory", "reconciliation"], qa.Take(4));
+        foreach (var dead in new[] { "escalatedCases", "auditReview", "reportsAnalytics" })
+        {
+            Assert.DoesNotContain(dead, qa);
+        }
+        Assert.Contains("dataImport", SidebarCatalog.ItemIds);
+        Assert.Contains("/data-import", SidebarCatalog.Routes);
+        Assert.Contains("/import-history", SidebarCatalog.Routes);
+        Assert.DoesNotContain("/data-import", SidebarCatalog.AdminOnlyRoutes);
     }
 
     [Theory]
@@ -81,7 +96,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task InvalidMenusCannotBeSaved(string role, string extra)
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, role, new SaveSidebarConfigurationDto { ItemIds = ["overview", extra] }, CancellationToken.None));
         Assert.Empty(db.SidebarConfigurations);
@@ -91,7 +106,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task LockedAccountCannotReadOrSave()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         (await db.Accounts.SingleAsync()).IsLocked = true;
         await db.SaveChangesAsync();
         var service = new SidebarConfigurationService(db);
@@ -102,7 +117,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task RoutesAreSharedAndPreservedByOlderClients()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var employee = await AddAccountAsync(db, "EMPLOYEE");
         var service = new SidebarConfigurationService(db);
         var request = new SaveSidebarConfigurationDto
@@ -123,7 +138,7 @@ public sealed class SidebarConfigurationServiceTests
     public async Task TheAdminMenuOffersWorkTypesAndAcceptsItsListRoute()
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
 
         var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
@@ -137,18 +152,44 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Equal("/work-types", saved.Routes!["workTypes"]);
     }
 
+    [Fact]
+    public async Task TheAdminMenuOffersSystemParametersAndRankingStudioAndAcceptsTheirRoutes()
+    {
+        await using var db = CreateContext();
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
+        var service = new SidebarConfigurationService(db);
+
+        var defaults = Assert.Single(await service.GetAsync(admin, false, CancellationToken.None));
+        Assert.Contains("systemParameters", defaults.ItemIds);
+        Assert.Contains("rankingStudio", defaults.ItemIds);
+
+        var saved = await service.SaveAsync(admin, "admin", new SaveSidebarConfigurationDto
+        {
+            ItemIds = ["overview", "systemConfiguration", "systemParameters", "rankingStudio"],
+            Routes = new()
+            {
+                ["systemParameters"] = "/system-parameters",
+                ["rankingStudio"] = "/ranking-studio",
+            },
+        }, CancellationToken.None);
+        Assert.Equal("/system-parameters", saved.Routes!["systemParameters"]);
+        Assert.Equal("/ranking-studio", saved.Routes!["rankingStudio"]);
+    }
+
     [Theory]
     [InlineData("employee", "myProfile", "https://example.test")]
     [InlineData("employee", "myProfile", "//example.test")]
     [InlineData("employee", "myProfile", "/not-a-page")]
     [InlineData("employee", "myProfile", "/sidebar-settings")]
+    [InlineData("employee", "myProfile", "/system-parameters")]
+    [InlineData("employee", "myProfile", "/ranking-studio")]
     [InlineData("employee", "organization", "/home")]
     [InlineData("employee", "notifications", "/home")]
     [InlineData("admin", "systemConfiguration", "")]
     public async Task InvalidOrUnreachableRoutesAreRejected(string role, string item, string route)
     {
         await using var db = CreateContext();
-        var admin = await AddAccountAsync(db, "ADMIN");
+        var admin = await AddAccountAsync(db, "SYSTEM_ADMIN");
         var service = new SidebarConfigurationService(db);
         var request = new SaveSidebarConfigurationDto
         {

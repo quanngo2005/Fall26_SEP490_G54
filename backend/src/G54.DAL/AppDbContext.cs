@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NpgsqlTypes;
 
 namespace G54.DAL;
 
@@ -72,7 +75,19 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
 
+    public virtual DbSet<RankingSlotQuota> RankingSlotQuotas { get; set; }
+
+    public virtual DbSet<SystemParameter> SystemParameters { get; set; }
+
+    public virtual DbSet<EvaluationComparisonSetting> EvaluationComparisonSettings { get; set; }
+
+    public virtual DbSet<TierCriterion> TierCriteria { get; set; }
+
+    public virtual DbSet<TierCriterionRequirement> TierCriterionRequirements { get; set; }
+
     public virtual DbSet<Downgrade> Downgrades { get; set; }
+
+    public virtual DbSet<RankingPolicy> RankingPolicies { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -153,6 +168,9 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("last_sync_at");
             entity.Property(e => e.LockedUntil).HasColumnName("locked_until");
+            entity.Property(e => e.MustChangePassword)
+                .HasDefaultValue(false)
+                .HasColumnName("must_change_password");
             entity.Property(e => e.PasswordHash)
                 .HasMaxLength(255)
                 .HasColumnName("password_hash");
@@ -213,12 +231,9 @@ public partial class AppDbContext : DbContext
             entity.ToTable("appeal", table =>
             {
                 table.HasCheckConstraint("ck_appeal_decided_at", "decided_at IS NULL OR decided_at >= filed_at");
-                table.HasCheckConstraint("ck_appeal_target_xor", "(result_submission_id IS NULL) <> (performance_evaluation_id IS NULL)");
             });
 
             entity.HasIndex(e => e.ResultSubmissionId, "ix_appeal_submission");
-
-            entity.HasIndex(e => e.PerformanceEvaluationId, "ix_appeal_evaluation");
 
             entity.HasIndex(e => e.ResolvedBy, "ix_appeal_resolved_by");
 
@@ -231,7 +246,6 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("filed_at");
             entity.Property(e => e.Note).HasColumnName("note");
-            entity.Property(e => e.PerformanceEvaluationId).HasColumnName("performance_evaluation_id");
             entity.Property(e => e.Reason).HasColumnName("reason");
             entity.Property(e => e.ResolvedBy).HasColumnName("resolved_by");
             entity.Property(e => e.ResultSubmissionId).HasColumnName("result_submission_id");
@@ -243,11 +257,6 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_appeal_employee");
-
-            entity.HasOne(d => d.PerformanceEvaluation).WithMany(p => p.Appeals)
-                .HasForeignKey(d => d.PerformanceEvaluationId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_appeal_evaluation");
 
             entity.HasOne(d => d.ResolvedByNavigation).WithMany(p => p.AppealResolvedByNavigations)
                 .HasForeignKey(d => d.ResolvedBy)
@@ -569,6 +578,10 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("name");
             entity.Property(e => e.ParentPeriodId).HasColumnName("parent_period_id");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.HardLockedThrough).HasColumnName("hard_locked_through");
+            entity.Property(e => e.RankingPolicySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("ranking_policy_snapshot_json");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -1199,11 +1212,14 @@ public partial class AppDbContext : DbContext
 
             entity.HasIndex(e => e.WorkId, "ix_result_submission_work");
 
+            entity.HasIndex(e => e.CarriedOverToPeriodId, "ix_result_submission_carried_over_period");
+
             entity.HasIndex(e => new { e.WorkId, e.SubmissionNo }, "uq_result_submission_attempt").IsUnique();
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
+            entity.Property(e => e.CarriedOverToPeriodId).HasColumnName("carried_over_to_period_id");
             entity.Property(e => e.Comment).HasColumnName("comment");
             entity.Property(e => e.SubmissionNo)
                 .HasDefaultValue(1)
@@ -1225,6 +1241,11 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Work).WithMany(p => p.ResultSubmissions)
                 .HasForeignKey(d => d.WorkId)
                 .HasConstraintName("fk_result_submission_work");
+
+            entity.HasOne(d => d.CarriedOverToPeriod).WithMany(p => p.CarriedOverResultSubmissions)
+                .HasForeignKey(d => d.CarriedOverToPeriodId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_result_submission_carried_over_period");
 
             entity.Property(e => e.Status)
                 .HasColumnType("submission_status")
@@ -1283,6 +1304,89 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("status");
         });
 
+        modelBuilder.Entity<SystemParameter>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("system_parameters_pkey");
+
+            entity.ToTable("system_parameters");
+
+            entity.HasIndex(e => e.Key, "uq_system_parameters_key").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Key).HasMaxLength(100).HasColumnName("key");
+            entity.Property(e => e.Value).HasMaxLength(200).HasColumnName("value");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<EvaluationComparisonSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("evaluation_comparison_setting_pkey");
+
+            entity.ToTable("evaluation_comparison_setting", table =>
+            {
+                table.HasCheckConstraint("ck_evaluation_comparison_setting_baseline", "baseline IN ('PREVIOUS_PERIOD', 'SAME_PERIOD_LAST_YEAR', 'AVERAGE_LAST_N')");
+                table.HasCheckConstraint("ck_evaluation_comparison_setting_lookback", "lookback_periods BETWEEN 2 AND 12");
+            });
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Baseline).HasMaxLength(30).HasColumnName("baseline");
+            entity.Property(e => e.LookbackPeriods).HasColumnName("lookback_periods");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<TierCriterion>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("tier_criterion_pkey");
+
+            entity.ToTable("tier_criterion");
+
+            entity.HasIndex(e => e.Code, "uq_tier_criterion_code").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(200).HasColumnName("name");
+            entity.Property(e => e.Metric).HasMaxLength(30).HasColumnName("metric");
+            entity.Property(e => e.Threshold).HasPrecision(10, 2).HasColumnName("threshold");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+        });
+
+        modelBuilder.Entity<TierCriterionRequirement>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("tier_criterion_requirement_pkey");
+
+            entity.ToTable("tier_criterion_requirement");
+
+            entity.HasIndex(e => new { e.TierCriterionId, e.TierCode }, "uq_tier_criterion_requirement").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.TierCriterionId).HasColumnName("tier_criterion_id");
+            entity.Property(e => e.TierCode).HasMaxLength(20).HasColumnName("tier_code");
+            entity.Property(e => e.Required).HasColumnName("required");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(e => e.TierCriterion).WithMany(c => c.Requirements)
+                .HasForeignKey(e => e.TierCriterionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_tier_criterion_requirement_criterion");
+        });
+
         modelBuilder.Entity<RankingTierThreshold>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("ranking_tier_threshold_pkey");
@@ -1312,6 +1416,36 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("updated_at");
         });
 
+        modelBuilder.Entity<RankingSlotQuota>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_slot_quota_pkey");
+
+            entity.ToTable("ranking_slot_quota", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
+                table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
+            });
+
+            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.TierCode)
+                .HasMaxLength(10)
+                .HasColumnName("tier_code");
+            entity.Property(e => e.Headcount).HasColumnName("headcount");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(d => d.Department).WithMany()
+                .HasForeignKey(d => d.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_slot_quota_department");
+        });
+
         modelBuilder.Entity<Downgrade>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("downgrade_pkey");
@@ -1330,6 +1464,39 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<RankingPolicy>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_policy_pkey");
+
+            entity.ToTable("ranking_policy", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_policy_version", "version >= 1");
+            });
+
+            entity.HasIndex(e => e.Code, "uq_ranking_policy_code").IsUnique();
+            entity.HasIndex(e => e.EvaluationPeriodId, "uq_ranking_policy_period").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(200).HasColumnName("name");
+            entity.Property(e => e.Description).HasMaxLength(1000).HasColumnName("description");
+            entity.Property(e => e.Version).HasDefaultValue(1).IsConcurrencyToken().HasColumnName("version");
+            entity.Property(e => e.IsActive).HasDefaultValue(true).HasColumnName("is_active");
+            entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
+            entity.Property(e => e.PolicyJson).HasColumnType("jsonb").HasDefaultValue("{}").HasColumnName("policy_json");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(e => e.EvaluationPeriod)
+                .WithMany()
+                .HasForeignKey(e => e.EvaluationPeriodId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_policy_period");
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -1403,6 +1570,7 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_target_assignment_approval", "(status IN ('ACTIVE', 'SUPERSEDED', 'CLOSED') AND approved_at IS NOT NULL)\r\n            OR status = 'DRAFT'");
                 table.HasCheckConstraint("ck_target_assignment_approved_by_time", "approved_at IS NULL OR approved_at >= created_at");
                 table.HasCheckConstraint("ck_target_assignment_assigned_time", "assigned_at IS NULL OR assigned_at >= created_at");
+                table.HasCheckConstraint("ck_target_assignment_effective_range", "effective_to IS NULL OR effective_to >= effective_from");
             });
 
             entity.HasIndex(e => e.BusinessObjectiveId, "ix_target_assignment_objective");
@@ -1483,6 +1651,19 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ParentAssignmentId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_target_assignment_parent");
+
+            entity.Property(e => e.EffectiveFrom).HasColumnName("effective_from");
+            entity.Property(e => e.EffectiveTo).HasColumnName("effective_to");
+            entity.Property(e => e.PreviousVersionId).HasColumnName("previous_version_id");
+            entity.Property(e => e.ChangedByEmployeeId).HasColumnName("changed_by_employee_id");
+
+            // No database FK for PreviousVersionId (self-referencing): see the doc comment on the property.
+            entity.HasIndex(e => e.PreviousVersionId, "ix_target_assignment_previous_version");
+
+            entity.HasOne(d => d.ChangedByEmployee).WithMany()
+                .HasForeignKey(d => d.ChangedByEmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_changed_by");
 
             entity.Property(e => e.Status)
                 .HasColumnType("target_assignment_status")
@@ -1748,11 +1929,20 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.AssigneeEmployeeId).HasColumnName("assignee_employee_id");
+            entity.Property(e => e.AssignedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("assigned_at");
             entity.Property(e => e.BusinessCampaignId).HasColumnName("business_campaign_id");
             entity.Property(e => e.Code)
                 .HasMaxLength(50)
                 .HasColumnName("code");
             entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.CustomerCif)
+                .HasMaxLength(50)
+                .HasColumnName("customer_cif");
+            entity.Property(e => e.CustomerName)
+                .HasMaxLength(200)
+                .HasColumnName("customer_name");
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.EstimatedHours)
                 .HasPrecision(10, 2)
@@ -1940,8 +2130,8 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_work_type_kpi_work_type");
         });
 
-        ConfigureScores(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        ConfigureWorkDetail(modelBuilder);
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);
@@ -1959,6 +2149,21 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ImportedAt).HasColumnName("imported_at");
         });
 
+        modelBuilder.Entity<ImportBatchError>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("import_batch_error_pkey");
+            entity.ToTable("import_batch_error");
+            entity.HasIndex(e => new { e.ImportBatchId, e.RowNumber }, "ix_import_batch_error_batch_row");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
+            entity.Property(e => e.RowNumber).HasColumnName("row_number");
+            entity.Property(e => e.Field).HasMaxLength(50).HasColumnName("field");
+            entity.Property(e => e.Code).HasMaxLength(50).HasColumnName("code");
+            entity.Property(e => e.Message).HasMaxLength(500).HasColumnName("message");
+            entity.HasOne(e => e.ImportBatch).WithMany(b => b.Errors).HasForeignKey(e => e.ImportBatchId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_import_batch_error_batch");
+        });
+
         modelBuilder.Entity<ImportedTransaction>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("imported_transaction_pkey");
@@ -1969,6 +2174,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ImportBatchId).HasColumnName("import_batch_id");
             entity.Property(e => e.TransactionCode).HasMaxLength(100).HasColumnName("transaction_code");
+            entity.Property(e => e.CustomerCode).HasMaxLength(50).HasColumnName("customer_code");
             entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
             entity.Property(e => e.ProductCode).HasMaxLength(100).HasColumnName("product_code");
             entity.Property(e => e.TransactionDate).HasColumnName("transaction_date");
@@ -2003,6 +2209,17 @@ public partial class AppDbContext : DbContext
         });
 
         OnModelCreatingPartial(modelBuilder);
+    }
+
+    /// <summary>Maps an enum to its <c>[PgName]</c> text, so the stored values stay the UPPER_SNAKE strings the check constraints use.</summary>
+    private static ValueConverter<TEnum, string> PgNameConverter<TEnum>()
+        where TEnum : struct, Enum
+    {
+        var names = Enum.GetValues<TEnum>().ToDictionary(
+            value => value,
+            value => typeof(TEnum).GetField(value.ToString())!.GetCustomAttribute<PgNameAttribute>()!.PgName);
+        var values = names.ToDictionary(pair => pair.Value, pair => pair.Key);
+        return new ValueConverter<TEnum, string>(value => names[value], text => values[text]);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

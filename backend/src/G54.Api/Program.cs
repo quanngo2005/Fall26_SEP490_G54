@@ -53,6 +53,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
 builder.Services.Configure<G54.BLL.Common.SystemParametersOptions>(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName));
+builder.Services.AddLiveSystemParameters();
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
 // Overrides the NullAuditContextProvider registered by AddDataAccess: within the API, the actor/request
@@ -93,7 +94,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         {
             var tokenType = context.Principal?.FindFirst("token_type")?.Value;
             var tokenId = context.Principal?.FindFirst("jti")?.Value;
-            if (tokenType != "access" || !Guid.TryParse(tokenId, out var parsedTokenId))
+            var subject = context.Principal?.FindFirst("sub")?.Value;
+            var issuedAt = context.Principal?.FindFirst("issued_at_ms")?.Value;
+            if (tokenType != "access"
+                || !Guid.TryParse(tokenId, out var parsedTokenId)
+                || !Guid.TryParse(subject, out var accountId)
+                || !long.TryParse(issuedAt, out var issuedAtMilliseconds))
             {
                 context.Fail("Invalid access token.");
                 return;
@@ -104,6 +110,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 is not null)
             {
                 context.Fail("Access token has been revoked.");
+                return;
+            }
+
+            var revokedBefore = await cache.GetStringAsync(
+                AuthService.CreateAccessRevokedBeforeKey(accountId),
+                context.HttpContext.RequestAborted);
+            if (long.TryParse(revokedBefore, out var revokedBeforeMilliseconds)
+                && issuedAtMilliseconds <= revokedBeforeMilliseconds)
+            {
+                context.Fail("Access token was issued before the latest password change.");
             }
         },
         OnChallenge = async context =>
@@ -115,7 +131,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ApiErrorResponses.WriteAsync(context.HttpContext, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden),
     };
 });
-var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 5);
 var loginWindowSeconds = builder.Configuration.GetValue("RateLimiting:Login:WindowSeconds", 60);
 
 builder.Services.AddRateLimiter(options =>
@@ -139,12 +154,16 @@ builder.Services.AddRateLimiter(options =>
         var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString()
             ?? httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
             ?? "unknown";
+        var configuredPermitLimit = httpContext.RequestServices
+            .GetService<Microsoft.Extensions.Options.IOptions<G54.BLL.Common.SystemParametersOptions>>()
+            ?.Value.LoginRateLimitPerMinute ?? 5;
+        var permitLimit = Math.Max(1, builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", configuredPermitLimit));
 
         return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ipAddress,
+            partitionKey: $"{ipAddress}:{permitLimit}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = loginPermitLimit,
+                PermitLimit = permitLimit,
                 Window = TimeSpan.FromSeconds(loginWindowSeconds),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0,

@@ -57,6 +57,29 @@ public sealed class ReallocateTargetDto
     public string? ChangeReason { get; set; }
 }
 
+/// <summary>
+/// Mid-period change of an ACTIVE target's value (BR-15): the current version is frozen (SUPERSEDED) and a new
+/// version takes over from <see cref="EffectiveDate"/>. Contract: docs/api/TARGET_ASSIGNMENT_CONTRACT.md.
+/// </summary>
+public sealed class ReviseTargetAssignmentDto
+{
+    [Required(ErrorMessage = "Giá trị target là bắt buộc.")]
+    public decimal? TargetValue { get; set; }
+
+    [Required(ErrorMessage = "Ngày hiệu lực là bắt buộc.")]
+    public DateOnly? EffectiveDate { get; set; }
+
+    [Required(ErrorMessage = "Lý do điều chỉnh là bắt buộc.")]
+    [StringLength(500, ErrorMessage = "Lý do không vượt quá 500 ký tự.")]
+    public string? Reason { get; set; }
+
+    /// <summary>
+    /// Required (and must total <see cref="TargetValue"/>) when the target being revised has ACTIVE children;
+    /// must be empty otherwise.
+    /// </summary>
+    public List<TargetAllocationItemDto>? ChildAllocations { get; set; }
+}
+
 /// <summary>Splits a target across evaluation periods (e.g., year to quarters).</summary>
 public sealed class AllocateTargetByPeriodDto
 {
@@ -108,7 +131,15 @@ public sealed record TargetAssignmentDto(
     /// <summary>NOT_VIEWED | CONFIRMED | COMMENTED for employee-owned rows; null for department-owned rows.</summary>
     string? FeedbackStatus = null,
     /// <summary>When the employee confirmed or commented; null unless <see cref="FeedbackStatus"/> is CONFIRMED or COMMENTED.</summary>
-    DateTimeOffset? FeedbackAt = null);
+    DateTimeOffset? FeedbackAt = null,
+    /// <summary>First day this version applies (BR-15).</summary>
+    DateOnly? EffectiveFrom = null,
+    /// <summary>Last day this version applied; null while ACTIVE.</summary>
+    DateOnly? EffectiveTo = null,
+    /// <summary>The version this one replaced mid-period, if any.</summary>
+    Guid? PreviousVersionId = null,
+    /// <summary>Employee who requested the mid-period change, if any.</summary>
+    Guid? ChangedByEmployeeId = null);
 
 /// <summary>Query parameters for GET /target-assignments/mine.</summary>
 public sealed class MyTargetAssignmentQueryDto
