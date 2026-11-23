@@ -106,7 +106,10 @@
               <span class="badge" [class.leave]="member.status !== 'ACTIVE'">{{statusLabel(member.status)}}</span>
             </td>
             <td class="num">
-              <a class="view" [routerLink]="['/employee-detail', member.employeeCode]"
+              <a
+                class="view"
+                routerLink="/employee-detail/profile"
+                [state]="{ employeeCode: member.employeeCode }"
                 >{{text.view}} ›</a
               >
             </td>

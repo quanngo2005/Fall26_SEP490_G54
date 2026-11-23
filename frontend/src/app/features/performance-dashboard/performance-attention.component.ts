@@ -62,7 +62,8 @@ import { formatArrow, formatValue, toneOf } from './performance-display';
             <td class="num">
               <a
                 class="row-link"
-                [routerLink]="['/employee-detail', member.employeeCode]"
+                routerLink="/employee-detail/profile"
+                [state]="{ employeeCode: member.employeeCode }"
                 [attr.aria-label]="text.view + ' ' + member.fullName"
                 >›</a
               >

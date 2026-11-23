@@ -108,7 +108,9 @@
               <dt>{{localization.employee.manager}}</dt>
               <dd>
                 @if (emp.managerId) {
-                  <a [routerLink]="['/employee-detail', emp.managerCode]"
+                  <a
+                    routerLink="/employee-detail/profile"
+                    [state]="{ employeeCode: emp.managerCode }"
                     >{{text(emp.managerCode)}} · {{text(emp.managerName)}}</a
                   >
                 } @else {
@@ -191,7 +193,12 @@
                       <span class="status-badge" [class.is-muted]="!isActive(item.status)">{{statusLabel(item.status)}}</span>
                     </td>
                     <td>
-                      <a class="link" [routerLink]="['/employee-detail', item.employeeCode]">{{localization.employee.view}}</a>
+                      <a
+                        class="link"
+                        routerLink="/employee-detail/profile"
+                        [state]="{ employeeCode: item.employeeCode }"
+                        >{{localization.employee.view}}</a
+                      >
                     </td>
                   </tr>
                 } @empty {

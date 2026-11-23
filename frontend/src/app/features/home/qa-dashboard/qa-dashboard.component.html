@@ -77,6 +77,7 @@
             [class.is-zero]="card.count === 0"
             [routerLink]="card.route"
             [queryParams]="card.params"
+            [state]="card.state"
             [attr.aria-label]="cardAria(card)"
           >
             <span class="card-head">
@@ -119,11 +120,11 @@
         <app-qa-reasons
           [reasons]="dashboard.commonDiscrepancyReasons"
           [periodName]="dashboard.period.name"
-          [linkParams]="linkParams()"
+          [linkState]="linkState()"
         />
         <app-qa-employees
           [employees]="dashboard.topDiscrepancyEmployees"
-          [linkParams]="linkParams()"
+          [linkState]="linkState()"
         />
       </div>
 

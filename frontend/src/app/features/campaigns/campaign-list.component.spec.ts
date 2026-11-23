@@ -140,7 +140,7 @@ describe('CampaignListComponent', () => {
 
     fixture.nativeElement.querySelector('tbody tr').click();
 
-    expect(navigate).toHaveBeenCalledWith(['/campaigns', 'c1']);
+    expect(navigate).toHaveBeenCalledWith(['/campaigns/detail'], { state: { campaignId: 'c1' } });
   });
 
   it('shows an empty state when nothing matches', async () => {
@@ -176,7 +176,7 @@ describe('CampaignListComponent', () => {
     fixture.componentInstance['onCreated']('c9');
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/campaigns', 'c9']);
+    expect(navigate).toHaveBeenCalledWith(['/campaigns/detail'], { state: { campaignId: 'c9' } });
     expect(root.querySelector('app-campaign-create-modal')).toBeNull();
   });
 });

@@ -418,7 +418,8 @@ describe('MyEvaluationComponent', () => {
 
     component.openLedgerWork(linked);
     expect(router.navigate).toHaveBeenCalledWith(['/my-work'], {
-      queryParams: { keyword: 'W-TX-1', workId: 'work-1' },
+      queryParams: { keyword: 'W-TX-1' },
+      state: { workId: 'work-1' },
     });
     expect(component.selectedDrilldownCriteria()).toBeNull();
   });

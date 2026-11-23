@@ -436,7 +436,8 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
     }
     this.closeDrilldown();
     void this.router.navigate(['/my-work'], {
-      queryParams: { keyword: tx.workCode, workId: tx.workId },
+      queryParams: { keyword: tx.workCode },
+      state: { workId: tx.workId },
     });
   }
 

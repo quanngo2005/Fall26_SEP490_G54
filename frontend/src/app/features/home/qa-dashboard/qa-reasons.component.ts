@@ -24,6 +24,7 @@ import { fill, IMPORT_REASON } from './qa-dashboard-display';
             class="reason"
             routerLink="/reconciliations"
             [queryParams]="row.params"
+            [state]="linkState()"
             [attr.aria-label]="row.aria"
           >
             <span class="label" [title]="row.label">{{row.label}}</span>
@@ -40,7 +41,7 @@ import { fill, IMPORT_REASON } from './qa-dashboard-display';
         <span><i class="dot import"></i>{{legendImport()}}</span>
         <span><i class="dot"></i>{{legendMismatch()}}</span>
       </span>
-      <a class="qa-link" routerLink="/reconciliations" [queryParams]="linkParams()">
+      <a class="qa-link" routerLink="/reconciliations" [state]="linkState()">
         {{text().viewReconciliation}}
       </a>
     </footer>
@@ -140,8 +141,8 @@ import { fill, IMPORT_REASON } from './qa-dashboard-display';
 export class QaReasonsComponent extends LocalizedComponent {
   readonly reasons = input.required<QaDashboardReasonCount[]>();
   readonly periodName = input.required<string>();
-  /** Dashboard filters, carried over to the reconciliation screen. */
-  readonly linkParams = input<Record<string, string>>({});
+  /** Dashboard filters (record ids), carried over to the reconciliation screen in the navigation state. */
+  readonly linkState = input<Record<string, string>>({});
 
   protected readonly text = computed(() => this.localization.qaDashboard.reasons);
 
@@ -158,7 +159,7 @@ export class QaReasonsComponent extends LocalizedComponent {
         count: r.count,
         isImport: r.reasonCode === IMPORT_REASON,
         width: (r.count / max) * 100,
-        params: { ...this.linkParams(), reason: r.reasonCode },
+        params: { reason: r.reasonCode },
         aria: fill(this.text().rowAria, { label, count: r.count }),
       };
     });

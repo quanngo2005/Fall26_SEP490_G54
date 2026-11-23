@@ -2,12 +2,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AppealListItem } from '../../core/appeal.models';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { MyAppealsComponent } from './my-appeals.component';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -70,10 +71,19 @@ describe('MyAppealsComponent', () => {
     }
   };
 
+  let routeState: FakeRouteState;
+
   beforeEach(async () => {
+    const state = provideRouteState();
+    routeState = state.fake;
     await TestBed.configureTestingModule({
       imports: [MyAppealsComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        ...state.providers,
+      ],
     })
       .overrideComponent(MyAppealsComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent] },
@@ -227,7 +237,7 @@ describe('MyAppealsComponent', () => {
     );
   });
 
-  describe('opened by link (?appeal=)', () => {
+  describe('opened with an appeal in the navigation state', () => {
     const detail = (over: Partial<AppealListItem> = {}) => ({
       success: true,
       status: 200,
@@ -245,7 +255,7 @@ describe('MyAppealsComponent', () => {
 
     it('opens the drawer of that appeal as soon as its detail arrives', async () => {
       const id = item().id;
-      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      routeState.set({ appealId: id });
       const fixture = open();
       flushInitial([item()]);
       http.expectOne(`${url}/${id}`).flush(detail());
@@ -257,7 +267,7 @@ describe('MyAppealsComponent', () => {
 
     it('still opens it when the appeal is not in the list on screen', async () => {
       const id = 'aaaaaaaa-1111-2222-3333-444455556666';
-      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      routeState.set({ appealId: id });
       const fixture = open();
       flushInitial([item()]);
       http.expectOne(`${url}/${id}`).flush(detail({ id }));
@@ -269,7 +279,7 @@ describe('MyAppealsComponent', () => {
 
     it('shows no drawer when the appeal cannot be loaded', async () => {
       const id = item().id;
-      await TestBed.inject(Router).navigateByUrl(`/?appeal=${id}`);
+      routeState.set({ appealId: id });
       const fixture = open();
       flushInitial([]);
       http.expectOne(`${url}/${id}`).flush(null, { status: 404, statusText: 'Not Found' });

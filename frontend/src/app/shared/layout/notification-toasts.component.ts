@@ -132,7 +132,7 @@ export class NotificationToastsComponent extends LocalizedComponent {
     if (!item.isRead) this.notifications.markRead(item).subscribe({ error: () => undefined });
     const link = notificationLink(item);
     void this.router.navigate(link ? link.commands : ['/notifications'], {
-      queryParams: link?.queryParams,
+      state: link?.state,
     });
   }
 }
