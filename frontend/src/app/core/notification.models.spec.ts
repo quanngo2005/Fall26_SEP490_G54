@@ -10,23 +10,28 @@ describe('notificationLink', () => {
   it('opens a work in the work board by id', () => {
     expect(link('WORK_ASSIGNED', 'WORK')).toEqual({
       commands: ['/my-work'],
-      queryParams: { workId: 'abc' },
+      state: { workId: 'abc' },
     });
     expect(link('WORK_OVERDUE', 'WORK', null)).toEqual({ commands: ['/my-work'] });
   });
 
   it('sends each audience to its own screen for the same kind of record', () => {
-    expect(link('APPEAL_FILED', 'APPEAL')).toEqual({ commands: ['/appeals/department', 'abc'] });
+    expect(link('APPEAL_FILED', 'APPEAL')).toEqual({
+      commands: ['/appeals/department/detail'],
+      state: { appealId: 'abc' },
+    });
     expect(link('APPEAL_DECIDED', 'APPEAL')).toEqual({ commands: ['/appeals/mine'] });
     expect(link('SUBMISSION_SUBMITTED', 'SUBMISSION')).toEqual({
-      commands: ['/review-verify', 'abc'],
+      commands: ['/review-verify'],
+      state: { submissionId: 'abc' },
     });
     expect(link('SUBMISSION_DECIDED', 'SUBMISSION')).toEqual({ commands: ['/submissions'] });
   });
 
   it('routes evaluation notifications by type', () => {
     expect(link('CALIBRATION_SUBMITTED', 'EVALUATION_PERIOD')).toEqual({
-      commands: ['/branch-performance/evaluations', 'abc', 'approval'],
+      commands: ['/branch-performance/evaluations/approval'],
+      state: { periodId: 'abc' },
     });
     expect(link('CALIBRATION_DECIDED', 'EVALUATION_PERIOD')).toEqual({
       commands: ['/evaluations'],
@@ -35,13 +40,17 @@ describe('notificationLink', () => {
   });
 
   it('maps the remaining related records', () => {
-    expect(link('CAMPAIGN_DECIDED', 'CAMPAIGN')).toEqual({ commands: ['/campaigns', 'abc'] });
+    expect(link('CAMPAIGN_DECIDED', 'CAMPAIGN')).toEqual({
+      commands: ['/campaigns/detail'],
+      state: { campaignId: 'abc' },
+    });
     expect(link('KPI_APPROVED', 'KPI')).toEqual({ commands: ['/kpi-definitions'] });
     expect(link('TARGET_REVISED', 'TARGET')).toEqual({ commands: ['/my-targets'] });
     expect(link('RISK_EVENT_RECORDED', 'RISK_EVENT')).toEqual({ commands: ['/risk-events'] });
     expect(link('QUALITY_FLAG_RAISED', 'QUALITY_FLAG')).toEqual({ commands: ['/qa-queue'] });
     expect(link('EVALUATION_PROFILE_DECIDED', 'EVALUATION_PROFILE')).toEqual({
-      commands: ['/evaluation-profiles', 'abc'],
+      commands: ['/evaluation-profiles/detail'],
+      state: { profileId: 'abc' },
     });
     expect(link('IMPORT_COMPLETED_WITH_ERRORS', 'IMPORT_BATCH')).toEqual({
       commands: ['/import-history'],

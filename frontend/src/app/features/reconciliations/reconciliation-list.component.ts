@@ -16,6 +16,7 @@ import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { currentPeriod, sortPeriodsNewestFirst } from '../../core/period-options';
+import { RouteStateService } from '../../core/route-state.service';
 import {
   ReconciliationCounts,
   ReconciliationFilter,
@@ -82,6 +83,7 @@ export class ReconciliationListComponent extends LocalizedComponent implements O
   private readonly evaluations = inject(EvaluationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
 
   /** SCR-ADM-06 entry point: only those who may import the Core Banking file see it (the API checks the same). */
@@ -200,18 +202,22 @@ export class ReconciliationListComponent extends LocalizedComponent implements O
   }
 
   ngOnInit(): void {
+    // Readable filters come from the URL; record ids (period, department, position) from the navigation state.
     const query = this.route.snapshot.queryParamMap;
-    const fromUrl = query.keys.length > 0;
+    const period = this.routeState.value('period');
+    const department = this.routeState.value('department');
+    const job = this.routeState.value('job');
+    const fromUrl = query.keys.length > 0 || !!(period || department || job);
     const saved = fromUrl ? null : readSavedFilters();
     if (fromUrl) {
       this.applyFilters({
         status: query.get('status') ?? ALL,
         search: query.get('q') ?? '',
-        period: query.get('period') ?? ALL,
+        period: period ?? ALL,
         from: query.get('from') ?? '',
         to: query.get('to') ?? '',
-        department: query.get('department') ?? ALL,
-        jobPosition: query.get('job') ?? ALL,
+        department: department ?? ALL,
+        jobPosition: job ?? ALL,
         product: query.get('product') ?? ALL,
         reason: query.get('reason') ?? ALL,
       });
@@ -314,7 +320,9 @@ export class ReconciliationListComponent extends LocalizedComponent implements O
   }
 
   protected open(item: ReconciliationItem): void {
-    void this.router.navigate(['/reconciliations', item.id]);
+    void this.router.navigate(['/reconciliations/detail'], {
+      state: { reconciliationId: item.id },
+    });
   }
 
   protected exportFile(): void {
@@ -419,22 +427,27 @@ export class ReconciliationListComponent extends LocalizedComponent implements O
     this.reasonFilter.set(filters.reason);
   }
 
-  /** Keeps the filters in the address, so a refresh or a shared link opens the same list. */
+  /**
+   * Keeps the filters across a refresh: readable ones in the address, record ids (period, department, position) in the
+   * navigation state so no id shows in the URL.
+   */
   private syncUrl(): void {
     const all = this.snapshot();
     const queryParams: Record<string, string | null> = {
       status: all.status !== ALL ? all.status : null,
       q: all.search.trim() || null,
-      // Always written, so a deliberate "all periods" survives a refresh instead of falling back to the current month.
-      period: all.period,
       from: all.from || null,
       to: all.to || null,
-      department: all.department !== ALL ? all.department : null,
-      job: all.jobPosition !== ALL ? all.jobPosition : null,
       product: all.product !== ALL ? all.product : null,
       reason: all.reason !== ALL ? all.reason : null,
       page: this.page() > 1 ? String(this.page()) : null,
     };
-    void this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: true });
+    const state: Record<string, string> = {
+      // Always written, so a deliberate "all periods" survives a refresh instead of falling back to the current month.
+      period: all.period,
+      ...(all.department !== ALL ? { department: all.department } : {}),
+      ...(all.jobPosition !== ALL ? { job: all.jobPosition } : {}),
+    };
+    void this.router.navigate([], { relativeTo: this.route, queryParams, replaceUrl: true, state });
   }
 }

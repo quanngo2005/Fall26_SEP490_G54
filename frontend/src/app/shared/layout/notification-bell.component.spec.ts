@@ -126,7 +126,7 @@ describe('Notification bell and toasts', () => {
     (root.querySelector('.item') as HTMLButtonElement).click();
     http.expectOne(`${url}/a/read`).flush(envelope(item('a', { isRead: true })));
 
-    expect(navigate).toHaveBeenCalledWith(['/my-work'], { queryParams: { workId: 'w1' } });
+    expect(navigate).toHaveBeenCalledWith(['/my-work'], { state: { workId: 'w1' } });
     expect(service.unreadCount()).toBe(0);
   });
 

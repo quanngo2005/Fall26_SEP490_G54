@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, RouterLink } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import {
   DepartmentDetail,
@@ -11,6 +11,7 @@ import {
 import { DepartmentService } from '../../core/department.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { DepartmentDetailDrawerComponent } from './department-detail-drawer.component';
+import { By } from '@angular/platform-browser';
 
 function summary(code: string, extra: Partial<DepartmentSummary> = {}): DepartmentSummary {
   return {
@@ -161,7 +162,12 @@ describe('DepartmentDetailDrawerComponent', () => {
       '3',
     ]);
     expect(root().querySelectorAll('.mini-table tbody tr').length).toBe(3); // preview
-    expect(root().querySelector('.emp-link')?.getAttribute('href')).toBe('/employee-detail/E001');
+    expect(root().querySelector('.emp-link')?.getAttribute('href')).toBe(
+      '/employee-detail/profile',
+    );
+    expect(fixture.debugElement.query(By.css('.emp-link')).injector.get(RouterLink).state).toEqual({
+      employeeCode: 'E001',
+    });
   });
 
   it('reloads when the list selects another department and ignores the previous request', () => {

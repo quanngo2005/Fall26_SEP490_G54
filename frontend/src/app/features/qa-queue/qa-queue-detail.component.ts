@@ -2,8 +2,18 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, EMPTY, finalize, map, Subject, switchMap, tap } from 'rxjs';
+import { Router } from '@angular/router';
+import {
+  catchError,
+  distinctUntilChanged,
+  EMPTY,
+  finalize,
+  map,
+  Subject,
+  switchMap,
+  tap,
+} from 'rxjs';
+import { RouteStateService, stateValue } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   QaEvidence,
@@ -37,7 +47,7 @@ const SEVERITIES: readonly QaSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
 })
 export class QaQueueDetailComponent extends LocalizedComponent {
   private readonly api = inject(QaQueueService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly context = inject(QaQueueContext);
   private readonly destroyRef = inject(DestroyRef);
@@ -107,9 +117,11 @@ export class QaQueueDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    this.route.paramMap
+    this.routeState
+      .watchState()
       .pipe(
-        map((params) => ({ kind: params.get('kind'), id: params.get('id') })),
+        map((state) => ({ kind: stateValue(state, 'qaKind'), id: stateValue(state, 'qaItemId') })),
+        distinctUntilChanged((a, b) => a.kind === b.kind && a.id === b.id),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(({ kind, id }) => {
@@ -137,7 +149,11 @@ export class QaQueueDetailComponent extends LocalizedComponent {
   }
 
   protected step(entry: { kind: QaKind; id: string } | null): void {
-    if (entry) void this.router.navigate(['/qa-queue', entry.kind, entry.id]);
+    if (entry) {
+      void this.router.navigate(['/qa-queue/detail'], {
+        state: { qaKind: entry.kind, qaItemId: entry.id },
+      });
+    }
   }
 
   protected selectVerdict(verdict: QaVerdict): void {

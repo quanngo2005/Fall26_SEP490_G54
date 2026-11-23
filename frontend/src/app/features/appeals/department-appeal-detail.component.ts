@@ -2,10 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, HostListener, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, EMPTY, finalize, map, Subject, switchMap, tap } from 'rxjs';
+import { Router } from '@angular/router';
+import { catchError, EMPTY, finalize, Subject, switchMap, tap } from 'rxjs';
 import { AppealDecision, AppealDetail, AppealEvidence } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
@@ -34,7 +35,7 @@ const DECISIONS: readonly AppealDecision[] = ['ACCEPT', 'ADJUST', 'REJECT'];
 })
 export class DepartmentAppealDetailComponent extends LocalizedComponent {
   private readonly api = inject(AppealService);
-  private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly load = new Subject<string>();
@@ -88,41 +89,18 @@ export class DepartmentAppealDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    // Read id from route parameter (:id) or fallback to navigation state (appealId).
-    if (this.route) {
-      this.route.paramMap
-        .pipe(
-          map((params) => params.get('id') ?? this.resolveStateAppealId()),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe((id) => {
-          if (id) {
-            this.id.set(id);
-            this.load.next(id);
-          } else {
-            this.goBack();
-          }
-        });
-    } else {
-      const id = this.resolveStateAppealId();
-      if (id) {
-        this.id.set(id);
-        this.load.next(id);
-      } else {
-        this.goBack();
-      }
-    }
-  }
-
-  private resolveStateAppealId(): string | null {
-    const state: unknown =
-      this.router.getCurrentNavigation()?.extras.state ?? (history.state as unknown);
-    return state &&
-      typeof state === 'object' &&
-      'appealId' in state &&
-      typeof state.appealId === 'string'
-      ? state.appealId
-      : null;
+    // The appeal id comes in the navigation state, never in the URL.
+    this.routeState
+      .watch('appealId')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((id) => {
+        if (id) {
+          this.id.set(id);
+          this.load.next(id);
+        } else {
+          this.goBack();
+        }
+      });
   }
 
   protected retry(): void {

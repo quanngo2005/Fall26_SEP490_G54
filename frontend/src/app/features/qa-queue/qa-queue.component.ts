@@ -226,7 +226,9 @@ export class QaQueueComponent extends LocalizedComponent implements OnInit {
   }
 
   protected open(item: QaQueueItem): void {
-    void this.router.navigate(['/qa-queue', item.kind, item.id]);
+    void this.router.navigate(['/qa-queue/detail'], {
+      state: { qaKind: item.kind, qaItemId: item.id },
+    });
   }
 
   protected kindLabel(kind: QaKind): string {

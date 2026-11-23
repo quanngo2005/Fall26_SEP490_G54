@@ -92,7 +92,8 @@ export interface NotificationRecipientOption {
 
 export interface NotificationLink {
   commands: string[];
-  queryParams?: Record<string, string>;
+  /** Record ids for the target page, carried in history state so they stay out of the URL. */
+  state?: Record<string, string>;
 }
 
 /**
@@ -105,16 +106,20 @@ export function notificationLink(
   const id = item.relatedId;
   switch (item.type) {
     case 'SUBMISSION_SUBMITTED':
-      return id ? { commands: ['/review-verify', id] } : { commands: ['/review-verify'] };
+      return id
+        ? { commands: ['/review-verify'], state: { submissionId: id } }
+        : { commands: ['/review-verify'] };
     case 'SUBMISSION_DECIDED':
       return { commands: ['/submissions'] };
     case 'APPEAL_FILED':
-      return id ? { commands: ['/appeals/department', id] } : { commands: ['/appeals/department'] };
+      return id
+        ? { commands: ['/appeals/department/detail'], state: { appealId: id } }
+        : { commands: ['/appeals/department'] };
     case 'APPEAL_DECIDED':
       return { commands: ['/appeals/mine'] };
     case 'CALIBRATION_SUBMITTED':
       return id
-        ? { commands: ['/branch-performance/evaluations', id, 'approval'] }
+        ? { commands: ['/branch-performance/evaluations/approval'], state: { periodId: id } }
         : { commands: ['/branch-performance/evaluations'] };
     case 'CALIBRATION_DECIDED':
       return { commands: ['/evaluations'] };
@@ -126,13 +131,13 @@ export function notificationLink(
 
   switch (item.relatedType) {
     case 'WORK':
-      return id
-        ? { commands: ['/my-work'], queryParams: { workId: id } }
-        : { commands: ['/my-work'] };
+      return id ? { commands: ['/my-work'], state: { workId: id } } : { commands: ['/my-work'] };
     case 'HANDOVER':
       return { commands: ['/my-work'] };
     case 'CAMPAIGN':
-      return id ? { commands: ['/campaigns', id] } : { commands: ['/campaigns'] };
+      return id
+        ? { commands: ['/campaigns/detail'], state: { campaignId: id } }
+        : { commands: ['/campaigns'] };
     case 'KPI':
       return { commands: ['/kpi-definitions'] };
     case 'TARGET':
@@ -143,7 +148,7 @@ export function notificationLink(
       return { commands: ['/qa-queue'] };
     case 'EVALUATION_PROFILE':
       return id
-        ? { commands: ['/evaluation-profiles', id] }
+        ? { commands: ['/evaluation-profiles/detail'], state: { profileId: id } }
         : { commands: ['/evaluation-profiles'] };
     case 'IMPORT_BATCH':
       return { commands: ['/import-history'] };
