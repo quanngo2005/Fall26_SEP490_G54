@@ -606,12 +606,12 @@ describe('EvaluationFormComponent', () => {
 
     it('shows the previous period delta in the KPI pill', async () => {
       await create();
-      expect(component.weightedPillText()).toContain('3');
+      expect(component.scorePillText()).toContain('3');
     });
 
-    it('shows a dash when there is no previous period', async () => {
+    it('hides the KPI pill when there is no previous period', async () => {
       await create(buildForm({ previousPeriod: null }));
-      expect(component.weightedPillText()).toBe(emptyValue());
+      expect(component.scorePillText()).toBeNull();
     });
 
     it('renders criteria summary and SLA summary from the API instead of placeholders', async () => {
@@ -721,5 +721,40 @@ describe('EvaluationFormComponent', () => {
     await create();
     component.onBackToList();
     expect(router.navigate).toHaveBeenCalledWith(['/evaluations']);
+  });
+
+  it('selects active period matching today when switching period type', async () => {
+    await create();
+    const today = new Date();
+    const currentMonthCode = `${today.getFullYear()}-M${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const startOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    const endOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-28`;
+
+    component.periods.set([
+      {
+        id: 'past-month',
+        code: '2025-M01',
+        name: 'Tháng 1/2025',
+        startDate: '2025-01-01',
+        endDate: '2025-01-31',
+        periodType: 'MONTH',
+        status: 'LOCKED',
+        isActive: false,
+      },
+      {
+        id: 'current-month-id',
+        code: currentMonthCode,
+        name: 'Tháng Hiện Tại',
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        periodType: 'MONTH',
+        status: 'OPEN',
+        isActive: true,
+      },
+    ]);
+
+    api.form.calls.reset();
+    component.onPeriodTypeChange('MONTH');
+    expect(api.form).toHaveBeenCalledWith('e2', 'current-month-id');
   });
 });

@@ -169,7 +169,7 @@ function sumKpiScores(scores: (number | null | undefined)[]): number | null {
     './evaluations.task-chart.scss',
     './evaluations.table.scss',
     './evaluations.layout.scss',
-    './evaluations.metric-cards.scss',
+    '../../shared/ui/metric-cards.scss',
   ],
 })
 export class EvaluationsComponent extends LocalizedComponent implements OnInit {
@@ -858,11 +858,19 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   onPeriodTypeSelected(value: string): void {
     const nextType = value as PeriodTypeFilter;
     this.selectedPeriodType.set(nextType);
-    const firstMatching = this.availablePeriods().find((p) => p.periodType === nextType);
-    if (firstMatching) {
-      this.selectedPeriodId.set(firstMatching.id);
+    const matching = this.availablePeriods().filter((p) => p.periodType === nextType);
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+    const current = matching.find((p) => p.startDate <= today && today <= p.endDate);
+    const targetPeriod = current ?? matching.find((p) => p.isActive) ?? matching[0];
+    if (targetPeriod) {
+      this.selectedPeriodId.set(targetPeriod.id);
       this.selectedComparePeriodId.set(null);
-      this.loadDashboard(firstMatching.id, null);
+      this.loadDashboard(targetPeriod.id, null);
     }
   }
 

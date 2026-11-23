@@ -99,6 +99,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'handoverDelegation',
     'reviewVerify',
     'reconciliation',
+    'myPerformance',
     'teamPerformance',
     'departmentPerformance',
     'targetOverview',
