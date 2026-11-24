@@ -1,12 +1,13 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, combineLatest, map, of, startWith, Subject, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { FULL_ACCESS_PERMISSION, normalizePermission } from '../../../core/organization.guard';
 import { QaDashboard, QaDashboardFilterOptions } from '../../../core/qa-dashboard.models';
 import { QaDashboardService } from '../../../core/qa-dashboard.service';
+import { RouteStateService, stateValue } from '../../../core/route-state.service';
 import { SelectOption, UiSelectComponent } from '../../../shared/ui';
 import {
   daysUntil,
@@ -22,7 +23,10 @@ import { QaTrendChartComponent } from './qa-trend-chart.component';
 /** Permission of the transaction import screen; only then does the deadline notice link to it. */
 export const TRANSACTION_IMPORT_PERMISSION = 'TRANSACTION_IMPORT_MANAGE';
 
-/** Query parameters of the dashboard; the reconciliation list reads the same names, so they are passed on as is. */
+/**
+ * Filters of the dashboard. They are record ids, so they live in the navigation state instead of the URL; the
+ * reconciliation list reads the same state names, so they are passed on as is.
+ */
 interface DashboardQuery {
   period: string;
   department: string;
@@ -39,13 +43,15 @@ interface Card {
   pill: string;
   route: string;
   params: Record<string, string> | null;
+  /** Record ids for the target screen, carried in the navigation state. */
+  state?: Record<string, string>;
 }
 
-function readQuery(query: ParamMap): DashboardQuery {
+function readQuery(state: unknown): DashboardQuery {
   return {
-    period: query.get('period') ?? '',
-    department: query.get('department') ?? '',
-    job: query.get('job') ?? '',
+    period: stateValue(state, 'period') ?? '',
+    department: stateValue(state, 'department') ?? '',
+    job: stateValue(state, 'job') ?? '',
   };
 }
 
@@ -66,6 +72,7 @@ export class QaDashboardComponent extends LocalizedComponent {
   private readonly service = inject(QaDashboardService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly user = inject(AuthService).currentUser;
   private readonly reload = new Subject<void>();
@@ -75,9 +82,8 @@ export class QaDashboardComponent extends LocalizedComponent {
   protected readonly failed = signal(false);
   protected readonly options = signal<QaDashboardFilterOptions | null>(null);
 
-  protected readonly query = toSignal(this.route.queryParamMap.pipe(map(readQuery)), {
-    initialValue: readQuery(this.route.snapshot.queryParamMap),
-  });
+  private readonly query$ = this.routeState.watchState().pipe(map(readQuery));
+  protected readonly query = toSignal(this.query$, { initialValue: readQuery(null) });
 
   protected readonly text = computed(() => this.localization.qaDashboard);
 
@@ -88,8 +94,8 @@ export class QaDashboardComponent extends LocalizedComponent {
     }),
   );
 
-  /** Filters carried over to the reconciliation screen (it uses the same query names). */
-  protected readonly linkParams = computed<Record<string, string>>(() => {
+  /** Filters carried over to the reconciliation screen in the navigation state (it uses the same names). */
+  protected readonly linkState = computed<Record<string, string>>(() => {
     const query = this.query();
     const period = query.period || this.data()?.period.id || '';
     return {
@@ -166,7 +172,7 @@ export class QaDashboardComponent extends LocalizedComponent {
     if (!data) return [];
     const text = this.text().cards;
     const { notMatched, inReview, qaQueue, riskEvents } = data.kpiCards;
-    const params = this.linkParams();
+    const state = this.linkState();
     const join = (parts: (string | null)[]) => parts.filter((p): p is string => !!p).join(' · ');
     const locale = this.i18n.currentLanguage();
     return [
@@ -182,7 +188,8 @@ export class QaDashboardComponent extends LocalizedComponent {
               ? fill(text.oldest, { days: notMatched.oldestDays })
               : text.oldestToday,
         route: '/reconciliations',
-        params: { ...params, status: 'NOT_MATCHED' },
+        params: { status: 'NOT_MATCHED' },
+        state,
       },
       {
         id: 'inReview',
@@ -194,7 +201,8 @@ export class QaDashboardComponent extends LocalizedComponent {
             ? fill(text.importBy, { date: this.shortDate(data.period.lockDeadline) })
             : '',
         route: '/reconciliations',
-        params: { ...params, status: 'IN_REVIEW' },
+        params: { status: 'IN_REVIEW' },
+        state,
       },
       {
         id: 'qaQueue',
@@ -238,10 +246,7 @@ export class QaDashboardComponent extends LocalizedComponent {
       )
       .subscribe((options) => this.options.set(options));
 
-    combineLatest([
-      this.route.queryParamMap.pipe(map(readQuery)),
-      this.reload.pipe(startWith(null)),
-    ])
+    combineLatest([this.query$, this.reload.pipe(startWith(null))])
       .pipe(
         tap(() => {
           this.loading.set(true);
@@ -270,16 +275,13 @@ export class QaDashboardComponent extends LocalizedComponent {
   }
 
   protected setFilter(key: keyof DashboardQuery, value: string): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { [key]: value || null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    const next = { ...this.query(), [key]: value };
+    const state = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== ''));
+    void this.router.navigate([], { relativeTo: this.route, replaceUrl: true, state });
   }
 
   protected resetFilters(): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+    void this.router.navigate([], { relativeTo: this.route, replaceUrl: true, state: {} });
   }
 
   protected cardAria(card: Card): string {

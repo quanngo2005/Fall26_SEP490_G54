@@ -121,7 +121,8 @@
                     <td class="col-actions">
                       <a
                         class="link"
-                        [routerLink]="['/campaigns', campaign.id]"
+                        routerLink="/campaigns/detail"
+                        [state]="{ campaignId: campaign.id }"
                         (click)="$event.stopPropagation()"
                       >
                         {{localization.campaign.view}}

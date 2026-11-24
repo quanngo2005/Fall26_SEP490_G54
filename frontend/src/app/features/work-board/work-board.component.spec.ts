@@ -16,6 +16,7 @@ import { WorkService } from '../../core/work.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { WorkBoardComponent } from './work-board.component';
 import { WorkDetailDrawerComponent } from './work-detail-drawer.component';
+import { provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
@@ -76,6 +77,7 @@ describe('WorkBoardComponent', () => {
   async function configure(
     role: 'EMPLOYEE' | 'DEPT_MANAGER' | 'BRANCH_MANAGER',
     queryParams: Record<string, string> = {},
+    navigationState: Record<string, string> = {},
   ): Promise<void> {
     employees.me.and.returnValue(of({ id: 'e1', departmentId: 'd1' } as EmployeeDetail));
     TestBed.resetTestingModule();
@@ -91,6 +93,7 @@ describe('WorkBoardComponent', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } },
         },
+        ...provideRouteState(navigationState).providers,
         { provide: AuthService, useValue: { currentUser: signal({ roles: [role] }) } },
       ],
     })
@@ -349,7 +352,7 @@ describe('WorkBoardComponent', () => {
     });
 
     it('opens the work of a transaction link on my own work, searched by its code and opened in the drawer', async () => {
-      await configure('DEPT_MANAGER', { keyword: 'W-TX', workId: 'w-1' });
+      await configure('DEPT_MANAGER', { keyword: 'W-TX' }, { workId: 'w-1' });
       const fixture = create();
 
       expect(employees.byCode).not.toHaveBeenCalled();

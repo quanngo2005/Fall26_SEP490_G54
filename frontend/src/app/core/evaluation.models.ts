@@ -486,6 +486,15 @@ export interface PersonalEvaluationCriteriaItem {
   kpiDefinitionId?: string | null;
 }
 
+export interface PersonalEvaluationCriteriaGroup {
+  evaluationProfileItemId: string;
+  groupCode?: string;
+  groupName: string;
+  weightPercent: number;
+  groupScore: number | null;
+  criteria: PersonalEvaluationCriteriaItem[];
+}
+
 export interface PersonalEvaluationView {
   periodId: string;
   periodName: string;
@@ -500,11 +509,16 @@ export interface PersonalEvaluationView {
   previousPeriodScore: number | null;
   tier: string | null;
   allTiers: string[];
-  rankingPercentile: string;
-  rankingPosition: number;
-  rankingTotalEmployees: number;
+  rankingPercentile: string | null;
+  rankingPosition: number | null;
+  rankingTotalEmployees: number | null;
   rankingRoleTitle: string;
   criteria: PersonalEvaluationCriteriaItem[];
+  criteriaGroups?: PersonalEvaluationCriteriaGroup[];
+  criteriaSummary?: EvaluationCriteriaSummary;
+  slaSummary?: EvaluationSlaSummary;
+  riskCount?: number;
+  riskEvents?: EvaluationRiskEvent[];
   qualityRatio: number | null;
   riskPenalty: number;
   managerFeedback: string | null;

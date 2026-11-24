@@ -194,7 +194,7 @@
         <a
           class="appeal-button"
           routerLink="/appeals/mine"
-          [queryParams]="d.appeal.appealId ? { appeal: d.appeal.appealId } : null"
+          [state]="d.appeal.appealId ? { appealId: d.appeal.appealId } : {}"
         >
           {{localization.submissions.drawer.viewAppeal}}
         </a>

@@ -8,6 +8,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { memberFixture, overviewFixture } from '../performance-dashboard/performance-fixtures.spec';
 import { DepartmentViewComponent } from './department-view.component';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -33,9 +34,12 @@ describe('DepartmentViewComponent', () => {
     pageSize: 20,
   });
   let query: Record<string, string>;
+  let routeState: FakeRouteState;
 
   beforeEach(async () => {
     query = {};
+    const state = provideRouteState();
+    routeState = state.fake;
     for (const spy of Object.values(api)) spy.calls.reset();
     api.overview.and.returnValue(new Subject());
     api.members.and.returnValue(new Subject());
@@ -45,6 +49,7 @@ describe('DepartmentViewComponent', () => {
       providers: [
         provideRouter([]),
         { provide: DepartmentService, useValue: api },
+        ...state.providers,
         {
           provide: ActivatedRoute,
           useValue: {
@@ -163,10 +168,13 @@ describe('DepartmentViewComponent', () => {
     );
   });
 
-  it('writes department, period and comparison into the address', () => {
+  it('writes department and comparison into the address and keeps the period out of it', () => {
     openWithData();
     expect(TestBed.inject(Location).path()).toContain('department=UNIT-A');
-    expect(TestBed.inject(Location).path()).toContain('periodId=p-cur');
+    expect(TestBed.inject(Location).path()).not.toContain('periodId');
+    expect(TestBed.inject(Location).getState()).toEqual(
+      jasmine.objectContaining({ periodId: 'p-cur' }),
+    );
     expect(TestBed.inject(Location).path()).toContain('compare=PREVIOUS');
   });
 
@@ -196,7 +204,8 @@ describe('DepartmentViewComponent', () => {
     };
 
     it('selects the department named by ?department=<code> with its period and comparison', () => {
-      query = { department: 'CN-HN-GD', periodId: 'p-9', compare: 'SAME_LAST_YEAR' };
+      query = { department: 'CN-HN-GD', compare: 'SAME_LAST_YEAR' };
+      routeState.set({ periodId: 'p-9' });
       open();
       expect(api.overview).toHaveBeenCalledWith('id-teller', 'p-9', 'SAME_LAST_YEAR');
     });

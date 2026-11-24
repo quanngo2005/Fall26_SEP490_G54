@@ -254,7 +254,9 @@ describe('QaQueueComponent', () => {
 
     (fixture.nativeElement.querySelector('tbody tr') as HTMLElement).click();
 
-    expect(navigate).toHaveBeenCalledWith(['/qa-queue', 'SAMPLE', 's9']);
+    expect(navigate).toHaveBeenCalledWith(['/qa-queue/detail'], {
+      state: { qaKind: 'SAMPLE', qaItemId: 's9' },
+    });
   });
 
   it('keeps the filters usable when the periods cannot be read, and retries a failed list', () => {

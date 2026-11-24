@@ -20,6 +20,7 @@ import { DepartmentService } from '../../core/department.service';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { HandoverDetail } from '../../core/handover.models';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { JobPositionSummary } from '../../core/job-position.models';
 import { JobPositionService } from '../../core/job-position.service';
@@ -139,6 +140,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
   private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
 
   private readonly boardReload = new Subject<void>();
   private readonly listReload = new Subject<void>();
@@ -351,7 +353,7 @@ export class WorkBoardComponent extends LocalizedComponent {
           const requestedView = query.get('view') ?? this.route.snapshot.data?.['view'];
           const employeeCode = query.get('employeeCode');
           const linkedKeyword = query.get('keyword');
-          const linkedWorkId = query.get('workId');
+          const linkedWorkId = this.routeState.value('workId');
           if (linkedKeyword || linkedWorkId) {
             this.keyword = linkedKeyword ?? '';
             this.selectedId.set(linkedWorkId);

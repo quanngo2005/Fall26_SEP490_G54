@@ -2,14 +2,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { QaQueueDetail, QaQueueItem } from '../../core/qa-queue.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { QaQueueContext } from './qa-queue-display';
 import { QaQueueDetailComponent } from './qa-queue-detail.component';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -71,11 +71,11 @@ const detail = (
 
 describe('QaQueueDetailComponent', () => {
   let http: HttpTestingController;
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let routeState: FakeRouteState;
   let navigate: jasmine.Spy;
 
   const open = (kind = 'FLAG', id = 'f1', body: QaQueueDetail | null = detail()) => {
-    params.next(convertToParamMap({ kind, id }));
+    routeState.set({ qaKind: kind, qaItemId: id });
     const fixture = TestBed.createComponent(QaQueueDetailComponent);
     fixture.detectChanges();
     if (body) {
@@ -95,14 +95,15 @@ describe('QaQueueDetailComponent', () => {
   };
 
   beforeEach(async () => {
-    params = new BehaviorSubject(convertToParamMap({}));
+    const state = provideRouteState();
+    routeState = state.fake;
     await TestBed.configureTestingModule({
       imports: [QaQueueDetailComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params.asObservable() } },
+        ...state.providers,
       ],
     })
       .overrideComponent(QaQueueDetailComponent, {
@@ -312,9 +313,13 @@ describe('QaQueueDetailComponent', () => {
     ) as NodeListOf<HTMLButtonElement>;
 
     buttons[0].click();
-    expect(navigate).toHaveBeenCalledWith(['/qa-queue', 'FLAG', 'f0']);
+    expect(navigate).toHaveBeenCalledWith(['/qa-queue/detail'], {
+      state: { qaKind: 'FLAG', qaItemId: 'f0' },
+    });
     buttons[1].click();
-    expect(navigate).toHaveBeenCalledWith(['/qa-queue', 'SAMPLE', 's2']);
+    expect(navigate).toHaveBeenCalledWith(['/qa-queue/detail'], {
+      state: { qaKind: 'SAMPLE', qaItemId: 's2' },
+    });
   });
 
   it('disables the neighbour buttons when the list is unknown', () => {

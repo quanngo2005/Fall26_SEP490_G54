@@ -159,11 +159,15 @@ export class BranchEvaluationListComponent extends LocalizedComponent implements
   }
 
   openPeriod(period: BranchEvaluationPeriodItem): void {
-    this.router.navigate(['/branch-performance/evaluations', period.id, 'approval']);
+    this.router.navigate(['/branch-performance/evaluations/approval'], {
+      state: { periodId: period.id },
+    });
   }
 
   viewHistory(period: BranchEvaluationPeriodItem): void {
-    this.router.navigate(['/branch-performance/evaluations', period.id, 'approval']);
+    this.router.navigate(['/branch-performance/evaluations/approval'], {
+      state: { periodId: period.id },
+    });
   }
 
   openLockModal(period: BranchEvaluationPeriodItem): void {

@@ -51,7 +51,7 @@ describe('qaQueueGuard', () => {
   });
 
   it('guards both QA queue routes', () => {
-    for (const path of ['qa-queue', 'qa-queue/:kind/:id']) {
+    for (const path of ['qa-queue', 'qa-queue/detail']) {
       const route = routes.find((r) => r.path === path);
       expect(route?.canActivate).toContain(qaQueueGuard);
     }

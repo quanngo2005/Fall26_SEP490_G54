@@ -1,12 +1,12 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { AppealDetail, AppealListItem, AppealStatus } from '../../core/appeal.models';
 import { AppealService } from '../../core/appeal.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppDatePipe } from '../../shared/pipes';
 import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
@@ -70,7 +70,7 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
   private readonly api = inject(AppealService);
   private readonly evaluations = inject(EvaluationService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly reload = new Subject<void>();
   private readonly loadDetail = new Subject<string>();
 
@@ -193,8 +193,8 @@ export class MyAppealsComponent extends LocalizedComponent implements OnInit {
       .subscribe((periods) => this.periods.set(periods));
     this.reload.next();
 
-    // Deep link from "View appeal" in the submission history: /appeals/mine?appeal=<id> opens that appeal.
-    const linked = this.route.snapshot.queryParamMap.get('appeal');
+    // "View appeal" in the submission history passes the appeal in the navigation state.
+    const linked = this.routeState.value('appealId');
     if (linked) {
       this.selectedId.set(linked);
       this.loadDetail.next(linked);

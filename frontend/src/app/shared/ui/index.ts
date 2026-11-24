@@ -1,5 +1,7 @@
 export { ConfirmSaveDialogComponent } from './confirm-save-dialog.component';
 export { initials } from './display';
+export { MetricCardComponent } from './metric-card.component';
+export { RiskSummaryCardComponent } from './risk-summary-card.component';
 export { StatusBadgeComponent } from './status-badge.component';
 export type { StatusBadgeTone } from './status-badge.component';
 export { TablePaginationComponent } from './table-pagination.component';
