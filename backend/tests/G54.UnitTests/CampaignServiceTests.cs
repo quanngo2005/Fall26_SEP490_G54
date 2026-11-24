@@ -254,10 +254,32 @@ public sealed class CampaignServiceTests
                 UpdatedAt = DateTimeOffset.UtcNow
             };
 
+            var cust1 = new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                CustomerCif = "CUST-D01",
+                CustomerName = "Khách hàng 1",
+                AssigneeEmployeeId = emp1.Id,
+                ContactStatus = CampaignContactStatus.Closed,
+                ClosedWorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            var cust2 = new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                CustomerCif = "CUST-D02",
+                CustomerName = "Khách hàng 2",
+                ContactStatus = CampaignContactStatus.NotContacted,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddAsync(p1);
             await context.CampaignWorkTypes.AddAsync(cwt);
             await context.Works.AddRangeAsync(w1, w2);
+            await context.CampaignCustomers.AddRangeAsync(cust1, cust2);
             await context.SaveChangesAsync();
 
             var detail = await service.GetCampaignByIdAsync(campaign.Id);
@@ -270,6 +292,9 @@ public sealed class CampaignServiceTests
             Assert.Equal(1, detail.Metrics.CompletedWorksCount);
             Assert.Equal(1, detail.Metrics.InExecutionWorksCount);
             Assert.Equal(50.0m, detail.Metrics.ProgressPercent);
+            Assert.Equal(2, detail.Metrics.CustomerTotal);
+            Assert.Equal(1, detail.Metrics.CustomerUnassigned);
+            Assert.Equal(1, detail.Metrics.CustomerClosed);
             Assert.True(detail.CanGenerateBatchWork);
             Assert.False(detail.CanApprove); // Running status cannot be approved again
         }

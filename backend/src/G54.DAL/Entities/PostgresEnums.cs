@@ -42,6 +42,15 @@ public enum BusinessCampaignStatus
     [PgName("CANCELLED")] Cancelled,
 }
 
+public enum CampaignContactStatus
+{
+    [PgName("NOT_CONTACTED")] NotContacted,
+    [PgName("CALLED")] Called,
+    [PgName("APPOINTMENT_SET")] AppointmentSet,
+    [PgName("MET")] Met,
+    [PgName("CLOSED")] Closed,
+}
+
 public enum KpiStatus
 {
     [PgName("DRAFT")] Draft,

@@ -27,6 +27,8 @@ public partial class BusinessCampaign
 
     public virtual BusinessObjective BusinessObjective { get; set; } = null!;
 
+    public virtual ICollection<CampaignCustomer> CampaignCustomers { get; set; } = new List<CampaignCustomer>();
+
     public virtual ICollection<CampaignWorkType> CampaignWorkTypes { get; set; } = new List<CampaignWorkType>();
 
     public virtual ICollection<BusinessCampaign> InverseParentCampaign { get; set; } = new List<BusinessCampaign>();

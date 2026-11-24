@@ -301,7 +301,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000002c', 'RISK_EVENT_REVERSE', 'Gỡ điểm phạt sự kiện rủi ro', 'risk_event', 'reverse'),
  ('5eed0000-0000-0000-0009-00000000002d', 'SYSTEM_PARAMETER_VIEW',   'Xem tham số hệ thống',      'system_parameter', 'view'),
  ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update'),
- ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read')
+ ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read'),
+ ('5eed0000-0000-0000-0009-000000000031', 'CAMPAIGN_CONTACT',    'Cập nhật liên hệ khách hàng chiến dịch', 'campaign_customer', 'update')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -319,6 +320,8 @@ FROM (VALUES
     ('MANAGER', 'KPI_READ', 'All'), ('MANAGER', 'TARGET_MANAGE', 'Department'), ('MANAGER', 'EVALUATION_READ', 'Department'),
     ('MANAGER', 'EMPLOYEE_READ', 'Department'), ('MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('MANAGER', 'EVALUATION_CALIBRATE', 'Department'), ('MANAGER', 'EVALUATION_CALCULATE', 'Department'),
     ('MANAGER', 'CAMPAIGN_READ', 'Department'), ('MANAGER', 'CAMPAIGN_MANAGE', 'Department'), ('MANAGER', 'HANDOVER_CREATE', 'Own'), ('MANAGER', 'HANDOVER_SET_SHARE', 'Own'), ('MANAGER', 'HANDOVER_RESPOND', 'Own'), ('MANAGER', 'HANDOVER_MANAGE', 'Own'),
+    -- Campaign customer contact tracking (docs/api/CAMPAIGN_CONTRACT.md §5); own-scope for every role that can be a campaign participant or owner.
+    ('EMPLOYEE', 'CAMPAIGN_CONTACT', 'Own'), ('MANAGER', 'CAMPAIGN_CONTACT', 'Own'), ('DEPT_MANAGER', 'CAMPAIGN_CONTACT', 'Own'), ('BRANCH_MANAGER', 'CAMPAIGN_CONTACT', 'Own'),
     ('VERIFIER', 'SUBMISSION_READ', 'Department'), ('VERIFIER', 'VERIFICATION_DECIDE', 'Department'), ('VERIFIER', 'KPI_READ', 'All'),
     ('EMPLOYEE', 'WORK_READ', 'Own'), ('EMPLOYEE', 'WORK_UPDATE', 'Own'), ('EMPLOYEE', 'SUBMISSION_READ', 'Own'),
     ('EMPLOYEE', 'SUBMISSION_CREATE', 'Own'), ('EMPLOYEE', 'KPI_READ', 'All'), ('EMPLOYEE', 'EVALUATION_READ', 'Own'),
@@ -2916,7 +2919,7 @@ JOIN employee mgr ON mgr.employee_code = 'NV011'
 WHERE ta.id = '5eed0000-0000-0000-0035-000000000084'
 ON CONFLICT (id) DO UPDATE
 SET comment = EXCLUDED.comment, reply = EXCLUDED.reply;
-=======
+
 -- Demo notifications (GB-914: inbox, bell dropdown, filters, deep links)
 -- ============================================================================
 INSERT INTO notification (id, recipient_employee_id, sender_employee_id, type, severity, title, body, related_type, related_id, created_at, read_at)

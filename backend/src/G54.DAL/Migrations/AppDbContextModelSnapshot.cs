@@ -24,6 +24,7 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "appeal_status", new[] { "OPEN", "UNDER_REVIEW", "ACCEPTED", "REJECTED", "WITHDRAWN" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "business_campaign_status", new[] { "PLANNED", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "business_objective_status", new[] { "DRAFT", "ACTIVE", "CLOSED", "CANCELLED" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "campaign_contact_status", new[] { "NOT_CONTACTED", "CALLED", "APPOINTMENT_SET", "MET", "CLOSED" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "department_level_type", new[] { "BRANCH", "DEPARTMENT", "TEAM" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "employee_status", new[] { "ACTIVE", "INACTIVE", "ON_LEAVE", "TERMINATED", "PENDING_RESIGNATION" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "public", "evaluation_profile_status", new[] { "DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED", "PENDING_APPROVAL", "REJECTED" });
@@ -486,6 +487,107 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.CampaignCustomer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTimeOffset?>("AppointmentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("appointment_at");
+
+                    b.Property<DateTimeOffset?>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.Property<Guid?>("AssigneeEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assignee_employee_id");
+
+                    b.Property<Guid>("BusinessCampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("business_campaign_id");
+
+                    b.Property<bool?>("CallAnswered")
+                        .HasColumnType("boolean")
+                        .HasColumnName("call_answered");
+
+                    b.Property<Guid?>("ClosedWorkTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_work_type_id");
+
+                    b.Property<int>("ContactStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("campaign_contact_status")
+                        .HasColumnName("contact_status")
+                        .HasDefaultValueSql("'NOT_CONTACTED'::campaign_contact_status");
+
+                    b.Property<string>("CustomerCif")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("customer_cif");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<DateTimeOffset?>("MetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("met_at");
+
+                    b.Property<int>("MissedCallCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("missed_call_count");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<Guid?>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id")
+                        .HasName("campaign_customer_pkey");
+
+                    b.HasIndex("AssigneeEmployeeId");
+
+                    b.HasIndex("ClosedWorkTypeId");
+
+                    b.HasIndex("WorkId");
+
+                    b.HasIndex(new[] { "BusinessCampaignId", "AssigneeEmployeeId" }, "ix_campaign_customer_assignee");
+
+                    b.HasIndex(new[] { "BusinessCampaignId", "CustomerCif" }, "uq_campaign_customer_cif")
+                        .IsUnique();
+
+                    b.ToTable("campaign_customer", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.CampaignWorkType", b =>
@@ -3860,6 +3962,42 @@ namespace G54.DAL.Migrations
                     b.Navigation("ParentObjective");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.CampaignCustomer", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "AssigneeEmployee")
+                        .WithMany()
+                        .HasForeignKey("AssigneeEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_campaign_customer_assignee");
+
+                    b.HasOne("G54.DAL.Entities.BusinessCampaign", "BusinessCampaign")
+                        .WithMany("CampaignCustomers")
+                        .HasForeignKey("BusinessCampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_campaign_customer_campaign");
+
+                    b.HasOne("G54.DAL.Entities.WorkType", "ClosedWorkType")
+                        .WithMany()
+                        .HasForeignKey("ClosedWorkTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_campaign_customer_closed_work_type");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_campaign_customer_work");
+
+                    b.Navigation("AssigneeEmployee");
+
+                    b.Navigation("BusinessCampaign");
+
+                    b.Navigation("ClosedWorkType");
+
+                    b.Navigation("Work");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.CampaignWorkType", b =>
                 {
                     b.HasOne("G54.DAL.Entities.BusinessCampaign", "BusinessCampaign")
@@ -4851,6 +4989,8 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.BusinessCampaign", b =>
                 {
+                    b.Navigation("CampaignCustomers");
+
                     b.Navigation("CampaignWorkTypes");
 
                     b.Navigation("InverseParentCampaign");

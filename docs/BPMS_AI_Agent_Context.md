@@ -1,4 +1,4 @@
-# BPMS – AI Agent Context (as of 25/10/2026)
+# BPMS – AI Agent Context (as of 23/11/2026)
 
 > Paste at the start of any AI session on BPMS. On conflict with older docs (Report 1 rev 12/10, Report 3 rev 21/10) **this file wins**. ⚠ = not final, ask before relying on it. All documents are in **English**.
 
@@ -9,7 +9,7 @@
 - Report 3: https://docs.google.com/document/d/1Pa0Qo6Vf8U1EleIWR2EXi63MIRLBnxAS/edit
 
 ## 2. Scope
-- **Main focus = performance evaluation**; task management is supporting.
+- **Main focus = performance evaluation**; task management is supporting. Mentor (18/10): do not drift toward schedule/task management.
 - Core chain: Business Objective → KPI Definition → Target Allocation → Work → Result (transaction/CIF code) → Reconciliation with imported data → KPI Contribution (immutable ledger) → Performance Evaluation → Ranking → HR export.
 - Principles: traceability (score → evidence/imported transaction); KPI actuals never entered manually; role-specific evaluation profiles.
 - **Standalone**: no real-time/API integration. Data in/out only via Excel (.xlsx) fixed templates.
@@ -19,7 +19,7 @@
 ## 3. Actors (7)
 | Actor | Responsibilities |
 |---|---|
-| System Admin | Accounts (manual or via employee import; deactivate, never delete; reset passwords), permission matrix (Resource×Action×Scope), system parameters, KPI Definitions, WorkTypes, Evaluation Profiles, product multipliers, quality ratio per period, **all data imports (Admin only)**, audit log |
+| System Admin | Accounts (manual or via employee import; deactivate, never delete; reset passwords), permission matrix (Resource×Action×Scope), system parameters, KPI Definitions, WorkTypes, Evaluation Profiles, product multipliers, quality ratio per period, **all data imports (Admin only)**, except the campaign customer (lead) file, which the Dept Manager imports into their campaign (23/11), audit log |
 | Teller | Counter transactions; creates own work, submits transaction code; hands customers to Sales Officer; views own KPI; appeals |
 | Sales Officer | Serves/sells to individual customers; creates work when approaching a customer (lost deal → Lost); receives handovers; submits transaction/CIF code; views own KPI; appeals |
 | Department Manager | Allocates targets to staff, assigns work, approves only work outside WorkType list, evaluates & ranks department, first-level disputes, campaign plans; has a personal KPI separate from department KPI |
@@ -37,7 +37,7 @@
 - KPI Definitions created by Admin, approved by Branch Manager; Branch Manager can request a missing KPI while creating an objective.
 - **Period-end:** pre-close check (pending In Review results carry to next period after deadline) → Dept ranking → Branch approval → **Publish** (appeal window opens) → **Lock** (snapshot).
 - **Disputes:** 2 levels (Dept Manager → Branch Manager). One shared appeal modal for result dispute and score appeal; employee may withdraw.
-- **Ranking:** within department + job position; groups too small rank at branch level per position. Tiers by forced distribution (top %); qualitative score has a configurable cap.
+- **Ranking:** within department + job position; groups too small rank at branch level per position. Tiers by forced distribution (top %); qualitative score has a configurable cap. ⚠ Mentor (05/11): ranking should be a criteria matrix (criterion A met? B met? → rank, best fit takes higher slots first), the period (quarter/year) is configurable, the **Dept Manager proposes** (not the system), and the manager sets the final rank with a reason (ties, special cases such as someone leaving). Reconcile with forced distribution.
 - Employee data changes only via import (no Update Employee UC); missing employees are not deleted, only TERMINATED deactivates. Department / Job Position are view-only.
 - Sales deposit KPI = new-opening volume, not balance.
 - Work Details (SCR-WRK-03) has no Accept/Reject section.
@@ -84,10 +84,11 @@
 | BR-44 | Delete | Also MSG31; mandatory training → Limitations |
 | BR-46 | ⏸ Hold | Waiting to confirm whether the employee file has PENDING_RESIGNATION status |
 
-### Lead rules (BR-25, BR-43) – open
+### Lead rules (BR-25, BR-43) – source decided, rules open
 - Lead = potential customer assigned to a Sales Officer in a campaign (usually one work item). BR-25 locks lead + credit to assignee for 7 days; BR-43 returns an unstarted lead to the pool after 72h and records a Missed Lead violation.
 - Problem: only employee, transaction and service-rating files are imported → no lead source.
 - Options: (1) drop leads; campaigns only generate work from targets; delete BR-25/43, MSG30; (2) lead = work with a CIF, created manually or via Batch Work Generator, keep both rules; (3) add a lead import file (conflicts with 3-file decision).
+- **Decision (23/11): option 3.** A campaign customer file (CIF, name, phone, note) is the 4th import. The Dept Manager imports it, splits customers to participants, and employees update contact status. A customer marked closed becomes a campaign Work with its CIF, so KPI still comes only from reconciliation. BR-25 / BR-43 remain open (not implemented). Contract: `docs/api/CAMPAIGN_CONTRACT.md` §5.
 
 ## 9. Open BR questions
 | BR | Current text | Question |
@@ -105,3 +106,23 @@
 | BR-41 | Unit < 70% → individual × 0.8 | Keep? Configurable? |
 | BR-48 | Contribution = Σ(Actual/Target × Multiplier) | Confirm with auto-split targets |
 | BR-39, BR-42 | Missing | Removed or renumber? |
+
+## 10. Mentor guidance on the problem (meetings W6–W11, 18/10–19/11/2026)
+Source: team meeting minutes (Note GG Meet), weeks 6–11 only.
+
+### Problem framing
+- Input data comes from import/export (or API) — never hardcoded.
+- Start from the actor and the problems they face; confirm findings before designing. No solution before the problem is identified.
+- Each screen shows only what is useful to its user in that situation; extra data hurts UX. Wording must state the meaning (e.g. "Behind schedule", not "Push now").
+- Lists must handle large volumes.
+
+### Screen feedback
+| Screen | Mentor feedback |
+|---|---|
+| Complaint handling (18/10) | Goal: see which complaints exist and which need resolving first. Too much info; inconsistent style; list does not handle large volume |
+| Department performance dashboard (22/10) | Purpose over chart count. Show key info and important notices fast; what matters differs per department. Manager sees department summary/KPI first, staff detail after |
+| Annual target allocation (29/10) | Show annual target vs previous year (higher/lower); compare by year and quarter to justify the split (growth rate, season); target vs actual columns with colour for growth/loss; % growth vs previous locked quarter; guidance when allocating to reduce errors. Two needs: review last year, compare/plan next year |
+| Department ranking (05/11) | See ranking decision in §4 |
+| Daily staff & work monitoring (12/11) | For following, not controlling staff. Show daily progress toward targets (KPI is only the evaluation criterion); all work to date for staff + manager; upcoming milestones (schedule, evaluations) linking to target-setting screen to adjust; no per-person daily raw numbers |
+| Branch/target progress (19/11) | Annual KPI is back-loaded (Q1 ~10%, Q2 20–30%, most in Q3–Q4). Compare against seasonal patterns of the fiscal year/quarter and a reference curve; charts over raw numbers so the remaining period can be adjusted. Top tiers usually need special, higher-impact KPIs |
+| My Performance (19/11) | KPI progress list first (summary stats less important); track daily progress per KPI and per work item; show actual units, not only %; alerts must point to the exact work to fix; show which KPIs each work type needs; ⚠ open: how to order KPIs that carry more points/urgency |

@@ -61,7 +61,10 @@ public sealed record CampaignMetricsDto(
     int CompletedWorksCount,
     int InExecutionWorksCount,
     int PendingWorksCount,
-    decimal ProgressPercent);
+    decimal ProgressPercent,
+    int CustomerTotal = 0,
+    int CustomerUnassigned = 0,
+    int CustomerClosed = 0);
 
 public sealed record CampaignDetailDto(
     Guid Id,

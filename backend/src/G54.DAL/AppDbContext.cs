@@ -29,6 +29,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<BusinessObjective> BusinessObjectives { get; set; }
 
+    public virtual DbSet<CampaignCustomer> CampaignCustomers { get; set; }
+
     public virtual DbSet<CampaignWorkType> CampaignWorkTypes { get; set; }
 
     public virtual DbSet<Department> Departments { get; set; }
@@ -123,6 +125,7 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<RecordStatus>("public", "record_status")
             .HasPostgresEnum<BusinessObjectiveStatus>("public", "business_objective_status")
             .HasPostgresEnum<BusinessCampaignStatus>("public", "business_campaign_status")
+            .HasPostgresEnum<CampaignContactStatus>("public", "campaign_contact_status")
             .HasPostgresEnum<KpiStatus>("public", "kpi_status")
             .HasPostgresEnum<KpiAggregationType>("public", "kpi_aggregation_type")
             .HasPostgresEnum<KpiDirection>("public", "kpi_direction")
@@ -977,6 +980,72 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_participant_employee");
+        });
+
+        modelBuilder.Entity<CampaignCustomer>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_customer_pkey");
+
+            entity.ToTable("campaign_customer");
+
+            entity.HasIndex(e => new { e.BusinessCampaignId, e.CustomerCif }, "uq_campaign_customer_cif").IsUnique();
+
+            entity.HasIndex(e => new { e.BusinessCampaignId, e.AssigneeEmployeeId }, "ix_campaign_customer_assignee");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.BusinessCampaignId).HasColumnName("business_campaign_id");
+            entity.Property(e => e.CustomerCif)
+                .HasMaxLength(50)
+                .HasColumnName("customer_cif");
+            entity.Property(e => e.CustomerName)
+                .HasMaxLength(200)
+                .HasColumnName("customer_name");
+            entity.Property(e => e.Phone)
+                .HasMaxLength(20)
+                .HasColumnName("phone");
+            entity.Property(e => e.Note)
+                .HasMaxLength(1000)
+                .HasColumnName("note");
+            entity.Property(e => e.AssigneeEmployeeId).HasColumnName("assignee_employee_id");
+            entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
+            entity.Property(e => e.ContactStatus)
+                .HasColumnType("campaign_contact_status")
+                .HasDefaultValueSql("'NOT_CONTACTED'::campaign_contact_status")
+                .HasColumnName("contact_status");
+            entity.Property(e => e.CallAnswered).HasColumnName("call_answered");
+            entity.Property(e => e.MissedCallCount)
+                .HasDefaultValue(0)
+                .HasColumnName("missed_call_count");
+            entity.Property(e => e.AppointmentAt).HasColumnName("appointment_at");
+            entity.Property(e => e.MetAt).HasColumnName("met_at");
+            entity.Property(e => e.ClosedWorkTypeId).HasColumnName("closed_work_type_id");
+            entity.Property(e => e.WorkId).HasColumnName("work_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+
+            entity.HasOne(d => d.BusinessCampaign).WithMany(p => p.CampaignCustomers)
+                .HasForeignKey(d => d.BusinessCampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_campaign_customer_campaign");
+
+            entity.HasOne(d => d.AssigneeEmployee).WithMany()
+                .HasForeignKey(d => d.AssigneeEmployeeId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_campaign_customer_assignee");
+
+            entity.HasOne(d => d.ClosedWorkType).WithMany()
+                .HasForeignKey(d => d.ClosedWorkTypeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_campaign_customer_closed_work_type");
+
+            entity.HasOne(d => d.Work).WithMany()
+                .HasForeignKey(d => d.WorkId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_campaign_customer_work");
         });
 
         modelBuilder.Entity<PerformanceContribution>(entity =>

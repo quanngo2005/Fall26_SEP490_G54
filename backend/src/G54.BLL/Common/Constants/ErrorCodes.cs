@@ -144,6 +144,12 @@ public static class ErrorCodes
     public const string AccountExists = "ACCOUNT_EXISTS";
     public const string CannotLockSelf = "CANNOT_LOCK_SELF";
 
+    // Campaign customers (docs/api/CAMPAIGN_CONTRACT.md §5)
+    public const string CampaignCustomerClosed = "CAMPAIGN_CUSTOMER_CLOSED";
+    public const string CampaignNotRunning = "CAMPAIGN_NOT_RUNNING";
+    public const string WorkTypeNotInCampaign = "WORK_TYPE_NOT_IN_CAMPAIGN";
+    public const string EmployeeNotParticipant = "EMPLOYEE_NOT_PARTICIPANT";
+
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
         [ValidationError] = ("Dữ liệu đầu vào không hợp lệ.", "Input validation failed."),
@@ -231,6 +237,10 @@ public static class ErrorCodes
         [UsernameExists] = ("Tên đăng nhập đã tồn tại trong hệ thống.", "The username already exists in the system."),
         [AccountExists] = ("Nhân sự được chọn đã có tài khoản đăng nhập.", "The selected employee already has a user account."),
         [CannotLockSelf] = ("Bạn không thể khóa chính tài khoản đang đăng nhập.", "You cannot lock the account you are signed in with."),
+        [CampaignCustomerClosed] = ("Khách hàng này đã chốt và không thể cập nhật thêm.", "This customer is already closed and cannot be updated further."),
+        [CampaignNotRunning] = ("Chiến dịch không ở trạng thái đang chạy nên không thể thao tác.", "The campaign is not running, so this action is not allowed."),
+        [WorkTypeNotInCampaign] = ("Sản phẩm đã chọn không thuộc danh mục sản phẩm của chiến dịch.", "The selected product is not one of the campaign's work types."),
+        [EmployeeNotParticipant] = ("Nhân viên không phải là thành viên tham gia chiến dịch.", "The employee is not an active participant of the campaign."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

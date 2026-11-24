@@ -169,7 +169,10 @@ Gets complete campaign details, linked work types, participant rosters, and prog
       "completedWorksCount": 490,
       "inExecutionWorksCount": 130,
       "pendingWorksCount": 30,
-      "progressPercent": 75.4
+      "progressPercent": 75.4,
+      "customerTotal": 200,
+      "customerUnassigned": 15,
+      "customerClosed": 42
     },
     "canGenerateBatchWork": true,
     "canApprove": false,
@@ -179,6 +182,10 @@ Gets complete campaign details, linked work types, participant rosters, and prog
   "traceId": "trace-1234"
 }
 ```
+
+`customerTotal`, `customerUnassigned` and `customerClosed` (§5) are the campaign's customer counts: all rows,
+rows with no `assigneeEmployeeId`, and rows with `contactStatus = CLOSED`. Additive fields; `0` when the campaign
+has no imported customers.
 
 ---
 
@@ -307,3 +314,129 @@ Generates and idempotently distributes lead tasks to active campaign participant
 | `VALIDATION_ERROR` | 400 | Also: work deadline exceeds campaign end date, or campaign end date is earlier than the deadline of already generated works (BR-12). |
 | `KPI_ALREADY_CONTRIBUTED` | 409 | Work item already exists or duplicates an existing task ID (BR-08). |
 | `MAKER_CANNOT_BE_CHECKER` | 400 | Attempt to approve own campaign plan (BR-02 Maker != Checker). |
+
+---
+
+## 5. Campaign customers
+
+**Status:** IMPLEMENTED (backend). Phase 1 shipped the DAL entity, migration, permission and error codes
+(`G54.DAL.Entities.CampaignCustomer`, migration `AddCampaignCustomer`). Phase 2 shipped the Excel import
+(`CampaignCustomerImportService`, `CampaignCustomersController` import endpoints). Phase 3 shipped the manager-side
+list/allocate/reassign (`CampaignCustomerService`). Phase 4 shipped the employee ("My campaigns") side
+(`MyCampaignService`, `MyCampaignsController`) and the campaign detail customer metrics. The frontend is deferred to
+a later task per the contract-first rule in `API_CONVENTIONS.md`.
+
+Business rules: to be confirmed by the team (lead rules option 3; BR-25/BR-43 open).
+
+### 5.0 Concept
+
+A campaign holds an imported customer list (CIF, name, phone, note). The Dept Manager (campaign owner) imports the
+list and splits it across campaign participants (auto rule or manual reassignment). Each participant tracks their
+own customers' contact status; closing a customer with a product creates a `Work` row that feeds KPI through the
+existing submission → verification / Core Banking reconciliation flow (see `WORK_CONTRACT.md`,
+`SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`). Contact status itself never writes KPI.
+
+### 5.1 Endpoints summary
+
+| Method | Endpoint | Description | Auth / Role |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/campaigns/{campaignId}/customers` | Lists a campaign's customers with filters and per-assignee status counts. | `[Authorize]` `campaign:read\|manage` (Dept) |
+| `GET` | `/campaigns/{campaignId}/customers/import/template` | Downloads the `.xlsx` import template. | `[Authorize]` `campaign:manage` (Dept) |
+| `POST` | `/campaigns/{campaignId}/customers/import/preview` | Validates an uploaded customer file without writing. | `[Authorize]` `campaign:manage` (Dept) |
+| `POST` | `/campaigns/{campaignId}/customers/import/commit` | Re-validates and commits the same file. | `[Authorize]` `campaign:manage` (Dept) |
+| `POST` | `/campaigns/{campaignId}/customers/allocate` | Assigns unassigned customers to active participants by rule. | `[Authorize]` `campaign:manage` (Dept) |
+| `PUT` | `/campaigns/{campaignId}/customers/{customerId}/assignee` | Reassigns one customer to another active participant. | `[Authorize]` `campaign:manage` (Dept) |
+| `GET` | `/my-campaigns` | Lists campaigns where the caller has assigned customers, with per-status counts. | `[Authorize]` `campaign_customer:update` (Own) |
+| `GET` | `/my-campaigns/{campaignId}/customers` | Lists the caller's own customers in the campaign. | `[Authorize]` `campaign_customer:update` (Own) |
+| `PATCH` | `/my-campaigns/{campaignId}/customers/{customerId}/contact` | Updates the contact status/result of the caller's own customer. | `[Authorize]` `campaign_customer:update` (Own) |
+
+File endpoints (`import/template`, `import/preview`, `import/commit`) follow the same notation as
+`DATA_IMPORT_CONTRACT.md` §`/data-imports/employees/*`: `template` returns `200` with an `.xlsx` body and no
+envelope; `preview` and `commit` take a multipart `file` field (`.xlsx`, magic-byte checked, ≤
+`SystemParameters:ImportMaxFileMb`, ≤ `ImportMaxRows` data rows) and return `200` with `ApiResponse<ImportPreviewDto>`
+/ `ApiResponse<ImportCommitResultDto>`; `commit` adds `Cache-Control: no-store`. Nothing is stored between preview
+and commit.
+
+### 5.2 DTOs
+
+`CampaignCustomerDto`:
+```json
+{
+  "id": "cc000000-0000-0000-0000-000000000001",
+  "customerCif": "CUST-8801",
+  "customerName": "Trần Văn An",
+  "phone": "0901234567",
+  "note": "Sổ tiết kiệm 500 triệu đáo hạn ngày 25/10",
+  "assigneeEmployeeId": "e1f2a3b4-0000-0000-0000-000000000001",
+  "assigneeEmployeeName": "Nguyễn Thu Thảo",
+  "contactStatus": "CALLED",
+  "resultText": "Không nghe máy 2 lần",
+  "missedCallCount": 2,
+  "appointmentAt": null,
+  "metAt": null,
+  "closedWorkTypeId": null,
+  "closedWorkTypeName": null,
+  "workId": null,
+  "updatedAt": "2026-11-23T10:00:00Z"
+}
+```
+
+`resultText` is derived, never stored verbatim:
+
+| `contactStatus` | `resultText` |
+| :--- | :--- |
+| `CALLED`, `callAnswered = true` | `Gọi thành công` |
+| any status with `missedCallCount > 0` and not answered | `Không nghe máy {n} lần` |
+| `APPOINTMENT_SET` | `Đã hẹn gặp vào {appointmentAt}` |
+| `MET` | `Đã gặp vào {metAt}` |
+| `CLOSED` | `Đã chốt được sản phẩm {closedWorkTypeName}` |
+| `NOT_CONTACTED` | `Chưa liên hệ` |
+
+Request DTOs:
+```json
+// POST .../customers/allocate (AllocateCampaignCustomersRequestDto)
+{ "rule": "ROUND_ROBIN", "employeeIds": ["e1f2a3b4-0000-0000-0000-000000000001"] }
+
+// PUT .../customers/{customerId}/assignee (ReassignCampaignCustomerRequestDto)
+{ "employeeId": "e1f2a3b4-0000-0000-0000-000000000002" }
+
+// PATCH my-campaigns/{campaignId}/customers/{customerId}/contact (UpdateCampaignCustomerContactRequestDto)
+{
+  "status": "CLOSED",
+  "callAnswered": null,
+  "appointmentAt": null,
+  "metAt": null,
+  "workTypeId": "w1a2b3c4-0000-0000-0000-000000000001"
+}
+```
+
+`rule` is one of `ROUND_ROBIN | LOAD_BALANCING | EQUAL_SPLIT` (same semantics as
+`BatchWorkGeneratorRequestDto.allocationRule` in §3.5); `employeeIds` optional (defaults to all active participants).
+Import endpoints reuse `ImportPreviewDto` / `ImportCommitResultDto` (`G54.BLL/Dtos/DataImport/DataImportDtos.cs`);
+the import row columns are `Customer CIF*`, `Tên khách hàng*`, `Số điện thoại`, `Ghi chú`.
+
+### 5.3 Enum wire values
+
+`contactStatus` (`campaign_contact_status`): `NOT_CONTACTED | CALLED | APPOINTMENT_SET | MET | CLOSED`.
+
+### 5.4 Error codes
+
+| Error Code | HTTP Status | Context / Trigger Condition |
+| :--- | :--- | :--- |
+| `CAMPAIGN_CUSTOMER_CLOSED` | 409 | The customer row is already `CLOSED` (terminal) and a further contact update was attempted. |
+| `CAMPAIGN_NOT_RUNNING` | 409 | Import/allocate/reassign: the campaign is not `PLANNED` or `RUNNING`. Contact update: the campaign is not `RUNNING`. |
+| `WORK_TYPE_NOT_IN_CAMPAIGN` | 400 | `workTypeId` on a `CLOSED` update is not one of the campaign's configured work types, or is inactive. |
+| `EMPLOYEE_NOT_PARTICIPANT` | 400 | The target employee of allocate/reassign is not an active participant of the campaign; or, on a contact update, the caller is no longer an active participant (removed from the campaign or `INACTIVE`, BR-41). |
+| `NOT_FOUND` | 404 | Campaign or customer row not found, or the customer row does not belong to the caller (own-scope PATCH). |
+| `VALIDATION_ERROR` | 400 | Missing required field for the target status (e.g. `callAnswered` for `CALLED`, `appointmentAt` for `APPOINTMENT_SET`, `metAt` for `MET`, `workTypeId` for `CLOSED`), or an invalid/non-`.xlsx` import file. |
+
+### 5.5 Validation
+
+- `customerCif` required, ≤50 chars, unique within the campaign (case per import rules); existing CIF on re-import updates name/phone/note only — assignment and status are kept.
+- `customerName` required, ≤200 chars; `phone` optional, digits/`+`/space, 9–15 digits; `note` optional, ≤1000 chars.
+- Import only when the campaign is `PLANNED` or `RUNNING`; max rows match the employee import cap.
+- Allocate and reassign only when the campaign is `PLANNED` or `RUNNING`. Allocate only assigns customers with no current assignee; reassign is refused for a `CLOSED` row and requires the target employee to be an active participant.
+- A contact update row must belong to the caller (own scope), the campaign must be `RUNNING`, and the caller must still be an active participant (a removed or `INACTIVE` participant keeps the rows but cannot update them).
+- `CLOSED` is a terminal state: no further contact updates once a row is `CLOSED`.
+- `CLOSED` requires `workTypeId` to be one of the campaign's configured, active work types; it creates a `Work` (same transaction) carrying the customer's CIF and name, and sets `workId` on the customer row. The Work description is `Nguồn: chiến dịch {code} - {name}. Mã KH: {cif}, Tên KH: {customerName}. Sản phẩm đã chốt: {workTypeName}.`, followed by ` Ghi chú: {note}` when the customer has a note. No notification is sent (the caller is the assignee).
+- File endpoints accept `.xlsx` only, signature-checked, within the configured size/row limits.

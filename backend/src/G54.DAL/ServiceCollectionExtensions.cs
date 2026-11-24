@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         dataSourceBuilder.MapEnum<RecordStatus>("record_status");
         dataSourceBuilder.MapEnum<BusinessObjectiveStatus>("business_objective_status");
         dataSourceBuilder.MapEnum<BusinessCampaignStatus>("business_campaign_status");
+        dataSourceBuilder.MapEnum<CampaignContactStatus>("campaign_contact_status");
         dataSourceBuilder.MapEnum<KpiStatus>("kpi_status");
         dataSourceBuilder.MapEnum<KpiAggregationType>("kpi_aggregation_type");
         dataSourceBuilder.MapEnum<KpiDirection>("kpi_direction");

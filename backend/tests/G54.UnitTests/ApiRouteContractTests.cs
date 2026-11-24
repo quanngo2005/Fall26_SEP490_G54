@@ -30,6 +30,8 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(HelloController), "hello")]
     [InlineData(typeof(AuditLogsController), "audit-logs")]
     [InlineData(typeof(DataImportsController), "data-imports")]
+    [InlineData(typeof(CampaignCustomersController), "campaigns/{campaignId:guid}/customers")]
+    [InlineData(typeof(MyCampaignsController), "my-campaigns")]
     [InlineData(typeof(TransactionImportsController), "transaction-imports")]
     [InlineData(typeof(MyDashboardController), "my-dashboard")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)

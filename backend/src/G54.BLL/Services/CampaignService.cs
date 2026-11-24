@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -188,12 +187,21 @@ public sealed partial class CampaignService(
             ? Math.Round((decimal)completedWorks / totalWorks * 100m, 1)
             : 0m;
 
+        var customerTotal = await db.CampaignCustomers.AsNoTracking().CountAsync(c => c.BusinessCampaignId == id, cancellationToken);
+        var customerUnassigned = await db.CampaignCustomers.AsNoTracking()
+            .CountAsync(c => c.BusinessCampaignId == id && c.AssigneeEmployeeId == null, cancellationToken);
+        var customerClosed = await db.CampaignCustomers.AsNoTracking()
+            .CountAsync(c => c.BusinessCampaignId == id && c.ContactStatus == CampaignContactStatus.Closed, cancellationToken);
+
         var metrics = new CampaignMetricsDto(
             totalWorks,
             completedWorks,
             inExecutionWorks,
             pendingWorks,
-            progressPercent);
+            progressPercent,
+            customerTotal,
+            customerUnassigned,
+            customerClosed);
 
         var canGenerateBatchWork = campaign.Status is BusinessCampaignStatus.Running or BusinessCampaignStatus.Planned;
         var canApprove = campaign.Status == BusinessCampaignStatus.Planned;
@@ -717,46 +725,22 @@ public sealed partial class CampaignService(
             ? null
             : (await GetTargetUnitsAsync([request.WorkTypeId], cancellationToken)).GetValueOrDefault(request.WorkTypeId);
         var generatedWorks = new List<Work>(totalLeads);
-        var todayStr = time.GetBusinessToday().ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        // work.code is varchar(50): clip the campaign code so "TSK-<code>-yyyyMMdd-NNNN" always fits, and continue the
+        // sequence of earlier batches that day instead of a random suffix, which collided on uq_work_code.
+        var codePrefix = CampaignWorkCode.PrefixFor(campaign, time.GetBusinessToday());
+        var sequenceStart = await db.Works.CountAsync(w => w.Code.StartsWith(codePrefix), cancellationToken);
         var exclusivityDays = Math.Max(1, parameters?.Value.CampaignExclusivityDays ?? 7);
         var exclusivityEnd = startDate.AddDays(exclusivityDays);
         var exclusivityNote = $"Khóa độc quyền {exclusivityDays} ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
 
+        var assigneeIds = CampaignAllocation.PickAssignees(rule, participantEmployeeIds, totalLeads, loads);
+
         for (var i = 0; i < totalLeads; i++)
         {
-            Guid assigneeId;
-            if (rule == "LOAD_BALANCING")
-            {
-                assigneeId = loads.OrderBy(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
-                loads[assigneeId]++;
-            }
-            else if (rule == "EQUAL_SPLIT")
-            {
-                var baseQuota = totalLeads / activeParticipants.Count;
-                var remainder = totalLeads % activeParticipants.Count;
-                var cumulative = 0;
-                var selectedIndex = activeParticipants.Count - 1;
-
-                for (var pIdx = 0; pIdx < activeParticipants.Count; pIdx++)
-                {
-                    var quota = baseQuota + (pIdx < remainder ? 1 : 0);
-                    cumulative += quota;
-                    if (i < cumulative)
-                    {
-                        selectedIndex = pIdx;
-                        break;
-                    }
-                }
-                assigneeId = activeParticipants[selectedIndex].EmployeeId;
-            }
-            else
-            {
-                // ROUND_ROBIN
-                assigneeId = activeParticipants[i % activeParticipants.Count].EmployeeId;
-            }
+            var assigneeId = assigneeIds[i];
 
             var lead = i < leads.Count ? leads[i] : null;
-            var workCode = $"TSK-{campaign.Code}-{todayStr}-{(i + 1):D4}-{RandomNumberGenerator.GetInt32(100, 999)}";
+            var workCode = $"{codePrefix}{sequenceStart + i + 1:D4}";
 
             string title;
             if (!string.IsNullOrWhiteSpace(request.WorkTitleTemplate))
@@ -821,7 +805,15 @@ public sealed partial class CampaignService(
         }
 
         db.Works.AddRange(generatedWorks);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            // A concurrent batch took the same sequence numbers; nothing was saved, so the caller can retry.
+            throw new ConflictException("Có một lượt sinh đầu việc khác đang chạy cho chiến dịch này, vui lòng thử lại.");
+        }
         LogBatchWorkGenerated(logger, campaign.Id, generatedWorks.Count, rule, null);
         if (notifier is not null)
         {

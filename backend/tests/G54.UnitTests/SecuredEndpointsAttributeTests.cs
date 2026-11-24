@@ -72,10 +72,37 @@ public sealed class SecuredEndpointsAttributeTests
         });
     }
 
+    [Fact]
+    public void CampaignCustomersController_EveryActionHasScopedPermission()
+    {
+        AssertPermissions(typeof(CampaignCustomersController), new Dictionary<string, (string, string, string)>
+        {
+            ["GetCustomers"] = ("campaign", "read", "Dept"),
+            ["Allocate"] = ("campaign", "manage", "Dept"),
+            ["Reassign"] = ("campaign", "manage", "Dept"),
+            ["GetTemplate"] = ("campaign", "read", "Dept"),
+            ["Preview"] = ("campaign", "manage", "Dept"),
+            ["Commit"] = ("campaign", "manage", "Dept"),
+        });
+    }
+
+    [Fact]
+    public void MyCampaignsController_EveryActionRequiresCampaignCustomerUpdateInOwnScope()
+    {
+        AssertPermissions(typeof(MyCampaignsController), new Dictionary<string, (string, string, string)>
+        {
+            ["GetMyCampaigns"] = ("campaign_customer", "update", "Own"),
+            ["GetMyCustomers"] = ("campaign_customer", "update", "Own"),
+            ["UpdateContact"] = ("campaign_customer", "update", "Own"),
+        });
+    }
+
     [Theory]
     [InlineData(typeof(VerificationController))]
     [InlineData(typeof(EvaluationController))]
     [InlineData(typeof(CampaignController))]
+    [InlineData(typeof(CampaignCustomersController))]
+    [InlineData(typeof(MyCampaignsController))]
     public void ControllerRequiresAuthentication(Type controller)
     {
         Assert.NotEmpty(controller.GetCustomAttributes<AuthorizeAttribute>(inherit: false));
