@@ -128,6 +128,9 @@ public sealed record CampaignDecisionResultDto(
     DateTimeOffset DecidedAt,
     string Message);
 
+/// <summary>Body of <c>POST /campaigns/{id}/cancel</c> (§5.7): a reason is required and stored in the audit log.</summary>
+public sealed record CancelCampaignRequestDto(string Reason);
+
 // =========================================================================
 // Batch Work Generator DTOs (SCR-CMP-01 - UC24 / UC71)
 // =========================================================================

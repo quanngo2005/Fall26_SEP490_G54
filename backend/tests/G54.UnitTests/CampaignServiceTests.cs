@@ -656,6 +656,13 @@ public sealed class CampaignServiceTests
 
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddRangeAsync(p1, p2);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
             await context.SaveChangesAsync();
 
             var req = new BatchWorkGeneratorRequestDto(
@@ -761,6 +768,13 @@ public sealed class CampaignServiceTests
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddRangeAsync(p1, p2);
             await context.Works.AddRangeAsync(existingWork1, existingWork2);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
             await context.SaveChangesAsync();
 
             // Generate 3 tasks with LOAD_BALANCING:
@@ -808,6 +822,13 @@ public sealed class CampaignServiceTests
             await context.Participants.AddRangeAsync(
                 new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp1.Id, UpdatedAt = DateTimeOffset.UtcNow },
                 new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp2.Id, UpdatedAt = DateTimeOffset.UtcNow });
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
 
             // emp1 is buried in overdue work; emp2 is idle. Overdue work must still count as load.
             for (var i = 0; i < 3; i++)
@@ -907,6 +928,13 @@ public sealed class CampaignServiceTests
 
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddAsync(p1);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
             await context.SaveChangesAsync();
 
             // Work planned end date 2026-10-20 exceeds campaign end date 2026-10-15
@@ -971,6 +999,13 @@ public sealed class CampaignServiceTests
 
             await context.BusinessCampaigns.AddAsync(campaign);
             await context.Participants.AddAsync(p1);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
             await context.SaveChangesAsync();
 
             var req = new BatchWorkGeneratorRequestDto(
@@ -1412,6 +1447,13 @@ public sealed class CampaignServiceTests
                 EmployeeId = emp1.Id,
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
             await context.SaveChangesAsync();
 
             var request = new BatchWorkGeneratorRequestDto(
@@ -1609,6 +1651,475 @@ public sealed class CampaignServiceTests
             var item = Assert.Single(detail.WorkTypes);
             Assert.Equal(workType.Id, item.WorkTypeId);
             Assert.Equal("tài khoản", item.TargetUnit);
+        }
+    }
+
+    // =========================================================================
+    // Slice A: one-work-type rule, lifecycle (complete/cancel), end-date reminder
+    // =========================================================================
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task CreateCampaignAsync_ThrowsValidation_WhenNotExactlyOneWorkType(int workTypeCount)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, _, _) = await SeedBasicTestDataAsync(context);
+            var workType2 = new WorkType { Id = Guid.NewGuid(), Code = "WT-2", Name = "WT 2", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
+            await context.WorkTypes.AddAsync(workType2);
+            await context.SaveChangesAsync();
+
+            var workTypeIds = workTypeCount == 0 ? new List<Guid>() : new List<Guid> { workType.Id, workType2.Id };
+
+            var request = new CreateCampaignRequestDto(
+                BusinessObjectiveId: objective.Id,
+                Code: "CMP-WT-RULE",
+                Name: "Chiến dịch kiểm tra số sản phẩm",
+                Description: null,
+                StartDate: new DateOnly(2026, 9, 1),
+                EndDate: new DateOnly(2026, 11, 30),
+                WorkTypeIds: workTypeIds);
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.CreateCampaignAsync(request, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task UpdateCampaignAsync_ThrowsValidation_WhenNotExactlyOneWorkType(int workTypeCount)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, _, _) = await SeedBasicTestDataAsync(context);
+            var workType2 = new WorkType { Id = Guid.NewGuid(), Code = "WT-2", Name = "WT 2", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
+            await context.WorkTypes.AddAsync(workType2);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-WT-RULE-UPD",
+                Name = "Chiến dịch",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = BusinessCampaignStatus.Planned,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var workTypeIds = workTypeCount == 0 ? new List<Guid>() : new List<Guid> { workType.Id, workType2.Id };
+
+            var updateReq = new UpdateCampaignRequestDto(
+                Name: "Chiến dịch cập nhật",
+                Description: null,
+                StartDate: new DateOnly(2026, 9, 1),
+                EndDate: new DateOnly(2026, 11, 30),
+                WorkTypeIds: workTypeIds);
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.UpdateCampaignAsync(campaign.Id, updateReq, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateCampaignAsync_ThrowsCampaignHasAssignments_WhenChangingProductWithAssignedCustomers()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, emp1, _) = await SeedBasicTestDataAsync(context);
+            var workType2 = new WorkType { Id = Guid.NewGuid(), Code = "WT-2", Name = "WT 2", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
+            await context.WorkTypes.AddAsync(workType2);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-WT-CHANGE",
+                Name = "Chiến dịch có khách đã phân bổ",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await context.CampaignCustomers.AddAsync(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                CustomerCif = "CUST-1",
+                CustomerName = "KH 1",
+                AssigneeEmployeeId = emp1.Id,
+                ContactStatus = CampaignContactStatus.NotContacted,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var updateReq = new UpdateCampaignRequestDto(
+                Name: "Chiến dịch",
+                Description: null,
+                StartDate: new DateOnly(2026, 9, 1),
+                EndDate: new DateOnly(2026, 11, 30),
+                WorkTypeIds: [workType2.Id]);
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.UpdateCampaignAsync(campaign.Id, updateReq, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.CampaignHasAssignments, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateCampaignAsync_ThrowsCampaignHasAssignments_WhenRemovingParticipantWithAssignedCustomers()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, emp1, emp2) = await SeedBasicTestDataAsync(context);
+
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-REMOVE-PARTICIPANT",
+                Name = "Chiến dịch xóa thành viên",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.CampaignWorkTypes.AddAsync(new CampaignWorkType
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                WorkTypeId = workType.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await context.Participants.AddRangeAsync(
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp1.Id, UpdatedAt = DateTimeOffset.UtcNow },
+                new Participant { Id = Guid.NewGuid(), BusinessCampaignId = campaign.Id, EmployeeId = emp2.Id, UpdatedAt = DateTimeOffset.UtcNow });
+            await context.CampaignCustomers.AddAsync(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                CustomerCif = "CUST-1",
+                CustomerName = "KH 1",
+                AssigneeEmployeeId = emp1.Id,
+                ContactStatus = CampaignContactStatus.NotContacted,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var updateReq = new UpdateCampaignRequestDto(
+                Name: "Chiến dịch",
+                Description: null,
+                StartDate: new DateOnly(2026, 9, 1),
+                EndDate: new DateOnly(2026, 11, 30),
+                ParticipantEmployeeIds: [emp2.Id]);
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.UpdateCampaignAsync(campaign.Id, updateReq, Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.CampaignHasAssignments, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task BatchGenerateWorkAsync_ThrowsWorkTypeNotInCampaign_WhenRequestedTypeDiffersFromCampaignProduct()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (campaign, _, employee) = await SeedTargetCampaignAsync(context);
+            var otherWorkType = new WorkType { Id = Guid.NewGuid(), Code = "WT-OTHER", Name = "WT Other", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
+            await context.WorkTypes.AddAsync(otherWorkType);
+            await context.SaveChangesAsync();
+
+            var req = TargetRequest(otherWorkType.Id, 1, null);
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.BatchGenerateWorkAsync(campaign.Id, req, employee.Id));
+            Assert.Equal(ErrorCodes.WorkTypeNotInCampaign, ex.ErrorCode);
+        }
+    }
+
+    [Theory]
+    [InlineData(BusinessCampaignStatus.Running, true)]
+    [InlineData(BusinessCampaignStatus.Planned, false)]
+    [InlineData(BusinessCampaignStatus.Completed, false)]
+    [InlineData(BusinessCampaignStatus.Cancelled, false)]
+    public async Task CompleteAsync_OnlyAllowedFromRunning(BusinessCampaignStatus status, bool allowed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = $"CMP-COMPLETE-{status}",
+                Name = "Chiến dịch hoàn tất",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = status,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            if (allowed)
+            {
+                var result = await service.CompleteAsync(campaign.Id, Guid.NewGuid());
+                Assert.Equal("COMPLETED", result.Status);
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CompleteAsync(campaign.Id, Guid.NewGuid()));
+                Assert.Equal(ErrorCodes.CampaignNotCompletable, ex.ErrorCode);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(BusinessCampaignStatus.Planned, true)]
+    [InlineData(BusinessCampaignStatus.Running, true)]
+    [InlineData(BusinessCampaignStatus.Completed, false)]
+    [InlineData(BusinessCampaignStatus.Cancelled, false)]
+    public async Task CancelAsync_OnlyAllowedFromPlannedOrRunning(BusinessCampaignStatus status, bool allowed)
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = $"CMP-CANCEL-{status}",
+                Name = "Chiến dịch hủy",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = status,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var request = new CancelCampaignRequestDto("Không còn phù hợp");
+            if (allowed)
+            {
+                var result = await service.CancelAsync(campaign.Id, request, Guid.NewGuid());
+                Assert.Equal("CANCELLED", result.Status);
+            }
+            else
+            {
+                var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CancelAsync(campaign.Id, request, Guid.NewGuid()));
+                Assert.Equal(ErrorCodes.CampaignNotCompletable, ex.ErrorCode);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task CancelAsync_ThrowsValidation_WhenReasonMissing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-CANCEL-NOREASON",
+                Name = "Chiến dịch hủy không lý do",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                service.CancelAsync(campaign.Id, new CancelCampaignRequestDto(""), Guid.NewGuid()));
+            Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task CompleteAsync_CancelsOpenWorks_KeepsSubmittedAndLater_IncludingLeadWorksViaCampaignCustomers()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, workType, emp1, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-COMPLETE-WORKS",
+                Name = "Chiến dịch hoàn tất với công việc",
+                StartDate = new DateOnly(2026, 9, 1),
+                EndDate = new DateOnly(2026, 11, 30),
+                Status = BusinessCampaignStatus.Running,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            var openWork = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "TSK-OPEN-1",
+                Title = "Open work",
+                BusinessCampaignId = campaign.Id,
+                AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
+                WorkTypeId = workType.Id,
+                Status = WorkStatus.New,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            var submittedWork = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "TSK-SUBMITTED-1",
+                Title = "Submitted work",
+                BusinessCampaignId = campaign.Id,
+                AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
+                WorkTypeId = workType.Id,
+                Status = WorkStatus.Submitted,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            // A lead Work whose BusinessCampaignId is not set directly must still be found and cancelled via
+            // CampaignCustomers.WorkId (defensive: Slice B's allocate is expected to always set it too).
+            var leadWorkWithoutCampaignLink = new Work
+            {
+                Id = Guid.NewGuid(),
+                Code = "TSK-LEAD-1",
+                Title = "Lead work",
+                AssigneeEmployeeId = emp1.Id,
+                CreatedBy = emp1.Id,
+                WorkTypeId = workType.Id,
+                Status = WorkStatus.InProgress,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.Works.AddRangeAsync(openWork, submittedWork, leadWorkWithoutCampaignLink);
+            await context.CampaignCustomers.AddAsync(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaign.Id,
+                CustomerCif = "CUST-LEAD",
+                CustomerName = "KH Lead",
+                AssigneeEmployeeId = emp1.Id,
+                ContactStatus = CampaignContactStatus.Called,
+                WorkId = leadWorkWithoutCampaignLink.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            await service.CompleteAsync(campaign.Id, Guid.NewGuid());
+
+            Assert.Equal(WorkStatus.Cancelled, (await context.Works.FindAsync(openWork.Id))!.Status);
+            Assert.Equal(WorkStatus.Submitted, (await context.Works.FindAsync(submittedWork.Id))!.Status);
+            Assert.Equal(WorkStatus.Cancelled, (await context.Works.FindAsync(leadWorkWithoutCampaignLink.Id))!.Status);
+
+            var activities = await context.WorkActivities
+                .Where(a => a.WorkId == openWork.Id || a.WorkId == leadWorkWithoutCampaignLink.Id)
+                .ToListAsync();
+            Assert.Equal(2, activities.Count);
+
+            var auditLog = await context.AuditLogs.SingleAsync(a => a.EntityName == "BusinessCampaign" && a.EntityId == campaign.Id.ToString());
+            Assert.Equal("Complete", auditLog.Action);
+        }
+    }
+
+    [Fact]
+    public async Task SendEndReminderAsync_SendsOnce_ThenSkipsAlreadyRemindedCampaign()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, emp1, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-REMINDER",
+                Name = "Chiến dịch nhắc hạn",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 10, 1),
+                Status = BusinessCampaignStatus.Running,
+                CreatedBy = emp1.Id,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var today = new DateOnly(2026, 10, 10);
+            var sentCount = await service.SendEndReminderAsync(today);
+            Assert.Equal(1, sentCount);
+
+            // The real notifier would have stored this row; simulate it directly since this test has no INotifier.
+            await context.Notifications.AddAsync(new Notification
+            {
+                Id = Guid.NewGuid(),
+                RecipientEmployeeId = emp1.Id,
+                Type = NotificationType.CampaignEndReminder,
+                Severity = NotificationSeverity.Important,
+                Title = "Chiến dịch đã quá hạn kết thúc",
+                RelatedType = NotificationRelatedType.Campaign,
+                RelatedId = campaign.Id,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var secondCount = await service.SendEndReminderAsync(today);
+            Assert.Equal(0, secondCount);
+        }
+    }
+
+    [Fact]
+    public async Task SendEndReminderAsync_SkipsCampaignsWithoutCreatedBy()
+    {
+        var (context, service) = CreateTestEnvironment();
+        using (context)
+        {
+            var (objective, _, _, _) = await SeedBasicTestDataAsync(context);
+            var campaign = new BusinessCampaign
+            {
+                Id = Guid.NewGuid(),
+                BusinessObjectiveId = objective.Id,
+                Code = "CMP-REMINDER-LEGACY",
+                Name = "Chiến dịch cũ không có người tạo",
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 10, 1),
+                Status = BusinessCampaignStatus.Running,
+                CreatedBy = null,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await context.BusinessCampaigns.AddAsync(campaign);
+            await context.SaveChangesAsync();
+
+            var count = await service.SendEndReminderAsync(new DateOnly(2026, 10, 10));
+            Assert.Equal(0, count);
         }
     }
 }

@@ -21,6 +21,12 @@ public sealed class WorkFilterDto
 
     public Guid? WorkTypeId { get; set; }
 
+    /// <summary>
+    /// When set, only Works of this campaign are returned (including lead Works). When not set, lead Works
+    /// (Works referenced by a <c>campaign_customer.work_id</c>) are excluded from the default list.
+    /// </summary>
+    public Guid? CampaignId { get; set; }
+
     /// <summary>LOW, MEDIUM, HIGH or CRITICAL (any casing).</summary>
     public string? Priority { get; set; }
 

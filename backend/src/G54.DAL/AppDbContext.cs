@@ -364,6 +364,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
 
             entity.HasOne(d => d.BusinessObjective).WithMany(p => p.BusinessCampaigns)
                 .HasForeignKey(d => d.BusinessObjectiveId)
@@ -374,6 +375,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ParentCampaignId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_business_campaign_parent");
+
+            entity.HasOne(d => d.CreatedByEmployee).WithMany(p => p.BusinessCampaignCreatedByNavigations)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_business_campaign_created_by");
 
             entity.Property(e => e.Status)
                 .HasColumnType("business_campaign_status")
@@ -991,6 +997,10 @@ public partial class AppDbContext : DbContext
             entity.HasIndex(e => new { e.BusinessCampaignId, e.CustomerCif }, "uq_campaign_customer_cif").IsUnique();
 
             entity.HasIndex(e => new { e.BusinessCampaignId, e.AssigneeEmployeeId }, "ix_campaign_customer_assignee");
+
+            entity.HasIndex(e => e.WorkId, "uq_campaign_customer_work")
+                .IsUnique()
+                .HasFilter("work_id IS NOT NULL");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")

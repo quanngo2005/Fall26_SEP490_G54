@@ -78,6 +78,12 @@ public sealed partial class HandoverService(
             from = assignee;
         }
 
+        var leadStatus = await CampaignLeadWork.LeadStatusAsync(db.CampaignCustomers, work.Id, cancellationToken);
+        if (leadStatus is not null)
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignWorkLocked, statusCode: StatusCodes.Status409Conflict);
+        }
+
         if (!WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Handover, out var handedOverStatus))
         {
             throw new ConflictException(

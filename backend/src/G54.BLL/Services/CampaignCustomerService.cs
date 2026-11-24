@@ -15,8 +15,10 @@ namespace G54.BLL.Services;
 /// Contract: docs/api/CAMPAIGN_CONTRACT.md §5. The allocation rule logic is shared with
 /// <see cref="CampaignService.BatchGenerateWorkAsync"/> via <see cref="CampaignAllocation"/>.
 /// </summary>
-public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomerService
+public sealed class CampaignCustomerService(AppDbContext db, TimeProvider time, INotifier? notifier = null) : ICampaignCustomerService
 {
+    private const int MaxAllocatePerRequest = 2000;
+
     public async Task<CampaignCustomerListResultDto> ListAsync(
         Guid campaignId,
         string? search,
@@ -70,6 +72,7 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
         var items = await query
             .Include(c => c.AssigneeEmployee)
             .Include(c => c.ClosedWorkType)
+            .Include(c => c.Work)
             .OrderBy(c => c.CustomerCif)
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
@@ -130,6 +133,24 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
             return new AllocateCampaignCustomersResultDto(0, []);
         }
 
+        if (unassigned.Count > MaxAllocatePerRequest)
+        {
+            throw new ValidationException(
+                $"Số lượng khách hàng chưa phân bổ ({unassigned.Count}) vượt quá giới hạn {MaxAllocatePerRequest} mỗi lần phân bổ.");
+        }
+
+        var campaignWorkType = await db.CampaignWorkTypes.AsNoTracking()
+            .Include(cwt => cwt.WorkType)
+            .FirstOrDefaultAsync(cwt => cwt.BusinessCampaignId == campaignId, cancellationToken);
+        if (campaignWorkType is null || campaignWorkType.WorkType.Status != RecordStatus.Active)
+        {
+            throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
+        }
+
+        var workType = campaignWorkType.WorkType;
+        var creator = await ResolveEmployeeAsync(currentUserId, cancellationToken)
+            ?? throw new ForbiddenException("Không xác định được nhân sự thực hiện thao tác.");
+
         var participantIds = activeParticipants.Select(p => p.EmployeeId).ToList();
         var normalizedRule = (rule ?? "ROUND_ROBIN").Trim().ToUpperInvariant();
 
@@ -148,19 +169,38 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
 
         var assigneeIds = CampaignAllocation.PickAssignees(normalizedRule, participantIds, unassigned.Count, loads);
 
+        var today = time.GetBusinessToday();
         var now = DateTimeOffset.UtcNow;
+        var codePrefix = CampaignWorkCode.PrefixFor(campaign, today);
+        var codes = await CampaignWorkCode.NextCodesAsync(db.Works, codePrefix, unassigned.Count, cancellationToken);
+
         var countsByEmployee = new Dictionary<Guid, int>();
         for (var i = 0; i < unassigned.Count; i++)
         {
+            var customer = unassigned[i];
             var assigneeId = assigneeIds[i];
-            unassigned[i].AssigneeEmployeeId = assigneeId;
-            unassigned[i].AssignedAt = now;
-            unassigned[i].UpdatedAt = now;
-            unassigned[i].UpdatedBy = currentUserId;
+            customer.AssigneeEmployeeId = assigneeId;
+            customer.AssignedAt = now;
+            customer.UpdatedAt = now;
+            customer.UpdatedBy = currentUserId;
+
+            var work = CampaignLeadWork.Build(campaign, workType, customer, creator.Id, codes[i], today, now);
+            db.Works.Add(work);
+            customer.WorkId = work.Id;
+
             countsByEmployee[assigneeId] = countsByEmployee.GetValueOrDefault(assigneeId) + 1;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            // A concurrent allocation/close took the same work-code sequence number; nothing was saved, so the
+            // caller can retry (same message as MyCampaignService.UpdateContactAsync).
+            throw new ConflictException("Có một lượt tạo công việc khác đang chạy cho chiến dịch này, vui lòng thử lại.");
+        }
 
         var employeeLookup = activeParticipants.ToDictionary(p => p.EmployeeId, p => p.Employee);
         var byEmployee = countsByEmployee
@@ -171,6 +211,16 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
                 kv.Value))
             .OrderBy(x => x.EmployeeCode, StringComparer.Ordinal)
             .ToList();
+
+        if (notifier is not null)
+        {
+            var drafts = AutomaticNotifications.BatchWorksAssigned(
+                campaign,
+                countsByEmployee.Select(kv => (kv.Key, kv.Value)),
+                creator,
+                "khách hàng");
+            await notifier.TryPublishAsync(drafts, cancellationToken);
+        }
 
         return new AllocateCampaignCustomersResultDto(unassigned.Count, byEmployee);
     }
@@ -219,15 +269,42 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
         customer.UpdatedAt = now;
         customer.UpdatedBy = currentUserId;
 
+        if (customer.WorkId is { } workId)
+        {
+            var work = await db.Works.FirstOrDefaultAsync(w => w.Id == workId, cancellationToken);
+            if (work is not null)
+            {
+                var actor = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+                work.AssigneeEmployeeId = employeeId;
+                work.AssignedAt = now;
+                work.UpdatedAt = now;
+                db.WorkActivities.Add(new WorkActivity
+                {
+                    Id = Guid.NewGuid(),
+                    WorkId = work.Id,
+                    ActorEmployeeId = actor?.Id,
+                    Action = "ASSIGNED",
+                    Message = "Chuyển người phụ trách",
+                    CreatedAt = now,
+                });
+            }
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         var assignee = await db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken);
+        await db.Entry(customer).Reference(c => c.Work).LoadAsync(cancellationToken);
 
         return ToDto(customer, assignee, customer.ClosedWorkType);
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------
+
+    // The JWT subject is the account id; legacy callers and tests may pass the employee id directly.
+    private Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken) =>
+        db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == userId || (e.Account != null && e.Account.Id == userId), cancellationToken);
 
     private static void EnsureCampaignOpen(BusinessCampaign campaign)
     {
@@ -276,6 +353,7 @@ public sealed class CampaignCustomerService(AppDbContext db) : ICampaignCustomer
             c.ClosedWorkTypeId,
             closedWorkType?.Name,
             c.WorkId,
+            c.Work?.Status.ToEnumString(),
             c.UpdatedAt);
     }
 

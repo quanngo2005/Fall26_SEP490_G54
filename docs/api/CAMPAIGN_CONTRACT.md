@@ -328,13 +328,17 @@ a later task per the contract-first rule in `API_CONVENTIONS.md`.
 
 Business rules: to be confirmed by the team (lead rules option 3; BR-25/BR-43 open).
 
+**Revision 2026-11-24 (contract only, backend not yet changed):** a campaign has exactly one product (work type); a `Work` is created for every lead at allocation and its status mirrors the contact status; closing needs a transaction code and submits the Work. §5.0, §5.1, §5.2, §5.4, §5.5 below are the target behaviour; §5.6 and §5.7 are new.
+
 ### 5.0 Concept
 
 A campaign holds an imported customer list (CIF, name, phone, note). The Dept Manager (campaign owner) imports the
 list and splits it across campaign participants (auto rule or manual reassignment). Each participant tracks their
-own customers' contact status; closing a customer with a product creates a `Work` row that feeds KPI through the
-existing submission → verification / Core Banking reconciliation flow (see `WORK_CONTRACT.md`,
-`SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`). Contact status itself never writes KPI.
+own customers' contact status. A campaign targets **one product** (one work type). Allocating a customer creates its
+`Work` (status `NEW`, the campaign's work type, CIF and name); closing the customer with a transaction code submits
+that Work, which feeds KPI through the existing submission → verification / Core Banking reconciliation flow (see
+`WORK_CONTRACT.md`, `WORK_TRANSACTION_CONTRACT.md`, `SUBMISSION_VERIFICATION_KPI_RESULT_CONTRACT.md`). Contact status
+itself never writes KPI; only the reconciled Work does.
 
 ### 5.1 Endpoints summary
 
@@ -346,6 +350,8 @@ existing submission → verification / Core Banking reconciliation flow (see `WO
 | `POST` | `/campaigns/{campaignId}/customers/import/commit` | Re-validates and commits the same file. | `[Authorize]` `campaign:manage` (Dept) |
 | `POST` | `/campaigns/{campaignId}/customers/allocate` | Assigns unassigned customers to active participants by rule. | `[Authorize]` `campaign:manage` (Dept) |
 | `PUT` | `/campaigns/{campaignId}/customers/{customerId}/assignee` | Reassigns one customer to another active participant. | `[Authorize]` `campaign:manage` (Dept) |
+| `POST` | `/campaigns/{id}/complete` | Completes a `RUNNING` campaign (§5.7). | `[Authorize]` `campaign:manage` (Dept) |
+| `POST` | `/campaigns/{id}/cancel` | Cancels a `PLANNED` or `RUNNING` campaign; body `{ "reason": "..." }` required (§5.7). | `[Authorize]` `campaign:manage` (Dept) |
 | `GET` | `/my-campaigns` | Lists campaigns where the caller has assigned customers, with per-status counts. | `[Authorize]` `campaign_customer:update` (Own) |
 | `GET` | `/my-campaigns/{campaignId}/customers` | Lists the caller's own customers in the campaign. | `[Authorize]` `campaign_customer:update` (Own) |
 | `PATCH` | `/my-campaigns/{campaignId}/customers/{customerId}/contact` | Updates the contact status/result of the caller's own customer. | `[Authorize]` `campaign_customer:update` (Own) |
@@ -376,7 +382,8 @@ and commit.
   "metAt": null,
   "closedWorkTypeId": null,
   "closedWorkTypeName": null,
-  "workId": null,
+  "workId": "f0000000-0000-0000-0000-000000000001",
+  "workStatus": "IN_PROGRESS",
   "updatedAt": "2026-11-23T10:00:00Z"
 }
 ```
@@ -406,9 +413,15 @@ Request DTOs:
   "callAnswered": null,
   "appointmentAt": null,
   "metAt": null,
-  "workTypeId": "w1a2b3c4-0000-0000-0000-000000000001"
+  "transactionCodes": ["TX-90001"],
+  "note": "KH gửi tiết kiệm 500 triệu"
 }
 ```
+
+`transactionCodes` and `note` apply to `status = CLOSED` only. `transactionCodes` is required (1–10 codes, same format and
+rules as `POST /works/{workId}/transactions`); `note` is optional (≤1000 chars) and is appended to the Work description.
+`workTypeId` is no longer accepted: the product is the campaign's work type. The `closedWorkTypeId` / `closedWorkTypeName`
+fields of `CampaignCustomerDto` are kept and are set to the campaign's work type when the customer is closed.
 
 `rule` is one of `ROUND_ROBIN | LOAD_BALANCING | EQUAL_SPLIT` (same semantics as
 `BatchWorkGeneratorRequestDto.allocationRule` in §3.5); `employeeIds` optional (defaults to all active participants).
@@ -425,10 +438,14 @@ the import row columns are `Customer CIF*`, `Tên khách hàng*`, `Số điện 
 | :--- | :--- | :--- |
 | `CAMPAIGN_CUSTOMER_CLOSED` | 409 | The customer row is already `CLOSED` (terminal) and a further contact update was attempted. |
 | `CAMPAIGN_NOT_RUNNING` | 409 | Import/allocate/reassign: the campaign is not `PLANNED` or `RUNNING`. Contact update: the campaign is not `RUNNING`. |
-| `WORK_TYPE_NOT_IN_CAMPAIGN` | 400 | `workTypeId` on a `CLOSED` update is not one of the campaign's configured work types, or is inactive. |
+| `WORK_TYPE_NOT_IN_CAMPAIGN` | 400 | The campaign's work type is inactive at close time. |
+| `CAMPAIGN_HAS_ASSIGNMENTS` | 409 | `PUT /campaigns/{id}`: changing the work type or removing a participant while the campaign already has customers assigned or Works generated. Reassign first. |
+| `CAMPAIGN_WORK_LOCKED` | 409 | A generic Work endpoint (status change, hand over, result submission, transaction codes) was called on a **lead Work** (a Work referenced by `campaign_customer.work_id`) whose customer is not `CLOSED`, or a status change / hand over on any lead Work; or the last transaction code of a lead Work was removed. |
+| `WORK_TRANSACTION_LIMIT` / `WORK_TRANSACTION_DUPLICATE` | 400 / 409 | On `CLOSED`: more than 10 codes, or a code already used by another Work (rejected immediately). |
+| `CAMPAIGN_NOT_COMPLETABLE` | 409 | `complete`/`cancel` on a campaign whose status does not allow it (§5.7). |
 | `EMPLOYEE_NOT_PARTICIPANT` | 400 | The target employee of allocate/reassign is not an active participant of the campaign; or, on a contact update, the caller is no longer an active participant (removed from the campaign or `INACTIVE`, BR-41). |
 | `NOT_FOUND` | 404 | Campaign or customer row not found, or the customer row does not belong to the caller (own-scope PATCH). |
-| `VALIDATION_ERROR` | 400 | Missing required field for the target status (e.g. `callAnswered` for `CALLED`, `appointmentAt` for `APPOINTMENT_SET`, `metAt` for `MET`, `workTypeId` for `CLOSED`), or an invalid/non-`.xlsx` import file. |
+| `VALIDATION_ERROR` | 400 | Missing required field for the target status (e.g. `callAnswered` for `CALLED`, `appointmentAt` for `APPOINTMENT_SET`, `metAt` for `MET`, `transactionCodes` for `CLOSED`), more than 2000 unassigned customers on allocate, or an invalid/non-`.xlsx` import file. |
 
 ### 5.5 Validation
 
@@ -438,5 +455,40 @@ the import row columns are `Customer CIF*`, `Tên khách hàng*`, `Số điện 
 - Allocate and reassign only when the campaign is `PLANNED` or `RUNNING`. Allocate only assigns customers with no current assignee; reassign is refused for a `CLOSED` row and requires the target employee to be an active participant.
 - A contact update row must belong to the caller (own scope), the campaign must be `RUNNING`, and the caller must still be an active participant (a removed or `INACTIVE` participant keeps the rows but cannot update them).
 - `CLOSED` is a terminal state: no further contact updates once a row is `CLOSED`.
-- `CLOSED` requires `workTypeId` to be one of the campaign's configured, active work types; it creates a `Work` (same transaction) carrying the customer's CIF and name, and sets `workId` on the customer row. The Work description is `Nguồn: chiến dịch {code} - {name}. Mã KH: {cif}, Tên KH: {customerName}. Sản phẩm đã chốt: {workTypeName}.`, followed by ` Ghi chú: {note}` when the customer has a note. No notification is sent (the caller is the assignee).
+- A campaign has exactly one work type: `POST /campaigns` and `PUT /campaigns/{id}` require `workTypeIds` of length 1. `batch-generate-work` requires its `workTypeId` to be the campaign's work type (`WORK_TYPE_NOT_IN_CAMPAIGN` otherwise) and no longer adds a work type to the campaign; its Works have no lead and are not locked. Campaigns that already hold several work types are cleaned by a data migration (§5.6).
+- Allocate and reassign maintain the Work (§5.6). Reassigning a row that already has a contact status keeps the status and all recorded values.
+- `CLOSED` requires `transactionCodes`; in one database transaction it records the codes on the Work, submits the Work (`WorkAction.Submit`, allowed from `NEW`/`IN_PROGRESS`/`REJECTED`/`OVERDUE`) and sets the status. A code not yet present in the Core Banking import leaves the Work in `SUBMITTED` until reconciliation (accepted). The Work description is `Nguồn: chiến dịch {code} - {name}. Mã KH: {cif}, Tên KH: {customerName}. Sản phẩm: {workTypeName}.`, followed by ` Ghi chú: {note}` from the customer note or the close note.
+- Import of an existing CIF updates name/phone/note of a row that is not `CLOSED` and updates the Work's `customerName`, title and description with it; a `CLOSED` row is never updated.
 - File endpoints accept `.xlsx` only, signature-checked, within the configured size/row limits.
+
+### 5.6 Work mirror
+
+Every assigned customer has one `Work` (`campaign_customer.work_id`, unique where not null). Allocate creates it, reassign
+moves `assigneeEmployeeId`, the Work carries the campaign's work type, CIF, name, `plannedStartDate = today` and
+`plannedEndDate = null` (the deadline is the campaign's `endDate`). A Work with this link is a **lead Work**.
+
+| `contactStatus` | `Work.status` |
+| :--- | :--- |
+| `NOT_CONTACTED` | `NEW` |
+| `CALLED`, `APPOINTMENT_SET`, `MET` | `IN_PROGRESS` |
+| `CLOSED` | `SUBMITTED` (then follows the normal verification / reconciliation outcome) |
+
+- A lead Work changes status only through `/my-campaigns/...`; `PATCH /works/{id}/status` and hand over always return `CAMPAIGN_WORK_LOCKED`. Result submission and `POST/DELETE /works/{id}/transactions` are allowed from My Work only once the customer is `CLOSED` (re-submit after `REJECTED`, or adding a code to a legacy Work). Removing the **last** code of a lead Work is refused (add the new code first). The customer stays `CLOSED`; `CampaignCustomerDto.workStatus` lets the list show `Kết quả bị từ chối` with a link to the Work.
+- Works created by `batch-generate-work` or manually with a `businessCampaignId` have no lead and keep the normal Work rules.
+- Lead Works have no `plannedEndDate`, so the overdue job and every overdue / on-time count skip them. They still count toward KPI once verified.
+- Notifications: allocating customers sends one aggregate notification per employee (`Bạn được giao {n} khách hàng trong chiến dịch {code}`), never one per Work.
+- My Work gets a `campaignId` filter; campaign Works are not shown in the default tab.
+- The existing rule that `campaign.endDate` cannot be earlier than a generated Work's deadline stays (it only concerns Works with a date, i.e. not lead Works).
+- Allocation limit per request: at most **2000** customers per allocate request (above that: `VALIDATION_ERROR`); Work codes are issued sequentially for the whole batch in one go.
+- Legacy data: a migration (a) keeps exactly one `CampaignWorkType` per campaign (the work type used by most of its Works, ties by the oldest link); (b) keeps Works created at close under the old flow (their customer is `CLOSED`, so the assignee adds the transaction code from My Work); (c) creates a lead Work for every customer that is assigned, not `CLOSED` and has no Work; (d) clears `plannedEndDate` of existing lead Works. Verified Works and their KPI are untouched.
+
+### 5.7 Campaign lifecycle
+
+| Action | From | To | Effect on Works |
+| :--- | :--- | :--- | :--- |
+| `POST /campaigns/{id}/complete` | `RUNNING` | `COMPLETED` | Works not yet `SUBMITTED` become `CANCELLED` (`WorkAction.Cancel`); `SUBMITTED` and later are kept. Allowed with unclosed customers. |
+| `POST /campaigns/{id}/cancel` | `PLANNED`, `RUNNING` | `CANCELLED` | Same as complete. Body `{ "reason": "..." }`, required, ≤1000 chars, stored in the audit log. |
+
+- Both run in one transaction and are refused with `CAMPAIGN_NOT_COMPLETABLE` (409) from any other status.
+- The campaign is **never completed automatically**. When `endDate` has passed and the campaign is still `RUNNING`, the system sends the campaign owner a notification asking them to complete it.
+- Pause/Resume is out of scope for now. While a campaign is not `RUNNING`, employees still read their customers but cannot update them (`CAMPAIGN_NOT_RUNNING`).

@@ -33,6 +33,7 @@ public enum NotificationType
     [PgName("CALIBRATION_DECIDED")] CalibrationDecided,
     [PgName("CAMPAIGN_DECIDED")] CampaignDecided,
     [PgName("EVALUATION_PROFILE_DECIDED")] EvaluationProfileDecided,
+    [PgName("CAMPAIGN_END_REMINDER")] CampaignEndReminder,
     [PgName("SYSTEM_ALERT")] SystemAlert,
 }
 

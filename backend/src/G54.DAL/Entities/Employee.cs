@@ -68,6 +68,8 @@ public partial class Employee
 
     public virtual ICollection<Work> WorkCreatedByNavigations { get; set; } = new List<Work>();
 
+    public virtual ICollection<BusinessCampaign> BusinessCampaignCreatedByNavigations { get; set; } = new List<BusinessCampaign>();
+
     public virtual ICollection<Work> Works { get; set; } = new List<Work>();
 
     public virtual ICollection<WorkResultItem> WorkResultItems { get; set; } = new List<WorkResultItem>();

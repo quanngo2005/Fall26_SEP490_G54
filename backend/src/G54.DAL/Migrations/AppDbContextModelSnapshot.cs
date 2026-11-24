@@ -377,6 +377,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("code");
 
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
@@ -413,6 +417,8 @@ namespace G54.DAL.Migrations
                         .HasName("business_campaign_pkey");
 
                     b.HasIndex("BusinessObjectiveId");
+
+                    b.HasIndex("CreatedBy");
 
                     b.HasIndex(new[] { "ParentCampaignId" }, "ix_business_campaign_parent");
 
@@ -580,12 +586,14 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("ClosedWorkTypeId");
 
-                    b.HasIndex("WorkId");
-
                     b.HasIndex(new[] { "BusinessCampaignId", "AssigneeEmployeeId" }, "ix_campaign_customer_assignee");
 
                     b.HasIndex(new[] { "BusinessCampaignId", "CustomerCif" }, "uq_campaign_customer_cif")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "WorkId" }, "uq_campaign_customer_work")
+                        .IsUnique()
+                        .HasFilter("work_id IS NOT NULL");
 
                     b.ToTable("campaign_customer", (string)null);
                 });
@@ -3940,6 +3948,12 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_business_campaign_objective");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "CreatedByEmployee")
+                        .WithMany("BusinessCampaignCreatedByNavigations")
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_business_campaign_created_by");
+
                     b.HasOne("G54.DAL.Entities.BusinessCampaign", "ParentCampaign")
                         .WithMany("InverseParentCampaign")
                         .HasForeignKey("ParentCampaignId")
@@ -3947,6 +3961,8 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_business_campaign_parent");
 
                     b.Navigation("BusinessObjective");
+
+                    b.Navigation("CreatedByEmployee");
 
                     b.Navigation("ParentCampaign");
                 });
@@ -5027,6 +5043,8 @@ namespace G54.DAL.Migrations
                     b.Navigation("AppealResolvedByNavigations");
 
                     b.Navigation("Appeals");
+
+                    b.Navigation("BusinessCampaignCreatedByNavigations");
 
                     b.Navigation("InverseManager");
 

@@ -6,6 +6,7 @@ using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TransactionImport;
 using G54.BLL.Dtos.WorkTransaction;
 using G54.BLL.Services;
+using G54.DAL.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -299,6 +300,9 @@ public sealed class TransactionImportsControllerTests
             throw new NotImplementedException();
 
         public Task<WorkTransactionsDto> AddAsync(Guid workId, Guid userId, AddWorkTransactionsRequestDto request, CancellationToken ct = default) =>
+            throw new NotImplementedException();
+
+        public Task<WorkTransactionsDto> AddForLeadCloseAsync(Work work, IReadOnlyList<string> codes, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
         public Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default) =>

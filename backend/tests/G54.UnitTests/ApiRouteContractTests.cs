@@ -53,6 +53,18 @@ public sealed class ApiRouteContractTests
     }
 
     [Fact]
+    public void CampaignController_ExposesCompleteAndCancelSubresources()
+    {
+        var complete = typeof(CampaignController).GetMethod(nameof(CampaignController.Complete));
+        Assert.NotNull(complete);
+        Assert.Equal("{id:guid}/complete", complete.GetCustomAttribute<HttpPostAttribute>()?.Template);
+
+        var cancel = typeof(CampaignController).GetMethod(nameof(CampaignController.Cancel));
+        Assert.NotNull(cancel);
+        Assert.Equal("{id:guid}/cancel", cancel.GetCustomAttribute<HttpPostAttribute>()?.Template);
+    }
+
+    [Fact]
     public void DepartmentsController_ExposesOverviewAndItsExcelExport()
     {
         Assert.Equal(

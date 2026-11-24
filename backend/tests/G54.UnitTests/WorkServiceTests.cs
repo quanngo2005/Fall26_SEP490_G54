@@ -697,6 +697,51 @@ public sealed class WorkServiceTests
     }
 
     [Fact]
+    public async Task ChangeStatusAsync_LeadWork_IsLocked()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+            context.CampaignCustomers.Add(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = Guid.NewGuid(),
+                CustomerCif = "CIF-LEAD",
+                CustomerName = "Lead Customer",
+                AssigneeEmployeeId = assignee.Id,
+                ContactStatus = CampaignContactStatus.Closed,
+                WorkId = work.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
+            Assert.Equal(WorkStatus.New, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_NonLeadCampaignWork_IsUnaffected()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+            work.BusinessCampaignId = Guid.NewGuid();
+            await context.SaveChangesAsync();
+
+            var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" });
+
+            Assert.Equal("InProgress", result.Status);
+        }
+    }
+
+    [Fact]
     public async Task MarkOverdueAsync_TellsTheAssigneeAndTheirManager_OnlyAboutWorkItJustMarked()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;

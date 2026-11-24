@@ -149,6 +149,9 @@ public static class ErrorCodes
     public const string CampaignNotRunning = "CAMPAIGN_NOT_RUNNING";
     public const string WorkTypeNotInCampaign = "WORK_TYPE_NOT_IN_CAMPAIGN";
     public const string EmployeeNotParticipant = "EMPLOYEE_NOT_PARTICIPANT";
+    public const string CampaignHasAssignments = "CAMPAIGN_HAS_ASSIGNMENTS";
+    public const string CampaignWorkLocked = "CAMPAIGN_WORK_LOCKED";
+    public const string CampaignNotCompletable = "CAMPAIGN_NOT_COMPLETABLE";
 
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
@@ -241,6 +244,9 @@ public static class ErrorCodes
         [CampaignNotRunning] = ("Chiến dịch không ở trạng thái đang chạy nên không thể thao tác.", "The campaign is not running, so this action is not allowed."),
         [WorkTypeNotInCampaign] = ("Sản phẩm đã chọn không thuộc danh mục sản phẩm của chiến dịch.", "The selected product is not one of the campaign's work types."),
         [EmployeeNotParticipant] = ("Nhân viên không phải là thành viên tham gia chiến dịch.", "The employee is not an active participant of the campaign."),
+        [CampaignHasAssignments] = ("Chiến dịch đã có khách hàng được phân bổ hoặc công việc được sinh ra nên không thể thay đổi sản phẩm hoặc gỡ thành viên. Vui lòng phân công lại trước.", "The campaign already has assigned customers or generated work, so the product cannot change or a participant cannot be removed. Reassign first."),
+        [CampaignWorkLocked] = ("Công việc này thuộc một chiến dịch và chỉ có thể cập nhật từ màn hình Chiến dịch của tôi.", "This work belongs to a campaign and can only be updated from My Campaigns."),
+        [CampaignNotCompletable] = ("Trạng thái hiện tại của chiến dịch không cho phép hoàn tất hoặc hủy.", "The campaign's current status does not allow completing or cancelling it."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

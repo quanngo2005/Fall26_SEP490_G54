@@ -22,6 +22,7 @@ public sealed record CampaignCustomerDto(
     Guid? ClosedWorkTypeId,
     string? ClosedWorkTypeName,
     Guid? WorkId,
+    string? WorkStatus,
     DateTimeOffset UpdatedAt);
 
 public sealed record CampaignCustomerStatusCountDto(string Status, int Count);
@@ -81,4 +82,5 @@ public sealed record UpdateCampaignCustomerContactRequestDto(
     bool? CallAnswered,
     DateTimeOffset? AppointmentAt,
     DateTimeOffset? MetAt,
-    Guid? WorkTypeId);
+    IReadOnlyList<string>? TransactionCodes = null,
+    string? Note = null);

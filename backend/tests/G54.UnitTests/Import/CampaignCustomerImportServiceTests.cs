@@ -274,4 +274,118 @@ public sealed class CampaignCustomerImportServiceTests
         Assert.Equal("DATA_IMPORT_HAS_ERRORS", exception.ErrorCode);
         Assert.Empty(db.CampaignCustomers);
     }
+
+    [Fact]
+    public async Task CommitAsync_ExistingOpenLead_SyncsItsWork()
+    {
+        var (db, service, campaignId) = Create();
+        var campaign = await db.BusinessCampaigns.SingleAsync(c => c.Id == campaignId);
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-01", Name = "Tiết kiệm", Status = RecordStatus.Active };
+        db.WorkTypes.Add(workType);
+        db.CampaignWorkTypes.Add(new CampaignWorkType { Id = Guid.NewGuid(), BusinessCampaignId = campaignId, WorkTypeId = workType.Id, UpdatedAt = DateTimeOffset.UtcNow });
+        var assigneeId = Guid.NewGuid();
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = "TSK-CMP-01-LEAD-0001",
+            Title = "[Chiến dịch CMP-01] Tên cũ",
+            Description = "Nguồn: chiến dịch CMP-01 - Chiến dịch thử nghiệm. Mã KH: CIF-080, Tên KH: Tên cũ. Sản phẩm: Tiết kiệm.",
+            BusinessCampaignId = campaignId,
+            WorkTypeId = workType.Id,
+            AssigneeEmployeeId = assigneeId,
+            CreatedBy = assigneeId,
+            CustomerCif = "CIF-080",
+            CustomerName = "Tên cũ",
+            Status = WorkStatus.New,
+            Priority = WorkPriority.Medium,
+            PlannedStartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            AssignedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Works.Add(work);
+        db.CampaignCustomers.Add(new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaignId,
+            CustomerCif = "CIF-080",
+            CustomerName = "Tên cũ",
+            AssigneeEmployeeId = assigneeId,
+            AssignedAt = DateTimeOffset.UtcNow,
+            ContactStatus = CampaignContactStatus.NotContacted,
+            WorkId = work.Id,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var result = await service.CommitAsync(
+            campaignId,
+            Workbook(("CIF-080", "Tên mới", "0909999999", "Ghi chú mới")),
+            Guid.NewGuid(),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.Updated);
+        var reloadedWork = await db.Works.SingleAsync(w => w.Id == work.Id);
+        Assert.Equal("Tên mới", reloadedWork.CustomerName);
+        Assert.Equal("[Chiến dịch CMP-01] Tên mới", reloadedWork.Title);
+        Assert.Equal(
+            "Nguồn: chiến dịch CMP-01 - Chiến dịch thử nghiệm. Mã KH: CIF-080, Tên KH: Tên mới. Sản phẩm: Tiết kiệm. Ghi chú: Ghi chú mới",
+            reloadedWork.Description);
+    }
+
+    [Fact]
+    public async Task CommitAsync_ExistingClosedLead_IsSkipped_AndItsWorkIsUntouched()
+    {
+        var (db, service, campaignId) = Create();
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-02", Name = "Tiết kiệm", Status = RecordStatus.Active };
+        db.WorkTypes.Add(workType);
+        var assigneeId = Guid.NewGuid();
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = "TSK-CMP-01-LEAD-0002",
+            Title = "[Chiến dịch CMP-01] Tên gốc",
+            Description = "Mô tả gốc",
+            BusinessCampaignId = campaignId,
+            WorkTypeId = workType.Id,
+            AssigneeEmployeeId = assigneeId,
+            CreatedBy = assigneeId,
+            CustomerCif = "CIF-090",
+            CustomerName = "Tên gốc",
+            Status = WorkStatus.Submitted,
+            Priority = WorkPriority.Medium,
+            PlannedStartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            AssignedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        db.Works.Add(work);
+        db.CampaignCustomers.Add(new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaignId,
+            CustomerCif = "CIF-090",
+            CustomerName = "Tên gốc",
+            AssigneeEmployeeId = assigneeId,
+            AssignedAt = DateTimeOffset.UtcNow,
+            ContactStatus = CampaignContactStatus.Closed,
+            ClosedWorkTypeId = workType.Id,
+            WorkId = work.Id,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var result = await service.CommitAsync(
+            campaignId,
+            Workbook(("CIF-090", "Tên mới bị bỏ qua", "0909999999", "Ghi chú mới")),
+            Guid.NewGuid(),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.Created);
+        Assert.Equal(0, result.Updated);
+
+        var reloadedCustomer = await db.CampaignCustomers.SingleAsync(c => c.CustomerCif == "CIF-090");
+        Assert.Equal("Tên gốc", reloadedCustomer.CustomerName);
+        var reloadedWork = await db.Works.SingleAsync(w => w.Id == work.Id);
+        Assert.Equal("Tên gốc", reloadedWork.CustomerName);
+        Assert.Equal("Mô tả gốc", reloadedWork.Description);
+    }
 }

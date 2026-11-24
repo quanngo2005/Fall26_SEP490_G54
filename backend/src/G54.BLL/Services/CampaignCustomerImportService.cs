@@ -231,6 +231,7 @@ public sealed partial class CampaignCustomerImportService(
 
         // Tracked on purpose: upserts mutate these entities (WriteAsync updates them directly).
         var existing = await db.CampaignCustomers
+            .Include(c => c.Work)
             .Where(c => c.BusinessCampaignId == campaignId && cifs.Contains(c.CustomerCif))
             .ToListAsync(ct);
 
@@ -253,35 +254,76 @@ public sealed partial class CampaignCustomerImportService(
         var created = 0;
         var updated = 0;
 
+        // Loaded lazily: only needed once a row updates an existing, open, Work-carrying customer.
+        BusinessCampaign? campaign = null;
+        WorkType? campaignWorkType = null;
+
         foreach (var row in rows)
         {
             if (ctx.ExistingByCif.TryGetValue(row.CustomerCif!, out var customer))
             {
-                // Update only: assignee and contact status are kept.
-                updated++;
-            }
-            else
-            {
-                customer = new G54.DAL.Entities.CampaignCustomer
+                // CLOSED is terminal: the row and its Work are never touched by a re-import.
+                if (customer.ContactStatus == CampaignContactStatus.Closed)
                 {
-                    Id = Guid.NewGuid(),
-                    BusinessCampaignId = campaignId,
-                    CustomerCif = row.CustomerCif!,
-                };
-                db.CampaignCustomers.Add(customer);
-                ctx.ExistingByCif[row.CustomerCif!] = customer;
-                created++;
+                    continue;
+                }
+
+                // Update only: assignee and contact status are kept.
+                customer.CustomerName = row.CustomerName!;
+                customer.Phone = row.Phone;
+                customer.Note = row.Note;
+                customer.UpdatedAt = DateTimeOffset.UtcNow;
+                customer.UpdatedBy = currentUserId;
+                updated++;
+
+                if (customer.Work is { } work)
+                {
+                    (campaign, campaignWorkType) = await LoadCampaignAndWorkTypeAsync(campaignId, campaign, campaignWorkType, ct);
+                    work.CustomerName = customer.CustomerName;
+                    work.Title = $"[Chiến dịch {campaign.Code}] {customer.CustomerName}";
+                    work.Description = campaignWorkType is null
+                        ? work.Description
+                        : CampaignLeadWork.Description(campaign, customer, campaignWorkType, null);
+                    work.UpdatedAt = customer.UpdatedAt;
+                }
+
+                continue;
             }
 
-            customer.CustomerName = row.CustomerName!;
-            customer.Phone = row.Phone;
-            customer.Note = row.Note;
-            customer.UpdatedAt = DateTimeOffset.UtcNow;
-            customer.UpdatedBy = currentUserId;
+            customer = new G54.DAL.Entities.CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaignId,
+                CustomerCif = row.CustomerCif!,
+                CustomerName = row.CustomerName!,
+                Phone = row.Phone,
+                Note = row.Note,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                UpdatedBy = currentUserId,
+            };
+            db.CampaignCustomers.Add(customer);
+            ctx.ExistingByCif[row.CustomerCif!] = customer;
+            created++;
         }
 
         await db.SaveChangesAsync(ct);
         return new ImportCommitResultDto(created, updated, skippedRows.Count, [], skippedRows);
+    }
+
+    private async Task<(BusinessCampaign Campaign, WorkType? WorkType)> LoadCampaignAndWorkTypeAsync(
+        Guid campaignId, BusinessCampaign? campaign, WorkType? campaignWorkType, CancellationToken ct)
+    {
+        if (campaign is not null)
+        {
+            return (campaign, campaignWorkType);
+        }
+
+        campaign = await db.BusinessCampaigns.FirstAsync(c => c.Id == campaignId, ct);
+        campaignWorkType = await db.CampaignWorkTypes.AsNoTracking()
+            .Where(cwt => cwt.BusinessCampaignId == campaignId)
+            .Select(cwt => cwt.WorkType)
+            .FirstOrDefaultAsync(ct);
+        return (campaign, campaignWorkType);
     }
 
     [GeneratedRegex(@"^[0-9+ ]+$")]

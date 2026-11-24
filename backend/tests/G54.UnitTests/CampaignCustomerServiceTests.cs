@@ -25,7 +25,8 @@ public sealed class CampaignCustomerServiceTests
         BusinessCampaign Campaign,
         Employee Emp1,
         Employee Emp2,
-        WorkType WorkType);
+        WorkType WorkType,
+        Guid ManagerAccountId);
 
     private static async Task<Fixture> CreateAsync(
         BusinessCampaignStatus campaignStatus = BusinessCampaignStatus.Running,
@@ -81,6 +82,27 @@ public sealed class CampaignCustomerServiceTests
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
+        // The JWT subject is an account id, so the acting manager is resolved through its account.
+        var manager = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "NV-CC-QL",
+            FullName = "Phạm Quản Lý",
+            Email = "ql@g54.test",
+            DepartmentId = dept.Id,
+            JobPositionId = pos.Id,
+            Status = EmployeeStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        var managerAccount = new Account
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = manager.Id,
+            Username = "ql@g54.test",
+            PasswordHash = "x",
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+
         var workType = new WorkType { Id = Guid.NewGuid(), Code = "WT-CC", Name = "Tiết kiệm", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
 
         var campaign = new BusinessCampaign
@@ -97,10 +119,18 @@ public sealed class CampaignCustomerServiceTests
 
         db.Departments.Add(dept);
         db.JobPositions.Add(pos);
-        db.Employees.AddRange(emp1, emp2, inactiveEmp);
+        db.Employees.AddRange(emp1, emp2, inactiveEmp, manager);
+        db.Accounts.Add(managerAccount);
         db.WorkTypes.Add(workType);
         db.BusinessObjectives.Add(objective);
         db.BusinessCampaigns.Add(campaign);
+        db.CampaignWorkTypes.Add(new CampaignWorkType
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaign.Id,
+            WorkTypeId = workType.Id,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
 
         if (withParticipants)
         {
@@ -112,7 +142,7 @@ public sealed class CampaignCustomerServiceTests
 
         await db.SaveChangesAsync();
 
-        return new Fixture(db, new CampaignCustomerService(db), campaign, emp1, emp2, workType);
+        return new Fixture(db, new CampaignCustomerService(db, TimeProvider.System), campaign, emp1, emp2, workType, managerAccount.Id);
     }
 
     private static CampaignCustomer NewCustomer(Guid campaignId, string cif, string name = "Khách hàng", Guid? assigneeId = null) => new()
@@ -228,7 +258,7 @@ public sealed class CampaignCustomerServiceTests
         f.Db.CampaignCustomers.AddRange(c1, c2, c3);
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId);
 
         Assert.Equal(2, result.AssignedCount);
         Assert.Equal(1, result.ByEmployee.Single(e => e.EmployeeId == f.Emp1.Id).Count);
@@ -252,7 +282,7 @@ public sealed class CampaignCustomerServiceTests
         }
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "EQUAL_SPLIT", null, Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "EQUAL_SPLIT", null, f.ManagerAccountId);
 
         Assert.Equal(5, result.AssignedCount);
         // 5 split over 2 active participants -> 3/2, remainder to the first (emp1, ordered by EmployeeCode)
@@ -271,7 +301,7 @@ public sealed class CampaignCustomerServiceTests
             NewCustomer(f.Campaign.Id, "CUST-NEW-1"));
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "LOAD_BALANCING", null, Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "LOAD_BALANCING", null, f.ManagerAccountId);
 
         Assert.Equal(1, result.AssignedCount);
         Assert.Equal(f.Emp2.Id, result.ByEmployee.Single().EmployeeId);
@@ -286,7 +316,7 @@ public sealed class CampaignCustomerServiceTests
             NewCustomer(f.Campaign.Id, "CUST-002"));
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", [f.Emp2.Id], Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", [f.Emp2.Id], f.ManagerAccountId);
 
         Assert.Equal(2, result.AssignedCount);
         Assert.Equal(2, result.ByEmployee.Single(e => e.EmployeeId == f.Emp2.Id).Count);
@@ -301,7 +331,7 @@ public sealed class CampaignCustomerServiceTests
         f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, "CUST-001"));
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId);
 
         Assert.DoesNotContain(result.ByEmployee, e => e.EmployeeId == inactive.Id);
     }
@@ -314,7 +344,7 @@ public sealed class CampaignCustomerServiceTests
         await f.Db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(
-            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid()));
+            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId));
         Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
     }
 
@@ -325,7 +355,7 @@ public sealed class CampaignCustomerServiceTests
         f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, "CUST-001", assigneeId: f.Emp1.Id));
         await f.Db.SaveChangesAsync();
 
-        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid());
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId);
 
         Assert.Equal(0, result.AssignedCount);
         Assert.Empty(result.ByEmployee);
@@ -339,7 +369,7 @@ public sealed class CampaignCustomerServiceTests
         await f.Db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(
-            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid()));
+            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId));
         Assert.Equal(ErrorCodes.CampaignNotRunning, ex.ErrorCode);
     }
 
@@ -348,7 +378,97 @@ public sealed class CampaignCustomerServiceTests
     {
         var f = await CreateAsync();
         await Assert.ThrowsAsync<NotFoundException>(
-            () => f.Service.AllocateAsync(Guid.NewGuid(), "ROUND_ROBIN", null, Guid.NewGuid()));
+            () => f.Service.AllocateAsync(Guid.NewGuid(), "ROUND_ROBIN", null, f.ManagerAccountId));
+    }
+
+    [Fact]
+    public async Task AllocateAsync_CreatesOneLeadWorkPerCustomer_WithUniqueCodesAndNoDeadline()
+    {
+        var f = await CreateAsync();
+        f.Db.CampaignCustomers.AddRange(
+            NewCustomer(f.Campaign.Id, "CUST-001"),
+            NewCustomer(f.Campaign.Id, "CUST-002"),
+            NewCustomer(f.Campaign.Id, "CUST-003"));
+        await f.Db.SaveChangesAsync();
+
+        var result = await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId);
+
+        Assert.Equal(3, result.AssignedCount);
+        var customers = await f.Db.CampaignCustomers.Include(c => c.Work).OrderBy(c => c.CustomerCif).ToListAsync();
+        Assert.All(customers, c =>
+        {
+            Assert.NotNull(c.Work);
+            Assert.Equal(WorkStatus.New, c.Work!.Status);
+            Assert.Null(c.Work.PlannedEndDate);
+            Assert.NotNull(c.Work.PlannedStartDate);
+            Assert.Equal(c.AssigneeEmployeeId, c.Work.AssigneeEmployeeId);
+            Assert.Equal(f.WorkType.Id, c.Work.WorkTypeId);
+        });
+        Assert.Equal(3, customers.Select(c => c.Work!.Code).Distinct().Count());
+        var managerId = (await f.Db.Accounts.SingleAsync(a => a.Id == f.ManagerAccountId)).EmployeeId;
+        Assert.All(customers, c => Assert.Equal(managerId, c.Work!.CreatedBy));
+    }
+
+    [Fact]
+    public async Task AllocateAsync_UnknownCaller_ThrowsForbidden_AndSavesNothing()
+    {
+        var f = await CreateAsync();
+        f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, "CUST-001"));
+        await f.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, Guid.NewGuid()));
+        Assert.False(await f.Db.Works.AnyAsync());
+    }
+
+    [Fact]
+    public async Task AllocateAsync_SendsOneAggregateNotificationPerEmployee()
+    {
+        var notifier = new RecordingNotifier();
+        var f = await CreateAsync();
+        var service = new CampaignCustomerService(f.Db, TimeProvider.System, notifier);
+        f.Db.CampaignCustomers.AddRange(
+            NewCustomer(f.Campaign.Id, "CUST-001"),
+            NewCustomer(f.Campaign.Id, "CUST-002"));
+        await f.Db.SaveChangesAsync();
+
+        await service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.Emp1.Id);
+
+        // Round robin over 2 participants for 2 customers assigns one each; the creator (emp1) does not notify
+        // themselves, so only emp2 gets a draft.
+        var draft = Assert.Single(notifier.Drafts);
+        Assert.Equal(f.Emp2.Id, draft.RecipientEmployeeId);
+        Assert.Contains("khách hàng", draft.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AllocateAsync_MoreThan2000Unassigned_ThrowsValidationError()
+    {
+        var f = await CreateAsync();
+        for (var i = 0; i < 2001; i++)
+        {
+            f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, $"CUST-{i:D5}"));
+        }
+
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId));
+        Assert.Equal(ErrorCodes.ValidationError, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AllocateAsync_WorkTypeNotLinkedToCampaign_ThrowsWorkTypeNotInCampaign()
+    {
+        var f = await CreateAsync();
+        f.Db.CampaignWorkTypes.RemoveRange(f.Db.CampaignWorkTypes.Where(cwt => cwt.BusinessCampaignId == f.Campaign.Id));
+        f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, "CUST-001"));
+        await f.Db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", null, f.ManagerAccountId));
+        Assert.Equal(ErrorCodes.WorkTypeNotInCampaign, ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
     }
 
     // ---- ReassignAsync --------------------------------------------------------------------------------------
@@ -361,7 +481,7 @@ public sealed class CampaignCustomerServiceTests
         f.Db.CampaignCustomers.Add(customer);
         await f.Db.SaveChangesAsync();
 
-        var dto = await f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, Guid.NewGuid());
+        var dto = await f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, f.ManagerAccountId);
 
         Assert.Equal(f.Emp2.Id, dto.AssigneeEmployeeId);
         Assert.Equal(f.Emp2.FullName, dto.AssigneeEmployeeName);
@@ -381,7 +501,7 @@ public sealed class CampaignCustomerServiceTests
         await f.Db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(
-            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, Guid.NewGuid()));
+            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, f.ManagerAccountId));
         Assert.Equal(ErrorCodes.CampaignCustomerClosed, ex.ErrorCode);
         Assert.Equal(409, ex.StatusCode);
     }
@@ -395,7 +515,7 @@ public sealed class CampaignCustomerServiceTests
         await f.Db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<BusinessRuleException>(
-            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, Guid.NewGuid(), Guid.NewGuid()));
+            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, Guid.NewGuid(), f.ManagerAccountId));
         Assert.Equal(ErrorCodes.EmployeeNotParticipant, ex.ErrorCode);
     }
 
@@ -411,7 +531,7 @@ public sealed class CampaignCustomerServiceTests
         await f.Db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<NotFoundException>(
-            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, Guid.NewGuid()));
+            () => f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, f.ManagerAccountId));
     }
 
     [Fact]
@@ -419,6 +539,24 @@ public sealed class CampaignCustomerServiceTests
     {
         var f = await CreateAsync();
         await Assert.ThrowsAsync<NotFoundException>(
-            () => f.Service.ReassignAsync(Guid.NewGuid(), Guid.NewGuid(), f.Emp2.Id, Guid.NewGuid()));
+            () => f.Service.ReassignAsync(Guid.NewGuid(), Guid.NewGuid(), f.Emp2.Id, f.ManagerAccountId));
+    }
+
+    [Fact]
+    public async Task ReassignAsync_MovesTheLeadWork_AndRecordsActivity()
+    {
+        var f = await CreateAsync();
+        f.Db.CampaignCustomers.Add(NewCustomer(f.Campaign.Id, "CUST-001"));
+        await f.Db.SaveChangesAsync();
+        await f.Service.AllocateAsync(f.Campaign.Id, "ROUND_ROBIN", [f.Emp1.Id], f.ManagerAccountId);
+        var customer = await f.Db.CampaignCustomers.Include(c => c.Work).SingleAsync(c => c.CustomerCif == "CUST-001");
+        var workId = customer.WorkId!.Value;
+        Assert.Equal(f.Emp1.Id, customer.Work!.AssigneeEmployeeId);
+
+        await f.Service.ReassignAsync(f.Campaign.Id, customer.Id, f.Emp2.Id, f.ManagerAccountId);
+
+        var work = await f.Db.Works.SingleAsync(w => w.Id == workId);
+        Assert.Equal(f.Emp2.Id, work.AssigneeEmployeeId);
+        Assert.Equal(1, await f.Db.WorkActivities.CountAsync(a => a.WorkId == workId && a.Action == "ASSIGNED"));
     }
 }

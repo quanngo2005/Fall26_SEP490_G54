@@ -212,6 +212,7 @@ Phòng ban nhân viên được tính theo phòng ban **hiện tại của ngư�
 | `departmentId` | `uuid` | Phòng ban của người thực hiện. Không tồn tại -> 404; ngoài phạm vi quyền -> 403. |
 | `includeChildDepartments` | `bool` (mặc định `true`) | Có gồm các phòng ban con của `departmentId` hay không. |
 | `workTypeId` | `uuid` | Loại công việc. |
+| `campaignId` | `uuid` | Có giá trị: chỉ trả Works của chiến dịch này (bao gồm cả lead Work). Bỏ trống: ẩn mọi lead Work (Work được `campaign_customer.work_id` tham chiếu) khỏi danh sách mặc định. |
 | `priority` | `string` | `Low`, `Medium`, `High`, `Critical` (không phân biệt hoa/thường). |
 | `keyword` | `string` | Chứa trong mã hoặc tiêu đề (không phân biệt hoa/thường). |
 | `page` | `int` (mặc định 1) | Trang, tối thiểu 1. |

@@ -116,7 +116,13 @@ public sealed class MyCampaignServiceTests
 
         await db.SaveChangesAsync();
 
-        return new Fixture(db, new MyCampaignService(db, TimeProvider.System), campaign, emp1, emp2, workType);
+        return new Fixture(
+            db,
+            new MyCampaignService(db, new WorkTransactionService(db, TimeProvider.System)),
+            campaign,
+            emp1,
+            emp2,
+            workType);
     }
 
     private static CampaignCustomer NewCustomer(
@@ -130,6 +136,49 @@ public sealed class MyCampaignServiceTests
             AssigneeEmployeeId = assigneeId,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
+
+    /// <summary>A customer that already has a lead Work (as allocate/the migration would have created it).</summary>
+    private static (CampaignCustomer Customer, Work Work) NewCustomerWithWork(
+        BusinessCampaign campaign, WorkType workType, string cif, Guid assigneeId, string name = "Khách hàng",
+        CampaignContactStatus status = CampaignContactStatus.NotContacted, string? note = null)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var customer = new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaign.Id,
+            CustomerCif = cif,
+            CustomerName = name,
+            Note = note,
+            ContactStatus = status,
+            AssigneeEmployeeId = assigneeId,
+            AssignedAt = now,
+            UpdatedAt = now,
+        };
+        var workCodePrefix = $"TSK-{campaign.Code}-LEAD-";
+        var workCode = (workCodePrefix + Guid.NewGuid().ToString("N"))[..(workCodePrefix.Length + 8)];
+        var work = new Work
+        {
+            Id = Guid.NewGuid(),
+            Code = workCode,
+            Title = $"[Chiến dịch {campaign.Code}] {name}",
+            Description = $"Nguồn: chiến dịch {campaign.Code} - {campaign.Name}. Mã KH: {cif}, Tên KH: {name}. Sản phẩm: {workType.Name}.",
+            BusinessCampaignId = campaign.Id,
+            WorkTypeId = workType.Id,
+            AssigneeEmployeeId = assigneeId,
+            CreatedBy = assigneeId,
+            CustomerCif = cif,
+            CustomerName = name,
+            Status = WorkStatus.New,
+            Priority = WorkPriority.Medium,
+            PlannedStartDate = DateOnly.FromDateTime(now.UtcDateTime),
+            PlannedEndDate = null,
+            AssignedAt = now,
+            UpdatedAt = now,
+        };
+        customer.WorkId = work.Id;
+        return (customer, work);
+    }
 
     // ---- GetMyCampaignsAsync --------------------------------------------------------------------------------
 
@@ -303,93 +352,94 @@ public sealed class MyCampaignServiceTests
     }
 
     [Fact]
-    public async Task UpdateContactAsync_Closed_WithoutWorkTypeId_ThrowsValidation()
+    public async Task UpdateContactAsync_Closed_WithoutTransactionCodes_ThrowsValidation()
     {
         var f = await CreateAsync();
-        var row = NewCustomer(f.Campaign.Id, "CUST-001", f.Emp1.Id);
-        f.Db.CampaignCustomers.Add(row);
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-001", f.Emp1.Id);
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         await f.Db.SaveChangesAsync();
 
         var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, null);
-        await Assert.ThrowsAsync<ValidationException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto));
+        await Assert.ThrowsAsync<ValidationException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto));
     }
 
     [Fact]
-    public async Task UpdateContactAsync_Closed_WorkTypeNotInCampaign_ThrowsWorkTypeNotInCampaign()
+    public async Task UpdateContactAsync_Closed_WorkTypeNotLinkedToCampaign_ThrowsWorkTypeNotInCampaign()
     {
-        var f = await CreateAsync();
-        var row = NewCustomer(f.Campaign.Id, "CUST-001", f.Emp1.Id);
-        f.Db.CampaignCustomers.Add(row);
-        var outsideWorkType = new WorkType { Id = Guid.NewGuid(), Code = "WT-OUT", Name = "Ngoài chiến dịch", Status = RecordStatus.Active, UpdatedAt = DateTimeOffset.UtcNow };
-        f.Db.WorkTypes.Add(outsideWorkType);
+        // No CampaignWorkType row for this campaign: the campaign has no product configured.
+        var f = await CreateAsync(linkWorkType: false);
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-001", f.Emp1.Id);
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         await f.Db.SaveChangesAsync();
 
-        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, outsideWorkType.Id);
-        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto));
+        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, ["TXN-001"]);
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto));
         Assert.Equal(ErrorCodes.WorkTypeNotInCampaign, ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
     }
 
     [Fact]
-    public async Task UpdateContactAsync_Closed_CreatesWorkWithCifNameWorkTypeAndCampaignCode()
+    public async Task UpdateContactAsync_Closed_RecordsCodesAndSubmitsTheExistingLeadWork()
     {
         var f = await CreateAsync();
-        var row = NewCustomer(f.Campaign.Id, "CUST-CLOSE-01", f.Emp1.Id, name: "Nguyễn Văn Chốt");
-        f.Db.CampaignCustomers.Add(row);
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-CLOSE-01", f.Emp1.Id, name: "Nguyễn Văn Chốt");
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         await f.Db.SaveChangesAsync();
+        var workId = work.Id;
 
-        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, f.WorkType.Id);
-        var result = await f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto);
+        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, ["TXN-001"]);
+        var result = await f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto);
 
         Assert.Equal("CLOSED", result.ContactStatus);
         Assert.Equal(f.WorkType.Id, result.ClosedWorkTypeId);
-        Assert.NotNull(result.WorkId);
+        Assert.Equal(workId, result.WorkId);
         Assert.Equal("Đã chốt được sản phẩm Tiết kiệm", result.ResultText);
 
-        var work = await f.Db.Works.SingleAsync(w => w.Id == result.WorkId);
-        Assert.Equal("CUST-CLOSE-01", work.CustomerCif);
-        Assert.Equal("Nguyễn Văn Chốt", work.CustomerName);
-        Assert.Equal(f.WorkType.Id, work.WorkTypeId);
-        Assert.Equal(f.Campaign.Id, work.BusinessCampaignId);
-        Assert.Equal(f.Emp1.Id, work.AssigneeEmployeeId);
-        Assert.StartsWith($"TSK-{f.Campaign.Code}-", work.Code);
-        Assert.Equal(WorkStatus.New, work.Status);
+        // No second Work is created: the lead Work from allocation is reused.
+        Assert.Equal(1, await f.Db.Works.CountAsync());
+        var reloadedWork = await f.Db.Works.SingleAsync(w => w.Id == workId);
+        Assert.Equal(WorkStatus.Submitted, reloadedWork.Status);
+        Assert.Equal(1, await f.Db.WorkTransactions.CountAsync(t => t.WorkId == workId));
         Assert.Equal(
-            "Nguồn: chiến dịch CMP-MC-01 - Chiến dịch khách hàng của tôi. Mã KH: CUST-CLOSE-01, Tên KH: Nguyễn Văn Chốt. Sản phẩm đã chốt: Tiết kiệm.",
-            work.Description);
+            "Nguồn: chiến dịch CMP-MC-01 - Chiến dịch khách hàng của tôi. Mã KH: CUST-CLOSE-01, Tên KH: Nguyễn Văn Chốt. Sản phẩm: Tiết kiệm.",
+            reloadedWork.Description);
     }
 
     [Fact]
     public async Task UpdateContactAsync_Closed_WithNote_AppendsNoteToWorkDescription()
     {
         var f = await CreateAsync();
-        var row = NewCustomer(f.Campaign.Id, "CUST-NOTE-01", f.Emp1.Id);
-        row.Note = "Sổ 500 triệu đáo hạn 25/10";
-        f.Db.CampaignCustomers.Add(row);
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-NOTE-01", f.Emp1.Id, note: "Ghi chú gốc bị thay bởi ghi chú chốt");
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         await f.Db.SaveChangesAsync();
 
-        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, f.WorkType.Id);
-        var result = await f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto);
+        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, ["TXN-002"], "Sổ 500 triệu đáo hạn 25/10");
+        var result = await f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto);
 
-        var work = await f.Db.Works.SingleAsync(w => w.Id == result.WorkId);
-        Assert.EndsWith("Sản phẩm đã chốt: Tiết kiệm. Ghi chú: Sổ 500 triệu đáo hạn 25/10", work.Description);
+        var reloadedWork = await f.Db.Works.SingleAsync(w => w.Id == result.WorkId);
+        Assert.EndsWith("Sản phẩm: Tiết kiệm. Ghi chú: Sổ 500 triệu đáo hạn 25/10", reloadedWork.Description);
     }
 
     [Fact]
-    public async Task UpdateContactAsync_RemovedParticipant_ThrowsEmployeeNotParticipant_AndCreatesNoWork()
+    public async Task UpdateContactAsync_RemovedParticipant_ThrowsEmployeeNotParticipant_AndLeavesWorkUnchanged()
     {
         var f = await CreateAsync();
-        var row = NewCustomer(f.Campaign.Id, "CUST-001", f.Emp1.Id);
-        f.Db.CampaignCustomers.Add(row);
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-001", f.Emp1.Id);
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         f.Db.Participants.RemoveRange(f.Db.Participants.Where(p => p.EmployeeId == f.Emp1.Id));
         await f.Db.SaveChangesAsync();
 
-        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, f.WorkType.Id);
-        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto));
+        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, ["TXN-003"]);
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto));
 
         Assert.Equal(ErrorCodes.EmployeeNotParticipant, ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
-        Assert.False(await f.Db.Works.AnyAsync());
+        Assert.Equal(WorkStatus.New, (await f.Db.Works.SingleAsync(w => w.Id == work.Id)).Status);
     }
 
     [Fact]
@@ -409,17 +459,24 @@ public sealed class MyCampaignServiceTests
     }
 
     [Fact]
-    public async Task UpdateContactAsync_Closed_EndDateInPast_PlannedEndDateFallsBackToToday()
+    public async Task UpdateContactAsync_Called_MirrorsWorkStatusToInProgress_WithActivityOnlyOnChange()
     {
-        var f = await CreateAsync(endDate: new DateOnly(2020, 1, 1));
-        var row = NewCustomer(f.Campaign.Id, "CUST-001", f.Emp1.Id);
-        f.Db.CampaignCustomers.Add(row);
+        var f = await CreateAsync();
+        var (customer, work) = NewCustomerWithWork(f.Campaign, f.WorkType, "CUST-001", f.Emp1.Id);
+        f.Db.CampaignCustomers.Add(customer);
+        f.Db.Works.Add(work);
         await f.Db.SaveChangesAsync();
 
-        var dto = new UpdateCampaignCustomerContactRequestDto("CLOSED", null, null, null, f.WorkType.Id);
-        var result = await f.Service.UpdateContactAsync(f.Campaign.Id, row.Id, f.Emp1.Id, dto);
+        var dto = new UpdateCampaignCustomerContactRequestDto("CALLED", true, null, null, null);
+        await f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto);
 
-        var work = await f.Db.Works.SingleAsync(w => w.Id == result.WorkId);
-        Assert.True(work.PlannedEndDate >= work.PlannedStartDate);
+        var reloadedWork = await f.Db.Works.SingleAsync(w => w.Id == work.Id);
+        Assert.Equal(WorkStatus.InProgress, reloadedWork.Status);
+        Assert.Equal(1, await f.Db.WorkActivities.CountAsync(a => a.WorkId == work.Id));
+
+        // A second CALLED update keeps the Work at IN_PROGRESS: no further activity is recorded.
+        var dto2 = new UpdateCampaignCustomerContactRequestDto("CALLED", false, null, null, null);
+        await f.Service.UpdateContactAsync(f.Campaign.Id, customer.Id, f.Emp1.Id, dto2);
+        Assert.Equal(1, await f.Db.WorkActivities.CountAsync(a => a.WorkId == work.Id));
     }
 }

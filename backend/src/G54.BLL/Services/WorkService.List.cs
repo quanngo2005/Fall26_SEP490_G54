@@ -82,6 +82,16 @@ public sealed partial class WorkService
             query = query.Where(w => w.WorkTypeId == filter.WorkTypeId.Value);
         }
 
+        if (filter.CampaignId.HasValue)
+        {
+            query = query.Where(w => w.BusinessCampaignId == filter.CampaignId.Value);
+        }
+        else
+        {
+            var leadWorkIds = unitOfWork.Repository<CampaignCustomer>().Query().Select(c => c.WorkId);
+            query = query.Where(w => !leadWorkIds.Contains(w.Id));
+        }
+
         if (priority.HasValue)
         {
             query = query.Where(w => w.Priority == priority.Value);

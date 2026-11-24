@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
@@ -8,6 +9,7 @@ using G54.BLL.Dtos.Campaign;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -267,17 +269,20 @@ public sealed partial class CampaignService(
             throw new ConflictException($"Mã chiến dịch '{code}' đã tồn tại trong hệ thống.");
         }
 
-        if (request.WorkTypeIds is { Count: > 0 })
+        // A campaign targets exactly one product (work type): CAMPAIGN_CONTRACT.md §5.5.
+        var distinctWorkTypeIds = (request.WorkTypeIds ?? []).Distinct().ToList();
+        if (distinctWorkTypeIds.Count != 1)
         {
-            var distinctWorkTypeIds = request.WorkTypeIds.Distinct().ToList();
-            var validCount = await db.WorkTypes.CountAsync(
-                wt => distinctWorkTypeIds.Contains(wt.Id) && wt.Status == RecordStatus.Active,
-                cancellationToken);
+            throw new ValidationException("Chiến dịch phải có đúng một loại công việc (sản phẩm).");
+        }
 
-            if (validCount != distinctWorkTypeIds.Count)
-            {
-                throw new ValidationException("Một hoặc nhiều loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
-            }
+        var validWorkTypeCount = await db.WorkTypes.CountAsync(
+            wt => distinctWorkTypeIds.Contains(wt.Id) && wt.Status == RecordStatus.Active,
+            cancellationToken);
+
+        if (validWorkTypeCount != distinctWorkTypeIds.Count)
+        {
+            throw new ValidationException("Một hoặc nhiều loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
         }
 
         if (request.ParticipantEmployeeIds is { Count: > 0 })
@@ -293,6 +298,7 @@ public sealed partial class CampaignService(
             }
         }
 
+        var creator = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         var campaignId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
         var campaign = new BusinessCampaign
@@ -305,23 +311,21 @@ public sealed partial class CampaignService(
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             Status = BusinessCampaignStatus.Planned,
+            CreatedBy = creator?.Id,
             UpdatedAt = now
         };
 
         db.BusinessCampaigns.Add(campaign);
 
-        if (request.WorkTypeIds is { Count: > 0 })
+        foreach (var wtId in distinctWorkTypeIds)
         {
-            foreach (var wtId in request.WorkTypeIds.Distinct())
+            db.CampaignWorkTypes.Add(new CampaignWorkType
             {
-                db.CampaignWorkTypes.Add(new CampaignWorkType
-                {
-                    Id = Guid.NewGuid(),
-                    BusinessCampaignId = campaignId,
-                    WorkTypeId = wtId,
-                    UpdatedAt = now
-                });
-            }
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = campaignId,
+                WorkTypeId = wtId,
+                UpdatedAt = now
+            });
         }
 
         if (request.ParticipantEmployeeIds is { Count: > 0 })
@@ -403,25 +407,40 @@ public sealed partial class CampaignService(
 
         if (request.WorkTypeIds != null)
         {
+            // A campaign targets exactly one product (work type): CAMPAIGN_CONTRACT.md §5.5.
             var distinctWorkTypeIds = request.WorkTypeIds.Distinct().ToList();
-            if (distinctWorkTypeIds.Count > 0)
+            if (distinctWorkTypeIds.Count != 1)
             {
-                var validCount = await db.WorkTypes.CountAsync(
-                    wt => distinctWorkTypeIds.Contains(wt.Id) && wt.Status == RecordStatus.Active,
-                    cancellationToken);
+                throw new ValidationException("Chiến dịch phải có đúng một loại công việc (sản phẩm).");
+            }
 
-                if (validCount != distinctWorkTypeIds.Count)
-                {
-                    throw new ValidationException("Một hoặc nhiều loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
-                }
+            var validCount = await db.WorkTypes.CountAsync(
+                wt => distinctWorkTypeIds.Contains(wt.Id) && wt.Status == RecordStatus.Active,
+                cancellationToken);
+
+            if (validCount != distinctWorkTypeIds.Count)
+            {
+                throw new ValidationException("Một hoặc nhiều loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
             }
 
             var existingWts = campaign.CampaignWorkTypes.ToList();
-            var toRemove = existingWts.Where(cwt => !distinctWorkTypeIds.Contains(cwt.WorkTypeId)).ToList();
-            var toAdd = distinctWorkTypeIds.Where(wtId => !existingWts.Any(cwt => cwt.WorkTypeId == wtId)).ToList();
+            var toRemoveWt = existingWts.Where(cwt => !distinctWorkTypeIds.Contains(cwt.WorkTypeId)).ToList();
+            var toAddWt = distinctWorkTypeIds.Where(wtId => !existingWts.Any(cwt => cwt.WorkTypeId == wtId)).ToList();
 
-            foreach (var rem in toRemove) db.CampaignWorkTypes.Remove(rem);
-            foreach (var wtId in toAdd)
+            if (toRemoveWt.Count > 0 || toAddWt.Count > 0)
+            {
+                var hasAssignments = await db.CampaignCustomers.AnyAsync(
+                        c => c.BusinessCampaignId == id && c.AssigneeEmployeeId != null, cancellationToken)
+                    || await db.Works.AnyAsync(w => w.BusinessCampaignId == id, cancellationToken);
+
+                if (hasAssignments)
+                {
+                    throw new BusinessRuleException(ErrorCodes.CampaignHasAssignments, null, 409);
+                }
+            }
+
+            foreach (var rem in toRemoveWt) db.CampaignWorkTypes.Remove(rem);
+            foreach (var wtId in toAddWt)
             {
                 db.CampaignWorkTypes.Add(new CampaignWorkType
                 {
@@ -451,6 +470,22 @@ public sealed partial class CampaignService(
             var existingParts = campaign.Participants.ToList();
             var toRemove = existingParts.Where(p => !distinctEmployeeIds.Contains(p.EmployeeId)).ToList();
             var toAdd = distinctEmployeeIds.Where(empId => !existingParts.Any(p => p.EmployeeId == empId)).ToList();
+
+            if (toRemove.Count > 0)
+            {
+                var removedIds = toRemove.Select(p => p.EmployeeId).ToList();
+                var hasAssignments = await db.CampaignCustomers.AnyAsync(
+                        c => c.BusinessCampaignId == id && c.AssigneeEmployeeId != null && removedIds.Contains(c.AssigneeEmployeeId.Value),
+                        cancellationToken)
+                    || await db.Works.AnyAsync(
+                        w => w.BusinessCampaignId == id && removedIds.Contains(w.AssigneeEmployeeId) && WorkStatusGroups.Open.Contains(w.Status),
+                        cancellationToken);
+
+                if (hasAssignments)
+                {
+                    throw new BusinessRuleException(ErrorCodes.CampaignHasAssignments, null, 409);
+                }
+            }
 
             foreach (var rem in toRemove) db.Participants.Remove(rem);
             foreach (var empId in toAdd)
@@ -632,19 +667,15 @@ public sealed partial class CampaignService(
             throw new ValidationException("Loại công việc không tồn tại hoặc không ở trạng thái hoạt động.");
         }
 
+        // The campaign already has exactly one product; batch-generated Works must use that same work type
+        // (CAMPAIGN_CONTRACT.md §5.5) instead of silently adding a second one.
         var isLinked = await db.CampaignWorkTypes.AnyAsync(
             cwt => cwt.BusinessCampaignId == id && cwt.WorkTypeId == request.WorkTypeId,
             cancellationToken);
 
         if (!isLinked)
         {
-            db.CampaignWorkTypes.Add(new CampaignWorkType
-            {
-                Id = Guid.NewGuid(),
-                BusinessCampaignId = id,
-                WorkTypeId = request.WorkTypeId,
-                UpdatedAt = DateTimeOffset.UtcNow
-            });
+            throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
         }
 
         if (request.TotalLeadsCount <= 0 || request.TotalLeadsCount > 1000)
@@ -728,7 +759,7 @@ public sealed partial class CampaignService(
         // work.code is varchar(50): clip the campaign code so "TSK-<code>-yyyyMMdd-NNNN" always fits, and continue the
         // sequence of earlier batches that day instead of a random suffix, which collided on uq_work_code.
         var codePrefix = CampaignWorkCode.PrefixFor(campaign, time.GetBusinessToday());
-        var sequenceStart = await db.Works.CountAsync(w => w.Code.StartsWith(codePrefix), cancellationToken);
+        var workCodes = await CampaignWorkCode.NextCodesAsync(db.Works, codePrefix, totalLeads, cancellationToken);
         var exclusivityDays = Math.Max(1, parameters?.Value.CampaignExclusivityDays ?? 7);
         var exclusivityEnd = startDate.AddDays(exclusivityDays);
         var exclusivityNote = $"Khóa độc quyền {exclusivityDays} ngày đến {exclusivityEnd.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.";
@@ -740,7 +771,7 @@ public sealed partial class CampaignService(
             var assigneeId = assigneeIds[i];
 
             var lead = i < leads.Count ? leads[i] : null;
-            var workCode = $"{codePrefix}{sequenceStart + i + 1:D4}";
+            var workCode = workCodes[i];
 
             string title;
             if (!string.IsNullOrWhiteSpace(request.WorkTitleTemplate))
@@ -836,6 +867,188 @@ public sealed partial class CampaignService(
             GeneratedAt: DateTimeOffset.UtcNow,
             Message: $"Đã tự động sinh {generatedWorks.Count} đầu việc và phân bổ thành công cho {activeParticipants.Count} cán bộ theo quy tắc {rule}."
         );
+    }
+
+    /// <summary>Completes a RUNNING campaign (CAMPAIGN_CONTRACT.md §5.7).</summary>
+    public async Task<CampaignDecisionResultDto> CompleteAsync(
+        Guid id,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var campaign = await db.BusinessCampaigns.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Chiến dịch", id);
+
+        if (campaign.Status != BusinessCampaignStatus.Running)
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignNotCompletable, null, 409);
+        }
+
+        return await ApplyLifecycleAsync(campaign, BusinessCampaignStatus.Completed, "Complete", null, currentUserId, cancellationToken);
+    }
+
+    /// <summary>Cancels a PLANNED or RUNNING campaign (CAMPAIGN_CONTRACT.md §5.7); a reason is required.</summary>
+    public async Task<CampaignDecisionResultDto> CancelAsync(
+        Guid id,
+        CancelCampaignRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var reason = request.Reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ValidationException("Lý do hủy chiến dịch là bắt buộc.");
+        }
+
+        if (reason.Length > 1000)
+        {
+            throw new ValidationException("Lý do hủy chiến dịch không được vượt quá 1000 ký tự.");
+        }
+
+        var campaign = await db.BusinessCampaigns.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Chiến dịch", id);
+
+        if (campaign.Status is not (BusinessCampaignStatus.Planned or BusinessCampaignStatus.Running))
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignNotCompletable, null, 409);
+        }
+
+        return await ApplyLifecycleAsync(campaign, BusinessCampaignStatus.Cancelled, "Cancel", reason, currentUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Shared body of <see cref="CompleteAsync"/> / <see cref="CancelAsync"/>: cancels every open Work of the
+    /// campaign (including lead Works found via <c>CampaignCustomers.WorkId</c>) that is not yet SUBMITTED or
+    /// later, records a <see cref="WorkActivity"/> per Work and one <see cref="AuditLog"/> entry for the campaign,
+    /// and notifies each affected assignee once. Runs in one transaction (pattern from
+    /// <c>EvaluationProfileService.ActivateAsync</c>; the in-memory provider used by unit tests has no transactions).
+    /// </summary>
+    private async Task<CampaignDecisionResultDto> ApplyLifecycleAsync(
+        BusinessCampaign campaign,
+        BusinessCampaignStatus newStatus,
+        string action,
+        string? reason,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        var leadWorkIds = await db.CampaignCustomers
+            .Where(c => c.BusinessCampaignId == campaign.Id && c.WorkId != null)
+            .Select(c => c.WorkId!.Value)
+            .ToListAsync(cancellationToken);
+
+        var worksToCancel = await db.Works
+            .Where(w => (w.BusinessCampaignId == campaign.Id || leadWorkIds.Contains(w.Id))
+                && (w.Status == WorkStatus.New || w.Status == WorkStatus.InProgress
+                    || w.Status == WorkStatus.HandedOver || w.Status == WorkStatus.Overdue))
+            .ToListAsync(cancellationToken);
+
+        await using var transaction = await BeginTransactionAsync(cancellationToken);
+
+        var message = action == "Complete"
+            ? "Hủy công việc do chiến dịch đã hoàn tất."
+            : $"Hủy công việc do chiến dịch bị hủy: {reason}";
+        var cancelledCountsByAssignee = new Dictionary<Guid, int>();
+        foreach (var work in worksToCancel)
+        {
+            work.Status = WorkStatus.Cancelled;
+            work.UpdatedAt = now;
+            db.WorkActivities.Add(new WorkActivity
+            {
+                Id = Guid.NewGuid(),
+                WorkId = work.Id,
+                ActorEmployeeId = actor?.Id,
+                Action = "STATUS_CHANGED",
+                Message = message,
+                CreatedAt = now,
+            });
+            cancelledCountsByAssignee[work.AssigneeEmployeeId] = cancelledCountsByAssignee.GetValueOrDefault(work.AssigneeEmployeeId) + 1;
+        }
+
+        campaign.Status = newStatus;
+        campaign.UpdatedAt = now;
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            EntityName = "BusinessCampaign",
+            EntityId = campaign.Id.ToString(),
+            Action = action,
+            NewValues = JsonSerializer.Serialize(new { status = newStatus.ToString().ToUpperInvariant(), reason }),
+            ActorId = actor?.Id ?? currentUserId,
+            OccurredAt = now,
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        if (notifier is not null)
+        {
+            var drafts = AutomaticNotifications.CampaignClosed(
+                campaign, cancelledCountsByAssignee.Select(kv => (kv.Key, kv.Value)), newStatus == BusinessCampaignStatus.Completed, reason);
+            await notifier.TryPublishAsync(drafts, cancellationToken);
+        }
+
+        var resultMessage = newStatus == BusinessCampaignStatus.Completed
+            ? "Đã hoàn tất chiến dịch thành công."
+            : $"Đã hủy chiến dịch. Lý do: {reason}";
+
+        return new CampaignDecisionResultDto(campaign.Id, newStatus.ToString().ToUpperInvariant(), now, resultMessage);
+    }
+
+    /// <summary>
+    /// Reminds the campaign owner once that a RUNNING campaign's end date has passed: targets campaigns with a
+    /// non-null <see cref="BusinessCampaign.CreatedBy"/> and no existing <see cref="NotificationType.CampaignEndReminder"/>
+    /// notification for that campaign yet. Called by <see cref="WorkOverdueBackgroundService"/> after
+    /// <c>IWorkService.MarkOverdueAsync</c>. Returns the number of reminders sent.
+    /// </summary>
+    public async Task<int> SendEndReminderAsync(DateOnly today, CancellationToken cancellationToken = default)
+    {
+        var candidates = await db.BusinessCampaigns
+            .Where(c => c.Status == BusinessCampaignStatus.Running && c.EndDate < today && c.CreatedBy != null)
+            .ToListAsync(cancellationToken);
+
+        if (candidates.Count == 0)
+        {
+            return 0;
+        }
+
+        var campaignIds = candidates.Select(c => c.Id).ToList();
+        var alreadyReminded = await db.Notifications
+            .Where(n => n.Type == NotificationType.CampaignEndReminder
+                && n.RelatedType == NotificationRelatedType.Campaign
+                && n.RelatedId != null
+                && campaignIds.Contains(n.RelatedId.Value))
+            .Select(n => n.RelatedId!.Value)
+            .ToListAsync(cancellationToken);
+
+        var toRemind = candidates.Where(c => !alreadyReminded.Contains(c.Id)).ToList();
+        if (toRemind.Count == 0)
+        {
+            return 0;
+        }
+
+        if (notifier is not null)
+        {
+            var drafts = toRemind.Select(AutomaticNotifications.CampaignEndReminder).ToList();
+            await notifier.TryPublishAsync(drafts, cancellationToken);
+        }
+
+        return toRemind.Count;
+    }
+
+    private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken cancellationToken)
+    {
+        // The in-memory provider used by unit tests has no transaction support.
+        return db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
     }
 
     /// <summary>

@@ -69,6 +69,8 @@ public sealed class SecuredEndpointsAttributeTests
             ["Delete"] = ("campaign", "manage", "Dept"),
             ["Decide"] = ("campaign", "manage", "All"),
             ["BatchGenerateWork"] = ("campaign", "manage", "Dept"),
+            ["Complete"] = ("campaign", "manage", "Dept"),
+            ["Cancel"] = ("campaign", "manage", "Dept"),
         });
     }
 

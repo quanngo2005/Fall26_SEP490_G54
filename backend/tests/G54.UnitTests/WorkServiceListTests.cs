@@ -276,6 +276,65 @@ public sealed class WorkServiceListTests : IDisposable
         await Assert.ThrowsAsync<ValidationException>(() => service.GetWorksAsync(_managerAccount.Id, Filter(f => f.Priority = "URGENT")));
     }
 
+    // ----- Campaign filter --------------------------------------------------------------------
+
+    [Fact]
+    public async Task DefaultList_HidesLeadWorks()
+    {
+        await SeedAsync();
+        var campaignId = Guid.NewGuid();
+        var normal = await AddWorkAsync("W1", _member);
+        var lead = await AddWorkAsync("W2", _member);
+        lead.BusinessCampaignId = campaignId;
+        await _db.SaveChangesAsync();
+        _db.CampaignCustomers.Add(new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaignId,
+            CustomerCif = "CIF-LEAD",
+            CustomerName = "Lead Customer",
+            AssigneeEmployeeId = _member.Id,
+            ContactStatus = CampaignContactStatus.NotContacted,
+            WorkId = lead.Id,
+            UpdatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await Service("All").GetWorksAsync(_managerAccount.Id, Filter());
+
+        Assert.Equal(["W1"], result.Items.Select(i => i.Code));
+    }
+
+    [Fact]
+    public async Task CampaignIdFilter_ShowsOnlyThatCampaignsWorks_IncludingLeadWorks()
+    {
+        await SeedAsync();
+        var campaignId = Guid.NewGuid();
+        var otherCampaignId = Guid.NewGuid();
+        var normal = await AddWorkAsync("W1", _member);
+        var lead = await AddWorkAsync("W2", _member);
+        lead.BusinessCampaignId = campaignId;
+        var other = await AddWorkAsync("W3", _member);
+        other.BusinessCampaignId = otherCampaignId;
+        await _db.SaveChangesAsync();
+        _db.CampaignCustomers.Add(new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = campaignId,
+            CustomerCif = "CIF-LEAD",
+            CustomerName = "Lead Customer",
+            AssigneeEmployeeId = _member.Id,
+            ContactStatus = CampaignContactStatus.NotContacted,
+            WorkId = lead.Id,
+            UpdatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await Service("All").GetWorksAsync(_managerAccount.Id, Filter(f => f.CampaignId = campaignId));
+
+        Assert.Equal(["W2"], result.Items.Select(i => i.Code));
+    }
+
     // ----- Paging ---------------------------------------------------------------------------
 
     [Fact]

@@ -142,5 +142,14 @@ public sealed class CampaignControllerTests
 
         public Task<BatchWorkGenerateResultDto> BatchGenerateWorkAsync(Guid id, BatchWorkGeneratorRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(new BatchWorkGenerateResultDto(id, "CMP-1", 1, 1, 1m, ["TSK-1"], "pool", DateTimeOffset.UtcNow, "Done"));
+
+        public Task<CampaignDecisionResultDto> CompleteAsync(Guid id, Guid currentUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CampaignDecisionResultDto(id, "COMPLETED", DateTimeOffset.UtcNow, "Đã hoàn tất chiến dịch thành công."));
+
+        public Task<CampaignDecisionResultDto> CancelAsync(Guid id, CancelCampaignRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CampaignDecisionResultDto(id, "CANCELLED", DateTimeOffset.UtcNow, $"Đã hủy chiến dịch. Lý do: {request.Reason}"));
+
+        public Task<int> SendEndReminderAsync(DateOnly today, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
     }
 }

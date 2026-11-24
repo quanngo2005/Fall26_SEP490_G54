@@ -1,5 +1,6 @@
 using System.Globalization;
 using G54.DAL.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
@@ -22,5 +23,28 @@ internal static class CampaignWorkCode
         var todayStr = today.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var clippedCode = campaign.Code.Length > 32 ? campaign.Code[..32] : campaign.Code;
         return $"TSK-{clippedCode}-{todayStr}-";
+    }
+
+    /// <summary>
+    /// Returns <paramref name="count"/> sequential <c>work.code</c> values under <paramref name="prefix"/>: one
+    /// <see cref="EntityFrameworkQueryableExtensions.CountAsync{TSource}(IQueryable{TSource},System.Threading.CancellationToken)"/>
+    /// finds how many codes already start with the prefix, then the whole batch continues that sequence
+    /// (<c>(existingCount + i).ToString("D4")</c>) so concurrent batches on the same day do not collide on
+    /// <c>uq_work_code</c>. Used by <see cref="CampaignService.BatchGenerateWorkAsync"/> and allocate (Slice B).
+    /// </summary>
+    public static async Task<List<string>> NextCodesAsync(
+        IQueryable<Work> works,
+        string prefix,
+        int count,
+        CancellationToken cancellationToken)
+    {
+        var existingCount = await works.CountAsync(w => w.Code.StartsWith(prefix), cancellationToken);
+        var codes = new List<string>(count);
+        for (var i = 1; i <= count; i++)
+        {
+            codes.Add($"{prefix}{(existingCount + i).ToString("D4", CultureInfo.InvariantCulture)}");
+        }
+
+        return codes;
     }
 }

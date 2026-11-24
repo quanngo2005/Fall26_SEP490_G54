@@ -618,9 +618,10 @@ INSERT INTO business_campaign (id, business_objective_id, code, name, descriptio
  ('5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0010-000000000001', 'CMP-2026-Q4-HDV', 'Chiến dịch huy động tiền gửi Q4/2026', 'Đẩy mạnh huy động và mở mới khách hàng cuối năm', '2026-10-01', '2026-12-31', 'RUNNING')
 ON CONFLICT DO NOTHING;
 
+-- A campaign now targets exactly one product (CAMPAIGN_CONTRACT.md §5.5). Keep the row the CampaignLeadWorks
+-- migration keeps on existing databases (equal work counts, oldest row wins), so a reseed does not re-add the other.
 INSERT INTO campaign_work_type (id, business_campaign_id, work_type_id) VALUES
- ('5eed0000-0000-0000-0013-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000001'),
- ('5eed0000-0000-0000-0013-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000002')
+ ('5eed0000-0000-0000-0013-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000001')
 ON CONFLICT DO NOTHING;
 
 -- 4 Sales + 2 Teller join the campaign.

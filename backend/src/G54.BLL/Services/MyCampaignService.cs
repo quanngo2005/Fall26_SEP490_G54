@@ -7,6 +7,7 @@ using G54.BLL.Dtos.CampaignCustomer;
 using G54.DAL;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace G54.BLL.Services;
 
@@ -14,11 +15,11 @@ namespace G54.BLL.Services;
 /// Employee-side campaign customer operations ("My campaigns"): list my campaigns, list my customers in a
 /// campaign, and update a customer's contact status. Contract: docs/api/CAMPAIGN_CONTRACT.md §5.
 /// Reuses <see cref="CampaignCustomerService.ToDto"/> / <see cref="CampaignCustomerResultText.Compute"/> so the
-/// employee view renders the same <c>resultText</c> as the manager list, and <see cref="CampaignWorkCode"/> so a
-/// closed customer's generated Work code follows the same sequence as
-/// <see cref="CampaignService.BatchGenerateWorkAsync"/>.
+/// employee view renders the same <c>resultText</c> as the manager list, and
+/// <see cref="IWorkTransactionService.AddForLeadCloseAsync"/> so closing a customer records its transaction codes
+/// through the same core as <c>WorkTransactionService.AddAsync</c>.
 /// </summary>
-public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyCampaignService
+public sealed class MyCampaignService(AppDbContext db, IWorkTransactionService workTransactionService) : IMyCampaignService
 {
     public async Task<IReadOnlyList<MyCampaignSummaryDto>> GetMyCampaignsAsync(
         Guid currentUserId,
@@ -119,6 +120,7 @@ public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyC
         // then by CIF. The enum's declared order already matches that sequence.
         var items = await query
             .Include(c => c.ClosedWorkType)
+            .Include(c => c.Work)
             .OrderBy(c => c.ContactStatus)
             .ThenBy(c => c.CustomerCif)
             .Skip((safePage - 1) * safePageSize)
@@ -149,6 +151,7 @@ public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyC
         // Filter on campaign id, customer id and assignee together: a row from another campaign, or another
         // employee's row, must 404 rather than leak into this one (IDOR).
         var customer = await db.CampaignCustomers
+            .Include(c => c.Work)
             .FirstOrDefaultAsync(
                 c => c.Id == customerId && c.BusinessCampaignId == campaignId && c.AssigneeEmployeeId == employee.Id,
                 cancellationToken);
@@ -181,6 +184,10 @@ public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyC
 
         var now = DateTimeOffset.UtcNow;
         WorkType? closedWorkType = null;
+
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         switch (status)
         {
@@ -217,49 +224,68 @@ public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyC
                 break;
 
             case CampaignContactStatus.Closed:
-                if (request.WorkTypeId is null)
+                if (request.TransactionCodes is null || request.TransactionCodes.Count == 0)
                 {
-                    throw new ValidationException("Trường workTypeId là bắt buộc khi trạng thái là CLOSED.");
+                    throw new ValidationException("Trường transactionCodes là bắt buộc khi trạng thái là CLOSED.");
                 }
 
-                closedWorkType = await db.WorkTypes.AsNoTracking()
-                    .FirstOrDefaultAsync(wt => wt.Id == request.WorkTypeId, cancellationToken);
-                var isLinkedAndActive = closedWorkType is { Status: RecordStatus.Active } && await db.CampaignWorkTypes
-                    .AnyAsync(cwt => cwt.BusinessCampaignId == campaignId && cwt.WorkTypeId == request.WorkTypeId, cancellationToken);
-                if (!isLinkedAndActive)
+                var campaignWorkType = await db.CampaignWorkTypes.AsNoTracking()
+                    .Include(cwt => cwt.WorkType)
+                    .FirstOrDefaultAsync(cwt => cwt.BusinessCampaignId == campaignId, cancellationToken);
+                closedWorkType = campaignWorkType?.WorkType;
+                if (closedWorkType is not { Status: RecordStatus.Active })
                 {
                     throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
                 }
 
-                var today = time.GetBusinessToday();
-                var plannedEnd = campaign.EndDate < today ? today : campaign.EndDate;
-                var codePrefix = CampaignWorkCode.PrefixFor(campaign, today);
-                var sequenceStart = await db.Works.CountAsync(w => w.Code.StartsWith(codePrefix), cancellationToken);
+                var work = customer.Work
+                    ?? throw new NotFoundException("Công việc của khách hàng chiến dịch", customer.Id);
 
-                var work = new Work
+                customer.ClosedWorkTypeId = closedWorkType.Id;
+                work.Description = CampaignLeadWork.Description(campaign, customer, closedWorkType, request.Note);
+                work.UpdatedAt = now;
+
+                customer.ContactStatus = status;
+                customer.UpdatedAt = now;
+                customer.UpdatedBy = currentUserId;
+                await db.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    await workTransactionService.AddForLeadCloseAsync(work, request.TransactionCodes, cancellationToken);
+                }
+                catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+                {
+                    throw new ConflictException("Có một lượt tạo công việc khác đang chạy cho chiến dịch này, vui lòng thử lại.");
+                }
+
+                if (transaction is not null)
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+
+                return CampaignCustomerService.ToDto(customer, employee, closedWorkType);
+        }
+
+        // NOT_CONTACTED / CALLED / APPOINTMENT_SET / MET mirror the lead Work's status (CAMPAIGN_CONTRACT.md §5.6):
+        // a WorkActivity is recorded only when the mirrored status actually changes.
+        if (customer.Work is { } leadWork)
+        {
+            var mirroredStatus = status == CampaignContactStatus.NotContacted ? WorkStatus.New : WorkStatus.InProgress;
+            if (leadWork.Status != mirroredStatus)
+            {
+                leadWork.Status = mirroredStatus;
+                leadWork.UpdatedAt = now;
+                db.WorkActivities.Add(new WorkActivity
                 {
                     Id = Guid.NewGuid(),
-                    Code = $"{codePrefix}{sequenceStart + 1:D4}",
-                    Title = $"[Chiến dịch {campaign.Code}] Chốt {customer.CustomerName}",
-                    Description = BuildClosedWorkDescription(campaign, customer, closedWorkType!),
-                    BusinessCampaignId = campaignId,
-                    WorkTypeId = request.WorkTypeId,
-                    AssigneeEmployeeId = employee.Id,
-                    CreatedBy = employee.Id,
-                    CustomerCif = customer.CustomerCif,
-                    CustomerName = customer.CustomerName,
-                    Status = WorkStatus.New,
-                    Priority = WorkPriority.Medium,
-                    PlannedStartDate = today,
-                    PlannedEndDate = plannedEnd,
-                    AssignedAt = now,
-                    UpdatedAt = now,
-                };
-
-                db.Works.Add(work);
-                customer.ClosedWorkTypeId = request.WorkTypeId;
-                customer.WorkId = work.Id;
-                break;
+                    WorkId = leadWork.Id,
+                    ActorEmployeeId = employee.Id,
+                    Action = "STATUS_CHANGED",
+                    Message = "Cập nhật theo trạng thái liên hệ khách hàng.",
+                    CreatedAt = now,
+                });
+            }
         }
 
         customer.ContactStatus = status;
@@ -276,13 +302,12 @@ public sealed class MyCampaignService(AppDbContext db, TimeProvider time) : IMyC
             throw new ConflictException("Có một lượt tạo công việc khác đang chạy cho chiến dịch này, vui lòng thử lại.");
         }
 
-        return CampaignCustomerService.ToDto(customer, employee, closedWorkType);
-    }
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
-    private static string BuildClosedWorkDescription(BusinessCampaign campaign, CampaignCustomer customer, WorkType workType)
-    {
-        var description = $"Nguồn: chiến dịch {campaign.Code} - {campaign.Name}. Mã KH: {customer.CustomerCif}, Tên KH: {customer.CustomerName}. Sản phẩm đã chốt: {workType.Name}.";
-        return string.IsNullOrWhiteSpace(customer.Note) ? description : $"{description} Ghi chú: {customer.Note}";
+        return CampaignCustomerService.ToDto(customer, employee, closedWorkType);
     }
 
     private async Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)

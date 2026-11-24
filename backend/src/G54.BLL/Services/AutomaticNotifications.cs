@@ -141,7 +141,8 @@ internal static class AutomaticNotifications
     public static List<NotificationDraft> BatchWorksAssigned(
         BusinessCampaign campaign,
         IEnumerable<(Guid AssigneeId, int Count)> countsByAssignee,
-        Employee creator)
+        Employee creator,
+        string unit = "đầu việc")
     {
         return countsByAssignee
             .Where(item => item.Count > 0 && item.AssigneeId != creator.Id)
@@ -149,7 +150,7 @@ internal static class AutomaticNotifications
                 item.AssigneeId,
                 NotificationType.WorkAssigned,
                 "Bạn được phân bổ công việc chiến dịch",
-                ClampBody($"{creator.FullName} đã phân bổ {item.Count} đầu việc từ chiến dịch {campaign.Code} - {campaign.Name} cho bạn."),
+                ClampBody($"{creator.FullName} đã phân bổ {item.Count} {unit} từ chiến dịch {campaign.Code} - {campaign.Name} cho bạn."),
                 NotificationSeverity.Normal,
                 NotificationRelatedType.Campaign,
                 campaign.Id,
@@ -527,6 +528,48 @@ internal static class AutomaticNotifications
                 campaign.Id,
                 reviewer.Id))
             .ToList();
+    }
+
+    /// <summary>A campaign was completed or cancelled (CAMPAIGN_CONTRACT.md §5.7): each assignee whose open Works were cancelled is told once.</summary>
+    public static List<NotificationDraft> CampaignClosed(
+        BusinessCampaign campaign,
+        IEnumerable<(Guid AssigneeId, int Count)> cancelledCountsByAssignee,
+        bool completed,
+        string? reason)
+    {
+        var title = completed ? "Chiến dịch đã hoàn tất" : "Chiến dịch đã bị hủy";
+        var body = completed
+            ? $"Chiến dịch {campaign.Code} - {campaign.Name} đã hoàn tất."
+            : $"Chiến dịch {campaign.Code} - {campaign.Name} đã bị hủy.";
+        if (!completed && !string.IsNullOrWhiteSpace(reason))
+        {
+            body += $" Lý do: {reason}";
+        }
+
+        return cancelledCountsByAssignee
+            .Where(item => item.Count > 0)
+            .Select(item => new NotificationDraft(
+                item.AssigneeId,
+                NotificationType.CampaignDecided,
+                title,
+                ClampBody($"{body} {item.Count} công việc của bạn trong chiến dịch đã bị hủy."),
+                NotificationSeverity.Important,
+                NotificationRelatedType.Campaign,
+                campaign.Id))
+            .ToList();
+    }
+
+    /// <summary>A RUNNING campaign's end date has passed: the owner (CreatedBy) is asked to complete or cancel it, once.</summary>
+    public static NotificationDraft CampaignEndReminder(BusinessCampaign campaign)
+    {
+        return new NotificationDraft(
+            campaign.CreatedBy!.Value,
+            NotificationType.CampaignEndReminder,
+            "Chiến dịch đã quá hạn kết thúc",
+            ClampBody($"Chiến dịch {campaign.Code} - {campaign.Name} đã quá ngày kết thúc ({campaign.EndDate:dd/MM/yyyy}) nhưng vẫn đang chạy. Vui lòng hoàn tất hoặc hủy chiến dịch."),
+            NotificationSeverity.Important,
+            NotificationRelatedType.Campaign,
+            campaign.Id);
     }
 
     /// <summary>Evaluation profile approved or rejected by Branch Manager -> System Admins hear the decision.</summary>
