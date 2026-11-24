@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, EMPTY, finalize, forkJoin, Subject, switchMap } from 'rxjs';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentService } from '../../core/department.service';
 import {
@@ -61,6 +62,7 @@ export class DepartmentViewComponent extends LocalizedComponent {
   private readonly api = inject(DepartmentService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly reload = new Subject<void>();
@@ -153,7 +155,7 @@ export class DepartmentViewComponent extends LocalizedComponent {
           const query = this.route.snapshot.queryParamMap;
           const requestedCode = query.get('department');
           const legacyId = query.get('departmentId');
-          this.periodId = query.get('periodId') ?? '';
+          this.periodId = this.routeState.value('periodId') ?? '';
           const compare = query.get('compare');
           this.compare = COMPARE_MODES.find((mode) => mode === compare) ?? 'PREVIOUS';
           this.departmentId =
@@ -290,15 +292,18 @@ export class DepartmentViewComponent extends LocalizedComponent {
     };
   }
 
-  /** Keeps department, period and comparison in the address so links from SCR-PRF-03 open the same view. */
+  /** Keeps department and comparison in the address and the period in history state, so a refresh reopens this view. */
   private syncUrl(data: DepartmentOverview): void {
     const params = new HttpParams({
       fromObject: {
         department: data.department.code,
-        ...(data.period ? { periodId: data.period.id } : {}),
         compare: this.compare,
       },
     });
-    this.location.replaceState(this.location.path().split('?')[0], params.toString());
+    this.location.replaceState(
+      this.location.path().split('?')[0],
+      params.toString(),
+      data.period ? { periodId: data.period.id } : {},
+    );
   }
 }

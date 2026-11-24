@@ -1,9 +1,9 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { catchError, EMPTY, finalize, forkJoin, map, of, Subject, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { HttpErrorResponse } from '@angular/common/http';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   ControlStandard,
@@ -35,7 +35,7 @@ const DECIDABLE = ['SUBMITTED', 'UNDER_REVIEW'];
 })
 export class ReviewVerifyComponent extends LocalizedComponent {
   private readonly api = inject(VerificationService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload = new Subject<void>();
 
@@ -113,11 +113,9 @@ export class ReviewVerifyComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    this.route.paramMap
-      .pipe(
-        map((params) => params.get('submissionId')),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.routeState
+      .watch('submissionId')
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((id) => {
         this.submissionId.set(id);
         this.dossier.set(null);

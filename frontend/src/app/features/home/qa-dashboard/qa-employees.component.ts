@@ -15,7 +15,12 @@ export const EMPLOYEES_PAGE_SIZE = 5;
     <section class="qa-panel" [attr.aria-label]="text().title">
   <header class="qa-panel-head">
     <h2>{{text().title}}</h2>
-    <a class="qa-link" routerLink="/reconciliations" [queryParams]="listParams()">
+    <a
+      class="qa-link"
+      routerLink="/reconciliations"
+      [queryParams]="listParams"
+      [state]="linkState()"
+    >
       {{text().viewReconciliation}}
     </a>
   </header>
@@ -37,6 +42,7 @@ export const EMPLOYEES_PAGE_SIZE = 5;
                 <a
                   routerLink="/reconciliations"
                   [queryParams]="rowParams(row)"
+                  [state]="linkState()"
                   [attr.aria-label]="rowAria(row)"
                   (click)="$event.stopPropagation()"
                   [title]="row.employeeCode + ' · ' + row.fullName"
@@ -163,8 +169,8 @@ export class QaEmployeesComponent extends LocalizedComponent {
   private readonly router = inject(Router);
 
   readonly employees = input.required<QaDashboardTopEmployee[]>();
-  /** Dashboard filters, carried over to the reconciliation screen. */
-  readonly linkParams = input<Record<string, string>>({});
+  /** Dashboard filters (record ids), carried over to the reconciliation screen in the navigation state. */
+  readonly linkState = input<Record<string, string>>({});
 
   protected readonly pageSize = EMPLOYEES_PAGE_SIZE;
   protected readonly page = signal(1);
@@ -175,10 +181,7 @@ export class QaEmployeesComponent extends LocalizedComponent {
     return this.employees().slice(start, start + EMPLOYEES_PAGE_SIZE);
   });
 
-  protected readonly listParams = computed(() => ({
-    ...this.linkParams(),
-    status: 'NOT_MATCHED',
-  }));
+  protected readonly listParams: Record<string, string> = { status: 'NOT_MATCHED' };
 
   constructor() {
     super();
@@ -191,7 +194,7 @@ export class QaEmployeesComponent extends LocalizedComponent {
 
   protected rowParams(row: QaDashboardTopEmployee): Record<string, string> {
     // The reconciliation list reads its search text from `q`.
-    return { ...this.listParams(), q: row.employeeCode };
+    return { ...this.listParams, q: row.employeeCode };
   }
 
   protected rowAria(row: QaDashboardTopEmployee): string {
@@ -199,6 +202,9 @@ export class QaEmployeesComponent extends LocalizedComponent {
   }
 
   protected open(row: QaDashboardTopEmployee): void {
-    void this.router.navigate(['/reconciliations'], { queryParams: this.rowParams(row) });
+    void this.router.navigate(['/reconciliations'], {
+      queryParams: this.rowParams(row),
+      state: this.linkState(),
+    });
   }
 }

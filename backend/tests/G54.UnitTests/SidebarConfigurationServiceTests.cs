@@ -199,4 +199,12 @@ public sealed class SidebarConfigurationServiceTests
         await Assert.ThrowsAsync<ValidationException>(() => service.SaveAsync(admin, role, request, CancellationToken.None));
         Assert.Empty(db.SidebarConfigurations);
     }
+
+    [Fact]
+    public void DepartmentManagerDefaultSidebarIncludesMyPerformance()
+    {
+        var deptManagerMenu = SidebarCatalog.Defaults["departmentManager"];
+        Assert.Contains("myPerformance", deptManagerMenu);
+        Assert.Contains("departmentPerformance", deptManagerMenu);
+    }
 }

@@ -2,12 +2,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { MySubmissionDetail, MySubmissionListItem } from '../../core/my-submission.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { MySubmissionsComponent } from './my-submissions.component';
+import { By } from '@angular/platform-browser';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -276,8 +277,11 @@ describe('MySubmissionsComponent', () => {
     );
     expect(fixture.nativeElement.querySelector('.drawer-footer button')).toBeNull();
     expect(fixture.nativeElement.querySelector('.drawer-footer a')?.getAttribute('href')).toBe(
-      '/appeals/mine?appeal=a1',
+      '/appeals/mine',
     );
+    expect(
+      fixture.debugElement.query(By.css('.drawer-footer a')).injector.get(RouterLink).state,
+    ).toEqual({ appealId: 'a1' });
   });
 
   it('offers no appeal for a submission that was not rejected', () => {

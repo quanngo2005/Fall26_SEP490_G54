@@ -42,7 +42,7 @@
               <a
                 class="button button-primary"
                 routerLink="/campaigns/approval"
-                [queryParams]="{ id: c.id }"
+                [state]="{ campaignId: c.id }"
               >
                 {{localization.campaign.reviewPlans}}
               </a>

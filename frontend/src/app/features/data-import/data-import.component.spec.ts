@@ -2,12 +2,13 @@ import { HttpEventType, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ImportBatchResult } from '../../core/import-history.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { DataImportComponent } from './data-import.component';
+import { By } from '@angular/platform-browser';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -125,8 +126,11 @@ describe('DataImportComponent', () => {
     expect(body).toContain('Kỳ 11/2026: 12 mã giao dịch đang chờ file.');
     const link = el<HTMLAnchorElement>(fixture, '.context-card a')!;
     expect(link.getAttribute('href')).toBe(
-      '/reconciliations?status=IN_REVIEW&reason=NO_IMPORTED_TRANSACTION&period=p11',
+      '/reconciliations?status=IN_REVIEW&reason=NO_IMPORTED_TRANSACTION',
     );
+    expect(
+      fixture.debugElement.query(By.css('.context-card a')).injector.get(RouterLink).state,
+    ).toEqual({ period: 'p11' });
     expect(uploadButton(fixture).disabled).toBeTrue();
   });
 

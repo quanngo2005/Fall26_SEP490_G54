@@ -82,11 +82,8 @@
                 @if ((waitingCount() ?? 0) > 0) {
                   <a
                     routerLink="/reconciliations"
-                    [queryParams]="{
-                      status: 'IN_REVIEW',
-                      reason: waitingReason,
-                      period: period()?.id ?? null,
-                    }"
+                    [queryParams]="{ status: 'IN_REVIEW', reason: waitingReason }"
+                    [state]="{ period: period()?.id ?? '' }"
                     >{{t.viewWaiting}}</a
                   >
                 }
@@ -273,11 +270,8 @@
                 <span>{{waitingText()}}</span>
                 <a
                   routerLink="/reconciliations"
-                  [queryParams]="{
-                    status: 'IN_REVIEW',
-                    reason: waitingReason,
-                    period: period()?.id ?? null,
-                  }"
+                  [queryParams]="{ status: 'IN_REVIEW', reason: waitingReason }"
+                  [state]="{ period: period()?.id ?? '' }"
                   >{{t.viewWaiting}}</a
                 >
               </div>

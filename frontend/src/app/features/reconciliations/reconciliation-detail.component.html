@@ -225,7 +225,11 @@
               </header>
               <p class="side-text">{{appealText(d)}}</p>
               @if (d.appeal.appealId && canOpenAppeal()) {
-                <a class="side-link" [routerLink]="['/appeals/department', d.appeal.appealId]">
+                <a
+                  class="side-link"
+                  routerLink="/appeals/department/detail"
+                  [state]="{ appealId: d.appeal.appealId }"
+                >
                   {{t.appeal.open}}
                 </a>
               }

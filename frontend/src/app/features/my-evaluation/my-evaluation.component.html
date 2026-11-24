@@ -2,9 +2,8 @@
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
-    <main class="workspace-content my-evaluation-container">
-      <!-- Breadcrumb navigation -->
-      <nav class="breadcrumb-trail" [attr.aria-label]="localization.myEvaluation.breadcrumbHome">
+    <main class="workspace-content evaluation-form-page">
+      <nav class="breadcrumb-trail" [attr.aria-label]="localization.myEvaluation.breadcrumbAria">
         <a routerLink="/home" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbHome}}</a>
         <span class="breadcrumb-separator">/</span>
         <a routerLink="/my-evaluation" class="breadcrumb-link">{{localization.myEvaluation.breadcrumbMyPerformance}}</a>
@@ -13,288 +12,332 @@
       </nav>
 
       @if (loading()) {
-        <div class="loading-state" role="status">
+        <section class="state-card" role="status">
           <div class="spinner" aria-hidden="true"></div>
           <p>{{localization.myEvaluation.loading}}</p>
-        </div>
+        </section>
       } @else if (loadFailed()) {
-        <div class="error-state" role="alert">
+        <section class="state-card" role="alert">
           <p>{{localization.myEvaluation.error}}</p>
-          <button type="button" class="btn-primary" (click)="loadPeriodsAndEvaluation()">
+          <button
+            type="button"
+            class="button button-secondary"
+            (click)="loadPeriodsAndEvaluation()"
+          >
             {{localization.myEvaluation.retry}}
           </button>
-        </div>
+        </section>
       } @else if (evaluation(); as evalData) {
-        <!-- Page Head -->
-        <header class="eval-head">
-          <div class="head-info">
-            <div class="title-badge-row">
-              <h1 class="eval-title">
+        <header class="ui-page-header">
+          <div class="ui-page-heading">
+            <div class="ui-title-row">
+              <h1 class="ui-page-title">
                 {{i18n.translate('myEvaluation.periodTitle', {
                     period: formatPeriodName(evalData.periodName),
                   })}}
               </h1>
-              <span class="badge-published">{{statusLabel(evalData.status)}}</span>
+              <app-status-badge [tone]="statusTone(evalData.status)">{{statusLabel(evalData.status)}}</app-status-badge>
             </div>
-            @if (evalData.appealRemainingDays > 0) {
-              <p class="appeal-deadline-notice">
-                {{i18n.translate('myEvaluation.appealDeadlineNotice', {
-                    deadline: formatAppealDeadline(evalData.appealDeadlineText),
-                    remainingDays: evalData.appealRemainingDays,
-                  })}}
-              </p>
-            } @else {
-              <p class="appeal-deadline-notice text-muted">
-                {{localization.myEvaluation.appealExpiredNotice}}
-              </p>
-            }
+            <p class="appeal-deadline-notice" [ngClass]="statusNoticeToneClass()">
+              {{statusNoticeText()}}
+            </p>
           </div>
 
-          <div class="head-actions">
-            <!-- Filter Năm / Quý / Tháng -->
-            <div class="filter-context-bar">
-              <!-- Năm -->
-              <div class="period-select-wrap">
-                <span class="period-label">{{localization.myEvaluation.yearLabel}}</span>
-                <select
-                  class="period-select year-select"
-                  [value]="year()"
-                  (change)="onYearChange($event)"
-                  [attr.aria-label]="localization.myEvaluation.yearAria"
-                >
-                  @for (item of years(); track item) {
-                    <option [value]="item" [selected]="item === year()">{{item}}</option>
-                  }
-                </select>
-                <app-layout-icon name="chevronDown" class="select-chevron" />
-              </div>
-
-              <!-- Quý -->
-              <div class="period-select-wrap">
-                <span class="period-label">{{localization.myEvaluation.quarterLabel}}</span>
-                <select
-                  class="period-select quarter-select"
-                  [value]="quarter()"
-                  (change)="onQuarterChange($event)"
-                  [attr.aria-label]="localization.myEvaluation.quarterAria"
-                >
-                  @if (hasYearPeriod()) {
-                    <option value="0" [selected]="quarter() === 0">
-                      {{localization.myEvaluation.wholeYear}}
-                    </option>
-                  }
-                  @for (item of quarterOptions(); track item) {
-                    <option [value]="item" [selected]="item === quarter()">
-                      {{quarterOptionText(item)}}
-                    </option>
-                  }
-                </select>
-                <app-layout-icon name="chevronDown" class="select-chevron" />
-              </div>
-
-              <!-- Tháng -->
-              <div class="period-select-wrap">
-                <span class="period-label">{{localization.myEvaluation.monthLabel}}</span>
-                <select
-                  class="period-select month-select"
-                  [value]="month()"
-                  (change)="onMonthChange($event)"
-                  [disabled]="quarter() === 0"
-                  [attr.aria-label]="localization.myEvaluation.monthAria"
-                >
-                  @if (hasQuarterPeriod()) {
-                    <option value="0" [selected]="month() === 0">
-                      {{localization.myEvaluation.wholeQuarter}}
-                    </option>
-                  }
-                  @for (item of monthOptions(); track item) {
-                    <option [value]="item" [selected]="item === month()">
-                      {{monthOptionText(item)}}
-                    </option>
-                  }
-                </select>
-                <app-layout-icon name="chevronDown" class="select-chevron" />
-              </div>
-            </div>
+          <div class="ui-page-actions">
+            <app-ui-select
+              [options]="yearSelectOptions()"
+              [value]="year() ?? undefined"
+              [ariaLabel]="localization.myEvaluation.yearAria"
+              (valueChange)="onYearChange($event)"
+            />
+            <app-ui-select
+              [options]="quarterSelectOptions()"
+              [value]="quarter()"
+              [ariaLabel]="localization.myEvaluation.quarterAria"
+              (valueChange)="onQuarterChange($event)"
+            />
+            <app-ui-select
+              [options]="monthSelectOptions()"
+              [value]="month()"
+              [disabled]="quarter() === 0"
+              [ariaLabel]="localization.myEvaluation.monthAria"
+              (valueChange)="onMonthChange($event)"
+            />
           </div>
         </header>
 
-        <!-- 3 Summary Metric Cards -->
-        <section class="summary-cards-grid" aria-label="Metric Summary">
-          <!-- Card 1: Tổng điểm PE -->
-          <article class="summary-card">
-            <span class="card-label">{{localization.myEvaluation.cardTotalScore}}</span>
-            <div class="card-body-row">
-              <span class="card-hero-score num">
+        @if (!isCalculatedOrAbove()) {
+          <section class="uncalculated-card" role="status">
+            <div class="uncalculated-icon" aria-hidden="true">
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <h2 class="uncalculated-title">{{localization.myEvaluation.notCalculatedTitle}}</h2>
+            <p class="uncalculated-notice">{{localization.myEvaluation.notCalculatedNotice}}</p>
+          </section>
+        } @else {
+          <section
+            class="metric-grid"
+            [attr.aria-label]="localization.evaluationForm.quantitativeSectionTitle"
+          >
+            <app-metric-card
+              [label]="localization.evaluationForm.quantitativeScoreTitle"
+              [pillText]="scorePillText()"
+              [pillClass]="scorePillClass()"
+            >
+              <span
+                class="metric-value font-mono"
+                [ngClass]="scoreToneClass(evalData.totalPeScore)"
+              >
                 @if (evalData.totalPeScore !== null) {
-                  {{evalData.totalPeScore | appNumber: 1}}
+                  {{evalData.totalPeScore | appNumber: 2}}
                 } @else {
-                  —
+                  {{localization.evaluations.emptyValue}}
                 }
               </span>
-              @if (evalData.previousPeriodName && evalData.scoreDelta !== null) {
-                <span
-                  class="card-delta-badge num"
-                  [class.text-positive]="evalData.scoreDelta >= 0"
-                  [class.text-negative]="evalData.scoreDelta < 0"
+              <span class="metric-scale font-mono">/ 100</span>
+            </app-metric-card>
+
+            <app-metric-card
+              [label]="localization.evaluationForm.metricCriteriaTitle"
+              [pillText]="criteriaPillText()"
+            >
+              <span class="metric-value font-mono" [ngClass]="criteriaToneClass()">{{criteriaValueText()}}</span>
+            </app-metric-card>
+
+            <app-metric-card [label]="localization.evaluationForm.metricSlaTitle">
+              <span class="metric-value font-mono" [ngClass]="slaToneClass()">{{slaValueText()}}</span>
+            </app-metric-card>
+
+            <app-metric-card [label]="localization.evaluationForm.metricRiskTitle">
+              <span class="metric-value font-mono" [class.text-danger]="riskCount() > 0">{{riskCount()}}</span>
+              <span class="metric-scale">{{localization.evaluationForm.metricRiskUnit}}</span>
+              @if (evalData.riskPenalty > 0) {
+                <span class="metric-deduction font-mono"
+                  >-{{evalData.riskPenalty | appNumber: 2}}</span
                 >
-                  {{i18n.translate(scoreTrendKey(evalData.scoreDelta), {
-                      diff: (absValue(evalData.scoreDelta) | appNumber: 1),
-                      prevPeriod: formatPeriodName(evalData.previousPeriodName),
-                      prevScore: (evalData.previousPeriodScore | appNumber: 1),
-                    })}}
-                </span>
               }
-            </div>
-          </article>
+            </app-metric-card>
 
-          <!-- Card 2: Tier -->
-          <article class="summary-card">
-            <span class="card-label">{{localization.myEvaluation.cardTier}}</span>
-            <div class="tier-card-body">
-              <span class="tier-hero-pill" [ngClass]="tierBadgeClass(evalData.tier)">
-                {{evalData.tier || '—'}}
-              </span>
-            </div>
-          </article>
+            <app-metric-card
+              [label]="localization.evaluationForm.metricTierTitle"
+              [pillText]="tierPillText()"
+            >
+              <span class="metric-value font-mono" [ngClass]="tierToneClass()">{{tierText()}}</span>
+            </app-metric-card>
+          </section>
 
-          <!-- Card 3: Xếp hạng (ẩn danh) -->
-          <article class="summary-card">
-            <span class="card-label">{{localization.myEvaluation.cardRanking}}</span>
-            <div class="ranking-card-body">
-              <span class="ranking-hero-val num">{{evalData.rankingPercentile}}</span>
-              <span class="ranking-sub-text">
-                {{i18n.translate('myEvaluation.cardRankingDetail', {
-                    rank: evalData.rankingPosition,
-                    total: evalData.rankingTotalEmployees,
-                    roleName: formatRoleTitle(evalData.rankingRoleTitle),
-                  })}}
-              </span>
-            </div>
-          </article>
-        </section>
+          <div class="main-grid">
+            <section class="table-card" [attr.aria-label]="localization.myEvaluation.tableAria">
+              <div class="table-card-head">
+                <h2 class="table-card-title">
+                  {{localization.evaluationForm.quantitativeSectionTitle}}
+                </h2>
+                <span class="table-card-meta">{{quantitativeMetaText()}}</span>
+              </div>
 
-        <!-- Evaluation Data Table -->
-        <section class="table-card surface-card" aria-label="Performance Breakdown">
-          <div class="table-scroll-wrap">
-            <table class="evaluation-table">
-              <thead>
-                <tr>
-                  <th scope="col" class="th-criteria">
-                    {{localization.myEvaluation.colCriteriaGroup}}
-                  </th>
-                  <th scope="col" class="th-target">{{localization.myEvaluation.colTarget}}</th>
-                  <th scope="col" class="th-actual">{{localization.myEvaluation.colActual}}</th>
-                  <th scope="col" class="th-score">{{localization.myEvaluation.colScore}}</th>
-                  <th scope="col" class="th-weight">{{localization.myEvaluation.colWeight}}</th>
-                  <th scope="col" class="th-weighted-score">
-                    {{localization.myEvaluation.colWeightedScore}}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (crit of evalData.criteria; track crit.id) {
-                  <tr class="criteria-row">
-                    <td class="col-criteria">
-                      @if (crit.hasDrilldown) {
-                        <button
-                          type="button"
-                          class="criteria-link-btn"
-                          (click)="openDrilldown(crit)"
-                        >
-                          <span class="criteria-link-label">{{crit.name}}</span>
-                          <span class="criteria-chevron" aria-hidden="true">›</span>
-                        </button>
-                      } @else {
-                        <span class="criteria-text">{{crit.name}}</span>
+              <div class="table-wrap">
+                <table class="kpi-table">
+                  <thead>
+                    <tr>
+                      <th class="th-item">{{localization.evaluationForm.colKpiItem}}</th>
+                      <th class="text-center">{{localization.evaluationForm.colWeight}}</th>
+                      <th class="text-center">{{localization.evaluationForm.colTarget}}</th>
+                      <th class="text-center">{{localization.evaluationForm.colActual}}</th>
+                      <th class="text-center">{{localization.evaluationForm.colAchievement}}</th>
+                      <th class="text-center">{{localization.evaluationForm.colScore}}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (evalData.criteriaGroups && evalData.criteriaGroups.length > 0) {
+                      @for (group of evalData.criteriaGroups; track group.evaluationProfileItemId) {
+                        <tr class="group-row">
+                          <td class="group-name">{{group.groupName}}</td>
+                          <td class="text-center font-mono">
+                            {{group.weightPercent | appNumber: 2}}%
+                          </td>
+                          <td colspan="3"></td>
+                          <td
+                            class="text-center font-mono score-cell"
+                            [ngClass]="scoreToneClass(group.groupScore)"
+                          >
+                            @if (group.groupScore !== null) {
+                              {{group.groupScore | appNumber: 2}}
+                            } @else {
+                              {{localization.evaluations.emptyValue}}
+                            }
+                          </td>
+                        </tr>
+
+                        @for (crit of group.criteria; track crit.id) {
+                          <tr class="kpi-row">
+                            <td class="kpi-name">
+                              @if (crit.hasDrilldown) {
+                                <button
+                                  type="button"
+                                  class="criteria-link-btn"
+                                  (click)="openDrilldown(crit)"
+                                >
+                                  <span>{{crit.name}}</span>
+                                  <span aria-hidden="true">›</span>
+                                </button>
+                              } @else {
+                                {{crit.name}}
+                              }
+                            </td>
+                            <td class="text-center font-mono">
+                              {{crit.weightPercent | appNumber: 2}}%
+                            </td>
+                            <td class="text-center font-mono">{{formatTarget(crit)}}</td>
+                            <td class="text-center font-mono">{{formatActual(crit)}}</td>
+                            <td class="text-center">
+                              @if (crit.score !== null) {
+                                <span
+                                  class="score-badge font-mono"
+                                  [ngClass]="scoreToneClass(crit.score)"
+                                >
+                                  {{crit.score | appNumber: 2}}%
+                                </span>
+                              } @else {
+                                <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                              }
+                            </td>
+                            <td
+                              class="text-center font-mono score-cell"
+                              [ngClass]="scoreToneClass(crit.weightedScore)"
+                            >
+                              @if (crit.weightedScore !== null) {
+                                {{crit.weightedScore | appNumber: 2}}
+                              } @else {
+                                <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                              }
+                            </td>
+                          </tr>
+                        }
                       }
-                    </td>
-                    <td class="col-target num">{{formatTarget(crit)}}</td>
-                    <td class="col-actual num">{{formatActual(crit)}}</td>
-                    <td class="col-score num">
-                      @if (crit.score !== null) {
-                        {{crit.score | appNumber: 1}}
-                      } @else {
-                        —
+                    } @else {
+                      @for (crit of evalData.criteria; track crit.id) {
+                        <tr class="kpi-row">
+                          <td class="kpi-name">
+                            @if (crit.hasDrilldown) {
+                              <button
+                                type="button"
+                                class="criteria-link-btn"
+                                (click)="openDrilldown(crit)"
+                              >
+                                <span>{{crit.name}}</span>
+                                <span aria-hidden="true">›</span>
+                              </button>
+                            } @else {
+                              {{crit.name}}
+                            }
+                          </td>
+                          <td class="text-center font-mono">
+                            {{crit.weightPercent | appNumber: 2}}%
+                          </td>
+                          <td class="text-center font-mono">{{formatTarget(crit)}}</td>
+                          <td class="text-center font-mono">{{formatActual(crit)}}</td>
+                          <td class="text-center">
+                            @if (crit.score !== null) {
+                              <span
+                                class="score-badge font-mono"
+                                [ngClass]="scoreToneClass(crit.score)"
+                              >
+                                {{crit.score | appNumber: 2}}%
+                              </span>
+                            } @else {
+                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                            }
+                          </td>
+                          <td
+                            class="text-center font-mono score-cell"
+                            [ngClass]="scoreToneClass(crit.weightedScore)"
+                          >
+                            @if (crit.weightedScore !== null) {
+                              {{crit.weightedScore | appNumber: 2}}
+                            } @else {
+                              <span class="text-muted">{{localization.evaluations.emptyValue}}</span>
+                            }
+                          </td>
+                        </tr>
                       }
-                    </td>
-                    <td class="col-weight num">{{crit.weightPercent}}%</td>
-                    <td class="col-weighted-score num">
-                      @if (crit.weightedScore !== null) {
-                        {{crit.weightedScore | appNumber: 1}}
-                      } @else {
-                        —
-                      }
-                    </td>
-                  </tr>
+                    }
+
+                    <tr class="risk-table-row">
+                      <td colspan="5">
+                        {{localization.evaluationForm.riskCardTitle}}
+                        @if (evalData.riskPenalty > 0) {
+                          <span class="risk-table-meta">{{riskPenaltyPillText(evalData)}}</span>
+                        }
+                      </td>
+                      <td class="text-center font-mono">
+                        @if (evalData.riskPenalty > 0) {
+                          -{{evalData.riskPenalty | appNumber: 2}}
+                        } @else {
+                          0
+                        }
+                      </td>
+                    </tr>
+
+                    <tr class="total-row">
+                      <td colspan="5">{{localization.evaluationForm.rowTotalKpi}}</td>
+                      <td class="text-center font-mono">
+                        @if (evalData.totalPeScore !== null) {
+                          {{evalData.totalPeScore | appNumber: 2}}
+                        } @else {
+                          {{localization.evaluations.emptyValue}}
+                        }
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="table-card-foot">
+                <p>{{localization.evaluationForm.footnoteCalculation}}</p>
+              </div>
+            </section>
+
+            <aside class="side-column">
+              <app-metric-card [label]="localization.myEvaluation.cardRanking">
+                <span class="metric-value font-mono">{{departmentRankingValue()}}</span>
+                @if (departmentRankingDetail(); as detail) {
+                  <span class="metric-scale">{{detail}}</span>
                 }
+              </app-metric-card>
 
-                <!-- Modifier rows -->
-                <tr class="modifier-row">
-                  <td class="col-criteria modifier-label">
-                    {{localization.myEvaluation.rowQualityRatio}}
-                  </td>
-                  <td class="col-target"></td>
-                  <td class="col-actual"></td>
-                  <td class="col-score"></td>
-                  <td class="col-weight"></td>
-                  <td class="col-weighted-score modifier-val num">
-                    {{formatRatio(evalData.qualityRatio)}}
-                  </td>
-                </tr>
-                <tr class="modifier-row">
-                  <td class="col-criteria modifier-label">
-                    {{localization.myEvaluation.rowRiskPenalty}}
-                  </td>
-                  <td class="col-target"></td>
-                  <td class="col-actual"></td>
-                  <td class="col-score"></td>
-                  <td class="col-weight"></td>
-                  <td class="col-weighted-score modifier-val num">
-                    @if (evalData.riskPenalty > 0) {
-                      -{{evalData.riskPenalty | appNumber: 1}}
-                    } @else {
-                      0
-                    }
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot>
-                <tr class="total-row">
-                  <td class="col-criteria total-label">{{localization.myEvaluation.rowTotal}}</td>
-                  <td class="col-target"></td>
-                  <td class="col-actual"></td>
-                  <td class="col-score"></td>
-                  <td class="col-weight total-weight num">100%</td>
-                  <td class="col-weighted-score total-score num">
-                    @if (evalData.totalPeScore !== null) {
-                      {{evalData.totalPeScore | appNumber: 1}}
-                    } @else {
-                      —
-                    }
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+              <section class="side-card">
+                <h2 class="side-card-title">{{localization.myEvaluation.managerNotesTitle}}</h2>
+                <p class="manager-body">
+                  {{evalData.managerFeedback || localization.evaluations.emptyValue}}
+                </p>
+              </section>
+
+              <app-risk-summary-card
+                [title]="localization.myEvaluation.riskCardTitle"
+                [totalLabel]="localization.myEvaluation.riskTotalLabel"
+                [totalPenalty]="evalData.riskPenalty"
+              />
+            </aside>
           </div>
-        </section>
-
-        <!-- Manager Feedback Card -->
-        <section class="manager-card surface-card" aria-label="Manager Feedback">
-          <h2 class="manager-title">{{localization.myEvaluation.managerNotesTitle}}</h2>
-          <p class="manager-body">{{evalData.managerFeedback || '—'}}</p>
-        </section>
-
-        <!-- Footnote notice -->
-        <footer class="eval-footnote">
-          <p>{{localization.myEvaluation.footnote}}</p>
-        </footer>
+        }
       }
     </main>
   </div>
 </div>
 
-<!-- Modal Drilldown Ledger Drawer -->
 @if (selectedDrilldownCriteria(); as crit) {
   <div
     animate.leave="g54-leave-fade"

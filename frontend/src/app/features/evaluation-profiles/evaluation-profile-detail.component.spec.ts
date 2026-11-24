@@ -1,8 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -11,6 +10,7 @@ import {
   EvaluationProfileListItem,
 } from '../../core/evaluation-profile.models';
 import { EvaluationProfileDetailComponent } from './evaluation-profile-detail.component';
+import { provideRouteState } from '../../core/route-state.testing';
 
 const url = `${environment.apiUrl}/evaluation-profiles`;
 
@@ -109,13 +109,7 @@ describe('EvaluationProfileDetailComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            paramMap: of(convertToParamMap({ id })),
-            snapshot: { paramMap: convertToParamMap({ id }) },
-          },
-        },
+        ...provideRouteState({ profileId: id }).providers,
         {
           provide: AuthService,
           useValue: {

@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { DepartmentRankingApprovalComponent } from './department-ranking-approval.component';
 import { EvaluationService } from '../../../core/evaluation.service';
@@ -15,6 +15,7 @@ import {
 } from '../../../core/evaluation.models';
 import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
+import { provideRouteState } from '../../../core/route-state.testing';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class StubHeaderComponent {
@@ -273,12 +274,7 @@ describe('DepartmentRankingApprovalComponent', () => {
         provideRouter([]),
         { provide: EvaluationService, useValue: evaluationServiceSpy },
         { provide: I18nService, useValue: i18nServiceSpy },
-        {
-          provide: ActivatedRoute,
-          useValue: {
-            paramMap: of(convertToParamMap({ periodId: 'p-1' })),
-          },
-        },
+        ...provideRouteState({ periodId: 'p-1' }).providers,
       ],
     })
       .overrideComponent(DepartmentRankingApprovalComponent, {
@@ -412,7 +408,7 @@ describe('DepartmentRankingApprovalComponent', () => {
   it('should navigate to traceability when clicking employee link', () => {
     component.navigateToTraceability('emp-1');
     expect(router.navigate).toHaveBeenCalledWith(['/performance-traceability'], {
-      queryParams: { employeeId: 'emp-1', periodId: 'p-1' },
+      state: { employeeId: 'emp-1', periodId: 'p-1' },
     });
   });
 });

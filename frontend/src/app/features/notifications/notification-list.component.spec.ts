@@ -135,7 +135,7 @@ describe('NotificationListComponent', () => {
     http.expectOne(`${url}/a/read`).flush(envelope(item('a', { isRead: true })));
     fixture.detectChanges();
 
-    expect(navigate).toHaveBeenCalledWith(['/my-work'], { queryParams: { workId: 'w1' } });
+    expect(navigate).toHaveBeenCalledWith(['/my-work'], { state: { workId: 'w1' } });
     expect(fixture.nativeElement.querySelectorAll('tbody tr.is-unread').length).toBe(0);
   });
 

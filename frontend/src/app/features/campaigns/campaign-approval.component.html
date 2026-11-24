@@ -100,7 +100,7 @@
                   <p class="eyebrow">{{localization.campaign.approval.dossier}}</p>
                   <h2>{{c.code}} – {{c.name}}</h2>
                 </div>
-                <a class="link" [routerLink]="['/campaigns', c.id]">
+                <a class="link" routerLink="/campaigns/detail" [state]="{ campaignId: c.id }">
                   {{localization.campaign.approval.openDetail}} →
                 </a>
               </div>

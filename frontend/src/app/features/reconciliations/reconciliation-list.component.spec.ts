@@ -207,16 +207,20 @@ describe('ReconciliationListComponent', () => {
     request.flush(list([item()]));
   }));
 
-  it('keeps the filters in the address', () => {
+  it('keeps readable filters in the address and record ids in the navigation state', () => {
     const fixture = open();
     navigate.calls.reset();
 
     cards(fixture)[2].click();
     http.expectOne((r) => r.url === url).flush(list([]));
 
-    const extras = navigate.calls.mostRecent().args[1] as { queryParams: Record<string, string> };
+    const extras = navigate.calls.mostRecent().args[1] as {
+      queryParams: Record<string, string>;
+      state: Record<string, string>;
+    };
     expect(extras.queryParams['status']).toBe('IN_REVIEW');
-    expect(extras.queryParams['period']).toBe('p1');
+    expect(extras.queryParams['period']).toBeUndefined();
+    expect(extras.state['period']).toBe('p1');
   });
 
   it('says there is nothing to show instead of an error', () => {
@@ -245,7 +249,9 @@ describe('ReconciliationListComponent', () => {
 
     (fixture.nativeElement.querySelector('tbody tr') as HTMLElement).click();
 
-    expect(navigate).toHaveBeenCalledWith(['/reconciliations', 'r1']);
+    expect(navigate).toHaveBeenCalledWith(['/reconciliations/detail'], {
+      state: { reconciliationId: 'r1' },
+    });
   });
 
   it('offers the department filter when more than one department is in view', () => {

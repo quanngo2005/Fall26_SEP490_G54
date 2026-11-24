@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import {
   currentWeekIndex,
@@ -14,6 +14,7 @@ import { dashboardFixture } from './qa-dashboard.fixtures.spec';
 import { QaEmployeesComponent } from './qa-employees.component';
 import { QaReasonsComponent } from './qa-reasons.component';
 import { QaTrendChartComponent } from './qa-trend-chart.component';
+import { By } from '@angular/platform-browser';
 
 describe('QA dashboard display helpers', () => {
   it('fills placeholders and keeps unknown ones', () => {
@@ -64,7 +65,7 @@ describe('QA dashboard blocks', () => {
       fixture = TestBed.createComponent(QaReasonsComponent);
       fixture.componentRef.setInput('reasons', dashboardFixture().commonDiscrepancyReasons);
       fixture.componentRef.setInput('periodName', '10/2026');
-      fixture.componentRef.setInput('linkParams', { period: 'p10' });
+      fixture.componentRef.setInput('linkState', { period: 'p10' });
       fixture.detectChanges();
     });
 
@@ -88,10 +89,10 @@ describe('QA dashboard blocks', () => {
       expect(legend).toContain('nhân viên cần sửa (6)');
     });
 
-    it('opens the reconciliations filtered by the reason', () => {
-      expect(rows()[1].getAttribute('href')).toBe(
-        '/reconciliations?period=p10&reason=EMPLOYEE_MISMATCH',
-      );
+    it('opens the reconciliations filtered by the reason, with the period id kept out of the URL', () => {
+      expect(rows()[1].getAttribute('href')).toBe('/reconciliations?reason=EMPLOYEE_MISMATCH');
+      const link = fixture.debugElement.queryAll(By.css('a.reason'))[1];
+      expect(link.injector.get(RouterLink).state).toEqual({ period: 'p10' });
     });
 
     it('says so when nothing is pending', () => {
@@ -109,7 +110,7 @@ describe('QA dashboard blocks', () => {
     beforeEach(() => {
       fixture = TestBed.createComponent(QaEmployeesComponent);
       fixture.componentRef.setInput('employees', dashboardFixture().topDiscrepancyEmployees);
-      fixture.componentRef.setInput('linkParams', { period: 'p10' });
+      fixture.componentRef.setInput('linkState', { period: 'p10' });
       fixture.detectChanges();
     });
 
@@ -126,14 +127,16 @@ describe('QA dashboard blocks', () => {
 
     it('opens the unmatched codes of the employee from the row', () => {
       const link = el().querySelector('tbody a');
-      expect(link?.getAttribute('href')).toBe(
-        '/reconciliations?period=p10&status=NOT_MATCHED&q=NV020',
-      );
+      expect(link?.getAttribute('href')).toBe('/reconciliations?status=NOT_MATCHED&q=NV020');
+      expect(fixture.debugElement.query(By.css('tbody a')).injector.get(RouterLink).state).toEqual({
+        period: 'p10',
+      });
       const router = TestBed.inject(Router);
       const navigate = spyOn(router, 'navigate').and.resolveTo(true);
       (el().querySelector('tbody tr td.num') as HTMLElement).click();
       expect(navigate).toHaveBeenCalledWith(['/reconciliations'], {
-        queryParams: { period: 'p10', status: 'NOT_MATCHED', q: 'NV020' },
+        queryParams: { status: 'NOT_MATCHED', q: 'NV020' },
+        state: { period: 'p10' },
       });
     });
   });

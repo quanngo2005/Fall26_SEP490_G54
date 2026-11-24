@@ -192,30 +192,6 @@
   gap: 16px;
 }
 
-.side-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.side-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.side-card-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
 .field-label {
   font-size: 13px;
   font-weight: 600;
@@ -253,44 +229,6 @@
   font-size: 12px;
   color: #94a3b8;
   text-align: right;
-}
-
-.risk-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid #f1f5f9;
-}
-
-.risk-name {
-  margin: 0;
-  font-size: 13px;
-  color: #334155;
-}
-
-.risk-meta {
-  margin: 2px 0 0;
-  font-size: 11px;
-  color: #64748b;
-}
-
-.risk-points {
-  font-size: 13px;
-  font-weight: 700;
-  color: #be123c;
-}
-
-.risk-total {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
 }
 
 .attention-row {

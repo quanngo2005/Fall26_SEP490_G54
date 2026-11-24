@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { CampaignDetail, CampaignSummary } from '../../core/campaign.models';
@@ -94,10 +94,11 @@ describe('CampaignApprovalComponent', () => {
     decide: jasmine.createSpy('decide'),
   };
 
-  const open = async (url = '/campaigns/approval') => {
+  const open = async (state: Record<string, string> = {}) => {
     const harness = await RouterTestingHarness.create();
-    const component = await harness.navigateByUrl(url, CampaignApprovalComponent);
+    await TestBed.inject(Router).navigate(['/campaigns/approval'], { state });
     harness.detectChanges();
+    const component = harness.routeDebugElement!.componentInstance as CampaignApprovalComponent;
     return { harness, component, root: harness.routeNativeElement as HTMLElement };
   };
 
@@ -164,10 +165,11 @@ describe('CampaignApprovalComponent', () => {
     expect(root.querySelector('.facts')?.textContent).toContain('(2 SO, 1 Teller)');
   });
 
-  it('preselects the campaign from the id query parameter', async () => {
-    await open('/campaigns/approval?id=c2');
+  it('preselects the campaign passed in the navigation state, with no id in the URL', async () => {
+    await open({ campaignId: 'c2' });
 
     expect(api.detail).toHaveBeenCalledWith('c2');
+    expect(TestBed.inject(Router).url).toBe('/campaigns/approval');
   });
 
   it('approves without a note and reloads the queue', async () => {

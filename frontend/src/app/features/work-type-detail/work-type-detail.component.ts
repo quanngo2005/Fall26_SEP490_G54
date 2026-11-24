@@ -1,9 +1,10 @@
 ﻿import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, EMPTY, finalize, map, Subject, switchMap, tap } from 'rxjs';
+import { Router } from '@angular/router';
+import { catchError, EMPTY, finalize, Subject, switchMap, tap } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { RouteStateService } from '../../core/route-state.service';
 import { WorkTypeDetail, WorkTypeKpiDetail, WorkTypeStatus } from '../../core/work-type.models';
 import { WorkTypeService } from '../../core/work-type.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -24,7 +25,7 @@ type MappingState = 'current' | 'upcoming' | 'expired';
 })
 export class WorkTypeDetailComponent extends LocalizedComponent {
   private readonly api = inject(WorkTypeService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload = new Subject<void>();
@@ -46,7 +47,7 @@ export class WorkTypeDetailComponent extends LocalizedComponent {
           return this.api.list({ pageSize: 100 }).pipe(
             tap((page) => {
               this.workTypes.set(page.items);
-              const requested = this.route.snapshot.paramMap.get('id');
+              const requested = this.routeState.value('workTypeId');
               const current = page.items.find((item) => item.id === requested) ?? page.items[0];
               this.workType.set(current ?? null);
               this.selectedId = current?.id ?? '';
@@ -62,11 +63,9 @@ export class WorkTypeDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    this.route.paramMap
-      .pipe(
-        map((params) => params.get('id')),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.routeState
+      .watch('workTypeId')
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((id) => {
         const known = this.workTypes().find((item) => item.id === id);
         if (known) {
@@ -83,7 +82,7 @@ export class WorkTypeDetailComponent extends LocalizedComponent {
   }
 
   protected changeWorkType(): void {
-    void this.router.navigate(['/work-type-detail', this.selectedId]);
+    void this.router.navigate(['/work-type-detail'], { state: { workTypeId: this.selectedId } });
   }
 
   protected toggleHistory(event: Event): void {

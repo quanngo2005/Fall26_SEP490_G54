@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import {
   CampaignDecision,
@@ -10,6 +10,7 @@ import {
   CampaignSummary,
 } from '../../core/campaign.models';
 import { CampaignService } from '../../core/campaign.service';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
@@ -30,7 +31,7 @@ const PENDING_PAGE_SIZE = 50;
 })
 export class CampaignApprovalComponent extends LocalizedComponent {
   private readonly api = inject(CampaignService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly pending = signal<CampaignSummary[]>([]);
@@ -48,7 +49,7 @@ export class CampaignApprovalComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.load(this.route.snapshot.queryParamMap.get('id'));
+    this.load(this.routeState.value('campaignId'));
   }
 
   protected load(preferredId: string | null = null): void {

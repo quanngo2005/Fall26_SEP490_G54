@@ -244,7 +244,7 @@ export class EvaluationProfileListComponent extends LocalizedComponent {
 
   /** SCR-CFG-01-D1: the whole row opens the profile detail. */
   protected openDetail(item: EvaluationProfileListItem): void {
-    void this.router.navigate(['/evaluation-profiles', item.id]);
+    void this.router.navigate(['/evaluation-profiles/detail'], { state: { profileId: item.id } });
   }
 
   /** The row button views an approved or locked profile and edits any other. */

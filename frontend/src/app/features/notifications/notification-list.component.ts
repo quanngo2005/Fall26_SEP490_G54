@@ -225,7 +225,7 @@ export class NotificationListComponent extends LocalizedComponent {
         });
     }
     const link = notificationLink(item);
-    if (link) void this.router.navigate(link.commands, { queryParams: link.queryParams });
+    if (link) void this.router.navigate(link.commands, { state: link.state });
   }
 
   hasLink(item: NotificationItem): boolean {

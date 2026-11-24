@@ -38,7 +38,8 @@ const LABEL_HEADROOM = 1.25;
     <a
       class="unit row-link"
       routerLink="/department-performance"
-      [queryParams]="{ department: unit.code, periodId: periodId(), compare: compare() }"
+      [queryParams]="{ department: unit.code, compare: compare() }"
+      [state]="{ periodId: periodId() }"
     >
       <span class="name"
         ><b>{{unit.name}}</b
