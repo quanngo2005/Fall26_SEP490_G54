@@ -35,7 +35,7 @@ import {
   UiSelectComponent,
 } from '../../shared/ui';
 import { RiskEventCreateModalComponent } from './risk-event-create-modal.component';
-import { RiskEventDrawerComponent } from './risk-event-drawer.component';
+import { RiskEventChange, RiskEventDrawerComponent } from './risk-event-drawer.component';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -43,6 +43,13 @@ const DEFAULT_SORT_KEY = 'occurredAt';
 const DEFAULT_SORT_DIR = 'desc';
 /** Columns whose first click shows the newest / biggest first. */
 const DEFAULT_DESCENDING = ['occurredAt', 'penalty', 'severity'];
+
+const CHANGE_NOTICES: Record<RiskEventChange['action'], string> = {
+  confirm: 'riskEvents.confirmed',
+  dismiss: 'riskEvents.dismissed',
+  resolve: 'riskEvents.resolved',
+  reverse: 'riskEvents.reversed',
+};
 
 @Component({
   selector: 'app-risk-events',
@@ -278,8 +285,8 @@ export class RiskEventsComponent extends LocalizedComponent implements OnInit {
     this.reload.next();
   }
 
-  protected onReversed(code: string): void {
-    this.notice.set(this.i18n.translate('riskEvents.reversed', { code }));
+  protected onChanged(change: RiskEventChange): void {
+    this.notice.set(this.i18n.translate(CHANGE_NOTICES[change.action], { code: change.code }));
     this.reload.next();
   }
 
@@ -298,8 +305,23 @@ export class RiskEventsComponent extends LocalizedComponent implements OnInit {
     }
   }
 
+  /** A reversed or dismissed event shows "Removed"; any other event shows where it is in its lifecycle. */
   protected stateLabel(item: RiskEventListItem): string {
-    return this.localization.riskEvents.state[item.state];
+    return item.state === 'REVERSED'
+      ? this.localization.riskEvents.state.REVERSED
+      : this.localization.riskEvents.status[item.status];
+  }
+
+  protected stateTone(item: RiskEventListItem): StatusBadgeTone {
+    if (item.state === 'REVERSED') return 'neutral';
+    switch (item.status) {
+      case 'OPEN':
+        return 'warning';
+      case 'RESOLVED':
+        return 'success';
+      default:
+        return 'info';
+    }
   }
 
   protected typeLabel(code: string): string {

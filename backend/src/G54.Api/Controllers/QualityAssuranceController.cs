@@ -103,11 +103,15 @@ public sealed class QualityAssuranceController(
     [HttpPost("quality-flags/{id:guid}/dismiss")]
     [HasPermission("quality_flag", "dismiss", PermissionScopes.All)]
     [ProducesResponseType<ApiResponse<QualityFlagDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ApiResponse<QualityFlagDto>>> DismissFlag(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<QualityFlagDto>>> DismissFlag(
+        Guid id,
+        [FromBody] DismissQualityFlagDto dto,
+        CancellationToken cancellationToken)
     {
-        var result = await service.DismissFlagAsync(id, User.GetRequiredUserId(), cancellationToken);
+        var result = await service.DismissFlagAsync(id, User.GetRequiredUserId(), dto, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

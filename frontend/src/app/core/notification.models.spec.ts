@@ -55,6 +55,10 @@ describe('notificationLink', () => {
     expect(link('IMPORT_COMPLETED_WITH_ERRORS', 'IMPORT_BATCH')).toEqual({
       commands: ['/import-history'],
     });
+    expect(link('RATING_ONE_STAR', 'IMPORT_BATCH')).toEqual({
+      commands: ['/import-history'],
+      state: { importFileType: 'SERVICE_RATING', importBatchId: 'abc' },
+    });
     expect(link('HANDOVER_REQUESTED', 'HANDOVER')).toEqual({ commands: ['/my-work'] });
   });
 

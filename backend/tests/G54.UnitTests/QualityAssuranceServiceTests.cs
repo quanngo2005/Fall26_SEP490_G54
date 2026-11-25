@@ -15,6 +15,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 5, 3, 0, 0, TimeSpan.Zero);
     private const string LongReason = "Số liệu trên chứng từ không khớp với báo cáo.";
+    private const string DismissReason = "Đã đối chiếu lại, chứng từ khớp với báo cáo.";
 
     private readonly AppDbContext _db = new(new DbContextOptionsBuilder<AppDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -184,6 +185,8 @@ public sealed class QualityAssuranceServiceTests : IDisposable
 
         Assert.Equal("REWORK_REQUESTED", reworked.Status);
         Assert.Equal(Now, reworked.ReworkRequestedAt);
+        Assert.Equal(qa.FullName, reworked.ReviewedByName);
+        Assert.Equal(Now, reworked.ReviewedAt);
         var storedResult = await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id);
         Assert.Equal(VerifiedResultStatus.Invalid, storedResult.Status);
         Assert.Equal(Now, storedResult.InvalidatedAt);
@@ -231,17 +234,33 @@ public sealed class QualityAssuranceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Dismiss_ClosesAnOpenFlagWithoutTouchingTheResult()
+    public async Task Dismiss_ClosesAnOpenFlagWithItsReasonAndReviewer_WithoutTouchingTheResult()
     {
         var (_, qa, work, submission, result) = await SeedApprovedAsync();
         var flag = await Service.CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
 
-        var dismissed = await Service.DismissFlagAsync(flag.Id, qa.Id);
+        var dismissed = await Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto($"  {DismissReason}  "));
 
         Assert.Equal("DISMISSED", dismissed.Status);
+        Assert.Equal(DismissReason, dismissed.DismissReason);
+        Assert.Equal(qa.FullName, dismissed.ReviewedByName);
+        Assert.Equal(Now, dismissed.ReviewedAt);
         Assert.Equal(VerifiedResultStatus.Valid, (await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id)).Status);
         Assert.Equal(WorkStatus.Verified, (await _db.Works.AsNoTracking().SingleAsync(w => w.Id == work.Id)).Status);
-        await Assert.ThrowsAsync<ConflictException>(() => Service.DismissFlagAsync(flag.Id, qa.Id));
+        await Assert.ThrowsAsync<ConflictException>(() => Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto(DismissReason)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("quá ngắn")]
+    public async Task Dismiss_RequiresAReason_AndLeavesTheFlagOpen(string? reason)
+    {
+        var (_, qa, _, submission, _) = await SeedApprovedAsync();
+        var flag = await Service.CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto(reason)));
+
+        Assert.Equal(QualityFlagStatus.Open, (await _db.QualityFlags.AsNoTracking().SingleAsync(f => f.Id == flag.Id)).Status);
     }
 
     [Fact]
@@ -251,7 +270,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
         var (_, _, _, second, _) = await SeedApprovedAsync();
         var firstFlag = await Service.CreateFlagAsync(first.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
         await Service.CreateFlagAsync(second.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
-        await Service.DismissFlagAsync(firstFlag.Id, qa.Id);
+        await Service.DismissFlagAsync(firstFlag.Id, qa.Id, new DismissQualityFlagDto(DismissReason));
 
         var open = await Service.GetFlagsAsync(new QualityFlagFilterDto { Status = "OPEN" });
         var ofMaker = await Service.GetFlagsAsync(new QualityFlagFilterDto { EmployeeId = maker.Id });

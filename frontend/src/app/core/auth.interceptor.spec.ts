@@ -64,6 +64,8 @@ describe('authInterceptor', () => {
     '/reconciliations',
     '/transaction-imports',
     '/transaction-imports/template',
+    '/service-rating-imports',
+    '/service-rating-imports/template',
     '/data-imports/employees/preview',
   ]) {
     it(`sends the bearer token to the QA endpoint ${path}`, () => {

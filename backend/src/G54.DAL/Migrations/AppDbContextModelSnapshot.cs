@@ -1055,6 +1055,14 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("file_name");
 
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("TRANSACTION")
+                        .HasColumnName("file_type");
+
                     b.Property<DateTimeOffset>("ImportedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("imported_at");
@@ -1073,6 +1081,8 @@ namespace G54.DAL.Migrations
 
                     b.HasKey("Id")
                         .HasName("import_batch_pkey");
+
+                    b.HasIndex(new[] { "FileType", "ImportedAt" }, "ix_import_batch_file_type");
 
                     b.ToTable("import_batch", (string)null);
                 });
@@ -1977,6 +1987,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DismissReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("dismiss_reason");
+
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
@@ -1998,6 +2013,14 @@ namespace G54.DAL.Migrations
                     b.Property<Guid>("ResultSubmissionId")
                         .HasColumnType("uuid")
                         .HasColumnName("result_submission_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_employee_id");
 
                     b.Property<string>("ReworkComment")
                         .HasMaxLength(2000)
@@ -2042,6 +2065,8 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("ResultSubmissionId")
                         .HasDatabaseName("ix_quality_flag_submission");
+
+                    b.HasIndex("ReviewedByEmployeeId");
 
                     b.HasIndex("Status", "CreatedAt")
                         .HasDatabaseName("ix_quality_flag_status");
@@ -2503,6 +2528,60 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("role_permission", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ServiceRating", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CustomerComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("customer_comment");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<DateOnly>("RatingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("rating_date");
+
+                    b.Property<short>("Score")
+                        .HasColumnType("smallint")
+                        .HasColumnName("score");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.HasKey("Id")
+                        .HasName("service_rating_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId" }, "ix_service_rating_batch");
+
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_service_rating_employee");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_service_rating_transaction_code")
+                        .IsUnique();
+
+                    b.ToTable("service_rating", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_service_rating_score", "score BETWEEN 1 AND 5");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.SidebarConfiguration", b =>
@@ -4181,6 +4260,12 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_quality_flag_submission");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "ReviewedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_quality_flag_reviewer");
+
                     b.Navigation("Employee");
 
                     b.Navigation("FlaggedByEmployee");
@@ -4188,6 +4273,8 @@ namespace G54.DAL.Migrations
                     b.Navigation("QaSample");
 
                     b.Navigation("ResultSubmission");
+
+                    b.Navigation("ReviewedByEmployee");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RankingPolicy", b =>
@@ -4298,6 +4385,27 @@ namespace G54.DAL.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ServiceRating", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_rating_employee");
+
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("ServiceRatings")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_rating_batch");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ImportBatch");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
@@ -4779,6 +4887,8 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
                 {
                     b.Navigation("Errors");
+
+                    b.Navigation("ServiceRatings");
 
                     b.Navigation("Transactions");
                 });

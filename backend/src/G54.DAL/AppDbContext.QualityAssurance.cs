@@ -29,6 +29,9 @@ public partial class AppDbContext
             entity.Property(e => e.Reason).HasMaxLength(2000).HasColumnName("reason");
             entity.Property(e => e.ReworkComment).HasMaxLength(2000).HasColumnName("rework_comment");
             entity.Property(e => e.ReworkRequestedAt).HasColumnName("rework_requested_at");
+            entity.Property(e => e.ReviewedByEmployeeId).HasColumnName("reviewed_by_employee_id");
+            entity.Property(e => e.ReviewedAt).HasColumnName("reviewed_at");
+            entity.Property(e => e.DismissReason).HasMaxLength(2000).HasColumnName("dismiss_reason");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(e => new { e.Status, e.CreatedAt }).HasDatabaseName("ix_quality_flag_status");
@@ -41,6 +44,8 @@ public partial class AppDbContext
                 .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_quality_flag_employee");
             entity.HasOne(e => e.FlaggedByEmployee).WithMany().HasForeignKey(e => e.FlaggedByEmployeeId)
                 .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_quality_flag_flagged_by");
+            entity.HasOne(e => e.ReviewedByEmployee).WithMany().HasForeignKey(e => e.ReviewedByEmployeeId)
+                .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_quality_flag_reviewer");
         });
 
         modelBuilder.Entity<QaSample>(entity =>

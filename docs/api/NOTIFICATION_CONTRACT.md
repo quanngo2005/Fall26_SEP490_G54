@@ -125,7 +125,7 @@ Các sự kiện **đã có** thông báo (người nhận → `type`). Người
 | **Ngoại lệ**: lỗi chưa xử lý (HTTP 500) | Mọi Admin đang hoạt động (`IMPORTANT`), kèm `traceId` | `SYSTEM_ALERT` |
 | **Ngoại lệ**: tài khoản bị khóa vì đăng nhập / đổi mật khẩu sai quá số lần | Mọi Admin đang hoạt động (`IMPORTANT`), kèm mã nhân viên, IP | `SYSTEM_ALERT` |
 
-`RATING_ONE_STAR` mới chỉ là loại thông báo (SCR-NTF-01), chưa có luồng nào phát hành. Không có loại thông báo escalation.
+`RATING_ONE_STAR` được phát hành khi import đánh giá dịch vụ có đánh giá 1 sao: mỗi đánh giá một thông báo cho từng Trưởng phòng của nhân viên (`IMPORTANT`, `relatedType = IMPORT_BATCH`, BR-17, `SERVICE_RATING_IMPORT_CONTRACT.md`). Không có loại thông báo escalation.
 
 Thông báo tự động là **best effort**: nếu không ghi được thì chỉ log cảnh báo và **không** làm hỏng thao tác chính đã lưu. Ngoại lệ ở bảng trên chỉ là cảnh báo cho Admin, không đổi phản hồi lỗi trả cho người gọi.
 

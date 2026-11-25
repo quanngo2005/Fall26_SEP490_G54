@@ -1,4 +1,5 @@
 @let t = localization.dataImport;
+@let isTransaction = fileType() === 'TRANSACTION';
 <div class="workspace-layout">
   <app-sidebar />
   <div class="workspace-main">
@@ -29,7 +30,7 @@
           [class.is-done]="step() === 'RESULT'"
           [attr.aria-current]="step() === 'UPLOAD' ? 'step' : null"
         >
-          <span class="step-index">2</span>{{t.stepUpload}}
+          <span class="step-index">2</span>{{isTransaction ? t.stepUpload : t.stepUploadRatings}}
         </li>
         <li
           [class.is-active]="step() === 'RESULT'"
@@ -43,20 +44,28 @@
         @case ('CHOOSE') {
           <section class="import-card" [attr.aria-label]="t.stepChoose">
             <div class="type-row" role="radiogroup" [attr.aria-label]="t.fileType">
-              <button type="button" class="type-chip is-selected" role="radio" aria-checked="true">
-                {{t.typeTransactions}}
-              </button>
               <button
                 type="button"
                 class="type-chip"
                 role="radio"
-                aria-checked="false"
-                disabled
-                [title]="t.typeRatingsPending"
+                [class.is-selected]="isTransaction"
+                [attr.aria-checked]="isTransaction"
+                (click)="selectType('TRANSACTION')"
               >
-                {{t.typeRatings}}
-                <span>{{t.notAvailable}}</span>
+                {{t.typeTransactions}}
               </button>
+              @if (canImportRatings) {
+                <button
+                  type="button"
+                  class="type-chip"
+                  role="radio"
+                  [class.is-selected]="!isTransaction"
+                  [attr.aria-checked]="!isTransaction"
+                  (click)="selectType('SERVICE_RATING')"
+                >
+                  {{t.typeRatings}}
+                </button>
+              }
               <button
                 type="button"
                 class="button button-secondary template-button"
@@ -73,10 +82,11 @@
             }
 
             <p class="columns-hint">
-              <strong>{{t.columnsLabel}}</strong> {{t.columns}}
+              <strong>{{t.columnsLabel}}</strong>
+              {{isTransaction ? t.columns : t.ratingColumns}}
             </p>
 
-            @if (waitingCount() !== null) {
+            @if (isTransaction && waitingCount() !== null) {
               <div class="context-card" role="status">
                 <span>{{waitingText()}}</span>
                 @if ((waitingCount() ?? 0) > 0) {
@@ -140,12 +150,12 @@
             }
 
             <div class="ui-banner tone-warning rules-note">
-              <span>{{t.rules}}</span>
+              <span>{{isTransaction ? t.rules : t.ratingRules}}</span>
             </div>
 
             <div class="card-actions">
               <span class="file-meta">
-                @if (lastImport(); as last) {
+                @if (isTransaction && lastImport(); as last) {
                   {{t.lastImport}} {{last.importedAt | appDate: dateTime}} ·
                   {{last.fileName}} · {{last.importedRows | appNumber}}/{{last.totalRows | appNumber}}
                   {{t.rows}}
@@ -157,7 +167,7 @@
                 [disabled]="file() === null"
                 (click)="upload()"
               >
-                {{t.upload}}
+                {{isTransaction ? t.upload : t.uploadRatings}}
               </button>
             </div>
           </section>
@@ -177,12 +187,14 @@
               <span class="progress-fill" [style.width.%]="progress()"></span>
             </div>
             <p class="file-meta">
-              {{progress() < 100 ? t.uploading : t.processing}}
+              {{progress() < 100 ? t.uploading : isTransaction ? t.processing : t.processingRatings}}
             </p>
             <ul class="server-steps">
               <li>{{t.serverValidate}}</li>
               <li>{{t.serverSave}}</li>
-              <li>{{t.serverReconcile}}</li>
+              @if (isTransaction) {
+                <li>{{t.serverReconcile}}</li>
+              }
             </ul>
           </section>
         }
@@ -229,43 +241,49 @@
                 </dl>
               </section>
 
-              <section class="import-card" aria-labelledby="reconcile-title">
-                <h2 id="reconcile-title" class="card-title">{{t.reconcileTitle}}</h2>
-                @if (data.reconcile; as reconcile) {
-                  <ul class="reconcile-list">
-                    <li class="tone-success">
-                      <strong>{{reconcile.matched | appNumber}}</strong>
-                      <span>{{t.matched}}</span>
-                    </li>
-                    <li class="tone-danger">
-                      <strong>{{reconcile.notMatched | appNumber}}</strong>
-                      <span>{{t.notMatched}}</span>
-                      @if (reconcile.notMatched > 0) {
-                        <a
-                          routerLink="/reconciliations"
-                          [queryParams]="{ status: 'NOT_MATCHED' }"
-                          >{{t.view}}</a
-                        >
-                      }
-                    </li>
-                    <li class="tone-warning">
-                      <strong>{{reconcile.inReview | appNumber}}</strong>
-                      <span>{{t.inReview}}</span>
-                      @if (reconcile.inReview > 0) {
-                        <a routerLink="/reconciliations" [queryParams]="{ status: 'IN_REVIEW' }">{{t.view}}</a>
-                      }
-                    </li>
-                  </ul>
-                  <p class="file-meta">{{t.reconcileNote}}</p>
-                } @else {
-                  <div class="ui-banner tone-warning" role="status">
-                    <span>{{t.reconcileNotRun}}</span>
-                  </div>
-                }
-              </section>
+              @if (isTransaction) {
+                <section class="import-card" aria-labelledby="reconcile-title">
+                  <h2 id="reconcile-title" class="card-title">{{t.reconcileTitle}}</h2>
+                  @if (data.reconcile; as reconcile) {
+                    <ul class="reconcile-list">
+                      <li class="tone-success">
+                        <strong>{{reconcile.matched | appNumber}}</strong>
+                        <span>{{t.matched}}</span>
+                      </li>
+                      <li class="tone-danger">
+                        <strong>{{reconcile.notMatched | appNumber}}</strong>
+                        <span>{{t.notMatched}}</span>
+                        @if (reconcile.notMatched > 0) {
+                          <a
+                            routerLink="/reconciliations"
+                            [queryParams]="{ status: 'NOT_MATCHED' }"
+                            >{{t.view}}</a
+                          >
+                        }
+                      </li>
+                      <li class="tone-warning">
+                        <strong>{{reconcile.inReview | appNumber}}</strong>
+                        <span>{{t.inReview}}</span>
+                        @if (reconcile.inReview > 0) {
+                          <a
+                            routerLink="/reconciliations"
+                            [queryParams]="{ status: 'IN_REVIEW' }"
+                            >{{t.view}}</a
+                          >
+                        }
+                      </li>
+                    </ul>
+                    <p class="file-meta">{{t.reconcileNote}}</p>
+                  } @else {
+                    <div class="ui-banner tone-warning" role="status">
+                      <span>{{t.reconcileNotRun}}</span>
+                    </div>
+                  }
+                </section>
+              }
             </div>
 
-            @if ((waitingCount() ?? 0) > 0) {
+            @if (isTransaction && (waitingCount() ?? 0) > 0) {
               <div class="context-card" role="status">
                 <span>{{waitingText()}}</span>
                 <a
@@ -279,7 +297,16 @@
 
             @if (data.errorRows > 0) {
               <section class="import-card" aria-labelledby="error-title">
-                <h2 id="error-title" class="card-title">{{t.errorTitle}}</h2>
+                <div class="card-actions">
+                  <h2 id="error-title" class="card-title">{{t.errorTitle}}</h2>
+                  <button
+                    type="button"
+                    class="button button-secondary"
+                    (click)="errorBatchId.set(data.id)"
+                  >
+                    {{t.viewErrors}}
+                  </button>
+                </div>
                 @if (shownErrors().length > 0) {
                   <div class="ui-table-wrap">
                     <table class="ui-table">
@@ -304,13 +331,26 @@
                 }
                 @if (data.errorRows > shownErrors().length) {
                   <p class="file-meta">
-                    {{t.moreErrors}} <a routerLink="/import-history">{{t.history}}</a>
+                    {{t.moreErrors}}
+                    <a
+                      routerLink="/import-history"
+                      [state]="{ importFileType: fileType(), importBatchId: data.id }"
+                      >{{t.history}}</a
+                    >
                   </p>
                 }
               </section>
             }
           }
         }
+      }
+
+      @if (errorBatchId(); as id) {
+        <app-import-batch-drawer
+          [batchId]="id"
+          [fileType]="fileType()"
+          (closed)="errorBatchId.set(null)"
+        />
       }
     </main>
   </div>

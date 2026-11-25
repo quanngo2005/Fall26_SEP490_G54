@@ -1,9 +1,11 @@
 import { HttpEventType, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { AuthenticatedUser } from '../../core/auth.models';
+import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ImportBatchResult } from '../../core/import-history.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -17,6 +19,7 @@ class SidebarStub {}
 
 const api = environment.apiUrl;
 const importsUrl = `${api}/transaction-imports`;
+const ratingsUrl = `${api}/service-rating-imports`;
 const reconUrl = `${api}/reconciliations`;
 const envelope = <T>(data: T) => ({ success: true, status: 200, data });
 const period = {
@@ -61,6 +64,9 @@ const xlsx = (name = '06_Giao_dich.xlsx', content = 'x') => new File([content], 
 
 describe('DataImportComponent', () => {
   let http: HttpTestingController;
+  const user = signal<AuthenticatedUser | null>(null);
+  const as = (permissions: string[]) =>
+    user.set({ id: 'u1', email: 'u@test.local', fullName: 'User', roles: [], permissions });
 
   const text = (fixture: ComponentFixture<DataImportComponent>) =>
     ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
@@ -97,15 +103,22 @@ describe('DataImportComponent', () => {
     fixture.detectChanges();
   };
 
-  const uploadButton = (fixture: ComponentFixture<DataImportComponent>) =>
+  const button = (fixture: ComponentFixture<DataImportComponent>, label: string) =>
     Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
-    ).find((b) => b.textContent?.trim() === 'Tải lên và đối soát')!;
+    ).find((b) => b.textContent?.trim() === label);
+  const uploadButton = (fixture: ComponentFixture<DataImportComponent>) =>
+    button(fixture, 'Tải lên và đối soát')!;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DataImportComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { currentUser: user.asReadonly() } },
+      ],
     })
       .overrideComponent(DataImportComponent, {
         remove: { imports: [HeaderComponent, SidebarComponent] },
@@ -114,6 +127,7 @@ describe('DataImportComponent', () => {
       .compileComponents();
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(I18nService).setLanguage('vi');
+    as(['TRANSACTION_IMPORT_MANAGE', 'SERVICE_RATING_IMPORT_MANAGE']);
   });
 
   afterEach(() => http.verify());
@@ -189,6 +203,32 @@ describe('DataImportComponent', () => {
     ]);
   });
 
+  it('opens the error drawer of the new batch from the result', () => {
+    const fixture = open();
+    choose(fixture, xlsx());
+    uploadButton(fixture).click();
+    http
+      .expectOne((r) => r.url === importsUrl && r.method === 'POST')
+      .flush({ success: true, status: 201, data: batch() });
+    flushContext();
+    fixture.detectChanges();
+
+    Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'))
+      .find((b) => b.textContent?.trim() === 'Xem lỗi')!
+      .click();
+    fixture.detectChanges();
+
+    http.expectOne(`${importsUrl}/b1`).flush(envelope(batch({ errors: null, reconcile: null })));
+    http
+      .expectOne((r) => r.url === `${importsUrl}/b1/errors`)
+      .flush(envelope({ items: batch().errors, totalCount: 1, page: 1, pageSize: 20 }));
+    fixture.detectChanges();
+
+    expect(el(fixture, 'app-import-batch-drawer #import-drawer-title')?.textContent).toContain(
+      '06_Giao_dich.xlsx',
+    );
+  });
+
   it('says reconciliation did not run instead of showing zeros when reconcile is null', () => {
     const fixture = open();
     choose(fixture, xlsx());
@@ -247,5 +287,65 @@ describe('DataImportComponent', () => {
     http.expectOne(`${importsUrl}/template`).flush(new Blob(['x']));
 
     expect(click).toHaveBeenCalled();
+  });
+
+  it('offers the service rating type only with its permission', () => {
+    as(['TRANSACTION_IMPORT_MANAGE']);
+    const withoutPermission = open();
+    expect(button(withoutPermission, 'Đánh giá dịch vụ')).toBeUndefined();
+
+    as(['TRANSACTION_IMPORT_MANAGE', 'SERVICE_RATING_IMPORT_MANAGE']);
+    const withPermission = open();
+    expect(button(withPermission, 'Đánh giá dịch vụ')?.disabled).toBeFalse();
+  });
+
+  it('uploads a service rating file and shows the file result without reconciliation', () => {
+    const fixture = open();
+    button(fixture, 'Đánh giá dịch vụ')!.click();
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('Ngày đánh giá* (dd/MM/yyyy)');
+    expect(el(fixture, '.context-card')).toBeNull();
+
+    choose(fixture, xlsx('07_Danh_gia_dich_vu.xlsx'));
+    button(fixture, 'Tải lên')!.click();
+    fixture.detectChanges();
+    const request = http.expectOne((r) => r.url === ratingsUrl && r.method === 'POST');
+    request.event({ type: HttpEventType.UploadProgress, loaded: 100, total: 100 });
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('Đang kiểm tra và lưu…');
+
+    request.flush({
+      success: true,
+      status: 201,
+      data: batch({
+        fileName: '07_Danh_gia_dich_vu.xlsx',
+        totalRows: 16,
+        importedRows: 15,
+        errorRows: 1,
+        reconcile: null,
+      }),
+    });
+    fixture.detectChanges();
+    const body = text(fixture);
+
+    expect(body).toContain('Kết quả tệp');
+    expect(body).toContain("Mã nhân viên 'NV999' không tồn tại.");
+    expect(body).not.toContain('Đối soát tự động sau khi nhập');
+    expect(body).not.toContain('đối soát chưa chạy xong');
+  });
+
+  it('downloads the service rating template', () => {
+    const fixture = open();
+    button(fixture, 'Đánh giá dịch vụ')!.click();
+    spyOn(URL, 'createObjectURL').and.returnValue('blob:x');
+    const realCreate = document.createElement.bind(document);
+    spyOn(document, 'createElement').and.callFake((tag: string) => {
+      const node = realCreate(tag);
+      if (tag === 'a') (node as HTMLAnchorElement).click = () => undefined;
+      return node;
+    });
+    button(fixture, 'Tải tệp mẫu')!.click();
+
+    http.expectOne(`${ratingsUrl}/template`).flush(new Blob(['x']));
   });
 });

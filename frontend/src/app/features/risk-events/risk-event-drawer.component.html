@@ -113,6 +113,17 @@
       </section>
 
       <section>
+        <h3 id="risk-status-title">{{localization.riskEvents.drawer.statusTimeline}}</h3>
+        <ol class="status-steps" aria-labelledby="risk-status-title">
+          @for (step of statusSteps(); track step.status) {
+            <li [class.reached]="step.reached" [attr.aria-current]="step.current ? 'step' : null">
+              {{localization.riskEvents.status[step.status]}}
+            </li>
+          }
+        </ol>
+      </section>
+
+      <section>
         <h3>{{localization.riskEvents.drawer.history}}</h3>
         <ol class="timeline">
           <li>
@@ -140,11 +151,22 @@
 
   <footer class="drawer-footer">
     <span class="hint">{{localization.riskEvents.drawer.hint}}</span>
-    @if (details()?.canReverse) {
-      <button type="button" class="reverse-btn" (click)="openReverse()">
-        {{localization.riskEvents.drawer.reverse}}
-      </button>
-    }
+    <div class="footer-actions">
+      @for (action of transitions(); track action) {
+        <button
+          type="button"
+          [class]="action === 'dismiss' ? 'dismiss-btn' : 'btn-primary'"
+          (click)="openTransition(action)"
+        >
+          {{localization.riskEvents.transition[action].submit}}
+        </button>
+      }
+      @if (details()?.canReverse) {
+        <button type="button" class="reverse-btn" (click)="openReverse()">
+          {{localization.riskEvents.drawer.reverse}}
+        </button>
+      }
+    </div>
   </footer>
 </aside>
 
@@ -202,6 +224,52 @@
           {{submitting()
               ? localization.riskEvents.reverse.saving
               : localization.riskEvents.reverse.confirm}}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (transition(); as action) {
+  <div
+    animate.leave="g54-leave-fade"
+    class="reverse-backdrop"
+    role="presentation"
+    (click)="cancelTransition()"
+  >
+    <div
+      animate.leave="g54-leave-pop"
+      class="reverse-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="risk-transition-title"
+      tabindex="-1"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()"
+    >
+      <h3 id="risk-transition-title">{{transitionTitle(action)}}</h3>
+      <p>{{localization.riskEvents.transition[action].intro}}</p>
+      @if (errorKey()) {
+        <p class="field-error" role="alert">{{errorText()}}</p>
+      }
+      <div class="reverse-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="submitting()"
+          (click)="cancelTransition()"
+        >
+          {{localization.riskEvents.transition.cancel}}
+        </button>
+        <button
+          type="button"
+          [class]="action === 'dismiss' ? 'btn-danger' : 'btn-primary'"
+          [disabled]="submitting()"
+          (click)="confirmTransition()"
+        >
+          {{submitting()
+              ? localization.riskEvents.transition.saving
+              : localization.riskEvents.transition[action].submit}}
         </button>
       </div>
     </div>

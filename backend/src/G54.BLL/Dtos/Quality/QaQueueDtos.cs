@@ -78,14 +78,43 @@ public sealed record QaTransactionDto(
     decimal? Amount,
     DateOnly? TransactionDate);
 
+/// <summary>One result submission of the work (SCR-REV-02), newest first.</summary>
+public sealed record QaSubmissionVersionDto(
+    Guid Id,
+    int SubmissionNo,
+    string Status,
+    DateTimeOffset SubmittedAt,
+    string? Comment,
+    List<QaEvidenceDto> Evidences);
+
+/// <summary>One verifier decision on a submission of the work.</summary>
+public sealed record QaVerificationDto(
+    int SubmissionNo,
+    int RoundNo,
+    string Decision,
+    string? Comment,
+    DateTimeOffset? VerifiedAt,
+    string VerifierName);
+
+/// <summary>
+/// What QA decided on the item. A flag fills every field it has; a sample only has its reviewer and time
+/// (its comment is the detail's <c>Reason</c>).
+/// </summary>
+public sealed record QaReviewDto(
+    string? ReviewedByName,
+    DateTimeOffset? ReviewedAt,
+    string? DismissReason,
+    string? ReworkComment,
+    DateTimeOffset? ReworkRequestedAt);
+
 public sealed record QaQueueDetailDto(
     QaQueueItemDto Item,
     string? Reason,
-    string? ReworkComment,
-    DateTimeOffset? ReviewedAt,
-    string? ReviewedByName,
     string? SubmissionComment,
     DateTimeOffset SubmittedAt,
     string? JobPositionTitle,
     List<QaEvidenceDto> Evidences,
-    List<QaTransactionDto> Transactions);
+    List<QaTransactionDto> Transactions,
+    List<QaSubmissionVersionDto> Versions,
+    List<QaVerificationDto> VerificationHistory,
+    QaReviewDto QaReview);

@@ -4,6 +4,8 @@ export type RiskSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type RiskStatus = 'OPEN' | 'CONFIRMED' | 'DISMISSED' | 'RESOLVED';
 /** What the list shows: REVERSED once the event was reversed, RECORDED otherwise. */
 export type RiskState = 'RECORDED' | 'REVERSED';
+/** The lifecycle moves of §6–§8: OPEN → CONFIRMED → RESOLVED, OPEN → DISMISSED. */
+export type RiskTransition = 'confirm' | 'dismiss' | 'resolve';
 
 /** Event types the recording form offers; the API stores the code as free text (max 50 characters). */
 export const RISK_EVENT_TYPES = [
@@ -88,6 +90,8 @@ export interface RiskEventDetails {
   reversalReason: string | null;
   attachments: RiskEventAttachment[];
   canReverse: boolean;
+  /** The event is about the caller: every action answers 403, so the drawer offers none. */
+  isOwnEvent: boolean;
 }
 
 export interface CreateRiskEventRequest {
@@ -98,11 +102,41 @@ export interface CreateRiskEventRequest {
   occurredAt: string;
   penaltyPoints: number;
   workCode?: string;
-  /** Always true from the screen: the event is recorded and penalised in one step. */
-  record: true;
+  /** True records and penalises the event in one step; false leaves it OPEN to be confirmed later. */
+  record: boolean;
 }
 
 export interface CreatedRiskEvent {
   id: string;
   code: string;
+}
+
+/** `RiskEventDto` (§3), returned by dismiss and resolve. */
+export interface RiskEvent {
+  id: string;
+  code: string;
+  employeeId: string;
+  recordedBy: string;
+  eventType: string;
+  description: string;
+  severity: RiskSeverity;
+  status: RiskStatus;
+  occurredAt: string;
+  resolvedAt: string | null;
+  updatedAt: string;
+  contributionId: string | null;
+}
+
+/** `RiskEventConfirmationDto` (§6), returned by confirm. */
+export interface RiskEventConfirmation {
+  id: string;
+  code: string;
+  employeeId: string;
+  severity: RiskSeverity;
+  status: RiskStatus;
+  contributionId: string;
+  evaluationPeriodId: string;
+  performanceEvaluationId: string | null;
+  componentScore: number;
+  updatedAt: string;
 }

@@ -52,6 +52,11 @@
               </span>
             </div>
             <div class="header-right-actions">
+              @if (canRecordRisk()) {
+                <button type="button" class="btn-primary" (click)="recordingRisk.set(true)">
+                  {{localization.qaQueue.recordRisk}}
+                </button>
+              }
               <button
                 type="button"
                 class="btn-secondary"
@@ -168,12 +173,6 @@
                   <div class="reason-text-box">{{d.reason}}</div>
                 </div>
               }
-              @if (d.reworkComment && d.reworkComment !== d.reason) {
-                <div class="card-body">
-                  <span class="field-caption">{{localization.qaQueue.reworkComment}}</span>
-                  <div class="reason-text-box">{{d.reworkComment}}</div>
-                </div>
-              }
 
               @if (isPending()) {
                 <div class="card-body decision-box">
@@ -209,13 +208,14 @@
 
                   <label class="field-caption" for="qaComment">
                     {{localization.qaQueue.commentLabel}}
-                    @if (verdict() === 'REJECT') {
+                    @if (commentRequired()) {
                       <span class="required">*</span>
                     }
                   </label>
                   <textarea
                     id="qaComment"
                     rows="3"
+                    maxlength="2000"
                     [ngModel]="comment()"
                     (ngModelChange)="comment.set($event)"
                     [class.field-invalid]="showValidation() && !commentValid()"
@@ -278,6 +278,102 @@
               }
             </div>
           </div>
+
+          <div class="cards-grid">
+            <section class="detail-card">
+              <div class="card-header">
+                <span class="card-title">{{localization.qaQueue.versionsTitle}}</span>
+              </div>
+              <div class="card-body evidence-list">
+                @for (version of d.versions; track version.id) {
+                  <div
+                    class="version-item"
+                    [class.current]="version.id === d.item.resultSubmissionId"
+                  >
+                    <div class="file-info">
+                      <span class="file-name">{{versionLabel(version)}}</span>
+                      <span class="file-size">{{submissionStatus(version)}}</span>
+                      @if (version.id === d.item.resultSubmissionId) {
+                        <span class="status-badge">{{localization.qaQueue.currentVersion}}</span>
+                      }
+                    </div>
+                    @if (version.comment) {
+                      <p class="version-comment">{{version.comment}}</p>
+                    }
+                    <div class="evidence-list">
+                      @for (file of version.evidences; track file.id) {
+                        <div class="evidence-item">
+                          <div class="file-info">
+                            <span class="file-name">{{file.fileName}}</span>
+                            <span class="file-size">· {{size(file.fileSize)}}</span>
+                          </div>
+                          <button type="button" class="preview-btn" (click)="preview(file)">
+                            {{localization.qaQueue.preview}}
+                          </button>
+                        </div>
+                      } @empty {
+                        <p class="empty-note">{{localization.qaQueue.noEvidence}}</p>
+                      }
+                    </div>
+                  </div>
+                } @empty {
+                  <p class="empty-note">{{localization.qaQueue.noVersions}}</p>
+                }
+              </div>
+            </section>
+
+            <div>
+              <section class="detail-card">
+                <div class="card-header">
+                  <span class="card-title">{{localization.qaQueue.historyTitle}}</span>
+                </div>
+                <div class="reconcile-table">
+                  @for (entry of d.verificationHistory; track $index) {
+                    <div class="reconcile-row history-row">
+                      <span class="row-label">{{historyText(entry)}}</span>
+                      <span class="row-val">
+                        {{decisionLabel(entry)}} · {{date(entry.verifiedAt)}}
+                      </span>
+                      @if (entry.comment) {
+                        <p class="version-comment">{{entry.comment}}</p>
+                      }
+                    </div>
+                  } @empty {
+                    <p class="empty-note">{{localization.qaQueue.noHistory}}</p>
+                  }
+                </div>
+              </section>
+
+              <section class="detail-card">
+                <div class="card-header">
+                  <span class="card-title">{{localization.qaQueue.qaHistoryTitle}}</span>
+                </div>
+                <div class="card-body">
+                  @if (d.qaReview.reviewedAt) {
+                    <p>{{reviewedText()}}</p>
+                    @if (d.qaReview.dismissReason) {
+                      <span class="field-caption">{{localization.qaQueue.dismissReason}}</span>
+                      <div class="reason-text-box">{{d.qaReview.dismissReason}}</div>
+                    }
+                    @if (d.qaReview.reworkComment) {
+                      <span class="field-caption">{{localization.qaQueue.reworkComment}}</span>
+                      <div class="reason-text-box">{{d.qaReview.reworkComment}}</div>
+                    }
+                  } @else {
+                    <p class="empty-note">{{localization.qaQueue.noQaHistory}}</p>
+                  }
+                </div>
+              </section>
+            </div>
+          </div>
+
+          @if (recordingRisk()) {
+            <app-risk-event-create-modal
+              [preset]="riskPreset()"
+              (created)="onRiskRecorded($event)"
+              (dismissed)="recordingRisk.set(false)"
+            />
+          }
 
           @if (isPending()) {
             <div class="decision-footer">

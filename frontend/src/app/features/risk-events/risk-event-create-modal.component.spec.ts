@@ -45,6 +45,7 @@ describe('RiskEventCreateModalComponent', () => {
   const fill = (fixture: { nativeElement: HTMLElement }) => {
     set(fixture, '#risk-employee', 'e1', 'change');
     set(fixture, '#risk-type', 'KYC_VIOLATION', 'change');
+    el<HTMLButtonElement>(fixture, '.severity-btn:nth-child(2)').click();
     set(fixture, '#risk-penalty', '3');
     set(fixture, '#risk-description', '  Khai Refer ID không có trong giao dịch.  ');
   };
@@ -132,6 +133,7 @@ describe('RiskEventCreateModalComponent', () => {
 
   it('shows what is missing for each field and sends nothing', () => {
     const fixture = open();
+    expect(el(fixture, '.severity-btn.active')).toBeNull();
     submitButton(fixture).click();
     fixture.detectChanges();
 
@@ -139,6 +141,7 @@ describe('RiskEventCreateModalComponent', () => {
     const body = text(fixture);
     expect(body).toContain('Vui lòng chọn nhân viên.');
     expect(body).toContain('Vui lòng chọn loại vi phạm.');
+    expect(body).toContain('Vui lòng chọn mức độ.');
     expect(body).toContain('Điểm phạt phải lớn hơn 0 và không quá 100.');
     expect(body).toContain('Vui lòng nhập mô tả');
   });
@@ -199,6 +202,22 @@ describe('RiskEventCreateModalComponent', () => {
 
     expect('workCode' in request.request.body).toBeFalse();
     expect(request.request.body.severity).toBe('MEDIUM');
+    request.flush(envelope({ id: 'r1', code: 'RSK-0046' }));
+  });
+
+  it('saves the event OPEN, to be confirmed later, when "record now" is unticked', async () => {
+    const fixture = open();
+    // ngModel writes its value on the next microtask.
+    await fixture.whenStable();
+    fill(fixture);
+    const recordNow = el<HTMLInputElement>(fixture, '#risk-record-now');
+    expect(recordNow.checked).toBeTrue();
+    recordNow.click();
+    fixture.detectChanges();
+
+    submitButton(fixture).click();
+    const request = http.expectOne(`${api}/risk-events`);
+    expect(request.request.body.record).toBeFalse();
     request.flush(envelope({ id: 'r1', code: 'RSK-0046' }));
   });
 
