@@ -1,6 +1,6 @@
 # Call Recording & AI Triage Contract
 
-Status: **contract agreed, not implemented** (AI-01, 23/11/2026). Plan: `Project/Documents/ai-plan/replan-3w.md` §3–§4. Decisions: R1–R4 in `ai-plan/DECISIONS.md`, ADR in `docs/adr/ADR-001-ai-call-triage.md`.
+Status: **partially implemented** (23/11/2026) — tables, permissions and §3–§4 (upload, list, detail, stream) are implemented (AI-02/05); §5–§8 are planned. Plan: `Project/Documents/ai-plan/replan-3w.md` §3–§4. Decisions: R1–R4 in `ai-plan/DECISIONS.md`, ADR in `docs/adr/ADR-001-ai-call-triage.md`.
 
 Every response uses the `ApiResponse` envelope (`API_CONVENTIONS.md`). Tables: `call_recording`, `call_transcript`, `ai_review_flag`, plus 4 columns on `risk_event`.
 

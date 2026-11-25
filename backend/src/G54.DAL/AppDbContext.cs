@@ -2135,6 +2135,7 @@ public partial class AppDbContext : DbContext
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);
+        ConfigureCallRecordings(modelBuilder);
         ConfigureServiceRatings(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {

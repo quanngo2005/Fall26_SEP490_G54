@@ -1,4 +1,4 @@
-"""Audio probe and normalization utilities."""
+"""Audio probe, normalization and PII muting utilities."""
 
 from dataclasses import dataclass
 import hashlib
@@ -6,10 +6,13 @@ import json
 import logging
 from pathlib import Path
 import subprocess
+from typing import Sequence
 
 from app.errors import AudioError
 
 logger = logging.getLogger(__name__)
+
+MUTED_AUDIO_MIME_TYPE = "audio/mpeg"
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,27 @@ class AudioInfo:
     channels: int
     codec: str | None
     format_name: str | None
+
+
+def _run_tool(cmd: list[str], *, tool: str, timeout_s: int) -> subprocess.CompletedProcess[bytes]:
+    try:
+        res = subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=False)
+    except subprocess.TimeoutExpired as exc:
+        raise AudioError(
+            code="AUDIO_PROCESSING_TIMEOUT",
+            http_status=504,
+            message="Audio processing timed out",
+        ) from exc
+    except FileNotFoundError as exc:
+        raise AudioError(
+            code="FFMPEG_NOT_AVAILABLE",
+            http_status=500,
+            message=f"{tool} binary not found",
+        ) from exc
+
+    if res.returncode != 0 and res.stderr:
+        logger.debug("%s stderr: %s", tool, res.stderr[:200].decode("utf-8", errors="replace"))
+    return res
 
 
 def probe(path: Path, *, ffprobe_bin: str = "ffprobe", timeout_s: int = 30) -> AudioInfo:
@@ -35,24 +59,8 @@ def probe(path: Path, *, ffprobe_bin: str = "ffprobe", timeout_s: int = 30) -> A
         str(path),
     ]
 
-    try:
-        res = subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=False)
-    except subprocess.TimeoutExpired as exc:
-        raise AudioError(
-            code="AUDIO_PROCESSING_TIMEOUT",
-            http_status=504,
-            message="Audio processing timed out",
-        ) from exc
-    except FileNotFoundError as exc:
-        raise AudioError(
-            code="FFMPEG_NOT_AVAILABLE",
-            http_status=500,
-            message="ffprobe binary not found",
-        ) from exc
-
+    res = _run_tool(cmd, tool="ffprobe", timeout_s=timeout_s)
     if res.returncode != 0:
-        if res.stderr:
-            logger.debug("ffprobe stderr: %s", res.stderr[:200].decode("utf-8", errors="replace"))
         raise AudioError(
             code="UNSUPPORTED_MEDIA",
             http_status=422,
@@ -151,24 +159,8 @@ def normalize(
         str(dst),
     ]
 
-    try:
-        res = subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=False)
-    except subprocess.TimeoutExpired as exc:
-        raise AudioError(
-            code="AUDIO_PROCESSING_TIMEOUT",
-            http_status=504,
-            message="Audio processing timed out",
-        ) from exc
-    except FileNotFoundError as exc:
-        raise AudioError(
-            code="FFMPEG_NOT_AVAILABLE",
-            http_status=500,
-            message="ffmpeg binary not found",
-        ) from exc
-
+    res = _run_tool(cmd, tool="ffmpeg", timeout_s=timeout_s)
     if res.returncode != 0:
-        if res.stderr:
-            logger.debug("ffmpeg stderr: %s", res.stderr[:200].decode("utf-8", errors="replace"))
         raise AudioError(
             code="AUDIO_DECODE_FAILED",
             http_status=422,
@@ -176,6 +168,40 @@ def normalize(
         )
 
     return probe(dst, ffprobe_bin=ffprobe_bin, timeout_s=timeout_s)
+
+
+def build_mute_command(
+    src: Path,
+    dst: Path,
+    spans: Sequence[tuple[int, int]],
+    *,
+    ffmpeg_bin: str = "ffmpeg",
+) -> list[str]:
+    cmd = [ffmpeg_bin, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src)]
+    if spans:
+        filters = (f"volume=enable='between(t,{start / 1000:.3f},{end / 1000:.3f})':volume=0" for start, end in spans)
+        cmd.extend(["-af", ",".join(filters)])
+    cmd.extend(["-vn", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "32k", str(dst)])
+    return cmd
+
+
+def mute_spans(
+    src: Path,
+    dst: Path,
+    spans: Sequence[tuple[int, int]],
+    *,
+    ffmpeg_bin: str = "ffmpeg",
+    timeout_s: int = 120,
+) -> Path:
+    """Silence the given millisecond spans and encode a mono 32 kbps MP3 (contract `muted_audio`)."""
+    res = _run_tool(build_mute_command(src, dst, spans, ffmpeg_bin=ffmpeg_bin), tool="ffmpeg", timeout_s=timeout_s)
+    if res.returncode != 0:
+        raise AudioError(
+            code="AUDIO_MUTE_FAILED",
+            http_status=500,
+            message="Muting PII in audio failed",
+        )
+    return dst
 
 
 def sha256_file(path: Path, chunk_size: int = 1 << 20) -> str:

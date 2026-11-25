@@ -450,6 +450,14 @@ public sealed class RiskEventScreenServiceTests : IDisposable
 
         public Task DeleteEvidenceFilesAsync(IEnumerable<StoredFileMetadata> files, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string> StoreCallRecordingAsync(IFormFile file, string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenCallRecordingReadAsync(string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public void DeleteCallRecording(string relativePath) => throw new NotSupportedException();
     }
 
     [Fact]
