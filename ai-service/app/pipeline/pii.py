@@ -18,6 +18,8 @@ _ACCOUNT_CONTEXT = ("tài khoản", "stk", "số thẻ")
 _MONEY_UNITS = frozenset({"đồng", "đ", "vnd", "vnđ"})
 _TRAILING_PUNCT = ".,;:!?…\"')"
 _DIGITS_RE = re.compile(r"\+?\d+(?:-\d+)*")
+# ASR may glue the group separator to the next group: "0012 -0300 -4567", "50 .000".
+_DIGITS_NEXT_RE = re.compile(r"[-.]?\d+(?:[-.]\d+)*")
 _PHONE_RE = re.compile(r"(?:0|84)(?:[35789]\d{8}|2\d{9})")
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
@@ -91,7 +93,7 @@ def _core(text: str) -> str:
 def _digit_run_end(pieces: Sequence[Piece], i: int) -> int:
     """Index after a run of digit pieces ("0912 345 678"); a run continues across commas only."""
     j = i
-    while j < len(pieces) and _DIGITS_RE.fullmatch(_core(pieces[j].text)):
+    while j < len(pieces) and (_DIGITS_RE if j == i else _DIGITS_NEXT_RE).fullmatch(_core(pieces[j].text)):
         j += 1
         if pieces[j - 1].text[len(_core(pieces[j - 1].text)) :] not in ("", ","):
             break
