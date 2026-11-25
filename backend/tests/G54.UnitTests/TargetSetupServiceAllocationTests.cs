@@ -70,7 +70,7 @@ public sealed class TargetSetupServiceAllocationTests
         db.TargetAssignments.Add(branchYearTarget);
         await db.SaveChangesAsync();
 
-        return new Fixture(db, new TargetSetupService(new UnitOfWork(db), db, new AllocationPermissions(admin: true), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService()), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
+        return new Fixture(db, new TargetSetupService(new UnitOfWork(db), new AllocationPermissions(admin: true), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService()), branch.Id, dept.Id, kpi.Id, year.Id, q1.Id, branchYearTarget);
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class TargetSetupServiceAllocationTests
     }
 
     private static TargetSetupService NonAdmin(Fixture f) =>
-        new TargetSetupService(new UnitOfWork(f.Db), f.Db, new AllocationPermissions(admin: false), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        new TargetSetupService(new UnitOfWork(f.Db), new AllocationPermissions(admin: false), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
     /// <summary>Adds a sibling department D2 under the branch and an active employee account in <paramref name="departmentId"/>.</summary>
     private static async Task<(Guid SiblingId, Guid AccountId)> SeedScopeAsync(Fixture f, Guid? departmentId = null)

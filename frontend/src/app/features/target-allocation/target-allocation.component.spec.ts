@@ -264,4 +264,39 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     // employees counts as "not split" rather than "mismatched".
     expect(protectedApi(fixture).counts().notSplit).toBe(1);
   });
+
+  it('shows the change against last year as a signed percent coloured by direction, without arrows', async () => {
+    const fixture = await render(
+      matchedRow({
+        department: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25, previousYear: 80 },
+        employees: [
+          {
+            ...matchedRow().employees[0],
+            previousYear: 90,
+          },
+          {
+            ...matchedRow().employees[0],
+            employeeId: 'e2',
+            employeeName: 'Trần Thị B',
+            previousYear: 125,
+          },
+        ],
+      }),
+    );
+    fixture.detectChanges();
+
+    const deltas = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.compare-delta'),
+    ).map((el) => [
+      el.textContent?.trim(),
+      el.classList.contains('is-up'),
+      el.classList.contains('is-down'),
+    ]);
+    expect(deltas).toEqual([
+      ['+25%', true, false],
+      ['+11.1%', true, false],
+      ['−20%', false, true],
+    ]);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toMatch(/[▲▼]/);
+  });
 });

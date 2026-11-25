@@ -139,6 +139,7 @@
                           [value]="view.values[key]"
                           [state]="cellState(view, key, $index)"
                           [editable]="!view.locked[$index]"
+                          [scaleHint]="view.row.unit === 'VND'"
                           [lockedReason]="text.yearLockedAria"
                           [attr.aria-label]="quarterAria(view.row, $index)"
                           (valueChange)="onCellValueChange(view, key, $event)"

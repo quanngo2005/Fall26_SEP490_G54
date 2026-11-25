@@ -142,6 +142,7 @@
                       [value]="cellValue(column, department.departmentId)"
                       [state]="cellState(column, department.departmentId)"
                       [editable]="!readOnly()"
+                      [scaleHint]="column.row.unit === 'VND'"
                       [lockedReason]="lockedReason()"
                       (valueChange)="onCellChange(column, department.departmentId, $event)"
                     />

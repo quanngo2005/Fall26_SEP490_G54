@@ -1,4 +1,5 @@
 .cell {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -52,6 +53,21 @@
 .cell-unit {
   color: #64748b;
   font-size: 11px;
+}
+
+.cell-hint {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .cell-input {

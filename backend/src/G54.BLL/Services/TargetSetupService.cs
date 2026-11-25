@@ -18,7 +18,7 @@ namespace G54.BLL.Services;
 /// Implementation of target quarter split, allocation, and publish (Phase 2, docs/api/TARGET_ALLOCATION_CONTRACT.md, 2.A).
 /// </summary>
 public sealed class TargetSetupService(
-    IUnitOfWork uow, AppDbContext db, IPermissionService permissions, ITargetChangeLogService changeLog,
+    IUnitOfWork uow, IPermissionService permissions, ITargetChangeLogService changeLog,
     INotifier notifier, IDepartmentService departmentService) : ITargetSetupService
 {
     private const string AuditEntityName = "BranchYearTargetImport";
@@ -52,7 +52,7 @@ public sealed class TargetSetupService(
     {
         var fixedRows = branchYearRows.Where(r => !IsPeriodAdditive(r.KpiDefinition.AggregationType)).ToList();
         var fixedIds = fixedRows.Select(r => r.Id).ToList();
-        var existingRows = await db.TargetAssignments
+        var existingRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && t.ParentAssignmentId != null
                 && fixedIds.Contains(t.ParentAssignmentId.Value))
@@ -100,7 +100,7 @@ public sealed class TargetSetupService(
     private async Task<(TargetAssignment branchYear, Guid branchId, int year, Guid yearPeriodId, EvaluationPeriod yearPeriod)>
         LoadAndValidateBranchYearAsync(Guid branchYearId, Guid userId, CancellationToken cancellationToken)
     {
-        var branchYear = await db.TargetAssignments
+        var branchYear = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.EvaluationPeriod)
             .Include(t => t.KpiDefinition)
@@ -136,7 +136,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Load all branch-year rows for this branch+year with their KPI definitions (one query)
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition).ThenInclude(k => k.KpiGroup)
             .Where(t => t.DepartmentId == branchId
@@ -157,7 +157,7 @@ public sealed class TargetSetupService(
         var quartersByPeriodId = quarterPeriods.ToDictionary(p => p.Id);
 
         // 4. Load DRAFT/ACTIVE quarter child rows with SplitDimension = PERIOD for all branch-year rows (one query)
-        var quarterChildRows = await db.TargetAssignments
+        var quarterChildRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId != null
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -178,7 +178,7 @@ public sealed class TargetSetupService(
         var previousYearActualByKpi = new Dictionary<Guid, decimal[]>();
         if (previousYearPeriod is not null)
         {
-            previousYearValueByKpi = await db.TargetAssignments
+            previousYearValueByKpi = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.DepartmentId == branchId
                     && t.EvaluationPeriodId == previousYearPeriod.Id
@@ -196,7 +196,7 @@ public sealed class TargetSetupService(
                 .ToDictionary(x => x.Number, x => x.Period);
             var prevQuarterPeriodIds = new HashSet<Guid>(prevQuarterPeriods.Select(p => p.Id));
 
-            var prevQuarterRows = await db.TargetAssignments
+            var prevQuarterRows = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.DepartmentId == branchId
                     && t.Status == TargetAssignmentStatus.Active
@@ -212,7 +212,7 @@ public sealed class TargetSetupService(
             // Actuals sit on descendant TargetAssignments (department/team/employee, month/week/day splits), not on
             // the branch-year row itself, so walk the parent-assignment tree down from the branch's previous-year
             // roots (one query per level, ~5 levels) to collect every assignment id in scope before summing.
-            var prevRootIds = await db.TargetAssignments
+            var prevRootIds = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.DepartmentId == branchId
                     && t.ParentAssignmentId == null
@@ -224,7 +224,7 @@ public sealed class TargetSetupService(
             var prevCurrentLevelIds = prevRootIds;
             while (prevCurrentLevelIds.Count > 0)
             {
-                var nextLevelIds = await db.TargetAssignments
+                var nextLevelIds = await uow.TargetAssignments.Query(false)
                     .AsNoTracking()
                     .Where(t => t.ParentAssignmentId != null && prevCurrentLevelIds.Contains(t.ParentAssignmentId.Value))
                     .Select(t => t.Id)
@@ -242,7 +242,7 @@ public sealed class TargetSetupService(
                 prevCurrentLevelIds = nextLevelIds;
             }
 
-            var prevActualRows = await db.ActualProgresses
+            var prevActualRows = await uow.ActualProgresses.Query(false)
                 .AsNoTracking()
                 .Where(a => a.Status == ActualProgressStatus.Valid
                     && prevTreeIds.Contains(a.TargetAssignmentId)
@@ -389,7 +389,7 @@ public sealed class TargetSetupService(
         }
 
         // 1. Load all active employees in these departments
-        var employees = await db.Employees
+        var employees = await uow.Employees.Query(false)
             .AsNoTracking()
             .Include(e => e.JobPosition)
             .Where(e => departmentIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
@@ -404,7 +404,7 @@ public sealed class TargetSetupService(
         var jobPositionIds = employees.Select(e => e.JobPositionId).Distinct().ToList();
 
         // 2. Load ACTIVE evaluation profiles
-        var activeProfiles = await db.EvaluationProfiles
+        var activeProfiles = await uow.EvaluationProfiles.Query(false)
             .AsNoTracking()
             .Include(p => p.EvaluationProfileItems)
             .Where(p => jobPositionIds.Contains(p.JobPositionId)
@@ -436,7 +436,7 @@ public sealed class TargetSetupService(
 
         if (jobPosWithoutProfile.Count > 0)
         {
-            var workTypeKpiLinks = await db.WorkTypeKpis
+            var workTypeKpiLinks = await uow.WorkTypeKpis.Query(false)
                 .AsNoTracking()
                 .Where(wk => kpiIds.Contains(wk.KpiDefinitionId)
                     && wk.EffectiveFrom <= asOf
@@ -447,7 +447,7 @@ public sealed class TargetSetupService(
             {
                 var workTypeIds = workTypeKpiLinks.Select(wk => wk.WorkTypeId).ToHashSet();
 
-                var jobPosWorkTypes = await db.JobPositionWorkTypes
+                var jobPosWorkTypes = await uow.JobPositionWorkTypes.Query(false)
                     .AsNoTracking()
                     .Where(jpwt => jobPosWithoutProfile.Contains(jpwt.JobPositionId)
                         && workTypeIds.Contains(jpwt.WorkTypeId))
@@ -507,14 +507,14 @@ public sealed class TargetSetupService(
         // Reload to get job position titles for most common calculation (only used for display)
         if (result.Count > 0)
         {
-            var employees = await db.Employees
+            var employees = await uow.Employees.Query(false)
                 .AsNoTracking()
                 .Include(e => e.JobPosition)
                 .Where(e => departmentIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
                 .ToListAsync(cancellationToken);
 
             var jobPositionIds = employees.Select(e => e.JobPositionId).Distinct().ToList();
-            var profiles = await db.EvaluationProfiles
+            var profiles = await uow.EvaluationProfiles.Query(false)
                 .AsNoTracking()
                 .Include(p => p.EvaluationProfileItems)
                 .Where(p => jobPositionIds.Contains(p.JobPositionId)
@@ -558,7 +558,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Load all branch-year rows for validation (one query)
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.DepartmentId == branchId
@@ -654,7 +654,7 @@ public sealed class TargetSetupService(
             PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken);
 
         // 7. Load existing quarter child rows (one query, with tracking for updates)
-        var existingChildRows = await db.TargetAssignments
+        var existingChildRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId != null
                 && t.SplitDimension == TargetSplitDimension.Period
                 && t.ParentAssignmentId != null && branchYearById.Keys.Contains(t.ParentAssignmentId.Value))
@@ -763,7 +763,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Find the branch-year row for this KPI (NotFoundException if none)
-        var branchYearKpiRow = await db.TargetAssignments
+        var branchYearKpiRow = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.Status == TargetAssignmentStatus.Draft || t.Status == TargetAssignmentStatus.Active)
@@ -793,7 +793,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Load all branch-year KPI rows, same ordering as GetQuartersAsync
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition).ThenInclude(k => k.KpiGroup)
             .Where(t => t.DepartmentId == branchId
@@ -839,7 +839,7 @@ public sealed class TargetSetupService(
     {
         var aggregation = branchYearKpiRow.KpiDefinition.AggregationType;
 
-        var branchQuarterRows = await db.TargetAssignments
+        var branchQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -889,7 +889,7 @@ public sealed class TargetSetupService(
             .ToDictionary(x => x.Number, x => x.Period);
 
         // Load branch quarter values
-        var branchQuarterRows = await db.TargetAssignments
+        var branchQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -910,7 +910,7 @@ public sealed class TargetSetupService(
         }
 
         // 4. Get departments and headcount
-        var departments = await db.Departments
+        var departments = await uow.Departments.Query(false)
             .AsNoTracking()
             .Where(d => d.ParentDepartmentId == branchId
                 && d.LevelType == DepartmentLevelType.Department)
@@ -936,7 +936,7 @@ public sealed class TargetSetupService(
         }
 
         // 6. Load existing allocation for eligible departments
-        var deptYearRows = await db.TargetAssignments
+        var deptYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id
                 && t.SplitDimension == TargetSplitDimension.Org
@@ -949,7 +949,7 @@ public sealed class TargetSetupService(
 
         // Load department quarter rows
         var deptYearIds = deptYearRows.Select(r => r.Id).ToHashSet();
-        var deptQuarterRows = await db.TargetAssignments
+        var deptQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && t.KpiDefinitionId == kpiId
@@ -967,7 +967,7 @@ public sealed class TargetSetupService(
 
         if (previousYearPeriod is not null)
         {
-            var prevDeptYearRows = await db.TargetAssignments
+            var prevDeptYearRows = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.ParentAssignmentId != null
                     && t.SplitDimension == TargetSplitDimension.Org
@@ -993,7 +993,7 @@ public sealed class TargetSetupService(
 
                 while (currentLevelIds.Count > 0)
                 {
-                    var children = await db.TargetAssignments
+                    var children = await uow.TargetAssignments.Query(false)
                         .AsNoTracking()
                         .Where(t => t.ParentAssignmentId != null && currentLevelIds.Contains(t.ParentAssignmentId.Value))
                         .Select(t => new { t.Id, t.ParentAssignmentId })
@@ -1018,7 +1018,7 @@ public sealed class TargetSetupService(
                 }
 
                 var treeIds = idToRootId.Keys.ToList();
-                var actualRows = await db.ActualProgresses
+                var actualRows = await uow.ActualProgresses.Query(false)
                     .AsNoTracking()
                     .Where(a => a.Status == ActualProgressStatus.Valid
                         && treeIds.Contains(a.TargetAssignmentId)
@@ -1112,7 +1112,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Find the KPI branch-year row and check it's not a ratio
-        var branchYearKpiRow = await db.TargetAssignments
+        var branchYearKpiRow = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .FirstOrDefaultAsync(t => t.KpiDefinitionId == kpiId
@@ -1138,7 +1138,7 @@ public sealed class TargetSetupService(
         var quarterPeriods = await uow.EvaluationPeriods.GetInRangeAsync(
             PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken);
 
-        var branchQuarterRows = await db.TargetAssignments
+        var branchQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -1173,7 +1173,7 @@ public sealed class TargetSetupService(
         }
 
         // 5. Get all eligible departments (headcount > 0)
-        var departments = await db.Departments
+        var departments = await uow.Departments.Query(false)
             .AsNoTracking()
             .Where(d => d.ParentDepartmentId == branchId
                 && d.LevelType == DepartmentLevelType.Department)
@@ -1271,7 +1271,7 @@ public sealed class TargetSetupService(
             .ToDictionary(x => x.Number, x => x.Period);
 
         // Load existing dept-year and dept-quarter rows (one query with tracking for updates)
-        var existingDeptYearRows = await db.TargetAssignments
+        var existingDeptYearRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id
                 && t.SplitDimension == TargetSplitDimension.Org
                 && t.KpiDefinitionId == kpiId
@@ -1281,7 +1281,7 @@ public sealed class TargetSetupService(
         var deptYearByDeptId = existingDeptYearRows.ToDictionary(r => r.DepartmentId!.Value, r => r);
         var deptYearIds = existingDeptYearRows.Select(r => r.Id).ToHashSet();
 
-        var existingDeptQuarterRows = await db.TargetAssignments
+        var existingDeptQuarterRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && t.KpiDefinitionId == kpiId
                 && t.ParentAssignmentId != null && deptYearIds.Contains(t.ParentAssignmentId.Value))
@@ -1338,12 +1338,12 @@ public sealed class TargetSetupService(
 
             if (staleDeptQuarterRows.Count > 0)
             {
-                db.TargetAssignments.RemoveRange(staleDeptQuarterRows);
+                uow.TargetAssignments.RemoveRange(staleDeptQuarterRows);
             }
 
             if (staleDeptYearRows.Count > 0)
             {
-                db.TargetAssignments.RemoveRange(staleDeptYearRows);
+                uow.TargetAssignments.RemoveRange(staleDeptYearRows);
             }
 
             // Upsert dept-year rows for each department in request
@@ -1439,7 +1439,7 @@ public sealed class TargetSetupService(
     public async Task<TargetSetupDto> GetSetupAsync(Guid branchId, int year, Guid userId, CancellationToken cancellationToken)
     {
         // 1. Validate branch exists and check access
-        var branch = await db.Departments
+        var branch = await uow.Departments.Query(false)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == branchId && d.LevelType == DepartmentLevelType.Branch, cancellationToken)
             ?? throw new NotFoundException($"Branch {branchId} not found or is not a Branch level.");
@@ -1466,7 +1466,7 @@ public sealed class TargetSetupService(
         }
 
         // 3. Load all top-level branch-year rows (ParentAssignmentId null, SplitDimension null, Draft or Active)
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.DepartmentId == branchId
@@ -1480,7 +1480,7 @@ public sealed class TargetSetupService(
         bool hasBranchYear = rowCount > 0;
 
         // 4. Load ImportedAt from AuditLog (latest import for this branch+year)
-        var auditLog = await db.AuditLogs
+        var auditLog = await uow.AuditLogs.Query(false)
             .AsNoTracking()
             .Where(a => a.EntityName == AuditEntityName && a.EntityId == $"{branchId}:{year}")
             .OrderByDescending(a => a.OccurredAt)
@@ -1523,7 +1523,7 @@ public sealed class TargetSetupService(
         var branchYearIds = branchYearRows.Select(r => r.Id).ToHashSet();
 
         // 8. Load PERIOD children (branch-quarter rows) for all branch-year rows (one query)
-        var quarterChildRows = await db.TargetAssignments
+        var quarterChildRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && (t.Status == TargetAssignmentStatus.Draft || t.Status == TargetAssignmentStatus.Active)
@@ -1563,7 +1563,7 @@ public sealed class TargetSetupService(
         }
 
         // 10. Load ORG children (dept-year rows) and PERIOD grandchildren (dept-quarter rows) (one query each)
-        var deptYearRows = await db.TargetAssignments
+        var deptYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.SplitDimension == TargetSplitDimension.Org
                 && (t.Status == TargetAssignmentStatus.Draft || t.Status == TargetAssignmentStatus.Active))
@@ -1573,7 +1573,7 @@ public sealed class TargetSetupService(
         deptYearRows = filteredDeptYearRows;
         var deptYearIds = deptYearRows.Select(r => r.Id).ToHashSet();
 
-        var deptQuarterRows = await db.TargetAssignments
+        var deptQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.SplitDimension == TargetSplitDimension.Period)
             .ToListAsync(cancellationToken);
@@ -1586,7 +1586,7 @@ public sealed class TargetSetupService(
             .ToDictionary(g => g.Key, g => g.FirstOrDefault());
 
         // 11. Get all departments as list
-        var allDepartments = await db.Departments
+        var allDepartments = await uow.Departments.Query(false)
             .AsNoTracking()
             .Where(d => d.ParentDepartmentId == branchId && d.LevelType == DepartmentLevelType.Department)
             .ToListAsync(cancellationToken);
@@ -1770,7 +1770,7 @@ public sealed class TargetSetupService(
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
         // 2. Check not already Active (any Draft means we can proceed; if all Active, reject)
-        var allBranchYearRows = await db.TargetAssignments
+        var allBranchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.DepartmentId == branchId
                 && t.EvaluationPeriodId == yearPeriodId
@@ -1804,7 +1804,7 @@ public sealed class TargetSetupService(
             var now = DateTimeOffset.UtcNow;
 
             // Load all tracked branch-year rows and their children
-            var branchYearRowsTracked = await db.TargetAssignments
+            var branchYearRowsTracked = await uow.TargetAssignments.Query(false)
                 .Include(t => t.KpiDefinition)
                 .Where(t => t.DepartmentId == branchId
                     && t.EvaluationPeriodId == yearPeriodId
@@ -1815,7 +1815,7 @@ public sealed class TargetSetupService(
             var branchYearIds = branchYearRowsTracked.Select(r => r.Id).ToHashSet();
 
             // Get all PERIOD children (branch-quarter rows)
-            var periodChildren = await db.TargetAssignments
+            var periodChildren = await uow.TargetAssignments.Query(false)
                 .Where(t => t.SplitDimension == TargetSplitDimension.Period
                     && t.ParentAssignmentId != null
                     && branchYearIds.Contains(t.ParentAssignmentId.Value))
@@ -1827,7 +1827,7 @@ public sealed class TargetSetupService(
             periodChildren.AddRange(await EnsureFixedQuartersAsync(branchId, branchYearRowsTracked, quarterPeriods, ct));
 
             // Get all ORG children (dept-year rows)
-            var orgChildren = await db.TargetAssignments
+            var orgChildren = await uow.TargetAssignments.Query(false)
                 .Where(t => t.SplitDimension == TargetSplitDimension.Org
                     && t.ParentAssignmentId != null
                     && branchYearIds.Contains(t.ParentAssignmentId.Value))
@@ -1836,7 +1836,7 @@ public sealed class TargetSetupService(
             var deptYearIds = orgChildren.Select(r => r.Id).ToHashSet();
 
             // Get all PERIOD grandchildren (dept-quarter rows)
-            var periodGrandchildren = await db.TargetAssignments
+            var periodGrandchildren = await uow.TargetAssignments.Query(false)
                 .Where(t => t.SplitDimension == TargetSplitDimension.Period
                     && t.ParentAssignmentId != null
                     && deptYearIds.Contains(t.ParentAssignmentId.Value))
@@ -1894,7 +1894,7 @@ public sealed class TargetSetupService(
                 OccurredAt = now
             };
 
-            db.AuditLogs.Add(auditLog);
+            await uow.AuditLogs.AddAsync(auditLog, ct);
             await uow.SaveChangesAsync(ct);
 
             // D10/D20: a PUBLISH change-log entry per KPI (tier 1) and per department-year row (tier 2), plus a
@@ -1950,7 +1950,7 @@ public sealed class TargetSetupService(
 
         // 6. Load updated counts and return result
         var now2 = DateTimeOffset.UtcNow;
-        var finalBranchYearRows = await db.TargetAssignments
+        var finalBranchYearRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.DepartmentId == branchId
                 && t.EvaluationPeriodId == yearPeriodId
                 && t.ParentAssignmentId == null
@@ -1960,13 +1960,13 @@ public sealed class TargetSetupService(
 
         var finalBranchYearIds = finalBranchYearRows.Select(r => r.Id).ToHashSet();
 
-        var finalPeriodChildren = await db.TargetAssignments
+        var finalPeriodChildren = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId != null && finalBranchYearIds.Contains(t.ParentAssignmentId.Value)
                 && t.SplitDimension == TargetSplitDimension.Period
                 && t.Status == TargetAssignmentStatus.Active)
             .ToListAsync(cancellationToken);
 
-        var finalOrgChildren = await db.TargetAssignments
+        var finalOrgChildren = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId != null && finalBranchYearIds.Contains(t.ParentAssignmentId.Value)
                 && t.SplitDimension == TargetSplitDimension.Org
                 && t.Status == TargetAssignmentStatus.Active)
@@ -1974,7 +1974,7 @@ public sealed class TargetSetupService(
 
         var finalDeptYearIds = finalOrgChildren.Select(r => r.Id).ToHashSet();
 
-        var finalPeriodGrandchildren = await db.TargetAssignments
+        var finalPeriodGrandchildren = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId != null && finalDeptYearIds.Contains(t.ParentAssignmentId.Value)
                 && t.SplitDimension == TargetSplitDimension.Period
                 && t.Status == TargetAssignmentStatus.Active)
@@ -1991,7 +1991,7 @@ public sealed class TargetSetupService(
 
     private async Task<QuarterRatiosDto?> LoadFileRatiosAsync(Guid branchId, int year, CancellationToken cancellationToken)
     {
-        var auditLog = await db.AuditLogs
+        var auditLog = await uow.AuditLogs.Query(false)
             .AsNoTracking()
             .Where(a => a.EntityName == AuditEntityName && a.EntityId == $"{branchId}:{year}")
             .OrderByDescending(a => a.OccurredAt)
@@ -2052,7 +2052,7 @@ public sealed class TargetSetupService(
     private async Task<(TargetAssignment deptYear, Guid departmentId, int year, Guid yearPeriodId, EvaluationPeriod yearPeriod)>
         LoadAndValidateDeptYearAsync(Guid deptYearId, Guid userId, CancellationToken cancellationToken)
     {
-        var deptYear = await db.TargetAssignments
+        var deptYear = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Include(t => t.EvaluationPeriod)
@@ -2085,7 +2085,7 @@ public sealed class TargetSetupService(
     private async Task<(List<Employee> Eligible, List<Employee> Ineligible, string? MostCommonJobPositionName)>
         GetEligibleEmployeesAsync(Guid departmentId, Guid kpiId, DateOnly asOf, CancellationToken cancellationToken)
     {
-        var employees = await db.Employees
+        var employees = await uow.Employees.Query(false)
             .AsNoTracking()
             .Include(e => e.JobPosition)
             .Where(e => e.DepartmentId == departmentId && e.Status == EmployeeStatus.Active)
@@ -2101,7 +2101,7 @@ public sealed class TargetSetupService(
 
         var eligibleJobPositionIds = new HashSet<Guid>();
 
-        var activeProfiles = await db.EvaluationProfiles
+        var activeProfiles = await uow.EvaluationProfiles.Query(false)
             .AsNoTracking()
             .Include(p => p.EvaluationProfileItems)
             .Where(p => jobPositionIds.Contains(p.JobPositionId)
@@ -2124,7 +2124,7 @@ public sealed class TargetSetupService(
         var jobPosWithoutProfile = jobPositionIds.Where(jp => !jobPosWithProfile.Contains(jp)).ToList();
         if (jobPosWithoutProfile.Count > 0)
         {
-            var workTypeKpiLinks = await db.WorkTypeKpis
+            var workTypeKpiLinks = await uow.WorkTypeKpis.Query(false)
                 .AsNoTracking()
                 .Where(wk => wk.KpiDefinitionId == kpiId
                     && wk.EffectiveFrom <= asOf
@@ -2134,7 +2134,7 @@ public sealed class TargetSetupService(
 
             if (workTypeKpiLinks.Count > 0)
             {
-                var matchingJobPositions = await db.JobPositionWorkTypes
+                var matchingJobPositions = await uow.JobPositionWorkTypes.Query(false)
                     .AsNoTracking()
                     .Where(jpwt => jobPosWithoutProfile.Contains(jpwt.JobPositionId) && workTypeKpiLinks.Contains(jpwt.WorkTypeId))
                     .Select(jpwt => jpwt.JobPositionId)
@@ -2172,7 +2172,7 @@ public sealed class TargetSetupService(
     {
         var (anchorDeptYear, departmentId, year, yearPeriodId, yearPeriod) = await LoadAndValidateDeptYearAsync(deptYearId, userId, cancellationToken);
 
-        var deptYearRows = await db.TargetAssignments
+        var deptYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition).ThenInclude(k => k.KpiGroup)
             .Where(t => t.DepartmentId == departmentId
@@ -2218,7 +2218,7 @@ public sealed class TargetSetupService(
             .ToDictionary(x => x.Number, x => x.Period);
 
         // Department's own quarter values (SplitDimension = PERIOD, no employee attached).
-        var deptQuarterRows = await db.TargetAssignments
+        var deptQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == deptYearRow.Id
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -2237,7 +2237,7 @@ public sealed class TargetSetupService(
             deptQ1 = deptQ2 = deptQ3 = deptQ4 = deptYearRow.TargetValue;
         }
 
-        var department = await db.Departments.AsNoTracking().FirstAsync(d => d.Id == departmentId, cancellationToken);
+        var department = await uow.Departments.Query(false).AsNoTracking().FirstAsync(d => d.Id == departmentId, cancellationToken);
 
         // Eligible employees (hold a responsible position for this KPI) and locked (ineligible) employees.
         var (eligibleEmployees, ineligibleEmployees, _) = await GetEligibleEmployeesAsync(departmentId, kpiId, yearPeriod.StartDate, cancellationToken);
@@ -2248,7 +2248,7 @@ public sealed class TargetSetupService(
             .ToList();
 
         // Existing employee-year rows for this KPI under this department-year row.
-        var employeeYearRows = await db.TargetAssignments
+        var employeeYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == deptYearRow.Id
                 && t.SplitDimension == TargetSplitDimension.Org
@@ -2261,7 +2261,7 @@ public sealed class TargetSetupService(
         var employeeYearByEmployeeId = employeeYearRows.ToDictionary(r => r.EmployeeId!.Value, r => r);
 
         var employeeYearIds = employeeYearRows.Select(r => r.Id).ToHashSet();
-        var employeeQuarterRows = await db.TargetAssignments
+        var employeeQuarterRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && t.KpiDefinitionId == kpiId
@@ -2281,7 +2281,7 @@ public sealed class TargetSetupService(
         decimal? departmentPreviousYear = null;
         if (previousYearPeriod is not null)
         {
-            var previousDepartmentYear = await db.TargetAssignments
+            var previousDepartmentYear = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.SplitDimension == TargetSplitDimension.Org
                     && t.EmployeeId == null && t.DepartmentId == departmentId
@@ -2295,7 +2295,7 @@ public sealed class TargetSetupService(
 
         if (previousYearPeriod is not null && eligibleEmployeeIds.Count > 0)
         {
-            var prevEmployeeYearRows = await db.TargetAssignments
+            var prevEmployeeYearRows = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.SplitDimension == TargetSplitDimension.Org
                     && t.EmployeeId != null && eligibleEmployeeIds.Contains(t.EmployeeId.Value)
@@ -2318,7 +2318,7 @@ public sealed class TargetSetupService(
 
                 while (currentLevelIds.Count > 0)
                 {
-                    var children = await db.TargetAssignments
+                    var children = await uow.TargetAssignments.Query(false)
                         .AsNoTracking()
                         .Where(t => t.ParentAssignmentId != null && currentLevelIds.Contains(t.ParentAssignmentId.Value))
                         .Select(t => new { t.Id, t.ParentAssignmentId })
@@ -2344,7 +2344,7 @@ public sealed class TargetSetupService(
                 }
 
                 var treeIdList = treeIds.ToList();
-                var actualRows = await db.ActualProgresses
+                var actualRows = await uow.ActualProgresses.Query(false)
                     .AsNoTracking()
                     .Where(a => a.Status == ActualProgressStatus.Valid
                         && treeIdList.Contains(a.TargetAssignmentId)
@@ -2503,7 +2503,7 @@ public sealed class TargetSetupService(
 
         // Locked-quarter check (same rule as department/branch allocation).
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var existingEmployeeYearRows = await db.TargetAssignments
+        var existingEmployeeYearRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId == deptYear.Id
                 && t.SplitDimension == TargetSplitDimension.Org
                 && t.EmployeeId != null
@@ -2524,7 +2524,7 @@ public sealed class TargetSetupService(
         var employeeYearByEmployeeId = existingEmployeeYearRows.ToDictionary(r => r.EmployeeId!.Value, r => r);
         var employeeYearIds = existingEmployeeYearRows.Select(r => r.Id).ToHashSet();
 
-        var existingEmployeeQuarterRows = await db.TargetAssignments
+        var existingEmployeeQuarterRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.SplitDimension == TargetSplitDimension.Period
                 && t.KpiDefinitionId == kpiId
                 && t.ParentAssignmentId != null && employeeYearIds.Contains(t.ParentAssignmentId.Value))
@@ -2569,12 +2569,12 @@ public sealed class TargetSetupService(
 
             if (staleEmployeeQuarterRows.Count > 0)
             {
-                db.TargetAssignments.RemoveRange(staleEmployeeQuarterRows);
+                uow.TargetAssignments.RemoveRange(staleEmployeeQuarterRows);
             }
 
             if (staleEmployeeYearRows.Count > 0)
             {
-                db.TargetAssignments.RemoveRange(staleEmployeeYearRows);
+                uow.TargetAssignments.RemoveRange(staleEmployeeYearRows);
             }
 
             foreach (var empReq in request.Employees)
@@ -2655,7 +2655,7 @@ public sealed class TargetSetupService(
                 ErrorCodes.TargetTierNotPublished);
         }
 
-        var deptYearRows = await db.TargetAssignments
+        var deptYearRows = await uow.TargetAssignments.Query(false)
             .Include(t => t.KpiDefinition)
             .Where(t => t.DepartmentId == departmentId
                 && t.EvaluationPeriodId == yearPeriodId
@@ -2674,7 +2674,7 @@ public sealed class TargetSetupService(
             var (eligibleEmployees, _, _) = await GetEligibleEmployeesAsync(departmentId, row.KpiDefinitionId, yearPeriod.StartDate, cancellationToken);
             var eligibleIds = eligibleEmployees.Select(e => e.Id).ToHashSet();
 
-            var employeeYearRows = await db.TargetAssignments
+            var employeeYearRows = await uow.TargetAssignments.Query(false)
                 .Where(t => t.ParentAssignmentId == row.Id
                     && t.SplitDimension == TargetSplitDimension.Org
                     && t.EmployeeId != null
@@ -2698,7 +2698,7 @@ public sealed class TargetSetupService(
             }
 
             var employeeYearIds = employeeYearRows.Select(r => r.Id).ToHashSet();
-            var employeeQuarterRows = await db.TargetAssignments
+            var employeeQuarterRows = await uow.TargetAssignments.Query(false)
                 .Where(t => t.SplitDimension == TargetSplitDimension.Period
                     && t.KpiDefinitionId == row.KpiDefinitionId
                     && t.ParentAssignmentId != null && employeeYearIds.Contains(t.ParentAssignmentId.Value))
@@ -2763,20 +2763,20 @@ public sealed class TargetSetupService(
                 OccurredAt = now
             };
 
-            db.AuditLogs.Add(auditLog);
+            await uow.AuditLogs.AddAsync(auditLog, ct);
             await uow.SaveChangesAsync(ct);
 
             // Target Allocation v3 (D10, D20): create a PENDING ack for every newly-published employee that
             // does not already have one for this year, and record a PUBLISH change-log entry per KPI.
             var coveredEmployeeIds = allEmployeeYearRows.Select(r => r.EmployeeId!.Value).Distinct().ToList();
-            var existingAckEmployeeIds = await db.EmployeeTargetAcks
+            var existingAckEmployeeIds = await uow.EmployeeTargetAcks.Query(false)
                 .Where(a => a.Year == year && coveredEmployeeIds.Contains(a.EmployeeId))
                 .Select(a => a.EmployeeId)
                 .ToListAsync(ct);
 
             foreach (var employeeId in coveredEmployeeIds.Except(existingAckEmployeeIds))
             {
-                db.EmployeeTargetAcks.Add(new EmployeeTargetAck
+                await uow.EmployeeTargetAcks.AddAsync(new EmployeeTargetAck
                 {
                     Id = Guid.NewGuid(),
                     EmployeeId = employeeId,
@@ -2784,7 +2784,7 @@ public sealed class TargetSetupService(
                     Status = EmployeeTargetAckStatus.Pending,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                }, ct);
             }
 
             await uow.SaveChangesAsync(ct);
@@ -2831,7 +2831,7 @@ public sealed class TargetSetupService(
     // =========================================================================
 
     private async Task<Employee?> ResolveChangedByEmployeeAsync(Guid userId, CancellationToken cancellationToken) =>
-        await db.Employees
+        await uow.Employees.Query(false)
             .AsNoTracking()
             .Where(e => e.Id == userId || (e.Account != null && e.Account.Id == userId))
             .FirstOrDefaultAsync(cancellationToken);
@@ -2852,7 +2852,7 @@ public sealed class TargetSetupService(
                 ErrorCodes.TargetInvalidState);
         }
 
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.DepartmentId == branchId && t.EvaluationPeriodId == yearPeriodId
@@ -2908,7 +2908,7 @@ public sealed class TargetSetupService(
         var quarterPeriods = await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken);
 
         var branchYearRowIds = rowsToApply.Select(r => r.BranchYearRow.Id).ToList();
-        var existingActiveQuarters = await db.TargetAssignments
+        var existingActiveQuarters = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId != null && branchYearRowIds.Contains(t.ParentAssignmentId.Value)
                 && t.SplitDimension == TargetSplitDimension.Period && t.Status == TargetAssignmentStatus.Active)
             .ToListAsync(cancellationToken);
@@ -3001,7 +3001,7 @@ public sealed class TargetSetupService(
 
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
-        var branchYearKpiRow = await db.TargetAssignments
+        var branchYearKpiRow = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .FirstOrDefaultAsync(t => t.KpiDefinitionId == kpiId && t.DepartmentId == branchId
@@ -3024,7 +3024,7 @@ public sealed class TargetSetupService(
         var aggregation = branchYearKpiRow.KpiDefinition.AggregationType;
         var quarterPeriods = await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken);
 
-        var existingDeptYearRows = await db.TargetAssignments
+        var existingDeptYearRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId == branchYearKpiRow.Id && t.SplitDimension == TargetSplitDimension.Org
                 && t.KpiDefinitionId == kpiId && t.Status == TargetAssignmentStatus.Active)
             .ToListAsync(cancellationToken);
@@ -3042,7 +3042,7 @@ public sealed class TargetSetupService(
                 "Yêu cầu điều chỉnh phải gồm đầy đủ các phòng ban đang được phân bổ cho KPI này (không thêm/bớt phòng).");
         }
 
-        var departmentNames = await db.Departments
+        var departmentNames = await uow.Departments.Query(false)
             .AsNoTracking()
             .Where(d => requestDeptIds.Contains(d.Id))
             .ToDictionaryAsync(d => d.Id, d => d.Name, cancellationToken);
@@ -3084,7 +3084,7 @@ public sealed class TargetSetupService(
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var deptYearIds = existingDeptYearRows.Select(r => r.Id).ToList();
-        var existingDeptQuarterRows = await db.TargetAssignments
+        var existingDeptQuarterRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.SplitDimension == TargetSplitDimension.Period && t.KpiDefinitionId == kpiId
                 && t.ParentAssignmentId != null && deptYearIds.Contains(t.ParentAssignmentId.Value)
                 && t.Status == TargetAssignmentStatus.Active)
@@ -3232,14 +3232,14 @@ public sealed class TargetSetupService(
                 // demoted to DRAFT: the DB's deferred children-sum trigger requires ACTIVE children of an ACTIVE
                 // SUM-KPI parent to sum exactly, and they no longer do (the department year just changed), so they
                 // cannot stay ACTIVE until the DM republishes them via AdjustEmployeeAllocationAsync.
-                var employeeYearChildren = await db.TargetAssignments
+                var employeeYearChildren = await uow.TargetAssignments.Query(false)
                     .Where(t => t.ParentAssignmentId == deptYearRow.Id && t.SplitDimension == TargetSplitDimension.Org
                         && t.EmployeeId != null && t.Status == TargetAssignmentStatus.Active)
                     .ToListAsync(ct);
                 var employeeYearChildIds = employeeYearChildren.Select(c => c.Id).ToHashSet();
                 var employeeQuarterChildren = employeeYearChildIds.Count == 0
                     ? []
-                    : await db.TargetAssignments
+                    : await uow.TargetAssignments.Query(false)
                         .Where(t => t.ParentAssignmentId != null && employeeYearChildIds.Contains(t.ParentAssignmentId.Value)
                             && t.Status == TargetAssignmentStatus.Active)
                         .ToListAsync(ct);
@@ -3326,7 +3326,7 @@ public sealed class TargetSetupService(
         // adjustment that reopened this department's tier 3 as mismatched (D13) — both count as "already
         // published for this KPI" for the purposes of this endpoint; only a never-published KPI (no row at all,
         // or only SUPERSEDED history) is rejected below.
-        var existingEmployeeYearRows = await db.TargetAssignments
+        var existingEmployeeYearRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.ParentAssignmentId == deptYear.Id && t.SplitDimension == TargetSplitDimension.Org
                 && t.EmployeeId != null && t.KpiDefinitionId == kpiId && t.Status != TargetAssignmentStatus.Superseded)
             .ToListAsync(cancellationToken);
@@ -3396,7 +3396,7 @@ public sealed class TargetSetupService(
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var employeeYearIds = existingEmployeeYearRows.Select(r => r.Id).ToList();
-        var existingEmployeeQuarterRows = await db.TargetAssignments
+        var existingEmployeeQuarterRows = await uow.TargetAssignments.Query(false)
             .Where(t => t.SplitDimension == TargetSplitDimension.Period && t.KpiDefinitionId == kpiId
                 && t.ParentAssignmentId != null && employeeYearIds.Contains(t.ParentAssignmentId.Value)
                 && t.Status != TargetAssignmentStatus.Superseded)
@@ -3538,7 +3538,7 @@ public sealed class TargetSetupService(
 
             if (reconfirmEmployeeIds.Count > 0)
             {
-                var acks = await db.EmployeeTargetAcks
+                var acks = await uow.EmployeeTargetAcks.Query(false)
                     .Where(a => a.Year == year && reconfirmEmployeeIds.Contains(a.EmployeeId))
                     .ToListAsync(ct);
                 var ackByEmployee = acks.ToDictionary(a => a.EmployeeId);
@@ -3556,7 +3556,7 @@ public sealed class TargetSetupService(
                     }
                     else
                     {
-                        db.EmployeeTargetAcks.Add(new EmployeeTargetAck
+                        await uow.EmployeeTargetAcks.AddAsync(new EmployeeTargetAck
                         {
                             Id = Guid.NewGuid(),
                             EmployeeId = employeeId,
@@ -3564,7 +3564,7 @@ public sealed class TargetSetupService(
                             Status = EmployeeTargetAckStatus.Reconfirm,
                             CreatedAt = now,
                             UpdatedAt = now
-                        });
+                        }, ct);
                     }
                 }
             }
@@ -3595,7 +3595,7 @@ public sealed class TargetSetupService(
     {
         var (_, branchId, year, _, _) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
-        var department = await db.Departments
+        var department = await uow.Departments.Query(false)
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException($"Department {departmentId} not found.");
@@ -3641,7 +3641,7 @@ public sealed class TargetSetupService(
     {
         var (branchYear, branchId, year, yearPeriodId, yearPeriod) = await LoadAndValidateBranchYearAsync(branchYearId, userId, cancellationToken);
 
-        var branchYearRows = await db.TargetAssignments
+        var branchYearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition).ThenInclude(k => k.KpiGroup)
             .Where(t => t.DepartmentId == branchId && t.EvaluationPeriodId == yearPeriodId
@@ -3651,7 +3651,7 @@ public sealed class TargetSetupService(
             .ThenBy(t => t.KpiDefinition.Code)
             .ToListAsync(cancellationToken);
 
-        var departments = await db.Departments
+        var departments = await uow.Departments.Query(false)
             .AsNoTracking()
             .Where(d => d.ParentDepartmentId == branchId && d.LevelType == DepartmentLevelType.Department)
             .OrderBy(d => d.Code)
@@ -3662,7 +3662,7 @@ public sealed class TargetSetupService(
         {
             var kpi = branchYearRow.KpiDefinition;
 
-            var deptYearRows = await db.TargetAssignments
+            var deptYearRows = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.ParentAssignmentId == branchYearRow.Id && t.SplitDimension == TargetSplitDimension.Org
                     && t.KpiDefinitionId == kpi.Id && t.Status == TargetAssignmentStatus.Active)
@@ -3678,14 +3678,14 @@ public sealed class TargetSetupService(
                 }
 
                 // Reconciled (VALID) actuals only, over the department's whole tree for this KPI/year.
-                var level1Ids = await db.TargetAssignments
+                var level1Ids = await uow.TargetAssignments.Query(false)
                     .AsNoTracking()
                     .Where(t => t.ParentAssignmentId == deptYearRow.Id)
                     .Select(t => t.Id)
                     .ToListAsync(cancellationToken);
                 var level2Ids = level1Ids.Count == 0
                     ? []
-                    : await db.TargetAssignments
+                    : await uow.TargetAssignments.Query(false)
                         .AsNoTracking()
                         .Where(t => t.ParentAssignmentId != null && level1Ids.Contains(t.ParentAssignmentId.Value))
                         .Select(t => t.Id)
@@ -3694,13 +3694,13 @@ public sealed class TargetSetupService(
                 treeIds.AddRange(level1Ids);
                 treeIds.AddRange(level2Ids);
 
-                var achieved = await db.ActualProgresses
+                var achieved = await uow.ActualProgresses.Query(false)
                     .AsNoTracking()
                     .Where(a => a.Status == ActualProgressStatus.Valid && treeIds.Contains(a.TargetAssignmentId)
                         && a.ProgressDate >= yearPeriod.StartDate && a.ProgressDate <= yearPeriod.EndDate)
                     .SumAsync(a => a.Value, cancellationToken);
 
-                var employeeYearRows = await db.TargetAssignments
+                var employeeYearRows = await uow.TargetAssignments.Query(false)
                     .AsNoTracking()
                     .Where(t => t.ParentAssignmentId == deptYearRow.Id && t.SplitDimension == TargetSplitDimension.Org
                         && t.EmployeeId != null && t.Status == TargetAssignmentStatus.Active)
@@ -3710,7 +3710,7 @@ public sealed class TargetSetupService(
                 var employeeIds = employeeYearRows.Select(r => r.EmployeeId!.Value).Distinct().ToList();
                 var confirmedCount = employeeIds.Count == 0
                     ? 0
-                    : await db.EmployeeTargetAcks
+                    : await uow.EmployeeTargetAcks.Query(false)
                         .Where(a => a.Year == year && employeeIds.Contains(a.EmployeeId) && a.Status == EmployeeTargetAckStatus.Confirmed)
                         .CountAsync(cancellationToken);
 

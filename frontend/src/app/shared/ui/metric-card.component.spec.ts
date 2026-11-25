@@ -9,7 +9,7 @@ describe('MetricCardComponent', () => {
     await TestBed.configureTestingModule({ imports: [MetricCardComponent] }).compileComponents();
     fixture = TestBed.createComponent(MetricCardComponent);
     fixture.componentRef.setInput('label', 'Total');
-    fixture.componentRef.setInput('pillText', '▲ 1,2');
+    fixture.componentRef.setInput('pillText', '+1,2');
     fixture.componentRef.setInput('pillClass', 'pill-success');
     fixture.detectChanges();
   });
@@ -21,7 +21,7 @@ describe('MetricCardComponent', () => {
 
   it('shows the pill with the given class when pill text is set', () => {
     const pill = fixture.debugElement.query(By.css('.metric-pill'));
-    expect(pill.nativeElement.textContent.trim()).toBe('▲ 1,2');
+    expect(pill.nativeElement.textContent.trim()).toBe('+1,2');
     expect(pill.classes['pill-success']).toBeTrue();
   });
 

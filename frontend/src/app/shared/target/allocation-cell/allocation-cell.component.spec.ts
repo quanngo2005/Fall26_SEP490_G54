@@ -8,15 +8,15 @@ describe('AllocationCellComponent', () => {
       providers: [
         {
           provide: I18nService,
-          useValue: jasmine.createSpyObj('I18nService', ['formatNumber'], {
+          useValue: jasmine.createSpyObj('I18nService', ['formatNumber', 'currentLanguage'], {
             localization: new I18nService().localization,
           }),
         },
       ],
     });
-    (TestBed.inject(I18nService).formatNumber as jasmine.Spy).and.callFake((v: number) =>
-      String(v),
-    );
+    const i18n = TestBed.inject(I18nService);
+    (i18n.formatNumber as jasmine.Spy).and.callFake((v: number) => String(v));
+    (i18n.currentLanguage as unknown as jasmine.Spy).and.returnValue('vi');
   });
 
   const render = (inputs: Record<string, unknown> = {}) => {
@@ -79,6 +79,43 @@ describe('AllocationCellComponent', () => {
     input.value = '2,5';
     input.dispatchEvent(new Event('blur'));
     expect(valueChange).toHaveBeenCalledWith(2.5);
+  });
+
+  describe('typed VND hint', () => {
+    const type = (fixture: ReturnType<typeof render>, text: string) => {
+      const input = fixture.nativeElement.querySelector('.cell-input') as HTMLInputElement;
+      input.dispatchEvent(new Event('focus'));
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      return input;
+    };
+    const hint = (fixture: ReturnType<typeof render>) =>
+      (fixture.nativeElement as HTMLElement).querySelector('.cell-hint')?.textContent?.trim();
+
+    it('shows the typed VND amount in tỷ while typing and hides it on blur', () => {
+      const fixture = render({ editable: true, scaleHint: true, value: null });
+      const input = type(fixture, '1.500.000.000');
+      expect(hint(fixture)).toBe('= 1.5 tỷ');
+      input.dispatchEvent(new Event('blur'));
+      fixture.detectChanges();
+      expect(hint(fixture)).toBeUndefined();
+    });
+
+    it('shows triệu for hundreds of millions', () => {
+      const fixture = render({ editable: true, scaleHint: true, value: null });
+      type(fixture, '500000000');
+      expect(hint(fixture)).toBe('= 500 triệu');
+    });
+
+    it('shows no hint below 1 triệu or when scaleHint is off', () => {
+      const small = render({ editable: true, scaleHint: true, value: null });
+      type(small, '999999');
+      expect(hint(small)).toBeUndefined();
+      const off = render({ editable: true, value: null });
+      type(off, '1500000000');
+      expect(hint(off)).toBeUndefined();
+    });
   });
 
   it('never renders an editable input when locked', () => {

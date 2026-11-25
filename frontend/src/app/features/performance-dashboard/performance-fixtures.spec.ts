@@ -1,7 +1,6 @@
 import { DepartmentMember, DepartmentOverview } from '../../core/department.models';
 import {
   barWidth,
-  formatArrow,
   formatSigned,
   formatValue,
   initials,
@@ -199,9 +198,7 @@ describe('perf-display', () => {
     expect(formatValue('vi', 84.9)).toBe('84,9');
     expect(formatSigned('en', 2)).toBe('+2.0');
     expect(formatSigned('en', -0.4)).toBe('−0.4');
-    expect(formatArrow('en', -6.5)).toBe('▼ 6.5');
-    expect(formatArrow('en', 0.1)).toBe('▲ 0.1');
-    expect(formatArrow('en', undefined)).toBe(NOT_AVAILABLE);
+    expect(formatSigned('en', undefined)).toBe(NOT_AVAILABLE);
   });
 
   it('derives tone, bar width and initials', () => {

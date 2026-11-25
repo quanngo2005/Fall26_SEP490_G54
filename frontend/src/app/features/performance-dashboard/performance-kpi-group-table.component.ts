@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentGroupKpi, DepartmentKpiGroup } from '../../core/department.models';
-import { barWidth, formatArrow, formatValue, toneOf, TRACK_HEADROOM } from './performance-display';
+import { barWidth, formatSigned, formatValue, toneOf, TRACK_HEADROOM } from './performance-display';
 
 /**
  * "KPI theo nhóm đánh giá": KPIs under the root groups of the evaluation profiles, with the weight of each group per
@@ -44,7 +44,7 @@ export class PerfKpiGroupTableComponent extends LocalizedComponent {
   }
 
   protected change(kpi: DepartmentGroupKpi): string {
-    return formatArrow(this.i18n.currentLanguage(), kpi.achievementChange, 0);
+    return formatSigned(this.i18n.currentLanguage(), kpi.achievementChange, 0);
   }
 
   protected tone(kpi: DepartmentGroupKpi): string {

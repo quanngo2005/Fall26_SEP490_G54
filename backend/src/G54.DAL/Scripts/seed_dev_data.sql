@@ -824,13 +824,14 @@ ON CONFLICT DO NOTHING;
 
 -- The rows seeded earlier join the same tree: the HDV Q4 chain hangs under the HDV year, the DU_NO and KH_MOI
 -- years are drafts, and the DU_NO quarters and departments get uneven values.
+-- DU_NO is authored in tỷ VND; the scale keeps these values right when the seed re-runs after convert_ty_vnd_kpis_to_vnd.sql.
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000001', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000001';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000031', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000002';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000032', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000003';
 UPDATE target_assignment SET status = 'DRAFT', approved_at = NULL WHERE id IN ('5eed0000-0000-0000-0015-000000000010', '5eed0000-0000-0000-0015-000000000020');
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 WHERE id = '5eed0000-0000-0000-0015-000000000015';
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 WHERE id = '5eed0000-0000-0000-0015-000000000016';
-UPDATE target_assignment SET target_value = v.value
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000015';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000016';
+UPDATE target_assignment SET target_value = v.value * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO')
 FROM (VALUES ('5eed0000-0000-0000-0015-000000000011'::uuid, 250), ('5eed0000-0000-0000-0015-000000000012'::uuid, 300), ('5eed0000-0000-0000-0015-000000000013'::uuid, 350), ('5eed0000-0000-0000-0015-000000000014'::uuid, 300)) AS v(id, value)
 WHERE target_assignment.id = v.id;
 

@@ -102,9 +102,14 @@ describe('PublishStepComponent (W7)', () => {
       Array.from(row.querySelectorAll('td')).map((td) => td.textContent?.trim()),
     );
     expect(rows).toEqual([
-      ['KHCN', 'Phạm Thu Hà', '2', '▲ +20,0%', '—'],
+      ['KHCN', 'Phạm Thu Hà', '2', '+20,0%', '—'],
       ['Dương Nội', 'Chưa xác định', '2', '—', 'Chưa có chỉ tiêu 2026'],
     ]);
+    const changeCells = Array.from(root(fixture).querySelectorAll('.publish-table tbody tr')).map(
+      (row) => row.querySelectorAll('td')[3].className,
+    );
+    expect(changeCells[0]).toContain('change-up');
+    expect(changeCells[1]).not.toMatch(/change-(up|down)/);
   });
 
   it('emits publish from "Phát hành cho 2 phòng" and back from "Về bước 3"', () => {

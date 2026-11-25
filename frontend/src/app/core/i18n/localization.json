@@ -4921,7 +4921,9 @@
           "locked": "Đã khoá / không áp dụng"
         },
         "allocationCell": {
-          "lockedDefaultReason": "Ô đã khoá hoặc không áp dụng cho dòng này."
+          "lockedDefaultReason": "Ô đã khoá hoặc không áp dụng cho dòng này.",
+          "unitMillion": "triệu",
+          "unitBillion": "tỷ"
         },
         "missingPanel": {
           "title": "Còn thiếu trước khi phát hành",
@@ -10066,7 +10068,9 @@
           "locked": "Locked / not applicable"
         },
         "allocationCell": {
-          "lockedDefaultReason": "This cell is locked or not applicable to this row."
+          "lockedDefaultReason": "This cell is locked or not applicable to this row.",
+          "unitMillion": "million",
+          "unitBillion": "billion"
         },
         "missingPanel": {
           "title": "Still missing before publishing",

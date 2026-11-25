@@ -115,7 +115,7 @@ public sealed class MyTargetsServiceTests
         var uow = new UnitOfWork(db);
         var permissions = new AllocationPermissions(admin: true);
         var changeLog = new TargetChangeLogService(db, TimeProvider.System);
-        var service = new MyTargetsService(uow, db, permissions, changeLog, TimeProvider.System, Options.Create(new SystemParametersOptions()));
+        var service = new MyTargetsService(uow, permissions, changeLog, TimeProvider.System, Options.Create(new SystemParametersOptions()));
 
         return new Fixture(db, service, employee.Id, manager.Id, department.Id, kpi.Id, year, yearRow.Id, employee.Id);
     }
@@ -235,7 +235,7 @@ public sealed class MyTargetsServiceTests
         var restrictedUow = new UnitOfWork(f.Db);
         var restrictedPermissions = new AllocationPermissions(admin: false);
         var restrictedChangeLog = new TargetChangeLogService(f.Db, TimeProvider.System);
-        var restrictedService = new MyTargetsService(restrictedUow, f.Db, restrictedPermissions, restrictedChangeLog, TimeProvider.System, Options.Create(new SystemParametersOptions()));
+        var restrictedService = new MyTargetsService(restrictedUow, restrictedPermissions, restrictedChangeLog, TimeProvider.System, Options.Create(new SystemParametersOptions()));
         var outsiderId = Guid.NewGuid();
 
         await Assert.ThrowsAsync<ForbiddenException>(() => restrictedService.ReplyFeedbackAsync(

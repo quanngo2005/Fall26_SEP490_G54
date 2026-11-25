@@ -137,7 +137,7 @@ describe('KpiQuarterModalComponent', () => {
     const rows = element.querySelectorAll('.quarter-table tbody tr');
     expect(rows.length).toBe(5);
     expect(rows[0].textContent).toContain('20');
-    expect(rows[0].textContent).toContain('▲ 100%');
+    expect(rows[0].textContent).toContain('+100%');
     expect(element.querySelectorAll('.share-segment').length).toBe(4);
   });
 

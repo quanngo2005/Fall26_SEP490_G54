@@ -145,6 +145,14 @@
   font-size: 11px;
   color: #64748b;
   margin-top: 2px;
+
+  &.is-up {
+    color: #22a559;
+  }
+
+  &.is-down {
+    color: #ef6464;
+  }
 }
 
 .alloc-footer {

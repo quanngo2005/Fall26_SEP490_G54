@@ -462,7 +462,7 @@ describe('TargetSetupWizardComponent', () => {
     const cells = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('.publish-table tbody td'),
     ).map((cell) => cell.textContent?.trim());
-    expect(cells.slice(0, 4)).toEqual(['Phòng Giao dịch', 'Chưa xác định', '1', '▲ +25,0%']);
+    expect(cells.slice(0, 4)).toEqual(['Phòng Giao dịch', 'Chưa xác định', '1', '+25,0%']);
   });
 
   it('publishes after confirmation and returns to the overview', () => {

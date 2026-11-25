@@ -68,7 +68,7 @@ describe('performance dashboard cards', () => {
     });
     expect(text(fixture)).toContain('Indicator One');
     expect(text(fixture)).not.toContain('Indicator Two');
-    expect(text(fixture)).toContain('▼ 5 vs Period Before');
+    expect(text(fixture)).toContain('−5 vs Period Before');
     expect(text(fixture)).toContain('View 2 KPIs');
 
     fixture.componentRef.setInput('compareName', null);
@@ -151,7 +151,7 @@ describe('performance dashboard cards', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(text(fixture)).toContain('Person One');
     expect(text(fixture)).toContain('Group One 61.0');
-    expect(text(fixture)).toContain('▼ 4.5');
+    expect(text(fixture)).toContain('−4.5');
     expect(root.querySelector('a.row-link')?.getAttribute('href')).toBe('/employee-detail/profile');
     expect(linkState(fixture, 'a.row-link')).toEqual({ employeeCode: 'E-1' });
 
@@ -238,7 +238,7 @@ describe('performance dashboard cards', () => {
     expect(linkState(fixture, 'a.unit')).toEqual({ periodId: 'p-cur' });
     expect(href).toContain('compare=SAME_LAST_YEAR');
     expect(text(fixture)).toContain('9/10 scored');
-    expect(text(fixture)).toContain('▼ 3.3');
+    expect(text(fixture)).toContain('−3.3');
   });
 
   it('evaluation period card follows the newest period that is not locked', () => {
@@ -304,7 +304,7 @@ describe('performance dashboard cards', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(text(fixture)).toContain('Indicator One · 7.0 / 40.0 u');
     expect(text(fixture)).toContain('25%');
-    expect(text(fixture)).toContain('▼ 35');
+    expect(text(fixture)).toContain('−35');
     expect((root.querySelector('.marker') as HTMLElement).style.left).toBe('60%');
 
     fixture.componentRef.setInput('campaigns', [{ ...campaign, kpiName: null, targetValue: null }]);
