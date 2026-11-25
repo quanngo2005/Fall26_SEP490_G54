@@ -107,11 +107,34 @@ public sealed class AuditLogServiceTests
         Assert.NotNull(detail.NewValues);
     }
 
+    [Fact]
+    public async Task GetPagedAsync_NonUtcOffsetRange_IsPassedToTheRepositoryAsUtc()
+    {
+        var repo = new FakeAuditLogRepository([], totalCount: 0);
+        var service = new AuditLogService(repo);
+
+        await service.GetPagedAsync(new AuditLogQueryDto
+        {
+            From = new DateTimeOffset(2026, 11, 26, 0, 0, 0, TimeSpan.FromHours(7)),
+            To = new DateTimeOffset(2026, 11, 27, 0, 0, 0, TimeSpan.FromHours(7)),
+        });
+
+        // Npgsql refuses any timestamptz parameter whose offset is not zero.
+        Assert.Equal(TimeSpan.Zero, repo.LastFilter!.From!.Value.Offset);
+        Assert.Equal(TimeSpan.Zero, repo.LastFilter.To!.Value.Offset);
+        Assert.Equal(new DateTimeOffset(2026, 11, 25, 17, 0, 0, TimeSpan.Zero), repo.LastFilter.From);
+    }
+
     private sealed class FakeAuditLogRepository(List<AuditLog> items, int totalCount) : IAuditLogRepository
     {
+        public AuditLogFilter? LastFilter { get; private set; }
+
         public Task<(List<AuditLog> Items, int TotalCount)> GetPagedAsync(
-            AuditLogFilter filter, int page, int pageSize, bool sortDesc, CancellationToken ct = default) =>
-            Task.FromResult((items, totalCount));
+            AuditLogFilter filter, int page, int pageSize, bool sortDesc, CancellationToken ct = default)
+        {
+            LastFilter = filter;
+            return Task.FromResult((items, totalCount));
+        }
 
         public Task<AuditLog?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(items.SingleOrDefault(a => a.Id == id));
