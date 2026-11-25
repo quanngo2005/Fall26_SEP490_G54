@@ -1,7 +1,9 @@
 """Tests for /v1/analyze endpoint."""
 
+import base64
 import hashlib
 import json
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,6 +11,8 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from app.pipeline.asr import SerialTranscriber, TranscriptSegment, Word
+from app.version import PIPELINE_VERSION
 
 
 def test_analyze_success_mono_wav(client: TestClient, auth_headers: dict[str, str], make_tone) -> None:
@@ -29,8 +33,8 @@ def test_analyze_success_mono_wav(client: TestClient, auth_headers: dict[str, st
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["pipeline_version"] == "0.1.0"
-    assert data["stage"] == "W1_RAW"
+    assert data["pipeline_version"] == PIPELINE_VERSION
+    assert data["stage"] == "W2_MASKED"
     assert len(data["segments"]) >= 1
     for seg in data["segments"]:
         assert seg["start_ms"] < seg["end_ms"]
@@ -39,7 +43,10 @@ def test_analyze_success_mono_wav(client: TestClient, auth_headers: dict[str, st
     assert data["stats"]["source_sample_rate"] == 8000
     assert data["stats"]["source_channels"] == 1
     assert data["stats"]["source_sha256"] == expected_sha256
-    assert "flags" not in data
+    assert data["flags"] == []
+    assert data["stats"]["pii_masked"] == 0
+    assert data["muted_audio"]["mime_type"] == "audio/mpeg"
+    assert base64.b64decode(data["muted_audio"]["base64"])
     assert "service_spans" not in data
     assert "kb_version" not in data
 
@@ -218,3 +225,36 @@ def test_analyze_temp_cleanup(test_key: str, tmp_path: Path, make_tone) -> None:
         )
     assert resp_bad.status_code == 422
     assert list(work_dir.iterdir()) == []
+
+
+class _PiiTranscriber:
+    model_name = "fake"
+
+    def transcribe(self, wav_path: Path, duration_ms: int) -> list[TranscriptSegment]:
+        spoken = "số tài khoản là một chín không ba bốn năm sáu bảy tám, lãi năm phẩy hai phần trăm"
+        words = tuple(Word(text=w, start_ms=i * 200, end_ms=i * 200 + 180) for i, w in enumerate(spoken.split()))
+        return [TranscriptSegment(start_ms=0, end_ms=words[-1].end_ms, words=words)]
+
+
+def test_analyze_masks_pii_and_mutes_audio(test_key: str, make_tone, caplog) -> None:
+    app = create_app(Settings(AI_SERVICE_KEY=test_key))
+    app.state.transcriber = SerialTranscriber(_PiiTranscriber())
+    audio_path = make_tone(5.0, 8000, 1, "wav")
+
+    with caplog.at_level(logging.DEBUG), open(audio_path, "rb") as f:
+        resp = TestClient(app).post(
+            "/v1/analyze",
+            headers={"X-Service-Key": test_key},
+            files={"audio": ("customer.wav", f, "audio/wav")},
+            data={"meta": json.dumps({"recording_id": str(uuid4())})},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [s["text_masked"] for s in data["segments"]] == ["số tài khoản là [STK], lãi 5,2%"]
+    assert data["stats"]["pii_masked"] == 1
+    assert data["muted_audio"]["mime_type"] == "audio/mpeg"
+    assert base64.b64decode(data["muted_audio"]["base64"])[:3] in (b"ID3", b"\xff\xfb", b"\xff\xf3")
+    body = resp.text + caplog.text
+    assert "190345678" not in body and "một chín" not in body
+    assert "customer.wav" not in caplog.text

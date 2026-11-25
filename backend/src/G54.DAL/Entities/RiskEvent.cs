@@ -26,6 +26,16 @@ public partial class RiskEvent
 
     public string? ReversalReason { get; set; }
 
+    /// <summary>The call recording the event is about; <see cref="MediaStartMs"/> and <see cref="MediaEndMs"/> locate the segment.</summary>
+    public Guid? CallRecordingId { get; set; }
+
+    public int? MediaStartMs { get; set; }
+
+    public int? MediaEndMs { get; set; }
+
+    /// <summary>The confirmed AI review flag the event was created from, if any.</summary>
+    public Guid? AiReviewFlagId { get; set; }
+
     public virtual Work? Work { get; set; }
 
     public virtual Employee? ReversedByEmployee { get; set; }

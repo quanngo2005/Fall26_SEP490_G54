@@ -2,11 +2,21 @@
 
 import hashlib
 from pathlib import Path
+import re
+import subprocess
 
 import pytest
 
 from app.errors import AudioError
-from app.pipeline.audio import AudioInfo, check_duration, normalize, probe, sha256_file
+from app.pipeline.audio import (
+    AudioInfo,
+    build_mute_command,
+    check_duration,
+    mute_spans,
+    normalize,
+    probe,
+    sha256_file,
+)
 
 
 @pytest.mark.parametrize(
@@ -109,3 +119,52 @@ def test_check_duration() -> None:
     )
     # Should not raise
     check_duration(info_ok, min_seconds=3.0, max_seconds=10.0)
+
+
+def test_build_mute_command() -> None:
+    cmd = build_mute_command(Path("in.wav"), Path("out.mp3"), [(1_000, 2_500), (4_000, 4_150)], ffmpeg_bin="ff")
+
+    assert cmd[:8] == ["ff", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", "in.wav"]
+    assert cmd[cmd.index("-af") + 1] == (
+        "volume=enable='between(t,1.000,2.500)':volume=0,volume=enable='between(t,4.000,4.150)':volume=0"
+    )
+    assert cmd[-8:] == ["-vn", "-ac", "1", "-c:a", "libmp3lame", "-b:a", "32k", "out.mp3"]
+    assert "-af" not in build_mute_command(Path("in.wav"), Path("out.mp3"), [])
+
+
+def test_mute_spans_silences_span(make_tone, tmp_path: Path) -> None:
+    src = make_tone(4.0, 16000, 1, "wav")
+    dst = mute_spans(src, tmp_path / "muted.mp3", [(1_000, 2_000)])
+
+    info = probe(dst)
+    assert (info.codec, info.channels) == ("mp3", 1)
+    assert abs(info.duration_ms - 4_000) <= 150
+    volumes = [_mean_volume(dst, start, 0.5) for start in (0.2, 1.25, 2.7)]
+    assert volumes[1] < volumes[0] - 40
+    assert volumes[1] < volumes[2] - 40
+
+
+def _mean_volume(path: Path, start_s: float, seconds: float) -> float:
+    res = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-ss",
+            str(start_s),
+            "-t",
+            str(seconds),
+            "-i",
+            str(path),
+            "-af",
+            "volumedetect",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    )
+    match = re.search(r"mean_volume: (-?[\d.]+|-inf) dB", res.stderr.decode("utf-8", errors="replace"))
+    assert match is not None
+    return float(match.group(1))
