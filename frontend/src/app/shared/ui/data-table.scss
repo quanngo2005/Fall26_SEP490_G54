@@ -439,6 +439,8 @@
 }
 
 .ui-table-wrap {
+  /* Containing block for absolutely positioned cell content (e.g. .sr-only) so it is clipped by the scroll area instead of widening the page. */
+  position: relative;
   width: 100%;
   overflow-x: auto;
   border-radius: 8px 8px 0 0;

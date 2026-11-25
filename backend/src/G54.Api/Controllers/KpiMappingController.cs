@@ -24,9 +24,12 @@ public sealed class KpiMappingController(IKpiMappingService service) : Controlle
 
     [HttpGet("available")]
     [ProducesResponseType<ApiResponse<List<KpiOptionDto>>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<List<KpiOptionDto>>>> GetAvailableKpis(CancellationToken cancellationToken)
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<List<KpiOptionDto>>>> GetAvailableKpis(
+        Guid objectiveId,
+        CancellationToken cancellationToken)
     {
-        var result = await service.GetAvailableKpisAsync(cancellationToken);
+        var result = await service.GetAvailableKpisAsync(objectiveId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
