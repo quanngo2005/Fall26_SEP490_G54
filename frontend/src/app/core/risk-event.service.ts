@@ -6,7 +6,9 @@ import { ApiResponse } from './api-response.model';
 import {
   CreatedRiskEvent,
   CreateRiskEventRequest,
+  RiskEvent,
   RiskEventAttachment,
+  RiskEventConfirmation,
   RiskEventDetails,
   RiskEventFilter,
   RiskEventList,
@@ -49,6 +51,24 @@ export class RiskEventService {
         `${this.url}/${encodeURIComponent(id)}/evidence`,
         form,
       )
+      .pipe(map((response) => response.data));
+  }
+
+  confirm(id: string): Observable<RiskEventConfirmation> {
+    return this.http
+      .post<ApiResponse<RiskEventConfirmation>>(`${this.url}/${encodeURIComponent(id)}/confirm`, {})
+      .pipe(map((response) => response.data));
+  }
+
+  dismiss(id: string): Observable<RiskEvent> {
+    return this.http
+      .post<ApiResponse<RiskEvent>>(`${this.url}/${encodeURIComponent(id)}/dismiss`, {})
+      .pipe(map((response) => response.data));
+  }
+
+  resolve(id: string): Observable<RiskEvent> {
+    return this.http
+      .post<ApiResponse<RiskEvent>>(`${this.url}/${encodeURIComponent(id)}/resolve`, {})
       .pipe(map((response) => response.data));
   }
 

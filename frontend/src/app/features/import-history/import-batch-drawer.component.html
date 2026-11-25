@@ -1,0 +1,261 @@
+@let t = localization.importHistory.drawer;
+<div
+  animate.leave="g54-leave-fade"
+  class="drawer-backdrop"
+  role="presentation"
+  (click)="close()"
+></div>
+<aside
+  animate.leave="g54-leave-drawer"
+  class="drawer"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="import-drawer-title"
+  [attr.aria-busy]="loading()"
+>
+  <header class="drawer-header">
+    <div>
+      <h2 id="import-drawer-title">{{batch()?.fileName ?? t.title}}</h2>
+      @if (batch(); as b) {
+        <p class="drawer-sub">
+          {{t.importedAt}} {{b.importedAt | appDate: dateTime}} · {{t.importedBy}}
+          {{b.importedBy}}
+        </p>
+      }
+    </div>
+    <button type="button" class="drawer-close" [attr.aria-label]="t.close" (click)="close()">
+      ✕
+    </button>
+  </header>
+
+  <div class="drawer-body">
+    @if (loading()) {
+      <p role="status">{{t.loading}}</p>
+    } @else if (failed()) {
+      <p class="field-error" role="alert">{{t.loadError}}</p>
+    } @else if (batch(); as b) {
+      <dl class="count-grid">
+        <div>
+          <dt>{{t.total}}</dt>
+          <dd>{{b.totalRows | appNumber}}</dd>
+        </div>
+        <div>
+          <dt>{{t.imported}}</dt>
+          <dd>{{b.importedRows | appNumber}}</dd>
+        </div>
+        <div>
+          <dt>{{t.duplicate}}</dt>
+          <dd>{{b.duplicateRows | appNumber}}</dd>
+        </div>
+        <div>
+          <dt>{{t.errors}}</dt>
+          <dd [class.error-count]="b.errorRows > 0">{{b.errorRows | appNumber}}</dd>
+        </div>
+      </dl>
+
+      <div class="ui-tabs" role="tablist" [attr.aria-label]="t.tabsAria">
+        <button
+          type="button"
+          role="tab"
+          class="ui-tab"
+          [class.is-active]="tab() === 'errors'"
+          [attr.aria-selected]="tab() === 'errors'"
+          (click)="showTab('errors')"
+        >
+          {{t.tabErrors}}
+          <span class="ui-tab-count">{{b.errorRows}}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="ui-tab"
+          [class.is-active]="tab() === 'rows'"
+          [attr.aria-selected]="tab() === 'rows'"
+          (click)="showTab('rows')"
+        >
+          {{isRating() ? t.tabRatings : t.tabTransactions}}
+          <span class="ui-tab-count">{{b.importedRows}}</span>
+        </button>
+      </div>
+
+      @if (tab() === 'errors') {
+        <section role="tabpanel" [attr.aria-label]="t.tabErrors">
+          @if (errors.loading() && !errors.result()) {
+            <p role="status">{{t.loading}}</p>
+          } @else if (errors.failed()) {
+            <div class="table-error" role="alert">
+              <p class="field-error">{{t.tableError}}</p>
+              <button type="button" class="link-btn" (click)="errors.load(errors.page())">
+                {{localization.importHistory.retry}}
+              </button>
+            </div>
+          } @else if (errors.result(); as page) {
+            <div class="ui-table-wrap">
+              <table class="ui-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="col-num">{{t.colRow}}</th>
+                    <th scope="col">{{t.colField}}</th>
+                    <th scope="col">{{t.colCode}}</th>
+                    <th scope="col">{{t.colMessage}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (error of page.items; track $index) {
+                    <tr>
+                      <td class="col-num">{{error.row}}</td>
+                      <td>{{error.field}}</td>
+                      <td [title]="error.code">{{errorCodeLabel(error.code)}}</td>
+                      <td>{{error.message}}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="4" class="ui-empty-cell empty">{{t.noErrors}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <app-table-pagination
+              [page]="errors.page()"
+              [pageSize]="pageSize"
+              [totalCount]="page.totalCount"
+              [rangeTemplate]="t.range"
+              [ariaLabel]="localization.importHistory.pagination"
+              [disabled]="errors.loading()"
+              (pageChange)="errors.load($event)"
+            />
+          }
+        </section>
+      } @else if (isRating()) {
+        <section role="tabpanel" [attr.aria-label]="t.tabRatings">
+          @if (ratings.loading() && !ratings.result()) {
+            <p role="status">{{t.loading}}</p>
+          } @else if (ratings.failed()) {
+            <div class="table-error" role="alert">
+              <p class="field-error">{{t.tableError}}</p>
+              <button type="button" class="link-btn" (click)="ratings.load(ratings.page())">
+                {{localization.importHistory.retry}}
+              </button>
+            </div>
+          } @else if (ratings.result(); as page) {
+            <div class="ui-table-wrap">
+              <table class="ui-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{t.colTransactionCode}}</th>
+                    <th scope="col">{{t.colRatingDate}}</th>
+                    <th scope="col">{{t.colEmployee}}</th>
+                    <th scope="col" class="col-num">{{t.colScore}}</th>
+                    <th scope="col">{{t.colCustomerComment}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of page.items; track row.id) {
+                    <tr>
+                      <td class="col-mono">{{row.transactionCode}}</td>
+                      <td>{{row.ratingDate | appDate: 'DD/MM/YYYY'}}</td>
+                      <td>{{row.employeeCode}}</td>
+                      <td class="col-num">{{row.score}}</td>
+                      <td>{{row.customerComment ?? '—'}}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="5" class="ui-empty-cell empty">{{t.noRatings}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <app-table-pagination
+              [page]="ratings.page()"
+              [pageSize]="pageSize"
+              [totalCount]="page.totalCount"
+              [rangeTemplate]="t.range"
+              [ariaLabel]="localization.importHistory.pagination"
+              [disabled]="ratings.loading()"
+              (pageChange)="ratings.load($event)"
+            />
+          }
+        </section>
+      } @else {
+        <section role="tabpanel" [attr.aria-label]="t.tabTransactions">
+          @if (transactions.loading() && !transactions.result()) {
+            <p role="status">{{t.loading}}</p>
+          } @else if (transactions.failed()) {
+            <div class="table-error" role="alert">
+              <p class="field-error">{{t.tableError}}</p>
+              <button
+                type="button"
+                class="link-btn"
+                (click)="transactions.load(transactions.page())"
+              >
+                {{localization.importHistory.retry}}
+              </button>
+            </div>
+          } @else if (transactions.result(); as page) {
+            <div class="ui-table-wrap">
+              <table class="ui-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{t.colTransactionCode}}</th>
+                    <th scope="col">{{t.colTransactionDate}}</th>
+                    <th scope="col">{{t.colEmployee}}</th>
+                    <th scope="col">{{t.colCustomer}}</th>
+                    <th scope="col">{{t.colProduct}}</th>
+                    <th scope="col" class="col-num">{{t.colAmount}}</th>
+                    <th scope="col" class="col-num">{{t.colDenominator}}</th>
+                    <th scope="col">{{t.colReferEmployee}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of page.items; track row.id) {
+                    <tr>
+                      <td class="col-mono">{{row.transactionCode}}</td>
+                      <td>{{row.transactionDate | appDate: 'DD/MM/YYYY'}}</td>
+                      <td>{{row.employeeCode}}</td>
+                      <td>{{row.customerCode ?? '—'}}</td>
+                      <td>{{row.productCode}}</td>
+                      <td class="col-num">{{row.amount | appNumber}}</td>
+                      <td class="col-num">{{row.denominator ?? '—'}}</td>
+                      <td>{{row.referEmployeeCode ?? '—'}}</td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="8" class="ui-empty-cell empty">{{t.noTransactions}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <app-table-pagination
+              [page]="transactions.page()"
+              [pageSize]="pageSize"
+              [totalCount]="page.totalCount"
+              [rangeTemplate]="t.range"
+              [ariaLabel]="localization.importHistory.pagination"
+              [disabled]="transactions.loading()"
+              (pageChange)="transactions.load($event)"
+            />
+          }
+        </section>
+      }
+
+      @if (exportFailed()) {
+        <p class="field-error" role="alert">{{t.downloadFailed}}</p>
+      }
+    }
+  </div>
+
+  <footer class="drawer-footer">
+    <span class="hint">{{t.hint}}</span>
+    <button
+      type="button"
+      class="button button-secondary"
+      [disabled]="!batch() || batch()?.errorRows === 0 || exporting()"
+      (click)="downloadErrors()"
+    >
+      {{exporting() ? t.downloadingErrors : t.downloadErrors}}
+    </button>
+  </footer>
+</aside>

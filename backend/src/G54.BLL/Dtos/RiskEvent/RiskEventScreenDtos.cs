@@ -72,6 +72,7 @@ public sealed record RiskEventDetailsDto(
     string? ReversedByName,
     string? ReversalReason,
     List<RiskEventAttachmentDto> Attachments,
-    bool CanReverse);
+    bool CanReverse,
+    bool IsOwnEvent);
 
 public sealed record ReverseRiskEventDto(string? Reason);

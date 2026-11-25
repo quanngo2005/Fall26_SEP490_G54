@@ -71,7 +71,13 @@ Mỗi item: `kind`, `id`, `code` (`QA-0331`, số lấy từ một sequence chun
 
 ### GET /qa-queue/{kind}/{id}
 
-`kind` = `FLAG` hoặc `SAMPLE`. Trả `{ item, reason, reworkComment, reviewedAt, reviewedByName, submissionComment, submittedAt, jobPositionTitle, evidences: [{ id, fileName, fileSize, mimeType }], transactions: [{ transactionCode, status, reason, importBatchFileName, productCode, amount, transactionDate }] }`. Tệp bằng chứng mở qua `GET /evidence/{id}/preview`; quyền `quality_flag:read` đủ để QA xem bằng chứng của kết quả đã duyệt (không cần `verification:decide`). `transactions` là mã giao dịch của công việc đối chiếu với file import (panel "Đối soát").
+`kind` = `FLAG` hoặc `SAMPLE`. Trả `{ item, reason, submissionComment, submittedAt, jobPositionTitle, evidences: [{ id, fileName, fileSize, mimeType }], transactions: [{ transactionCode, status, reason, importBatchFileName, productCode, amount, transactionDate }], versions, verificationHistory, qaReview }`.
+
+- `versions` (SCR-REV-02, UC85): mọi `result_submission` của cùng công việc, `submissionNo` giảm dần: `{ id, submissionNo, status, submittedAt, comment, evidences: [{ id, fileName, fileSize, mimeType }] }`. `evidences` ở gốc là tệp của submission đang được QA xem.
+- `verificationHistory`: mọi lần duyệt của các submission đó, mới nhất trước: `{ submissionNo, roundNo, decision, comment, verifiedAt, verifierName }` (`decision` theo từ vựng `/verifications/{id}/history`: `APPROVED` / `REJECTED` / `REVISION_REQUIRED` / `PENDING`).
+- `qaReview`: `{ reviewedByName, reviewedAt, dismissReason, reworkComment, reworkRequestedAt }`. Cờ: người và thời điểm dismiss / yêu cầu làm lại (`null` khi còn `OPEN`). Mẫu: chỉ `reviewedByName`, `reviewedAt` (nhận xét của mẫu là `reason`).
+
+Chỉ đọc, cùng quyền `quality_flag:read`. Tệp bằng chứng mở qua `GET /evidence/{id}/preview`; quyền `quality_flag:read` đủ để QA xem bằng chứng của kết quả đã duyệt (không cần `verification:decide`). `transactions` là mã giao dịch của công việc đối chiếu với file import (panel "Đối soát").
 
 ### POST /submissions/{submissionId}/quality-flags → 201
 
@@ -95,7 +101,11 @@ Query: `status` (`OPEN` / `REWORK_REQUESTED` / `DISMISSED`), `employeeId`, `page
 
 ### POST /quality-flags/{id}/dismiss → 200
 
-Không body. Trả `QualityFlagDto`.
+```json
+{ "reason": "Đã đối chiếu lại, chứng từ khớp với báo cáo." }
+```
+
+`reason` bắt buộc, 10–2000 ký tự sau khi bỏ khoảng trắng đầu/cuối (400 `VALIDATION_ERROR` nếu thiếu hoặc sai độ dài, REV-06-M3). Lưu vào `dismiss_reason` cùng người và thời điểm xử lý. Trả `QualityFlagDto`.
 
 ### GET /qa-samples
 
@@ -115,7 +125,7 @@ Trả `{ "sample": QaSampleDto, "flag": QualityFlagDto | null }`.
 
 ## 6. DTO
 
-`QualityFlagDto`: `id`, `resultSubmissionId`, `submissionNo`, `workId`, `workCode`, `workTitle`, `employeeId`, `employeeCode`, `employeeName`, `flaggedByEmployeeId`, `flaggedByName`, `qaSampleId`, `severity`, `reason`, `status`, `reworkComment`, `reworkRequestedAt`, `createdAt`.
+`QualityFlagDto`: `id`, `resultSubmissionId`, `submissionNo`, `workId`, `workCode`, `workTitle`, `employeeId`, `employeeCode`, `employeeName`, `flaggedByEmployeeId`, `flaggedByName`, `qaSampleId`, `severity`, `reason`, `status`, `reworkComment`, `reworkRequestedAt`, `dismissReason`, `reviewedByName`, `reviewedAt`, `createdAt`. `reviewedByName` / `reviewedAt` là QA đã dismiss hoặc yêu cầu làm lại (cột `reviewed_by_employee_id`, `reviewed_at`, migration `AddQualityFlagReviewTrail`).
 
 `QaSampleDto`: `id`, `resultSubmissionId`, `submissionNo`, `workId`, `workCode`, `workTitle`, `employeeId`, `employeeCode`, `employeeName`, `status`, `sampledAt`, `reviewedByEmployeeId`, `reviewedByName`, `reviewedAt`, `comment`, `qualityFlagId`.
 

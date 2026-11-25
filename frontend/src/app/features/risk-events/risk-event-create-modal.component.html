@@ -93,7 +93,12 @@
           <span class="caption" id="risk-severity-label">
             {{localization.riskEvents.form.severity}} <b>*</b>
           </span>
-          <div class="severity-toggle" role="radiogroup" aria-labelledby="risk-severity-label">
+          <div
+            class="severity-toggle"
+            role="radiogroup"
+            aria-labelledby="risk-severity-label"
+            [class.invalid]="showValidation() && !severityValid()"
+          >
             @for (level of severities; track level) {
               <button
                 type="button"
@@ -108,6 +113,11 @@
               </button>
             }
           </div>
+          @if (showValidation() && !severityValid()) {
+            <p class="field-error" role="alert">
+              {{localization.riskEvents.form.errors.severity}}
+            </p>
+          }
         </div>
 
         <div class="field">
@@ -187,6 +197,19 @@
           }
         </div>
       </div>
+
+      <label class="record-now">
+        <input
+          id="risk-record-now"
+          type="checkbox"
+          [ngModel]="recordNow()"
+          (ngModelChange)="recordNow.set($event)"
+        />
+        <span>
+          <strong>{{localization.riskEvents.form.recordNow}}</strong>
+          <small>{{localization.riskEvents.form.recordNowHint}}</small>
+        </span>
+      </label>
 
       <div class="notice">
         <strong>{{localization.riskEvents.form.noticeTitle}}</strong>

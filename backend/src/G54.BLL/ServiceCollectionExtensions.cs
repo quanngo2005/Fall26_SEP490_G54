@@ -79,6 +79,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
         services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
+        services.AddScoped<IServiceRatingImportService, ServiceRatingImportService>();
+        services.AddScoped<IServiceRatingImportTemplateProvider, ServiceRatingImportTemplateProvider>();
         services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();

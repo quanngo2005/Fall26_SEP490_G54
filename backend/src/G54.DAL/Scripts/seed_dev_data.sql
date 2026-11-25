@@ -296,7 +296,8 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update'),
  ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read'),
  ('5eed0000-0000-0000-0009-000000000031', 'ROLE_UPDATE', 'Quản lý tài khoản và vai trò', 'role', 'update'),
- ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage')
+ ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -335,6 +336,9 @@ FROM (VALUES
     ('SYSTEM_ADMIN', 'NOTIFICATION_SEND', 'All'), ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('VERIFIER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    -- Service rating import (docs/api/SERVICE_RATING_IMPORT_CONTRACT.md); the migration AddServiceRatingImport grants the same on an existing database.
+    ('SYSTEM_ADMIN', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
+    ('BRANCH_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('VERIFIER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('DEPT_MANAGER', 'NOTIFICATION_SEND', 'Dept'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('SYSTEM_ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_READ', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'), ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),

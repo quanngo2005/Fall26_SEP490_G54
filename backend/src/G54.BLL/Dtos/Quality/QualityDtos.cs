@@ -6,6 +6,9 @@ public sealed record CreateQualityFlagDto(string? Reason, string? Severity);
 /// <summary>QA sends the flagged work back to the employee; <c>Comment</c> tells them what to fix.</summary>
 public sealed record RequestReworkDto(string? Comment);
 
+/// <summary>QA finds the flagged result correct after all; <c>Reason</c> explains why.</summary>
+public sealed record DismissQualityFlagDto(string? Reason);
+
 public sealed class QualityFlagFilterDto
 {
     /// <summary>OPEN, REWORK_REQUESTED or DISMISSED.</summary>
@@ -36,6 +39,9 @@ public sealed record QualityFlagDto(
     string Status,
     string? ReworkComment,
     DateTimeOffset? ReworkRequestedAt,
+    string? DismissReason,
+    string? ReviewedByName,
+    DateTimeOffset? ReviewedAt,
     DateTimeOffset CreatedAt);
 
 public sealed class QaSampleFilterDto

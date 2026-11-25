@@ -56,6 +56,14 @@ public sealed class QualityFlag
 
     public DateTimeOffset? ReworkRequestedAt { get; set; }
 
+    /// <summary>The QA who dismissed the flag or requested rework; null while the flag is OPEN.</summary>
+    public Guid? ReviewedByEmployeeId { get; set; }
+
+    public DateTimeOffset? ReviewedAt { get; set; }
+
+    /// <summary>Why QA found the result correct after all (required on dismiss).</summary>
+    public string? DismissReason { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
@@ -65,6 +73,8 @@ public sealed class QualityFlag
     public Employee Employee { get; set; } = null!;
 
     public Employee FlaggedByEmployee { get; set; } = null!;
+
+    public Employee? ReviewedByEmployee { get; set; }
 
     public QaSample? QaSample { get; set; }
 }

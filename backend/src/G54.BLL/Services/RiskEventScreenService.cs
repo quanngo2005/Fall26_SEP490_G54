@@ -230,10 +230,12 @@ public sealed class RiskEventScreenService(
             .Select(e => e.JobPosition.Title)
             .FirstOrDefaultAsync(cancellationToken);
         var granted = await permissions.GetEffectivePermissionsAsync(caller.Account!.Id, cancellationToken);
+        // Nobody handles a risk event recorded against themselves (the actions answer 403).
+        var isOwnEvent = riskEvent.EmployeeId == caller.Id;
         var canReverse = AccessScope.LevelFor(granted, "risk_event", "reverse") >= AccessScope.AllLevel
             && riskEvent.Status is RiskEventStatus.Confirmed or RiskEventStatus.Resolved
             && riskEvent.ReversedAt is null
-            && riskEvent.EmployeeId != caller.Id;
+            && !isOwnEvent;
 
         return new RiskEventDetailsDto(
             ToItem(riskEvent),
@@ -247,7 +249,8 @@ public sealed class RiskEventScreenService(
             riskEvent.ReversedByEmployee?.FullName,
             riskEvent.ReversalReason,
             await AttachmentsAsync(riskEvent.Id, cancellationToken),
-            canReverse);
+            canReverse,
+            isOwnEvent);
     }
 
     private async Task<List<RiskEventAttachmentDto>> AttachmentsAsync(Guid riskEventId, CancellationToken cancellationToken) =>

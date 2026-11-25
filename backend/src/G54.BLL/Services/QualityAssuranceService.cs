@@ -108,8 +108,7 @@ public sealed class QualityAssuranceService(
             EnsureNotSelf(flag.EmployeeId, caller);
             EnsureOpen(flag);
 
-            var now = time.GetUtcNow();
-            await ApplyReworkAsync(flag, comment, now, cancellationToken);
+            await ApplyReworkAsync(flag, caller, comment, time.GetUtcNow(), cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         });
 
@@ -118,16 +117,26 @@ public sealed class QualityAssuranceService(
         return await LoadFlagDtoAsync(flagId, cancellationToken);
     }
 
-    public async Task<QualityFlagDto> DismissFlagAsync(Guid flagId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<QualityFlagDto> DismissFlagAsync(
+        Guid flagId,
+        Guid userId,
+        DismissQualityFlagDto dto,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(dto);
+        var reason = RequireText(dto.Reason, "Lý do bỏ cờ");
         var caller = await ResolveCallerAsync(userId, cancellationToken);
         var flag = await db.QualityFlags.FirstOrDefaultAsync(f => f.Id == flagId, cancellationToken)
             ?? throw new NotFoundException("Cờ chất lượng", flagId);
         EnsureNotSelf(flag.EmployeeId, caller);
         EnsureOpen(flag);
 
+        var now = time.GetUtcNow();
         flag.Status = QualityFlagStatus.Dismissed;
-        flag.UpdatedAt = time.GetUtcNow();
+        flag.DismissReason = reason;
+        flag.ReviewedByEmployeeId = caller.Id;
+        flag.ReviewedAt = now;
+        flag.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
 
         LogAction(logger, "DISMISS", flag.Id, caller.Id, null);
@@ -204,7 +213,7 @@ public sealed class QualityAssuranceService(
                 db.QualityFlags.Add(flag);
                 if (dto.RequestRework)
                 {
-                    await ApplyReworkAsync(flag, comment!, now, cancellationToken);
+                    await ApplyReworkAsync(flag, caller, comment!, now, cancellationToken);
                 }
 
                 flagId = flag.Id;
@@ -238,7 +247,12 @@ public sealed class QualityAssuranceService(
     /// <c>invalidate_source_actual_progress</c>) and the work returns to IN_PROGRESS so the employee can submit it again.
     /// Refused with 409 <c>PERIOD_LOCKED</c> when any of its progress belongs to a locked period.
     /// </summary>
-    private async Task ApplyReworkAsync(QualityFlag flag, string comment, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task ApplyReworkAsync(
+        QualityFlag flag,
+        Employee caller,
+        string comment,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var submission = flag.ResultSubmission;
         EnsureApproved(submission);
@@ -278,6 +292,8 @@ public sealed class QualityAssuranceService(
         flag.Status = QualityFlagStatus.ReworkRequested;
         flag.ReworkComment = comment;
         flag.ReworkRequestedAt = now;
+        flag.ReviewedByEmployeeId = caller.Id;
+        flag.ReviewedAt = now;
         flag.UpdatedAt = now;
     }
 
@@ -350,7 +366,8 @@ public sealed class QualityAssuranceService(
     private IQueryable<QualityFlag> FlagQuery() => db.QualityFlags.AsNoTracking()
         .Include(f => f.ResultSubmission).ThenInclude(s => s.Work)
         .Include(f => f.Employee)
-        .Include(f => f.FlaggedByEmployee);
+        .Include(f => f.FlaggedByEmployee)
+        .Include(f => f.ReviewedByEmployee);
 
     private IQueryable<QaSample> SampleQuery() => db.QaSamples.AsNoTracking()
         .Include(x => x.ResultSubmission).ThenInclude(s => s.Work)
@@ -438,6 +455,9 @@ public sealed class QualityAssuranceService(
         f.Status.ToEnumString(),
         f.ReworkComment,
         f.ReworkRequestedAt,
+        f.DismissReason,
+        f.ReviewedByEmployee?.FullName,
+        f.ReviewedAt,
         f.CreatedAt);
 
     private static QaSampleDto ToDto(QaSample x) => new(

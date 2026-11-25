@@ -37,7 +37,10 @@ export interface RiskEventPreset {
 const MAX_PENALTY = 100;
 const MAX_DESCRIPTION = 2000;
 
-/** Modal of the "record risk event" button (SCR-RSK-01-M1). The event is recorded and penalised in one step. */
+/**
+ * Modal of the "record risk event" button (SCR-RSK-01-M1). By default the event is recorded and penalised in one step;
+ * unticking "record now" saves it OPEN, to be confirmed later from the drawer.
+ */
 @Component({
   selector: 'app-risk-event-create-modal',
   imports: [FormsModule],
@@ -68,10 +71,11 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
   protected readonly employeeId = signal('');
   protected readonly occurredOn = signal(todayInput());
   protected readonly eventType = signal('');
-  protected readonly severity = signal<RiskSeverity>('MEDIUM');
+  protected readonly severity = signal<RiskSeverity | null>(null);
   protected readonly penalty = signal<number | null>(null);
   protected readonly workCode = signal('');
   protected readonly description = signal('');
+  protected readonly recordNow = signal(true);
   protected readonly files = signal<File[]>([]);
   protected readonly fileErrors = signal<string[]>([]);
   protected readonly showValidation = signal(false);
@@ -101,6 +105,7 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
     () => this.occurredOn() !== '' && this.occurredOn() <= this.maxDate,
   );
   protected readonly typeValid = computed(() => this.eventType() !== '');
+  protected readonly severityValid = computed(() => this.severity() !== null);
   protected readonly penaltyValid = computed(() => {
     const points = this.penalty();
     return points !== null && points > 0 && points <= MAX_PENALTY;
@@ -114,6 +119,7 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
       this.employeeValid() &&
       this.dateValid() &&
       this.typeValid() &&
+      this.severityValid() &&
       this.penaltyValid() &&
       this.descriptionValid(),
   );
@@ -184,11 +190,11 @@ export class RiskEventCreateModalComponent extends LocalizedComponent implements
         employeeId: this.employeeId(),
         eventType: this.eventType(),
         description: this.description().trim(),
-        severity: this.severity(),
+        severity: this.severity() as RiskSeverity,
         occurredAt: occurredAtOf(this.occurredOn()),
         penaltyPoints: this.penalty() as number,
         ...(work ? { workCode: work } : {}),
-        record: true,
+        record: this.recordNow(),
       })
       .pipe(
         // The event is already recorded when the attachments go up: a failed upload is reported, never undone.

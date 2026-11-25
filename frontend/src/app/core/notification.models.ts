@@ -121,6 +121,13 @@ export function notificationLink(
       return id
         ? { commands: ['/branch-performance/evaluations/approval'], state: { periodId: id } }
         : { commands: ['/branch-performance/evaluations'] };
+    case 'RATING_ONE_STAR':
+      return {
+        commands: ['/import-history'],
+        state: id
+          ? { importFileType: 'SERVICE_RATING', importBatchId: id }
+          : { importFileType: 'SERVICE_RATING' },
+      };
     case 'CALIBRATION_DECIDED':
       return { commands: ['/evaluations'] };
     case 'RESULT_PUBLISHED':

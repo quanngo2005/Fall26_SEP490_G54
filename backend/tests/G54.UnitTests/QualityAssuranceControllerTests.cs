@@ -36,7 +36,7 @@ public sealed class QualityAssuranceControllerTests
     private static QualityFlagDto SampleFlag(Guid? id = null) => new(
         id ?? Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), "W-01", "Work Title",
         Guid.NewGuid(), "EMP01", "Nguyen Van A", UserId, "QA User", null,
-        "MEDIUM", "Reason for flag", "OPEN", null, null, DateTimeOffset.UtcNow);
+        "MEDIUM", "Reason for flag", "OPEN", null, null, null, null, null, DateTimeOffset.UtcNow);
 
     private static QaSampleDto SampleSample(Guid? id = null) => new(
         id ?? Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), "W-01", "Work Title",
@@ -68,8 +68,8 @@ public sealed class QualityAssuranceControllerTests
     {
         var itemId = Guid.NewGuid();
         var detailDto = new QaQueueDetailDto(
-            SampleQueueItem(itemId), "Reason", null, null, null, null,
-            DateTimeOffset.UtcNow, "Developer", [], []);
+            SampleQueueItem(itemId), "Reason", null, DateTimeOffset.UtcNow, "Developer", [], [], [], [],
+            new QaReviewDto(null, null, null, null, null));
         var queueService = new StubQaQueueService { DetailResult = detailDto };
         var controller = CreateController(queue: queueService);
 
@@ -158,7 +158,8 @@ public sealed class QualityAssuranceControllerTests
         var qaService = new StubQualityAssuranceService { FlagResult = flag };
         var controller = CreateController(service: qaService);
 
-        var result = await controller.DismissFlag(flagId, CancellationToken.None);
+        var dto = new DismissQualityFlagDto("Chứng từ hợp lệ, cờ không có cơ sở.");
+        var result = await controller.DismissFlag(flagId, dto, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var envelope = Assert.IsType<ApiResponse<QualityFlagDto>>(ok.Value);
@@ -221,7 +222,8 @@ public sealed class QualityAssuranceControllerTests
             Guid flagId, Guid userId, RequestReworkDto dto, CancellationToken cancellationToken = default) =>
             Task.FromResult(FlagResult);
 
-        public Task<QualityFlagDto> DismissFlagAsync(Guid flagId, Guid userId, CancellationToken cancellationToken = default) =>
+        public Task<QualityFlagDto> DismissFlagAsync(
+            Guid flagId, Guid userId, DismissQualityFlagDto dto, CancellationToken cancellationToken = default) =>
             Task.FromResult(FlagResult);
 
         public Task<PagedResult<QaSampleDto>> GetSamplesAsync(
