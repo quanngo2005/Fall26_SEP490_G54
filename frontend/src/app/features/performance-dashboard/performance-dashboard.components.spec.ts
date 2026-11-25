@@ -154,6 +154,8 @@ describe('performance dashboard cards', () => {
     expect(text(fixture)).toContain('▼ 4.5');
     expect(root.querySelector('a.row-link')?.getAttribute('href')).toBe('/employee-detail/profile');
     expect(linkState(fixture, 'a.row-link')).toEqual({ employeeCode: 'E-1' });
+    // The table scrolls inside its own wrapper, so it cannot widen the page on a phone (UC97).
+    expect(root.querySelector('.table-wrap > table')).not.toBeNull();
 
     fixture.componentRef.setInput('members', []);
     fixture.detectChanges();
