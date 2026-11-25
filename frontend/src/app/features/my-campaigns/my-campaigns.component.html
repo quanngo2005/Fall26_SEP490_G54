@@ -1,0 +1,100 @@
+@let text = localization.myCampaigns;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">
+        <a routerLink="/home">{{text.breadcrumbHome}}</a> / {{text.title}}
+      </p>
+      <div class="page-toolbar">
+        <div>
+          <h1>{{text.title}}</h1>
+          <p class="muted">{{text.subtitle}}</p>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          [class.is-active]="tab() === 'running'"
+          [attr.aria-selected]="tab() === 'running'"
+          (click)="tab.set('running')"
+        >
+          {{text.tabRunning}} <span class="tab-count">{{running().length}}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="tab"
+          [class.is-active]="tab() === 'ended'"
+          [attr.aria-selected]="tab() === 'ended'"
+          (click)="tab.set('ended')"
+        >
+          {{text.tabEnded}} <span class="tab-count">{{ended().length}}</span>
+        </button>
+      </div>
+
+      @if (loading()) {
+        <div class="state-card" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>{{text.loading}}</p>
+        </div>
+      } @else if (failed()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{text.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="load()">
+            {{text.retry}}
+          </button>
+        </div>
+      } @else if (visible().length === 0) {
+        <div class="state-card">
+          <p>{{text.empty}}</p>
+        </div>
+      } @else {
+        <div class="campaign-cards">
+          @for (campaign of visible(); track campaign.campaignId) {
+            <article
+              class="panel surface-card campaign-card"
+              [class.needs-action]="count(campaign, 'NOT_CONTACTED') > 0 && tab() === 'running'"
+            >
+              <header>
+                <div>
+                  <h2>{{campaign.campaignName}}</h2>
+                  <span class="muted mono">{{campaign.campaignCode}}</span>
+                </div>
+                <span class="status-badge is-info">{{statusLabel(campaign.status)}}</span>
+              </header>
+              @if (count(campaign, 'NOT_CONTACTED') > 0 && tab() === 'running') {
+                <span class="status-badge is-warning">{{warning(campaign)}}</span>
+              }
+              <p class="muted mono">
+                {{campaign.startDate | appDate}} – {{campaign.endDate | appDate}}
+              </p>
+              <p class="progress-line">
+                <span class="muted">{{text.myProgress}}</span>
+                <strong>{{progress(campaign)}}</strong>
+              </p>
+              <ul class="status-counts">
+                @for (item of statuses; track item) {
+                  <li>
+                    <span class="status-badge" [class]="badge(item)">{{contactLabel(item)}}</span>
+                    <strong>{{count(campaign, item)}}</strong>
+                  </li>
+                }
+              </ul>
+              <a
+                class="button button-primary"
+                [routerLink]="['/my-campaigns', campaign.campaignId]"
+              >
+                {{text.openList}}
+              </a>
+            </article>
+          }
+        </div>
+      }
+    </main>
+  </div>
+</div>

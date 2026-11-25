@@ -47,6 +47,24 @@
                 {{localization.campaign.reviewPlans}}
               </a>
             }
+            @if (canManage && c.status === 'RUNNING') {
+              <button
+                type="button"
+                class="button button-secondary"
+                (click)="lifecycle.set('complete')"
+              >
+                {{localization.campaignCustomers.lifecycle.complete}}
+              </button>
+            }
+            @if (canManage && (c.status === 'RUNNING' || c.status === 'PLANNED')) {
+              <button
+                type="button"
+                class="button button-secondary"
+                (click)="lifecycle.set('cancel')"
+              >
+                {{localization.campaignCustomers.lifecycle.cancel}}
+              </button>
+            }
             @if (c.canGenerateBatchWork && c.workTypes.length && c.participants.length) {
               <button type="button" class="button button-primary" (click)="batchOpen.set(true)">
                 ＋ {{localization.campaign.detail.createBatch}}
@@ -65,6 +83,12 @@
             >
               ×
             </button>
+          </div>
+        }
+
+        @if (canManage && c.status === 'RUNNING' && daysLeft(c) < 0) {
+          <div class="notice is-warning" role="status">
+            <span>{{localization.campaignCustomers.lifecycle.overdueNotice}}</span>
           </div>
         }
 
@@ -152,6 +176,17 @@
             {{localization.campaign.detail.tabWorks}}
             <span class="tab-count">{{c.metrics.totalWorksCount}}</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            [class.is-active]="tab() === 'customers'"
+            [attr.aria-selected]="tab() === 'customers'"
+            (click)="tab.set('customers')"
+          >
+            {{localization.campaignCustomers.tab}}
+            <span class="tab-count">{{c.metrics.customerTotal}}</span>
+          </button>
         </div>
 
         @if (tab() === 'overview') {
@@ -180,6 +215,12 @@
               </ul>
             </section>
           </div>
+        } @else if (tab() === 'customers') {
+          <app-campaign-customers-tab
+            [campaign]="c"
+            [canManage]="canManage"
+            (changed)="reload.next()"
+          />
         } @else if (tab() === 'works') {
           <section class="panel surface-card">
             <h2>{{localization.campaign.detail.metrics}}</h2>
@@ -252,6 +293,14 @@
           </section>
         }
 
+        @if (lifecycle(); as mode) {
+          <app-campaign-lifecycle-modal
+            [campaign]="c"
+            [mode]="mode"
+            (closed)="lifecycle.set(null)"
+            (done)="onLifecycleDone($event)"
+          />
+        }
         @if (batchOpen()) {
           <app-campaign-batch-modal
             [campaign]="c"

@@ -46,7 +46,7 @@ public static class SidebarCatalog
 
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
-        ["employee"] = ["overview", "myWork", "mySubmissions", "myPerformance", "myTargets", "appeals", "notifications", "myProfile"],
+        ["employee"] = ["overview", "myWork", "mySubmissions", "myCampaigns", "myPerformance", "myTargets", "appeals", "notifications", "myProfile"],
         ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "appeals", "notifications", "myProfile"],
         ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
         ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "appeals", "notifications", "myProfile"],
@@ -56,7 +56,7 @@ public static class SidebarCatalog
 
     public static IReadOnlySet<string> ItemIds { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        "overview", "myWork", "mySubmissions", "myTargets", "myPerformance", "notifications", "myProfile", "employees", "organization",
+        "overview", "myWork", "mySubmissions", "myCampaigns", "myTargets", "myPerformance", "notifications", "myProfile", "employees", "organization",
         "departments", "jobPositions", "reportingLines", "employeeData", "teamWork", "handoverDelegation",
         "reviewVerify", "reconciliation", "dataImport", "importHistory", "teamPerformance", "targetsAndCampaigns", "targetOverview", "branchWork", "branchPerformance", "departmentPerformance",
         "appeals", "reportingStructure", "verificationQueue", "escalatedCases", "auditReview", "riskEvents", "reportsAnalytics", "accounts",

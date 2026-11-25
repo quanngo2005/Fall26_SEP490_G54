@@ -429,6 +429,22 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'my-campaigns',
+    canActivate: [authGuard],
+    title: 'Chiến dịch của tôi',
+    loadComponent: () =>
+      import('./features/my-campaigns/my-campaigns.component').then((m) => m.MyCampaignsComponent),
+  },
+  {
+    path: 'my-campaigns/:id',
+    canActivate: [authGuard],
+    title: 'Khách hàng của tôi',
+    loadComponent: () =>
+      import('./features/my-campaigns/my-campaign-customers.component').then(
+        (m) => m.MyCampaignCustomersComponent,
+      ),
+  },
+  {
     path: 'campaigns/:id',
     canActivate: [authGuard],
     title: 'Chi tiết chiến dịch',

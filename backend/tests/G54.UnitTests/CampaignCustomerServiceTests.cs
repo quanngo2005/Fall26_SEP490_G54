@@ -224,19 +224,19 @@ public sealed class CampaignCustomerServiceTests
     }
 
     [Fact]
-    public void ResultText_AppointmentSet_IncludesFormattedDateTime()
+    public void ResultText_AppointmentSet_ShowsVietnamLocalTime()
     {
-        var at = new DateTimeOffset(2026, 12, 1, 9, 30, 0, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 12, 1, 2, 30, 0, TimeSpan.Zero);
         var text = CampaignCustomerResultText.Compute(CampaignContactStatus.AppointmentSet, null, 0, at, null, null);
         Assert.Equal("Đã hẹn gặp vào 01/12/2026 09:30", text);
     }
 
     [Fact]
-    public void ResultText_Met_IncludesFormattedDateTime()
+    public void ResultText_Met_ShowsVietnamLocalTimeAcrossMidnight()
     {
-        var at = new DateTimeOffset(2026, 12, 2, 14, 0, 0, TimeSpan.Zero);
+        var at = new DateTimeOffset(2026, 12, 2, 20, 0, 0, TimeSpan.Zero);
         var text = CampaignCustomerResultText.Compute(CampaignContactStatus.Met, null, 0, null, at, null);
-        Assert.Equal("Đã gặp vào 02/12/2026 14:00", text);
+        Assert.Equal("Đã gặp vào 03/12/2026 03:00", text);
     }
 
     [Fact]

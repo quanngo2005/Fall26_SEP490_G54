@@ -191,3 +191,8 @@ h3 {
   flex-wrap: wrap;
   gap: 12px;
 }
+.notice.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}

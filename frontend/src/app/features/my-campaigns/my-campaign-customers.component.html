@@ -1,0 +1,182 @@
+@let text = localization.myCampaigns;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="loading()">
+      <p class="breadcrumb">
+        <a routerLink="/home">{{text.breadcrumbHome}}</a> /
+        <a routerLink="/my-campaigns">{{text.title}}</a>
+        @if (campaign(); as c) {
+          / {{c.campaignCode}}
+        }
+      </p>
+
+      @if (campaign(); as c) {
+        <div class="page-toolbar">
+          <div>
+            <h1>{{c.campaignName}}</h1>
+            <span class="status-badge is-info">{{campaignStatusLabel(c.status)}}</span>
+            <span class="muted mono">{{c.startDate | appDate}} – {{c.endDate | appDate}}</span>
+          </div>
+          <a class="button button-secondary" routerLink="/my-campaigns">{{text.back}}</a>
+        </div>
+        <section class="panel surface-card header-card">
+          <p class="progress-line">
+            <span class="muted">{{text.myProgress}}</span>
+            <strong>{{progress(c)}}</strong>
+          </p>
+          <ul class="status-counts">
+            @for (item of statuses; track item) {
+              <li>
+                <span class="status-badge" [class]="badge(item)">{{statusLabel(item)}}</span>
+                <strong>{{count(item)}}</strong>
+              </li>
+            }
+          </ul>
+        </section>
+        @if (!running()) {
+          <div class="notice is-warning" role="status">
+            <span>{{text.readOnly}}</span>
+          </div>
+        }
+      }
+
+      @if (notice(); as message) {
+        <div class="notice" role="status">
+          <span>{{message}}</span>
+          <button
+            type="button"
+            (click)="notice.set(null)"
+            [attr.aria-label]="localization.common.close"
+          >
+            ×
+          </button>
+        </div>
+      }
+
+      <section class="panel surface-card">
+        <div class="filters">
+          <app-ui-search-input
+            [value]="searchDraft()"
+            [placeholder]="text.searchPlaceholder"
+            [clearLabel]="localization.common.close"
+            (valueChange)="onSearchInput($event)"
+            (enterPressed)="setSearch(searchDraft())"
+          />
+          <select
+            class="select"
+            [attr.aria-label]="text.colStatus"
+            [value]="status()"
+            (change)="setStatus($any($event.target).value)"
+          >
+            <option value="">{{text.allStatuses}}</option>
+            @for (item of statuses; track item) {
+              <option [value]="item">{{statusLabel(item)}}</option>
+            }
+          </select>
+        </div>
+
+        @if (failed()) {
+          <div class="state-card state-error" role="alert">
+            <p>{{text.loadFailed}}</p>
+            <button type="button" class="button button-secondary" (click)="reload()">
+              {{text.retry}}
+            </button>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{text.colCif}}</th>
+                  <th>{{text.colName}}</th>
+                  <th>{{text.colPhone}}</th>
+                  <th>{{text.colNote}}</th>
+                  <th>{{text.colStatus}}</th>
+                  <th>{{text.colResult}}</th>
+                  <th>{{text.colUpdated}}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (customer of sorted(); track customer.id) {
+                  <tr>
+                    <td class="mono">{{customer.customerCif}}</td>
+                    <td>{{customer.customerName}}</td>
+                    <td class="mono">{{customer.phone ?? localization.campaign.noValue}}</td>
+                    <td class="note-cell" [title]="customer.note ?? ''">
+                      {{customer.note ?? localization.campaign.noValue}}
+                    </td>
+                    <td>
+                      <span class="status-badge" [class]="badge(customer.contactStatus)">
+                        {{statusLabel(customer.contactStatus)}}
+                      </span>
+                    </td>
+                    <td>
+                      {{customer.resultText}}
+                      @if (
+                        customer.contactStatus === 'CLOSED' && customer.workStatus === 'REJECTED'
+                      ) {
+                        <div>
+                          <span class="status-badge is-danger">{{text.workRejected}}</span>
+                        </div>
+                      }
+                    </td>
+                    <td class="mono">{{customer.updatedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
+                    <td class="actions">
+                      @if (customer.contactStatus === 'CLOSED') {
+                        <a
+                          class="button button-secondary"
+                          routerLink="/my-work"
+                          [queryParams]="{ workId: customer.workId }"
+                        >
+                          {{customer.workStatus === 'REJECTED'
+                              ? text.openWorkResubmit
+                              : text.openWork}}
+                        </a>
+                      } @else {
+                        <button
+                          type="button"
+                          class="button button-secondary"
+                          [disabled]="!running()"
+                          [title]="running() ? '' : text.readOnly"
+                          (click)="editing.set(customer)"
+                        >
+                          {{text.update}}
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td class="empty-cell" colspan="8">
+                      {{loading() ? text.loading : text.emptyCustomers}}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <app-table-pagination
+            [page]="page()"
+            [pageSize]="pageSize"
+            [totalCount]="totalCount()"
+            [rangeTemplate]="rangeTemplate()"
+            [disabled]="loading()"
+            (pageChange)="page.set($event)"
+          />
+        }
+      </section>
+
+      @if (editing(); as customer) {
+        <app-update-contact-modal
+          [campaignId]="campaignId()"
+          [customer]="customer"
+          (closed)="editing.set(null)"
+          (saved)="onSaved()"
+        />
+      }
+    </main>
+  </div>
+</div>

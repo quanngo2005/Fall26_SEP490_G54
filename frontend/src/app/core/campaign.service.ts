@@ -62,6 +62,23 @@ export class CampaignService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  complete(id: string): Observable<CampaignDecisionResult> {
+    return this.http
+      .post<ApiResponse<CampaignDecisionResult>>(
+        `${this.url}/${encodeURIComponent(id)}/complete`,
+        {},
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  cancel(id: string, reason: string): Observable<CampaignDecisionResult> {
+    return this.http
+      .post<ApiResponse<CampaignDecisionResult>>(`${this.url}/${encodeURIComponent(id)}/cancel`, {
+        reason,
+      })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   private params(filter: CampaignFilter): HttpParams {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filter)) {

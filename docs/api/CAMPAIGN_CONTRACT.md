@@ -388,7 +388,7 @@ and commit.
 }
 ```
 
-`resultText` is derived, never stored verbatim:
+`resultText` is derived, never stored verbatim. Date-times inside it are shown in Vietnam time (UTC+7); the `appointmentAt` / `metAt` fields stay UTC. The text is Vietnamese only.
 
 | `contactStatus` | `resultText` |
 | :--- | :--- |

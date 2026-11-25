@@ -1,0 +1,52 @@
+.allocate-dialog {
+  width: min(560px, 100%);
+}
+.count-line {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.hint {
+  margin: 4px 0 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.participants {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.participants li {
+  border-bottom: 1px solid #f1f5f9;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  color: #334155;
+  font-size: 13px;
+}
+.check-row .muted {
+  margin-left: auto;
+}
+.result-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.result-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.check-row {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
