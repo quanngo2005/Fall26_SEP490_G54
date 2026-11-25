@@ -161,6 +161,58 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Gets the Branch Manager's Evaluation Dashboard overview across departments in the branch (`/branch-performance/evaluations`).
+    /// Only accessible to Branch Managers (`evaluation:read` at `Branch` or `All` scope).
+    /// </summary>
+    [HttpGet("branch-dashboard")]
+    [ProducesResponseType<ApiResponse<DepartmentEvaluationDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<DepartmentEvaluationDashboardDto>>> GetBranchDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetBranchEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            departmentId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the Branch Manager's Evaluation Dashboard to an Excel workbook (`.xlsx`).
+    /// Only accessible to Branch Managers (`evaluation:read` at `Branch` or `All` scope).
+    /// </summary>
+    [HttpGet("branch-dashboard/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<IActionResult> ExportBranchDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportBranchEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            departmentId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
+    }
+
+    /// <summary>
     /// Gets the department ranking board for a period: tier slots, the staff ranking and the change against the compare period (SCR-EVAL-04).
     /// </summary>
     [HttpGet("ranking-board")]

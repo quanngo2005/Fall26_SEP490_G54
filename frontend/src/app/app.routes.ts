@@ -190,10 +190,10 @@ export const routes: Routes = [
   {
     path: 'branch-performance/evaluations',
     canActivate: [authGuard, branchEvaluationGuard],
-    title: 'Kỳ đánh giá chi nhánh',
+    title: 'Đánh giá Chi nhánh',
     loadComponent: () =>
-      import('./features/evaluations/branch-evaluation-list.component').then(
-        (m) => m.BranchEvaluationListComponent,
+      import('./features/evaluations/branch-evaluations.component').then(
+        (m) => m.BranchEvaluationsComponent,
       ),
   },
   {

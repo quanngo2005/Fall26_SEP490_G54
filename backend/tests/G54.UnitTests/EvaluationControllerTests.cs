@@ -260,6 +260,41 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
+    public async Task GetBranchDashboard_ForwardsPeriodComparePeriodDepartmentAndCallerId()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+        var departmentId = Guid.NewGuid();
+
+        var result = await controller.GetBranchDashboard(periodId, comparePeriodId, departmentId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal((periodId, comparePeriodId, departmentId, UserId), service.LastBranchDashboardRequest);
+        var data = Assert.IsType<ApiResponse<DepartmentEvaluationDashboardDto>>(ok.Value).Data;
+        Assert.NotNull(data);
+        Assert.Equal("KHCN", data.Department.Code);
+    }
+
+    [Fact]
+    public async Task ExportBranchDashboard_ReturnsExcelFileWithExpectedName()
+    {
+        var service = new RecordingEvaluationService();
+        var controller = ControllerFor(service);
+        var periodId = Guid.NewGuid();
+        var comparePeriodId = Guid.NewGuid();
+        var departmentId = Guid.NewGuid();
+
+        var result = await controller.ExportBranchDashboard(periodId, comparePeriodId, departmentId, CancellationToken.None);
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.ContentType);
+        Assert.Equal("danh-gia-phong-KHCN-2026-M11.xlsx", file.FileDownloadName);
+        Assert.Equal((periodId, comparePeriodId, departmentId, UserId), service.LastBranchDashboardExportRequest);
+    }
+
+    [Fact]
     public void Controller_RequiresAuthorizationAndUsesTheEvaluationsRoute()
     {
         var type = typeof(EvaluationController);
@@ -444,6 +479,8 @@ public sealed class EvaluationControllerTests
         public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
         public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardRequest { get; private set; }
         public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardExportRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid? DepartmentId, Guid UserId) LastBranchDashboardRequest { get; private set; }
+        public (Guid? PeriodId, Guid? ComparePeriodId, Guid? DepartmentId, Guid UserId) LastBranchDashboardExportRequest { get; private set; }
 
         public Task<DepartmentEvaluationDashboardDto> GetDepartmentEvaluationDashboardAsync(
             Guid? periodId,
@@ -466,6 +503,28 @@ public sealed class EvaluationControllerTests
                 DateTimeOffset.UtcNow));
         }
 
+        public Task<DepartmentEvaluationDashboardDto> GetBranchEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid? departmentId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastBranchDashboardRequest = (periodId, comparePeriodId, departmentId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardDto(
+                new DepartmentEvaluationDepartmentDto(Guid.NewGuid(), "KHCN", "Phòng KHCN", "Nguyễn Văn A"),
+                null,
+                null,
+                [],
+                [],
+                new DepartmentEvaluationPerformanceDto(91.4m, 90.4m, 1.0m, 10, 12, 2, 1, 1, [], []),
+                new DepartmentEvaluationOperationsDto(142, 10, 14, 93.4m, 12.7m),
+                new DepartmentEvaluationTierDistributionDto(20m, [], []),
+                [],
+                [],
+                DateTimeOffset.UtcNow));
+        }
+
         public Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
             Guid? periodId,
             Guid? comparePeriodId,
@@ -473,6 +532,17 @@ public sealed class EvaluationControllerTests
             CancellationToken cancellationToken = default)
         {
             LastDepartmentDashboardExportRequest = (periodId, comparePeriodId, currentUserId);
+            return Task.FromResult(new DepartmentEvaluationDashboardExportDto([1, 2, 3], "danh-gia-phong-KHCN-2026-M11.xlsx"));
+        }
+
+        public Task<DepartmentEvaluationDashboardExportDto> ExportBranchEvaluationDashboardAsync(
+            Guid? periodId,
+            Guid? comparePeriodId,
+            Guid? departmentId,
+            Guid currentUserId,
+            CancellationToken cancellationToken = default)
+        {
+            LastBranchDashboardExportRequest = (periodId, comparePeriodId, departmentId, currentUserId);
             return Task.FromResult(new DepartmentEvaluationDashboardExportDto([1, 2, 3], "danh-gia-phong-KHCN-2026-M11.xlsx"));
         }
 

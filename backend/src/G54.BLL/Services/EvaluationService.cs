@@ -1590,7 +1590,7 @@ public sealed partial class EvaluationService(
 
         var departments = await db.Departments
             .AsNoTracking()
-            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
+            .Where(d => d.Status == RecordStatus.Active && (d.LevelType == DepartmentLevelType.Department || d.LevelType == DepartmentLevelType.Team))
             .Where(d => inScope == null || inScope.Contains(d.Id))
             .ToListAsync(cancellationToken);
 
@@ -1920,7 +1920,7 @@ public sealed partial class EvaluationService(
 
         var branchDepartmentIds = hierarchy.Subtree(branch.Id).ToHashSet();
         var departments = hierarchy.Nodes.Values
-            .Where(n => n.Level == DepartmentLevelType.Department
+            .Where(n => (n.Level == DepartmentLevelType.Department || n.Level == DepartmentLevelType.Team)
                 && n.Status == RecordStatus.Active
                 && branchDepartmentIds.Contains(n.Id)
                 && (inScope is null || inScope.Contains(n.Id)))

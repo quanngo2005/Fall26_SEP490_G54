@@ -3435,6 +3435,7 @@
           "cancel": "Hủy"
         },
         "dashboard": {
+          "departmentLabel": "Phòng ban",
           "breadcrumbUnit": "Đơn vị",
           "breadcrumbDept": "Phòng Khách hàng Cá nhân",
           "breadcrumbTitle": "Đánh giá Hiệu suất",
@@ -7699,6 +7700,7 @@
           "cancel": "Cancel"
         },
         "dashboard": {
+          "departmentLabel": "Department",
           "breadcrumbUnit": "Unit",
           "breadcrumbDept": "Retail Banking Department",
           "breadcrumbTitle": "Performance Evaluation",

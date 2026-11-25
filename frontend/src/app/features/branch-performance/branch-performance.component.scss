@@ -1,0 +1,89 @@
+/* SCR-PRF-03 Branch performance dashboard styles. Follows DESIGN.md shared layouts. */
+:host {
+  display: block;
+}
+
+.subline {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+
+  app-ui-select {
+    min-width: 180px;
+  }
+}
+
+.note,
+.inline-error {
+  margin: 0 0 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inline-error {
+  color: #be123c;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 28px 0 16px;
+  color: #0f172a;
+  font:
+    700 18px 'Nunito Sans',
+    sans-serif;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filters {
+    width: 100%;
+
+    app-ui-select {
+      flex: 1 1 100%;
+    }
+  }
+}

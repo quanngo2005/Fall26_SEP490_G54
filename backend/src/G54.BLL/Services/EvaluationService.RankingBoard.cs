@@ -42,6 +42,18 @@ public sealed partial class EvaluationService
             .Where(q => q.DepartmentId == deptId && !q.IsDeleted)
             .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
 
+        if (slots.Count == 0)
+        {
+            var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+            if (hierarchy.Nodes.TryGetValue(deptId, out var node) && node.ParentId.HasValue)
+            {
+                slots = await db.RankingSlotQuotas
+                    .AsNoTracking()
+                    .Where(q => q.DepartmentId == node.ParentId.Value && !q.IsDeleted)
+                    .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
+            }
+        }
+
         var tiers = RankingBoardTierCodes.Select(code =>
         {
             int? headcount = slots.TryGetValue(code, out var value) ? value : null;

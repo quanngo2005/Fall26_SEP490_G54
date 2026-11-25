@@ -86,6 +86,8 @@ public sealed class SidebarConfigurationServiceTests
         Assert.Contains("dataImport", SidebarCatalog.ItemIds);
         Assert.Contains("/data-import", SidebarCatalog.Routes);
         Assert.Contains("/import-history", SidebarCatalog.Routes);
+        Assert.Contains("/evaluations", SidebarCatalog.Routes);
+        Assert.Contains("/branch-performance/evaluations", SidebarCatalog.Routes);
         Assert.DoesNotContain("/data-import", SidebarCatalog.AdminOnlyRoutes);
     }
 

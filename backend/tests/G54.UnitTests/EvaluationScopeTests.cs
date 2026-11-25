@@ -251,17 +251,20 @@ public sealed class EvaluationScopeTests
     }
 
     [Fact]
-    public async Task GetDepartmentEvaluationDashboard_BranchManagerOrAdmin_ThrowsForbidden()
+    public async Task GetBranchEvaluationDashboard_BranchManagerOrAdmin_Succeeds()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var branchService = CreateService(context, Grant("read", PermissionScopes.Branch));
         var adminService = CreateService(context, new UserPermissionDto("*", "*", PermissionScopes.All, "FULL_ACCESS"));
 
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            branchService.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            adminService.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
+        var branchDashboard = await branchService.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id);
+        var adminDashboard = await adminService.GetBranchEvaluationDashboardAsync(null, null, s.DeptBId, s.ManagerAAccount.Id);
+
+        Assert.NotNull(branchDashboard);
+        Assert.NotNull(adminDashboard);
+        Assert.Equal(s.DeptBId, adminDashboard.Department.Id);
+        Assert.NotNull(branchDashboard.AvailableDepartments);
     }
 
     [Fact]
@@ -688,5 +691,40 @@ public sealed class EvaluationScopeTests
         Assert.NotNull(dashboard.Period);
         Assert.Equal(monthPeriod.Id, dashboard.Period.Id);
         Assert.Equal(PeriodType.Month.ToString().ToUpperInvariant(), dashboard.Period.PeriodType);
+    }
+
+    [Fact]
+    public async Task GetDepartmentEvaluationDashboard_RejectsBranchScope()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Branch));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationDashboard_AllowsBranchScopeAndReturnsDepartments()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Branch));
+        var dashboard = await service.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id);
+
+        Assert.NotNull(dashboard);
+        Assert.NotNull(dashboard.Department);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationDashboard_RejectsDeptScope()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id));
     }
 }

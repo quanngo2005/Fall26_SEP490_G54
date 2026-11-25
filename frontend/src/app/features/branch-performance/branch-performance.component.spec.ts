@@ -145,7 +145,35 @@ describe('BranchPerformanceComponent', () => {
     departments.exportOverview.and.returnValue(of(new Blob(['x'])));
     spyOn(HTMLAnchorElement.prototype, 'click');
     const { root } = open();
-    root.querySelector<HTMLButtonElement>('.filters button')!.click();
+    root.querySelector<HTMLButtonElement>('.filters > button')!.click();
     expect(departments.exportOverview).toHaveBeenCalledWith('br-1', 'p-cur', 'PREVIOUS');
+  });
+
+  it('renders app-ui-select filters and reloads overview on selection change', () => {
+    const branch2 = { id: 'br-2', code: 'BR2', name: 'Branch Two', levelType: 'BRANCH' };
+    departments.list.and.returnValue(
+      of({ items: [branch, branch2], totalCount: 2, page: 1, pageSize: 100 }),
+    );
+    const { fixture, root } = open();
+
+    const selects = root.querySelectorAll('app-ui-select');
+    expect(selects.length).toBe(3); // branch, period, compare mode
+
+    const comp = fixture.componentInstance;
+    expect(comp['branchOptions']().length).toBe(2);
+    expect(comp['periodOptions']().length).toBe(overview.availablePeriods.length);
+    expect(comp['compareOptions']().length).toBe(2);
+
+    // Change period
+    comp['onPeriodChange']('p-prev');
+    expect(departments.overview).toHaveBeenCalledWith('br-1', 'p-prev', 'PREVIOUS');
+
+    // Change compare mode
+    comp['onCompareChange']('SAME_LAST_YEAR');
+    expect(departments.overview).toHaveBeenCalledWith('br-1', 'p-cur', 'SAME_LAST_YEAR');
+
+    // Change branch
+    comp['onBranchChange']('br-2');
+    expect(departments.overview).toHaveBeenCalledWith('br-2', undefined, 'SAME_LAST_YEAR');
   });
 });

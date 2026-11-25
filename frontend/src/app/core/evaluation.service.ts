@@ -155,6 +155,37 @@ export class EvaluationService {
     });
   }
 
+  branchDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+    departmentId?: string | null,
+  ): Observable<DepartmentEvaluationDashboard> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    return this.http
+      .get<ApiResponse<DepartmentEvaluationDashboard>>(`${this.url}/branch-dashboard`, {
+        params,
+      })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportBranchDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+    departmentId?: string | null,
+  ): Observable<Blob> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    return this.http.get(`${this.url}/branch-dashboard/export`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
   form(
     employeeId: string,
     periodId: string,

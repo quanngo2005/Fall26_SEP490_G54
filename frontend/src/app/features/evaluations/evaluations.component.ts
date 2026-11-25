@@ -4,13 +4,14 @@ import {
   DestroyRef,
   ElementRef,
   inject,
+  input,
   OnInit,
   signal,
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { EvaluationFormTargetService } from '../../core/evaluation-form-target.service';
 import {
@@ -18,6 +19,7 @@ import {
   DepartmentEvaluationGroupKpi,
   DepartmentEvaluationKpiGroup,
   DepartmentEvaluationProfileGroupColumn,
+  DepartmentEvaluationSelectOption,
   DepartmentEvaluationStaffRow,
   DepartmentEvaluationStaffRowStatus,
   DepartmentEvaluationTierItem,
@@ -173,16 +175,19 @@ function sumKpiScores(scores: (number | null | undefined)[]): number | null {
   ],
 })
 export class EvaluationsComponent extends LocalizedComponent implements OnInit {
-  private readonly evaluationService = inject(EvaluationService);
-  private readonly formTarget = inject(EvaluationFormTargetService);
-  private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
+  protected readonly evaluationService = inject(EvaluationService);
+  protected readonly formTarget = inject(EvaluationFormTargetService);
+  protected readonly router = inject(Router);
+  protected readonly route = inject(ActivatedRoute);
+  protected readonly destroyRef = inject(DestroyRef);
 
+  readonly isBranchMode = input<boolean>(false);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly exporting = signal(false);
   readonly exportFailed = signal(false);
   readonly dashboard = signal<DepartmentEvaluationDashboard | null>(null);
+  readonly selectedDepartmentId = signal<string | null>(null);
   readonly selectedPeriodType = signal<PeriodTypeFilter>('MONTH');
   readonly selectedPeriodId = signal<string | null>(null);
   readonly selectedComparePeriodId = signal<string | null>(null);
@@ -196,6 +201,17 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   readonly kpiGroupsExpanded = signal(false);
   readonly hoveredKpiBar = signal<KpiChartBar | null>(null);
   @ViewChild('kpiTip') kpiTip?: ElementRef<HTMLElement>;
+
+  readonly availableDepartments = computed<DepartmentEvaluationSelectOption[]>(
+    () => this.dashboard()?.availableDepartments ?? [],
+  );
+
+  readonly departmentOptions = computed(() =>
+    this.availableDepartments().map((dept) => ({
+      value: dept.id,
+      label: `${dept.code} · ${dept.name}`,
+    })),
+  );
 
   readonly periodTypes = ALLOWED_PERIOD_TYPES;
   readonly trendWidth = TREND_W;
@@ -827,32 +843,50 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.loadDashboard();
+    const q = this.route.snapshot.queryParamMap;
+    const initialDeptId = q.get('departmentId') ?? q.get('department');
+    if (initialDeptId) {
+      this.selectedDepartmentId.set(initialDeptId);
+    }
+    this.loadDashboard(null, null, initialDeptId);
   }
 
-  loadDashboard(periodId?: string | null, comparePeriodId?: string | null): void {
+  loadDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+    departmentId?: string | null,
+  ): void {
     this.loading.set(true);
     this.error.set(null);
-    this.evaluationService
-      .departmentDashboard(periodId, comparePeriodId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (data) => {
-          this.dashboard.set(data);
-          const resolvedType = (data.period?.periodType ?? 'MONTH') as PeriodTypeFilter;
-          if (ALLOWED_PERIOD_TYPES.includes(resolvedType)) {
-            this.selectedPeriodType.set(resolvedType);
-          }
-          this.selectedPeriodId.set(data.period?.id ?? null);
-          this.selectedComparePeriodId.set(data.comparePeriod?.id ?? null);
-          this.staffChartPage.set(1);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.error.set(this.localization.evaluations.dashboard.loadError);
-          this.loading.set(false);
-        },
-      });
+    const deptToLoad = departmentId !== undefined ? departmentId : this.selectedDepartmentId();
+    const req$ = this.isBranchMode()
+      ? this.evaluationService.branchDashboard(periodId, comparePeriodId, deptToLoad)
+      : this.evaluationService.departmentDashboard(periodId, comparePeriodId);
+
+    req$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (data) => {
+        this.dashboard.set(data);
+        this.selectedDepartmentId.set(data.department.id);
+        const resolvedType = (data.period?.periodType ?? 'MONTH') as PeriodTypeFilter;
+        if (ALLOWED_PERIOD_TYPES.includes(resolvedType)) {
+          this.selectedPeriodType.set(resolvedType);
+        }
+        this.selectedPeriodId.set(data.period?.id ?? null);
+        this.selectedComparePeriodId.set(data.comparePeriod?.id ?? null);
+        this.staffChartPage.set(1);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.error.set(this.localization.evaluations.dashboard.loadError);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  onDepartmentSelected(value: string): void {
+    const deptId = value || null;
+    this.selectedDepartmentId.set(deptId);
+    this.loadDashboard(this.selectedPeriodId(), this.selectedComparePeriodId(), deptId);
   }
 
   onPeriodTypeSelected(value: string): void {
@@ -870,7 +904,7 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     if (targetPeriod) {
       this.selectedPeriodId.set(targetPeriod.id);
       this.selectedComparePeriodId.set(null);
-      this.loadDashboard(targetPeriod.id, null);
+      this.loadDashboard(targetPeriod.id, null, this.selectedDepartmentId());
     }
   }
 
@@ -878,13 +912,13 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     const periodId = value || null;
     this.selectedPeriodId.set(periodId);
     this.selectedComparePeriodId.set(null);
-    this.loadDashboard(periodId, null);
+    this.loadDashboard(periodId, null, this.selectedDepartmentId());
   }
 
   onCompareValueSelected(value: string): void {
     const compareId = value || null;
     this.selectedComparePeriodId.set(compareId);
-    this.loadDashboard(this.selectedPeriodId(), compareId);
+    this.loadDashboard(this.selectedPeriodId(), compareId, this.selectedDepartmentId());
   }
 
   changeStaffChartPage(delta: number): void {
@@ -927,7 +961,14 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   }
 
   openDepartmentRanking(): void {
-    void this.router.navigate(['/evaluations/department-ranking']);
+    if (this.isBranchMode()) {
+      const periodId = this.selectedPeriodId();
+      if (periodId) {
+        void this.router.navigate(['/branch-performance/evaluations', periodId, 'approval']);
+      }
+    } else {
+      void this.router.navigate(['/evaluations/department-ranking']);
+    }
   }
 
   exportExcel(): void {
@@ -935,8 +976,18 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     if (!data || this.exporting()) return;
     this.exporting.set(true);
     this.exportFailed.set(false);
-    this.evaluationService
-      .exportDepartmentDashboard(this.selectedPeriodId(), this.selectedComparePeriodId())
+    const export$ = this.isBranchMode()
+      ? this.evaluationService.exportBranchDashboard(
+          this.selectedPeriodId(),
+          this.selectedComparePeriodId(),
+          this.selectedDepartmentId(),
+        )
+      : this.evaluationService.exportDepartmentDashboard(
+          this.selectedPeriodId(),
+          this.selectedComparePeriodId(),
+        );
+
+    export$
       .pipe(
         finalize(() => this.exporting.set(false)),
         takeUntilDestroyed(this.destroyRef),

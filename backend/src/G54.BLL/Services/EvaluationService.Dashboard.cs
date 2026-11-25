@@ -32,17 +32,81 @@ public sealed partial class EvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         await EnsureDepartmentManagerOnlyAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        return await BuildDepartmentEvaluationDashboardAsync(
+            reviewer.DepartmentId,
+            periodId,
+            comparePeriodId,
+            [],
+            reviewer,
+            currentUserId,
+            cancellationToken);
+    }
 
+    public async Task<DepartmentEvaluationDashboardDto> GetBranchEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureBranchManagerOnlyAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
-        var departmentId = reviewer.DepartmentId;
-        if (!hierarchy.Nodes.TryGetValue(departmentId, out var deptNode))
+
+        var branchRootId = hierarchy.BranchRoot(reviewer.DepartmentId);
+        var branchSubtree = hierarchy.Subtree(branchRootId);
+        var availableDepartments = branchSubtree
+            .Where(id => hierarchy.Nodes.TryGetValue(id, out var n)
+                         && n.Level == DepartmentLevelType.Department
+                         && n.Status == RecordStatus.Active)
+            .Select(id => hierarchy.Nodes[id])
+            .OrderBy(n => n.Code)
+            .Select(n => new DepartmentEvaluationSelectOptionDto(n.Id, n.Code, n.Name))
+            .ToList();
+
+        Guid targetDepartmentId;
+        if (departmentId.HasValue)
         {
-            throw new NotFoundException("Phòng ban", departmentId);
+            if (!hierarchy.Nodes.TryGetValue(departmentId.Value, out _)
+                || !branchSubtree.Contains(departmentId.Value))
+            {
+                throw new NotFoundException("Phòng ban", departmentId.Value);
+            }
+            targetDepartmentId = departmentId.Value;
+        }
+        else
+        {
+            targetDepartmentId = availableDepartments.FirstOrDefault()?.Id ?? reviewer.DepartmentId;
         }
 
-        var subtree = hierarchy.Subtree(departmentId);
+        return await BuildDepartmentEvaluationDashboardAsync(
+            targetDepartmentId,
+            periodId,
+            comparePeriodId,
+            availableDepartments,
+            reviewer,
+            currentUserId,
+            cancellationToken);
+    }
+
+    private async Task<DepartmentEvaluationDashboardDto> BuildDepartmentEvaluationDashboardAsync(
+        Guid departmentIdToUse,
+        Guid? periodId,
+        Guid? comparePeriodId,
+        List<DepartmentEvaluationSelectOptionDto> availableDepartments,
+        Employee reviewer,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        if (!hierarchy.Nodes.TryGetValue(departmentIdToUse, out var deptNode))
+        {
+            throw new NotFoundException("Phòng ban", departmentIdToUse);
+        }
+
+        var subtree = hierarchy.Subtree(departmentIdToUse);
         var today = timeProvider.GetBusinessToday();
         var selectablePeriods = await LoadDashboardPeriodsAsync(cancellationToken);
         var period = await ResolveDashboardPeriodAsync(periodId, selectablePeriods, today, cancellationToken);
@@ -98,7 +162,8 @@ public sealed partial class EvaluationService
                 new DepartmentEvaluationTierDistributionDto(DefaultTierACapPercent, emptyTiers, []),
                 [],
                 [],
-                timeProvider.GetUtcNow());
+                timeProvider.GetUtcNow(),
+                availableDepartments);
         }
 
         var employeeIds = activeEmployees.Select(e => e.Id).ToList();
@@ -285,7 +350,7 @@ public sealed partial class EvaluationService
         var average = MeanDashboard(rankableCurrentScores);
         var previousAverage = MeanDashboard(previousScores.Values);
         var kpiGroups = await BuildDashboardKpiGroupsAsync(
-            departmentId,
+            departmentIdToUse,
             subtree,
             period,
             comparePeriod,
@@ -325,7 +390,8 @@ public sealed partial class EvaluationService
             tierDistribution,
             profileGroups,
             staffRows,
-            timeProvider.GetUtcNow());
+            timeProvider.GetUtcNow(),
+            availableDepartments);
     }
 
     public async Task<DepartmentEvaluationDashboardExportDto> ExportDepartmentEvaluationDashboardAsync(
@@ -340,6 +406,28 @@ public sealed partial class EvaluationService
             currentUserId,
             cancellationToken);
 
+        return GenerateDashboardExport(dashboard);
+    }
+
+    public async Task<DepartmentEvaluationDashboardExportDto> ExportBranchEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var dashboard = await GetBranchEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            departmentId,
+            currentUserId,
+            cancellationToken);
+
+        return GenerateDashboardExport(dashboard);
+    }
+
+    private static DepartmentEvaluationDashboardExportDto GenerateDashboardExport(DepartmentEvaluationDashboardDto dashboard)
+    {
         using var workbook = new XLWorkbook();
         workbook.Style.Font.FontName = "Segoe UI";
         workbook.Style.Font.FontSize = 10;
@@ -370,6 +458,20 @@ public sealed partial class EvaluationService
         if (level != AccessScope.DeptLevel)
         {
             throw new ForbiddenException("Màn hình Đánh giá & Hiệu suất Phòng ban chỉ dành cho Trưởng phòng.");
+        }
+    }
+
+    /// <summary>
+    /// Enforces that only a Branch Manager (`evaluation:read` at `Branch` or `All` scope)
+    /// can open `/branch-performance/evaluations`.
+    /// </summary>
+    private async Task EnsureBranchManagerOnlyAsync(Guid actorAccountId, CancellationToken cancellationToken)
+    {
+        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "evaluation", "read");
+        if (level < AccessScope.BranchLevel)
+        {
+            throw new ForbiddenException("Màn hình Đánh giá & Hiệu suất Chi nhánh chỉ dành cho Giám đốc Chi nhánh.");
         }
     }
 

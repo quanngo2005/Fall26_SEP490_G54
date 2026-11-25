@@ -681,6 +681,12 @@ export interface DepartmentEvaluationStaffRow {
   overdueCount?: number;
 }
 
+export interface DepartmentEvaluationSelectOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface DepartmentEvaluationDashboard {
   department: DepartmentEvaluationDepartment;
   period: EvaluationPeriodOption | null;
@@ -693,4 +699,5 @@ export interface DepartmentEvaluationDashboard {
   profileGroups: DepartmentEvaluationProfileGroupColumn[];
   staffRows: DepartmentEvaluationStaffRow[];
   generatedAt: string;
+  availableDepartments?: DepartmentEvaluationSelectOption[];
 }

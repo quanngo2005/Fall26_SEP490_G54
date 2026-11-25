@@ -5,7 +5,9 @@
     <main class="workspace-content evaluation-page" [attr.aria-busy]="loading()">
       <!-- Breadcrumb navigation -->
       <nav class="breadcrumb-trail" aria-label="Breadcrumb">
-        <span class="breadcrumb-item">{{localization.evaluations.dashboard.breadcrumbUnit}}</span>
+        <span class="breadcrumb-item">
+          {{ isBranchMode() ? localization.evaluations.branchPeriods.breadcrumbBranchPerformance : localization.evaluations.dashboard.breadcrumbUnit }}
+        </span>
         <span class="breadcrumb-separator">/</span>
         <span class="breadcrumb-item font-semibold">{{departmentName()}}</span>
         <span class="breadcrumb-separator">/</span>
@@ -20,6 +22,14 @@
           </h1>
         </div>
         <div class="ui-page-actions">
+          @if (isBranchMode() && departmentOptions().length > 1) {
+            <app-ui-select
+              [options]="departmentOptions()"
+              [value]="selectedDepartmentId() ?? ''"
+              [ariaLabel]="localization.evaluations.dashboard.departmentLabel"
+              (valueChange)="onDepartmentSelected($event)"
+            />
+          }
           <app-ui-select
             [options]="periodTypeOptions()"
             [value]="selectedPeriodType()"
@@ -38,9 +48,15 @@
             [ariaLabel]="localization.evaluations.dashboard.periodCompareAria"
             (valueChange)="onCompareValueSelected($event)"
           />
-          <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
-            {{localization.evaluations.departmentRanking.pageTitle}}
-          </button>
+          @if (isBranchMode()) {
+            <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
+              {{localization.evaluations.departmentApproval.pageTitle}}
+            </button>
+          } @else {
+            <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
+              {{localization.evaluations.departmentRanking.pageTitle}}
+            </button>
+          }
           <button
             type="button"
             class="button button-primary"

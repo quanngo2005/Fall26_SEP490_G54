@@ -24,38 +24,26 @@
         </div>
         <div class="filters">
           @if (branches().length > 1) {
-            <select
-              class="select"
-              [attr.aria-label]="text.selectBranch"
-              [(ngModel)]="branchId"
-              (ngModelChange)="changeBranch()"
-            >
-              @for (branch of branches(); track branch.id) {
-                <option [value]="branch.id">{{branch.code}} · {{branch.name}}</option>
-              }
-            </select>
+            <app-ui-select
+              [options]="branchOptions()"
+              [value]="branchId"
+              [ariaLabel]="text.selectBranch"
+              (valueChange)="onBranchChange($event)"
+            />
           }
           @if (overview(); as data) {
-            <select
-              class="select"
-              [attr.aria-label]="shared.period"
-              [(ngModel)]="periodId"
-              (ngModelChange)="refresh()"
-            >
-              @for (period of data.availablePeriods; track period.id) {
-                <option [value]="period.id">{{period.name}}</option>
-              }
-            </select>
-            <select
-              class="select"
-              [attr.aria-label]="shared.compare"
-              [(ngModel)]="compare"
-              (ngModelChange)="refresh()"
-            >
-              @for (mode of compareModes; track mode) {
-                <option [value]="mode">{{shared.compare}}: {{compareLabel(mode)}}</option>
-              }
-            </select>
+            <app-ui-select
+              [options]="periodOptions()"
+              [value]="periodId"
+              [ariaLabel]="shared.period"
+              (valueChange)="onPeriodChange($event)"
+            />
+            <app-ui-select
+              [options]="compareOptions()"
+              [value]="compare"
+              [ariaLabel]="shared.compare"
+              (valueChange)="onCompareChange($event)"
+            />
             <button
               type="button"
               class="button button-secondary"
