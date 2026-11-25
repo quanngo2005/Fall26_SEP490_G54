@@ -187,6 +187,37 @@ describe('RankingStudioComponent', () => {
     expect((root.querySelector('#score-formula-input') as HTMLTextAreaElement).value).toBe(
       'TotalScore',
     );
+    expect(root.querySelector('.formula-explain')?.textContent).toContain('Lấy tổng điểm.');
+    expect(root.querySelectorAll('.rule-block .lane-note').length).toBe(3);
+    fixture.destroy();
+  });
+
+  it('GB910_FE19 reads the formula code aloud in Vietnamese right under the editor', () => {
+    const fixture = TestBed.createComponent(RankingStudioComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const root: HTMLElement = fixture.nativeElement;
+    const editor = root.querySelector('#score-formula-input') as HTMLTextAreaElement;
+    const explanation = () => root.querySelector('.formula-explain')?.textContent ?? '';
+
+    editor.value = 'IF(DepartmentAvgScore < 65, ROUND(TotalScore * 0.8, 2), TotalScore)';
+    editor.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(component.scoreFormula()).toBe(editor.value);
+    expect(explanation()).toContain(
+      'Nếu điểm trung bình của đơn vị nhỏ hơn 65 thì lấy tổng điểm nhân 0,8',
+    );
+
+    component.scoreFormula.set('');
+    component.insertToken('BusinessScore');
+    fixture.detectChanges();
+    expect(component.scoreFormula()).toBe('BusinessScore');
+    expect(explanation()).toContain('Lấy điểm kinh doanh.');
+
+    editor.value = 'TotalScore +';
+    editor.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(root.querySelector('.formula-explain.is-warning')).not.toBeNull();
     fixture.destroy();
   });
 
