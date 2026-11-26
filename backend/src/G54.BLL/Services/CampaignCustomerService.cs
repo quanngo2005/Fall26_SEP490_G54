@@ -139,16 +139,8 @@ public sealed class CampaignCustomerService(AppDbContext db, TimeProvider time, 
                 $"Số lượng khách hàng chưa phân bổ ({unassigned.Count}) vượt quá giới hạn {MaxAllocatePerRequest} mỗi lần phân bổ.");
         }
 
-        var campaignWorkType = await db.CampaignWorkTypes.AsNoTracking()
-            .Include(cwt => cwt.WorkType)
-            .FirstOrDefaultAsync(cwt => cwt.BusinessCampaignId == campaignId, cancellationToken);
-        if (campaignWorkType is null || campaignWorkType.WorkType.Status != RecordStatus.Active)
-        {
-            throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
-        }
-
-        var workType = campaignWorkType.WorkType;
-        var creator = await ResolveEmployeeAsync(currentUserId, cancellationToken)
+        var workType = await LoadActiveWorkTypeAsync(db, campaignId, cancellationToken);
+        var creator = await ResolveEmployeeAsync(db, currentUserId, cancellationToken)
             ?? throw new ForbiddenException("Không xác định được nhân sự thực hiện thao tác.");
 
         var participantIds = activeParticipants.Select(p => p.EmployeeId).ToList();
@@ -255,13 +247,7 @@ public sealed class CampaignCustomerService(AppDbContext db, TimeProvider time, 
 
         EnsureCampaignOpen(campaign);
 
-        var isActiveParticipant = await db.Participants.AnyAsync(
-            p => p.BusinessCampaignId == campaignId && p.EmployeeId == employeeId && p.Employee.Status == EmployeeStatus.Active,
-            cancellationToken);
-        if (!isActiveParticipant)
-        {
-            throw new BusinessRuleException(ErrorCodes.EmployeeNotParticipant, null, 400);
-        }
+        await EnsureActiveParticipantAsync(db, campaignId, employeeId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         customer.AssigneeEmployeeId = employeeId;
@@ -274,7 +260,7 @@ public sealed class CampaignCustomerService(AppDbContext db, TimeProvider time, 
             var work = await db.Works.FirstOrDefaultAsync(w => w.Id == workId, cancellationToken);
             if (work is not null)
             {
-                var actor = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+                var actor = await ResolveEmployeeAsync(db, currentUserId, cancellationToken);
                 work.AssigneeEmployeeId = employeeId;
                 work.AssignedAt = now;
                 work.UpdatedAt = now;
@@ -302,11 +288,37 @@ public sealed class CampaignCustomerService(AppDbContext db, TimeProvider time, 
     // ---- helpers -----------------------------------------------------------------------------------------
 
     // The JWT subject is the account id; legacy callers and tests may pass the employee id directly.
-    private Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken) =>
+    internal static Task<Employee?> ResolveEmployeeAsync(AppDbContext db, Guid userId, CancellationToken cancellationToken) =>
         db.Employees.AsNoTracking()
             .FirstOrDefaultAsync(e => e.Id == userId || (e.Account != null && e.Account.Id == userId), cancellationToken);
 
-    private static void EnsureCampaignOpen(BusinessCampaign campaign)
+    /// <summary>BR-41: a removed or inactive participant keeps their old rows but can no longer work them.</summary>
+    internal static async Task EnsureActiveParticipantAsync(
+        AppDbContext db, Guid campaignId, Guid employeeId, CancellationToken cancellationToken)
+    {
+        var isActiveParticipant = await db.Participants.AnyAsync(
+            p => p.BusinessCampaignId == campaignId && p.EmployeeId == employeeId && p.Employee.Status == EmployeeStatus.Active,
+            cancellationToken);
+        if (!isActiveParticipant)
+        {
+            throw new BusinessRuleException(ErrorCodes.EmployeeNotParticipant, null, 400);
+        }
+    }
+
+    /// <summary>The campaign's single product (work type); it must still be active.</summary>
+    internal static async Task<WorkType> LoadActiveWorkTypeAsync(
+        AppDbContext db, Guid campaignId, CancellationToken cancellationToken)
+    {
+        var workType = await db.CampaignWorkTypes.AsNoTracking()
+            .Where(cwt => cwt.BusinessCampaignId == campaignId)
+            .Select(cwt => cwt.WorkType)
+            .FirstOrDefaultAsync(cancellationToken);
+        return workType is { Status: RecordStatus.Active }
+            ? workType
+            : throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
+    }
+
+    internal static void EnsureCampaignOpen(BusinessCampaign campaign)
     {
         if (campaign.Status is not (BusinessCampaignStatus.Planned or BusinessCampaignStatus.Running))
         {

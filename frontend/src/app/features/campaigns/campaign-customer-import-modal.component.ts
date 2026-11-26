@@ -10,6 +10,7 @@ import { CampaignCustomerService } from '../../core/campaign-customer.service';
 import { CampaignDetail } from '../../core/campaign.models';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppNumberPipe } from '../../shared/pipes';
+import { saveFile } from '../performance-dashboard/performance-page';
 import { apiErrorCode, fillTemplate, serverMessage } from './campaign.utils';
 
 type Step = 'CHOOSE_FILE' | 'PREVIEW' | 'RESULT';
@@ -77,14 +78,7 @@ export class CampaignCustomerImportModalComponent extends LocalizedComponent {
 
   protected downloadTemplate(): void {
     this.api.downloadTemplate(this.campaign().id).subscribe({
-      next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'campaign-customers-template.xlsx';
-        link.click();
-        URL.revokeObjectURL(url);
-      },
+      next: (blob) => saveFile(blob, 'campaign-customers-template.xlsx'),
       error: (error: unknown) => this.loadError.set(this.failureText(error)),
     });
   }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using G54.BLL.Common.Extensions;
 using G54.DAL.Entities;
 
 namespace G54.BLL.Services;
@@ -46,9 +47,6 @@ public static class CampaignCustomerResultText
         return "Chưa liên hệ";
     }
 
-    /// <summary>Vietnam has no daylight saving, so a fixed UTC+7 offset is exact. Times are stored in UTC.</summary>
-    private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
-
     private static string FormatDateTime(DateTimeOffset? value) =>
-        value?.ToOffset(VietnamOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty;
+        value?.ToOffset(TimeProviderExtensions.BusinessUtcOffset).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? string.Empty;
 }

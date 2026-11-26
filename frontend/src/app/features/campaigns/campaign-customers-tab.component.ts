@@ -10,6 +10,7 @@ import { CampaignDetail } from '../../core/campaign.models';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { AppDatePipe } from '../../shared/pipes';
 import { TablePaginationComponent, UiSearchInputComponent } from '../../shared/ui';
+import { saveFile } from '../performance-dashboard/performance-page';
 import { CampaignCustomerAllocateModalComponent } from './campaign-customer-allocate-modal.component';
 import { CampaignCustomerImportModalComponent } from './campaign-customer-import-modal.component';
 import { apiErrorCode, contactBadgeClass, fillTemplate } from './campaign.utils';
@@ -170,14 +171,7 @@ export class CampaignCustomersTabComponent extends LocalizedComponent {
 
   protected downloadTemplate(): void {
     this.api.downloadTemplate(this.campaignId()).subscribe({
-      next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'campaign-customers-template.xlsx';
-        link.click();
-        URL.revokeObjectURL(url);
-      },
+      next: (blob) => saveFile(blob, 'campaign-customers-template.xlsx'),
       error: (error: unknown) => this.error.set(this.errorText(error)),
     });
   }

@@ -170,14 +170,7 @@ public sealed class MyCampaignService(AppDbContext db, IWorkTransactionService w
             throw new BusinessRuleException(ErrorCodes.CampaignCustomerClosed, null, 409);
         }
 
-        // BR-41: a removed or inactive participant keeps their old rows but can no longer work them.
-        var isActiveParticipant = await db.Participants.AnyAsync(
-            p => p.BusinessCampaignId == campaignId && p.EmployeeId == employee.Id && p.Employee.Status == EmployeeStatus.Active,
-            cancellationToken);
-        if (!isActiveParticipant)
-        {
-            throw new BusinessRuleException(ErrorCodes.EmployeeNotParticipant, null, 400);
-        }
+        await CampaignCustomerService.EnsureActiveParticipantAsync(db, campaignId, employee.Id, cancellationToken);
 
         var status = CampaignCustomerService.TryParseStatus(request.Status)
             ?? throw new ValidationException("Trạng thái liên hệ không hợp lệ.");
@@ -229,14 +222,7 @@ public sealed class MyCampaignService(AppDbContext db, IWorkTransactionService w
                     throw new ValidationException("Trường transactionCodes là bắt buộc khi trạng thái là CLOSED.");
                 }
 
-                var campaignWorkType = await db.CampaignWorkTypes.AsNoTracking()
-                    .Include(cwt => cwt.WorkType)
-                    .FirstOrDefaultAsync(cwt => cwt.BusinessCampaignId == campaignId, cancellationToken);
-                closedWorkType = campaignWorkType?.WorkType;
-                if (closedWorkType is not { Status: RecordStatus.Active })
-                {
-                    throw new BusinessRuleException(ErrorCodes.WorkTypeNotInCampaign, null, 400);
-                }
+                closedWorkType = await CampaignCustomerService.LoadActiveWorkTypeAsync(db, campaignId, cancellationToken);
 
                 var work = customer.Work
                     ?? throw new NotFoundException("Công việc của khách hàng chiến dịch", customer.Id);
@@ -310,11 +296,6 @@ public sealed class MyCampaignService(AppDbContext db, IWorkTransactionService w
         return CampaignCustomerService.ToDto(customer, employee, closedWorkType);
     }
 
-    private async Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        return await db.Employees
-            .AsNoTracking()
-            .Include(e => e.Account)
-            .FirstOrDefaultAsync(e => e.Id == userId || (e.Account != null && e.Account.Id == userId), cancellationToken);
-    }
+    private Task<Employee?> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken) =>
+        CampaignCustomerService.ResolveEmployeeAsync(db, userId, cancellationToken);
 }

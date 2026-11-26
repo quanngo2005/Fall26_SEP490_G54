@@ -94,15 +94,7 @@ public sealed partial class CampaignCustomerImportService(
     {
         var campaign = await db.BusinessCampaigns.AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == campaignId, ct);
-        if (campaign is null)
-        {
-            throw new NotFoundException("Chiến dịch", campaignId);
-        }
-
-        if (campaign.Status is not (BusinessCampaignStatus.Planned or BusinessCampaignStatus.Running))
-        {
-            throw new BusinessRuleException(ErrorCodes.CampaignNotRunning, null, 409);
-        }
+        CampaignCustomerService.EnsureCampaignOpen(campaign ?? throw new NotFoundException("Chiến dịch", campaignId));
     }
 
     private async Task<(List<CampaignCustomerRow> Rows, ImportContext Context)> AnalyzeAsync(
