@@ -1,5 +1,8 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { DepartmentMember, DepartmentSummary } from '../../core/department.models';
 import { DepartmentService } from '../../core/department.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -256,15 +259,19 @@ describe('WorkWorkloadMonitorComponent', () => {
     expect(text(el.querySelector('#monitor-kpi-overdue .kpi-value'))).toBe('2');
   });
 
-  it('Monitor_Interactions_EmitsOpenWorkAndTogglesOverdueHighlightAndDisabledCompose', () => {
+  it('Monitor_Interactions_EmitsOpenWorkAndTogglesOverdueHighlightAndOpensComposer', () => {
+    const router = TestBed.inject(Router);
+    const navSpy = spyOn(router, 'navigate').and.resolveTo(true);
     const fixture = createFixture();
     const el = root(fixture);
     const openedIds: string[] = [];
     fixture.componentInstance.openWork.subscribe((id) => openedIds.push(id));
 
-    // Compose button stays disabled for now
+    // Compose button navigates to SCR-WRK-07 (/work-announcements)
     const composeBtn = el.querySelector<HTMLButtonElement>('#monitor-compose-notice')!;
-    expect(composeBtn.disabled).toBeTrue();
+    expect(composeBtn.disabled).toBeFalse();
+    composeBtn.click();
+    expect(navSpy).toHaveBeenCalledOnceWith(['/work-announcements']);
 
     // Clicking overdue KPI card toggles highlight state
     const overdueBtn = el.querySelector<HTMLButtonElement>('#monitor-kpi-overdue')!;
@@ -279,6 +286,26 @@ describe('WorkWorkloadMonitorComponent', () => {
     const viewBtn = el.querySelector<HTMLButtonElement>('.alert-action')!;
     viewBtn.click();
     expect(openedIds).toEqual(['id-WK-1007']);
+  });
+
+  it('Monitor_ComposeButton_DisabledWithoutNotificationSendPermission', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [WorkWorkloadMonitorComponent],
+      providers: [
+        { provide: WorkService, useValue: worksApi },
+        { provide: DepartmentService, useValue: departmentsApi },
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: signal({ roles: ['EMPLOYEE'], permissions: ['work:read'] }),
+          },
+        },
+      ],
+    });
+    const fixture = createFixture();
+    const composeBtn = root(fixture).querySelector<HTMLButtonElement>('#monitor-compose-notice')!;
+    expect(composeBtn.disabled).toBeTrue();
   });
 
   it('Monitor_ErrorAndRetry_ShowsAlertAndRecoversOnRetry', () => {

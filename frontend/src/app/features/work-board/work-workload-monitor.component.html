@@ -32,8 +32,8 @@
         type="button"
         id="monitor-compose-notice"
         class="button button-secondary monitor-compose-btn"
-        disabled
-        [attr.title]="localization.work.comingSoon"
+        [disabled]="!canComposeNotice()"
+        (click)="openAnnouncementComposer()"
       >
         {{localization.work.monitor.composeNotice}}
       </button>

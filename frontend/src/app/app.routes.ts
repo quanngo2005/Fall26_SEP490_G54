@@ -404,6 +404,15 @@ export const routes: Routes = [
       import('./features/work-board/work-board.component').then((m) => m.WorkBoardComponent),
   },
   {
+    path: 'work-announcements',
+    canActivate: [authGuard, permissionGuard('NOTIFICATION_SEND')],
+    title: 'Soạn thông báo nhóm',
+    loadComponent: () =>
+      import('./features/work-board/work-announcement-composer.component').then(
+        (m) => m.WorkAnnouncementComposerComponent,
+      ),
+  },
+  {
     path: 'handovers',
     canActivate: [authGuard],
     title: 'Việc được chuyển đến',

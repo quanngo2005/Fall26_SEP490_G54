@@ -1,0 +1,157 @@
+.composer-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.aside-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.aside-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.aside-code,
+.recent-badge {
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.preview-box {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+
+  &.is-important {
+    border-color: #fecaca;
+    background: #fff5f5;
+  }
+}
+
+.preview-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.preview-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #002b49;
+}
+
+.preview-titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preview-title {
+  color: #0f172a;
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
+.preview-meta,
+.preview-note,
+.recent-meta {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.preview-body {
+  margin: 10px 0 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.preview-link-tag,
+.recent-related {
+  margin: 8px 0 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #002b49;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.preview-note {
+  margin-top: 10px;
+}
+
+.sev-badge {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+
+  &.is-important {
+    background: #ffdad6;
+    color: #93000a;
+  }
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-item {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.recent-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.recent-title {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.recent-count {
+  margin: 4px 0 0;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recent-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  text-align: right;
+}

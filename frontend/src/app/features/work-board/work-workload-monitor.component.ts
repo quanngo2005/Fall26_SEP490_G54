@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   EMPTY,
   Observable,
@@ -22,9 +23,11 @@ import {
   reduce,
   switchMap,
 } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { DepartmentMember, DepartmentSummary } from '../../core/department.models';
 import { DepartmentService } from '../../core/department.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { FULL_ACCESS_PERMISSION, normalizePermission } from '../../core/organization.guard';
 import { WorkListItem, WorkStatus } from '../../core/work.models';
 import { WorkService } from '../../core/work.service';
 import { businessClock, dateOnly, daysOverdue } from './work-board.utils';
@@ -148,7 +151,24 @@ export function isMonitorWorkOverdue(
 export class WorkWorkloadMonitorComponent extends LocalizedComponent {
   private readonly worksApi = inject(WorkService);
   private readonly departmentsApi = inject(DepartmentService);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+
+  protected readonly canComposeNotice = computed(() => {
+    const user = this.auth.currentUser();
+    if (!user) return true;
+    const perms = user.permissions;
+    if (perms && perms.length > 0) {
+      return perms.some((code) => {
+        const normalized = normalizePermission(code);
+        return normalized === 'NOTIFICATION_SEND' || normalized === FULL_ACCESS_PERMISSION;
+      });
+    }
+    return (user.roles ?? []).some((role) =>
+      ['DEPT_MANAGER', 'BRANCH_MANAGER', 'SYSTEM_ADMIN'].includes(role.toUpperCase()),
+    );
+  });
 
   readonly defaultDepartmentId = input.required<string>();
   readonly now = input<Date>(new Date());
@@ -394,6 +414,11 @@ export class WorkWorkloadMonitorComponent extends LocalizedComponent {
 
   protected retry(): void {
     this.reloadTrigger.next();
+  }
+
+  protected openAnnouncementComposer(): void {
+    if (!this.canComposeNotice()) return;
+    void this.router.navigate(['/work-announcements']);
   }
 
   protected overdueMetaText(alert: OverdueAlertRow): string {
