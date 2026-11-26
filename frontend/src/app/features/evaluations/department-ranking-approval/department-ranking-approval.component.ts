@@ -338,6 +338,11 @@ export class DepartmentRankingApprovalComponent implements OnInit {
             if (match) {
               this.selectedPeriodType.set(match.periodType);
             }
+          } else if (periods.length > 0) {
+            const first = periods.find((p) => p.status === 'OPEN') ?? periods[0];
+            this.periodId.set(first.id);
+            this.selectedPeriodType.set(first.periodType);
+            this.loadBranchOverview();
           }
         },
       });

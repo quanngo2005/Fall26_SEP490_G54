@@ -207,6 +207,10 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    redirectTo: 'branch-performance/evaluations/approval',
+  },
+  {
     path: 'employees',
     canActivate: [authGuard, permissionGuard('EMPLOYEE_READ')],
     title: 'Nhân viên',

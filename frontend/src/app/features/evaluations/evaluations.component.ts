@@ -964,7 +964,11 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     if (this.isBranchMode()) {
       const periodId = this.selectedPeriodId();
       if (periodId) {
-        void this.router.navigate(['/branch-performance/evaluations', periodId, 'approval']);
+        void this.router.navigate(['/branch-performance/evaluations/approval'], {
+          state: { periodId },
+        });
+      } else {
+        void this.router.navigate(['/branch-performance/evaluations/approval']);
       }
     } else {
       void this.router.navigate(['/evaluations/department-ranking']);
