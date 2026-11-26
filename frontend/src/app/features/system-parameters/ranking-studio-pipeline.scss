@@ -80,8 +80,6 @@
   gap: 8px;
 }
 .lane-when {
-  flex-direction: row;
-  align-items: center;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
 }
@@ -123,6 +121,17 @@
   font-size: 13px;
   font-weight: 500;
   color: #1e3a8a;
+}
+.lane-note {
+  margin: 2px 0 0;
+  border-top: 1px dashed rgb(15 23 42 / 0.15);
+  color: #334155;
+  font-size: 13px;
+  line-height: 20px;
+  padding-top: 8px;
+}
+.lane-note strong {
+  color: #0f172a;
 }
 .logic-select {
   height: 30px;

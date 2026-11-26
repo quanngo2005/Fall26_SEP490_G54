@@ -35,7 +35,7 @@ import { formatArrow, formatValue, toneOf } from './performance-display';
       <span class="right">{{text.colPace}}</span>
     </div>
     @for (campaign of campaigns(); track campaign.id) {
-      <a class="row item" [routerLink]="['/campaigns', campaign.id]">
+      <a class="row item" routerLink="/campaigns/detail" [state]="{ campaignId: campaign.id }">
         <span
           ><b>{{campaign.name}}</b> <small class="muted">{{subtitle(campaign)}}</small></span
         >

@@ -51,10 +51,6 @@ public sealed partial class EvaluationService
                 _ => null,
             };
 
-        var tierExplanation = form.Summary.ProposedTierExplanation is { Count: > 0 } rules
-            ? string.Join(" | ", rules)
-            : null;
-
         object?[][] rows =
         [
             ["Mã nhân viên", form.Employee.EmployeeCode],
@@ -71,8 +67,6 @@ public sealed partial class EvaluationService
             ["Điểm định lượng (trước phạt)", form.Summary.WeightedScore],
             ["Điểm trừ rủi ro", form.Summary.TotalRiskPenalty],
             ["Điểm định tính", qualitativeAverage],
-            ["Xếp hạng đề xuất", form.Summary.ProposedTier],
-            ["Giải thích xếp hạng", tierExplanation],
             ["Kỳ trước so sánh", form.PreviousPeriod?.PeriodCode],
             ["Điểm kỳ trước", form.PreviousPeriod?.TotalScore],
             ["Hạng kỳ trước", form.PreviousPeriod?.Tier],
@@ -262,18 +256,17 @@ public sealed partial class EvaluationService
     private static string FormatEvaluationStatusLabel(string status) => status switch
     {
         "DRAFT" => "Nháp",
-        "CALCULATED" => "Đã tính điểm",
-        "IN_REVIEW" => "Đang hiệu chỉnh",
-        "APPROVED" => "Đã duyệt",
         "DISPUTED" => "Đang khiếu nại",
+        "CALCULATED" => "Đã chốt số",
+        "SUBMITTED" => "Đã nộp BM",
         "FINAL" => "Đã chốt",
         _ => status,
     };
 
     private static (string Fill, string Font) EvaluationStatusTone(string status) => status switch
     {
-        "FINAL" or "APPROVED" => ExportGoodTone,
-        "CALCULATED" or "IN_REVIEW" => ExportInfoTone,
+        "FINAL" => ExportGoodTone,
+        "CALCULATED" or "SUBMITTED" => ExportInfoTone,
         "DISPUTED" => ExportBadTone,
         _ => ExportWarnTone,
     };

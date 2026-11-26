@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Services;
@@ -33,6 +34,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", employeeId), ("periodId", periodId));
         var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -52,6 +54,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", employeeId), ("periodId", periodId));
         var file = await service.ExportEvaluationFormAsync(
             employeeId,
             periodId,
@@ -75,6 +78,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] SubmitEvaluationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", request.EmployeeId), ("periodId", request.PeriodId));
         var result = await service.SubmitEvaluationAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -103,6 +107,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? departmentId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentEmployeesForEvaluationAsync(
             periodId,
             departmentId,
@@ -161,6 +166,111 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Gets the department ranking board for a period: tier slots, the staff ranking and the change against the compare period (SCR-EVAL-04).
+    /// </summary>
+    [HttpGet("ranking-board")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> GetRankingBoard(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? departmentId,
+        [FromQuery] Guid? comparePeriodId,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var result = await service.GetRankingBoardAsync(periodId, departmentId, comparePeriodId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Saves the final tiers and adjustment reasons of the ranking board as a draft (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/draft")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> SaveRankingBoardDraft(
+        [FromBody] SaveRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.SaveRankingBoardDraftAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Once the lock day is reached, assigns the final tiers A1 to C by quantitative score and tier slots, and saves them as the draft (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/auto-assign")]
+    [ProducesResponseType<ApiResponse<RankingBoardOverviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "calibrate", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingBoardOverviewDto>>> AutoAssignRankingBoard(
+        [FromBody] AutoAssignRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.AutoAssignRankingBoardAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Sends the ranking board to the Branch Director once the lock day is reached and every rule is satisfied (SCR-EVAL-04).
+    /// </summary>
+    [HttpPost("ranking-board/send-to-director")]
+    [ProducesResponseType<ApiResponse<RankingBoardSendResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingBoardSendResultDto>>> SendRankingBoardToDirector(
+        [FromBody] SaveRankingBoardRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.SendRankingBoardToDirectorAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the ranking board of a period to an Excel workbook (`.xlsx`) (SCR-EVAL-04).
+    /// </summary>
+    [HttpGet("ranking-board/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<IActionResult> ExportRankingBoard(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var file = await service.ExportRankingBoardAsync(periodId, departmentId, User.GetRequiredUserId(), cancellationToken);
+        return File(file.Content, ExcelContentType, file.FileName);
+    }
+
+    /// <summary>
+    /// Compares two employees of a period for the ranking board: quantitative score, criteria, SLA, risk events and group scores (reference only).
+    /// </summary>
+    [HttpGet("ranking-compare")]
+    [ProducesResponseType<ApiResponse<RankingCompareDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Dept")]
+    public async Task<ActionResult<ApiResponse<RankingCompareDto>>> GetRankingCompare(
+        [FromQuery] Guid periodId,
+        [FromQuery] Guid employeeId1,
+        [FromQuery] Guid employeeId2,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetRankingCompareAsync(periodId, employeeId1, employeeId2, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
     /// Gets the department ranking calibration workspace overview including ranked roster, Gaussian Bell curve, and quota tracking (SCR-EVL-02 - UC104).
     /// </summary>
     [HttpGet("calibration")]
@@ -174,12 +284,13 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? positionId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentCalibrationAsync(
             periodId,
             departmentId,
             positionId,
             User.GetRequiredUserId(),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -197,6 +308,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] SubmitCalibrationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("departmentId", request.DepartmentId), ("periodId", request.PeriodId));
         var result = await service.SubmitDepartmentCalibrationAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -213,6 +325,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetBranchApprovalOverviewAsync(periodId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -230,6 +343,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] RejectCalibrationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.RejectDepartmentCalibrationAsync(
             departmentId,
             request,
@@ -253,6 +367,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] ApproveDepartmentRankingRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.ApproveDepartmentCalibrationAsync(
             departmentId,
             request,
@@ -274,6 +389,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetPreCloseCheckAsync(
             periodId,
             User.GetRequiredUserId(),
@@ -295,6 +411,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] FinalizeEvaluationPeriodRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.FinalizeAndLockPeriodAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -338,22 +455,6 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
-    /// Acknowledges personal performance evaluation result (SCR-EVL-04 - UC108).
-    /// </summary>
-    [HttpPost("personal/acknowledge")]
-    [ProducesResponseType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    [HasPermission("evaluation", "read", "Own")]
-    public async Task<ActionResult<ApiResponse<AcknowledgePersonalEvaluationResultDto>>> AcknowledgePersonalEvaluation(
-        [FromBody] AcknowledgePersonalEvaluationRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await service.AcknowledgePersonalEvaluationAsync(request, User.GetRequiredUserId(), cancellationToken);
-        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
     /// Gets personal criteria transaction ledger details for drilldown (SCR-EVL-04).
     /// </summary>
     [HttpGet("personal/ledger")]
@@ -366,7 +467,18 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid criteriaId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId), ("criteriaId", criteriaId));
         var result = await service.GetPersonalCriteriaLedgerAsync(periodId, criteriaId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>An omitted GUID binds to Guid.Empty; refuse it as a validation error instead of reporting "not found".</summary>
+    private static void RequireIds(params (string Name, Guid Value)[] ids)
+    {
+        var missing = ids.Where(i => i.Value == Guid.Empty).Select(i => $"'{i.Name}' là bắt buộc.").ToList();
+        if (missing.Count > 0)
+        {
+            throw new ValidationException(missing);
+        }
     }
 }

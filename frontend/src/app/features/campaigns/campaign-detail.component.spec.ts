@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, Input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 import { CampaignDetail } from '../../core/campaign.models';
@@ -72,8 +72,10 @@ describe('CampaignDetailComponent', () => {
 
   const open = async () => {
     const harness = await RouterTestingHarness.create();
-    const component = await harness.navigateByUrl('/campaigns/c1', CampaignDetailComponent);
+    await TestBed.inject(Router).navigate(['/campaigns/detail'], { state: { campaignId: 'c1' } });
     harness.detectChanges();
+    const component = harness.routeDebugElement!.componentInstance as CampaignDetailComponent;
+    expect(TestBed.inject(Router).url).toBe('/campaigns/detail');
     return { harness, component, root: harness.routeNativeElement as HTMLElement };
   };
 
@@ -83,7 +85,7 @@ describe('CampaignDetailComponent', () => {
     await TestBed.configureTestingModule({
       imports: [CampaignDetailComponent],
       providers: [
-        provideRouter([{ path: 'campaigns/:id', component: CampaignDetailComponent }]),
+        provideRouter([{ path: 'campaigns/detail', component: CampaignDetailComponent }]),
         { provide: CampaignService, useValue: api },
       ],
     })

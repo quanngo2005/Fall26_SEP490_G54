@@ -80,6 +80,30 @@
   }
 }
 
+.record-now {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 14px;
+  color: #0f172a;
+  cursor: pointer;
+
+  input {
+    margin-top: 3px;
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+  }
+
+  small {
+    font-size: 12.5px;
+    color: #64748b;
+  }
+}
+
 .file-picker {
   position: relative;
   display: flex;

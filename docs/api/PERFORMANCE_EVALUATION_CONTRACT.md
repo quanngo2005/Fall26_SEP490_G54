@@ -13,10 +13,10 @@ migration `20261116130000_GrantEvaluationCalculate` (and the dev seed), like `EV
 | Role | Scope |
 | --- | --- |
 | `ADMIN`, `SYSTEM_ADMIN` | `All` |
-| `MANAGER`, `DEPT_MANAGER` | `Department` |
+| `DEPT_MANAGER` | `Department` |
 | `BRANCH_MANAGER` | `Branch` |
 
-Employees (`EMPLOYEE`), `HR`, `QA` and `VERIFIER` get 403. Before that migration the permission did not exist, so only
+Employees (`EMPLOYEE`), `HR_OFFICER` and `VERIFIER` get 403. Before that migration the permission did not exist, so only
 the development `FULL_ACCESS` wildcard passed.
 
 The BLL additionally restricts the target evaluation to the caller's granted scope, based on the

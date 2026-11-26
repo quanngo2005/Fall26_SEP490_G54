@@ -1,0 +1,364 @@
+<section class="handover-section" [attr.aria-label]="localization.work.handoverList.title">
+  <div class="handover-toolbar">
+    <div class="handover-title-group">
+      <div>
+        <h2>{{localization.work.handoverList.title}}</h2>
+        <p>{{localization.work.handoverList.subtitle}}</p>
+      </div>
+      @if (anyReadOnly()) {
+        <span class="readonly-pill">{{localization.work.handoverList.readOnlyBadge}}</span>
+      }
+    </div>
+
+    <div
+      class="segmented"
+      role="group"
+      [attr.aria-label]="localization.work.handoverList.directionLabel"
+    >
+      <button
+        type="button"
+        id="handover-dir-incoming"
+        [class.is-active]="direction() === 'INCOMING'"
+        [attr.aria-pressed]="direction() === 'INCOMING'"
+        (click)="setDirection('INCOMING')"
+      >
+        {{localization.work.handoverList.directionIncoming}}
+      </button>
+      <button
+        type="button"
+        id="handover-dir-outgoing"
+        [class.is-active]="direction() === 'OUTGOING'"
+        [attr.aria-pressed]="direction() === 'OUTGOING'"
+        (click)="setDirection('OUTGOING')"
+      >
+        {{localization.work.handoverList.directionOutgoing}}
+      </button>
+      <button
+        type="button"
+        id="handover-dir-all"
+        [class.is-active]="direction() === 'ALL'"
+        [attr.aria-pressed]="direction() === 'ALL'"
+        (click)="setDirection('ALL')"
+      >
+        {{localization.work.handoverList.directionAll}}
+      </button>
+    </div>
+  </div>
+
+  <div class="handover-filters">
+    <app-ui-search-input
+      class="filter-search"
+      [value]="keyword()"
+      [placeholder]="localization.work.handoverList.searchPlaceholder"
+      (valueChange)="onSearchChange($event)"
+    />
+    <app-ui-select
+      class="filter-select"
+      [options]="senderOptions()"
+      [value]="senderFilter()"
+      [ariaLabel]="localization.work.handoverList.filterSender"
+      (valueChange)="onSenderFilterChange($event)"
+    />
+    <app-ui-select
+      class="filter-select"
+      [options]="statusOptions()"
+      [value]="statusFilter()"
+      [ariaLabel]="localization.work.handoverList.filterStatus"
+      (valueChange)="onStatusFilterChange($event)"
+    />
+    <app-ui-select
+      class="filter-select"
+      [options]="kpiOptions()"
+      [value]="kpiFilter()"
+      [ariaLabel]="localization.work.handoverList.filterKpi"
+      (valueChange)="onKpiFilterChange($event)"
+    />
+  </div>
+
+  @if (loading()) {
+    <div class="state-card" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>{{localization.work.handoverList.loading}}</p>
+    </div>
+  } @else if (failed()) {
+    <div class="state-card state-error" role="alert">
+      <p>{{localization.work.handoverList.error}}</p>
+      <button type="button" class="button button-secondary" (click)="retry()">
+        {{localization.work.handoverList.retry}}
+      </button>
+    </div>
+  } @else if (items().length === 0) {
+    <div class="state-card" role="status">
+      <p>{{localization.work.handoverList.empty}}</p>
+    </div>
+  } @else {
+    <div class="table-card">
+      <div class="table-scroll">
+        <table class="ui-table data-table">
+          <thead>
+            <tr>
+              <th>{{localization.work.handoverList.colCode}}</th>
+              <th>{{localization.work.handoverList.colWork}}</th>
+              <th>
+                {{direction() === 'OUTGOING'
+                    ? localization.work.handoverList.colRecipient
+                    : localization.work.handoverList.colSender}}
+              </th>
+              <th>{{localization.work.handoverList.colTargetDate}}</th>
+              <th>{{localization.work.handoverList.colStatus}}</th>
+              <th>{{localization.work.handoverList.colKpi}}</th>
+              <th class="col-actions">{{localization.work.handoverList.colAction}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr
+                class="data-row"
+                [class.is-selected]="selected()?.id === item.id"
+                tabindex="0"
+                (click)="openDetail(item)"
+                (keydown.enter)="openDetail(item)"
+              >
+                <td>
+                  <span class="mono-code">{{item.handoverCode}}</span>
+                </td>
+                <td>
+                  <div class="cell-primary">{{item.workCode}} · {{item.workTitle}}</div>
+                  <div class="cell-secondary">
+                    {{item.customerName || localization.work.handoverList.notProvided}}
+                    @if (item.customerCif) {
+                      <span> · {{item.customerCif}}</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  @if (direction() === 'OUTGOING') {
+                    <div class="cell-primary">{{item.toEmployeeName}}</div>
+                    <div class="cell-secondary">{{item.toJobPositionTitle}}</div>
+                  } @else {
+                    <div class="cell-primary">{{item.fromEmployeeName}}</div>
+                    <div class="cell-secondary">{{item.fromJobPositionTitle}}</div>
+                  }
+                </td>
+                <td>
+                  <div class="cell-primary">
+                    {{item.plannedEndDate
+                        ? (item.plannedEndDate | date: 'dd/MM/yyyy')
+                        : localization.work.handoverList.notProvided}}
+                  </div>
+                  <div class="cell-secondary">{{item.handoverAt | date: 'dd/MM/yyyy HH:mm'}}</div>
+                </td>
+                <td>
+                  <app-status-badge [tone]="statusTone(item.status)">{{statusLabel(item.status)}}</app-status-badge>
+                </td>
+                <td>
+                  <app-status-badge [tone]="kpiTone(item.kpiStatus)">{{kpiLabel(item.kpiStatus)}}</app-status-badge>
+                </td>
+                <td class="col-actions" (click)="$event.stopPropagation()">
+                  <button type="button" class="link-btn" (click)="openDetail(item)">
+                    {{localization.work.handoverList.viewDetail}}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-table-pagination
+        [page]="page()"
+        [pageSize]="pageSize"
+        [totalCount]="totalCount()"
+        (pageChange)="onPageChange($event)"
+      />
+    </div>
+  }
+</section>
+
+@if (selected(); as detail) {
+  <button
+    type="button"
+    class="drawer-backdrop"
+    [attr.aria-label]="localization.work.handoverList.close"
+    (click)="closeDrawer()"
+  ></button>
+  <aside
+    class="handover-drawer"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="localization.work.handoverList.detailTitle"
+  >
+    <header class="drawer-head">
+      <div class="drawer-head-main">
+        <div class="drawer-kicker">
+          <span class="mono-code">{{detail.handoverCode}}</span>
+          @if (detail.isReadOnly) {
+            <span class="readonly-pill">{{localization.work.handoverList.readOnlyBadge}}</span>
+          }
+          <app-status-badge [tone]="statusTone(detail.status)">{{statusLabel(detail.status)}}</app-status-badge>
+        </div>
+        <h3>{{detail.workCode}} · {{detail.workTitle}}</h3>
+      </div>
+      <button
+        type="button"
+        class="drawer-close"
+        [attr.aria-label]="localization.work.handoverList.close"
+        (click)="closeDrawer()"
+      >
+        ×
+      </button>
+    </header>
+
+    <div class="drawer-body">
+      @if (detailFailed()) {
+        <p class="inline-warn" role="alert">{{localization.work.handoverList.detailError}}</p>
+      }
+
+      <div class="party-grid">
+        <div class="party-card">
+          <span class="party-label">{{localization.work.handoverList.senderLabel}}</span>
+          <strong>{{detail.fromEmployeeName}}</strong>
+          <span>{{detail.fromEmployeeCode}} · {{detail.fromJobPositionTitle}}</span>
+        </div>
+        <div class="party-card">
+          <span class="party-label">{{localization.work.handoverList.recipientLabel}}</span>
+          <strong>{{detail.toEmployeeName}}</strong>
+          <span>{{detail.toEmployeeCode}} · {{detail.toJobPositionTitle}}</span>
+        </div>
+      </div>
+
+      <section class="detail-section">
+        <h4>{{localization.work.handoverList.infoTitle}}</h4>
+        <dl class="detail-grid">
+          <div>
+            <dt>{{localization.work.handoverList.workCode}}</dt>
+            <dd>{{detail.workCode}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.handoverList.workType}}</dt>
+            <dd>{{detail.workTypeName || localization.work.handoverList.notProvided}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.handoverList.customer}}</dt>
+            <dd>{{detail.customerName || localization.work.handoverList.notProvided}}</dd>
+          </div>
+          <div>
+            <dt>{{localization.work.handoverList.cif}}</dt>
+            <dd>{{detail.customerCif || localization.work.handoverList.notProvided}}</dd>
+          </div>
+          @if (detail.targetValue !== null) {
+            <div>
+              <dt>{{localization.work.handoverList.targetValue}}</dt>
+              <dd>{{i18n.formatNumber(detail.targetValue, 0)}}</dd>
+            </div>
+          }
+          <div>
+            <dt>{{localization.work.handoverList.targetDate}}</dt>
+            <dd>
+              {{detail.plannedEndDate
+                  ? (detail.plannedEndDate | date: 'dd/MM/yyyy')
+                  : localization.work.handoverList.notProvided}}
+            </dd>
+          </div>
+          <div>
+            <dt>{{localization.work.handoverList.handoverAt}}</dt>
+            <dd>{{detail.handoverAt | date: 'dd/MM/yyyy HH:mm'}}</dd>
+          </div>
+          @if (detail.acceptedAt) {
+            <div>
+              <dt>{{localization.work.handoverList.acceptedAt}}</dt>
+              <dd>{{detail.acceptedAt | date: 'dd/MM/yyyy HH:mm'}}</dd>
+            </div>
+          }
+        </dl>
+        <div class="reason-box">
+          <span class="reason-label">{{localization.work.handoverList.reason}}</span>
+          <p>{{detail.reason}}</p>
+        </div>
+      </section>
+
+      <section class="detail-section kpi-box">
+        <div class="kpi-box-head">
+          <h4>{{localization.work.handoverList.kpiSectionTitle}}</h4>
+          <app-status-badge [tone]="kpiTone(detail.kpiStatus)">{{kpiLabel(detail.kpiStatus)}}</app-status-badge>
+        </div>
+        <div class="kpi-pair">
+          <div class="kpi-role-card">
+            <span class="party-label">{{localization.work.handoverList.kpiReferrer}}</span>
+            <strong>{{detail.fromEmployeeName}}</strong>
+            <span class="cell-secondary">
+              {{i18n.translate('work.handoverList.kpiShareNote', {
+                  percent: detail.referrerSharePercent,
+                })}}
+            </span>
+          </div>
+          <div class="kpi-role-card">
+            <span class="party-label">{{localization.work.handoverList.kpiProcessor}}</span>
+            <strong>{{detail.toEmployeeName}}</strong>
+            <span class="cell-secondary">{{detail.toJobPositionTitle}}</span>
+          </div>
+        </div>
+        <p class="kpi-note">{{localization.work.handoverList.kpiAutoNote}}</p>
+      </section>
+    </div>
+
+    <footer class="drawer-foot">
+      @if (canDecide(detail)) {
+        @if (reassigning()) {
+          <div class="reassign-row">
+            <app-ui-select
+              class="reassign-select"
+              [options]="reassignOptions()"
+              [value]="newRecipient()"
+              [ariaLabel]="localization.work.handoverList.reassignLabel"
+              (valueChange)="newRecipient.set($event)"
+            />
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="acting()"
+              (click)="cancelReassign()"
+            >
+              {{localization.work.handoverList.cancel}}
+            </button>
+            <button
+              type="button"
+              class="button button-primary"
+              [disabled]="acting() || !newRecipient()"
+              (click)="decide('reassign')"
+            >
+              {{localization.work.handoverList.reassignConfirm}}
+            </button>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="acting()"
+            (click)="decide('reject')"
+          >
+            {{localization.work.handoverList.reject}}
+          </button>
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="acting()"
+            (click)="startReassign()"
+          >
+            {{localization.work.handoverList.reassign}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="acting()"
+            (click)="decide('approve')"
+          >
+            {{localization.work.handoverList.approve}}
+          </button>
+        }
+      }
+      <button type="button" class="button button-primary" (click)="openRelatedWork(detail.workId)">
+        {{localization.work.handoverList.openWork}}
+      </button>
+    </footer>
+  </aside>
+}

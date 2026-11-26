@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
         services.AddScoped<IEvidenceService, EvidenceService>();
+        services.AddScoped<ICallRecordingService, CallRecordingService>();
         services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
@@ -63,6 +64,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISystemParameterService, SystemParameterService>();
         services.AddScoped<IEvaluationSettingsService, EvaluationSettingsService>();
         services.AddScoped<IRankingPolicyService, RankingPolicyService>();
+        services.AddScoped<IRankingSlotQuotaService, RankingSlotQuotaService>();
         services.AddSingleton<SystemParameterStore>();
         services.AddHostedService<SystemParameterLoader>();
         services.AddSingleton<IPerformanceScoreFormula, PerformanceScoreFormula>();
@@ -79,6 +81,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMyCampaignService, MyCampaignService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
         services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
+        services.AddScoped<IServiceRatingImportService, ServiceRatingImportService>();
+        services.AddScoped<IServiceRatingImportTemplateProvider, ServiceRatingImportTemplateProvider>();
         services.AddScoped<IWorkTransactionService, WorkTransactionService>();
         services.AddHostedService<WorkOverdueBackgroundService>();
         services.AddScoped<IHandoverEscalationService, HandoverEscalationService>();

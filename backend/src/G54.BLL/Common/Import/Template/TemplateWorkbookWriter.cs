@@ -11,11 +11,12 @@ public static class TemplateWorkbookWriter
     public static byte[] Write<TRow>(
         ImportTemplate<TRow> template,
         Action<IXLWorksheet>? writeExampleRow,
-        IReadOnlyList<(string Column, string Required, string Type, string Description)>? notes)
+        IReadOnlyList<(string Column, string Required, string Type, string Description)>? notes,
+        string sheetName = "Data")
         where TRow : new()
     {
         using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("Data");
+        var worksheet = workbook.Worksheets.Add(sheetName);
 
         for (var i = 0; i < template.Columns.Count; i++)
         {

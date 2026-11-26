@@ -36,7 +36,7 @@ describe('SidebarSettingsComponent', () => {
             currentUser: signal({
               id: 'admin',
               fullName: 'Admin',
-              roles: ['ADMIN'],
+              roles: ['SYSTEM_ADMIN'],
               permissions: [],
             }),
           },

@@ -70,6 +70,9 @@ public sealed partial class EvaluationService
 
         var downgradeConfig = await LoadDowngradeConfigurationAsync(cancellationToken);
         var operations = await BuildDashboardOperationsAsync(subtree, period, today, activeEmployees.Count, cancellationToken);
+        var previousOperations = period is null || comparePeriod is null
+            ? new Dictionary<Guid, DashboardEmployeeOperations>()
+            : (await BuildDashboardOperationsAsync(subtree, comparePeriod, today, activeEmployees.Count, cancellationToken)).EmployeeOps;
 
         if (period is null)
         {
@@ -110,11 +113,27 @@ public sealed partial class EvaluationService
             : (await db.PerformanceEvaluations
                 .AsNoTracking()
                 .Where(pe => pe.EvaluationPeriodId == comparePeriod.Id && employeeIds.Contains(pe.EmployeeId))
-                .Where(PerformanceEvaluationExtensions.HasRankableScore)
+                .Where(pe => pe.TotalScore != null && pe.Status != PerformanceEvaluationStatus.Draft)
                 .Select(pe => new { pe.EmployeeId, Score = pe.TotalScore!.Value })
                 .ToListAsync(cancellationToken))
                 .GroupBy(x => x.EmployeeId)
                 .ToDictionary(g => g.Key, g => g.First().Score);
+
+        var previousEvalDict = comparePeriod is null
+            ? new Dictionary<Guid, PerformanceEvaluation>()
+            : (await db.PerformanceEvaluations
+                .AsNoTracking()
+                .Where(pe => pe.EvaluationPeriodId == comparePeriod.Id && employeeIds.Contains(pe.EmployeeId))
+                .ToListAsync(cancellationToken))
+                .GroupBy(pe => pe.EmployeeId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+        var previousProfilesByPosition = comparePeriod is null
+            ? new Dictionary<Guid, EvaluationProfile>()
+            : await LoadProfilesByPositionAsync(
+                activeEmployees.Select(e => e.JobPositionId),
+                comparePeriod,
+                cancellationToken);
 
         var profilesByPosition = await LoadProfilesByPositionAsync(
             activeEmployees.Select(e => e.JobPositionId),
@@ -137,6 +156,20 @@ public sealed partial class EvaluationService
             .ToList();
         var scoredMap = await calculator.CalculateAsync(subjects, period, cancellationToken);
 
+        var previousScoredMap = comparePeriod is null
+            ? new Dictionary<Guid, PerformanceScoreResult>()
+            : (await calculator.CalculateAsync(
+                activeEmployees
+                    .Where(e => previousProfilesByPosition.ContainsKey(e.JobPositionId))
+                    .Select(e => new PerformanceScoreSubject(
+                        e.Id,
+                        e.DepartmentId,
+                        previousProfilesByPosition[e.JobPositionId],
+                        ParseStoredComment(previousEvalDict.GetValueOrDefault(e.Id)?.Comment, logger).QualitativeScores))
+                    .ToList(),
+                comparePeriod,
+                cancellationToken)).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
         var profileGroups = BuildDashboardProfileGroupColumns(activeEmployees, profileTreesByPosition);
 
         var periodAcceptsEvaluation = period.Status is PeriodStatus.Open or PeriodStatus.InReview;
@@ -150,11 +183,13 @@ public sealed partial class EvaluationService
         var pipCount = 0;
         var appealCount = 0;
         var unscoredCount = 0;
+        var evaluatedCount = 0;
 
         foreach (var emp in activeEmployees)
         {
             evalDict.TryGetValue(emp.Id, out var pe);
-            scoredMap.TryGetValue(emp.Id, out var scored);
+            var scored = pe is null ? null : scoredMap.GetValueOrDefault(emp.Id);
+            previousScoredMap.TryGetValue(emp.Id, out var previousScored);
             risksByEmployee.TryGetValue(emp.Id, out var empRisks);
 
             var (_, coachingPlan, _, calibData, _, _, _) = ParseStoredComment(pe?.Comment, logger);
@@ -190,9 +225,13 @@ public sealed partial class EvaluationService
                 rowStatus = "FINAL";
             }
 
-            if (!hasOpenDispute && totalScore.HasValue && (pe is null || pe.Status != PerformanceEvaluationStatus.Draft))
+            if (totalScore.HasValue)
             {
                 rankableCurrentScores.Add(totalScore.Value);
+                if (pe is not null && pe.Status != PerformanceEvaluationStatus.Draft)
+                {
+                    evaluatedCount++;
+                }
                 if (!string.IsNullOrWhiteSpace(tierCode))
                 {
                     rankableTiers.Add(tierCode);
@@ -206,19 +245,22 @@ public sealed partial class EvaluationService
                 .Select(col =>
                 {
                     var groupMatch = scored?.Groups.FirstOrDefault(g => string.Equals(g.Name, col.Name, StringComparison.Ordinal));
+                    var previousMatch = previousScored?.Groups.FirstOrDefault(g => string.Equals(g.Name, col.Name, StringComparison.Ordinal));
                     return new DepartmentEvaluationStaffGroupScoreDto(
                         col.Name,
                         col.DisplayOrder,
                          groupMatch?.WeightPercent ?? col.WeightPercent,
-                        RoundDashboardOrNull(groupMatch?.Score));
+                        RoundDashboardOrNull(groupMatch?.Score),
+                        RoundDashboardOrNull(previousMatch?.Score));
                 })
                 .ToList();
 
-            var evalStatus = pe != null ? pe.Status.ToString().ToUpperInvariant() : "NOT_STARTED";
+            var evalStatus = pe != null ? pe.Status.ToEnumString() : "NOT_STARTED";
             var canOpenForm = emp.Id != reviewer.Id
                 && (submitDepartments is null || submitDepartments.Contains(emp.DepartmentId));
 
             var empOps = operations.EmployeeOps.GetValueOrDefault(emp.Id);
+            var previousEmpOps = previousOperations.GetValueOrDefault(emp.Id);
             staffRows.Add(new DepartmentEvaluationStaffRowDto(
                 emp.Id,
                 emp.EmployeeCode,
@@ -236,7 +278,8 @@ public sealed partial class EvaluationService
                 canOpenForm,
                 empOps?.OnTimeCompletedCount ?? 0,
                 empOps?.InProgressCount ?? 0,
-                empOps?.OverdueCount ?? 0));
+                empOps?.OverdueCount ?? 0,
+                previousEmpOps?.OnTimeSlaPercent));
         }
 
         var average = MeanDashboard(rankableCurrentScores);
@@ -250,13 +293,13 @@ public sealed partial class EvaluationService
             profileTreesByPosition,
             staffRows,
             cancellationToken);
-        var trend = await BuildDashboardTrendAsync(period, selectablePeriods, employeeIds, cancellationToken);
+        var trend = await BuildDashboardTrendAsync(period, selectablePeriods, employeeIds, average, cancellationToken);
 
         var performance = new DepartmentEvaluationPerformanceDto(
             average,
             previousAverage,
             ChangeDashboard(average, previousAverage),
-            rankableCurrentScores.Count,
+            evaluatedCount,
             activeEmployees.Count,
             unscoredCount,
             pipCount,
@@ -373,7 +416,13 @@ public sealed partial class EvaluationService
         var openOrActive = selectable
             .Where(p => p.StartDate <= today && p.EndDate >= today)
             .OrderByDescending(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview)
-            .ThenByDescending(p => (int)p.PeriodType)
+            .ThenBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
             .FirstOrDefault();
         if (openOrActive is not null)
         {
@@ -381,13 +430,29 @@ public sealed partial class EvaluationService
         }
 
         var latestOpen = selectable
-            .FirstOrDefault(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview);
+            .Where(p => p.Status is PeriodStatus.Open or PeriodStatus.InReview)
+            .OrderBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
+            .FirstOrDefault();
         if (latestOpen is not null)
         {
             return latestOpen;
         }
 
-        return selectable.FirstOrDefault();
+        return selectable
+            .OrderBy(p => p.PeriodType switch
+            {
+                PeriodType.Month => 1,
+                PeriodType.Quarter => 2,
+                PeriodType.Year => 3,
+                _ => 4,
+            })
+            .FirstOrDefault();
     }
 
     private static EvaluationPeriod? ResolveDashboardComparePeriod(
@@ -599,7 +664,8 @@ public sealed partial class EvaluationService
             onTimeCompletedCount,
             overdueCount,
             inProgressCount,
-            onTimeRatePercent);
+            onTimeRatePercent,
+            onTimeCompletedCount + lateCompletedCount);
     }
 
     private static List<DepartmentEvaluationProfileGroupColumnDto> BuildDashboardProfileGroupColumns(
@@ -642,10 +708,10 @@ public sealed partial class EvaluationService
         CancellationToken cancellationToken)
     {
         var currentKpis = await LoadDashboardKpiRowsAsync(departmentId, subtree, period, cancellationToken);
-        var previousAchievements = comparePeriod is null
+        var previousKpis = comparePeriod is null
             ? []
-            : (await LoadDashboardKpiRowsAsync(departmentId, subtree, comparePeriod, cancellationToken))
-                .ToDictionary(k => k.KpiDefinitionId, k => k.AchievementPercent);
+            : await LoadDashboardKpiRowsAsync(departmentId, subtree, comparePeriod, cancellationToken);
+        var previousByKpi = previousKpis.ToDictionary(k => k.KpiDefinitionId);
 
         var groupOfKpi = new Dictionary<Guid, string>();
         var leafWeightsByKpi = new Dictionary<Guid, List<decimal>>();
@@ -712,12 +778,16 @@ public sealed partial class EvaluationService
             var groupKpis = groupKpisRaw
                 .Select(r =>
                 {
-                    var prevAch = previousAchievements.GetValueOrDefault(r.KpiDefinitionId);
+                    previousByKpi.TryGetValue(r.KpiDefinitionId, out var prev);
+                    var prevAch = prev?.AchievementPercent;
                     var weightPercent = leafWeightsByKpi.TryGetValue(r.KpiDefinitionId, out var weights) && weights.Count > 0
                         ? weights.Average()
                         : fallbackWeight;
                     decimal? convertedScore = r.AchievementPercent.HasValue
                         ? RoundDashboard(r.AchievementPercent.Value * weightPercent / 100m)
+                        : null;
+                    decimal? previousScore = prevAch.HasValue
+                        ? RoundDashboard(prevAch.Value * weightPercent / 100m)
                         : null;
                     return new DepartmentEvaluationGroupKpiDto(
                         r.KpiDefinitionId,
@@ -728,9 +798,12 @@ public sealed partial class EvaluationService
                         r.TargetValue,
                         r.ActualValue,
                         r.AchievementPercent,
+                        prev?.ActualValue,
                         prevAch,
                         ChangeDashboard(r.AchievementPercent, prevAch),
-                        convertedScore);
+                        RoundDashboard(weightPercent),
+                        convertedScore,
+                        previousScore);
                 })
                 .ToList();
 
@@ -738,7 +811,6 @@ public sealed partial class EvaluationService
             if (g.Name is not null)
             {
                 var staffGroupScores = staffRows
-                    .Where(sr => sr.Status != "APPEAL")
                     .SelectMany(sr => sr.GroupScores)
                     .Where(gs => string.Equals(gs.GroupName, g.Name, StringComparison.Ordinal) && gs.Score.HasValue)
                     .Select(gs => gs.Score!.Value)
@@ -908,6 +980,7 @@ public sealed partial class EvaluationService
         EvaluationPeriod period,
         List<EvaluationPeriod> selectable,
         List<Guid> employeeIds,
+        decimal? currentAverage,
         CancellationToken cancellationToken)
     {
         var trendPeriods = selectable
@@ -921,13 +994,17 @@ public sealed partial class EvaluationService
         var scores = await db.PerformanceEvaluations
             .AsNoTracking()
             .Where(pe => periodIds.Contains(pe.EvaluationPeriodId) && employeeIds.Contains(pe.EmployeeId))
-            .Where(PerformanceEvaluationExtensions.HasRankableScore)
+            .Where(pe => pe.TotalScore != null && pe.Status != PerformanceEvaluationStatus.Draft)
             .Select(pe => new { pe.EvaluationPeriodId, Score = pe.TotalScore!.Value })
             .ToListAsync(cancellationToken);
         var byPeriod = scores.ToLookup(s => s.EvaluationPeriodId, s => s.Score);
 
         return trendPeriods
-            .Select(p => new DepartmentEvaluationTrendPointDto(p.Id, p.Code, p.Name, MeanDashboard(byPeriod[p.Id])))
+            .Select(p => new DepartmentEvaluationTrendPointDto(
+                p.Id,
+                p.Code,
+                p.Name,
+                p.Id == period.Id ? currentAverage : MeanDashboard(byPeriod[p.Id])))
             .ToList();
     }
 

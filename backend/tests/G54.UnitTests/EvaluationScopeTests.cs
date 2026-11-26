@@ -197,11 +197,35 @@ public sealed class EvaluationScopeTests
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        context.EvaluationPeriods.Add(period);
+        await context.SaveChangesAsync();
 
-        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(Guid.NewGuid(), null, s.ManagerAAccount.Id);
+        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, null, s.ManagerAAccount.Id);
 
         Assert.Equal(2, rows.Count);
         Assert.All(rows, row => Assert.Equal(s.DeptAId, row.DepartmentId));
+    }
+
+    [Fact]
+    public async Task GetDepartmentEmployees_UnknownPeriod_ThrowsNotFound()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetDepartmentEmployeesForEvaluationAsync(Guid.NewGuid(), null, s.ManagerAAccount.Id));
     }
 
     [Fact]
@@ -588,5 +612,105 @@ public sealed class EvaluationScopeTests
         Assert.Equal("CSAT", serviceKpi.Code);
         Assert.Equal(92m, serviceKpi.TargetValue);
         Assert.Equal(94m, serviceKpi.ActualValue);
+    }
+
+    [Fact]
+    public async Task GetDepartmentEvaluationDashboard_IncludesDisputedScoreInDepartmentAverage()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var now = DateTimeOffset.UtcNow;
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        };
+        context.EvaluationPeriods.Add(period);
+        context.PerformanceEvaluations.AddRange(
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.ManagerA.Id,
+                EvaluationPeriodId = period.Id,
+                EvaluationProfileId = Guid.NewGuid(),
+                TotalScore = 70m,
+                Status = PerformanceEvaluationStatus.Final,
+                UpdatedAt = now,
+            },
+            new PerformanceEvaluation
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = s.StaffA.Id,
+                EvaluationPeriodId = period.Id,
+                EvaluationProfileId = Guid.NewGuid(),
+                TotalScore = 50m,
+                Status = PerformanceEvaluationStatus.Disputed,
+                UpdatedAt = now,
+            });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept), Grant("submit", PermissionScopes.Dept));
+        var dashboard = await service.GetDepartmentEvaluationDashboardAsync(period.Id, null, s.ManagerAAccount.Id);
+
+        Assert.Equal(60m, dashboard.Performance.Average);
+        Assert.Equal(2, dashboard.Performance.EvaluatedEmployeeCount);
+        Assert.Equal(1, dashboard.Performance.AppealCount);
+    }
+
+    [Fact]
+    public async Task GetDepartmentEvaluationDashboard_WithoutPeriodId_PrioritizesCurrentActiveMonthOverQuarterAndYear()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var yearPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"YEAR-{today.Year}",
+            Name = $"Năm {today.Year}",
+            PeriodType = PeriodType.Year,
+            StartDate = new DateOnly(today.Year, 1, 1),
+            EndDate = new DateOnly(today.Year, 12, 31),
+            Status = PeriodStatus.Open,
+        };
+
+        var quarterPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"Q-{today.Year}",
+            Name = $"Quý {today.Year}",
+            PeriodType = PeriodType.Quarter,
+            StartDate = today.AddDays(-15),
+            EndDate = today.AddDays(45),
+            Status = PeriodStatus.Open,
+        };
+
+        var monthPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = $"M-{today.Year}-{today.Month}",
+            Name = $"Tháng {today.Month}/{today.Year}",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(today.Year, today.Month, 1),
+            EndDate = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month)),
+            Status = PeriodStatus.Open,
+        };
+
+        context.EvaluationPeriods.AddRange(yearPeriod, quarterPeriod, monthPeriod);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept), Grant("submit", PermissionScopes.Dept));
+        var dashboard = await service.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id);
+
+        Assert.NotNull(dashboard.Period);
+        Assert.Equal(monthPeriod.Id, dashboard.Period.Id);
+        Assert.Equal(PeriodType.Month.ToString().ToUpperInvariant(), dashboard.Period.PeriodType);
     }
 }

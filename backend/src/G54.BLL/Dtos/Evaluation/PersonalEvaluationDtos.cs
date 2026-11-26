@@ -14,6 +14,14 @@ public sealed record PersonalEvaluationCriteriaItemDto(
     string TargetDisplay = "—",
     string ActualDisplay = "—");
 
+public sealed record PersonalEvaluationCriteriaGroupDto(
+    Guid EvaluationProfileItemId,
+    string GroupCode,
+    string GroupName,
+    decimal WeightPercent,
+    decimal? GroupScore,
+    IReadOnlyList<PersonalEvaluationCriteriaItemDto> Criteria);
+
 public sealed record PersonalEvaluationViewDto(
     Guid PeriodId,
     string PeriodName,
@@ -28,24 +36,19 @@ public sealed record PersonalEvaluationViewDto(
     decimal? PreviousPeriodScore,
     string? Tier,
     IReadOnlyList<string> AllTiers,
-    string RankingPercentile,
-    int RankingPosition,
-    int RankingTotalEmployees,
+    string? RankingPercentile,
+    int? RankingPosition,
+    int? RankingTotalEmployees,
     string RankingRoleTitle,
     IReadOnlyList<PersonalEvaluationCriteriaItemDto> Criteria,
     decimal? QualityRatio,
     decimal RiskPenalty,
     string? ManagerFeedback,
-    bool IsAcknowledged,
-    DateTimeOffset? AcknowledgedAt);
-
-public sealed record AcknowledgePersonalEvaluationRequestDto(
-    [Required] Guid PeriodId);
-
-public sealed record AcknowledgePersonalEvaluationResultDto(
-    bool Success,
-    DateTimeOffset AcknowledgedAt,
-    string Message);
+    IReadOnlyList<PersonalEvaluationCriteriaGroupDto>? CriteriaGroups = null,
+    EvaluationCriteriaSummaryDto? CriteriaSummary = null,
+    EvaluationSlaSummaryDto? SlaSummary = null,
+    int RiskCount = 0,
+    IReadOnlyList<EvaluationRiskEventDto>? RiskEvents = null);
 
 public sealed record PersonalCriteriaLedgerItemDto(
     Guid Id,

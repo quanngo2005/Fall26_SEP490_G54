@@ -112,10 +112,11 @@ describe('QaQueueService', () => {
     request.flush(envelope({}));
   });
 
-  it('dismisses a flag on confirm and requests rework on reject', () => {
-    service.decide('FLAG', 'f1', decision()).subscribe();
+  it('dismisses a flag with its reason on confirm and requests rework on reject', () => {
+    service.decide('FLAG', 'f1', decision({ comment: ' Chứng từ khớp báo cáo. ' })).subscribe();
     const dismiss = http.expectOne(`${api}/quality-flags/f1/dismiss`);
     expect(dismiss.request.method).toBe('POST');
+    expect(dismiss.request.body).toEqual({ reason: 'Chứng từ khớp báo cáo.' });
     dismiss.flush(envelope({}));
 
     service

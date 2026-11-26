@@ -2,13 +2,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { VerificationDossier } from '../../core/verification.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { ReviewVerifyComponent } from './review-verify.component';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -57,10 +57,10 @@ type Internals = {
 
 describe('ReviewVerifyComponent', () => {
   let http: HttpTestingController;
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let routeState: FakeRouteState;
 
   const open = (withId = true) => {
-    if (withId) params.next(convertToParamMap({ submissionId: id }));
+    if (withId) routeState.set({ submissionId: id });
     const fixture = TestBed.createComponent(ReviewVerifyComponent);
     fixture.detectChanges();
     return fixture;
@@ -74,14 +74,15 @@ describe('ReviewVerifyComponent', () => {
     fixture.componentInstance as unknown as Internals;
 
   beforeEach(async () => {
-    params = new BehaviorSubject(convertToParamMap({}));
+    const state = provideRouteState();
+    routeState = state.fake;
     await TestBed.configureTestingModule({
       imports: [ReviewVerifyComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params } },
+        ...state.providers,
       ],
     })
       .overrideComponent(ReviewVerifyComponent, {

@@ -16,15 +16,6 @@ public sealed class PermissionAuthorizationHandler(IPermissionService permission
             return;
         }
 
-        if (context.User.IsInRole("ADMIN")
-            || context.User.IsInRole("Admin")
-            || context.User.HasClaim("role", "ADMIN")
-            || context.User.HasClaim("role", "Admin"))
-        {
-            context.Succeed(requirement);
-            return;
-        }
-
         var sub = context.User.FindFirst("sub")?.Value
             ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(sub, out var accountId))

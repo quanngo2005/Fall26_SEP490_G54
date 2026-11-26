@@ -20,6 +20,32 @@ export interface ImportRowError {
   message: string;
 }
 
+/** One saved row of a batch (`ImportedTransactionDto`, `GET /transaction-imports/{id}/transactions`). */
+export interface ImportedTransaction {
+  id: string;
+  transactionCode: string;
+  employeeCode: string;
+  productCode: string;
+  transactionDate: string;
+  amount: number;
+  denominator: number | null;
+  referEmployeeCode: string | null;
+  customerCode: string | null;
+}
+
+/** The file types an import batch can hold (`import_batch.file_type`). */
+export type ImportFileType = 'TRANSACTION' | 'SERVICE_RATING';
+
+/** One customer service rating saved by a rating import (`GET /service-rating-imports/{id}/ratings`). */
+export interface ImportedRating {
+  id: string;
+  transactionCode: string;
+  employeeCode: string;
+  ratingDate: string;
+  score: number;
+  customerComment: string | null;
+}
+
 /** Codes reconciled right after the import. `null` when the batch was saved but reconciliation did not run. */
 export interface ImportReconcileSummary {
   matched: number;
@@ -27,7 +53,10 @@ export interface ImportReconcileSummary {
   inReview: number;
 }
 
-/** `POST /transaction-imports` result (SCR-ADM-06 step 3). Mirrors `ImportBatchDto` including `errors` and `reconcile`. */
+/**
+ * `POST /transaction-imports` and `POST /service-rating-imports` result (SCR-ADM-06 step 3). Mirrors `ImportBatchDto`
+ * including `errors` and `reconcile` (always `null` for service ratings).
+ */
 export interface ImportBatchResult extends Omit<ImportBatchSummary, 'errors'> {
   errors: ImportRowError[] | null;
   reconcile: ImportReconcileSummary | null;

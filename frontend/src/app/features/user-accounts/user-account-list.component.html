@@ -259,7 +259,8 @@
                     >
                     <a
                       class="ui-action-btn"
-                      [routerLink]="['/employee-detail', account.employeeCode]"
+                      routerLink="/employee-detail/profile"
+                      [state]="{ employeeCode: account.employeeCode }"
                     >
                       {{t.openProfile}}
                     </a>

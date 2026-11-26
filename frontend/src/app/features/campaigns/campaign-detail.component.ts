@@ -1,12 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, EMPTY, finalize, map, startWith, Subject, switchMap } from 'rxjs';
 import { BatchWorkResult, CampaignDetail, CampaignStatus } from '../../core/campaign.models';
 import { CampaignService } from '../../core/campaign.service';
 import { AuthService } from '../../core/auth.service';
 import { canManageCampaigns } from '../../core/campaign-permissions';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
@@ -40,7 +41,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 })
 export class CampaignDetailComponent extends LocalizedComponent {
   private readonly api = inject(CampaignService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   protected readonly reload = new Subject<void>();
@@ -60,9 +61,10 @@ export class CampaignDetailComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.route.paramMap
+    this.routeState
+      .watch('campaignId')
       .pipe(
-        map((params) => params.get('id') ?? ''),
+        map((id) => id ?? ''),
         switchMap((id) =>
           this.reload.pipe(
             startWith(undefined),

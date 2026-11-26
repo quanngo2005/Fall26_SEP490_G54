@@ -2,8 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, input, output, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthenticatedUser } from '../../core/auth.models';
 import { AuthService } from '../../core/auth.service';
@@ -13,6 +12,7 @@ import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { RiskEventCreateModalComponent } from '../risk-events/risk-event-create-modal.component';
 import { ReconciliationDetailComponent } from './reconciliation-detail.component';
 import { ReconciliationFlagModalComponent } from './reconciliation-flag-modal.component';
+import { provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
@@ -145,7 +145,6 @@ const detail = (over: Partial<ReconciliationDetail> = {}): ReconciliationDetail 
 
 describe('ReconciliationDetailComponent', () => {
   let http: HttpTestingController;
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let navigate: jasmine.Spy;
   const user = signal<AuthenticatedUser | null>(null);
 
@@ -164,7 +163,7 @@ describe('ReconciliationDetailComponent', () => {
     Array.from(fixture.nativeElement.querySelectorAll<HTMLButtonElement>('.detail-actions button'));
 
   beforeEach(async () => {
-    params = new BehaviorSubject(convertToParamMap({ id: 'r1' }));
+    const state = provideRouteState({ reconciliationId: 'r1' });
     user.set({
       id: 'u1',
       email: 'qa@test.local',
@@ -178,7 +177,7 @@ describe('ReconciliationDetailComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params.asObservable() } },
+        ...state.providers,
         { provide: AuthService, useValue: { currentUser: user.asReadonly() } },
       ],
     })
@@ -333,7 +332,9 @@ describe('ReconciliationDetailComponent', () => {
 
     (fixture.nativeElement.querySelectorAll('.sibling-chip')[1] as HTMLElement).click();
 
-    expect(navigate).toHaveBeenCalledWith(['/reconciliations', 'r2']);
+    expect(navigate).toHaveBeenCalledWith(['/reconciliations/detail'], {
+      state: { reconciliationId: 'r2' },
+    });
   });
 
   it('says so when the code is missing or outside the callers scope', () => {

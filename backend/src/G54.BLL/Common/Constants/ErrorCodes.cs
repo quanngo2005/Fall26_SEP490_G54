@@ -49,6 +49,9 @@ public static class ErrorCodes
     // Performance evaluation (docs/api/PERFORMANCE_EVALUATION_CONTRACT.md)
     public const string PerformanceEvaluationInvalidState = "PERFORMANCE_EVALUATION_INVALID_STATE";
 
+    // Evaluation flow (docs/api/EVALUATION_FINAL_FLOW_CONTRACT.md)
+    public const string PeriodNotLockedYet = "PERIOD_NOT_LOCKED_YET";
+
     // Appeal (docs/api/APPEAL_CONTRACT.md)
     public const string AppealInvalidState = "APPEAL_INVALID_STATE";
     public const string AppealAlreadyOpen = "APPEAL_ALREADY_OPEN";
@@ -152,6 +155,10 @@ public static class ErrorCodes
     public const string CampaignHasAssignments = "CAMPAIGN_HAS_ASSIGNMENTS";
     public const string CampaignWorkLocked = "CAMPAIGN_WORK_LOCKED";
     public const string CampaignNotCompletable = "CAMPAIGN_NOT_COMPLETABLE";
+    // Call recordings (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §9)
+    public const string CallRecordingInvalidFile = "CALL_RECORDING_INVALID_FILE";
+    public const string CallRecordingSubmissionClosed = "CALL_RECORDING_SUBMISSION_CLOSED";
+    public const string CallRecordingNotReady = "CALL_RECORDING_NOT_READY";
 
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
@@ -181,6 +188,7 @@ public static class ErrorCodes
         [KpiTypeMismatch] = ("Lỗi ánh xạ: Kiểu chỉ số không đồng nhất (Định lượng vs Định tính).", "Mapping Error: Metric types do not match (Quantitative vs Qualitative)."),
         [DepartmentTransferBlocked] = ("Lỗi kiểm tra: Chặn chuyển phòng ban. Nhân viên hiện còn công việc chưa hoàn tất.", "Validation Error: Department transfer blocked. Employee has active task(s)."),
         [PerformanceEvaluationInvalidState] = ("Trạng thái đánh giá hoặc kỳ đánh giá không cho phép tính điểm KPI.", "The evaluation or its period does not allow KPI score calculation."),
+        [PeriodNotLockedYet] = ("Chưa đến ngày chốt kỳ đánh giá nên chưa thể hoàn tất đánh giá. Hãy lưu nháp.", "The evaluation period has not reached its lock day, so the evaluation cannot be completed yet. Save as draft instead."),
         [AppealInvalidState] = ("Trạng thái hiện tại không cho phép thao tác với khiếu nại.", "The current state does not allow this appeal action."),
         [AppealAlreadyOpen] = ("Kết quả này đã có khiếu nại đang được xử lý.", "This result already has an appeal in progress."),
         [AppealWindowExpired] = ("Đã quá thời hạn 48 giờ để khiếu nại kết quả bị từ chối.", "The 48-hour window to appeal a rejected result has expired."),
@@ -247,6 +255,9 @@ public static class ErrorCodes
         [CampaignHasAssignments] = ("Chiến dịch đã có khách hàng được phân bổ hoặc công việc được sinh ra nên không thể thay đổi sản phẩm hoặc gỡ thành viên. Vui lòng phân công lại trước.", "The campaign already has assigned customers or generated work, so the product cannot change or a participant cannot be removed. Reassign first."),
         [CampaignWorkLocked] = ("Công việc này thuộc một chiến dịch và chỉ có thể cập nhật từ màn hình Chiến dịch của tôi.", "This work belongs to a campaign and can only be updated from My Campaigns."),
         [CampaignNotCompletable] = ("Trạng thái hiện tại của chiến dịch không cho phép hoàn tất hoặc hủy.", "The campaign's current status does not allow completing or cancelling it."),
+        [CallRecordingInvalidFile] = ("Tệp ghi âm không hợp lệ (mp3, m4a, mp4, wav; tối đa 50 MB).", "Invalid call recording file (mp3, m4a, mp4, wav; up to 50 MB)."),
+        [CallRecordingSubmissionClosed] = ("Kết quả đã rút, không thể tải ghi âm.", "The result submission was withdrawn, so no recording can be uploaded."),
+        [CallRecordingNotReady] = ("Ghi âm đang được xử lý.", "The call recording is still being processed."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)

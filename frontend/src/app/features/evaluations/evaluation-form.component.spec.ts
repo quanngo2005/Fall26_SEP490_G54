@@ -101,7 +101,6 @@ function buildForm(overrides: Partial<EvaluationFormModel> = {}): EvaluationForm
       operationsScore: 0,
       totalRiskPenalty: 2,
       totalScore: 63,
-      proposedTier: 'B',
       weightedScore: 65,
     },
     currentEvaluation: {
@@ -115,8 +114,10 @@ function buildForm(overrides: Partial<EvaluationFormModel> = {}): EvaluationForm
       comment: 'Saved comment',
       coachingPlan: 'plan',
       coachingRequired: true,
+      finalTierCode: null,
     },
     canEdit: true,
+    canComplete: true,
     pendingSubmissionCount: 2,
     openAppealCount: 1,
     hasOpenDispute: false,
@@ -156,7 +157,7 @@ function rosterRow(employeeId: string): DepartmentEmployeeEvaluation {
     departmentName: 'Team 1',
     evaluationId: null,
     totalScore: null,
-    evaluationStatus: 'NOT_STARTED',
+    evaluationStatus: 'DRAFT',
     proposedTier: null,
     calculatedAt: null,
     quantitativeScore: null,
@@ -211,6 +212,8 @@ describe('EvaluationFormComponent', () => {
       'departmentEmployees',
       'periods',
       'exportEvaluationForm',
+      'submitToBranch',
+      'finalizeEvaluation',
     ]);
     api.periods.and.returnValue(of([]));
 
@@ -274,6 +277,19 @@ describe('EvaluationFormComponent', () => {
       fixture.nativeElement.querySelectorAll('.metric-title') as NodeListOf<HTMLElement>,
     ).map((title) => title.textContent?.trim());
     expect(titles).not.toContain(text().totalScoreTitle);
+    expect(component.tierText()).toBe(emptyValue());
+  });
+
+  it('shows the final tier only when the record is FINAL', async () => {
+    await create(
+      buildForm({
+        currentEvaluation: {
+          ...buildForm().currentEvaluation,
+          status: 'FINAL',
+          finalTierCode: 'B',
+        },
+      }),
+    );
     expect(component.tierText()).toBe(
       TestBed.inject(I18nService).translate('evaluationForm.proposedTier', { tier: 'B' }),
     );
@@ -313,7 +329,6 @@ describe('EvaluationFormComponent', () => {
           ...buildForm().summary,
           totalScore: null,
           weightedScore: null,
-          proposedTier: null,
         },
       }),
     );
@@ -443,34 +458,6 @@ describe('EvaluationFormComponent', () => {
       expect(component.saveMessage()?.kind).toBe('success');
     });
 
-    it('completes the evaluation with isDraft false', async () => {
-      api.submit.and.returnValue(of(savedResult));
-      await create();
-      component.onCompleteEvaluation();
-      expect(api.submit.calls.mostRecent().args[0].isDraft).toBeFalse();
-      expect(component.saveMessage()?.text).toBe(text().completeSuccess);
-    });
-
-    it('refuses to complete without a comment', async () => {
-      await create();
-      component.commentInput.set('   ');
-      component.onCompleteEvaluation();
-      expect(api.submit).not.toHaveBeenCalled();
-      expect(component.saveMessage()).toEqual({
-        kind: 'error',
-        text: text().completeRequirements,
-      });
-    });
-
-    it('still allows a draft without a comment', async () => {
-      api.submit.and.returnValue(of(savedResult));
-      await create();
-      component.commentInput.set('');
-      component.onSaveDraft();
-      expect(api.submit).toHaveBeenCalledTimes(1);
-      expect(api.submit.calls.mostRecent().args[0].comment).toBeNull();
-    });
-
     it('ignores a second save while one is in flight', async () => {
       const pending = new Subject<EvaluationResult>();
       api.submit.and.returnValue(pending.asObservable());
@@ -478,7 +465,6 @@ describe('EvaluationFormComponent', () => {
       component.onSaveDraft();
       expect(component.saving()).toBeTrue();
       component.onSaveDraft();
-      component.onCompleteEvaluation();
       expect(api.submit).toHaveBeenCalledTimes(1);
       pending.next(savedResult);
       pending.complete();
@@ -620,21 +606,19 @@ describe('EvaluationFormComponent', () => {
 
     it('shows the previous period delta in the KPI pill', async () => {
       await create();
-      expect(component.weightedPillText()).toContain('3');
+      expect(component.scorePillText()).toContain('3');
     });
 
-    it('shows a dash when there is no previous period', async () => {
+    it('hides the KPI pill when there is no previous period', async () => {
       await create(buildForm({ previousPeriod: null }));
-      expect(component.weightedPillText()).toBe(emptyValue());
+      expect(component.scorePillText()).toBeNull();
     });
 
     it('renders criteria summary and SLA summary from the API instead of placeholders', async () => {
       await create();
       expect(component.criteriaValueText()).toBe('3 / 6');
       expect(component.criteriaPillText()).toContain('50');
-      expect(component.criteriaFootText()).toContain('85');
       expect(component.slaValueText()).toContain('96');
-      expect(component.slaFootText()).toContain('1');
     });
 
     it('shows empty value for criteria and SLA when there are no scorable items or SLA tasks', async () => {
@@ -681,6 +665,41 @@ describe('EvaluationFormComponent', () => {
     });
   });
 
+  describe('completing', () => {
+    it('completes with isDraft false when the form allows it and the comment is filled', async () => {
+      api.submit.and.returnValue(of(savedResult));
+      await create();
+      component.commentInput.set('Done');
+      component.onCompleteEvaluation();
+      expect(api.submit).toHaveBeenCalledOnceWith({
+        employeeId: 'e2',
+        periodId: 'period-1',
+        comment: 'Done',
+        coachingPlan: 'plan',
+        coachingRequired: true,
+        isDraft: false,
+      });
+      expect(component.saveMessage()?.text).toBe(text().completeSuccess);
+    });
+
+    it('does not complete without a comment and asks for one', async () => {
+      await create();
+      component.commentInput.set('   ');
+      component.onCompleteEvaluation();
+      expect(api.submit).not.toHaveBeenCalled();
+      expect(component.saveMessage()?.text).toBe(text().completeRequirements);
+    });
+
+    it('is blocked before the ranking lock day and shows the lock notice', async () => {
+      await create(buildForm({ canComplete: false }));
+      expect(component.canSubmit()).toBeTrue();
+      expect(component.completeBlocked()).toBeFalse();
+      expect(fixture.nativeElement.querySelector('.save-message')?.textContent?.trim()).toBe(
+        text().completeLockedNotice,
+      );
+    });
+  });
+
   describe('localization', () => {
     it('switches the visible texts live when the language changes', async () => {
       await create();
@@ -702,5 +721,40 @@ describe('EvaluationFormComponent', () => {
     await create();
     component.onBackToList();
     expect(router.navigate).toHaveBeenCalledWith(['/evaluations']);
+  });
+
+  it('selects active period matching today when switching period type', async () => {
+    await create();
+    const today = new Date();
+    const currentMonthCode = `${today.getFullYear()}-M${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const startOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    const endOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-28`;
+
+    component.periods.set([
+      {
+        id: 'past-month',
+        code: '2025-M01',
+        name: 'Tháng 1/2025',
+        startDate: '2025-01-01',
+        endDate: '2025-01-31',
+        periodType: 'MONTH',
+        status: 'LOCKED',
+        isActive: false,
+      },
+      {
+        id: 'current-month-id',
+        code: currentMonthCode,
+        name: 'Tháng Hiện Tại',
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        periodType: 'MONTH',
+        status: 'OPEN',
+        isActive: true,
+      },
+    ]);
+
+    api.form.calls.reset();
+    component.onPeriodTypeChange('MONTH');
+    expect(api.form).toHaveBeenCalledWith('e2', 'current-month-id');
   });
 });

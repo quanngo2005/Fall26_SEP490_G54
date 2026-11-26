@@ -404,17 +404,23 @@ public sealed class AppealServiceTests : IDisposable
     [Fact]
     public async Task Decide_OverlongNote_IsInvalid()
     {
-        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
-            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = "ACCEPT", Note = new string('a', 2001) }));
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter));
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT", Note = new string('a', 2001) }));
     }
 
     [Fact]
     public async Task Decide_InactiveCaller_IsUnauthorized()
     {
-        await SeedDepartmentsAsync();
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter));
         var resolver = await AddEmployeeAsync("MANAGER", _salesId, EmployeeStatus.Inactive);
         await Assert.ThrowsAsync<UnauthorizedException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
-            Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+        Assert.Equal(AppealStatus.Open, (await _db.Appeals.AsNoTracking().SingleAsync()).Status);
     }
 
     [Fact]
@@ -437,9 +443,20 @@ public sealed class AppealServiceTests : IDisposable
     [InlineData("REJECT", "short")]
     public async Task Decide_InvalidPayload_StoresNothing(string? decision, string? note)
     {
-        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
-            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = decision, Note = note }));
-        Assert.Empty(await _db.Appeals.ToListAsync());
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var submission = await AddSubmissionAsync(submitter);
+        var appeal = await AddAppealAsync(submitter, submission);
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = decision, Note = note }));
+        var stored = await _db.Appeals.AsNoTracking().SingleAsync();
+        Assert.Equal(appeal.Id, stored.Id);
+        Assert.Equal(AppealStatus.Open, stored.Status);
+        Assert.Null(stored.DecidedAt);
+        Assert.Equal(SubmissionStatus.Rejected, (await _db.ResultSubmissions.AsNoTracking().SingleAsync()).Status);
+        Assert.Single(await _db.Verifications.ToListAsync());
+        Assert.Empty(await _db.VerifiedWorkResults.ToListAsync());
     }
 
     [Theory]
@@ -521,20 +538,26 @@ public sealed class AppealServiceTests : IDisposable
         Assert.Equal(AppealStatus.Open, appeal.Status);
     }
 
-    [Fact]
-    public async Task Decide_MissingAppeal_IsNotFound()
+    [Theory]
+    [InlineData("ACCEPT")]
+    [InlineData("UNKNOWN")]
+    public async Task Decide_MissingAppeal_IsNotFound(string decision)
     {
         await SubmitterWithRejectedSubmissionAsync();
         var resolver = await AddEmployeeAsync("MANAGER", _salesId);
         await Assert.ThrowsAsync<NotFoundException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
-            Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = "ACCEPT" }));
+            Guid.NewGuid(), resolver.Id, new DecideAppealRequestDto { Decision = decision }));
     }
 
     [Fact]
     public async Task Decide_UpholdIsNoLongerADecision()
     {
-        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt).DecideAppealAsync(
-            Guid.NewGuid(), Guid.NewGuid(), new DecideAppealRequestDto { Decision = "UPHOLD", Note = "Giữ nguyên điểm đánh giá" }));
+        var submitter = await SubmitterWithRejectedSubmissionAsync();
+        var appeal = await AddAppealAsync(submitter, await AddSubmissionAsync(submitter));
+        var resolver = await AddEmployeeAsync("MANAGER", _salesId);
+
+        await Assert.ThrowsAsync<ValidationException>(() => ServiceAt(RejectedAt, ("*", "*", "All")).DecideAppealAsync(
+            appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = "UPHOLD", Note = "Giữ nguyên điểm đánh giá" }));
     }
 
     // ----- Create ----------------------------------------------------------------------------
@@ -1352,8 +1375,7 @@ public sealed class AppealServiceTests : IDisposable
 
     [Theory]
     [InlineData(PerformanceEvaluationStatus.Calculated)]
-    [InlineData(PerformanceEvaluationStatus.InReview)]
-    [InlineData(PerformanceEvaluationStatus.Approved)]
+    [InlineData(PerformanceEvaluationStatus.Submitted)]
     public async Task Create_MarksTheScoreOfThePeriodDisputedPending_AndKeepsTheStatusItHad(PerformanceEvaluationStatus before)
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
@@ -1379,7 +1401,7 @@ public sealed class AppealServiceTests : IDisposable
         var draft = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Draft);
         var final = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Final);
         var locked = await AddEvaluationAsync(
-            submitter, PerformanceEvaluationStatus.Approved, periodStatus: PeriodStatus.Locked);
+            submitter, PerformanceEvaluationStatus.Final, periodStatus: PeriodStatus.Locked);
         var otherPeriod = await AddEvaluationAsync(
             submitter, PerformanceEvaluationStatus.Calculated, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
         var others = await AddEvaluationAsync(colleague, PerformanceEvaluationStatus.Calculated);
@@ -1399,13 +1421,13 @@ public sealed class AppealServiceTests : IDisposable
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var submission = await AddSubmissionAsync(submitter);
-        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Submitted);
         var created = await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
 
         await ServiceAt(RejectedAt.AddHours(3)).WithdrawAppealAsync(created.Id, submitter.Id);
 
         var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
-        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Submitted, stored.Status);
         Assert.Null(stored.PreDisputeStatus);
         Assert.Null(stored.DisputedAt);
     }
@@ -1436,7 +1458,7 @@ public sealed class AppealServiceTests : IDisposable
     {
         var submitter = await SubmitterWithRejectedSubmissionAsync();
         var submission = await AddSubmissionAsync(submitter);
-        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.InReview);
+        var evaluation = await AddEvaluationAsync(submitter, PerformanceEvaluationStatus.Submitted);
         var resolver = await AddEmployeeAsync("MANAGER", _salesId);
         await ServiceAt(RejectedAt.AddHours(2)).CreateAppealAsync(submission.Id, submitter.Id, Request());
         var appeal = await _db.Appeals.SingleAsync();
@@ -1445,7 +1467,7 @@ public sealed class AppealServiceTests : IDisposable
             appeal.Id, resolver.Id, new DecideAppealRequestDto { Decision = decision, Note = note });
 
         var stored = await _db.PerformanceEvaluations.SingleAsync(e => e.Id == evaluation.Id);
-        Assert.Equal(PerformanceEvaluationStatus.InReview, stored.Status);
+        Assert.Equal(PerformanceEvaluationStatus.Submitted, stored.Status);
         Assert.Null(stored.PreDisputeStatus);
         Assert.Null(stored.DisputedAt);
         Assert.Equal(88m, stored.TotalScore);

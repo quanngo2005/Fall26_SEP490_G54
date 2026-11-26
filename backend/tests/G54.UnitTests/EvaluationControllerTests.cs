@@ -210,21 +210,6 @@ public sealed class EvaluationControllerTests
     }
 
     [Fact]
-    public async Task AcknowledgePersonalEvaluation_ForwardsRequestWithTheCallerId()
-    {
-        var service = new RecordingEvaluationService();
-        var controller = ControllerFor(service);
-        var request = new AcknowledgePersonalEvaluationRequestDto(Guid.NewGuid());
-
-        var result = await controller.AcknowledgePersonalEvaluation(request, CancellationToken.None);
-
-        var ok = Assert.IsType<OkObjectResult>(result.Result);
-        Assert.Same(request, service.LastAcknowledgeRequest);
-        Assert.Equal(UserId, service.LastAcknowledgeUserId);
-        Assert.True(Assert.IsType<ApiResponse<AcknowledgePersonalEvaluationResultDto>>(ok.Value).Data!.Success);
-    }
-
-    [Fact]
     public async Task GetPersonalCriteriaLedger_ForwardsPeriodCriteriaAndCallerId()
     {
         var service = new RecordingEvaluationService();
@@ -374,6 +359,7 @@ public sealed class EvaluationControllerTests
             Guid? departmentId,
             Guid? positionId,
             Guid currentUserId,
+            bool includeSubDepartments = false,
             CancellationToken cancellationToken = default)
         {
             LastCalibrationRequest = (periodId, departmentId, positionId, currentUserId);
@@ -386,6 +372,24 @@ public sealed class EvaluationControllerTests
             LastCalibrationSubmissionUserId = currentUserId;
             return Task.FromResult(new CalibrationSubmitResultDto(request.DepartmentId, request.PeriodId, "DRAFT", 0, 0, true, DateTimeOffset.UtcNow, "saved"));
         }
+
+        public Task<RankingBoardOverviewDto> GetRankingBoardAsync(Guid periodId, Guid? departmentId, Guid? comparePeriodId, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(SaveRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(AutoAssignRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(SaveRankingBoardRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingBoardExportDto> ExportRankingBoardAsync(Guid periodId, Guid? departmentId, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<RankingCompareDto> GetRankingCompareAsync(Guid periodId, Guid employeeId1, Guid employeeId2, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
 
         public Task<BranchApprovalOverviewDto> GetBranchApprovalOverviewAsync(Guid periodId, Guid currentUserId, CancellationToken cancellationToken = default)
         {
@@ -437,8 +441,6 @@ public sealed class EvaluationControllerTests
         }
 
         public (Guid? PeriodId, Guid UserId) LastPersonalEvaluationRequest { get; private set; }
-        public AcknowledgePersonalEvaluationRequestDto? LastAcknowledgeRequest { get; private set; }
-        public Guid LastAcknowledgeUserId { get; private set; }
         public (Guid PeriodId, Guid CriteriaId, Guid UserId) LastPersonalLedgerRequest { get; private set; }
         public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardRequest { get; private set; }
         public (Guid? PeriodId, Guid? ComparePeriodId, Guid UserId) LastDepartmentDashboardExportRequest { get; private set; }
@@ -498,16 +500,7 @@ public sealed class EvaluationControllerTests
                 [],
                 null,
                 0m,
-                null,
-                false,
                 null));
-        }
-
-        public Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(AcknowledgePersonalEvaluationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
-        {
-            LastAcknowledgeRequest = request;
-            LastAcknowledgeUserId = currentUserId;
-            return Task.FromResult(new AcknowledgePersonalEvaluationResultDto(true, DateTimeOffset.UtcNow, "ok"));
         }
 
         public Task<IReadOnlyList<PersonalCriteriaLedgerItemDto>> GetPersonalCriteriaLedgerAsync(Guid periodId, Guid criteriaId, Guid currentUserId, CancellationToken cancellationToken = default)

@@ -21,56 +21,59 @@ import { formatArrow, formatValue, toneOf } from './performance-display';
     </button>
   </div>
   @if (members().length) {
-    <table>
-      <thead>
-        <tr>
-          <th scope="col">{{text.colEmployee}}</th>
-          <th scope="col" class="num">{{text.colTotal}} {{periodName()}}</th>
-          @if (compareName()) {
-            <th scope="col" class="num">± {{compareName()}}</th>
-          }
-          <th scope="col">{{text.colWeakest}}</th>
-          <th scope="col" class="num">{{text.overdue}}</th>
-          <th scope="col">
-            <span class="sr-only">{{text.view}}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (member of members(); track member.employeeId) {
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
-            <td>
-              <b>{{member.fullName}}</b
-              ><small class="muted">{{member.jobPositionTitle}}</small>
-            </td>
-            <td class="num mono strong">{{score(member.totalScore)}}</td>
+            <th scope="col">{{text.colEmployee}}</th>
+            <th scope="col" class="num">{{text.colTotal}} {{periodName()}}</th>
             @if (compareName()) {
-              <td class="num mono" [class]="tone(member.changeFromPrevious)">
-                {{arrow(member.changeFromPrevious)}}
-              </td>
+              <th scope="col" class="num">± {{compareName()}}</th>
             }
-            <td class="down">
-              @if (member.weakestGroup; as weakest) {
-                {{weakest.name}} {{score(weakest.score)}}
-              } @else {
-                —
-              }
-            </td>
-            <td class="num mono" [class.warn]="member.overdueWorkCount > 0">
-              {{member.overdueWorkCount || '—'}}
-            </td>
-            <td class="num">
-              <a
-                class="row-link"
-                [routerLink]="['/employee-detail', member.employeeCode]"
-                [attr.aria-label]="text.view + ' ' + member.fullName"
-                >›</a
-              >
-            </td>
+            <th scope="col">{{text.colWeakest}}</th>
+            <th scope="col" class="num">{{text.overdue}}</th>
+            <th scope="col">
+              <span class="sr-only">{{text.view}}</span>
+            </th>
           </tr>
-        }
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          @for (member of members(); track member.employeeId) {
+            <tr>
+              <td>
+                <b>{{member.fullName}}</b
+                ><small class="muted">{{member.jobPositionTitle}}</small>
+              </td>
+              <td class="num mono strong">{{score(member.totalScore)}}</td>
+              @if (compareName()) {
+                <td class="num mono" [class]="tone(member.changeFromPrevious)">
+                  {{arrow(member.changeFromPrevious)}}
+                </td>
+              }
+              <td class="down">
+                @if (member.weakestGroup; as weakest) {
+                  {{weakest.name}} {{score(weakest.score)}}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="num mono" [class.warn]="member.overdueWorkCount > 0">
+                {{member.overdueWorkCount || '—'}}
+              </td>
+              <td class="num">
+                <a
+                  class="row-link"
+                  routerLink="/employee-detail/profile"
+                  [state]="{ employeeCode: member.employeeCode }"
+                  [attr.aria-label]="text.view + ' ' + member.fullName"
+                  >›</a
+                >
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   } @else {
     <p class="empty">{{text.noAttention}}</p>
   }
@@ -78,9 +81,13 @@ import { formatArrow, formatValue, toneOf } from './performance-display';
   `,
   styleUrl: './performance-card.scss',
   styles: `
+    .table-wrap {
+      overflow-x: auto;
+    }
     table {
       position: relative;
       width: 100%;
+      min-width: 480px;
       border-collapse: collapse;
       font-size: 14px;
     }

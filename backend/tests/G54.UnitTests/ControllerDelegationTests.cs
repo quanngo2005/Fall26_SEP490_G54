@@ -105,6 +105,40 @@ public sealed class ControllerDelegationTests
     }
 
     [Fact]
+    public async Task ServiceRatingImportsController_EveryActionDelegatesAndReturns2xx()
+    {
+        var controller = new ServiceRatingImportsController(
+            Stub<IServiceRatingImportService>(out var service),
+            Options.Create(new SystemParametersOptions()),
+            Stub<IServiceRatingImportTemplateProvider>(out var template));
+
+        var actions = await RunAllAsync(controller);
+
+        Assert.Equal(6, actions.Count);
+        Assert.All(actions, a => AssertSuccess(a.Result, a.Name));
+        Assert.Contains("ImportAsync", service.Calls);
+        Assert.Contains("ListRatingsAsync", service.Calls);
+        Assert.NotEmpty(template.Calls);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("ratings.csv")]
+    public async Task ServiceRatingImportsController_RejectsMissingOrNonXlsxFile(string? fileName)
+    {
+        var controller = Prepare(new ServiceRatingImportsController(
+            Stub<IServiceRatingImportService>(out var service),
+            Options.Create(new SystemParametersOptions()),
+            Stub<IServiceRatingImportTemplateProvider>(out _)));
+        IFormFile? file = fileName is null ? null : new FormFile(new MemoryStream(XlsxBytes), 0, XlsxBytes.Length, "file", fileName);
+
+        var result = await controller.Import(file, default);
+
+        Assert.Equal(400, Assert.IsType<BadRequestObjectResult>(result.Result).StatusCode);
+        Assert.DoesNotContain("ImportAsync", service.Calls);
+    }
+
+    [Fact]
     public async Task QualityAssuranceController_EveryActionDelegatesAndReturns2xx()
     {
         var controller = new QualityAssuranceController(

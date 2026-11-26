@@ -51,7 +51,7 @@ export class QaQueueService {
     return decision.verdict === 'CONFIRM'
       ? this.http.post<ApiResponse<unknown>>(
           `${this.api}/quality-flags/${encodeURIComponent(id)}/dismiss`,
-          {},
+          { reason: comment },
         )
       : this.http.post<ApiResponse<unknown>>(
           `${this.api}/quality-flags/${encodeURIComponent(id)}/request-rework`,

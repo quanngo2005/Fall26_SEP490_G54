@@ -49,10 +49,46 @@ public interface IEvaluationService
         Guid? departmentId,
         Guid? positionId,
         Guid currentUserId,
+        bool includeSubDepartments = false,
         CancellationToken cancellationToken = default);
 
     Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
         SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> GetRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid? comparePeriodId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardOverviewDto> AutoAssignRankingBoardAsync(
+        AutoAssignRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardSendResultDto> SendRankingBoardToDirectorAsync(
+        SaveRankingBoardRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingBoardExportDto> ExportRankingBoardAsync(
+        Guid periodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<RankingCompareDto> GetRankingCompareAsync(
+        Guid periodId,
+        Guid employeeId1,
+        Guid employeeId2,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
@@ -92,11 +128,6 @@ public interface IEvaluationService
 
     Task<PersonalEvaluationViewDto> GetPersonalEvaluationAsync(
         Guid? periodId,
-        Guid currentUserId,
-        CancellationToken cancellationToken = default);
-
-    Task<AcknowledgePersonalEvaluationResultDto> AcknowledgePersonalEvaluationAsync(
-        AcknowledgePersonalEvaluationRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 

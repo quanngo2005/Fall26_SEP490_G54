@@ -1,7 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
+import { RouteStateService } from '../../core/route-state.service';
+import { FakeRouteState } from '../../core/route-state.testing';
+import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { environment } from '../../../environments/environment';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ImportBatchSummary } from '../../core/import-history.models';
@@ -83,6 +88,37 @@ describe('ImportHistoryListComponent', () => {
     expect(rows[1].querySelector('.error-count')).toBeFalsy();
   });
 
+  it('opens the batch drawer from a row, keeps the row highlighted and closes it', () => {
+    const fixture = TestBed.createComponent(ImportHistoryListComponent);
+    fixture.detectChanges();
+    flush({ items: [batch('b1', 'tx-oct.xlsx', 2)], totalCount: 1, page: 1, pageSize: 20 });
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    (el.querySelector('tbody tr') as HTMLElement).click();
+    fixture.detectChanges();
+    http.expectOne(`${base}/transaction-imports/b1`).flush({
+      success: true,
+      status: 200,
+      data: batch('b1', 'tx-oct.xlsx', 2),
+    });
+    http
+      .expectOne((r) => r.url === `${base}/transaction-imports/b1/errors`)
+      .flush({
+        success: true,
+        status: 200,
+        data: { items: [], totalCount: 0, page: 1, pageSize: 20 },
+      });
+    fixture.detectChanges();
+
+    expect(el.querySelector('tbody tr')?.classList).toContain('is-selected');
+    expect(el.querySelector('app-import-batch-drawer')).toBeTruthy();
+
+    (el.querySelector('.drawer-close') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('app-import-batch-drawer')).toBeFalsy();
+  });
+
   it('clicking page 2 requests page 2 and updates the range text', () => {
     const fixture = TestBed.createComponent(ImportHistoryListComponent);
     fixture.detectChanges();
@@ -145,5 +181,68 @@ describe('ImportHistoryListComponent', () => {
 
     expect(el.querySelector('.state-error')).toBeFalsy();
     expect(el.querySelector('.empty')).toBeTruthy();
+  });
+});
+
+@Component({ selector: 'app-header', template: '' })
+class HeaderStub {}
+@Component({ selector: 'app-sidebar', template: '' })
+class SidebarStub {}
+
+describe('ImportHistoryListComponent with service ratings', () => {
+  let http: HttpTestingController;
+  const base = environment.apiUrl;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [ImportHistoryListComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: signal({ id: 'u1', permissions: ['service_rating_import:manage'] }),
+          },
+        },
+        {
+          provide: RouteStateService,
+          useValue: new FakeRouteState({ importFileType: 'SERVICE_RATING', importBatchId: 'r1' }),
+        },
+      ],
+    }).overrideComponent(ImportHistoryListComponent, {
+      remove: { imports: [HeaderComponent, SidebarComponent] },
+      add: { imports: [HeaderStub, SidebarStub] },
+    });
+    http = TestBed.inject(HttpTestingController);
+    TestBed.inject(I18nService).setLanguage('vi');
+  });
+
+  afterEach(() => http.verify());
+
+  it('opens the service rating history and the batch given in the navigation state', () => {
+    const fixture = TestBed.createComponent(ImportHistoryListComponent);
+    fixture.detectChanges();
+    const page = {
+      items: [batch('r1', '07_Danh_gia.xlsx', 1)],
+      totalCount: 1,
+      page: 1,
+      pageSize: 20,
+    };
+    http
+      .expectOne((r) => r.url === `${base}/service-rating-imports`)
+      .flush({ success: true, status: 200, data: page });
+    http
+      .expectOne(`${base}/service-rating-imports/r1`)
+      .flush({ success: true, status: 200, data: batch('r1', '07_Danh_gia.xlsx', 1) });
+    http
+      .expectOne((r) => r.url === `${base}/service-rating-imports/r1/errors`)
+      .flush({ success: true, status: 200, data: { ...page, items: [], totalCount: 0 } });
+    fixture.detectChanges();
+
+    const row = (fixture.nativeElement as HTMLElement).querySelector('tbody tr')!;
+    expect(row.textContent).toContain('Đánh giá dịch vụ');
+    expect(row.classList).toContain('is-selected');
   });
 });

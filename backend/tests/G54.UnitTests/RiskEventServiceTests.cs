@@ -381,9 +381,24 @@ public sealed class RiskEventServiceTests : IDisposable
         var qa = await AddEmployeeAsync("QA");
 
         var first = await Service.CreateAsync(ValidRequest(employee.Id), qa.Id);
-        var second = await Service.CreateAsync(ValidRequest(employee.Id), qa.Id);
+        var second = await Service.CreateAsync(ValidRequest(employee.Id) with { EventType = "OTHER_TYPE" }, qa.Id);
 
         Assert.NotEqual(first.Code, second.Code);
+    }
+
+    [Fact]
+    public async Task Create_RefusesTheSameEventTypeForTheSameEmployeeAtTheSameMoment()
+    {
+        var employee = await AddEmployeeAsync("EMP");
+        var qa = await AddEmployeeAsync("QA");
+        var first = await Service.CreateAsync(ValidRequest(employee.Id), qa.Id);
+
+        await Assert.ThrowsAsync<ConflictException>(() => Service.CreateAsync(ValidRequest(employee.Id), qa.Id));
+
+        // A dismissed event no longer holds the occurrence, so it can be recorded again.
+        await Service.DismissAsync(first.Id, qa.Id);
+        var again = await Service.CreateAsync(ValidRequest(employee.Id), qa.Id);
+        Assert.Equal("OPEN", again.Status);
     }
 
     [Fact]

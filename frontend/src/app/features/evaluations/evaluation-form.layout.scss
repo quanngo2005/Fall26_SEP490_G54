@@ -10,35 +10,7 @@
   padding: 24px 32px 44px;
   background: #f7f9fb;
   min-height: calc(100vh - 56px);
-  font-family: Inter, sans-serif;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.page-heading {
-  min-width: 0;
-}
-
-.page-title {
-  margin: 0;
-  font:
-    700 24px Manrope,
-    sans-serif;
-  color: #0f172a;
-}
-
-.page-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  font-family: 'Nunito Sans', sans-serif;
 }
 
 .evaluation-form-page .metric-grid {
@@ -74,39 +46,10 @@
   font-weight: 600;
 }
 
-.period-select {
-  min-height: 40px;
-}
-
 .pagination-controls {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 4px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-}
-
-.btn-nav {
-  background: none;
-  border: none;
-  font-size: 13px;
-  font-weight: 500;
-  color: #334155;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-
-  &:hover:not(:disabled) {
-    background: #f1f5f9;
-  }
-
-  &:disabled {
-    color: #94a3b8;
-    cursor: not-allowed;
-  }
 }
 
 .nav-indicator {
@@ -116,119 +59,9 @@
   padding: 0 6px;
 }
 
-.font-heading {
-  font-family: Manrope, Inter, sans-serif;
-  letter-spacing: -0.015em;
-}
-
 .font-mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Nunito Sans', sans-serif;
   font-variant-numeric: tabular-nums;
-}
-
-.metric-card {
-  min-width: 0;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.metric-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-}
-
-.metric-title {
-  font:
-    600 12px Inter,
-    sans-serif;
-  color: #475569;
-  text-transform: uppercase;
-}
-
-.metric-pill {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.pill-success {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.pill-warning {
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.pill-info {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.pill-danger {
-  background: #fff1f2;
-  color: #be123c;
-}
-
-.metric-body {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.metric-value {
-  font-size: 26px;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.1;
-}
-
-.metric-value.tone-good {
-  color: #047857;
-}
-
-.metric-value.tone-warn {
-  color: #b45309;
-}
-
-.metric-value.tone-bad {
-  color: #be123c;
-}
-
-.metric-value.tier-a {
-  color: #047857;
-}
-
-.metric-value.tier-b {
-  color: #1d4ed8;
-}
-
-.metric-value.tier-c {
-  color: #b45309;
-}
-
-.metric-value.tier-d {
-  color: #be123c;
-}
-
-.metric-scale {
-  font-size: 12px;
-  color: #64748b;
 }
 
 @media (max-width: 1200px) {

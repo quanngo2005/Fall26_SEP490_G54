@@ -25,6 +25,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(TargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(MyTargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(ResultSubmissionsController), "")]
+    [InlineData(typeof(CallRecordingsController), "")]
     [InlineData(typeof(AppealsController), "")]
     [InlineData(typeof(HandoversController), "")]
     [InlineData(typeof(HelloController), "hello")]
@@ -33,6 +34,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(CampaignCustomersController), "campaigns/{campaignId:guid}/customers")]
     [InlineData(typeof(MyCampaignsController), "my-campaigns")]
     [InlineData(typeof(TransactionImportsController), "transaction-imports")]
+    [InlineData(typeof(ServiceRatingImportsController), "service-rating-imports")]
     [InlineData(typeof(MyDashboardController), "my-dashboard")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)
     {

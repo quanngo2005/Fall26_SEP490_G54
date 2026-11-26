@@ -28,7 +28,8 @@ public interface IQualityAssuranceService
     /// </summary>
     Task<QualityFlagDto> RequestReworkAsync(Guid flagId, Guid userId, RequestReworkDto dto, CancellationToken cancellationToken = default);
 
-    Task<QualityFlagDto> DismissFlagAsync(Guid flagId, Guid userId, CancellationToken cancellationToken = default);
+    /// <summary>Closes the flag as unfounded; the reason (10–2000 characters) and the reviewer are kept on the flag.</summary>
+    Task<QualityFlagDto> DismissFlagAsync(Guid flagId, Guid userId, DismissQualityFlagDto dto, CancellationToken cancellationToken = default);
 
     Task<PagedResult<QaSampleDto>> GetSamplesAsync(QaSampleFilterDto filter, CancellationToken cancellationToken = default);
 

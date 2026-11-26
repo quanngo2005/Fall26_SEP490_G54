@@ -18,6 +18,34 @@ namespace G54.Api.Controllers;
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 public sealed class HandoversController(IHandoverService handoverService) : ControllerBase
 {
+    /// <summary>Lists handover records for SCR-WRK-05.</summary>
+    [HttpGet("handovers")]
+    [HasPermission("handover", "respond", "Own")]
+    [ProducesResponseType<ApiResponse<PagedResult<HandoverListItemDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ApiResponse<PagedResult<HandoverListItemDto>>>> ListHandovers(
+        [FromQuery] HandoverListQueryDto query,
+        CancellationToken cancellationToken)
+    {
+        var result = await handoverService.ListHandoversAsync(User.GetRequiredUserId(), query, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Gets one handover record for SCR-WRK-05-D1.</summary>
+    [HttpGet("handovers/{id:guid}")]
+    [HasPermission("handover", "respond", "Own")]
+    [ProducesResponseType<ApiResponse<HandoverListItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<HandoverListItemDto>>> GetHandover(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await handoverService.GetHandoverAsync(id, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     /// <summary>Colleagues of the caller's department that a work can be handed over to.</summary>
     [HttpGet("handovers/recipients")]
     [HasPermission("handover", "create", "Own")]
@@ -50,36 +78,6 @@ public sealed class HandoversController(IHandoverService handoverService) : Cont
             HttpContext.TraceIdentifier);
 
         return StatusCode(StatusCodes.Status201Created, response);
-    }
-
-    [HttpPost("handovers/{id:guid}/accept")]
-    [HasPermission("handover", "respond", "Own")]
-    [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ApiResponse<HandoverDetailDto>>> AcceptHandover(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await handoverService.AcceptHandoverAsync(id, User.GetRequiredUserId(), cancellationToken);
-        return Ok(ApiResponse.Ok(
-            result,
-            SuccessMessages.GetMessage(SuccessMessages.HandoverAccepted),
-            HttpContext.TraceIdentifier));
-    }
-
-    [HttpPost("handovers/{id:guid}/reject")]
-    [HasPermission("handover", "respond", "Own")]
-    [ProducesResponseType<ApiResponse<HandoverDetailDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ApiResponse<HandoverDetailDto>>> RejectHandover(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await handoverService.RejectHandoverAsync(id, User.GetRequiredUserId(), cancellationToken);
-        return Ok(ApiResponse.Ok(
-            result,
-            SuccessMessages.GetMessage(SuccessMessages.HandoverRejected),
-            HttpContext.TraceIdentifier));
     }
 
     [HttpPost("handovers/{id:guid}/manager/approve")]

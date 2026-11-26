@@ -7,6 +7,10 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 {
     private readonly AppDbContext _dbContext = dbContext;
 
+    /// <summary>Permissions the SYSTEM_ADMIN role never receives automatically.</summary>
+    public static readonly string[] SystemAdminExcludedPermissions =
+        ["FULL_ACCESS", "DEPARTMENT_MANAGE", "EMPLOYEE_MANAGE", "JOB_POSITION_MANAGE"];
+
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
 
     // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
@@ -22,7 +26,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             ('NV016', 'EMPLOYEE'), ('NV017', 'EMPLOYEE'), ('NV019', 'EMPLOYEE'), ('NV021', 'EMPLOYEE'),
             ('NV013', 'SYSTEM_ADMIN'),
             ('NV014', 'VERIFIER'),
-            ('NV022', 'QA')
+            ('NV022', 'VERIFIER')
         ),
         removed AS (
             DELETE FROM user_role ur
@@ -193,13 +197,13 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         }
 
         var adminRole = await _dbContext.Roles
-            .SingleOrDefaultAsync(candidate => candidate.Code == "ADMIN", cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Code == "SYSTEM_ADMIN", cancellationToken);
         if (adminRole is null)
         {
             adminRole = new Role
             {
-                Code = "ADMIN",
-                Name = "Administrator",
+                Code = "SYSTEM_ADMIN",
+                Name = "System Administrator",
                 Description = "Full access for local development only.",
                 UpdatedAt = DateTimeOffset.UtcNow,
                 Status = RecordStatus.Active,
@@ -237,8 +241,11 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        // The system administrator holds every permission explicitly, except the development wildcard and the ones the business
+        // rules keep out of its hands (departments, job positions and employees are view-only or import-only).
         var permissions = await _dbContext.Permissions
             .AsNoTracking()
+            .Where(item => !SystemAdminExcludedPermissions.Contains(item.Code))
             .Select(item => item.Id)
             .ToListAsync(cancellationToken);
         var assignedPermissionIds = await _dbContext.RolePermissions

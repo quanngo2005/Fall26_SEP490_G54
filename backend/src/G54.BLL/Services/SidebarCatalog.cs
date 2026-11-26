@@ -47,9 +47,9 @@ public static class SidebarCatalog
     public static IReadOnlyDictionary<string, string[]> Defaults { get; } = new Dictionary<string, string[]>(StringComparer.Ordinal)
     {
         ["employee"] = ["overview", "myWork", "mySubmissions", "myCampaigns", "myPerformance", "myTargets", "appeals", "notifications", "myProfile"],
-        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "appeals", "notifications", "myProfile"],
-        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "reconciliation", "teamPerformance", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
-        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "teamPerformance", "appeals", "notifications", "myProfile"],
+        ["departmentManager"] = ["overview", "employees", "teamWork", "handoverDelegation", "reviewVerify", "reconciliation", "myPerformance", "teamPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "appeals", "notifications", "myProfile"],
+        ["branchManager"] = ["overview", "organization", "departments", "jobPositions", "reportingLines", "myWork", "branchWork", "handoverDelegation", "reviewVerify", "reconciliation", "branchPerformance", "departmentPerformance", "targetOverview", "targetsAndCampaigns", "kpiDefinitions", "appeals", "notifications", "myProfile"],
+        ["hr"] = ["overview", "employees", "organization", "departments", "jobPositions", "reportingLines", "employeeData", "appeals", "notifications", "myProfile"],
         ["qa"] = ["overview", "dataImport", "importHistory", "reconciliation", "verificationQueue", "appeals", "riskEvents", "notifications", "myProfile"],
         ["admin"] = ["overview", "accounts", "rolesPermissions", "accessPolicies", "workTypes", "kpiDefinitions", "systemConfiguration", "systemParameters", "rankingStudio", "systemAudit", "dataImport", "importHistory", "notifications", "myProfile"],
     };
@@ -69,14 +69,5 @@ public static class SidebarCatalog
         "departments", "jobPositions", "reportingLines",
     };
 
-    public static string? MapRole(string code) => code.Trim().ToUpperInvariant().Replace('-', '_').Replace(' ', '_') switch
-    {
-        "EMPLOYEE" => "employee",
-        "MANAGER" or "DEPT_MANAGER" or "DEPARTMENT_MANAGER" => "departmentManager",
-        "BRANCH_MANAGER" => "branchManager",
-        "HR" or "HR_MANAGER" => "hr",
-        "QA" or "COMPLIANCE" or "VERIFIER" => "qa",
-        "ADMIN" or "SYSTEM_ADMIN" => "admin",
-        _ => null,
-    };
+    public static string? MapRole(string code) => G54.BLL.Common.Constants.RoleCodes.Workspace(code);
 }

@@ -4,8 +4,10 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiResponse } from './api-response.model';
 import {
-  AcknowledgePersonalEvaluationRequest,
-  AcknowledgePersonalEvaluationResult,
+  EvaluationFlowRequest,
+  EvaluationFlowResult,
+  FinalizeEvaluationResult,
+  ReturnEvaluationRequest,
   ApproveDepartmentRankingRequest,
   BranchApprovalOverview,
   BranchEvaluationPeriodsOverview,
@@ -22,7 +24,11 @@ import {
   PersonalCriteriaLedgerItem,
   PersonalEvaluationView,
   PreCloseCheckOverview,
+  RankingBoardOverview,
+  RankingBoardSendResult,
   RejectDepartmentRequest,
+  SaveRankingBoardRequest,
+  AutoAssignRankingBoardRequest,
   SubmitEvaluationRequest,
 } from './evaluation.models';
 
@@ -202,13 +208,21 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  acknowledgePersonalEvaluation(periodId: string): Observable<AcknowledgePersonalEvaluationResult> {
-    const request: AcknowledgePersonalEvaluationRequest = { periodId };
+  submitToBranch(request: EvaluationFlowRequest): Observable<EvaluationFlowResult> {
     return this.http
-      .post<ApiResponse<AcknowledgePersonalEvaluationResult>>(
-        `${this.url}/personal/acknowledge`,
-        request,
-      )
+      .post<ApiResponse<EvaluationFlowResult>>(`${this.url}/submit-to-branch`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  returnToCalculated(request: ReturnEvaluationRequest): Observable<EvaluationFlowResult> {
+    return this.http
+      .post<ApiResponse<EvaluationFlowResult>>(`${this.url}/return-to-calculated`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  finalizeEvaluation(request: EvaluationFlowRequest): Observable<FinalizeEvaluationResult> {
+    return this.http
+      .post<ApiResponse<FinalizeEvaluationResult>>(`${this.url}/finalize`, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 
@@ -220,6 +234,48 @@ export class EvaluationService {
     return this.http
       .get<ApiResponse<PersonalCriteriaLedgerItem[]>>(`${this.url}/personal/ledger`, { params })
       .pipe(map((response) => this.unwrap(response)));
+  }
+
+  rankingBoard(
+    periodId: string,
+    departmentId?: string | null,
+    comparePeriodId?: string | null,
+  ): Observable<RankingBoardOverview> {
+    let params = new HttpParams().set('periodId', periodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    return this.http
+      .get<ApiResponse<RankingBoardOverview>>(`${this.url}/ranking-board`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  saveRankingBoardDraft(request: SaveRankingBoardRequest): Observable<RankingBoardOverview> {
+    return this.http
+      .post<ApiResponse<RankingBoardOverview>>(`${this.url}/ranking-board/draft`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  autoAssignRankingBoard(request: AutoAssignRankingBoardRequest): Observable<RankingBoardOverview> {
+    return this.http
+      .post<ApiResponse<RankingBoardOverview>>(`${this.url}/ranking-board/auto-assign`, request)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  sendRankingBoardToDirector(request: SaveRankingBoardRequest): Observable<RankingBoardSendResult> {
+    return this.http
+      .post<ApiResponse<RankingBoardSendResult>>(
+        `${this.url}/ranking-board/send-to-director`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportRankingBoard(periodId: string, departmentId: string): Observable<Blob> {
+    const params = new HttpParams().set('periodId', periodId).set('departmentId', departmentId);
+    return this.http.get(`${this.url}/ranking-board/export`, {
+      params,
+      responseType: 'blob',
+    });
   }
 
   private unwrap<T>(response: ApiResponse<T>): T {

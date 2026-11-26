@@ -1,6 +1,6 @@
 import { Type } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, RouterLink } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { CampaignSummary } from '../../core/campaign.models';
 import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
@@ -16,6 +16,7 @@ import { PerfMetricCardComponent } from './performance-metric-card.component';
 import { PerfProfileGroupsComponent } from './performance-profile-groups.component';
 import { PerfTrendChartComponent } from './performance-trend-chart.component';
 import { PerfWorkProgressComponent } from './performance-work-progress.component';
+import { By } from '@angular/platform-browser';
 
 function render<T>(type: Type<T>, inputs: Record<string, unknown>): ComponentFixture<T> {
   const fixture = TestBed.createComponent(type);
@@ -23,6 +24,10 @@ function render<T>(type: Type<T>, inputs: Record<string, unknown>): ComponentFix
   fixture.detectChanges();
   return fixture;
 }
+
+/** The navigation state a router link carries (record ids stay out of its href). */
+const linkState = (fixture: ComponentFixture<unknown>, selector: string) =>
+  fixture.debugElement.query(By.css(selector)).injector.get(RouterLink).state;
 
 const text = (fixture: ComponentFixture<unknown>): string =>
   (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -147,7 +152,10 @@ describe('performance dashboard cards', () => {
     expect(text(fixture)).toContain('Person One');
     expect(text(fixture)).toContain('Group One 61.0');
     expect(text(fixture)).toContain('▼ 4.5');
-    expect(root.querySelector('a.row-link')?.getAttribute('href')).toBe('/employee-detail/E-1');
+    expect(root.querySelector('a.row-link')?.getAttribute('href')).toBe('/employee-detail/profile');
+    expect(linkState(fixture, 'a.row-link')).toEqual({ employeeCode: 'E-1' });
+    // The table scrolls inside its own wrapper, so it cannot widen the page on a phone (UC97).
+    expect(root.querySelector('.table-wrap > table')).not.toBeNull();
 
     fixture.componentRef.setInput('members', []);
     fixture.detectChanges();
@@ -198,7 +206,8 @@ describe('performance dashboard cards', () => {
     expect(root.querySelector('td.down')?.textContent?.trim()).toBe('61.0');
     expect(text(fixture)).toContain('Disputed');
     expect(text(fixture)).toContain('−4.5');
-    expect(root.querySelector('a.view')?.getAttribute('href')).toBe('/employee-detail/E-1');
+    expect(root.querySelector('a.view')?.getAttribute('href')).toBe('/employee-detail/profile');
+    expect(linkState(fixture, 'a.view')).toEqual({ employeeCode: 'E-1' });
 
     fixture.componentRef.setInput('compareName', null);
     fixture.detectChanges();
@@ -227,7 +236,8 @@ describe('performance dashboard cards', () => {
     });
     const href = fixture.nativeElement.querySelector('a.unit').getAttribute('href');
     expect(href).toContain('/department-performance?department=U1');
-    expect(href).toContain('periodId=p-cur');
+    expect(href).not.toContain('periodId');
+    expect(linkState(fixture, 'a.unit')).toEqual({ periodId: 'p-cur' });
     expect(href).toContain('compare=SAME_LAST_YEAR');
     expect(text(fixture)).toContain('9/10 scored');
     expect(text(fixture)).toContain('▼ 3.3');

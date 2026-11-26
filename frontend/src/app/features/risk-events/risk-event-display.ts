@@ -4,7 +4,7 @@ export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const ALLOWED_FILE_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.png', '.jpg', '.jpeg'];
 export const MIN_REVERSAL_REASON = 10;
 
-export type RiskErrorScope = 'create' | 'reverse' | 'details';
+export type RiskErrorScope = 'create' | 'reverse' | 'transition' | 'details';
 
 function bodyOf(
   error: unknown,
@@ -27,7 +27,9 @@ export function riskErrorKey(error: unknown, scope: RiskErrorScope): string {
     case 'PERIOD_LOCKED':
       return 'riskEvents.errors.periodUnavailable';
     case 'RISK_EVENT_INVALID_STATE':
-      return 'riskEvents.errors.invalidState';
+      return scope === 'transition'
+        ? 'riskEvents.errors.transitionInvalidState'
+        : 'riskEvents.errors.invalidState';
     case 'VALIDATION_ERROR':
       return scope === 'create' && /workCode|công việc/i.test(texts)
         ? 'riskEvents.errors.workNotFound'

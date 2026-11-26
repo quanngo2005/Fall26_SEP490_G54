@@ -265,20 +265,19 @@ public sealed class TransactionImportTemplateTests
     }
 
     [Theory]
-    [InlineData("ADMIN", true)]
     [InlineData("SYSTEM_ADMIN", true)]
     [InlineData("DEPT_MANAGER", true)]
     [InlineData("BRANCH_MANAGER", true)]
-    [InlineData("QA", true)]
+    [InlineData("VERIFIER", true)]
     [InlineData("EMPLOYEE", false)]
     public async Task PermissionAuthorization_TransactionImportManage_EvaluatesRolesCorrectly(string roleCode, bool expectedAllowed)
     {
         var accountId = Guid.NewGuid();
-        var permissions = expectedAllowed && roleCode != "ADMIN"
+        var permissions = expectedAllowed && roleCode != "SYSTEM_ADMIN"
             ? new List<UserPermissionDto> { new("transaction-import", "manage", "All", "TRANSACTION_IMPORT_MANAGE") }
             : new List<UserPermissionDto>();
 
-        var mockService = new FakePermissionAuthService(roleCode == "ADMIN" || expectedAllowed);
+        var mockService = new FakePermissionAuthService(roleCode == "SYSTEM_ADMIN" || expectedAllowed);
         var handler = new PermissionAuthorizationHandler(mockService);
 
         var claims = new[]

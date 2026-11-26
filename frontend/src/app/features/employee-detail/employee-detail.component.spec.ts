@@ -1,7 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { ActivatedRoute, provideRouter, RouterLink } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { of, throwError } from 'rxjs';
 import { AuthenticatedUser } from '../../core/auth.models';
 import { AuthService } from '../../core/auth.service';
 import { DepartmentService } from '../../core/department.service';
@@ -9,6 +10,7 @@ import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ProfileService } from '../../core/profile.service';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { EmployeeDetailComponent } from './employee-detail.component';
 
@@ -60,9 +62,11 @@ describe('EmployeeDetailComponent', () => {
     currentUser: signal<AuthenticatedUser | null>(null),
     changePassword: jasmine.createSpy('changePassword'),
   };
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
-  let query: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
-  let navigate: jasmine.Spy;
+  /** Route data of the matched route: `self` is set only on `/employee-detail/me`. */
+  let routeData: { self?: boolean };
+  let routeState: FakeRouteState;
+  const openOwnRecord = () => (routeData.self = true);
+  const openEmployee = (employeeCode: string) => routeState.set({ employeeCode });
 
   beforeEach(async () => {
     for (const spy of [
@@ -85,8 +89,9 @@ describe('EmployeeDetailComponent', () => {
       roles: ['EMPLOYEE'],
       permissions: [],
     });
-    params = new BehaviorSubject(convertToParamMap({}));
-    query = new BehaviorSubject(convertToParamMap({}));
+    routeData = {};
+    const state = provideRouteState();
+    routeState = state.fake;
     await TestBed.configureTestingModule({
       imports: [EmployeeDetailComponent],
       providers: [
@@ -95,7 +100,8 @@ describe('EmployeeDetailComponent', () => {
         { provide: DepartmentService, useValue: departments },
         { provide: ProfileService, useValue: profiles },
         { provide: AuthService, useValue: auth },
-        { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: query } },
+        { provide: ActivatedRoute, useValue: { snapshot: { data: routeData } } },
+        ...state.providers,
       ],
     })
       .overrideComponent(EmployeeDetailComponent, {
@@ -104,7 +110,6 @@ describe('EmployeeDetailComponent', () => {
       })
       .compileComponents();
     TestBed.inject(I18nService).setLanguage('vi');
-    navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
   });
 
   async function render(): Promise<ComponentFixture<EmployeeDetailComponent>> {
@@ -135,10 +140,10 @@ describe('EmployeeDetailComponent', () => {
     );
   });
 
-  // ---- keys in the URL --------------------------------------------------------------------------
+  // ---- record from the navigation state --------------------------------------------------------------------------
 
-  it('loads the employee by the code in the path and renders N/A for missing data', async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+  it('loads the employee by the code in the navigation state and renders N/A for missing data', async () => {
+    openEmployee('NV004');
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
     expect(employees.byCode).toHaveBeenCalledWith('NV004');
@@ -153,33 +158,15 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('loads the signed-in user\'s own record for the "me" key', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     await render();
 
     expect(employees.me).toHaveBeenCalledTimes(1);
     expect(employees.byCode).not.toHaveBeenCalled();
   });
 
-  it('resolves a legacy GUID link and swaps the GUID in the address for the code', async () => {
-    for (const legacy of [
-      () => query.next(convertToParamMap({ id: employee.id })),
-      () => params.next(convertToParamMap({ code: employee.id })),
-    ]) {
-      employees.detail.calls.reset();
-      navigate.calls.reset();
-      legacy();
-      await render();
-
-      expect(employees.detail).toHaveBeenCalledWith(employee.id);
-      expect(employees.byCode).not.toHaveBeenCalled();
-      expect(navigate).toHaveBeenCalledOnceWith(['/employee-detail', 'NV004'], {
-        replaceUrl: true,
-      });
-    }
-  });
-
   it('shows roster figures when present', async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     departments.members.and.returnValue(
       of({
         items: [
@@ -207,7 +194,7 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('still renders the profile when the department roster is forbidden', async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     departments.members.and.returnValue(throwError(() => new Error('403')));
     const fixture = await render();
     expect(fixture.nativeElement.textContent).toContain('Lê Minh Châu');
@@ -215,7 +202,7 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('shows an error with retry and never substitutes sample data', async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     employees.byCode.and.returnValue(throwError(() => new Error('500')));
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
@@ -228,22 +215,30 @@ describe('EmployeeDetailComponent', () => {
     expect(root.textContent).toContain('Lê Minh Châu');
   });
 
-  // ---- no GUID in any link ----------------------------------------------------------------------
+  // ---- no id in any link ------------------------------------------------------------------------
 
-  it('links to the manager and the department by code, never by GUID', async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+  /** Each employee link points at `/employee-detail/profile` and carries the code in its navigation state. */
+  const employeeLinks = (fixture: ComponentFixture<EmployeeDetailComponent>, selector = 'a') =>
+    fixture.debugElement
+      .queryAll(By.css(selector))
+      .filter((el) => el.nativeElement.getAttribute('href') === '/employee-detail/profile')
+      .map((el) => el.injector.get(RouterLink).state);
+
+  it('links to the manager and the department without any id in the URL', async () => {
+    openEmployee('NV004');
     employees.byCode.and.returnValue(of(withManager));
     const fixture = await render();
     const hrefs = Array.from(fixture.nativeElement.querySelectorAll('a[href]')).map((a) =>
       decodeURIComponent((a as HTMLAnchorElement).getAttribute('href') ?? ''),
     );
 
-    expect(hrefs).toContain('/employee-detail/NV002');
+    expect(employeeLinks(fixture)).toContain({ employeeCode: 'NV002' });
     expect(hrefs).toContain('/departments?department=CN-HN-KD1');
+    expect(hrefs.filter((href) => href.includes('NV002'))).toEqual([]);
     expect(hrefs.filter((href) => guid.test(href))).toEqual([]);
   });
 
-  it('links each picker row by employee code, never by GUID', async () => {
+  it('links each picker row by employee code in the navigation state, never in the URL', async () => {
     employees.list.and.returnValue(
       of({
         items: [employee, { ...withManager, id: 'another-id', employeeCode: 'NV005' }],
@@ -258,14 +253,18 @@ describe('EmployeeDetailComponent', () => {
       a.getAttribute('href'),
     );
 
-    expect(hrefs).toEqual(['/employee-detail/NV004', '/employee-detail/NV005']);
+    expect(hrefs).toEqual(['/employee-detail/profile', '/employee-detail/profile']);
+    expect(employeeLinks(fixture, 'td a')).toEqual([
+      { employeeCode: 'NV004' },
+      { employeeCode: 'NV005' },
+    ]);
     expect(hrefs.filter((href) => guid.test(href ?? ''))).toEqual([]);
   });
 
   // ---- own record: change phone / password ------------------------------------------------------
 
   it('enables the change buttons on /employee-detail/me', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     const fixture = await render();
 
     const labels = Array.from(actions(fixture.nativeElement)!.querySelectorAll('button')).map((b) =>
@@ -276,14 +275,14 @@ describe('EmployeeDetailComponent', () => {
 
   it('recognises the own record when opened by code (same email as the signed-in user)', async () => {
     auth.currentUser.set({ ...auth.currentUser()!, email: 'CHAU@example.test' });
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     const fixture = await render();
 
     expect(actions(fixture.nativeElement)).not.toBeNull();
   });
 
   it("shows no change buttons on someone else's record", async () => {
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     const fixture = await render();
 
     expect(actions(fixture.nativeElement)).toBeNull();
@@ -292,14 +291,14 @@ describe('EmployeeDetailComponent', () => {
 
   it('shows no change buttons in the picker or while signed out', async () => {
     auth.currentUser.set(null);
-    params.next(convertToParamMap({ code: 'NV004' }));
+    openEmployee('NV004');
     const fixture = await render();
 
     expect(actions(fixture.nativeElement)).toBeNull();
   });
 
   it('opens the phone popup prefilled with the stored number', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     employees.me.and.returnValue(of(withManager));
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
@@ -316,7 +315,7 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('closes the popup on Cancel without reloading', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
     root.querySelector<HTMLButtonElement>('.hero-actions button')!.click();
@@ -332,7 +331,7 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('reloads the record and confirms after the phone number was changed', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     employees.me.and.returnValue(of(withManager));
     profiles.updatePhone.and.returnValue(of({ phone: '0987654321' }));
     const fixture = await render();
@@ -358,7 +357,7 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('confirms after the password was changed and clears the confirmation when another popup opens', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    openOwnRecord();
     auth.changePassword.and.returnValue(of({} as never));
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
@@ -394,14 +393,16 @@ describe('EmployeeDetailComponent', () => {
   });
 
   it('forgets the popup and confirmation when the user moves to another record', async () => {
-    params.next(convertToParamMap({ code: 'me' }));
+    auth.currentUser.set({ ...auth.currentUser()!, email: employee.email });
+    openEmployee('NV004');
     const fixture = await render();
     const root: HTMLElement = fixture.nativeElement;
     root.querySelector<HTMLButtonElement>('.hero-actions button')!.click();
     fixture.detectChanges();
     expect(root.querySelector('[role="dialog"]')).not.toBeNull();
 
-    params.next(convertToParamMap({ code: 'NV004' }));
+    employees.byCode.and.returnValue(of({ ...withManager, email: 'manager@example.test' }));
+    openEmployee('NV002');
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();

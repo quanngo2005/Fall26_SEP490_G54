@@ -77,6 +77,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<RankingTierThreshold> RankingTierThresholds { get; set; }
 
+    public virtual DbSet<RankingSlotQuota> RankingSlotQuotas { get; set; }
+
     public virtual DbSet<SystemParameter> SystemParameters { get; set; }
 
     public virtual DbSet<EvaluationComparisonSetting> EvaluationComparisonSettings { get; set; }
@@ -1497,6 +1499,36 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("updated_at");
         });
 
+        modelBuilder.Entity<RankingSlotQuota>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ranking_slot_quota_pkey");
+
+            entity.ToTable("ranking_slot_quota", table =>
+            {
+                table.HasCheckConstraint("ck_ranking_slot_quota_headcount", "headcount >= 0");
+                table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
+            });
+
+            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier").IsUnique();
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.TierCode)
+                .HasMaxLength(10)
+                .HasColumnName("tier_code");
+            entity.Property(e => e.Headcount).HasColumnName("headcount");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false).HasColumnName("is_deleted");
+
+            entity.HasOne(d => d.Department).WithMany()
+                .HasForeignKey(d => d.DepartmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_slot_quota_department");
+        });
+
         modelBuilder.Entity<Downgrade>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("downgrade_pkey");
@@ -2290,11 +2322,19 @@ public partial class AppDbContext : DbContext
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);
+        ConfigureCallRecordings(modelBuilder);
+        ConfigureServiceRatings(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("import_batch_pkey");
             entity.ToTable("import_batch");
+            entity.HasIndex(e => new { e.FileType, e.ImportedAt }, "ix_import_batch_file_type");
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FileType)
+                .HasConversion(PgNameConverter<ImportFileType>())
+                .HasMaxLength(20)
+                .HasDefaultValue(ImportFileType.Transaction)
+                .HasColumnName("file_type");
             entity.Property(e => e.FileName).HasMaxLength(255).HasColumnName("file_name");
             entity.Property(e => e.TotalRows).HasColumnName("total_rows");
             entity.Property(e => e.ImportedRows).HasColumnName("imported_rows");

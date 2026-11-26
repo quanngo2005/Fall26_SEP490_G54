@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, RouterLink, withRouterConfig } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { AuthService } from '../../../core/auth.service';
 import { AuthenticatedUser } from '../../../core/auth.models';
@@ -9,6 +9,7 @@ import { QaDashboard, QaDashboardFilter } from '../../../core/qa-dashboard.model
 import { QaDashboardService } from '../../../core/qa-dashboard.service';
 import { QaDashboardComponent } from './qa-dashboard.component';
 import { dashboardFixture, filterOptionsFixture, inDays } from './qa-dashboard.fixtures.spec';
+import { By } from '@angular/platform-browser';
 
 describe('QaDashboardComponent', () => {
   let fixture: ComponentFixture<QaDashboardComponent>;
@@ -26,7 +27,8 @@ describe('QaDashboardComponent', () => {
     TestBed.configureTestingModule({
       imports: [QaDashboardComponent],
       providers: [
-        provideRouter([]),
+        // As in the app: filters change the navigation state of the same URL, so same-URL navigations must run.
+        provideRouter([], withRouterConfig({ onSameUrlNavigation: 'reload' })),
         { provide: AuthService, useValue: { currentUser: user.asReadonly() } },
         {
           provide: QaDashboardService,
@@ -48,6 +50,9 @@ describe('QaDashboardComponent', () => {
   const el = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) => el().querySelector(selector)?.textContent?.trim() ?? '';
   const cards = () => [...el().querySelectorAll<HTMLAnchorElement>('.cards a')];
+  /** The navigation state a card link carries (record ids stay out of its href). */
+  const cardState = (index: number) =>
+    fixture.debugElement.queryAll(By.css('.cards a'))[index].injector.get(RouterLink).state;
   const pills = () => cards().map((c) => c.querySelector('.pill')?.textContent?.trim() ?? '');
 
   it('loads the dashboard for the current period when the URL has no filter', () => {
@@ -68,8 +73,10 @@ describe('QaDashboardComponent', () => {
     // Fields the API does not send yet are simply left out of the pill.
     expect(pills()[2]).toBe('5 mẫu · 4 cờ');
     expect(pills()[3]).toBe('−8 điểm');
-    expect(cards()[0].getAttribute('href')).toBe('/reconciliations?period=p10&status=NOT_MATCHED');
-    expect(cards()[1].getAttribute('href')).toBe('/reconciliations?period=p10&status=IN_REVIEW');
+    expect(cards()[0].getAttribute('href')).toBe('/reconciliations?status=NOT_MATCHED');
+    expect(cards()[1].getAttribute('href')).toBe('/reconciliations?status=IN_REVIEW');
+    expect(cardState(0)).toEqual({ period: 'p10' });
+    expect(cardState(1)).toEqual({ period: 'p10' });
     expect(cards()[2].getAttribute('href')).toBe('/qa-queue');
     expect(cards()[3].getAttribute('href')).toBe('/risk-events');
   });
@@ -134,18 +141,20 @@ describe('QaDashboardComponent', () => {
     expect(cards().length).toBe(4);
   });
 
-  it('keeps the filters in the URL and reloads with them', async () => {
+  it('keeps the filters (record ids) in the navigation state, never in the URL, and reloads with them', async () => {
     setup();
     const router = TestBed.inject(Router);
-    await router.navigate([], { queryParams: { period: 'p09', department: 'd1', job: 'j1' } });
+    await router.navigate([], { state: { period: 'p09', department: 'd1', job: 'j1' } });
     fixture.detectChanges();
+    expect(router.url).toBe('/');
     expect(calls.at(-1)).toEqual({ periodId: 'p09', departmentId: 'd1', jobPositionId: 'j1' });
-    expect(cards()[0].getAttribute('href')).toBe(
-      '/reconciliations?period=p09&department=d1&job=j1&status=NOT_MATCHED',
-    );
+    expect(cards()[0].getAttribute('href')).toBe('/reconciliations?status=NOT_MATCHED');
+    expect(cardState(0)).toEqual({ period: 'p09', department: 'd1', job: 'j1' });
     (el().querySelector('.reset') as HTMLButtonElement).click();
     await fixture.whenStable();
+    fixture.detectChanges();
     expect(router.url).toBe('/');
+    expect(calls.at(-1)).toEqual({ periodId: null, departmentId: null, jobPositionId: null });
   });
 
   it('names monthly periods "Tháng …" in the period selector', () => {

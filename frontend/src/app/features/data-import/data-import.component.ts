@@ -2,17 +2,26 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { catchError, of, switchMap } from 'rxjs';
+import { catchError, Observable, of, switchMap } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { ImportBatchResult, ImportBatchSummary } from '../../core/import-history.models';
+import {
+  ImportBatchResult,
+  ImportBatchSummary,
+  ImportFileType,
+  ImportUploadEvent,
+} from '../../core/import-history.models';
 import { ImportHistoryService } from '../../core/import-history.service';
 import { currentPeriod } from '../../core/period-options';
 import { ReconciliationService } from '../../core/reconciliation.service';
+import { ServiceRatingImportService } from '../../core/service-rating-import.service';
+import { canManageServiceRatingImport } from '../../core/transaction-import.guard';
 import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe, AppNumberPipe } from '../../shared/pipes';
 import { fill } from '../home/qa-dashboard/qa-dashboard-display';
+import { ImportBatchDrawerComponent } from '../import-history/import-batch-drawer.component';
 import { saveFile } from '../performance-dashboard/performance-page';
 
 export type DataImportStep = 'CHOOSE' | 'UPLOAD' | 'RESULT';
@@ -23,12 +32,16 @@ export const WAITING_FOR_FILE_REASON = 'NO_IMPORTED_TRANSACTION';
 /** Only the first rejected rows are listed on the result step; the full list stays in the import history. */
 export const SHOWN_ERROR_ROWS = 20;
 
-const TEMPLATE_FILE_NAME = 'transaction-import-template.xlsx';
+const TEMPLATE_FILE_NAMES: Record<ImportFileType, string> = {
+  TRANSACTION: 'transaction-import-template.xlsx',
+  SERVICE_RATING: 'service-rating-import-template.xlsx',
+};
 
 /**
- * SCR-ADM-06 · Data import (UC29, UC31, UC33). Uploads one Core Banking transaction file. The server saves the valid
- * rows and reconciles the pending work transaction codes in the same request, so step 3 shows both results and links
- * to the reconciliation list (SCR-REV-03) already filtered. There is no server-side preview: rows that fail are
+ * SCR-ADM-06 · Data import (UC29, UC31, UC32, UC33). Uploads one Core Banking transaction file or, with
+ * `service_rating_import:manage`, one customer service rating file. For transactions the server saves the valid rows and
+ * reconciles the pending work transaction codes in the same request, so step 3 shows both results and links to the
+ * reconciliation list (SCR-REV-03) already filtered; ratings are only saved. There is no server-side preview: rows that fail are
  * skipped and reported, and re-importing the same file is safe because duplicates are skipped.
  */
 @Component({
@@ -40,6 +53,7 @@ const TEMPLATE_FILE_NAME = 'transaction-import-template.xlsx';
     HeaderComponent,
     SidebarComponent,
     LayoutIconComponent,
+    ImportBatchDrawerComponent,
   ],
   templateUrl: './data-import.component.html',
   styleUrls: [
@@ -50,6 +64,7 @@ const TEMPLATE_FILE_NAME = 'transaction-import-template.xlsx';
 })
 export class DataImportComponent extends LocalizedComponent {
   private readonly imports = inject(ImportHistoryService);
+  private readonly ratings = inject(ServiceRatingImportService);
   private readonly reconciliations = inject(ReconciliationService);
   private readonly evaluations = inject(EvaluationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -58,6 +73,10 @@ export class DataImportComponent extends LocalizedComponent {
   protected readonly waitingReason = WAITING_FOR_FILE_REASON;
   protected readonly shownErrorRows = SHOWN_ERROR_ROWS;
 
+  protected readonly canImportRatings = canManageServiceRatingImport(
+    inject(AuthService).currentUser()?.permissions,
+  );
+  protected readonly fileType = signal<ImportFileType>('TRANSACTION');
   protected readonly step = signal<DataImportStep>('CHOOSE');
   protected readonly file = signal<File | null>(null);
   protected readonly fileError = signal<string | null>(null);
@@ -68,6 +87,8 @@ export class DataImportComponent extends LocalizedComponent {
   protected readonly result = signal<ImportBatchResult | null>(null);
   protected readonly templateBusy = signal(false);
   protected readonly templateFailed = signal(false);
+  /** Batch whose error drawer (SCR-ADM-07-D1) is open over the result step. */
+  protected readonly errorBatchId = signal<string | null>(null);
 
   /** Context only: the current period and how many of its codes still wait for a file. `null` when unavailable. */
   protected readonly period = signal<EvaluationPeriodOption | null>(null);
@@ -121,6 +142,13 @@ export class DataImportComponent extends LocalizedComponent {
     this.choose(event.dataTransfer?.files?.[0] ?? null);
   }
 
+  protected selectType(type: ImportFileType): void {
+    this.fileType.set(type);
+    this.templateFailed.set(false);
+    this.uploadError.set(null);
+    this.uploadErrorDetail.set(null);
+  }
+
   protected removeFile(): void {
     this.file.set(null);
     this.fileError.set(null);
@@ -129,19 +157,19 @@ export class DataImportComponent extends LocalizedComponent {
   protected downloadTemplate(): void {
     this.templateBusy.set(true);
     this.templateFailed.set(false);
-    this.imports
-      .downloadTemplate()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (blob) => {
-          saveFile(blob, TEMPLATE_FILE_NAME);
-          this.templateBusy.set(false);
-        },
-        error: () => {
-          this.templateBusy.set(false);
-          this.templateFailed.set(true);
-        },
-      });
+    const type = this.fileType();
+    const template =
+      type === 'TRANSACTION' ? this.imports.downloadTemplate() : this.ratings.downloadTemplate();
+    template.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (blob) => {
+        saveFile(blob, TEMPLATE_FILE_NAMES[type]);
+        this.templateBusy.set(false);
+      },
+      error: () => {
+        this.templateBusy.set(false);
+        this.templateFailed.set(true);
+      },
+    });
   }
 
   protected upload(): void {
@@ -151,24 +179,25 @@ export class DataImportComponent extends LocalizedComponent {
     this.progress.set(0);
     this.uploadError.set(null);
     this.uploadErrorDetail.set(null);
-    this.imports
-      .upload(file)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (event) => {
-          if (event.kind === 'progress') {
-            this.progress.set(event.percent);
-            return;
-          }
-          this.result.set(event.result);
-          this.step.set('RESULT');
-          this.loadContext();
-        },
-        error: (error: unknown) => {
-          this.step.set('CHOOSE');
-          this.showUploadError(error);
-        },
-      });
+    const isTransaction = this.fileType() === 'TRANSACTION';
+    const upload: Observable<ImportUploadEvent> = isTransaction
+      ? this.imports.upload(file)
+      : this.ratings.upload(file);
+    upload.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (event) => {
+        if (event.kind === 'progress') {
+          this.progress.set(event.percent);
+          return;
+        }
+        this.result.set(event.result);
+        this.step.set('RESULT');
+        if (isTransaction) this.loadContext();
+      },
+      error: (error: unknown) => {
+        this.step.set('CHOOSE');
+        this.showUploadError(error);
+      },
+    });
   }
 
   /** Back to step 1 for another file. */
@@ -176,6 +205,7 @@ export class DataImportComponent extends LocalizedComponent {
     this.file.set(null);
     this.fileError.set(null);
     this.result.set(null);
+    this.errorBatchId.set(null);
     this.uploadError.set(null);
     this.uploadErrorDetail.set(null);
     this.step.set('CHOOSE');
@@ -208,7 +238,7 @@ export class DataImportComponent extends LocalizedComponent {
     }
     const messages: Record<number, string> = {
       400: text.uploadRejected,
-      403: text.uploadForbidden,
+      403: this.fileType() === 'TRANSACTION' ? text.uploadForbidden : text.uploadRatingsForbidden,
       413: text.uploadTooLarge,
     };
     this.uploadError.set(messages[error.status] ?? text.uploadFailed);
