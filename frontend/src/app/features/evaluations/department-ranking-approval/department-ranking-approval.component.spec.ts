@@ -355,9 +355,9 @@ describe('DepartmentRankingApprovalComponent', () => {
   });
 
   it('should auto-load calibration for first department', () => {
-    expect(evaluationServiceSpy.getCalibration).toHaveBeenCalledWith('p-1', 'd-1');
+    expect(evaluationServiceSpy.getCalibration).toHaveBeenCalledWith('p-1', 'd-1', undefined, true);
     expect(component.calibrationData()).toEqual(mockCalibration);
-    expect(component.positionTabs().length).toBe(2);
+    expect(component.positionTabs().length).toBe(3);
   });
 
   it('should filter roster by selected position tab', () => {

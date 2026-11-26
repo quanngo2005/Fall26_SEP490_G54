@@ -1259,21 +1259,24 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", periodId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+
         var departments = await db.Departments
             .AsNoTracking()
             .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
             .OrderBy(d => d.Name)
             .ToListAsync(cancellationToken);
 
-        var deptIds = departments.Select(d => d.Id).ToList();
+        var deptSubtreeMap = departments.ToDictionary(
+            d => d.Id,
+            d => hierarchy.Nodes.ContainsKey(d.Id) ? hierarchy.Subtree(d.Id) : (IReadOnlyCollection<Guid>)[d.Id]);
+
+        var allSubtreeDeptIds = deptSubtreeMap.Values.SelectMany(x => x).Distinct().ToList();
 
         var employees = await db.Employees
             .AsNoTracking()
-            .Where(e => deptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .Where(e => allSubtreeDeptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .ToListAsync(cancellationToken);
-
-        var empDeptMap = employees.GroupBy(e => e.DepartmentId)
-            .ToDictionary(g => g.Key, g => g.ToList());
 
         var allEmpIds = employees.Select(e => e.Id).ToList();
 
@@ -1293,8 +1296,8 @@ public sealed partial class EvaluationService(
 
         foreach (var dept in departments)
         {
-            empDeptMap.TryGetValue(dept.Id, out var deptEmps);
-            deptEmps ??= new();
+            var subtreeDeptIds = deptSubtreeMap[dept.Id];
+            var deptEmps = employees.Where(e => subtreeDeptIds.Contains(e.DepartmentId)).ToList();
 
             // BR-31: scores under dispute (Disputed_Pending) are hidden from ranking, averages and tier counts.
             var activeDeptEmps = deptEmps.Where(e => !disputedEmployeeIds.Contains(e.Id)).ToList();
@@ -1463,9 +1466,12 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", departmentId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepts = hierarchy.Nodes.ContainsKey(departmentId) ? hierarchy.Subtree(departmentId) : [departmentId];
+
         var deptEmployeeIds = await db.Employees
             .AsNoTracking()
-            .Where(e => e.DepartmentId == departmentId)
+            .Where(e => rosterDepts.Contains(e.DepartmentId))
             .Select(e => e.Id)
             .ToListAsync(cancellationToken);
 
@@ -1542,9 +1548,12 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", departmentId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepts = hierarchy.Nodes.ContainsKey(departmentId) ? hierarchy.Subtree(departmentId) : [departmentId];
+
         var deptEmployeeIds = await db.Employees
             .AsNoTracking()
-            .Where(e => e.DepartmentId == departmentId && e.Status == EmployeeStatus.Active)
+            .Where(e => rosterDepts.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .Select(e => e.Id)
             .ToListAsync(cancellationToken);
 

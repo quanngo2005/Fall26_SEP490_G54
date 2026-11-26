@@ -89,10 +89,14 @@ export class EvaluationService {
     periodId: string,
     departmentId?: string,
     positionId?: string,
+    includeSubDepartments?: boolean,
   ): Observable<CalibrationOverview> {
     let params = new HttpParams().set('periodId', periodId);
     if (departmentId) params = params.set('departmentId', departmentId);
     if (positionId) params = params.set('positionId', positionId);
+    if (includeSubDepartments !== undefined) {
+      params = params.set('includeSubDepartments', String(includeSubDepartments));
+    }
     return this.http
       .get<ApiResponse<CalibrationOverview>>(`${this.url}/calibration`, { params })
       .pipe(map((response) => this.unwrap(response)));

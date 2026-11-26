@@ -78,7 +78,7 @@ public sealed class EvaluationControllerTests
         var departmentId = Guid.NewGuid();
         var positionId = Guid.NewGuid();
 
-        var result = await controller.GetCalibration(periodId, departmentId, positionId, CancellationToken.None);
+        var result = await controller.GetCalibration(periodId, departmentId, positionId, cancellationToken: CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal((periodId, departmentId, positionId, UserId), service.LastCalibrationRequest);

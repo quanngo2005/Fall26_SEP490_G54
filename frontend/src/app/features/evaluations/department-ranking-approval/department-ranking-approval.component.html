@@ -160,7 +160,7 @@
               <!-- Position Filter Tabs -->
               @if (positionTabs().length > 1) {
                 <div class="position-tabs-nav" role="tablist">
-                  @for (tab of positionTabs(); track tab.id) {
+                  @for (tab of positionTabs(); track tab.id ?? 'all') {
                     <button
                       type="button"
                       role="tab"

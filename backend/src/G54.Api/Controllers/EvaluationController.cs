@@ -335,7 +335,8 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         [FromQuery] Guid? departmentId,
         [FromQuery] Guid? positionId,
-        CancellationToken cancellationToken)
+        [FromQuery] bool includeSubDepartments = false,
+        CancellationToken cancellationToken = default)
     {
         RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentCalibrationAsync(
@@ -343,6 +344,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             departmentId,
             positionId,
             User.GetRequiredUserId(),
+            includeSubDepartments: includeSubDepartments,
             cancellationToken: cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));

@@ -259,13 +259,22 @@ export class DepartmentRankingApprovalComponent implements OnInit {
       }
     }
 
-    const tabs: PositionTabItem[] = [];
+    if (map.size <= 1) return [];
+
+    const tabs: PositionTabItem[] = [
+      {
+        id: null,
+        title: this.t()['allPositions'] || 'Tất cả vị trí',
+        count: roster.length,
+        hiddenCount: hidden,
+      },
+    ];
     for (const [id, val] of map.entries()) {
       tabs.push({
         id,
         title: val.title,
         count: val.count,
-        hiddenCount: hidden,
+        hiddenCount: 0,
       });
     }
 
@@ -469,14 +478,9 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     if (!pid || !deptId) return;
 
     this.loadingCalibration.set(true);
-    this.evaluationService.getCalibration(pid, deptId).subscribe({
+    this.evaluationService.getCalibration(pid, deptId, undefined, true).subscribe({
       next: (calib) => {
         this.calibrationData.set(calib);
-        // Default to first position tab if available
-        const tabs = this.positionTabs();
-        if (tabs.length > 0 && !this.selectedPositionId()) {
-          this.selectedPositionId.set(tabs[0].id);
-        }
         this.loadingCalibration.set(false);
       },
       error: () => {
