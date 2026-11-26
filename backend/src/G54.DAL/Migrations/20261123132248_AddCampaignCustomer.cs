@@ -157,7 +157,7 @@ public partial class AddCampaignCustomer : Migration
         // seed_dev_data.sql. Idempotent and data-only, same idiom as GrantEvaluationCalculate.
         migrationBuilder.Sql("""
             INSERT INTO permission (id, code, name, resource, action)
-            VALUES ('5eed0000-0000-0000-0009-000000000031', 'CAMPAIGN_CONTACT', 'Cập nhật liên hệ khách hàng chiến dịch', 'campaign_customer', 'update')
+            VALUES ('5eed0000-0000-0000-0009-000000000037', 'CAMPAIGN_CONTACT', 'Cập nhật liên hệ khách hàng chiến dịch', 'campaign_customer', 'update')
             ON CONFLICT DO NOTHING;
 
             INSERT INTO role_permission (role_id, permission_id, scope)
