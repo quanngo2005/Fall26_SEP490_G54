@@ -185,6 +185,19 @@ export class TargetAssignmentService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  /**
+   * `GET /target-assignments/{branchYearId}/allocations`: every allocatable KPI's department allocation in one
+   * call (matrix view), ordered by KPI group code then KPI code. Omits ratio KPIs and KPIs whose quarter split
+   * is not ready yet.
+   */
+  getAllAllocations(branchYearId: string): Observable<KpiAllocation[]> {
+    return this.http
+      .get<ApiResponse<KpiAllocation[]>>(
+        `${this.url}/${encodeURIComponent(branchYearId)}/allocations`,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   /** `PUT /target-assignments/{branchYearId}/kpis/{kpiId}/allocation`: saves one KPI's department allocation. */
   saveKpiAllocation(
     branchYearId: string,

@@ -1,13 +1,14 @@
 import { expand, Observable, reduce } from 'rxjs';
-import { DepartmentSummary } from '../../core/department.models';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
 import { KpiDefinition } from '../../core/kpi-definition.models';
 import { PagedResult } from '../../core/paged-result.model';
-import { TargetAssignment, TargetFeedbackStatus } from '../../core/target-assignment.models';
-
-/** KPI id -> target value of one owner. */
-export type KpiValues = ReadonlyMap<string, number>;
+import {
+  KpiAllocation,
+  QuarterSplitRow,
+  TargetAssignment,
+  TargetFeedbackStatus,
+} from '../../core/target-assignment.models';
 
 /** `NONE` renders as "—" (KPI does not apply), `UNALLOCATED` as "not allocated yet". */
 export type TargetCell = number | 'NONE' | 'UNALLOCATED';
@@ -99,98 +100,182 @@ export function includesText(value: string, query: string): boolean {
   return value.toLowerCase().includes(query);
 }
 
-// --- Branch manager table ---------------------------------------------------------------------
-
-export interface BranchEmployeeRow {
-  employee: EmployeeDetail;
-  cells: TargetCell[];
+/** How a KPI column is shown: cell value ÷ `divisor`, with `unit` in the header. */
+export interface ColumnFormat {
+  divisor: number;
+  unit: string;
 }
 
-export interface BranchDepartmentRow {
-  department: DepartmentSummary;
-  memberCount: number;
-  cells: TargetCell[];
-  members: BranchEmployeeRow[];
+export interface ColumnUnitLabels {
+  billionVnd: string;
+  millionVnd: string;
 }
 
-export interface BranchTable {
-  branchName: string;
-  total: TargetCell[];
-  departments: BranchDepartmentRow[];
+const BILLION = 1_000_000_000;
+const MILLION = 1_000_000;
+
+/**
+ * Money (unit VND) is shown in tỷ or triệu VND when every value in the column is at least that large; percentages
+ * stored as fractions (all values within 0..1) are shown ×100, so 0.4 reads 40 %. Other units are shown as they are.
+ */
+export function columnFormat(
+  unit: string,
+  cells: readonly TargetCell[],
+  labels: ColumnUnitLabels,
+): ColumnFormat {
+  const values = cells.filter((cell): cell is number => typeof cell === 'number' && cell !== 0);
+  const smallest = values.length ? Math.min(...values.map(Math.abs)) : 0;
+  const normalized = unit.trim().toUpperCase();
+  if (normalized === 'VND' || normalized === 'VNĐ') {
+    if (smallest >= BILLION) return { divisor: BILLION, unit: labels.billionVnd };
+    if (smallest >= MILLION) return { divisor: MILLION, unit: labels.millionVnd };
+  }
+  if (normalized === '%' && values.every((value) => Math.abs(value) <= 1)) {
+    return { divisor: 0.01, unit: '%' };
+  }
+  return { divisor: 1, unit };
 }
 
-export interface BranchTableInput {
-  kpis: readonly KpiDefinition[];
-  assignments: readonly TargetAssignment[];
-  departments: readonly DepartmentSummary[];
-  employees: readonly EmployeeDetail[];
-  search: string;
-  departmentId: string;
-  position: string;
+// --- Branch manager KPI × quarter table (SCR-STRAT-03.1) ------------------------------------
+
+export type KpiSplitState = 'MATCHED' | 'SHORT' | 'OVER' | 'NOT_SPLIT' | 'FIXED';
+
+export interface KpiQuarterRow {
+  kpiId: string;
+  kpiCode: string;
+  kpiName: string;
+  unit: string;
+  groupName: string;
+  /** Non-SUM KPI: the year value applies to every quarter and the row cannot be split. */
+  isRatio: boolean;
+  year: number;
+  /** [Q1, Q2, Q3, Q4]; `'NONE'` renders "—" for a quarter that has not been split yet. */
+  quarters: TargetCell[];
+  previousYear: number | null;
+  /** `(year - previousYear) / previousYear × 100`; null with no previous-year value. */
+  changePercent: number | null;
+  state: KpiSplitState;
+  /** `|year - sum(quarters)|` in the KPI's base unit; 0 unless `state` is `SHORT` or `OVER`. */
+  diff: number;
 }
 
-function cellOf(values: KpiValues | undefined, kpiId: string): TargetCell {
-  return values?.get(kpiId) ?? 'NONE';
+export interface KpiGroupSection {
+  groupName: string;
+  rows: KpiQuarterRow[];
 }
 
-/** A department and every team beneath it. */
-function subtreeIds(departments: readonly DepartmentSummary[], rootId: string): Set<string> {
-  const ids = new Set([rootId]);
-  let size = 0;
-  while (ids.size !== size) {
-    size = ids.size;
-    for (const department of departments) {
-      if (department.parentDepartmentId && ids.has(department.parentDepartmentId)) {
-        ids.add(department.id);
-      }
+/** Percent change from `previous` to `current`, or null when there is nothing to compare against. */
+export function yearOverYearChange(current: number | null, previous: number | null): number | null {
+  return current === null || !previous ? null : ((current - previous) / previous) * 100;
+}
+
+/** How a KPI's quarters compare to its year value: fixed (non-SUM), not split, matched, short or over. */
+export function quarterStatus(
+  isRatio: boolean,
+  quarters: readonly (number | null)[],
+  matched: boolean,
+  diff: number,
+): { state: KpiSplitState; diff: number } {
+  if (isRatio) {
+    return { state: 'FIXED', diff: 0 };
+  }
+  if (quarters.every((q) => q === null)) {
+    return { state: 'NOT_SPLIT', diff: 0 };
+  }
+  if (matched) {
+    return { state: 'MATCHED', diff: 0 };
+  }
+  return { state: diff > 0 ? 'SHORT' : 'OVER', diff: Math.abs(diff) };
+}
+
+/** One row per KPI of the branch's quarter split, in the group/code order the API already returns. */
+export function buildBranchQuarterRows(rows: readonly QuarterSplitRow[]): KpiQuarterRow[] {
+  return rows.map((row): KpiQuarterRow => {
+    const rawQuarters = [row.q1, row.q2, row.q3, row.q4];
+    const { state, diff } = quarterStatus(row.isRatio, rawQuarters, row.matched, row.diff);
+    const quarters: TargetCell[] = row.isRatio
+      ? [row.yearValue, row.yearValue, row.yearValue, row.yearValue]
+      : rawQuarters.map((q): TargetCell => q ?? 'NONE');
+    return {
+      kpiId: row.kpiId,
+      kpiCode: row.kpiCode,
+      kpiName: row.kpiName,
+      unit: row.unit,
+      groupName: row.groupName,
+      isRatio: row.isRatio,
+      year: row.yearValue,
+      quarters,
+      previousYear: row.previousYearValue,
+      changePercent: yearOverYearChange(row.yearValue, row.previousYearValue),
+      state,
+      diff,
+    };
+  });
+}
+
+/** One row per KPI the department has a year target for, ordered by KPI group then code. */
+export function buildDepartmentQuarterRows(
+  kpis: readonly KpiDefinition[],
+  departmentId: string,
+  yearRows: readonly TargetAssignment[],
+  quarterRows: readonly (readonly TargetAssignment[])[],
+  previousYearRows: readonly TargetAssignment[],
+): KpiQuarterRow[] {
+  const yearValues = valuesByOwner(yearRows, 'departmentId').get(departmentId);
+  if (!yearValues) {
+    return [];
+  }
+  const quarterValues = quarterRows.map((rows) =>
+    valuesByOwner(rows, 'departmentId').get(departmentId),
+  );
+  const previousValues = valuesByOwner(previousYearRows, 'departmentId').get(departmentId);
+
+  const rows: KpiQuarterRow[] = [];
+  for (const kpi of kpis) {
+    const year = yearValues.get(kpi.id);
+    if (year === undefined) {
+      continue;
+    }
+    const isRatio = kpi.aggregationType !== 'SUM';
+    const rawQuarters = quarterValues.map((values) => values?.get(kpi.id) ?? null);
+    const sum = rawQuarters.reduce((total: number, q) => total + (q ?? 0), 0);
+    const { state, diff } = quarterStatus(isRatio, rawQuarters, sum === year, year - sum);
+    const quarters: TargetCell[] = isRatio
+      ? [year, year, year, year]
+      : rawQuarters.map((q): TargetCell => q ?? 'NONE');
+    const previousYear = previousValues?.get(kpi.id) ?? null;
+    rows.push({
+      kpiId: kpi.id,
+      kpiCode: kpi.code,
+      kpiName: kpi.name,
+      unit: kpi.unit,
+      groupName: kpi.kpiGroupName,
+      isRatio,
+      year,
+      quarters,
+      previousYear,
+      changePercent: yearOverYearChange(year, previousYear),
+      state,
+      diff,
+    });
+  }
+  return rows.sort(
+    (a, b) => a.groupName.localeCompare(b.groupName) || a.kpiCode.localeCompare(b.kpiCode),
+  );
+}
+
+/** Groups consecutive rows that share a KPI group, for the "<groupName> · n KPI" header rows. */
+export function groupKpiRows(rows: readonly KpiQuarterRow[]): KpiGroupSection[] {
+  const sections: KpiGroupSection[] = [];
+  for (const row of rows) {
+    const last = sections[sections.length - 1];
+    if (last && last.groupName === row.groupName) {
+      last.rows.push(row);
+    } else {
+      sections.push({ groupName: row.groupName, rows: [row] });
     }
   }
-  return ids;
-}
-
-export function buildBranchTable(input: BranchTableInput): BranchTable {
-  const branch = input.departments.find((d) => d.levelType === 'BRANCH');
-  const deptValues = valuesByOwner(input.assignments, 'departmentId');
-  const employeeValues = valuesByOwner(input.assignments, 'employeeId');
-  const query = input.search.trim().toLowerCase();
-
-  const departments = input.departments
-    .filter((d) => branch && d.parentDepartmentId === branch.id)
-    .filter((d) => !input.departmentId || d.id === input.departmentId)
-    .map((department): BranchDepartmentRow => {
-      const values = deptValues.get(department.id);
-      const scope = subtreeIds(input.departments, department.id);
-      const everyone = input.employees.filter(
-        (e) => scope.has(e.departmentId) && e.status === 'ACTIVE',
-      );
-      const deptMatches = !query || includesText(department.name, query);
-      const members = everyone
-        .filter((e) => !input.position || e.jobPositionTitle === input.position)
-        .filter(
-          (e) =>
-            deptMatches || includesText(e.fullName, query) || includesText(e.employeeCode, query),
-        )
-        .map((employee) => ({
-          employee,
-          cells: input.kpis.map((kpi): TargetCell => {
-            const own = employeeValues.get(employee.id)?.get(kpi.id);
-            return own ?? (values?.has(kpi.id) ? 'UNALLOCATED' : 'NONE');
-          }),
-        }));
-      return {
-        department,
-        memberCount: everyone.length,
-        cells: input.kpis.map((kpi) => cellOf(values, kpi.id)),
-        members,
-      };
-    })
-    .filter((row) => (!query && !input.position) || row.members.length > 0);
-
-  return {
-    branchName: branch?.name ?? '',
-    total: input.kpis.map((kpi) => cellOf(branch ? deptValues.get(branch.id) : undefined, kpi.id)),
-    departments,
-  };
+  return sections;
 }
 
 // --- Department manager screen ----------------------------------------------------------------
@@ -273,4 +358,90 @@ export function buildFeedbackRows(
       assignmentIds: owned.map((a) => a.id),
     };
   });
+}
+
+// =========================================================================
+// W2 heatmap (Theo phòng): department x KPI grid built from the bulk allocation
+// endpoint (`GET /{branchYearId}/allocations`). The contract has no per-department
+// "% chia xuống NV" or "% đạt so với nhịp" figure yet (no `deptYearId` on the Phase 2
+// department row to reach tier-3 data, and no branch/department actual-progress
+// endpoint) - see the W1/W2 gap note in the handback report. The one real signal the
+// endpoint carries is each department's allocation match (`matched`), so the heatmap
+// is colored by that instead of a percentage.
+// =========================================================================
+
+export type HeatmapCellState = 'MATCHED' | 'MISMATCH' | 'NOT_ELIGIBLE';
+
+export interface HeatmapColumn {
+  kpiId: string;
+  kpiCode: string;
+  kpiName: string;
+  groupName: string;
+}
+
+export interface HeatmapCell {
+  state: HeatmapCellState;
+  year: number | null;
+  diff: number | null;
+  /** Set only when `state` is `NOT_ELIGIBLE` (e.g. no headcount for this KPI's work type). */
+  reason: string | null;
+}
+
+export interface HeatmapRow {
+  departmentId: string;
+  departmentName: string;
+  cells: HeatmapCell[];
+  mismatchCount: number;
+}
+
+export interface HeatmapData {
+  columns: HeatmapColumn[];
+  rows: HeatmapRow[];
+}
+
+/** `departments` is the branch's direct child departments (the same list the view-by-department filter uses). */
+export function buildAllocationHeatmap(
+  allocations: readonly KpiAllocation[],
+  kpiRows: readonly KpiQuarterRow[],
+  departments: readonly { id: string; name: string }[],
+): HeatmapData {
+  const rowByKpiId = new Map(kpiRows.map((row) => [row.kpiId, row]));
+  const columns: HeatmapColumn[] = allocations.map((allocation) => {
+    const row = rowByKpiId.get(allocation.kpiId);
+    return {
+      kpiId: allocation.kpiId,
+      kpiCode: row?.kpiCode ?? allocation.kpiName,
+      kpiName: allocation.kpiName,
+      groupName: row?.groupName ?? '',
+    };
+  });
+
+  const rows: HeatmapRow[] = departments.map((department) => {
+    const cells = allocations.map((allocation): HeatmapCell => {
+      const deptRow = allocation.departments.find((d) => d.departmentId === department.id);
+      if (deptRow) {
+        return {
+          state: deptRow.matched ? 'MATCHED' : 'MISMATCH',
+          year: deptRow.year,
+          diff: null,
+          reason: null,
+        };
+      }
+      const hidden = allocation.hiddenDepartments.find((d) => d.departmentId === department.id);
+      return {
+        state: 'NOT_ELIGIBLE',
+        year: null,
+        diff: null,
+        reason: hidden?.reason ?? 'no_headcount',
+      };
+    });
+    return {
+      departmentId: department.id,
+      departmentName: department.name,
+      cells,
+      mismatchCount: cells.filter((c) => c.state === 'MISMATCH').length,
+    };
+  });
+
+  return { columns, rows };
 }

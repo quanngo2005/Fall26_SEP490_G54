@@ -74,6 +74,28 @@ public sealed class EvaluationPeriodsController(IEvaluationPeriodService service
         return StatusCode(StatusCodes.Status201Created, response);
     }
 
+    /// <summary>Creates the full period tree of a year (year, 2 half-years, 4 quarters) so its targets can be imported.</summary>
+    [HttpPost("years")]
+    [HasPermission("target", "manage", "Branch")]
+    [ProducesResponseType<ApiResponse<CreateYearPeriodsResultDto>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<CreateYearPeriodsResultDto>>> CreateYear(
+        [FromBody] CreateYearPeriodsRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.CreateYearAsync(request, cancellationToken);
+        var response = new ApiResponse<CreateYearPeriodsResultDto>
+        {
+            Success = true,
+            Status = StatusCodes.Status201Created,
+            Data = result,
+            Message = SuccessMessages.GetMessage(SuccessMessages.Created),
+            TraceId = HttpContext.TraceIdentifier,
+        };
+        return StatusCode(StatusCodes.Status201Created, response);
+    }
+
     [HttpPost("{id:guid}/close")]
     [HasPermission("evaluation", "finalize", PermissionScopes.Branch)]
     [ProducesResponseType<ApiResponse<ClosePeriodResultDto>>(StatusCodes.Status200OK)]

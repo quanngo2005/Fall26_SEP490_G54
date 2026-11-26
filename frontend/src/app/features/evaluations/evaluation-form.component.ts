@@ -177,9 +177,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly scorePillText = computed(() => {
     const difference = this.form()?.previousPeriod?.scoreDifference ?? null;
     if (difference === null) return null;
-    const arrow = difference > 0 ? '▲ ' : difference < 0 ? '▼ ' : '';
     const sign = difference > 0 ? '+' : difference < 0 ? '-' : '';
-    return `${arrow}${sign}${this.i18n.formatNumber(Math.abs(difference), 2)}`;
+    return `${sign}${this.i18n.formatNumber(Math.abs(difference), 2)}`;
   });
 
   readonly scorePillClass = computed(() =>

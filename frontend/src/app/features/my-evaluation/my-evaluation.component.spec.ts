@@ -534,7 +534,7 @@ describe('MyEvaluationComponent', () => {
 
     const deltaBadge = fixture.debugElement.query(By.css('.metric-pill.pill-warning'));
     expect(deltaBadge).toBeTruthy();
-    expect(deltaBadge.nativeElement.textContent).toContain('▼');
+    expect(deltaBadge.nativeElement.textContent).toContain('-');
     expect(deltaBadge.nativeElement.textContent).toContain('2,4');
   });
 

@@ -110,6 +110,21 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
     }
 
     [PostgresFact]
+    public async Task HdvAndDuNoAreStoredInFullVndLikeEveryOtherMonetaryKpi()
+    {
+        var rows = await QueryAsync("""
+            SELECT k.code || '=' || k.unit || '=' || (max(ta.target_value) >= 1000000000)
+            FROM kpi_definition k
+            JOIN target_assignment ta ON ta.kpi_definition_id = k.id
+            WHERE k.code IN ('HDV', 'DU_NO')
+            GROUP BY k.code, k.unit
+            ORDER BY k.code
+            """);
+
+        Assert.Equal(["DU_NO=VND=true", "HDV=VND=true"], rows);
+    }
+
+    [PostgresFact]
     public async Task EachDemoAccountHoldsTheRoleItIsMeantToTest()
     {
         var roles = await QueryAsync("""
@@ -308,46 +323,48 @@ public sealed class DemoSeedPostgresTests(DemoSeedDatabaseFixture fixture) : ICl
         using var scope = fixture.Provider?.CreateScope() ?? new ServiceCollection().AddDataAccess("Host=unused").BuildServiceProvider().CreateScope();
         var migrations = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.GetMigrations().ToList();
 
-        Assert.Equal("20261123062514_AddCallRecordingAiTriage", migrations[^1]);
-        Assert.Equal("20261123062510_AddServiceRatingImport", migrations[^2]);
-        Assert.Equal("20261123062048_AddQualityFlagReviewTrail", migrations[^3]);
-        Assert.Equal("20261120020000_RemoveEmployeeCheckEvaluationStatuses", migrations[^4]);
-        Assert.Equal("20261119154738_ChangePerformanceEvaluationFinalFlow", migrations[^5]);
-        Assert.Equal("20261119140000_ConsolidateRoles", migrations[^6]);
-        Assert.Equal("20261119073218_AddRankingSlotTierC", migrations[^7]);
-        Assert.Equal("20261118122406_AddRankingSlotQuota", migrations[^8]);
-        Assert.Equal("20261117162433_GrantQaPermissionsToVerifier", migrations[^9]);
-        Assert.Equal("20261117153644_GrantReconciliationRead", migrations[^10]);
-        Assert.Equal("20261116175434_ExpandNotificationsAndPermissions", migrations[^11]);
-        Assert.Equal("20261116130000_GrantEvaluationCalculate", migrations[^12]);
-        Assert.Equal("20261116120000_AlignWorkResultItemTriggerWithProgressDate", migrations[^13]);
-        Assert.Equal("20261116071858_AddAccountMustChangePassword", migrations[^14]);
-        Assert.Equal("20261116041639_AddImportedTransactionCustomerCode", migrations[^15]);
-        Assert.Equal("20261115073220_AddDynamicRankingPolicyAndSystemParameters", migrations[^16]);
-        Assert.Equal("20261112092307_RemoveDirectScoreAppeals", migrations[^17]);
-        Assert.Equal("20261112044702_AddWorkDetailChecklistAndActivity", migrations[^18]);
-        Assert.Equal("20261112031743_AddResultSubmissionCarryOver", migrations[^19]);
-        Assert.Equal("20261110000000_GrantTransactionImportToManagersAndQa", migrations[^20]);
-        Assert.Equal("20261109182557_AddImportBatchError", migrations[^21]);
-        Assert.Equal("20261108063514_AddTargetVersionEffectiveDates", migrations[^22]);
-        Assert.Equal("20261105160000_AddRiskEventScreens", migrations[^23]);
-        Assert.Equal("20261105151226_AddSystemParameters", migrations[^24]);
-        Assert.Equal("20261105150000_FixInvalidateProgressUsesRawValue", migrations[^25]);
-        Assert.Equal("20261105094144_AddQaItemCode", migrations[^26]);
-        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^27]);
-        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^28]);
-        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^29]);
-        Assert.Equal("20261104153505_AddTransactionImport", migrations[^30]);
-        Assert.Equal("20261104121610_AddNotifications", migrations[^31]);
-        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^32]);
-        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^33]);
-        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^34]);
-        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^35]);
-        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^36]);
-        Assert.Equal("20261103112541_UpdateTargetChildrenSumTriggerBySplitDimension", migrations[^37]);
-        Assert.Equal("20261102134713_AddDataImportSupport", migrations[^38]);
-        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^39]);
-        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^40]);
+        Assert.Equal("20261125090000_ConvertTyVndKpisToVnd", migrations[^1]);
+        Assert.Equal("20261123062514_AddCallRecordingAiTriage", migrations[^2]);
+        Assert.Equal("20261123062510_AddServiceRatingImport", migrations[^3]);
+        Assert.Equal("20261123062048_AddQualityFlagReviewTrail", migrations[^4]);
+        Assert.Equal("20261120020000_RemoveEmployeeCheckEvaluationStatuses", migrations[^5]);
+        Assert.Equal("20261119154738_ChangePerformanceEvaluationFinalFlow", migrations[^6]);
+        Assert.Equal("20261119140000_ConsolidateRoles", migrations[^7]);
+        Assert.Equal("20261119073218_AddRankingSlotTierC", migrations[^8]);
+        Assert.Equal("20261118130133_AddEmployeeTargetAckAndChangeLog", migrations[^9]);
+        Assert.Equal("20261118122406_AddRankingSlotQuota", migrations[^10]);
+        Assert.Equal("20261117162433_GrantQaPermissionsToVerifier", migrations[^11]);
+        Assert.Equal("20261117153644_GrantReconciliationRead", migrations[^12]);
+        Assert.Equal("20261116175434_ExpandNotificationsAndPermissions", migrations[^13]);
+        Assert.Equal("20261116130000_GrantEvaluationCalculate", migrations[^14]);
+        Assert.Equal("20261116120000_AlignWorkResultItemTriggerWithProgressDate", migrations[^15]);
+        Assert.Equal("20261116071858_AddAccountMustChangePassword", migrations[^16]);
+        Assert.Equal("20261116041639_AddImportedTransactionCustomerCode", migrations[^17]);
+        Assert.Equal("20261115073220_AddDynamicRankingPolicyAndSystemParameters", migrations[^18]);
+        Assert.Equal("20261112092307_RemoveDirectScoreAppeals", migrations[^19]);
+        Assert.Equal("20261112044702_AddWorkDetailChecklistAndActivity", migrations[^20]);
+        Assert.Equal("20261112031743_AddResultSubmissionCarryOver", migrations[^21]);
+        Assert.Equal("20261110000000_GrantTransactionImportToManagersAndQa", migrations[^22]);
+        Assert.Equal("20261109182557_AddImportBatchError", migrations[^23]);
+        Assert.Equal("20261108063514_AddTargetVersionEffectiveDates", migrations[^24]);
+        Assert.Equal("20261105160000_AddRiskEventScreens", migrations[^25]);
+        Assert.Equal("20261105151226_AddSystemParameters", migrations[^26]);
+        Assert.Equal("20261105150000_FixInvalidateProgressUsesRawValue", migrations[^27]);
+        Assert.Equal("20261105094144_AddQaItemCode", migrations[^28]);
+        Assert.Equal("20261105082939_AddQualityAssurance", migrations[^29]);
+        Assert.Equal("20261104171857_AddKpiCatalogFields", migrations[^30]);
+        Assert.Equal("20261104160611_AddWorkTransactionReconcile", migrations[^31]);
+        Assert.Equal("20261104153505_AddTransactionImport", migrations[^32]);
+        Assert.Equal("20261104121610_AddNotifications", migrations[^33]);
+        Assert.Equal("20261104100000_RemoveReportsComplaintsSidebarItem", migrations[^34]);
+        Assert.Equal("20261104090751_AddContributionWeightedActual", migrations[^35]);
+        Assert.Equal("20261104090000_GrantAppealDecisionToBranchManager", migrations[^36]);
+        Assert.Equal("20261103171853_AddScoreEntryAdjustmentKind", migrations[^37]);
+        Assert.Equal("20261103132840_AddObjectiveWeightAndKpiRequestApproval", migrations[^38]);
+        Assert.Equal("20261103112541_UpdateTargetChildrenSumTriggerBySplitDimension", migrations[^39]);
+        Assert.Equal("20261102134713_AddDataImportSupport", migrations[^40]);
+        Assert.Equal("20261102112929_AddWorkTypeProductMultiplier", migrations[^41]);
+        Assert.Equal("20261101165132_AddEvaluationProfileApproval", migrations[^42]);
     }
 
     [PostgresFact]

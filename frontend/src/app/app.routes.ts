@@ -106,6 +106,7 @@ export const routes: Routes = [
         (m) => m.TargetSetupWizardComponent,
       ),
   },
+  { path: 'target-allocation/overview', redirectTo: 'target-overview', pathMatch: 'full' },
   {
     path: 'target-allocation',
     canActivate: [authGuard, permissionGuard('TARGET_MANAGE')],

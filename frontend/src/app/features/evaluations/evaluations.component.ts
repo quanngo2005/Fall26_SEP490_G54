@@ -322,9 +322,8 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     if (delta === null || !compare) {
       return '—';
     }
-    const arrow = delta > 0 ? '▲ ' : delta < 0 ? '▼ ' : '';
     return this.i18n.translate('evaluations.dashboard.cardScorePill', {
-      delta: `${arrow}${this.signedText(delta)}`,
+      delta: this.signedText(delta),
       compare,
     });
   });
@@ -1074,8 +1073,7 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   staffDeltaText(change: number | null): string {
     if (change == null) return '';
-    const arrow = change > 0 ? '▲ ' : change < 0 ? '▼ ' : '';
-    return `${arrow}${this.i18n.formatNumber(Math.abs(change), 1)}`;
+    return this.signedText(change);
   }
 
   signedText(change: number): string {

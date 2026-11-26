@@ -24,6 +24,7 @@ public static class SystemParameterGroups
     public const string QuotaRanking = "QUOTA_RANKING";
     public const string ImportHandover = "IMPORT_HANDOVER";
     public const string DashboardSecurity = "DASHBOARD_SECURITY";
+    public const string TargetAllocation = "TARGET_ALLOCATION";
 }
 
 /// <param name="Value">JSON number, boolean, or string depending on <paramref name="ValueType"/>.</param>

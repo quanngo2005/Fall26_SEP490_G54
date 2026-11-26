@@ -232,8 +232,7 @@
                               [class.delta-good]="deltaTone(row.onTimeSla.change, true) === 'good'"
                               [class.delta-bad]="deltaTone(row.onTimeSla.change, true) === 'bad'"
                             >
-                              {{row.onTimeSla.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.onTimeSla.change, 1)}}
+                              {{row.onTimeSla.change > 0 ? '+' : ''}}{{formatNumber(row.onTimeSla.change, 1)}}
                             </span>
                           }
                         </div>
@@ -302,8 +301,7 @@
                                 deltaTone(row.riskEventCount.change, false) === 'bad'
                               "
                             >
-                              {{row.riskEventCount.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.riskEventCount.change, 0)}}
+                              {{row.riskEventCount.change > 0 ? '+' : ''}}{{formatNumber(row.riskEventCount.change, 0)}}
                             </span>
                           }
                         </div>
@@ -323,8 +321,7 @@
                               "
                               [class.delta-bad]="deltaTone(row.riskPenalty.change, false) === 'bad'"
                             >
-                              {{row.riskPenalty.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.riskPenalty.change, 1)}}
+                              {{row.riskPenalty.change > 0 ? '+' : ''}}{{formatNumber(row.riskPenalty.change, 1)}}
                             </span>
                           }
                         </div>
@@ -349,8 +346,7 @@
                                 deltaTone(row.quantitativeScore.change, true) === 'bad'
                               "
                             >
-                              {{row.quantitativeScore.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.quantitativeScore.change, 2)}}
+                              {{row.quantitativeScore.change > 0 ? '+' : ''}}{{formatNumber(row.quantitativeScore.change, 2)}}
                             </span>
                           }
                         </div>

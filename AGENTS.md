@@ -58,6 +58,24 @@ If a script cannot run in your environment (missing PowerShell, execution policy
 - For every frontend UI change, load `frontend-feature`, follow its Localization section, and use typed `{{localization.section.key}}` template bindings with no padding inside braces. Localize labels, placeholders, accessibility text, validation messages, toasts, and confirmation dialogs in both Vietnamese and English.
 - Keep translation dictionaries under `translations.vi` and `translations.en`; `formats` contains formatting configuration only. Verify identical key sets and live language switching; do not hide malformed dictionaries with casts or merges from `formats`.
 
+## Known Mistakes — Do Not Repeat
+
+
+**Correctness**
+- **The manual test (step 3a) is not optional and "API was not running" is not a reason to skip it.** Start what is missing (`docker start docker-postgres-1 docker-redis-1`, then the API) and run it before reporting. If the seed data cannot show the feature (e.g. only a DRAFT year offers it and that year has no history), say so in the plan and add the seed as part of the task.
+- **For a UI change, agree the flow click by click before coding**: what the user clicks, where they land, what is already filled, what is saved. "Add a button" is not a spec.
+- **Money and split maths**: distribute remainders by largest remainder, never dump them on the last quarter; display VND in triệu / trăm triệu / tỷ.
+- Build only what was asked. Do not add related concepts to a design (e.g. working-day logic) on your own initiative.
+
+**Tool use**
+- GitNexus MCP calls need `repo: "Fall26_SEP490_G54"`; several repos are indexed and the call fails without it.
+- `POST /auth/login` returns `accessToken` at the top level of the JSON, not under `data`. Load the `read-env` skill for the account; do not guess the response shape.
+- `docs/BE_STATUS.md`, `docs/FE_STATUS.md` and `localization.json` read them whole.
+- Run review/build/test scripts in the foreground with a long timeout and `| tail -40`. Do not background them and poll with `sleep`, `true` or `echo`.
+- Do not re-read a file you have not edited since the last read; send independent edits in one message.
+- Subagents must not call `update_plan` or `wrap_up`.
+
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

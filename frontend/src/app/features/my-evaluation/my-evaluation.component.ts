@@ -582,9 +582,8 @@ export class MyEvaluationComponent extends LocalizedComponent implements OnInit 
   readonly scorePillText = computed(() => {
     const delta = this.evaluation()?.scoreDelta ?? null;
     if (delta === null) return null;
-    const arrow = delta > 0 ? '▲ ' : delta < 0 ? '▼ ' : '';
     const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
-    return `${arrow}${sign}${this.i18n.formatNumber(Math.abs(delta), 2)}`;
+    return `${sign}${this.i18n.formatNumber(Math.abs(delta), 2)}`;
   });
 
   readonly scorePillClass = computed(() =>

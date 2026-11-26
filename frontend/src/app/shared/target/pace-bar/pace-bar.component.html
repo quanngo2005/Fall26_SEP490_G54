@@ -1,0 +1,29 @@
+@let text = this.text();
+<div class="pace-bar" [class]="'is-' + status().toLowerCase()">
+  @if (kind() === 'RATIO') {
+    <span class="ratio-status" [class.is-above]="ratioAboveThreshold()">
+      @if (ratioAboveThreshold()) {
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path
+            d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"
+          />
+        </svg>
+      }
+      {{text.aboveThreshold}}
+    </span>
+  } @else {
+    <div class="track">
+      <div class="fill" [style.width.%]="fillPercent()"></div>
+      @if (kind() === 'NORMAL') {
+        <div class="tick" [style.left.%]="tickPercent()" aria-hidden="true"></div>
+      }
+    </div>
+    <span class="caption">
+      @if (kind() === 'BALANCE') {
+        {{text.levelPrefix}} {{balanceLevelPercent() | appNumber: 1}}%
+      } @else {
+        {{progressPercent() | appNumber: 1}}% · {{statusLabel()}}
+      }
+    </span>
+  }
+</div>

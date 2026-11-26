@@ -2,7 +2,7 @@ import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { CampaignSummary } from '../../core/campaign.models';
-import { formatArrow, formatValue, toneOf } from './performance-display';
+import { formatSigned, formatValue, toneOf } from './performance-display';
 
 /**
  * "Campaign đang chạy": progress of each running campaign against the time elapsed, and the pace gap (all three
@@ -128,7 +128,7 @@ export class PerfCampaignPaceComponent extends LocalizedComponent {
   }
 
   protected arrow(value: number): string {
-    return formatArrow(this.i18n.currentLanguage(), value, 0);
+    return formatSigned(this.i18n.currentLanguage(), value, 0);
   }
 
   protected tone(value: number): string {

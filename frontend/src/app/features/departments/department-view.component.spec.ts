@@ -124,7 +124,7 @@ describe('DepartmentViewComponent', () => {
       (c) => c.textContent,
     );
     expect(cards[0]).toContain('81.3'); // average, 1 decimal
-    expect(cards[0]).toContain('▲ 1.3 vs Period Before');
+    expect(cards[0]).toContain('+1.3 vs Period Before');
     expect(cards[1]).toContain('1/2'); // one of two KPI rows at or above 100 %
     expect(cards[2]).toContain('1/2'); // declined / compared
     expect(cards[3]).toContain('3'); // 2 pending review + 1 overdue, escalated is null

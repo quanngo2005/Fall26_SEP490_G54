@@ -61,6 +61,11 @@ public sealed class SystemParametersOptions
     public int AuthLockoutMinutes { get; set; } = 15;
     public int LoginRateLimitPerMinute { get; set; } = 5;
 
+    // Group 7: Target Allocation (TARGET_ALLOCATION, Target Allocation v3 D9)
+    /// <summary>Ceiling/floor warning band for the suggestion engine (D9): a suggested unit that deviates from its
+    /// basis value by more than this percent gets a non-blocking warning. Default 30%.</summary>
+    public decimal TargetSuggestionCeilingPercent { get; set; } = 30m;
+
     public TimeOnly ResolveKpiLockTimeOnly() =>
         TimeOnly.TryParseExact(KpiLockTime, "HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed)
             ? parsed

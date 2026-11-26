@@ -1,0 +1,49 @@
+/* Page header shared by the target screens (overview, setup, department allocation, DM overview). */
+.page-toolbar {
+  align-items: flex-start;
+}
+.page-heading {
+  min-width: 0;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* "Gợi ý" button with its popover opening right under it. */
+.suggest-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.suggest-popover-anchor {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+}
+
+.page-actions > .select {
+  width: auto;
+  min-width: 140px;
+}
+
+.period-message {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13.5px;
+
+  &[data-kind='success'] {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+
+  &[data-kind='error'] {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+}

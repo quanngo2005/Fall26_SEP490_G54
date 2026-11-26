@@ -40,11 +40,11 @@ public sealed class TargetAssignmentService(
         "contract", "contracts", "customer", "customers", "cái", "cai", "lần", "lan",
     };
     /// <summary>Saves target rows and turns the database's own rule violations into 4xx answers instead of a 500.</summary>
-    private async Task SaveTargetsAsync()
+    private async Task SaveTargetsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await targetRepository.SaveChangesAsync();
+            await targetRepository.SaveChangesAsync(cancellationToken);
         }
         // A deferred trigger fails at commit, where EF rethrows the PostgresException without a DbUpdateException around it.
         catch (Exception ex) when (ex is DbUpdateException or PostgresException && ToRuleViolation(ex) is not null)
@@ -80,51 +80,51 @@ public sealed class TargetAssignmentService(
         return null;
     }
 
-    public async Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto)
+    public async Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto, CancellationToken cancellationToken = default)
     {
-        if (!await IsAdminAsync(accountId))
+        if (!await IsAdminAsync(accountId, cancellationToken))
         {
             throw new ForbiddenException("Chỉ quản trị viên mới được giao target gốc cho chi nhánh.");
         }
 
         // The contract hands a root target to a branch only; the database would also accept any other department.
-        var owner = await departmentRepository.GetByIdAsync(dto.DepartmentId!.Value)
+        var owner = await departmentRepository.GetByIdAsync(dto.DepartmentId!.Value, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", dto.DepartmentId.Value);
         if (owner.LevelType != DepartmentLevelType.Branch)
         {
             throw new ValidationException("Target gốc chỉ được giao cho chi nhánh.");
         }
 
-        var period = await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value);
+        var period = await periodRepository.GetByIdAsync(dto.EvaluationPeriodId!.Value, cancellationToken);
         PeriodLockGuard.EnsureWritable(period);
 
         var target = NewTarget(dto.KpiDefinitionId!.Value, dto.EvaluationPeriodId!.Value, dto.TargetValue!.Value, dto.ChangeReason, period?.StartDate ?? default);
         target.DepartmentId = dto.DepartmentId;
-        await targetRepository.AddAsync(target);
-        await SaveTargetsAsync();
+        await targetRepository.AddAsync(target, cancellationToken);
+        await SaveTargetsAsync(cancellationToken);
 
         return ToDto(target);
     }
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto, CancellationToken cancellationToken = default)
     {
-        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
-        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
+        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId, cancellationToken);
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId, cancellationToken));
         var allocations = dto.Allocations!;
 
-        await ValidateOwnersAsync(parent, allocations);
+        await ValidateOwnersAsync(parent, allocations, cancellationToken);
 
-        var children = await NewChildrenAsync(parent, allocations, dto.ChangeReason);
+        var children = await NewChildrenAsync(parent, allocations, dto.ChangeReason, cancellationToken);
 
-        await targetRepository.AddRangeAsync(children);
-        await SaveTargetsAsync();
+        await targetRepository.AddRangeAsync(children, cancellationToken);
+        await SaveTargetsAsync(cancellationToken);
 
         // A brand-new employee target has no feedback yet.
         return [.. children.Select(c => ToDtoWithFeedback(c, null))];
     }
 
     /// <summary>Checks who would receive a share of <paramref name="parent"/>: one owner per row, no repeats, employees and departments inside it, nobody already holding an active target.</summary>
-    private async Task ValidateOwnersAsync(TargetAssignment parent, IReadOnlyCollection<TargetAllocationItemDto> allocations)
+    private async Task ValidateOwnersAsync(TargetAssignment parent, IReadOnlyCollection<TargetAllocationItemDto> allocations, CancellationToken cancellationToken)
     {
         var departmentIds = new List<Guid>();
         var employeeIds = new List<Guid>();
@@ -164,9 +164,9 @@ public sealed class TargetAssignmentService(
                 throw new ValidationException("Chỉ có thể phân bổ target cho nhân viên từ target của phòng ban.");
             }
 
-            var descendantDepartmentIds = await targetRepository.GetDescendantDepartmentIdsAsync(parent.DepartmentId.Value);
+            var descendantDepartmentIds = await targetRepository.GetDescendantDepartmentIdsAsync(parent.DepartmentId.Value, cancellationToken);
             var distinctEmployeeIds = employeeIds.Distinct().ToList();
-            var employees = await targetRepository.GetEmployeesAsync(distinctEmployeeIds);
+            var employees = await targetRepository.GetEmployeesAsync(distinctEmployeeIds, cancellationToken);
             var employeeMap = employees.ToDictionary(e => e.Id);
 
             foreach (var employeeId in distinctEmployeeIds)
@@ -188,7 +188,7 @@ public sealed class TargetAssignmentService(
             }
 
             // The database allows one ACTIVE target per KPI/period/employee; report it as 409 instead of a 500.
-            var taken = await targetRepository.GetActiveOwnerTargetsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, [], distinctEmployeeIds);
+            var taken = await targetRepository.GetActiveOwnerTargetsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, [], distinctEmployeeIds, cancellationToken);
             var takenEmployee = taken.FirstOrDefault(t => t.EmployeeId.HasValue);
             if (takenEmployee is not null)
             {
@@ -199,7 +199,7 @@ public sealed class TargetAssignmentService(
 
         if (departmentIds.Count > 0)
         {
-            var taken = await targetRepository.GetActiveOwnerTargetsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, departmentIds, []);
+            var taken = await targetRepository.GetActiveOwnerTargetsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, departmentIds, [], cancellationToken);
             if (taken.Count > 0)
             {
                 throw new ConflictException($"Phòng ban {taken[0].DepartmentId} đã có target đang áp dụng cho KPI và kỳ này.");
@@ -207,12 +207,12 @@ public sealed class TargetAssignmentService(
         }
     }
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto, CancellationToken cancellationToken = default)
     {
-        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
-        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId));
+        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId, cancellationToken);
+        PeriodLockGuard.EnsureWritable(await periodRepository.GetByIdAsync(parent.EvaluationPeriodId, cancellationToken));
 
-        var current = (await targetRepository.GetCurrentChildrenAsync(parentAssignmentId))
+        var current = (await targetRepository.GetCurrentChildrenAsync(parentAssignmentId, cancellationToken))
             .Where(child => child.Status == TargetAssignmentStatus.Active)
             .ToDictionary(OwnerOf);
         var owners = dto.Allocations!
@@ -227,7 +227,7 @@ public sealed class TargetAssignmentService(
         var added = dto.Allocations!.Where(item => !current.ContainsKey((item.EmployeeId ?? item.DepartmentId)!.Value)).ToList();
         if (added.Count > 0)
         {
-            await ValidateOwnersAsync(parent, added);
+            await ValidateOwnersAsync(parent, added, cancellationToken);
         }
 
         var now = time.GetUtcNow();
@@ -242,7 +242,7 @@ public sealed class TargetAssignmentService(
 
             child.Status = TargetAssignmentStatus.Superseded;
             child.UpdatedAt = now;
-            foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(child.Id))
+            foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(child.Id, cancellationToken))
             {
                 descendant.Status = TargetAssignmentStatus.Superseded;
                 descendant.UpdatedAt = now;
@@ -259,27 +259,27 @@ public sealed class TargetAssignmentService(
             replacements.Add(next);
         }
 
-        replacements.AddRange(await NewChildrenAsync(parent, added, dto.ChangeReason));
+        replacements.AddRange(await NewChildrenAsync(parent, added, dto.ChangeReason, cancellationToken));
 
-        await targetRepository.AddRangeAsync(replacements);
-        await SaveTargetsAsync();
+        await targetRepository.AddRangeAsync(replacements, cancellationToken);
+        await SaveTargetsAsync(cancellationToken);
 
         return [.. replacements.Select(next => ToDtoWithFeedback(next, null))];
     }
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto, CancellationToken cancellationToken = default)
     {
         // LoadAccessibleAsync enforces the same org-scope permission as split/reallocate (admin, or the caller's
         // department owns the target's department / the employee's department).
-        var accessible = await LoadAccessibleAsync(accountId, assignmentId);
+        var accessible = await LoadAccessibleAsync(accountId, assignmentId, cancellationToken);
         if (accessible.Status != TargetAssignmentStatus.Active)
         {
             throw new BusinessRuleException(ErrorCodes.TargetInvalidState, statusCode: StatusCodes.Status409Conflict);
         }
 
-        var current = await targetRepository.GetByIdAsync(assignmentId)
+        var current = await targetRepository.GetByIdAsync(assignmentId, cancellationToken)
             ?? throw new NotFoundException("Target", assignmentId);
-        var period = await periodRepository.GetByIdAsync(current.EvaluationPeriodId)
+        var period = await periodRepository.GetByIdAsync(current.EvaluationPeriodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", current.EvaluationPeriodId);
 
         PeriodLockGuard.EnsureWritable(period);
@@ -303,7 +303,7 @@ public sealed class TargetAssignmentService(
             throw new ValidationException("Lý do điều chỉnh là bắt buộc và không vượt quá 500 ký tự.");
         }
 
-        var currentChildren = (await targetRepository.GetCurrentChildrenAsync(current.Id))
+        var currentChildren = (await targetRepository.GetCurrentChildrenAsync(current.Id, cancellationToken))
             .Where(child => child.Status == TargetAssignmentStatus.Active)
             .ToDictionary(OwnerOf);
         var childAllocations = dto.ChildAllocations ?? [];
@@ -330,7 +330,7 @@ public sealed class TargetAssignmentService(
             var added = childAllocations.Where(item => !currentChildren.ContainsKey((item.EmployeeId ?? item.DepartmentId)!.Value)).ToList();
             if (added.Count > 0)
             {
-                await ValidateOwnersAsync(accessible, added);
+                await ValidateOwnersAsync(accessible, added, cancellationToken);
             }
         }
         else if (childAllocations.Count > 0)
@@ -339,14 +339,14 @@ public sealed class TargetAssignmentService(
         }
 
         var now = time.GetUtcNow();
-        var changedByEmployee = await targetRepository.GetAccountEmployeeAsync(accountId);
+        var changedByEmployee = await targetRepository.GetAccountEmployeeAsync(accountId, cancellationToken);
         var frozenThrough = effectiveDate.AddDays(-1);
 
         // Freeze the current version and every ACTIVE descendant (children and below) as of the new effective date.
         current.Status = TargetAssignmentStatus.Superseded;
         current.EffectiveTo = frozenThrough;
         current.UpdatedAt = now;
-        foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(current.Id))
+        foreach (var descendant in await targetRepository.GetActiveDescendantsAsync(current.Id, cancellationToken))
         {
             descendant.Status = TargetAssignmentStatus.Superseded;
             descendant.EffectiveTo = frozenThrough;
@@ -402,9 +402,9 @@ public sealed class TargetAssignmentService(
             };
         }).ToList();
 
-        await targetRepository.AddAsync(newCurrent);
-        await targetRepository.AddRangeAsync(newChildren);
-        await targetRepository.SaveChangesAsync();
+        await targetRepository.AddAsync(newCurrent, cancellationToken);
+        await targetRepository.AddRangeAsync(newChildren, cancellationToken);
+        await targetRepository.SaveChangesAsync(cancellationToken);
 
         var recipientIds = new[] { newCurrent.EmployeeId }
             .Concat(newChildren.Select(c => c.EmployeeId))
@@ -424,7 +424,7 @@ public sealed class TargetAssignmentService(
                     NotificationRelatedType.Target,
                     newCurrent.Id))
                 .ToList();
-            await notifier.PublishAsync(drafts);
+            await notifier.PublishAsync(drafts, CancellationToken.None); // after commit: do not drop the notification if the request is cancelled
         }
 
         List<TargetAssignment> all = [newCurrent, .. newChildren];
@@ -438,10 +438,10 @@ public sealed class TargetAssignmentService(
     private async Task<List<TargetAssignment>> NewChildrenAsync(
         TargetAssignment parent,
         IReadOnlyCollection<TargetAllocationItemDto> items,
-        string? reason)
+        string? reason, CancellationToken cancellationToken)
     {
         var owners = items.Select(item => (item.EmployeeId ?? item.DepartmentId)!.Value).ToList();
-        var versions = await targetRepository.GetLatestVersionsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, owners);
+        var versions = await targetRepository.GetLatestVersionsAsync(parent.KpiDefinitionId, parent.EvaluationPeriodId, owners, cancellationToken);
         return [.. items.Select(item =>
         {
             var child = NewTarget(parent.KpiDefinitionId, parent.EvaluationPeriodId, item.TargetValue!.Value, reason, parent.EffectiveFrom);
@@ -457,9 +457,9 @@ public sealed class TargetAssignmentService(
 
     private static Guid OwnerOf(TargetAssignment target) => (target.EmployeeId ?? target.DepartmentId)!.Value;
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto, CancellationToken cancellationToken = default)
     {
-        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId);
+        var parent = await LoadAccessibleAsync(accountId, parentAssignmentId, cancellationToken);
 
         // Check for duplicate evaluationPeriodId in request
         var periodIds = dto.Allocations!.Select(a => a.EvaluationPeriodId!.Value).ToList();
@@ -469,7 +469,7 @@ public sealed class TargetAssignmentService(
         }
 
         // Load all evaluation periods to check hierarchy
-        var allPeriods = await periodRepository.ListAsync();
+        var allPeriods = await periodRepository.ListAsync(cancellationToken);
         var periodMap = allPeriods.ToDictionary(p => p.Id);
 
         // New rows are written under the parent period and into every requested period, so none of them may be locked.
@@ -527,13 +527,13 @@ public sealed class TargetAssignmentService(
             return child;
         }).ToList();
 
-        await targetRepository.AddRangeAsync(children);
-        await SaveTargetsAsync();
+        await targetRepository.AddRangeAsync(children, cancellationToken);
+        await SaveTargetsAsync(cancellationToken);
 
         return [.. children.Select(c => ToDto(c))];
     }
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query, CancellationToken cancellationToken = default)
     {
         // Parse status if provided
         TargetAssignmentStatus? status = null;
@@ -545,17 +545,17 @@ public sealed class TargetAssignmentService(
         // Determine accessible departments
         IReadOnlyCollection<Guid>? ownerDepartmentIds = null;
 
-        if (!await IsAdminAsync(accountId))
+        if (!await IsAdminAsync(accountId, cancellationToken))
         {
-            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId)
+            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId, cancellationToken)
                 ?? throw new ForbiddenException("Bạn không có quyền xem target.");
-            ownerDepartmentIds = await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId);
+            ownerDepartmentIds = await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId, cancellationToken);
         }
 
         // If departmentId is specified, validate it
         if (query.DepartmentId.HasValue)
         {
-            if (!await targetRepository.DepartmentExistsAsync(query.DepartmentId.Value))
+            if (!await targetRepository.DepartmentExistsAsync(query.DepartmentId.Value, cancellationToken))
             {
                 throw new NotFoundException("Phòng ban", query.DepartmentId.Value);
             }
@@ -572,29 +572,29 @@ public sealed class TargetAssignmentService(
             query.KpiDefinitionId,
             query.EvaluationPeriodId,
             status,
-            ownerDepartmentIds);
+            ownerDepartmentIds, cancellationToken);
 
         var employeeOwnedIds = targets.Where(t => t.EmployeeId.HasValue).Select(t => t.Id).ToList();
-        var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync(employeeOwnedIds);
+        var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync(employeeOwnedIds, cancellationToken);
 
         return [.. targets.Select(t => ToDtoWithFeedback(t, latestFeedback.GetValueOrDefault(t.Id)))];
     }
 
-    public async Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId) =>
-        ToDto(await LoadAccessibleAsync(accountId, assignmentId));
+    public async Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default) =>
+        ToDto(await LoadAccessibleAsync(accountId, assignmentId, cancellationToken));
 
-    private async Task<TargetAssignment> LoadAccessibleAsync(Guid accountId, Guid id)
+    private async Task<TargetAssignment> LoadAccessibleAsync(Guid accountId, Guid id, CancellationToken cancellationToken)
     {
-        var target = await targetRepository.GetWithOwnerAsync(id)
+        var target = await targetRepository.GetWithOwnerAsync(id, cancellationToken)
             ?? throw new NotFoundException("Target", id);
 
-        if (!await IsAdminAsync(accountId))
+        if (!await IsAdminAsync(accountId, cancellationToken))
         {
             // A manager owns the targets of their own department and of every department below it.
-            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId);
+            var callerDepartmentId = await targetRepository.GetAccountDepartmentIdAsync(accountId, cancellationToken);
             IReadOnlyList<Guid> scope = callerDepartmentId is null
                 ? []
-                : await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId.Value);
+                : await targetRepository.GetDescendantDepartmentIdsAsync(callerDepartmentId.Value, cancellationToken);
             if (!scope.Contains(target.DepartmentId ?? target.Employee!.DepartmentId))
             {
                 throw new ForbiddenException("Bạn không có quyền với target của đơn vị này.");
@@ -604,18 +604,18 @@ public sealed class TargetAssignmentService(
         return target;
     }
 
-    public async Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity)
+    public async Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity, CancellationToken cancellationToken = default)
     {
         var effectiveGranularity = NormalizeGranularity(granularity);
 
-        var target = await targetRepository.GetWithOwnerAndContextAsync(assignmentId)
+        var target = await targetRepository.GetWithOwnerAndContextAsync(assignmentId, cancellationToken)
             ?? throw new NotFoundException("Target", assignmentId);
 
-        await EnsureCanViewAsync(accountId, target);
+        await EnsureCanViewAsync(accountId, target, cancellationToken);
 
         var start = target.EvaluationPeriod.StartDate;
         var end = target.EvaluationPeriod.EndDate;
-        var workingDays = await workingDayCalendar.GetWorkingDaysAsync(target.EmployeeId, start, end);
+        var workingDays = await workingDayCalendar.GetWorkingDaysAsync(target.EmployeeId, start, end, cancellationToken);
         var isWholeNumber = WholeNumberUnits.Contains(target.KpiDefinition.Unit.Trim());
 
         var daySplit = TargetBreakdownCalculator.SplitByMonthThenDay(target.TargetValue, workingDays, isWholeNumber);
@@ -631,17 +631,17 @@ public sealed class TargetAssignmentService(
             items);
     }
 
-    public async Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId)
+    public async Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId, CancellationToken cancellationToken = default)
     {
-        var owner = (await targetRepository.GetEmployeesAsync([employeeId])).SingleOrDefault()
+        var owner = (await targetRepository.GetEmployeesAsync([employeeId], cancellationToken)).SingleOrDefault()
             ?? throw new NotFoundException("Nhân viên", employeeId);
-        var period = await periodRepository.GetByIdAsync(evaluationPeriodId)
+        var period = await periodRepository.GetByIdAsync(evaluationPeriodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", evaluationPeriodId);
 
-        await EnsureCanViewAsync(accountId, employeeId, owner.DepartmentId);
+        await EnsureCanViewAsync(accountId, employeeId, owner.DepartmentId, cancellationToken);
 
-        var workingDays = await workingDayCalendar.GetWorkingDaysAsync(employeeId, period.StartDate, period.EndDate);
-        var targets = await targetRepository.ListForEmployeeAsync(employeeId, evaluationPeriodId, null);
+        var workingDays = await workingDayCalendar.GetWorkingDaysAsync(employeeId, period.StartDate, period.EndDate, cancellationToken);
+        var targets = await targetRepository.ListForEmployeeAsync(employeeId, evaluationPeriodId, null, cancellationToken);
 
         var items = targets
             .OrderBy(t => t.KpiDefinition.Code, StringComparer.Ordinal)
@@ -690,22 +690,22 @@ public sealed class TargetAssignmentService(
 
     private static decimal PerWeek(decimal daily) => daily * 5;
 
-    public async Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
+    public async Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query, CancellationToken cancellationToken = default)
     {
-        var employee = await targetRepository.GetAccountEmployeeAsync(accountId)
+        var employee = await targetRepository.GetAccountEmployeeAsync(accountId, cancellationToken)
             ?? throw new ForbiddenException("Tài khoản chưa gắn với nhân viên.");
 
-        var targets = await targetRepository.ListForEmployeeAsync(employee.Id, query.EvaluationPeriodId, query.KpiDefinitionId);
-        var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync([.. targets.Select(t => t.Id)]);
+        var targets = await targetRepository.ListForEmployeeAsync(employee.Id, query.EvaluationPeriodId, query.KpiDefinitionId, cancellationToken);
+        var latestFeedback = await feedbackRepository.GetLatestForTargetsAsync([.. targets.Select(t => t.Id)], cancellationToken);
 
         return [.. targets.Select(t => ToDtoWithFeedback(t, latestFeedback.GetValueOrDefault(t.Id)))];
     }
 
-    public async Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId)
+    public async Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default)
     {
-        var (target, employee) = await LoadOwnedByCallerAsync(accountId, assignmentId);
+        var (target, employee) = await LoadOwnedByCallerAsync(accountId, assignmentId, cancellationToken);
 
-        var latest = await feedbackRepository.GetLatestAsync(target.Id);
+        var latest = await feedbackRepository.GetLatestAsync(target.Id, cancellationToken);
         if (latest is { Type: TargetAssignmentFeedbackType.Confirm } && latest.CreatedAt >= target.UpdatedAt)
         {
             throw new ConflictException("Target này đã được xác nhận.");
@@ -718,15 +718,15 @@ public sealed class TargetAssignmentService(
             Type = TargetAssignmentFeedbackType.Confirm,
             CreatedAt = time.GetUtcNow(),
         };
-        await feedbackRepository.AddAsync(feedback);
-        await feedbackRepository.SaveChangesAsync();
+        await feedbackRepository.AddAsync(feedback, cancellationToken);
+        await feedbackRepository.SaveChangesAsync(cancellationToken);
 
         return ToFeedbackDto(feedback);
     }
 
-    public async Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto)
+    public async Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto, CancellationToken cancellationToken = default)
     {
-        var (target, employee) = await LoadOwnedByCallerAsync(accountId, assignmentId);
+        var (target, employee) = await LoadOwnedByCallerAsync(accountId, assignmentId, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(dto.Comment) || dto.Comment.Length > 500)
         {
@@ -741,29 +741,29 @@ public sealed class TargetAssignmentService(
             Comment = dto.Comment,
             CreatedAt = time.GetUtcNow(),
         };
-        await feedbackRepository.AddAsync(feedback);
-        await feedbackRepository.SaveChangesAsync();
+        await feedbackRepository.AddAsync(feedback, cancellationToken);
+        await feedbackRepository.SaveChangesAsync(cancellationToken);
 
         return ToFeedbackDto(feedback);
     }
 
-    public async Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId)
+    public async Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default)
     {
-        var target = await targetRepository.GetWithOwnerAsync(assignmentId)
+        var target = await targetRepository.GetWithOwnerAsync(assignmentId, cancellationToken)
             ?? throw new NotFoundException("Target", assignmentId);
 
-        await EnsureCanViewAsync(accountId, target);
+        await EnsureCanViewAsync(accountId, target, cancellationToken);
 
-        var feedback = await feedbackRepository.ListForTargetAsync(target.Id);
+        var feedback = await feedbackRepository.ListForTargetAsync(target.Id, cancellationToken);
         return [.. feedback.Select(ToFeedbackDto)];
     }
 
-    private async Task<(TargetAssignment Target, Employee Employee)> LoadOwnedByCallerAsync(Guid accountId, Guid assignmentId)
+    private async Task<(TargetAssignment Target, Employee Employee)> LoadOwnedByCallerAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken)
     {
-        var target = await targetRepository.GetWithOwnerAsync(assignmentId)
+        var target = await targetRepository.GetWithOwnerAsync(assignmentId, cancellationToken)
             ?? throw new NotFoundException("Target", assignmentId);
 
-        var employee = await targetRepository.GetAccountEmployeeAsync(accountId)
+        var employee = await targetRepository.GetAccountEmployeeAsync(accountId, cancellationToken)
             ?? throw new ForbiddenException("Tài khoản chưa gắn với nhân viên.");
 
         if (target.EmployeeId != employee.Id)
@@ -774,26 +774,26 @@ public sealed class TargetAssignmentService(
         return (target, employee);
     }
 
-    private Task EnsureCanViewAsync(Guid accountId, TargetAssignment target) =>
-        EnsureCanViewAsync(accountId, target.EmployeeId, target.DepartmentId ?? target.Employee?.DepartmentId);
+    private Task EnsureCanViewAsync(Guid accountId, TargetAssignment target, CancellationToken cancellationToken) =>
+        EnsureCanViewAsync(accountId, target.EmployeeId, target.DepartmentId ?? target.Employee?.DepartmentId, cancellationToken);
 
-    private async Task EnsureCanViewAsync(Guid accountId, Guid? ownerEmployeeId, Guid? ownerDepartmentId)
+    private async Task EnsureCanViewAsync(Guid accountId, Guid? ownerEmployeeId, Guid? ownerDepartmentId, CancellationToken cancellationToken)
     {
-        if (await IsAdminAsync(accountId))
+        if (await IsAdminAsync(accountId, cancellationToken))
         {
             return;
         }
 
-        var employee = await targetRepository.GetAccountEmployeeAsync(accountId);
+        var employee = await targetRepository.GetAccountEmployeeAsync(accountId, cancellationToken);
         if (employee is not null && ownerEmployeeId == employee.Id)
         {
             return;
         }
 
         // Peers in the same department must not read each other's targets: the org path is for managers only.
-        var isManager = await permissions.HasPermissionAsync(accountId, "target", "manage", PermissionScopes.Dept, default);
+        var isManager = await permissions.HasPermissionAsync(accountId, "target", "manage", PermissionScopes.Dept, cancellationToken);
         if (!isManager || employee is null || ownerDepartmentId is null ||
-            !(await targetRepository.GetDescendantDepartmentIdsAsync(employee.DepartmentId)).Contains(ownerDepartmentId.Value))
+            !(await targetRepository.GetDescendantDepartmentIdsAsync(employee.DepartmentId, cancellationToken)).Contains(ownerDepartmentId.Value))
         {
             throw new ForbiddenException("Bạn không có quyền với target của đơn vị này.");
         }
@@ -839,8 +839,8 @@ public sealed class TargetAssignmentService(
     private static TargetAssignmentFeedbackDto ToFeedbackDto(TargetAssignmentFeedback f) => new(
         f.Id, f.TargetAssignmentId, f.EmployeeId, f.Type.ToEnumString(), f.Comment, f.CreatedAt);
 
-    private Task<bool> IsAdminAsync(Guid accountId) =>
-        permissions.HasPermissionAsync(accountId, "target", "manage", "All", default);
+    private Task<bool> IsAdminAsync(Guid accountId, CancellationToken cancellationToken) =>
+        permissions.HasPermissionAsync(accountId, "target", "manage", "All", cancellationToken);
 
     private TargetAssignment NewTarget(Guid kpiId, Guid periodId, decimal value, string? reason, DateOnly effectiveFrom)
     {

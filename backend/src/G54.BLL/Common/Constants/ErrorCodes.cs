@@ -114,6 +114,17 @@ public static class ErrorCodes
     public const string TargetDepartmentNotEligible = "TARGET_DEPARTMENT_NOT_ELIGIBLE";    // department has no headcount for this KPI
     public const string TargetPublishBlocked = "TARGET_PUBLISH_BLOCKED";                   // publish validation failed
 
+    // Employee allocation (Tier 3, docs/api/TARGET_ALLOCATION_CONTRACT.md, Phase 3)
+    public const string TargetTierNotPublished = "TARGET_TIER_NOT_PUBLISHED";              // previous tier (department) not yet published
+    public const string TargetEmployeeNotEligible = "TARGET_EMPLOYEE_NOT_ELIGIBLE";        // employee does not hold a responsible position for this KPI
+    public const string TargetEmployeeAllocationSumMismatch = "TARGET_EMPLOYEE_ALLOCATION_SUM_MISMATCH"; // employees must equal department year exactly
+    public const string TargetEmployeeQuarterSumMismatch = "TARGET_EMPLOYEE_QUARTER_SUM_MISMATCH";       // each employee's quarters must equal their year exactly
+    public const string TargetEmployeePublishBlocked = "TARGET_EMPLOYEE_PUBLISH_BLOCKED";  // employee-tier publish validation failed
+
+    // Employee "my-targets" (Target Allocation v3 employee side, docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetFeedbackProposedSumMismatch = "TARGET_FEEDBACK_PROPOSED_SUM_MISMATCH"; // cumulative proposal: Σ quarters must equal proposed year
+    public const string TargetAckInvalidState = "TARGET_ACK_INVALID_STATE";              // confirm called while not PENDING/RECONFIRM
+
     // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
     public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
     public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
@@ -219,6 +230,13 @@ public static class ErrorCodes
         [TargetQuartersNotReady] = ("Chỉ tiêu theo quý chưa được chia cho chỉ tiêu này; hãy hoàn thành bước chia quý trước.", "Quarters have not yet been split for this KPI; complete step 2 first."),
         [TargetDepartmentNotEligible] = ("Phòng ban này không có nhân viên đủ điều kiện cho chỉ tiêu này nên bị ẩn.", "This department has no eligible employees for this KPI and is hidden."),
         [TargetPublishBlocked] = ("Phát hành bị chặn: một hoặc nhiều chỉ tiêu chưa khớp. Xem chi tiết để hoàn thành.", "Publish is blocked: one or more KPI targets are incomplete. See details to resolve."),
+        [TargetTierNotPublished] = ("Chỉ tiêu phòng ban (cấp 2) chưa được phát hành nên chưa thể giao chỉ tiêu nhân viên.", "The department tier (tier 2) has not been published yet, so employee targets cannot be assigned."),
+        [TargetEmployeeNotEligible] = ("Nhân viên này không giữ vị trí phụ trách KPI này nên bị khóa.", "This employee does not hold a responsible position for this KPI and is locked."),
+        [TargetEmployeeAllocationSumMismatch] = ("Tổng chỉ tiêu của các nhân viên phải bằng chính xác chỉ tiêu của phòng ban.", "Employee allocations must equal the department target exactly."),
+        [TargetEmployeeQuarterSumMismatch] = ("Tổng chỉ tiêu các quý của từng nhân viên phải bằng chính xác chỉ tiêu năm của nhân viên đó.", "Each employee's quarter totals must equal their year target exactly."),
+        [TargetEmployeePublishBlocked] = ("Phát hành chỉ tiêu nhân viên bị chặn: một hoặc nhiều chỉ tiêu chưa khớp. Xem chi tiết để hoàn thành.", "Publishing employee targets is blocked: one or more KPI targets are incomplete. See details to resolve."),
+        [TargetFeedbackProposedSumMismatch] = ("Tổng chỉ tiêu quý đề xuất phải bằng chính xác chỉ tiêu năm đề xuất.", "Proposed quarter totals must equal the proposed year value exactly."),
+        [TargetAckInvalidState] = ("Trạng thái xác nhận hiện tại không cho phép thao tác này.", "The current confirmation state does not allow this action."),
         [UsernameExists] = ("Tên đăng nhập đã tồn tại trong hệ thống.", "The username already exists in the system."),
         [AccountExists] = ("Nhân sự được chọn đã có tài khoản đăng nhập.", "The selected employee already has a user account."),
         [CannotLockSelf] = ("Bạn không thể khóa chính tài khoản đang đăng nhập.", "You cannot lock the account you are signed in with."),

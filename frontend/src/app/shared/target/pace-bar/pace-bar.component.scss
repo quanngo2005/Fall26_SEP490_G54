@@ -1,0 +1,71 @@
+.pace-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: visible;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #166534;
+  transition: width var(--dur-base, 240ms) var(--ease-out, ease);
+}
+
+.is-slow .fill {
+  background: #9a3412;
+}
+
+.is-at_risk .fill {
+  background: #b91c1c;
+}
+
+.tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #0f172a;
+  transform: translateX(-1px);
+}
+
+.caption {
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.is-slow .caption {
+  color: #9a3412;
+}
+
+.is-at_risk .caption {
+  color: #b91c1c;
+}
+
+.ratio-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  &.is-above {
+    color: #166534;
+  }
+}
