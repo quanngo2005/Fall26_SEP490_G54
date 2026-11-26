@@ -349,7 +349,7 @@ public sealed class RiskEventScreenServiceTests : IDisposable
         await SeedAsync();
         var employee = await AddEmployeeAsync("NV1", _inBranch);
         var recorded = await RecordAsync(employee);
-        var open = await Events.CreateAsync(Request(employee, false), _qa.Id);
+        var open = await Events.CreateAsync(Request(employee, false) with { EventType = "OTHER_TYPE" }, _qa.Id);
         await Screens(QaGrants).ReverseAsync(_qa.Id, recorded.Id, new ReverseRiskEventDto(Reason));
 
         var again = await Assert.ThrowsAsync<ConflictException>(() => Screens(QaGrants).ReverseAsync(_qa.Id, recorded.Id, new ReverseRiskEventDto(Reason)));
@@ -450,6 +450,14 @@ public sealed class RiskEventScreenServiceTests : IDisposable
 
         public Task DeleteEvidenceFilesAsync(IEnumerable<StoredFileMetadata> files, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string> StoreCallRecordingAsync(IFormFile file, string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenCallRecordingReadAsync(string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public void DeleteCallRecording(string relativePath) => throw new NotSupportedException();
     }
 
     [Fact]

@@ -44,6 +44,20 @@
   grid-row: 1;
 }
 
+/* Phones and small tablets: stack the staff panel and the tier panel so neither is squeezed. */
+@media (max-width: 900px) {
+  .ranking-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-panel,
+  .tier-panel {
+    grid-column: 1;
+    grid-row: auto;
+    min-width: 0;
+  }
+}
+
 .panel-title {
   margin: 0 0 12px;
   font:

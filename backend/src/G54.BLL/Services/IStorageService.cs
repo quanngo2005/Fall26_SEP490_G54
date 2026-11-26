@@ -20,6 +20,19 @@ public interface IStorageService
     Task DeleteEvidenceFilesAsync(
         IEnumerable<StoredFileMetadata> files,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores an already validated call recording at <paramref name="relativePath"/> under the evidence folder and returns its
+    /// hex SHA-256.
+    /// </summary>
+    Task<string> StoreCallRecordingAsync(IFormFile file, string relativePath, CancellationToken cancellationToken = default);
+
+    /// <summary>Opens a stored call recording for reading (seekable, so ranges can be served).</summary>
+    /// <exception cref="G54.BLL.Common.Exceptions.NotFoundException">The file is not on disk.</exception>
+    Task<Stream> OpenCallRecordingReadAsync(string relativePath, CancellationToken cancellationToken = default);
+
+    /// <summary>Best-effort removal of a call recording stored by a request whose database work then failed.</summary>
+    void DeleteCallRecording(string relativePath);
 }
 
 /// <param name="FilePath">Name of the stored file inside the evidence folder (no directory), as saved in the database.</param>

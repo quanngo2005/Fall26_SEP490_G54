@@ -297,6 +297,9 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read'),
  ('5eed0000-0000-0000-0009-000000000031', 'ROLE_UPDATE', 'Quản lý tài khoản và vai trò', 'role', 'update'),
  ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000033', 'AI_REVIEW_FLAG_READ', 'Xem đoạn ghi âm cần nghe lại', 'ai_review_flag', 'read'),
+ ('5eed0000-0000-0000-0009-000000000034', 'AI_REVIEW_FLAG_REVIEW', 'Xác nhận hoặc bỏ qua đoạn ghi âm cần nghe lại', 'ai_review_flag', 'review'),
+ ('5eed0000-0000-0000-0009-000000000035', 'CALL_RECORDING_PLAY', 'Nghe ghi âm cuộc gọi', 'call_recording', 'play'),
  ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage')
 ON CONFLICT DO NOTHING;
 
@@ -345,6 +348,8 @@ FROM (VALUES
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.
     ('SYSTEM_ADMIN', 'RISK_EVENT_CREATE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_READ', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_CONFIRM', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_DISMISS', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_RESOLVE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_REVERSE', 'All'), ('VERIFIER', 'RISK_EVENT_CREATE', 'All'), ('VERIFIER', 'RISK_EVENT_READ', 'All'), ('VERIFIER', 'RISK_EVENT_CONFIRM', 'All'), ('VERIFIER', 'RISK_EVENT_DISMISS', 'All'), ('VERIFIER', 'RISK_EVENT_RESOLVE', 'All'), ('VERIFIER', 'RISK_EVENT_REVERSE', 'All'),
     ('DEPT_MANAGER', 'RISK_EVENT_READ', 'Dept'),
+    -- AI call triage (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §2); the migration AddCallRecordingAiTriage grants the same on an existing database.
+    ('SYSTEM_ADMIN', 'AI_REVIEW_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'AI_REVIEW_FLAG_REVIEW', 'All'), ('SYSTEM_ADMIN', 'CALL_RECORDING_PLAY', 'All'), ('VERIFIER', 'AI_REVIEW_FLAG_READ', 'All'), ('VERIFIER', 'AI_REVIEW_FLAG_REVIEW', 'All'), ('VERIFIER', 'CALL_RECORDING_PLAY', 'All'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
     ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
     -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).

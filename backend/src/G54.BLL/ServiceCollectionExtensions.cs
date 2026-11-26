@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
         services.AddScoped<IEvidenceService, EvidenceService>();
+        services.AddScoped<ICallRecordingService, CallRecordingService>();
         services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();

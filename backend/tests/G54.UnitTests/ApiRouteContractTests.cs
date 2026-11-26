@@ -25,6 +25,7 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(TargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(MyTargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(ResultSubmissionsController), "")]
+    [InlineData(typeof(CallRecordingsController), "")]
     [InlineData(typeof(AppealsController), "")]
     [InlineData(typeof(HandoversController), "")]
     [InlineData(typeof(HelloController), "hello")]

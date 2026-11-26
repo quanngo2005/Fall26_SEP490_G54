@@ -42,6 +42,20 @@ public sealed class RiskEventService(
         var subject = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
             ?? throw new NotFoundException("Nhân viên", employeeId);
 
+        // One occurrence is penalised once: a live (not dismissed, not reversed) event of the same type at the same
+        // moment for the same employee is a duplicate, e.g. a double click or the same mismatch recorded twice.
+        var duplicate = await db.RiskEvents.AsNoTracking().AnyAsync(
+            r => r.EmployeeId == employeeId
+                && r.EventType == eventType
+                && r.OccurredAt == occurredAt
+                && r.Status != RiskEventStatus.Dismissed
+                && r.ReversedAt == null,
+            cancellationToken);
+        if (duplicate)
+        {
+            throw new ConflictException("Sự kiện rủi ro cùng nhân viên, loại và thời điểm đã được ghi nhận.");
+        }
+
         var riskEvent = new RiskEvent
         {
             Id = Guid.NewGuid(),

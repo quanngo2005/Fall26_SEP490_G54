@@ -1,6 +1,7 @@
 """FastAPI application factory, routers, and handlers."""
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -17,8 +18,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import Settings
 from app.errors import ServiceError
-from app.pipeline.asr import StubTranscriber, Transcriber
-from app.pipeline.audio import check_duration, normalize, probe
+from app.pipeline.asr import SerialTranscriber, build_transcriber
+from app.pipeline.audio import MUTED_AUDIO_MIME_TYPE, check_duration, mute_spans, normalize, probe
+from app.pipeline.pii import mask_transcript
 from app.schemas import (
     AnalyzeMeta,
     AnalyzeResponse,
@@ -27,14 +29,15 @@ from app.schemas import (
     DetectRequest,
     DetectResponse,
     HealthResponse,
+    MutedAudio,
 )
 from app.version import PIPELINE_VERSION
 
 logger = logging.getLogger(__name__)
 
 
-def get_transcriber() -> Transcriber:
-    return StubTranscriber()
+def get_transcriber(request: Request) -> SerialTranscriber:
+    return request.app.state.transcriber
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -43,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AI Service", version=PIPELINE_VERSION)
     app.state.settings = settings
+    app.state.transcriber = SerialTranscriber(build_transcriber(settings))
 
     # Exception handlers
     @app.exception_handler(ServiceError)
@@ -95,7 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def analyze(
         audio: UploadFile = File(...),
         meta: str = Form(...),
-        transcriber: Transcriber = Depends(get_transcriber),
+        transcriber: SerialTranscriber = Depends(get_transcriber),
     ) -> AnalyzeResponse:
         start_time = time.perf_counter()
         recording_id: UUID | None = None
@@ -115,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with tempfile.TemporaryDirectory(prefix="ai-svc-", dir=settings.TMP_DIR) as tmp_dir:
                 input_path = Path(tmp_dir) / "input.bin"
                 normalized_path = Path(tmp_dir) / "normalized.wav"
+                muted_path = Path(tmp_dir) / "muted.mp3"
 
                 hasher = hashlib.sha256()
                 total_bytes = 0
@@ -160,32 +165,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 duration_ms = norm_info.duration_ms
 
-                segments = await asyncio.to_thread(
-                    transcriber.transcribe,
+                raw_segments = await transcriber.transcribe(normalized_path, norm_info.duration_ms)
+                masked = mask_transcript(raw_segments, norm_info.duration_ms)
+
+                await asyncio.to_thread(
+                    mute_spans,
                     normalized_path,
-                    norm_info.duration_ms,
+                    muted_path,
+                    masked.pii_spans,
+                    ffmpeg_bin=settings.FFMPEG_BIN,
+                    timeout_s=settings.FFMPEG_TIMEOUT_SECONDS,
                 )
+                muted_base64 = base64.b64encode(muted_path.read_bytes()).decode("ascii")
 
                 processing_ms = int((time.perf_counter() - start_time) * 1000)
                 logger.info(
-                    "recording_id=%s duration_ms=%d processing_ms=%d outcome=SUCCESS",
+                    "recording_id=%s duration_ms=%d processing_ms=%d pii_masked=%d outcome=SUCCESS",
                     recording_id,
                     duration_ms,
                     processing_ms,
+                    masked.pii_count,
                 )
 
                 return AnalyzeResponse(
                     pipeline_version=PIPELINE_VERSION,
-                    stage="W1_RAW",
+                    stage="W2_MASKED",
                     asr=AsrInfo(
                         model=transcriber.model_name,
                         language="vi",
                         duration_ms=norm_info.duration_ms,
                         channels=norm_info.channels,
                     ),
-                    segments=segments,
+                    segments=masked.segments,
+                    muted_audio=MutedAudio(mime_type=MUTED_AUDIO_MIME_TYPE, base64=muted_base64),
                     stats=AnalyzeStats(
-                        pii_masked=0,
+                        pii_masked=masked.pii_count,
                         guardrail_dropped=0,
                         processing_ms=processing_ms,
                         source_sample_rate=source_info.sample_rate,

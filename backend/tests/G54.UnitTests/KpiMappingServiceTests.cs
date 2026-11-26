@@ -258,4 +258,48 @@ public sealed class KpiMappingServiceTests
         var exists = await context.ObjectiveKpis.AnyAsync(m => m.BusinessObjectiveId == objectiveId && m.KpiDefinitionId == kpiId);
         Assert.False(exists);
     }
+
+    [Fact]
+    public async Task GetAvailableKpisAsync_UnknownObjective_ThrowsNotFound()
+    {
+        using var context = CreateInMemoryDbContext();
+        var service = new KpiMappingService(context);
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.GetAvailableKpisAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task GetAvailableKpisAsync_ExistingObjective_ReturnsActiveKpisOrderedByCode()
+    {
+        using var context = CreateInMemoryDbContext();
+        var objective = new BusinessObjective
+        {
+            Id = Guid.NewGuid(),
+            Code = "OBJ-AV",
+            Name = "Available KPI objective",
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(6)),
+            Status = BusinessObjectiveStatus.Active,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        var group = new KpiGroup { Id = Guid.NewGuid(), Code = "GRP-AV", Name = "Group", Status = KpiStatus.Active };
+        KpiDefinition Kpi(string code, KpiStatus status) => new()
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            Name = code,
+            Unit = "unit",
+            KpiGroupId = group.Id,
+            Status = status,
+        };
+        context.BusinessObjectives.Add(objective);
+        context.KpiGroups.Add(group);
+        context.KpiDefinitions.AddRange(Kpi("B_KPI", KpiStatus.Active), Kpi("A_KPI", KpiStatus.Active), Kpi("C_OFF", KpiStatus.Inactive));
+        await context.SaveChangesAsync();
+
+        var result = await new KpiMappingService(context).GetAvailableKpisAsync(objective.Id);
+
+        Assert.Equal(["A_KPI", "B_KPI"], result.Select(item => item.Code));
+    }
 }

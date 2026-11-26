@@ -136,6 +136,11 @@ public static class ErrorCodes
     public const string AccountExists = "ACCOUNT_EXISTS";
     public const string CannotLockSelf = "CANNOT_LOCK_SELF";
 
+    // Call recordings (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §9)
+    public const string CallRecordingInvalidFile = "CALL_RECORDING_INVALID_FILE";
+    public const string CallRecordingSubmissionClosed = "CALL_RECORDING_SUBMISSION_CLOSED";
+    public const string CallRecordingNotReady = "CALL_RECORDING_NOT_READY";
+
     private static readonly Dictionary<string, (string Vi, string En)> DefaultMessages = new()
     {
         [ValidationError] = ("Dữ liệu đầu vào không hợp lệ.", "Input validation failed."),
@@ -217,6 +222,9 @@ public static class ErrorCodes
         [UsernameExists] = ("Tên đăng nhập đã tồn tại trong hệ thống.", "The username already exists in the system."),
         [AccountExists] = ("Nhân sự được chọn đã có tài khoản đăng nhập.", "The selected employee already has a user account."),
         [CannotLockSelf] = ("Bạn không thể khóa chính tài khoản đang đăng nhập.", "You cannot lock the account you are signed in with."),
+        [CallRecordingInvalidFile] = ("Tệp ghi âm không hợp lệ (mp3, m4a, mp4, wav; tối đa 50 MB).", "Invalid call recording file (mp3, m4a, mp4, wav; up to 50 MB)."),
+        [CallRecordingSubmissionClosed] = ("Kết quả đã rút, không thể tải ghi âm.", "The result submission was withdrawn, so no recording can be uploaded."),
+        [CallRecordingNotReady] = ("Ghi âm đang được xử lý.", "The call recording is still being processed."),
     };
 
     public static string GetDefaultMessage(string code, bool english = false)
