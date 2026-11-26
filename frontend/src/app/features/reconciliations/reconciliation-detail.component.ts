@@ -246,9 +246,10 @@ export class ReconciliationDetailComponent extends LocalizedComponent {
     });
   }
 
-  protected onFlagged(): void {
+  protected onFlagged(reworked = false): void {
     this.flagging.set(false);
-    this.notice.set(this.localization.reconciliation.flagModal.success);
+    const t = this.localization.reconciliation.flagModal;
+    this.notice.set(reworked ? t.reworkSuccess : t.success);
     this.reloadCurrent();
   }
 

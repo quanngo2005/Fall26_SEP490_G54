@@ -23,7 +23,7 @@ describe('WorkService', () => {
     departmentCode: 'CN-HN',
     departmentName: 'Kinh doanh 1',
     priority: 'Medium',
-    status: 'InProgress',
+    status: 'IN_PROGRESS',
     plannedStartDate: '2026-10-20',
     plannedEndDate: '2026-10-30',
     updatedAt: '2026-10-22T08:00:00+00:00',
@@ -41,7 +41,7 @@ describe('WorkService', () => {
     assigneeEmployeeName: 'Lê Minh Châu',
     assigneeEmployeeCode: 'NV004',
     priority: 'Medium',
-    status: 'InProgress',
+    status: 'IN_PROGRESS',
     plannedStartDate: '2026-10-20',
     plannedEndDate: '2026-10-30',
     estimatedHours: null,
@@ -62,7 +62,7 @@ describe('WorkService', () => {
     service
       .list({
         keyword: 'mở',
-        status: ['InProgress', 'Rejected'],
+        status: ['IN_PROGRESS', 'REJECTED'],
         assigneeEmployeeId: 'e1',
         workTypeId: '',
         priority: 'High',
@@ -70,13 +70,13 @@ describe('WorkService', () => {
         pageSize: 50,
       })
       .subscribe((page) => {
-        expect(page.items[0].status).toBe('InProgress');
+        expect(page.items[0].status).toBe('IN_PROGRESS');
         expect(page.totalCount).toBe(1);
       });
     const request = http.expectOne((r) => r.url === url);
     expect(request.request.method).toBe('GET');
     expect(request.request.params.get('keyword')).toBe('mở');
-    expect(request.request.params.get('status')).toBe('InProgress,Rejected');
+    expect(request.request.params.get('status')).toBe('IN_PROGRESS,REJECTED');
     expect(request.request.params.get('assigneeEmployeeId')).toBe('e1');
     expect(request.request.params.get('priority')).toBe('High');
     expect(request.request.params.get('page')).toBe('2');
@@ -109,11 +109,11 @@ describe('WorkService', () => {
 
   it('patches the status and returns the updated work', () => {
     service
-      .changeStatus('w1', { status: 'InProgress' })
+      .changeStatus('w1', { status: 'IN_PROGRESS' })
       .subscribe((work) => expect(work.updatedAt).toBe(detail.updatedAt));
     const request = http.expectOne(`${url}/w1/status`);
     expect(request.request.method).toBe('PATCH');
-    expect(request.request.body).toEqual({ status: 'InProgress' });
+    expect(request.request.body).toEqual({ status: 'IN_PROGRESS' });
     request.flush({ success: true, status: 200, data: detail });
   });
 

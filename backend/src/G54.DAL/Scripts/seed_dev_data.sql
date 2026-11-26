@@ -314,13 +314,15 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000033', 'AI_REVIEW_FLAG_READ', 'Xem đoạn ghi âm cần nghe lại', 'ai_review_flag', 'read'),
  ('5eed0000-0000-0000-0009-000000000034', 'AI_REVIEW_FLAG_REVIEW', 'Xác nhận hoặc bỏ qua đoạn ghi âm cần nghe lại', 'ai_review_flag', 'review'),
  ('5eed0000-0000-0000-0009-000000000035', 'CALL_RECORDING_PLAY', 'Nghe ghi âm cuộc gọi', 'call_recording', 'play'),
- ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage'),
  ('5eed0000-0000-0000-0009-000000000037', 'CAMPAIGN_CONTACT',    'Cập nhật liên hệ khách hàng chiến dịch', 'campaign_customer', 'update')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
 SELECT r.id, p.id, m.scope
 FROM (VALUES
+    -- Campaign customer contact tracking (docs/api/CAMPAIGN_CONTRACT.md §5); own-scope for every role that can be a campaign participant or owner.
+    ('EMPLOYEE', 'CAMPAIGN_CONTACT', 'Own'), ('DEPT_MANAGER', 'CAMPAIGN_CONTACT', 'Own'), ('BRANCH_MANAGER', 'CAMPAIGN_CONTACT', 'Own'),
     ('SYSTEM_ADMIN', 'WORK_READ', 'All'), ('SYSTEM_ADMIN', 'WORK_CREATE', 'All'), ('SYSTEM_ADMIN', 'WORK_UPDATE', 'All'),
     ('SYSTEM_ADMIN', 'SUBMISSION_READ', 'All'), ('SYSTEM_ADMIN', 'SUBMISSION_CREATE', 'All'), ('SYSTEM_ADMIN', 'VERIFICATION_DECIDE', 'All'),
     ('SYSTEM_ADMIN', 'KPI_READ', 'All'), ('SYSTEM_ADMIN', 'KPI_MANAGE', 'All'), ('SYSTEM_ADMIN', 'TARGET_MANAGE', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_READ', 'All'),
@@ -333,8 +335,6 @@ FROM (VALUES
     ('DEPT_MANAGER', 'KPI_READ', 'All'), ('DEPT_MANAGER', 'TARGET_MANAGE', 'Department'), ('DEPT_MANAGER', 'EVALUATION_READ', 'Department'),
     ('DEPT_MANAGER', 'EMPLOYEE_READ', 'Department'), ('DEPT_MANAGER', 'EVALUATION_SUBMIT', 'Department'), ('DEPT_MANAGER', 'EVALUATION_CALIBRATE', 'Department'), ('DEPT_MANAGER', 'EVALUATION_CALCULATE', 'Department'),
     ('DEPT_MANAGER', 'CAMPAIGN_READ', 'Department'), ('DEPT_MANAGER', 'CAMPAIGN_MANAGE', 'Department'), ('DEPT_MANAGER', 'HANDOVER_CREATE', 'Own'), ('DEPT_MANAGER', 'HANDOVER_SET_SHARE', 'Own'), ('DEPT_MANAGER', 'HANDOVER_RESPOND', 'Own'), ('DEPT_MANAGER', 'HANDOVER_MANAGE', 'Own'),
-    -- Campaign customer contact tracking (docs/api/CAMPAIGN_CONTRACT.md §5); own-scope for every role that can be a campaign participant or owner.
-    ('EMPLOYEE', 'CAMPAIGN_CONTACT', 'Own'), ('DEPT_MANAGER', 'CAMPAIGN_CONTACT', 'Own'), ('BRANCH_MANAGER', 'CAMPAIGN_CONTACT', 'Own'),
     ('VERIFIER', 'SUBMISSION_READ', 'Department'), ('VERIFIER', 'VERIFICATION_DECIDE', 'Department'), ('VERIFIER', 'KPI_READ', 'All'),
     ('EMPLOYEE', 'WORK_READ', 'Own'), ('EMPLOYEE', 'WORK_UPDATE', 'Own'), ('EMPLOYEE', 'SUBMISSION_READ', 'Own'),
     ('EMPLOYEE', 'SUBMISSION_CREATE', 'Own'), ('EMPLOYEE', 'KPI_READ', 'All'), ('EMPLOYEE', 'EVALUATION_READ', 'Own'),
@@ -360,6 +360,8 @@ FROM (VALUES
     ('SYSTEM_ADMIN', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('BRANCH_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('VERIFIER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('DEPT_MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    ('DEPT_MANAGER', 'QUALITY_FLAG_CREATE', 'Dept'), ('DEPT_MANAGER', 'QUALITY_FLAG_REWORK', 'Dept'),
+    ('BRANCH_MANAGER', 'QUALITY_FLAG_CREATE', 'Branch'), ('BRANCH_MANAGER', 'QUALITY_FLAG_REWORK', 'Branch'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('SYSTEM_ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_READ', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'), ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.
@@ -837,13 +839,14 @@ ON CONFLICT DO NOTHING;
 
 -- The rows seeded earlier join the same tree: the HDV Q4 chain hangs under the HDV year, the DU_NO and KH_MOI
 -- years are drafts, and the DU_NO quarters and departments get uneven values.
+-- DU_NO is authored in tỷ VND; the scale keeps these values right when the seed re-runs after convert_ty_vnd_kpis_to_vnd.sql.
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000001', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000001';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000031', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000002';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000032', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000003';
 UPDATE target_assignment SET status = 'DRAFT', approved_at = NULL WHERE id IN ('5eed0000-0000-0000-0015-000000000010', '5eed0000-0000-0000-0015-000000000020');
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 WHERE id = '5eed0000-0000-0000-0015-000000000015';
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 WHERE id = '5eed0000-0000-0000-0015-000000000016';
-UPDATE target_assignment SET target_value = v.value
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000015';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000016';
+UPDATE target_assignment SET target_value = v.value * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO')
 FROM (VALUES ('5eed0000-0000-0000-0015-000000000011'::uuid, 250), ('5eed0000-0000-0000-0015-000000000012'::uuid, 300), ('5eed0000-0000-0000-0015-000000000013'::uuid, 350), ('5eed0000-0000-0000-0015-000000000014'::uuid, 300)) AS v(id, value)
 WHERE target_assignment.id = v.id;
 
@@ -2761,6 +2764,7 @@ WHERE ta.id = '5eed0000-0000-0000-0035-000000000084'
 ON CONFLICT (id) DO UPDATE
 SET comment = EXCLUDED.comment, reply = EXCLUDED.reply;
 
+-- ============================================================================
 -- Demo notifications (GB-914: inbox, bell dropdown, filters, deep links)
 -- ============================================================================
 INSERT INTO notification (id, recipient_employee_id, sender_employee_id, type, severity, title, body, related_type, related_id, created_at, read_at)

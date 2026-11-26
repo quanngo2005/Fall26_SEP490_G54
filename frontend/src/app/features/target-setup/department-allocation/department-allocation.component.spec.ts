@@ -11,7 +11,10 @@ import {
   TargetSetup,
 } from '../../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../../core/target-assignment.service';
-import { SuggestTargetsResponseDto, TargetSetupApiService } from '../target-setup-api.service';
+import {
+  SuggestTargetsResponseDto,
+  TargetSuggestionService,
+} from '../../../core/target-suggestion.service';
 import { DepartmentAllocationComponent } from './department-allocation.component';
 
 function kpiRow(over: Partial<QuarterSplitRow>): QuarterSplitRow {
@@ -138,7 +141,7 @@ const setup: TargetSetup = {
 
 describe('DepartmentAllocationComponent (W5)', () => {
   let api: jasmine.SpyObj<TargetAssignmentService>;
-  let suggestApi: jasmine.SpyObj<TargetSetupApiService>;
+  let suggestApi: jasmine.SpyObj<TargetSuggestionService>;
 
   function render(
     options: {
@@ -186,12 +189,14 @@ describe('DepartmentAllocationComponent (W5)', () => {
             }),
           ),
     );
-    suggestApi = jasmine.createSpyObj<TargetSetupApiService>('TargetSetupApiService', ['suggest']);
+    suggestApi = jasmine.createSpyObj<TargetSuggestionService>('TargetSuggestionService', [
+      'suggest',
+    ]);
 
     TestBed.configureTestingModule({
       providers: [
         { provide: TargetAssignmentService, useValue: api },
-        { provide: TargetSetupApiService, useValue: suggestApi },
+        { provide: TargetSuggestionService, useValue: suggestApi },
       ],
     });
     TestBed.inject(I18nService).setLanguage('vi');
@@ -490,7 +495,7 @@ describe('DepartmentAllocationComponent (W5)', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: TargetAssignmentService, useValue: api },
-        { provide: TargetSetupApiService, useValue: {} },
+        { provide: TargetSuggestionService, useValue: {} },
       ],
     });
     TestBed.inject(I18nService).setLanguage('vi');

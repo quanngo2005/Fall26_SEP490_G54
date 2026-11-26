@@ -1,8 +1,8 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { ApiResponse } from '../../core/api-response.model';
+import { environment } from '../../environments/environment';
+import { ApiResponse } from './api-response.model';
 import {
   MyTargetConfirmResult,
   MyTargetFeedback,
@@ -17,7 +17,7 @@ import {
  * Owned by `features/my-targets/**`: new calls for this feature go here, never in `core/`.
  */
 @Injectable({ providedIn: 'root' })
-export class MyTargetsApiService {
+export class MyTargetsService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}/my-targets`;
 

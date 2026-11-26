@@ -372,8 +372,7 @@
                       [class.change-up]="row.changePercent >= 0"
                       [class.change-down]="row.changePercent < 0"
                     >
-                      {{row.changePercent >= 0 ? '▲' : '▼'}}
-                      {{pct(row.changePercent) | appNumber}}%
+                      {{row.changePercent >= 0 ? '+' : ''}}{{pct(row.changePercent) | appNumber}}%
                     </span>
                   }
                 </td>

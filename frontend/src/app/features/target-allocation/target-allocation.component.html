@@ -69,10 +69,14 @@
         </div>
       } @else if (failed()) {
         <div class="state-card state-error" role="alert">
-          <p>{{localization.targetDm.loadFailed}}</p>
-          <button type="button" class="button button-secondary" (click)="load()">
-            {{localization.targetDm.retry}}
-          </button>
+          @if (noAccess()) {
+            <p>{{localization.targetDm.noAccess}}</p>
+          } @else {
+            <p>{{localization.targetDm.loadFailed}}</p>
+            <button type="button" class="button button-secondary" (click)="load()">
+              {{localization.targetDm.retry}}
+            </button>
+          }
         </div>
       } @else if (rows().length === 0) {
         <div class="state-card">
@@ -168,7 +172,7 @@
               <td class="col-dept-target">
                 {{departmentTarget(row.id) | appNumber}}
                 @if (departmentDelta(row.id); as delta) {
-                  <span class="compare-delta">{{delta}}</span>
+                  <span class="compare-delta" [class]="departmentDeltaClass(row.id)">{{delta}}</span>
                 }
               </td>
               <td class="col-remaining" [class.is-off]="remaining(row.id) !== 0">
@@ -185,13 +189,18 @@
                     <app-allocation-cell
                       [value]="cellYear(row.id, col.id)"
                       [unit]="rowOf(row.id)?.unit ?? ''"
+                      [scaleHint]="rowOf(row.id)?.unit === 'VND'"
                       [state]="cellState(row.id, col.id)"
                       [editable]="!published()"
                       (valueChange)="editYear(row.id, col.id, $event)"
                     />
                   }
                   @if (compared(row.id, col.id) !== null) {
-                    <span class="compare-delta">{{deltaText(cellYear(row.id, col.id), compared(row.id, col.id))}}</span>
+                    <span
+                      class="compare-delta"
+                      [class]="deltaClass(cellYear(row.id, col.id), compared(row.id, col.id))"
+                      >{{deltaText(cellYear(row.id, col.id), compared(row.id, col.id))}}</span
+                    >
                   }
                 </td>
               }
@@ -246,6 +255,7 @@
                 <app-allocation-cell
                   [value]="drawerValue(row.kpiId, q)"
                   [unit]="row.unit"
+                  [scaleHint]="row.unit === 'VND'"
                   state="DEFAULT"
                   [editable]="!published() && !isLockedEmployee(row.kpiId, employee.id)"
                   (valueChange)="editQuarter(row.kpiId, i, $event)"

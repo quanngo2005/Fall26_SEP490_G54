@@ -9,10 +9,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { KpiDefinition } from '../../core/kpi-definition.models';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { MyTargetsApiService } from './my-targets-api.service';
-import { MyTargetYear, MyTargetProgress } from './my-targets.models';
+import { MyTargetsService } from '../../core/my-targets.service';
+import { MyTargetYear, MyTargetProgress } from '../../core/my-targets.models';
 import { MyTargetsComponent } from './my-targets.component';
-import { TARGET_EMP_I18N_STUB, targetEmpLocalizationStub } from './testing/target-emp-i18n.stub';
 
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
@@ -115,7 +114,7 @@ function progressData(): MyTargetProgress {
 }
 
 describe('MyTargetsComponent', () => {
-  let api: jasmine.SpyObj<MyTargetsApiService>;
+  let api: jasmine.SpyObj<MyTargetsService>;
   let queryParamMap: BehaviorSubject<ParamMap>;
   const text = (el: Element | null | undefined) =>
     (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -144,9 +143,9 @@ describe('MyTargetsComponent', () => {
 
   beforeEach(async () => {
     // Pin the year query param so the component requests the same year (2027) the mocked
-    // `MyTargetsApiService` responses use, instead of defaulting to the real current year.
+    // `MyTargetsService` responses use, instead of defaulting to the real current year.
     queryParamMap = new BehaviorSubject(paramMap({ year: '2027' }));
-    api = jasmine.createSpyObj<MyTargetsApiService>('MyTargetsApiService', [
+    api = jasmine.createSpyObj<MyTargetsService>('MyTargetsService', [
       'year',
       'confirm',
       'feedback',
@@ -159,7 +158,7 @@ describe('MyTargetsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [MyTargetsComponent],
       providers: [
-        { provide: MyTargetsApiService, useValue: api },
+        { provide: MyTargetsService, useValue: api },
         { provide: EmployeeService, useValue: { me: () => of(ME) } },
         {
           provide: KpiDefinitionService,
@@ -171,7 +170,7 @@ describe('MyTargetsComponent', () => {
             'I18nService',
             ['formatNumber', 'formatDate', 'translate'],
             {
-              localization: targetEmpLocalizationStub(),
+              localization: new I18nService().localization,
               currentLanguage: () => 'vi',
             },
           ),
@@ -199,7 +198,9 @@ describe('MyTargetsComponent', () => {
         const path = key.split('.');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let node: any =
-          path[0] === 'targetEmp' ? TARGET_EMP_I18N_STUB : targetEmpLocalizationStub();
+          path[0] === 'targetEmp'
+            ? new I18nService().localization.targetEmp
+            : new I18nService().localization;
         for (const segment of path.slice(1)) node = node?.[segment];
         let resolved = String(node ?? key);
         for (const [k, v] of Object.entries(params ?? {})) {

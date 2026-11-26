@@ -12,6 +12,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         ["FULL_ACCESS", "DEPARTMENT_MANAGE", "EMPLOYEE_MANAGE", "JOB_POSITION_MANAGE"];
 
     private const string DevSeedResource = "G54.DAL.Scripts.seed_dev_data.sql";
+    private const string ConvertTyVndResource = "G54.DAL.Scripts.convert_ty_vnd_kpis_to_vnd.sql";
 
     // Seeded demo employee -> its single role (one role per account). Accounts use the employee email as username.
     // NV001 branch manager, NV002/NV003/NV011 department managers, NV013 system admin, NV014 verifier, NV022 QA, NV015/NV018/NV020 heads of the extra departments (department managers), the rest employees.
@@ -81,6 +82,12 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         }
 
         await transaction.CommitAsync(cancellationToken);
+
+        // Needs its own transaction: ALTER TABLE fails while the seed transaction still has pending trigger events.
+        var convertSql = await ReadEmbeddedScriptAsync(ConvertTyVndResource, cancellationToken);
+        await using var convertTransaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await _dbContext.Database.ExecuteSqlRawAsync(convertSql, cancellationToken);
+        await convertTransaction.CommitAsync(cancellationToken);
     }
 
     private static async Task<string> ReadEmbeddedScriptAsync(string resourceName, CancellationToken cancellationToken)

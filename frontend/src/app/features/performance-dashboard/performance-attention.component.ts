@@ -2,7 +2,7 @@ import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentAttentionMember } from '../../core/department.models';
-import { formatArrow, formatValue, toneOf } from './performance-display';
+import { formatSigned, formatValue, toneOf } from './performance-display';
 
 /**
  * "Cán bộ cần chú ý": the API's attention list (rules and size are system parameters on the API), each row opening the
@@ -140,7 +140,7 @@ export class PerfAttentionComponent extends LocalizedComponent {
   }
 
   protected arrow(value: number | null): string {
-    return formatArrow(this.i18n.currentLanguage(), value);
+    return formatSigned(this.i18n.currentLanguage(), value);
   }
 
   protected tone(value: number | null): string {

@@ -235,7 +235,7 @@ public sealed class TargetSetupServiceTests
         var userId = Guid.NewGuid();
         var uow = new UnitOfWork(db);
         var permissionService = new AllocationPermissions(admin: true);
-        var service = new TargetSetupService(uow, db, permissionService, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var service = new TargetSetupService(uow, permissionService, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
         return new Fixture(
             db,
@@ -387,7 +387,7 @@ public sealed class TargetSetupServiceTests
 
         // Should throw forbidden because user doesn't have access to other branch
         var restrictedPermission = new AllocationPermissions(admin: false);
-        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), f.Db, restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             restrictedService.GetQuartersAsync(otherBranchYear.Id, f.UserId, CancellationToken.None));
@@ -1701,7 +1701,7 @@ public sealed class TargetSetupServiceTests
         await f.Db.SaveChangesAsync();
 
         var restrictedPermission = new AllocationPermissions(admin: false);
-        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), f.Db, restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             restrictedService.GetAllAllocationsAsync(otherBranchYear.Id, f.UserId, CancellationToken.None));
@@ -1737,7 +1737,7 @@ public sealed class TargetSetupServiceTests
         await f.Db.SaveChangesAsync();
 
         var restrictedPermission = new AllocationPermissions(admin: false);
-        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), f.Db, restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             restrictedService.GetAllocationAsync(otherBranchYear.Id, f.NonRatioKpiId, f.UserId, CancellationToken.None));
@@ -2509,7 +2509,7 @@ public sealed class TargetSetupServiceTests
 
         // Try to access with restricted permission
         var restrictedPermission = new AllocationPermissions(admin: false);
-        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), f.Db, restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var restrictedService = new TargetSetupService(new UnitOfWork(f.Db), restrictedPermission, new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             restrictedService.GetSetupAsync(otherBranch.Id, f.Year, f.UserId, CancellationToken.None));
@@ -3232,7 +3232,7 @@ public sealed class TargetSetupServiceTests
         var f = await CreateAsync();
         // Wire a real (not no-op) change-log so this test can verify the ADJUST entry it writes.
         var service = new TargetSetupService(
-            new UnitOfWork(f.Db), f.Db, new AllocationPermissions(admin: true), new TargetChangeLogService(f.Db, TimeProvider.System),
+            new UnitOfWork(f.Db), new AllocationPermissions(admin: true), new TargetChangeLogService(f.Db, TimeProvider.System),
             new RecordingNotifier(), new NoOpDepartmentService());
         f = f with { Service = service };
         await MakeBranchYearActiveAsync(f);

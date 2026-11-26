@@ -15,7 +15,7 @@ namespace G54.BLL.Services;
 /// Contract: docs/api/TARGET_ALLOCATION_CONTRACT.md "Employee side".
 /// </summary>
 public sealed class MyTargetsService(
-    IUnitOfWork uow, AppDbContext db, IPermissionService permissions, ITargetChangeLogService changeLog, TimeProvider time,
+    IUnitOfWork uow, IPermissionService permissions, ITargetChangeLogService changeLog, TimeProvider time,
     Microsoft.Extensions.Options.IOptions<G54.BLL.Common.SystemParametersOptions> systemParameters)
     : IMyTargetsService
 {
@@ -32,7 +32,7 @@ public sealed class MyTargetsService(
             .OrderBy(p => p.StartDate)
             .ToList();
 
-        var yearRows = await db.TargetAssignments
+        var yearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.EmployeeId == employee.Id
@@ -44,7 +44,7 @@ public sealed class MyTargetsService(
         var yearRowIds = yearRows.Select(r => r.Id).ToList();
         var quarterRows = yearRowIds.Count == 0
             ? []
-            : await db.TargetAssignments
+            : await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.ParentAssignmentId != null && yearRowIds.Contains(t.ParentAssignmentId.Value)
                     && t.SplitDimension == TargetSplitDimension.Period
@@ -58,7 +58,7 @@ public sealed class MyTargetsService(
         var prevActualByKpi = new Dictionary<Guid, decimal>();
         if (previousYearPeriod is not null)
         {
-            var prevRows = await db.TargetAssignments
+            var prevRows = await uow.TargetAssignments.Query(false)
                 .AsNoTracking()
                 .Where(t => t.EmployeeId == employee.Id
                     && t.EvaluationPeriodId == previousYearPeriod.Id
@@ -68,7 +68,7 @@ public sealed class MyTargetsService(
             prevYearByKpi = prevRows.GroupBy(r => r.KpiDefinitionId).ToDictionary(g => g.Key, g => g.First());
 
             var kpiIds = yearRows.Select(r => r.KpiDefinitionId).ToList();
-            var actuals = await db.ActualProgresses
+            var actuals = await uow.ActualProgresses.Query(false)
                 .AsNoTracking()
                 .Where(ap => ap.Status == ActualProgressStatus.Valid
                     && ap.TargetAssignment.EmployeeId == employee.Id
@@ -81,7 +81,7 @@ public sealed class MyTargetsService(
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.Value));
         }
 
-        var ack = await db.EmployeeTargetAcks.AsNoTracking()
+        var ack = await uow.EmployeeTargetAcks.Query(false).AsNoTracking()
             .FirstOrDefaultAsync(a => a.EmployeeId == employee.Id && a.Year == year, cancellationToken);
 
         var changeLogs = await changeLog.GetByEmployeeYearAsync(employee.Id, year, cancellationToken);
@@ -90,7 +90,7 @@ public sealed class MyTargetsService(
             .GroupBy(c => c.KpiDefinitionId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(c => c.OccurredAt).First());
 
-        var feedbackKpiIds = (await db.TargetAssignmentFeedbacks
+        var feedbackKpiIds = (await uow.TargetAssignmentFeedbacks.Query(false)
                 .AsNoTracking()
                 .Where(f => f.EmployeeId == employee.Id
                     && (f.ProposedYear != null || f.ProposedQ1 != null || f.ProposedQ2 != null
@@ -132,7 +132,7 @@ public sealed class MyTargetsService(
     {
         var employee = await ResolveEmployeeAsync(userId, cancellationToken);
 
-        var ack = await db.EmployeeTargetAcks
+        var ack = await uow.EmployeeTargetAcks.Query(false)
             .FirstOrDefaultAsync(a => a.EmployeeId == employee.Id && a.Year == year, cancellationToken);
 
         var now = time.GetUtcNow();
@@ -148,7 +148,7 @@ public sealed class MyTargetsService(
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            db.EmployeeTargetAcks.Add(ack);
+            await uow.EmployeeTargetAcks.AddAsync(ack, cancellationToken);
         }
         else
         {
@@ -163,7 +163,7 @@ public sealed class MyTargetsService(
             ack.UpdatedAt = now;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
 
         return new ConfirmMyTargetsResultDto(year, ack.Status, now);
     }
@@ -188,7 +188,7 @@ public sealed class MyTargetsService(
         var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, cancellationToken)
             ?? throw new NotFoundException($"Kỳ đánh giá năm {year} không tồn tại.");
 
-        var targetAssignment = await db.TargetAssignments
+        var targetAssignment = await uow.TargetAssignments.Query(false)
             .Include(t => t.KpiDefinition)
             .FirstOrDefaultAsync(t => t.EmployeeId == employee.Id
                 && t.KpiDefinitionId == request.KpiId
@@ -224,8 +224,8 @@ public sealed class MyTargetsService(
             CreatedAt = now
         };
 
-        db.TargetAssignmentFeedbacks.Add(feedback);
-        await db.SaveChangesAsync(cancellationToken);
+        await uow.TargetAssignmentFeedbacks.AddAsync(feedback, cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
 
         await changeLog.LogAsync(
             userId, TargetChangeLogAction.Feedback, tier: 3, kpiId: request.KpiId,
@@ -252,7 +252,7 @@ public sealed class MyTargetsService(
                 $"Nội dung phản hồi không được vượt quá {ReasonMaxLength} ký tự.");
         }
 
-        var feedback = await db.TargetAssignmentFeedbacks
+        var feedback = await uow.TargetAssignmentFeedbacks.Query(false)
             .Include(f => f.TargetAssignment).ThenInclude(t => t.KpiDefinition)
             .Include(f => f.Employee)
             .FirstOrDefaultAsync(f => f.Id == feedbackId, cancellationToken)
@@ -267,7 +267,7 @@ public sealed class MyTargetsService(
         feedback.RepliedBy = userId;
         feedback.RepliedAt = now;
 
-        await db.SaveChangesAsync(cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
 
         await changeLog.LogAsync(
             userId, TargetChangeLogAction.Reply, tier: 3, kpiId: feedback.TargetAssignment.KpiDefinitionId,
@@ -290,7 +290,7 @@ public sealed class MyTargetsService(
 
         var targetPeriod = await ResolvePeriodAsync(yearPeriod, period, cancellationToken);
 
-        var yearRows = await db.TargetAssignments
+        var yearRows = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Include(t => t.KpiDefinition)
             .Where(t => t.EmployeeId == employee.Id
@@ -311,7 +311,7 @@ public sealed class MyTargetsService(
                 ? await ResolveQuarterTargetAsync(yr.Id, targetPeriod, cancellationToken)
                 : yr.TargetValue;
 
-            var achieved = await db.ActualProgresses
+            var achieved = await uow.ActualProgresses.Query(false)
                 .AsNoTracking()
                 .Where(ap => ap.Status == ActualProgressStatus.Valid
                     && ap.TargetAssignment.EmployeeId == employee.Id
@@ -322,12 +322,12 @@ public sealed class MyTargetsService(
 
             var periodStart = new DateTimeOffset(targetPeriod.StartDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
             var periodEnd = new DateTimeOffset(targetPeriod.EndDate.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero);
-            var inReviewCount = await db.WorkTransactions
+            var inReviewCount = await uow.WorkTransactions.Query(false)
                 .AsNoTracking()
                 .Where(wt => wt.Status == WorkTransactionStatus.InReview
                     && wt.Work.AssigneeEmployeeId == employee.Id
                     && wt.Work.WorkTypeId != null
-                    && db.WorkTypeKpis.Any(wk => wk.WorkTypeId == wt.Work.WorkTypeId && wk.KpiDefinitionId == yr.KpiDefinitionId)
+                    && uow.WorkTypeKpis.Query(false).Any(wk => wk.WorkTypeId == wt.Work.WorkTypeId && wk.KpiDefinitionId == yr.KpiDefinitionId)
                     && wt.CreatedAt >= periodStart
                     && wt.CreatedAt <= periodEnd)
                 .CountAsync(cancellationToken);
@@ -353,13 +353,13 @@ public sealed class MyTargetsService(
     {
         if (targetPeriod.PeriodType == PeriodType.Year)
         {
-            return await db.TargetAssignments.AsNoTracking()
+            return await uow.TargetAssignments.Query(false).AsNoTracking()
                 .Where(t => t.Id == yearRowId)
                 .Select(t => t.TargetValue)
                 .FirstOrDefaultAsync(ct);
         }
 
-        return await db.TargetAssignments
+        return await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == yearRowId
                 && t.SplitDimension == TargetSplitDimension.Period
@@ -397,7 +397,7 @@ public sealed class MyTargetsService(
 
     private async Task<CallerInfo> ResolveEmployeeAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var employee = await db.Employees
+        var employee = await uow.Employees.Query(false)
             .AsNoTracking()
             .Include(e => e.Department)
             .Where(e => e.Id == userId || (e.Account != null && e.Account.Id == userId))
@@ -413,7 +413,7 @@ public sealed class MyTargetsService(
     {
         await DepartmentAccessGuard.EnsureDepartmentAccessAsync(uow, permissions, userId, departmentId, cancellationToken);
 
-        var query = db.TargetAssignmentFeedbacks
+        var query = uow.TargetAssignmentFeedbacks.Query(false)
             .AsNoTracking()
             .Include(f => f.TargetAssignment).ThenInclude(t => t.KpiDefinition)
             .Include(f => f.TargetAssignment).ThenInclude(t => t.EvaluationPeriod)
@@ -431,7 +431,7 @@ public sealed class MyTargetsService(
         var replierIds = rows.Where(f => f.RepliedBy.HasValue).Select(f => f.RepliedBy!.Value).Distinct().ToList();
         var replierNames = replierIds.Count == 0
             ? new Dictionary<Guid, string>()
-            : await db.Employees.AsNoTracking().Where(e => replierIds.Contains(e.Id))
+            : await uow.Employees.Query(false).AsNoTracking().Where(e => replierIds.Contains(e.Id))
                 .ToDictionaryAsync(e => e.Id, e => e.FullName, cancellationToken);
 
         return rows
@@ -447,7 +447,7 @@ public sealed class MyTargetsService(
         var caller = await ResolveEmployeeAsync(userId, cancellationToken);
         if (caller.Id != employeeId)
         {
-            var target = await db.Employees.AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
+            var target = await uow.Employees.Query(false).AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
                 ?? throw new NotFoundException("Nhân viên", employeeId);
             await DepartmentAccessGuard.EnsureDepartmentAccessAsync(uow, permissions, userId, target.DepartmentId, cancellationToken);
         }
@@ -466,7 +466,7 @@ public sealed class MyTargetsService(
     {
         var employee = await ResolveEmployeeAsync(userId, cancellationToken);
 
-        var query = db.TargetAssignmentFeedbacks
+        var query = uow.TargetAssignmentFeedbacks.Query(false)
             .AsNoTracking()
             .Include(f => f.TargetAssignment).ThenInclude(t => t.KpiDefinition)
             .Include(f => f.TargetAssignment).ThenInclude(t => t.EvaluationPeriod)
@@ -482,7 +482,7 @@ public sealed class MyTargetsService(
         var replierIds = rows.Where(f => f.RepliedBy.HasValue).Select(f => f.RepliedBy!.Value).Distinct().ToList();
         var replierNames = replierIds.Count == 0
             ? new Dictionary<Guid, string>()
-            : await db.Employees.AsNoTracking().Where(e => replierIds.Contains(e.Id))
+            : await uow.Employees.Query(false).AsNoTracking().Where(e => replierIds.Contains(e.Id))
                 .ToDictionaryAsync(e => e.Id, e => e.FullName, cancellationToken);
 
         return rows
@@ -499,13 +499,13 @@ public sealed class MyTargetsService(
         var yearPeriod = await uow.EvaluationPeriods.GetYearAsync(year, cancellationToken)
             ?? throw new NotFoundException($"Kỳ đánh giá năm {year} không tồn tại.");
 
-        var employeeYearRow = await db.TargetAssignments
+        var employeeYearRow = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.EmployeeId == employee.Id && t.KpiDefinitionId == kpiId
                 && t.EvaluationPeriodId == yearPeriod.Id && t.SplitDimension == TargetSplitDimension.Org, cancellationToken)
             ?? throw new NotFoundException("Không tìm thấy chỉ tiêu KPI của bạn cho năm này.");
 
-        var quarterIds = await db.TargetAssignments
+        var quarterIds = await uow.TargetAssignments.Query(false)
             .AsNoTracking()
             .Where(t => t.ParentAssignmentId == employeeYearRow.Id && t.SplitDimension == TargetSplitDimension.Period)
             .Select(t => t.Id)
@@ -514,7 +514,7 @@ public sealed class MyTargetsService(
         var assignmentIds = new List<Guid> { employeeYearRow.Id };
         assignmentIds.AddRange(quarterIds);
 
-        var items = await db.WorkResultItems
+        var items = await uow.WorkResultItems.Query(false)
             .AsNoTracking()
             .Include(w => w.ActualProgress)
             .Include(w => w.VerifiedWorkResult).ThenInclude(v => v!.WorkTransaction).ThenInclude(t => t!.ImportedTransaction)

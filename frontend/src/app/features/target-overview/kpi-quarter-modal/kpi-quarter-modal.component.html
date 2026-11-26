@@ -75,7 +75,7 @@
             <span class="tile-label">{{text.vsLastYear}} {{year() - 1}}</span>
             @if (yearChange() !== null) {
               <strong [class.up]="yearChange()! >= 0" [class.down]="yearChange()! < 0">
-                {{yearChange()! >= 0 ? '▲' : '▼'}} {{pct(yearChange()!) | appNumber}}%
+                {{yearChange()! >= 0 ? '+' : ''}}{{pct(yearChange()!) | appNumber}}%
               </strong>
               <span class="tile-sub"
                 >{{shown(row.previousYearValue) | appNumber}} {{unit}}</span
@@ -133,7 +133,7 @@
                     {{q.previous === null ? '—' : (shown(q.previous) | appNumber)}}
                     @if (q.change !== null) {
                       <span class="delta" [class.up]="q.change >= 0" [class.down]="q.change < 0">
-                        {{q.change >= 0 ? '▲' : '▼'}} {{pct(q.change) | appNumber}}%
+                        {{q.change >= 0 ? '+' : ''}}{{pct(q.change) | appNumber}}%
                       </span>
                     }
                   </td>

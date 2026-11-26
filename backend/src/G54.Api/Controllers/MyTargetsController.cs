@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Services;
@@ -57,7 +58,7 @@ public sealed class MyTargetsController(IMyTargetsService service) : ControllerB
 
     /// <summary>DM reply to an employee's feedback; scoped to the DM's own department.</summary>
     [HttpPost("feedback/{feedbackId:guid}/reply")]
-    [HasPermission("target", "manage", "Department")]
+    [HasPermission("target", "manage", PermissionScopes.Dept)]
     [ProducesResponseType<ApiResponse<TargetFeedbackDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -83,7 +84,7 @@ public sealed class MyTargetsController(IMyTargetsService service) : ControllerB
 
     /// <summary>DM listing of employee feedback for a department/year (W9 panel, W11 drawer), optionally narrowed to one employee.</summary>
     [HttpGet("{year:int}/feedback")]
-    [HasPermission("target", "manage", "Department")]
+    [HasPermission("target", "manage", PermissionScopes.Dept)]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetFeedbackDto>>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetFeedbackDto>>>> GetFeedback(
         int year, [FromQuery] Guid departmentId, [FromQuery] Guid? employeeId, CancellationToken cancellationToken)

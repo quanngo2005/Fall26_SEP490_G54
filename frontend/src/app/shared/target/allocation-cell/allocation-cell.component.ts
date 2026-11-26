@@ -1,6 +1,7 @@
-import { Component, computed, input, output } from '@angular/core';
+import { Component, computed, input, output, signal } from '@angular/core';
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { AppNumberPipe } from '../../pipes';
+import { TargetMoneyPipe } from '../pipes/target-money.pipe';
 import { AllocationCellState } from '../target-shared.models';
 
 /**
@@ -12,7 +13,7 @@ import { AllocationCellState } from '../target-shared.models';
 @Component({
   selector: 'app-allocation-cell',
   standalone: true,
-  imports: [AppNumberPipe],
+  imports: [AppNumberPipe, TargetMoneyPipe],
   templateUrl: './allocation-cell.component.html',
   styleUrl: './allocation-cell.component.scss',
 })
@@ -21,6 +22,8 @@ export class AllocationCellComponent extends LocalizedComponent {
   readonly unit = input('');
   readonly state = input<AllocationCellState>('DEFAULT');
   readonly editable = input(false);
+  /** While typing, show the amount as triệu / tỷ. Set by the host for VND KPIs only. */
+  readonly scaleHint = input(false);
   /** Shown as a native tooltip when `state` is `LOCKED`. Falls back to a generic reason. */
   readonly lockedReason = input<string | null>(null);
 
@@ -40,16 +43,47 @@ export class AllocationCellComponent extends LocalizedComponent {
     return value === null ? '' : this.i18n.formatNumber(value);
   });
 
+  /** Text currently typed in the input; `null` while the input is not focused. */
+  private readonly draft = signal<string | null>(null);
+
+  /** Typed VND amount as triệu / tỷ (`1.500.000.000` → `1,5 tỷ`); `null` when there is nothing to show. */
+  protected readonly typedAmount = computed(() => {
+    const draft = this.draft();
+    if (draft === null || !this.scaleHint()) {
+      return null;
+    }
+    const parsed = this.parse(draft);
+    return Number.isFinite(parsed) && Math.abs(parsed) >= 1_000_000 ? parsed : null;
+  });
+
+  protected readonly unitLabels = computed(() => ({
+    million: this.text().unitMillion,
+    billion: this.text().unitBillion,
+  }));
+
+  protected onInput(input: HTMLInputElement): void {
+    this.draft.set(input.value);
+  }
+
+  protected onFocus(input: HTMLInputElement): void {
+    this.draft.set(input.value);
+  }
+
   protected onBlur(input: HTMLInputElement): void {
+    this.draft.set(null);
     if (!this.editable()) {
       return;
     }
-    // vi format: `.` groups thousands, `,` is the decimal separator.
-    const parsed = Number(input.value.replace(/\./g, '').replace(',', '.'));
+    const parsed = this.parse(input.value);
     if (Number.isFinite(parsed)) {
       this.valueChange.emit(parsed);
     }
     input.value = this.display();
+  }
+
+  /** vi format: `.` groups thousands, `,` is the decimal separator. */
+  private parse(text: string): number {
+    return Number(text.replace(/\./g, '').replace(',', '.'));
   }
 
   protected onKeydown(event: KeyboardEvent, input: HTMLInputElement): void {

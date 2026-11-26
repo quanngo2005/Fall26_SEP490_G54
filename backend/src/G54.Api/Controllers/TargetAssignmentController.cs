@@ -12,7 +12,7 @@ namespace G54.Api.Controllers;
 
 [ApiController]
 [Route("target-assignments")]
-[HasPermission("target", "manage", "Department")]
+[HasPermission("target", "manage", PermissionScopes.Dept)]
 public sealed class TargetAssignmentController(
     ITargetImportService importService,
     ITargetSetupService setupService,

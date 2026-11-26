@@ -10,7 +10,7 @@ import { PagedResult } from '../../core/paged-result.model';
 import { KpiAllocation, TargetSetup, TargetSetupStep } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { TargetSetupApiService } from './target-setup-api.service';
+import { TargetSuggestionService } from '../../core/target-suggestion.service';
 import { TargetSetupWizardComponent } from './target-setup-wizard.component';
 
 @Component({ selector: 'app-header', template: '' })
@@ -148,7 +148,7 @@ describe('TargetSetupWizardComponent', () => {
       }),
     );
 
-    const suggestApi = jasmine.createSpyObj<TargetSetupApiService>('TargetSetupApiService', [
+    const suggestApi = jasmine.createSpyObj<TargetSuggestionService>('TargetSuggestionService', [
       'suggest',
     ]);
 
@@ -156,7 +156,7 @@ describe('TargetSetupWizardComponent', () => {
       providers: [
         { provide: DepartmentService, useValue: departmentApi },
         { provide: TargetAssignmentService, useValue: targetApi },
-        { provide: TargetSetupApiService, useValue: suggestApi },
+        { provide: TargetSuggestionService, useValue: suggestApi },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -462,7 +462,7 @@ describe('TargetSetupWizardComponent', () => {
     const cells = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('.publish-table tbody td'),
     ).map((cell) => cell.textContent?.trim());
-    expect(cells.slice(0, 4)).toEqual(['Phòng Giao dịch', 'Chưa xác định', '1', '▲ +25,0%']);
+    expect(cells.slice(0, 4)).toEqual(['Phòng Giao dịch', 'Chưa xác định', '1', '+25,0%']);
   });
 
   it('publishes after confirmation and returns to the overview', () => {

@@ -19,7 +19,7 @@ import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
 import { PerfCampaignPaceComponent } from '../performance-dashboard/performance-campaign-pace.component';
 import { PerfChildUnitsComponent } from '../performance-dashboard/performance-child-units.component';
 import {
-  formatArrow,
+  formatSigned,
   formatValue,
   NOT_AVAILABLE,
   toneOf,
@@ -197,7 +197,7 @@ export class BranchPerformanceComponent extends LocalizedComponent {
     const name = this.compareName();
     return name == null || value == null
       ? null
-      : `${formatArrow(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
+      : `${formatSigned(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
   }
 
   protected tone(value: number | null) {

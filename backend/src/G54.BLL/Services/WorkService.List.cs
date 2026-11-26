@@ -146,7 +146,7 @@ public sealed partial class WorkService
                 r.DepartmentCode,
                 r.DepartmentName,
                 r.Priority.ToString(),
-                r.Status.ToString(),
+                r.Status.ToEnumString(),
                 r.PlannedStartDate,
                 r.PlannedEndDate,
                 r.UpdatedAt))

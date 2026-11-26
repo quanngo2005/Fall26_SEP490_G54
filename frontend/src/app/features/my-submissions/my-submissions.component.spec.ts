@@ -104,6 +104,53 @@ describe('MySubmissionsComponent', () => {
     return fixture;
   };
 
+  it('opens on the period that contains today, not on a future period flagged active', () => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(2026, 10, 26));
+    try {
+      const fixture = TestBed.createComponent(MySubmissionsComponent);
+      fixture.detectChanges();
+      http.expectOne(`${environment.apiUrl}/evaluations/periods`).flush({
+        success: true,
+        status: 200,
+        data: [
+          {
+            id: 'dec',
+            code: '2026-12',
+            name: 'Tháng 12',
+            status: 'OPEN',
+            isActive: true,
+            startDate: '2026-12-01',
+            endDate: '2026-12-31',
+          },
+          {
+            id: 'nov',
+            code: '2026-11',
+            name: 'Tháng 11',
+            status: 'OPEN',
+            isActive: false,
+            startDate: '2026-11-01',
+            endDate: '2026-11-30',
+          },
+          {
+            id: 'q4',
+            code: '2026-Q4',
+            name: 'Quý 4',
+            status: 'OPEN',
+            isActive: false,
+            startDate: '2026-10-01',
+            endDate: '2026-12-31',
+          },
+        ],
+      });
+      const request = http.expectOne((r) => r.url === listUrl);
+      expect(request.request.params.get('periodId')).toBe('nov');
+      request.flush(envelope({ items: [], totalCount: 0, page: 1, pageSize: 20 }));
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
   const select = (fixture: ReturnType<typeof open>, body: MySubmissionDetail) => {
     fixture.nativeElement.querySelector('tbody tr').click();
     http.expectOne(`${environment.apiUrl}/submissions/s1/reconciliation`).flush(envelope(body));

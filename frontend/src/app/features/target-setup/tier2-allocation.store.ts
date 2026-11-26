@@ -17,8 +17,8 @@ import { roundValue, unitsOf } from './target-math';
 import {
   SuggestTargetsRequestDto,
   SuggestTargetsResponseDto,
-  TargetSetupApiService,
-} from './target-setup-api.service';
+  TargetSuggestionService,
+} from '../../core/target-suggestion.service';
 
 export type CellKey = 'year' | QuarterKey;
 export type DepartmentValues = Record<CellKey, number>;
@@ -93,7 +93,7 @@ export function tier2CellId(kpiId: string, departmentId: string, key: CellKey): 
 @Injectable()
 export class Tier2AllocationStore {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly suggestionApi = inject(TargetSetupApiService);
+  private readonly suggestionApi = inject(TargetSuggestionService);
 
   readonly loading = signal(true);
   readonly failed = signal(false);

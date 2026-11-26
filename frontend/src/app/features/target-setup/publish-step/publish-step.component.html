@@ -43,7 +43,13 @@
             <td>{{row.departmentName}}</td>
             <td>{{row.managerName ?? text.noManager}}</td>
             <td class="num">{{row.kpiCount}}</td>
-            <td class="num">{{changeText(row.changePercent)}}</td>
+            <td
+              class="num"
+              [class.change-up]="row.changePercent !== null && row.changePercent > 0"
+              [class.change-down]="row.changePercent !== null && row.changePercent < 0"
+            >
+              {{changeText(row.changePercent)}}
+            </td>
             <td>
               @if (row.changePercent === null) {
                 <span class="note-tag">{{noHistoryNote()}}</span>

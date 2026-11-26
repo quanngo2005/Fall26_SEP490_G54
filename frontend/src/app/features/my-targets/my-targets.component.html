@@ -238,20 +238,20 @@
                         <td>{{kpi.unit}}</td>
                         <td class="num num-col">
                           @if (cell) {
-                            <span class="struck">{{number(cell.oldValue)}}</span>
-                            <span class="new-value">{{number(cell.newValue)}}</span>
+                            <span class="struck">{{number(cell.oldValue, kpi.unit)}}</span>
+                            <span class="new-value">{{number(cell.newValue, kpi.unit)}}</span>
                           } @else {
-                            {{number(kpi.year)}}
+                            {{number(kpi.year, kpi.unit)}}
                           }
                         </td>
                         <td class="num num-col" [class.cell-warning]="isIncreased(kpi)">
                           {{percent(delta)}}
                         </td>
-                        <td class="num num-col">{{number(kpi.q1)}}</td>
-                        <td class="num num-col">{{number(kpi.q2)}}</td>
-                        <td class="num num-col">{{number(kpi.q3)}}</td>
-                        <td class="num num-col">{{number(kpi.q4)}}</td>
-                        <td class="num num-col">{{number(kpi.previousYearActual)}}</td>
+                        <td class="num num-col">{{number(kpi.q1, kpi.unit)}}</td>
+                        <td class="num num-col">{{number(kpi.q2, kpi.unit)}}</td>
+                        <td class="num num-col">{{number(kpi.q3, kpi.unit)}}</td>
+                        <td class="num num-col">{{number(kpi.q4, kpi.unit)}}</td>
+                        <td class="num num-col">{{number(kpi.previousYearActual, kpi.unit)}}</td>
                         @if (!locked()) {
                           <td>
                             <button
@@ -383,8 +383,10 @@
                           >
                             <th scope="row">{{kpi.kpiName}}</th>
                             <td>{{kpi.unit}}</td>
-                            <td class="num num-col">{{number(kpi.progress.target)}}</td>
-                            <td class="num num-col">{{number(kpi.progress.achieved)}}</td>
+                            <td class="num num-col">{{number(kpi.progress.target, kpi.unit)}}</td>
+                            <td class="num num-col">
+                              {{number(kpi.progress.achieved, kpi.unit)}}
+                            </td>
                             <td>
                               <app-pace-bar
                                 [progressPercent]="kpi.progress.achievedPercent"
@@ -394,7 +396,7 @@
                                 "
                               />
                             </td>
-                            <td class="num num-col">{{number(missing(kpi))}}</td>
+                            <td class="num num-col">{{number(missing(kpi), kpi.unit)}}</td>
                             <td>
                               @switch (kpi.progress.paceStatus) {
                                 @case ('ACHIEVED') {
@@ -471,8 +473,10 @@
                         @for (row of rows; track row.kpiId) {
                           <tr>
                             <th scope="row">{{row.kpiName}}</th>
-                            <td class="num num-col">{{number(row.yearTarget)}}</td>
-                            <td class="num num-col">{{number(row.cumulativeAchieved)}}</td>
+                            <td class="num num-col">{{number(row.yearTarget, row.unit)}}</td>
+                            <td class="num num-col">
+                              {{number(row.cumulativeAchieved, row.unit)}}
+                            </td>
                             @for (cell of row.quarters; track cell.quarter) {
                               <td
                                 class="num num-col"
@@ -483,9 +487,10 @@
                                 @if (cell.state === null) {
                                   —
                                 } @else if (yearValueMode() === 'TARGET_ONLY') {
-                                  {{number(cell.target)}}
+                                  {{number(cell.target, row.unit)}}
                                 } @else {
-                                  {{number(cell.achieved)}} / {{number(cell.target)}}
+                                  {{number(cell.achieved, row.unit)}} /
+                                  {{number(cell.target, row.unit)}}
                                   @if (cell.state === 'ACHIEVED_PAST') {
                                     ✓
                                   }
@@ -584,15 +589,15 @@
           <tbody>
             <tr>
               <th scope="row">{{localization.targetEmp.rowAssigned}}</th>
-              <td class="num num-col">{{number(d.kpi.year)}}</td>
-              <td class="num num-col">{{number(d.kpi.q1)}}</td>
-              <td class="num num-col">{{number(d.kpi.q2)}}</td>
-              <td class="num num-col">{{number(d.kpi.q3)}}</td>
-              <td class="num num-col">{{number(d.kpi.q4)}}</td>
+              <td class="num num-col">{{number(d.kpi.year, d.kpi.unit)}}</td>
+              <td class="num num-col">{{number(d.kpi.q1, d.kpi.unit)}}</td>
+              <td class="num num-col">{{number(d.kpi.q2, d.kpi.unit)}}</td>
+              <td class="num num-col">{{number(d.kpi.q3, d.kpi.unit)}}</td>
+              <td class="num num-col">{{number(d.kpi.q4, d.kpi.unit)}}</td>
             </tr>
             <tr>
               <th scope="row">{{localization.targetEmp.rowPreviousActual}}</th>
-              <td class="num num-col">{{number(d.kpi.previousYearActual)}}</td>
+              <td class="num num-col">{{number(d.kpi.previousYearActual, d.kpi.unit)}}</td>
               <td class="num num-col" colspan="4">—</td>
             </tr>
             <tr>
@@ -704,8 +709,8 @@
             </thead>
             <tbody>
               <tr class="cell-current">
-                <th scope="row">{{number(d.kpi.progress.target)}}</th>
-                <td class="num num-col">{{number(d.kpi.progress.achieved)}}</td>
+                <th scope="row">{{number(d.kpi.progress.target, d.kpi.unit)}}</th>
+                <td class="num num-col">{{number(d.kpi.progress.achieved, d.kpi.unit)}}</td>
                 <td class="num num-col">{{percent(d.kpi.progress.achievedPercent)}}</td>
               </tr>
             </tbody>

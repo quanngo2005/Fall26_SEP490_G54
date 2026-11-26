@@ -17,7 +17,7 @@ const work = {
   id: 'w1',
   code: 'WK-1038',
   title: 'E-banking - Đăng ký',
-  status: 'InProgress',
+  status: 'IN_PROGRESS',
   plannedStartDate: '2026-10-24',
   plannedEndDate: '2026-10-25',
 } as unknown as WorkDetail;

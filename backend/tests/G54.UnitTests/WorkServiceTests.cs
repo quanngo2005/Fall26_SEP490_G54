@@ -80,7 +80,7 @@ public sealed class WorkServiceTests
             Assert.Equal("Credit Card Issuance", result.WorkTypeName);
             Assert.Equal("Nguyen Van A", result.AssigneeEmployeeName);
             Assert.Equal("High", result.Priority);
-            Assert.Equal("New", result.Status);
+            Assert.Equal("NEW", result.Status);
         }
     }
 
@@ -675,7 +675,7 @@ public sealed class WorkServiceTests
 
             var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = statusInput });
 
-            Assert.Equal("InProgress", result.Status);
+            Assert.Equal("IN_PROGRESS", result.Status);
             Assert.Equal(WorkStatus.InProgress, (await context.Works.FindAsync(work.Id))!.Status);
         }
     }
@@ -737,7 +737,7 @@ public sealed class WorkServiceTests
 
             var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" });
 
-            Assert.Equal("InProgress", result.Status);
+            Assert.Equal("IN_PROGRESS", result.Status);
         }
     }
 
@@ -801,7 +801,7 @@ public sealed class WorkServiceTests
 
             var result = await service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "Done" });
 
-            Assert.Equal("Done", result.Status);
+            Assert.Equal("DONE", result.Status);
         }
     }
 
@@ -816,7 +816,7 @@ public sealed class WorkServiceTests
             var result = await service.ChangeStatusAsync(
                 work.Id, manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = "Khach hang huy yeu cau" });
 
-            Assert.Equal("Cancelled", result.Status);
+            Assert.Equal("CANCELLED", result.Status);
         }
     }
 

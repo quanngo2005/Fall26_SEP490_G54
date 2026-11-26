@@ -35,7 +35,7 @@ import {
   findYearPeriod,
   includesText,
 } from '../target-overview/target-overview.utils';
-import { TargetAllocationApiService } from './target-allocation-api.service';
+import { TargetAllocationService } from '../../core/target-allocation.service';
 import {
   EMPLOYEE_QUARTER_KEYS,
   EmployeeAllocation,
@@ -43,7 +43,7 @@ import {
   EmployeePeriodKey,
   SaveEmployeeAllocationEmployeeRequest,
   SuggestionEngineRequest,
-} from './target-allocation.models';
+} from '../../core/target-allocation.models';
 import { rebalanceQuarters, splitByQuarterShape } from './target-allocation.utils';
 import { SuggestButtonComponent } from '../../shared/target/suggest-button/suggest-button.component';
 
@@ -91,7 +91,7 @@ const ZERO: DraftRow = { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 };
 })
 export class TargetAllocationComponent extends LocalizedComponent implements OnInit {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly allocationApi = inject(TargetAllocationApiService);
+  private readonly allocationApi = inject(TargetAllocationService);
   private readonly evaluationApi = inject(EvaluationService);
   private readonly kpiApi = inject(KpiDefinitionService);
   private readonly employeeApi = inject(EmployeeService);
@@ -101,6 +101,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
 
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly noAccess = signal(false);
   protected readonly saving = signal(false);
   protected readonly notice = signal<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -241,6 +242,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
+    this.noAccess.set(false);
     this.employeeApi
       .me()
       .pipe(
@@ -285,6 +287,7 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     if (this.autosaveHandle) clearTimeout(this.autosaveHandle);
     this.loading.set(true);
     this.failed.set(false);
+    this.noAccess.set(false);
     this.notice.set(null);
     this.closeDrawer();
     this.suggested.set(null);
@@ -321,7 +324,8 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
           this.tab.set(firstTab ?? '');
           this.loading.set(false);
         },
-        error: () => {
+        error: (error: HttpErrorResponse) => {
+          this.noAccess.set(error.status === 403 || error.status === 404);
           this.failed.set(true);
           this.loading.set(false);
         },
@@ -417,10 +421,15 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
     this.scheduleAutosave();
   }
 
-  /** Whole-year change of the department target against last year, e.g. `▲ +9,1%` (empty without history). */
+  /** Whole-year change of the department target against last year, e.g. `+9,1%` (empty without history). */
   protected departmentDelta(kpiId: string): string {
     const row = this.rowOf(kpiId);
     return row ? this.deltaText(row.department.year, row.department.previousYear ?? null) : '';
+  }
+
+  protected departmentDeltaClass(kpiId: string): string {
+    const row = this.rowOf(kpiId);
+    return row ? this.deltaClass(row.department.year, row.department.previousYear ?? null) : '';
   }
 
   protected compared(kpiId: string, employeeId: string): number | null {
@@ -429,10 +438,20 @@ export class TargetAllocationComponent extends LocalizedComponent implements OnI
   }
 
   protected deltaText(value: number | null, base: number | null): string {
-    if (value === null || base === null || base === 0) return '';
-    const change = Math.round(((value - base) / base) * 1000) / 10;
+    const change = this.deltaChange(value, base);
+    if (change === null) return '';
     const amount = this.i18n.formatNumber(Math.abs(change), 1);
-    return change === 0 ? `= ${amount}%` : `${change > 0 ? '▲ +' : '▼ −'}${amount}%`;
+    return change === 0 ? `= ${amount}%` : `${change > 0 ? '+' : '−'}${amount}%`;
+  }
+
+  protected deltaClass(value: number | null, base: number | null): string {
+    const change = this.deltaChange(value, base);
+    return change === null || change === 0 ? '' : change > 0 ? 'is-up' : 'is-down';
+  }
+
+  private deltaChange(value: number | null, base: number | null): number | null {
+    if (value === null || base === null || base === 0) return null;
+    return Math.round(((value - base) / base) * 1000) / 10;
   }
 
   private positionOf(row: EmployeeAllocation): string {

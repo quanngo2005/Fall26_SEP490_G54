@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
@@ -9,7 +10,7 @@ namespace G54.Api.Controllers;
 /// <summary>Branch / department / employee target allocation. Contract: docs/api/TARGET_ASSIGNMENT_CONTRACT.md.</summary>
 [ApiController]
 [Route("target-assignments")]
-[HasPermission("target", "manage", "Dept")]
+[HasPermission("target", "manage", PermissionScopes.Dept)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
 public sealed class TargetAssignmentsController(ITargetAssignmentService service) : ControllerBase
@@ -18,9 +19,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [HttpPost]
     [ProducesResponseType<ApiResponse<TargetAssignmentDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<ApiResponse<TargetAssignmentDto>>> CreateRoot([FromBody] CreateTargetAssignmentDto dto)
+    public async Task<ActionResult<ApiResponse<TargetAssignmentDto>>> CreateRoot([FromBody] CreateTargetAssignmentDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.CreateRootAsync(User.GetRequiredUserId(), dto);
+        var result = await service.CreateRootAsync(User.GetRequiredUserId(), dto, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, Created(result, "Giao target cho chi nhánh thành công."));
     }
 
@@ -31,9 +32,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> Allocate(
         Guid id,
-        [FromBody] AllocateTargetDto dto)
+        [FromBody] AllocateTargetDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.AllocateAsync(User.GetRequiredUserId(), id, dto);
+        var result = await service.AllocateAsync(User.GetRequiredUserId(), id, dto, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id }, Created(result, "Phân bổ target thành công."));
     }
 
@@ -44,9 +45,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> Reallocate(
         Guid id,
-        [FromBody] ReallocateTargetDto dto)
+        [FromBody] ReallocateTargetDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.ReallocateAsync(User.GetRequiredUserId(), id, dto);
+        var result = await service.ReallocateAsync(User.GetRequiredUserId(), id, dto, cancellationToken);
         return Ok(ApiResponse.Ok(result, "Điều chỉnh target thành công.", HttpContext.TraceIdentifier));
     }
 
@@ -58,9 +59,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> Revise(
         Guid id,
-        [FromBody] ReviseTargetAssignmentDto dto)
+        [FromBody] ReviseTargetAssignmentDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.ReviseAsync(User.GetRequiredUserId(), id, dto);
+        var result = await service.ReviseAsync(User.GetRequiredUserId(), id, dto, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result[0].Id }, Created(result, "Điều chỉnh target giữa kỳ thành công."));
     }
 
@@ -71,9 +72,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> AllocateByPeriod(
         Guid id,
-        [FromBody] AllocateTargetByPeriodDto dto)
+        [FromBody] AllocateTargetByPeriodDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.AllocateByPeriodAsync(User.GetRequiredUserId(), id, dto);
+        var result = await service.AllocateByPeriodAsync(User.GetRequiredUserId(), id, dto, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id }, Created(result, "Phân bổ target theo kỳ thành công."));
     }
 
@@ -81,9 +82,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [HttpGet]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> List([FromQuery] TargetAssignmentQueryDto query)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> List([FromQuery] TargetAssignmentQueryDto query, CancellationToken cancellationToken)
     {
-        var result = await service.ListAsync(User.GetRequiredUserId(), query);
+        var result = await service.ListAsync(User.GetRequiredUserId(), query, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -94,9 +95,9 @@ public sealed class TargetAssignmentsController(ITargetAssignmentService service
     [HttpGet("{id:guid}")]
     [ProducesResponseType<ApiResponse<TargetAssignmentDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<TargetAssignmentDto>>> GetById(Guid id)
+    public async Task<ActionResult<ApiResponse<TargetAssignmentDto>>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var result = await service.GetAsync(User.GetRequiredUserId(), id);
+        var result = await service.GetAsync(User.GetRequiredUserId(), id, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

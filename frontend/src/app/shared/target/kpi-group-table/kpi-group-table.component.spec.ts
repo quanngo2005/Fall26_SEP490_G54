@@ -1,7 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Component } from '@angular/core';
 import { I18nService } from '../../../core/i18n/i18n.service';
-import { targetSharedLocalizationStub } from '../testing/target-shared-i18n.stub';
 import { KpiGroupTableComponent } from './kpi-group-table.component';
 import { KpiGroupTableGroup } from '../target-shared.models';
 
@@ -41,7 +40,7 @@ describe('KpiGroupTableComponent', () => {
         {
           provide: I18nService,
           useValue: jasmine.createSpyObj('I18nService', [], {
-            localization: targetSharedLocalizationStub(),
+            localization: new I18nService().localization,
           }),
         },
       ],

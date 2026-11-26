@@ -27,8 +27,8 @@ import {
 } from '../../../shared/target/target-shared.models';
 import {
   SuggestionBasisDto,
-  TargetSetupApiService,
-} from '../../target-setup/target-setup-api.service';
+  TargetSuggestionService,
+} from '../../../core/target-suggestion.service';
 import { columnFormat, findQuarterPeriod } from '../target-overview.utils';
 
 type QuarterKey = keyof QuarterValues;
@@ -65,7 +65,7 @@ function changeOf(current: number | null, previous: number | null): number | nul
 })
 export class KpiQuarterModalComponent extends LocalizedComponent implements OnInit {
   private readonly targetApi = inject(TargetAssignmentService);
-  private readonly suggestionApi = inject(TargetSetupApiService);
+  private readonly suggestionApi = inject(TargetSuggestionService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 

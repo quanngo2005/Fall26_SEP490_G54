@@ -209,7 +209,7 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var service = new TargetSetupService(new UnitOfWork(db), db, new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var service = new TargetSetupService(new UnitOfWork(db), new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
         var result = await service.PublishAsync(branchYear.Id, _adminAccount, CancellationToken.None);
 
         Assert.Equal((1, 4, 1, 4), (result.BranchYearCount, result.QuarterCount, result.DepartmentYearCount, result.DepartmentQuarterCount));
@@ -302,7 +302,7 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var service = new TargetSetupService(new UnitOfWork(db), db, new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        var service = new TargetSetupService(new UnitOfWork(db), new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
         await service.PublishAsync(branchYear.Id, _adminAccount, CancellationToken.None);
 
         var deptYearAActive = await db.TargetAssignments.AsNoTracking().SingleAsync(

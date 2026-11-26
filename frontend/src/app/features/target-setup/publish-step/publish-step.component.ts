@@ -152,7 +152,7 @@ export class PublishStepComponent extends LocalizedComponent implements OnChange
       maximumFractionDigits: 1,
       signDisplay: 'always',
     }).format(percent);
-    return `${percent >= 0 ? '▲' : '▼'} ${formatted}%`;
+    return `${formatted}%`;
   }
 
   protected publishLabel(): string {

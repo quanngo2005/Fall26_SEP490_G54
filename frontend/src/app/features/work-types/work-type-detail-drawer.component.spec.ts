@@ -52,7 +52,7 @@ describe('WorkTypeDetailDrawerComponent', () => {
         success: true,
         data: {
           items: [],
-          totalCount: r.request.params.get('status')?.includes('Done') ? completed : open,
+          totalCount: r.request.params.get('status')?.includes('DONE') ? completed : open,
           page: 1,
           pageSize: 1,
         },

@@ -1820,15 +1820,15 @@
           "Critical": "Khẩn"
         },
         "status": {
-          "New": "Mới",
-          "InProgress": "Đang thực hiện",
-          "HandedOver": "Đang bàn giao",
-          "Submitted": "Chờ thẩm định",
-          "Verified": "Đã thẩm định",
-          "Rejected": "Cần làm lại",
-          "Overdue": "Quá hạn",
-          "Done": "Hoàn thành",
-          "Cancelled": "Đã hủy"
+          "NEW": "Mới",
+          "IN_PROGRESS": "Đang thực hiện",
+          "HANDED_OVER": "Đang bàn giao",
+          "SUBMITTED": "Chờ thẩm định",
+          "VERIFIED": "Đã thẩm định",
+          "REJECTED": "Cần làm lại",
+          "OVERDUE": "Quá hạn",
+          "DONE": "Hoàn thành",
+          "CANCELLED": "Đã hủy"
         },
         "card": {
           "due": "Hạn {date}",
@@ -3133,6 +3133,7 @@
         "viewMatrixTab": "Ma trận",
         "loading": "Đang tải trạng thái phân bổ...",
         "loadFailed": "Không tải được trạng thái phân bổ.",
+        "noAccess": "Chỉ Giám đốc chi nhánh mới thiết lập được mục tiêu năm.",
         "retry": "Thử lại",
         "publishBlocked": "Chưa phát hành được: còn chỉ tiêu chưa khớp.",
         "publishInvalidState": "Chỉ tiêu năm này đã được phát hành hoặc không còn ở trạng thái nháp.",
@@ -5262,6 +5263,9 @@
           "submitting": "Đang gắn cờ…",
           "cancel": "Hủy",
           "success": "Đã gắn cờ chất lượng. Mục mới nằm trong hàng chờ QA.",
+          "requestRework": "Yêu cầu nhân viên làm lại ngay",
+          "requestReworkHint": "Kết quả bị thu hồi điểm KPI, công việc quay về Đang thực hiện để nhân viên nộp lại. Lý do ở trên được gửi kèm.",
+          "reworkSuccess": "Đã gắn cờ và yêu cầu nhân viên làm lại công việc.",
           "errors": {
             "reason": "Nhập lý do ít nhất 10 ký tự.",
             "failed": "Không gắn được cờ. Vui lòng thử lại."
@@ -5397,7 +5401,9 @@
           "locked": "Đã khoá / không áp dụng"
         },
         "allocationCell": {
-          "lockedDefaultReason": "Ô đã khoá hoặc không áp dụng cho dòng này."
+          "lockedDefaultReason": "Ô đã khoá hoặc không áp dụng cho dòng này.",
+          "unitMillion": "triệu",
+          "unitBillion": "tỷ"
         },
         "missingPanel": {
           "title": "Còn thiếu trước khi phát hành",
@@ -5408,7 +5414,7 @@
           "goTo": "Đến KPI"
         },
         "tierStatusLine": {
-          "matchedOf": "KPI khớp /",
+          "matchedOf": "KPI khớp",
           "mismatched": "lệch",
           "notSplit": "chưa chia",
           "filterAll": "Tất cả",
@@ -5460,13 +5466,14 @@
         "breadcrumb": "Chỉ tiêu & chiến dịch",
         "w9Title": "Tổng quan mục tiêu",
         "w10Title": "Phân bổ mục tiêu nhân viên",
-        "w9Heading": "Tổng quan mục tiêu · Phòng {department}",
-        "w10Heading": "Phân bổ mục tiêu · Phòng {department}",
+        "w9Heading": "Tổng quan mục tiêu · {department}",
+        "w10Heading": "Phân bổ mục tiêu · {department}",
         "draftBadge": "Nháp",
         "yearLabel": "Năm",
         "wholeYear": "Cả năm",
         "loading": "Đang tải dữ liệu…",
         "loadFailed": "Không tải được dữ liệu. Vui lòng thử lại.",
+        "noAccess": "Bạn không có quyền phân bổ cho phòng này. Màn này dành cho Trưởng phòng.",
         "retry": "Thử lại",
         "noPublishedTier2": "Phòng chưa có chỉ tiêu phòng ban đã công bố cho năm này.",
         "exportFile": "Xuất file",
@@ -6902,15 +6909,15 @@
           "Critical": "Urgent"
         },
         "status": {
-          "New": "New",
-          "InProgress": "In progress",
-          "HandedOver": "Being handed over",
-          "Submitted": "Awaiting review",
-          "Verified": "Verified",
-          "Rejected": "Needs rework",
-          "Overdue": "Overdue",
-          "Done": "Done",
-          "Cancelled": "Cancelled"
+          "NEW": "New",
+          "IN_PROGRESS": "In progress",
+          "HANDED_OVER": "Being handed over",
+          "SUBMITTED": "Awaiting review",
+          "VERIFIED": "Verified",
+          "REJECTED": "Needs rework",
+          "OVERDUE": "Overdue",
+          "DONE": "Done",
+          "CANCELLED": "Cancelled"
         },
         "card": {
           "due": "Due {date}",
@@ -8215,6 +8222,7 @@
         "viewMatrixTab": "Matrix",
         "loading": "Loading allocation status...",
         "loadFailed": "Could not load the allocation status.",
+        "noAccess": "Only the Branch Manager can set up yearly targets.",
         "retry": "Retry",
         "publishBlocked": "Cannot publish yet: some targets still do not match.",
         "publishInvalidState": "This yearly target is already published or no longer a draft.",
@@ -10882,6 +10890,9 @@
           "submitting": "Flagging…",
           "cancel": "Cancel",
           "success": "Quality flagged. The new item is in the QA queue.",
+          "requestRework": "Ask the employee to rework now",
+          "requestReworkHint": "The KPI points of the result are withdrawn and the work goes back to In progress so the employee can resubmit. The reason above is sent with it.",
+          "reworkSuccess": "Flagged and sent back to the employee for rework.",
           "errors": {
             "reason": "Enter a reason of at least 10 characters.",
             "failed": "The flag could not be created. Please try again."
@@ -11017,7 +11028,9 @@
           "locked": "Locked / not applicable"
         },
         "allocationCell": {
-          "lockedDefaultReason": "This cell is locked or not applicable to this row."
+          "lockedDefaultReason": "This cell is locked or not applicable to this row.",
+          "unitMillion": "million",
+          "unitBillion": "billion"
         },
         "missingPanel": {
           "title": "Still missing before publishing",
@@ -11028,7 +11041,7 @@
           "goTo": "Go to KPI"
         },
         "tierStatusLine": {
-          "matchedOf": "KPIs matched /",
+          "matchedOf": "KPIs matched",
           "mismatched": "mismatched",
           "notSplit": "not split",
           "filterAll": "All",
@@ -11087,6 +11100,7 @@
         "wholeYear": "Whole year",
         "loading": "Loading data…",
         "loadFailed": "Could not load data. Please try again.",
+        "noAccess": "You cannot allocate for this department. This screen is for Department Managers.",
         "retry": "Retry",
         "noPublishedTier2": "This department has no published department-level targets for this year yet.",
         "exportFile": "Export file",

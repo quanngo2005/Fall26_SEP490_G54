@@ -28,7 +28,7 @@ describe('AppealSubmitModalComponent', () => {
   const flushOptions = (works: unknown[], submissions: Record<string, unknown[]> = {}) => {
     http.expectOne(`${api}/employees/me`).flush(ok({ id: 'me' }));
     const list = http.expectOne((r) => r.url === `${api}/works`);
-    expect(list.request.params.get('status')).toBe('Rejected');
+    expect(list.request.params.get('status')).toBe('REJECTED');
     expect(list.request.params.get('assigneeEmployeeId')).toBe('me');
     list.flush(ok({ items: works, totalCount: works.length, page: 1, pageSize: 100 }));
     for (const work of works as { id: string }[]) {

@@ -10,14 +10,11 @@ import { KpiDefinitionService } from '../../core/kpi-definition.service';
 import { TargetAssignment } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
-import { targetDmLocalizationStub } from './testing/target-dm-i18n.stub';
-import { TargetAllocationApiService } from './target-allocation-api.service';
-import { EmployeeAllocation } from './target-allocation.models';
+import { TargetAllocationService } from '../../core/target-allocation.service';
+import { EmployeeAllocation } from '../../core/target-allocation.models';
 import { TargetAllocationComponent } from './target-allocation.component';
 
-// The real HeaderComponent/SidebarComponent read `localization.common`, `.layout`, `.menu`, etc. —
-// dictionaries this spec's `targetDmLocalizationStub()` does not provide. Swap them for empty stubs
-// so this spec only needs the `targetDm`/`targetShared` keys it actually exercises.
+// Swap the real HeaderComponent/SidebarComponent for empty stubs so this spec only renders the screen under test.
 @Component({ selector: 'app-header', standalone: true, template: '' })
 class HeaderStub {}
 
@@ -100,7 +97,7 @@ const deptYearAssignment: TargetAssignment = {
 };
 
 describe('TargetAllocationComponent (W10/W11)', () => {
-  let allocationApi: jasmine.SpyObj<TargetAllocationApiService>;
+  let allocationApi: jasmine.SpyObj<TargetAllocationService>;
   let targetApi: jasmine.SpyObj<TargetAssignmentService>;
 
   async function render(
@@ -109,7 +106,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     targetApi = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', ['list']);
     targetApi.list.and.returnValue(of([deptYearAssignment]));
 
-    allocationApi = jasmine.createSpyObj<TargetAllocationApiService>('TargetAllocationApiService', [
+    allocationApi = jasmine.createSpyObj<TargetAllocationService>('TargetAllocationService', [
       'getEmployeeAllocations',
       'saveEmployeeAllocation',
       'publishEmployees',
@@ -128,7 +125,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
           useValue: { snapshot: { queryParamMap: convertToParamMap({ year: '2027' }) } },
         },
         { provide: TargetAssignmentService, useValue: targetApi },
-        { provide: TargetAllocationApiService, useValue: allocationApi },
+        { provide: TargetAllocationService, useValue: allocationApi },
         {
           provide: EvaluationService,
           useValue: {
@@ -148,7 +145,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
         {
           provide: I18nService,
           useValue: jasmine.createSpyObj('I18nService', ['formatNumber', 'translate'], {
-            localization: targetDmLocalizationStub(),
+            localization: new I18nService().localization,
             currentLanguage: () => 'vi',
           }),
         },
@@ -165,7 +162,7 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     i18n.translate.and.callFake((key: string, params?: Record<string, string | number>) => {
       const path = key.split('.').slice(1); // drop the "targetDm" prefix
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let text: any = targetDmLocalizationStub().targetDm;
+      let text: any = new I18nService().localization.targetDm;
       for (const segment of path) text = text?.[segment];
       if (typeof text !== 'string') return key;
       return Object.entries(params ?? {}).reduce(
@@ -266,5 +263,40 @@ describe('TargetAllocationComponent (W10/W11)', () => {
     // Not a ratio KPI in the catalog (kpi() default is SUM); row without employees and without locked
     // employees counts as "not split" rather than "mismatched".
     expect(protectedApi(fixture).counts().notSplit).toBe(1);
+  });
+
+  it('shows the change against last year as a signed percent coloured by direction, without arrows', async () => {
+    const fixture = await render(
+      matchedRow({
+        department: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25, previousYear: 80 },
+        employees: [
+          {
+            ...matchedRow().employees[0],
+            previousYear: 90,
+          },
+          {
+            ...matchedRow().employees[0],
+            employeeId: 'e2',
+            employeeName: 'Trần Thị B',
+            previousYear: 125,
+          },
+        ],
+      }),
+    );
+    fixture.detectChanges();
+
+    const deltas = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.compare-delta'),
+    ).map((el) => [
+      el.textContent?.trim(),
+      el.classList.contains('is-up'),
+      el.classList.contains('is-down'),
+    ]);
+    expect(deltas).toEqual([
+      ['+25%', true, false],
+      ['+11.1%', true, false],
+      ['−20%', false, true],
+    ]);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toMatch(/[▲▼]/);
   });
 });
