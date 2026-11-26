@@ -2,7 +2,6 @@ import { Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RankingBoardStaffRow, RankingTierCode } from '../../../../core/evaluation.models';
 import { LocalizedComponent } from '../../../../core/i18n/localized.component';
-import { LayoutIconComponent } from '../../../../shared/layout/layout-icon.component';
 import { StatusBadgeComponent } from '../../../../shared/ui';
 
 export interface StaffTableRow {

@@ -6,7 +6,9 @@
       <!-- Breadcrumb navigation -->
       <nav class="breadcrumb-trail" aria-label="Breadcrumb">
         <span class="breadcrumb-item">
-          {{ isBranchMode() ? localization.evaluations.branchPeriods.breadcrumbBranchPerformance : localization.evaluations.dashboard.breadcrumbUnit }}
+          {{isBranchMode()
+              ? localization.evaluations.branchPeriods.breadcrumbBranchPerformance
+              : localization.evaluations.dashboard.breadcrumbUnit}}
         </span>
         <span class="breadcrumb-separator">/</span>
         <span class="breadcrumb-item font-semibold">{{departmentName()}}</span>
@@ -54,7 +56,9 @@
             </button>
           } @else {
             <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
-              {{ isTeam() ? localization.evaluations.departmentRanking.proposalPageTitle : localization.evaluations.departmentRanking.pageTitle }}
+              {{isTeam()
+                  ? localization.evaluations.departmentRanking.proposalPageTitle
+                  : localization.evaluations.departmentRanking.pageTitle}}
             </button>
           }
           <button

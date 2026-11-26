@@ -49,7 +49,9 @@
             [disabled]="saving() || !board()"
             (click)="saveDraft()"
           >
-            {{ isTeam() ? localization.evaluations.departmentRanking.saveProposal : localization.evaluations.departmentRanking.saveDraft }}
+            {{isTeam()
+                ? localization.evaluations.departmentRanking.saveProposal
+                : localization.evaluations.departmentRanking.saveDraft}}
           </button>
           <button
             type="button"

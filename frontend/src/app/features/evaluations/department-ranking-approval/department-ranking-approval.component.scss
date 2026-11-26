@@ -181,7 +181,9 @@
   font-size: 13px;
   color: #94a3b8;
   margin-left: 2px;
-  transition: transform 0.15s ease, color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    color 0.15s ease;
 }
 
 .final-tier-cell {
@@ -427,7 +429,9 @@
   background: none;
   border: none;
   padding: 0;
-  font: 600 13px 'Nunito Sans', sans-serif;
+  font:
+    600 13px 'Nunito Sans',
+    sans-serif;
   color: #0284c7;
   text-align: left;
   cursor: pointer;

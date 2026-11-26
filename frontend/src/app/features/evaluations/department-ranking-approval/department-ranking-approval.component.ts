@@ -132,9 +132,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     return this.i18n.localization.evaluations.branchPeriods;
   });
 
-  readonly periodTypes = computed(() => [
-    ...new Set(this.periods().map((p) => p.periodType)),
-  ]);
+  readonly periodTypes = computed(() => [...new Set(this.periods().map((p) => p.periodType))]);
 
   periodTypeLabel(type: string): string {
     const dict = (this.localization.evaluations.departmentRanking.periodTypes ?? {}) as Record<
@@ -439,20 +437,22 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
     const slots = this.departmentQuotas();
     const pid = this.periodId() || null;
-    this.evaluationService.updateDepartmentSlotQuotas(deptId, { departmentId: deptId, slots, periodId: pid }).subscribe({
-      next: (res) => {
-        this.savingQuota.set(false);
-        if (res?.slots) {
-          this.departmentQuotas.set(res.slots);
-        }
-        this.showToast('Cập nhật quota thành công cho Trưởng phòng.', 'success');
-        this.loadDepartmentCalibration(deptId);
-      },
-      error: (err: { error?: { message?: string } }) => {
-        this.savingQuota.set(false);
-        this.showToast(err?.error?.message || 'Lỗi khi cập nhật quota.', 'error');
-      },
-    });
+    this.evaluationService
+      .updateDepartmentSlotQuotas(deptId, { departmentId: deptId, slots, periodId: pid })
+      .subscribe({
+        next: (res) => {
+          this.savingQuota.set(false);
+          if (res?.slots) {
+            this.departmentQuotas.set(res.slots);
+          }
+          this.showToast('Cập nhật quota thành công cho Trưởng phòng.', 'success');
+          this.loadDepartmentCalibration(deptId);
+        },
+        error: (err: { error?: { message?: string } }) => {
+          this.savingQuota.set(false);
+          this.showToast(err?.error?.message || 'Lỗi khi cập nhật quota.', 'error');
+        },
+      });
   }
 
   selectPosition(posId: string | null): void {

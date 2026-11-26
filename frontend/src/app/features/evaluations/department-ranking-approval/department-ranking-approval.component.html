@@ -4,7 +4,10 @@
   <div class="workspace-main">
     <app-header [title]="headerTitle()" />
 
-    <main class="workspace-content evaluation-page" [attr.aria-busy]="loadingOverview() || loadingCalibration()">
+    <main
+      class="workspace-content evaluation-page"
+      [attr.aria-busy]="loadingOverview() || loadingCalibration()"
+    >
       <!-- Breadcrumb navigation -->
       <nav class="breadcrumb-trail" aria-label="Breadcrumb">
         <a class="breadcrumb-item" routerLink="/home">{{t()['breadcrumbHome'] || 'Trang chủ'}}</a>
@@ -21,11 +24,7 @@
         </div>
 
         <div class="ui-page-actions">
-          <button
-            type="button"
-            class="button button-secondary"
-            (click)="openPreCloseModal()"
-          >
+          <button type="button" class="button button-secondary" (click)="openPreCloseModal()">
             <app-layout-icon name="tasks" />
             <span>{{t()['btnPreCloseCheck'] || 'Kiểm tra trước khi đóng'}}</span>
           </button>
@@ -109,7 +108,9 @@
         <div class="alert-banner error" role="alert">
           <app-layout-icon name="riskEvents" class="alert-icon" />
           <span>{{error}}</span>
-          <button class="button button-secondary" type="button" (click)="loadBranchOverview()">Thử lại</button>
+          <button class="button button-secondary" type="button" (click)="loadBranchOverview()">
+            Thử lại
+          </button>
         </div>
       }
 
@@ -129,7 +130,8 @@
                   {{selectedDepartment()?.departmentName || 'Danh sách nhân sự'}}
                   @if (selectedDepartment(); as curDept) {
                     <span class="dept-sub-info font-mono">
-                      ({{curDept.totalEmployees}} NV · {{curDept.managerName || 'Trưởng phòng'}})
+                      ({{curDept.totalEmployees}} NV ·
+                      {{curDept.managerName || 'Trưởng phòng'}})
                     </span>
                   }
                 </h2>
@@ -142,7 +144,9 @@
                       </span>
                     } @else if (curDept.status === 'IN_REVIEW') {
                       <span class="status-badge badge-pending">
-                        {{t()['statusPending'] || 'Chờ duyệt'}} · {{t()['statusSubmittedAt'] || 'gửi'}} {{formatDate(curDept.submittedAt)}}
+                        {{t()['statusPending'] || 'Chờ duyệt'}} ·
+                        {{t()['statusSubmittedAt'] || 'gửi'}}
+                        {{formatDate(curDept.submittedAt)}}
                       </span>
                     } @else {
                       <span class="status-badge badge-not-submitted">
@@ -190,9 +194,15 @@
                     <tr>
                       <th class="stt-col">{{t()['colIndex'] || '#'}}</th>
                       <th>{{localization.evaluations.departmentRanking.colId || 'MÃ NV'}}</th>
-                      <th>{{localization.evaluations.departmentRanking.colName || 'HỌ VÀ TÊN'}}</th>
-                      <th>{{localization.evaluations.departmentRanking.colStatus || 'TRẠNG THÁI'}}</th>
-                      <th class="num-col penalty-col">{{localization.evaluations.departmentRanking.colPenalty || 'ĐIỂM PHẠT'}}</th>
+                      <th>
+                        {{localization.evaluations.departmentRanking.colName || 'HỌ VÀ TÊN'}}
+                      </th>
+                      <th>
+                        {{localization.evaluations.departmentRanking.colStatus || 'TRẠNG THÁI'}}
+                      </th>
+                      <th class="num-col penalty-col">
+                        {{localization.evaluations.departmentRanking.colPenalty || 'ĐIỂM PHẠT'}}
+                      </th>
                       <th class="score-col text-right">{{t()['colTotalPe'] || 'ĐIỂM PE'}}</th>
                       <th class="tier-col text-center">{{t()['colFinalized'] || 'TP CHỐT'}}</th>
                       <th>{{t()['colManagerReason'] || 'LÝ DO TRƯỞNG PHÒNG'}}</th>
@@ -236,13 +246,18 @@
                           }
                         </td>
                         <td class="num-col penalty-col font-mono">
-                          {{emp.riskPenalty == null ? '-' : formatNumber(emp.riskPenalty, 1)}}
+                          {{emp.riskPenalty === null || emp.riskPenalty === undefined
+                              ? '-'
+                              : formatNumber(emp.riskPenalty, 1)}}
                         </td>
                         <td class="score-col text-right font-mono font-bold">
                           {{formatScore(emp.totalScore)}}
                         </td>
                         <td class="tier-col text-center">
-                          <span class="tier-badge" [class]="'tier-' + (emp.calibratedTier || '').toLowerCase()">
+                          <span
+                            class="tier-badge"
+                            [class]="'tier-' + (emp.calibratedTier || '').toLowerCase()"
+                          >
                             {{emp.calibratedTier || '-'}}
                           </span>
                         </td>
@@ -286,14 +301,18 @@
                 type="button"
                 class="button button-primary quota-save-btn"
                 [disabled]="savingQuota() || !selectedDepartmentId() || isPeriodLocked()"
-                [title]="isPeriodLocked() ? 'Kỳ đánh giá đã khóa/chốt, không thể thay đổi quota' : ''"
+                [title]="
+                  isPeriodLocked() ? 'Kỳ đánh giá đã khóa/chốt, không thể thay đổi quota' : ''
+                "
                 (click)="submitDepartmentQuota()"
               >
                 <app-layout-icon name="check" />
                 <span>{{savingQuota() ? 'Đang gửi...' : 'Gửi quota cho Trưởng phòng'}}</span>
               </button>
               @if (isPeriodLocked()) {
-                <span class="quota-locked-hint">Kỳ đánh giá đã chốt/khóa, không thể thay đổi quota.</span>
+                <span class="quota-locked-hint"
+                  >Kỳ đánh giá đã chốt/khóa, không thể thay đổi quota.</span
+                >
               }
             </div>
           </article>

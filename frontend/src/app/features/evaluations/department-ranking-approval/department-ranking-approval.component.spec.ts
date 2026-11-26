@@ -505,7 +505,9 @@ describe('DepartmentRankingApprovalComponent', () => {
 
     const oldHeadcount = component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount;
     component.onQuotaHeadcountChange({ tier: 'A1', headcount: 99 });
-    expect(component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount).toBe(oldHeadcount);
+    expect(component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount).toBe(
+      oldHeadcount,
+    );
 
     component.submitDepartmentQuota();
     expect(evaluationServiceSpy.updateDepartmentSlotQuotas).not.toHaveBeenCalled();

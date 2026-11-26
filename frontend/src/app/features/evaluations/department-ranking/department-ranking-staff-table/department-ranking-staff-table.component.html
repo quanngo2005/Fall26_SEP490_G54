@@ -9,7 +9,9 @@
         <th class="num-col">{{localization.evaluations.departmentRanking.colSla}}</th>
         <th class="num-col">{{localization.evaluations.departmentRanking.colTarget}}</th>
         <th class="num-col">{{localization.evaluations.departmentRanking.colRisk}}</th>
-        <th class="num-col penalty-col">{{localization.evaluations.departmentRanking.colPenalty}}</th>
+        <th class="num-col penalty-col">
+          {{localization.evaluations.departmentRanking.colPenalty}}
+        </th>
         <th class="num-col score-col">{{localization.evaluations.departmentRanking.colScore}}</th>
         @if (adjusting()) {
           <th class="tier-col">{{localization.evaluations.departmentRanking.colSystemTier}}</th>
@@ -26,7 +28,11 @@
           <td class="stt-col font-mono">{{item.row.rank}}</td>
           <td class="font-mono">{{item.row.employeeCode}}</td>
           <td>
-            <button type="button" class="staff-name staff-link" (click)="openEmployee.emit(item.row)">
+            <button
+              type="button"
+              class="staff-name staff-link"
+              (click)="openEmployee.emit(item.row)"
+            >
               {{item.row.fullName}}
             </button>
           </td>
@@ -46,7 +52,9 @@
           <td class="num-col">
             <div class="metric hover-card" (mouseenter)="placePopup($event, onTimeTip)">
               <span class="font-mono hover-trigger">
-                {{item.row.onTimeSla.value === null ? emptyValue : formatNumber(item.row.onTimeSla.value, 1) + '%'}}
+                {{item.row.onTimeSla.value === null
+                    ? emptyValue
+                    : formatNumber(item.row.onTimeSla.value, 1) + '%'}}
               </span>
               <div #onTimeTip class="hover-popup" role="tooltip">{{onTimeText(item.row)}}</div>
               @if (item.row.onTimeSla.change !== null && item.row.onTimeSla.change !== 0) {
@@ -64,7 +72,9 @@
           <td class="num-col">
             <div class="hover-card" (mouseenter)="placePopup($event, criteriaTip)">
               <span class="font-mono hover-trigger">
-                {{item.row.achievedCriteria === null ? emptyValue : item.row.achievedCriteria + '/' + item.row.totalCriteria}}
+                {{item.row.achievedCriteria === null
+                    ? emptyValue
+                    : item.row.achievedCriteria + '/' + item.row.totalCriteria}}
               </span>
               <div #criteriaTip class="hover-popup hover-popup-wide" role="tooltip">
                 <div class="popup-title">{{criteriaTitleText(item.row)}}</div>
@@ -78,7 +88,9 @@
                           [class.popup-good]="criterion.isAchieved"
                           [class.popup-bad]="!criterion.isAchieved"
                         >
-                          {{criterion.actualValue === null ? emptyValue : formatNumber(criterion.actualValue, 1)}}/{{formatNumber(criterion.targetValue, 1)}}
+                          {{criterion.actualValue === null
+                              ? emptyValue
+                              : formatNumber(criterion.actualValue, 1)}}/{{formatNumber(criterion.targetValue, 1)}}
                           {{criterion.unit}}
                         </td>
                       </tr>
@@ -91,17 +103,23 @@
           <td class="num-col">
             <div class="metric hover-card" (mouseenter)="placePopup($event, riskTip)">
               <span class="font-mono hover-trigger">
-                {{item.row.riskEventCount.value === null ? emptyValue : item.row.riskEventCount.value}}
+                {{item.row.riskEventCount.value === null
+                    ? emptyValue
+                    : item.row.riskEventCount.value}}
               </span>
               <div #riskTip class="hover-popup hover-popup-wide" role="tooltip">
                 <div class="popup-title">{{riskTitleText(item.row)}}</div>
                 @for (event of item.row.riskEvents; track event.code) {
                   <div class="popup-line">{{event.code}} · {{event.description}}</div>
                 } @empty {
-                  <div class="popup-line">{{localization.evaluations.departmentRanking.hoverRiskEmpty}}</div>
+                  <div class="popup-line">
+                    {{localization.evaluations.departmentRanking.hoverRiskEmpty}}
+                  </div>
                 }
               </div>
-              @if (item.row.riskEventCount.change !== null && item.row.riskEventCount.change !== 0) {
+              @if (
+                item.row.riskEventCount.change !== null && item.row.riskEventCount.change !== 0
+              ) {
                 <span
                   class="delta font-mono"
                   [class.delta-good]="deltaTone(item.row.riskEventCount.change, false) === 'good'"
@@ -116,7 +134,9 @@
           <td class="num-col penalty-col">
             <div class="metric">
               <span class="font-mono">
-                {{item.row.riskPenalty.value === null ? emptyValue : formatNumber(item.row.riskPenalty.value, 1)}}
+                {{item.row.riskPenalty.value === null
+                    ? emptyValue
+                    : formatNumber(item.row.riskPenalty.value, 1)}}
               </span>
               @if (item.row.riskPenalty.change !== null && item.row.riskPenalty.change !== 0) {
                 <span
@@ -133,9 +153,14 @@
           <td class="num-col score-col">
             <div class="metric">
               <span class="font-mono score-value">
-                {{item.row.quantitativeScore.value === null ? emptyValue : formatNumber(item.row.quantitativeScore.value, 2)}}
+                {{item.row.quantitativeScore.value === null
+                    ? emptyValue
+                    : formatNumber(item.row.quantitativeScore.value, 2)}}
               </span>
-              @if (item.row.quantitativeScore.change !== null && item.row.quantitativeScore.change !== 0) {
+              @if (
+                item.row.quantitativeScore.change !== null &&
+                item.row.quantitativeScore.change !== 0
+              ) {
                 <span
                   class="delta font-mono"
                   [class.delta-good]="deltaTone(item.row.quantitativeScore.change, true) === 'good'"
@@ -158,7 +183,11 @@
           }
           <td class="tier-col">
             @if (editable() && adjusting() && item.canAdjust) {
-              <span class="tier-select" [ngClass]="tierClass(item.finalTier)" [class.tier-select-changed]="item.isChanged">
+              <span
+                class="tier-select"
+                [ngClass]="tierClass(item.finalTier)"
+                [class.tier-select-changed]="item.isChanged"
+              >
                 <select
                   class="tier-select-input"
                   [attr.aria-label]="localization.evaluations.departmentRanking.colFinalTier"
@@ -186,7 +215,11 @@
                   [class.reason-missing]="item.isReasonMissing"
                   [value]="item.reason"
                   [attr.aria-label]="localization.evaluations.departmentRanking.colReason"
-                  [placeholder]="item.isReasonMissing ? localization.evaluations.departmentRanking.reasonRequired : ''"
+                  [placeholder]="
+                    item.isReasonMissing
+                      ? localization.evaluations.departmentRanking.reasonRequired
+                      : ''
+                  "
                   (input)="onReasonInput(item.row, $event)"
                 />
               }

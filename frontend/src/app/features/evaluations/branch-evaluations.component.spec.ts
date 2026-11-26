@@ -68,11 +68,7 @@ describe('BranchEvaluationsComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [BranchEvaluationsComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
 
     evaluationService = TestBed.inject(EvaluationService);
