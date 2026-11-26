@@ -165,7 +165,7 @@ Quyền `risk_event:read`; người có `Dept` / `Branch` chỉ thấy nhân vi�
 
 ### 9.3 Chi tiết — `GET /risk-events/{id}/details`
 
-`{ item: RiskEventListItem, jobPositionTitle, description, periodCode, periodName, recordedByName, recordedAt, reversedAt, reversedByName, reversalReason, attachments: [{ id, fileName, fileSize, mimeType }], canReverse }`. `canReverse` = `true` khi `status` là `CONFIRMED` hoặc `RESOLVED`, chưa đảo và người gọi có `risk_event:reverse`. 404 nếu không có hoặc ngoài phạm vi.
+`{ item: RiskEventListItem, jobPositionTitle, description, periodCode, periodName, recordedByName, recordedAt, reversedAt, reversedByName, reversalReason, attachments: [{ id, fileName, fileSize, mimeType }], canReverse, isOwnEvent }`. `canReverse` = `true` khi `status` là `CONFIRMED` hoặc `RESOLVED`, chưa đảo, người gọi có `risk_event:reverse` và sự kiện không ghi cho chính người gọi. `isOwnEvent` = `true` khi sự kiện ghi cho chính người gọi: màn hình ẩn mọi thao tác (confirm/dismiss/resolve/reverse trả 403). 404 nếu không có hoặc ngoài phạm vi.
 
 ### 9.4 Đính kèm — `POST /risk-events/{id}/evidence`
 

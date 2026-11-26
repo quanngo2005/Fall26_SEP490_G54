@@ -10,7 +10,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { RiskEventList, RiskEventListItem } from '../../core/risk-event.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { RiskEventCreateModalComponent } from './risk-event-create-modal.component';
-import { RiskEventDrawerComponent } from './risk-event-drawer.component';
+import { RiskEventChange, RiskEventDrawerComponent } from './risk-event-drawer.component';
 import { RiskEventsComponent } from './risk-events.component';
 
 @Component({ selector: 'app-header', template: '' })
@@ -21,7 +21,7 @@ class SidebarStub {}
 class DrawerStub {
   readonly eventId = input<string>();
   readonly closed = output<void>();
-  readonly reversed = output<string>();
+  readonly changed = output<RiskEventChange>();
 }
 @Component({ selector: 'app-risk-event-create-modal', template: '' })
 class ModalStub {
@@ -154,6 +154,8 @@ describe('RiskEventsComponent', () => {
           status: 'DISMISSED',
           workCode: null,
         }),
+        item({ id: 'r3', code: 'RSK-0047', status: 'OPEN' }),
+        item({ id: 'r4', code: 'RSK-0048', status: 'RESOLVED' }),
       ]),
     );
     fixture.detectChanges();
@@ -167,9 +169,11 @@ describe('RiskEventsComponent', () => {
     expect(body).toContain('Trung bình');
     expect(body).toContain('−3');
     expect(body).toContain('WK-1051');
-    expect(body).toContain('Đã ghi');
+    expect(body).toContain('Đã xác nhận');
     expect(body).toContain('Đã gỡ');
-    expect(body).toContain('1–2 / 2 sự kiện');
+    expect(body).toContain('Chờ xác nhận');
+    expect(body).toContain('Đã giải quyết');
+    expect(body).toContain('1–4 / 4 sự kiện');
     const penalties = fixture.nativeElement.querySelectorAll('.penalty');
     expect(penalties[0].classList.contains('muted')).toBeFalse();
     expect(penalties[1].classList.contains('muted')).toBeTrue();
@@ -328,14 +332,18 @@ describe('RiskEventsComponent', () => {
     expect(text(fixture)).toContain('chưa tải được tệp đính kèm');
   });
 
-  it('announces a reversal and refreshes the list', () => {
+  it('announces a change made in the drawer and refreshes the list', () => {
     const fixture = open();
     listRequest().flush(list([item()]));
-    fixture.componentInstance['onReversed']('RSK-0045');
+    fixture.componentInstance['onChanged']({ code: 'RSK-0045', action: 'reverse' });
     listRequest().flush(list([item({ state: 'REVERSED' })]));
     fixture.detectChanges();
-
     expect(text(fixture)).toContain('Đã gỡ điểm phạt của sự kiện RSK-0045.');
+
+    fixture.componentInstance['onChanged']({ code: 'RSK-0046', action: 'confirm' });
+    listRequest().flush(list([item()]));
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('Đã xác nhận sự kiện RSK-0046 và trừ điểm phạt.');
   });
 
   it('keeps the filters usable when the periods cannot be read, and retries a failed list', () => {

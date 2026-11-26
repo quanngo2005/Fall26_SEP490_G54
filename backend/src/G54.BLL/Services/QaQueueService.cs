@@ -107,18 +107,20 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
         QaQueueItemDto item;
         ResultSubmission submission;
         string? reason;
-        string? reworkComment = null;
-        DateTimeOffset? reviewedAt;
-        string? reviewedBy = null;
+        QaReviewDto review;
         if (parsedKind == "FLAG")
         {
-            var flag = await FlagQuery().FirstOrDefaultAsync(f => f.Id == id, cancellationToken)
+            var flag = await FlagQuery().Include(f => f.ReviewedByEmployee).FirstOrDefaultAsync(f => f.Id == id, cancellationToken)
                 ?? throw new NotFoundException("Cờ chất lượng", id);
             item = ToItem(flag);
             submission = flag.ResultSubmission;
             reason = flag.Reason;
-            reworkComment = flag.ReworkComment;
-            reviewedAt = flag.Status == QualityFlagStatus.Open ? null : flag.UpdatedAt;
+            review = new QaReviewDto(
+                flag.ReviewedByEmployee?.FullName,
+                flag.ReviewedAt,
+                flag.DismissReason,
+                flag.ReworkComment,
+                flag.ReworkRequestedAt);
         }
         else
         {
@@ -127,13 +129,27 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
             item = ToItem(sample);
             submission = sample.ResultSubmission;
             reason = sample.Comment;
-            reviewedAt = sample.ReviewedAt;
-            reviewedBy = sample.ReviewedByEmployee?.FullName;
+            review = new QaReviewDto(sample.ReviewedByEmployee?.FullName, sample.ReviewedAt, null, null, null);
         }
 
-        var evidences = await db.Evidences.AsNoTracking()
-            .Where(e => e.ResultSubmissionId == submission.Id)
-            .OrderBy(e => e.FileName)
+        // Every version of the work (SCR-REV-02); the files of all versions come in one query.
+        var versions = await db.ResultSubmissions.AsNoTracking()
+            .Where(s => s.WorkId == submission.WorkId)
+            .OrderByDescending(s => s.SubmissionNo)
+            .Select(s => new { s.Id, s.SubmissionNo, s.Status, s.SubmittedAt, s.Comment })
+            .ToListAsync(cancellationToken);
+        var evidencesBySubmission = (await db.Evidences.AsNoTracking()
+                .Where(e => e.ResultSubmission!.WorkId == submission.WorkId)
+                .OrderBy(e => e.FileName)
+                .Select(e => new { e.ResultSubmissionId, e.Id, e.FileName, e.FileSize, e.MimeType })
+                .ToListAsync(cancellationToken))
+            .ToLookup(
+                e => e.ResultSubmissionId,
+                e => new QaEvidenceDto(e.Id, e.FileName, e.FileSize ?? 0, e.MimeType ?? "application/octet-stream"));
+        var verifications = await db.Verifications.AsNoTracking()
+            .Where(v => v.ResultSubmission.WorkId == submission.WorkId)
+            .OrderByDescending(v => v.ResultSubmission.SubmissionNo).ThenByDescending(v => v.RoundNo)
+            .Select(v => new { v.ResultSubmission.SubmissionNo, v.RoundNo, v.Decision, v.Comment, v.VerifiedAt, v.VerifierEmployee.FullName })
             .ToListAsync(cancellationToken);
         var transactions = await db.WorkTransactions.AsNoTracking()
             .Include(t => t.ImportedTransaction).ThenInclude(i => i!.ImportBatch)
@@ -148,13 +164,10 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
         return new QaQueueDetailDto(
             item,
             reason,
-            reworkComment,
-            reviewedAt,
-            reviewedBy,
             submission.Comment,
             submission.SubmittedAt,
             jobTitle,
-            evidences.Select(e => new QaEvidenceDto(e.Id, e.FileName, e.FileSize ?? 0, e.MimeType ?? "application/octet-stream")).ToList(),
+            evidencesBySubmission[submission.Id].ToList(),
             transactions.Select(t => new QaTransactionDto(
                 t.TransactionCode,
                 t.Status,
@@ -162,7 +175,22 @@ public sealed class QaQueueService(AppDbContext db) : IQaQueueService
                 t.ImportedTransaction?.ImportBatch.FileName,
                 t.ImportedTransaction?.ProductCode,
                 t.ImportedTransaction?.Amount,
-                t.ImportedTransaction?.TransactionDate)).ToList());
+                t.ImportedTransaction?.TransactionDate)).ToList(),
+            versions.Select(v => new QaSubmissionVersionDto(
+                v.Id,
+                v.SubmissionNo,
+                v.Status.ToEnumString(),
+                v.SubmittedAt,
+                v.Comment,
+                evidencesBySubmission[v.Id].ToList())).ToList(),
+            verifications.Select(v => new QaVerificationDto(
+                v.SubmissionNo,
+                v.RoundNo,
+                v.Decision.ToApiDecision(),
+                v.Comment,
+                v.VerifiedAt,
+                v.FullName)).ToList(),
+            review);
     }
 
     private IQueryable<QualityFlag> FlagQuery() => db.QualityFlags.AsNoTracking()

@@ -59,11 +59,10 @@ describe('WorkBoardComponent', () => {
   const text = (el: Element | null | undefined) =>
     (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const root = (fixture: ComponentFixture<unknown>) => fixture.nativeElement as HTMLElement;
-  const column = (fixture: ComponentFixture<unknown>, title: string) =>
-    Array.from(root(fixture).querySelectorAll<HTMLElement>('.column')).find(
-      (el) => text(el.querySelector('h2')) === title,
-    ) as HTMLElement;
-  const cards = (el: HTMLElement) => Array.from(el.querySelectorAll<HTMLElement>('.work-card'));
+  const rows = (fixture: ComponentFixture<unknown>) =>
+    Array.from(root(fixture).querySelectorAll<HTMLTableRowElement>('.work-row'));
+  const rowByCode = (fixture: ComponentFixture<unknown>, code: string) =>
+    rows(fixture).find((row) => text(row.querySelector('.col-code')).includes(code))!;
 
   let departments: jasmine.SpyObj<DepartmentService>;
 
@@ -164,27 +163,22 @@ describe('WorkBoardComponent', () => {
     await configure('EMPLOYEE');
   });
 
-  it('loads one query per column for the signed-in employee and renders the cards', () => {
+  it('loads KPI buckets plus the Jira list page for the signed-in employee and renders the rows', () => {
     const fixture = create();
 
-    expect(works.list).toHaveBeenCalledTimes(5);
-    const inProgressCall = works.list.calls
+    expect(works.list).toHaveBeenCalledTimes(6);
+    const listCall = works.list.calls
       .allArgs()
       .map(([filter]) => filter)
-      .find((filter) => filter?.status?.includes('InProgress'));
-    expect(inProgressCall).toEqual(
+      .find((filter) => filter?.pageSize === 20);
+    expect(listCall).toEqual(
       jasmine.objectContaining({
         assigneeEmployeeId: 'e1',
-        status: ['InProgress', 'HandedOver', 'Rejected'],
         page: 1,
-        pageSize: 50,
+        pageSize: 20,
       }),
     );
-    expect(cards(column(fixture, 'Mới')).length).toBe(2);
-    expect(text(column(fixture, 'Mới').querySelector('.column-count'))).toBe('2');
-    expect(cards(column(fixture, 'Đang thực hiện')).length).toBe(2);
-    expect(cards(column(fixture, 'Đã nộp')).length).toBe(1);
-    expect(cards(column(fixture, 'Quá hạn')).length).toBe(1);
+    expect(rows(fixture).length).toBe(9);
     expect(text(root(fixture).querySelector('.result-count'))).toBe('9 việc');
   });
 
@@ -211,44 +205,30 @@ describe('WorkBoardComponent', () => {
     expect(works.list).not.toHaveBeenCalled();
     expect(text(root(fixture).querySelector('h1'))).toBe('Công việc của tôi');
   });
-  it('shows the late badge on an overdue card and a KPI overdue count', () => {
+
+  it('shows the SLA overdue indicator on an overdue row and a KPI overdue count', () => {
     const fixture = create();
 
-    expect(text(cards(column(fixture, 'Quá hạn'))[0].querySelector('.badge-overdue'))).toMatch(
-      /^-\d+ ngày$/,
-    );
+    expect(rowByCode(fixture, 'WK-9').querySelector('.sla-overdue')).not.toBeNull();
     expect(text(root(fixture).querySelector('#work-kpi-overdue .kpi-value'))).toBe('1');
     expect(text(root(fixture).querySelector('#work-kpi-open .kpi-value'))).toBe('5');
   });
 
-  it('keeps the Done column collapsed to two cards until expanded', () => {
-    const fixture = create();
-    const done = column(fixture, 'Hoàn thành');
-
-    expect(cards(done).length).toBe(2);
-    const more = done.querySelector<HTMLButtonElement>('.more-button');
-    expect(text(more)).toBe('Xem thêm 1 việc');
-    more?.click();
-    fixture.detectChanges();
-    expect(cards(column(fixture, 'Hoàn thành')).length).toBe(3);
-  });
-
-  it('starts a work, moving it to In progress, and keeps it there on success', async () => {
+  it('starts a work from the Jira list, updating it to InProgress on success', async () => {
     works.changeStatus.and.returnValue(
       of({ status: 'InProgress', updatedAt: '2026-10-27T10:00:00+00:00' } as WorkDetail),
     );
     const fixture = await create();
 
-    column(fixture, 'Mới').querySelector<HTMLButtonElement>('.start-button')?.click();
+    rowByCode(fixture, 'WK-1').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
     fixture.detectChanges();
 
     expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1', { status: 'InProgress' });
-    expect(cards(column(fixture, 'Mới')).length).toBe(1);
-    expect(cards(column(fixture, 'Đang thực hiện')).length).toBe(3);
+    expect(text(rowByCode(fixture, 'WK-1').querySelector('.chip'))).toBe('Đang thực hiện');
     expect(text(root(fixture).querySelector('.toast'))).toContain('WK-1');
   });
 
-  it('puts the card back and explains the conflict when the API refuses the move', async () => {
+  it('puts the row status back and explains the conflict when the API refuses the move', async () => {
     works.changeStatus.and.returnValue(
       throwError(
         () => new HttpErrorResponse({ status: 409, error: { errorCode: 'WORK_INVALID_STATE' } }),
@@ -256,57 +236,46 @@ describe('WorkBoardComponent', () => {
     );
     const fixture = await create();
 
-    column(fixture, 'Mới').querySelector<HTMLButtonElement>('.start-button')?.click();
+    rowByCode(fixture, 'WK-1').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
     fixture.detectChanges();
 
-    expect(cards(column(fixture, 'Mới')).length).toBe(2);
-    expect(cards(column(fixture, 'Đang thực hiện')).length).toBe(2);
+    expect(text(rowByCode(fixture, 'WK-1').querySelector('.chip'))).toBe('Mới');
     const toast = root(fixture).querySelector('.toast');
     expect(toast?.classList).toContain('toast-error');
     expect(text(toast)).toContain('WK-1');
   });
 
-  it('offers no start action on cards that cannot be started', () => {
+  it('offers no quick start action on rows that cannot be started', () => {
     const fixture = create();
 
-    expect(column(fixture, 'Đã nộp').querySelector('.start-button')).toBeNull();
-    expect(column(fixture, 'Quá hạn').querySelector('.start-button')).toBeNull();
-    expect(column(fixture, 'Đang thực hiện').querySelectorAll('.start-button').length).toBe(1);
+    expect(rowByCode(fixture, 'WK-5').querySelector('.jira-quick-btn')).toBeNull();
+    expect(rowByCode(fixture, 'WK-9').querySelector('.jira-quick-btn')).toBeNull();
+    expect(rowByCode(fixture, 'WK-4').querySelector('.jira-quick-btn')).not.toBeNull();
   });
 
-  it('keeps only the Overdue column when the overdue KPI card is toggled on', () => {
+  it('filters the Jira list to Overdue when the overdue KPI card is toggled on', () => {
     const fixture = create();
+    works.list.calls.reset();
 
     root(fixture).querySelector<HTMLButtonElement>('#work-kpi-overdue')?.click();
     fixture.detectChanges();
 
-    const titles = Array.from(root(fixture).querySelectorAll('.column h2')).map((el) => text(el));
-    expect(titles).toEqual(['Quá hạn']);
-  });
-
-  it('switches to the list view and requests one page of works', () => {
-    const fixture = create();
-    works.list.calls.reset();
-
-    root(fixture).querySelector<HTMLButtonElement>('#work-view-list')?.click();
-    fixture.detectChanges();
-
-    expect(works.list).toHaveBeenCalledOnceWith(
-      jasmine.objectContaining({ assigneeEmployeeId: 'e1', page: 1, pageSize: 20 }),
+    expect(works.list).toHaveBeenCalledWith(
+      jasmine.objectContaining({ assigneeEmployeeId: 'e1', status: ['Overdue'], pageSize: 20 }),
     );
-    expect(root(fixture).querySelectorAll('.work-row').length).toBe(9);
+    expect(rows(fixture).length).toBe(1);
+    expect(text(rows(fixture)[0].querySelector('.col-code'))).toContain('WK-9');
   });
 
-  it('shows a column error when one query fails', async () => {
+  it('shows a list error state when the list query fails', async () => {
     works.list.and.callFake((filter = {}) =>
-      filter.status?.includes('Done')
+      filter.pageSize === 20
         ? throwError(() => new HttpErrorResponse({ status: 500 }))
         : of({ items: [], totalCount: 0, page: 1, pageSize: 50 }),
     );
     const fixture = await create();
 
-    expect(column(fixture, 'Hoàn thành').querySelector('.column-note-error')).not.toBeNull();
-    expect(column(fixture, 'Mới').querySelector('.column-note-error')).toBeNull();
+    expect(root(fixture).querySelector('.state-error')).not.toBeNull();
   });
 
   describe('as a manager', () => {
@@ -335,13 +304,13 @@ describe('WorkBoardComponent', () => {
       await configure('DEPT_MANAGER');
     });
 
-    it('opens on the work of the employee named by the link, loading the board once with the filter', async () => {
+    it('opens on the work of the employee named by the link, loading the view once with the filter', async () => {
       employees.byCode.and.returnValue(of({ id: 'e2', employeeCode: 'NV002' } as EmployeeDetail));
       await configure('DEPT_MANAGER', { employeeCode: 'NV002' });
       const fixture = create();
 
       expect(employees.byCode).toHaveBeenCalledOnceWith('NV002');
-      expect(works.list).toHaveBeenCalledTimes(6);
+      expect(works.list).toHaveBeenCalledTimes(7);
       for (const [filter] of works.list.calls.allArgs()) {
         expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e2' }));
       }
@@ -370,7 +339,7 @@ describe('WorkBoardComponent', () => {
       await configure('DEPT_MANAGER', { employeeCode: 'NV999' });
       const fixture = create();
 
-      expect(works.list).toHaveBeenCalledTimes(6);
+      expect(works.list).toHaveBeenCalledTimes(7);
       for (const [filter] of works.list.calls.allArgs()) {
         expect(filter?.assigneeEmployeeId).toBe('');
       }
@@ -388,7 +357,7 @@ describe('WorkBoardComponent', () => {
       fixture.detectChanges();
 
       expect(text(root(fixture).querySelector('h1'))).toBe('Công việc của tôi');
-      expect(works.list).toHaveBeenCalledTimes(5);
+      expect(works.list).toHaveBeenCalledTimes(6);
       for (const [filter] of works.list.calls.allArgs()) {
         expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e1' }));
         expect(filter?.departmentId).toBeUndefined();
@@ -408,26 +377,29 @@ describe('WorkBoardComponent', () => {
 
     it('clears the filters of one scope when switching to the other', () => {
       const fixture = create();
-      root(fixture).querySelector<HTMLButtonElement>('#work-kpi-overdue')?.click();
+      const overdueKpi = () => root(fixture).querySelector<HTMLButtonElement>('#work-kpi-overdue')!;
+      overdueKpi().click();
       fixture.detectChanges();
-      expect(root(fixture).querySelectorAll('.column h2').length).toBe(1);
+      expect(overdueKpi().getAttribute('aria-pressed')).toBe('true');
 
       root(fixture).querySelector<HTMLButtonElement>('#work-scope-mine')?.click();
       fixture.detectChanges();
 
-      expect(root(fixture).querySelectorAll('.column h2').length).toBe(5);
+      expect(overdueKpi().getAttribute('aria-pressed')).toBe('false');
     });
 
-    it('offers the start action on my own board, not the complete drag of the department board', () => {
+    it('offers the start action on my own list, and complete action on Verified in department scope', () => {
       const fixture = create();
+      expect(rowByCode(fixture, 'WK-1042').querySelector('.jira-quick-btn')).toBeNull();
+      expect(rowByCode(fixture, 'WK-1027').querySelector('.jira-quick-btn')).not.toBeNull();
 
       root(fixture).querySelector<HTMLButtonElement>('#work-scope-mine')?.click();
       fixture.detectChanges();
 
-      expect(root(fixture).querySelectorAll('.start-button').length).toBeGreaterThan(0);
+      expect(rowByCode(fixture, 'WK-1042').querySelector('.jira-quick-btn')).not.toBeNull();
     });
 
-    it('gives a branch manager the same department board', async () => {
+    it('gives a branch manager the same department list', async () => {
       await configure('BRANCH_MANAGER');
       const fixture = create();
 
@@ -438,7 +410,7 @@ describe('WorkBoardComponent', () => {
     it('asks for the department with its child departments, not for one employee', () => {
       create();
 
-      expect(works.list).toHaveBeenCalledTimes(6);
+      expect(works.list).toHaveBeenCalledTimes(7);
       expect(works.list.calls.first().args[0]).toEqual(
         jasmine.objectContaining({ departmentId: 'd1', includeChildDepartments: true }),
       );
@@ -447,40 +419,14 @@ describe('WorkBoardComponent', () => {
       }
     });
 
-    it('renders the 6 columns, with Verified work in its own column', () => {
+    it('labels each Verified and Done row with its real status and shows the assignee', () => {
       const fixture = create();
 
-      const titles = Array.from(root(fixture).querySelectorAll('.column h2')).map((el) => text(el));
-      expect(titles).toEqual([
-        'Mới',
-        'Đang thực hiện',
-        'Đã nộp',
-        'Đã xác minh',
-        'Hoàn thành',
-        'Quá hạn',
-      ]);
-      expect(cards(column(fixture, 'Đã nộp')).length).toBe(2);
-      expect(cards(column(fixture, 'Đã xác minh')).length).toBe(1);
-      expect(cards(column(fixture, 'Hoàn thành')).length).toBe(1);
-      const statusesOf = (status: string) =>
-        works.list.calls
-          .allArgs()
-          .map(([filter]) => filter)
-          .find((filter) => filter?.status?.includes(status as never))?.status;
-      expect(statusesOf('Verified')).toEqual(['Verified']);
-      expect(statusesOf('Done')).toEqual(['Done']);
-    });
-
-    it('labels each Verified and Done card with its real status and shows the assignee', () => {
-      const fixture = create();
-
-      const labelsOf = (title: string) =>
-        cards(column(fixture, title)).map((card) => text(card.querySelector('.chip')));
-      expect(labelsOf('Đã xác minh')).toEqual(['Đã thẩm định']);
-      expect(labelsOf('Hoàn thành')).toEqual(['Hoàn thành']);
-      const first = cards(column(fixture, 'Mới'))[0];
+      expect(text(rowByCode(fixture, 'WK-1027').querySelector('.chip'))).toBe('Đã thẩm định');
+      expect(text(rowByCode(fixture, 'WK-1019').querySelector('.chip'))).toBe('Hoàn thành');
+      const first = rowByCode(fixture, 'WK-1042');
       expect(text(first.querySelector('.avatar-circle'))).toBe('VA');
-      expect(text(first.querySelector('.assignee-name'))).toBe('Nguyễn Văn A');
+      expect(text(first)).toContain('Nguyễn Văn A');
     });
 
     it('offers only the open and overdue KPI cards, from the loaded counts', () => {
@@ -503,14 +449,20 @@ describe('WorkBoardComponent', () => {
       expect(text(root(fixture).querySelector('#work-kpi-open .kpi-hint'))).toBe('0 nhân viên');
     });
 
-    it('narrows the columns with the open KPI card', () => {
+    it('narrows the list to open statuses with the open KPI card', () => {
       const fixture = create();
+      works.list.calls.reset();
 
       root(fixture).querySelector<HTMLButtonElement>('#work-kpi-open')?.click();
       fixture.detectChanges();
 
-      const titles = Array.from(root(fixture).querySelectorAll('.column h2')).map((el) => text(el));
-      expect(titles).toEqual(['Mới', 'Đang thực hiện', 'Đã nộp']);
+      expect(works.list).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          departmentId: 'd1',
+          status: ['New', 'InProgress', 'HandedOver', 'Rejected', 'Submitted'],
+          pageSize: 20,
+        }),
+      );
     });
 
     it('sends the chosen employee to the server', () => {
@@ -522,13 +474,13 @@ describe('WorkBoardComponent', () => {
       select.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      expect(works.list).toHaveBeenCalledTimes(6);
+      expect(works.list).toHaveBeenCalledTimes(7);
       for (const [filter] of works.list.calls.allArgs()) {
         expect(filter).toEqual(jasmine.objectContaining({ assigneeEmployeeId: 'e2' }));
       }
     });
 
-    it('filters by position among the loaded cards, using the department members', () => {
+    it('filters by position among the loaded rows, using the department members', () => {
       const fixture = create();
       expect(text(root(fixture).querySelector('.result-count'))).toBe('9 việc');
 
@@ -537,47 +489,37 @@ describe('WorkBoardComponent', () => {
       position.dispatchEvent(new Event('change'));
       fixture.detectChanges();
 
-      // Only the cards of Phạm Văn D (position p2); the one of e3 is not a known member, so it is not shown.
-      const titles = Array.from(root(fixture).querySelectorAll('.work-card .card-code')).map((el) =>
-        text(el),
-      );
-      expect(titles.sort()).toEqual(['WK-1027', 'WK-1036', 'WK-1047']);
+      // Only the rows of Phạm Văn D (position p2); the one of e3 is not a known member, so it is not shown.
+      const codes = rows(fixture).map((row) => text(row.querySelector('.col-code .mono')));
+      expect(codes.sort()).toEqual(['WK-1027', 'WK-1036', 'WK-1047']);
       expect(text(root(fixture).querySelector('.result-count'))).toBe('3 việc');
     });
-    it('has no start action, and a Verified work can be completed by dragging into Done', () => {
+
+    it('completes a Verified work via quick action and updates the row to Done', () => {
       works.changeStatus.and.returnValue(
         of({ status: 'Done', updatedAt: '2026-10-28T09:00:00+00:00' } as WorkDetail),
       );
       const fixture = create();
 
-      expect(root(fixture).querySelector('.start-button')).toBeNull();
-      const verified = data.find((i) => i.code === 'WK-1027')!;
-      fixture.componentInstance['changeStatus'](verified);
+      rowByCode(fixture, 'WK-1027').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
       fixture.detectChanges();
 
       expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1027', { status: 'Done' });
       expect(text(root(fixture).querySelector('.toast'))).toContain('WK-1027');
-      const done = column(fixture, 'Hoàn thành');
-      expect(cards(done).length).toBe(2); // moved in place, not duplicated
-      expect(cards(done).map((card) => text(card.querySelector('.chip')))).toEqual([
-        'Hoàn thành',
-        'Hoàn thành',
-      ]);
+      expect(text(rowByCode(fixture, 'WK-1027').querySelector('.chip'))).toBe('Hoàn thành');
     });
 
-    it('puts the card back and says only the direct manager may complete on a 403', () => {
+    it('puts the status back and says only the direct manager may complete on a 403', () => {
       works.changeStatus.and.returnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
       const fixture = create();
 
-      fixture.componentInstance['changeStatus'](data.find((i) => i.code === 'WK-1027')!);
+      rowByCode(fixture, 'WK-1027').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
       fixture.detectChanges();
 
       const toast = root(fixture).querySelector('.toast');
       expect(toast?.classList).toContain('toast-error');
       expect(text(toast)).toContain('quản lý trực tiếp');
-      expect(cards(column(fixture, 'Hoàn thành')).length).toBe(1);
-      const verified = cards(column(fixture, 'Đã xác minh'));
-      expect(verified.map((card) => text(card.querySelector('.chip')))).toEqual(['Đã thẩm định']);
+      expect(text(rowByCode(fixture, 'WK-1027').querySelector('.chip'))).toBe('Đã thẩm định');
     });
 
     it('does nothing for a work that is not Verified', () => {
@@ -588,14 +530,10 @@ describe('WorkBoardComponent', () => {
       expect(works.changeStatus).not.toHaveBeenCalled();
     });
 
-    it('requests one page of the whole department in the list view and adds an assignee column', () => {
+    it('renders the whole department in the default Jira list view with 6 columns', () => {
       const fixture = create();
-      works.list.calls.reset();
 
-      root(fixture).querySelector<HTMLButtonElement>('#work-view-list')?.click();
-      fixture.detectChanges();
-
-      expect(works.list).toHaveBeenCalledOnceWith(
+      expect(works.list).toHaveBeenCalledWith(
         jasmine.objectContaining({
           departmentId: 'd1',
           includeChildDepartments: true,
@@ -603,7 +541,7 @@ describe('WorkBoardComponent', () => {
         }),
       );
       expect(root(fixture).querySelectorAll('.work-row').length).toBe(9);
-      expect(root(fixture).querySelectorAll('th').length).toBe(8);
+      expect(root(fixture).querySelectorAll('th').length).toBe(6);
     });
 
     it('shows no invented initials when the assignee has no name', () => {

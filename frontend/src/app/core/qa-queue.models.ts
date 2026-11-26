@@ -81,17 +81,45 @@ export interface QaTransaction {
   transactionDate: string | null;
 }
 
+/** One result submission of the work (SCR-REV-02), newest first. */
+export interface QaSubmissionVersion {
+  id: string;
+  submissionNo: number;
+  status: string;
+  submittedAt: string;
+  comment: string | null;
+  evidences: QaEvidence[];
+}
+
+export interface QaVerification {
+  submissionNo: number;
+  roundNo: number;
+  decision: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVISION_REQUIRED';
+  comment: string | null;
+  verifiedAt: string | null;
+  verifierName: string;
+}
+
+/** What QA decided; a sample only has its reviewer and time (its comment is the detail's `reason`). */
+export interface QaReview {
+  reviewedByName: string | null;
+  reviewedAt: string | null;
+  dismissReason: string | null;
+  reworkComment: string | null;
+  reworkRequestedAt: string | null;
+}
+
 export interface QaQueueDetail {
   item: QaQueueItem;
   reason: string | null;
-  reworkComment: string | null;
-  reviewedAt: string | null;
-  reviewedByName: string | null;
   submissionComment: string | null;
   submittedAt: string;
   jobPositionTitle: string | null;
   evidences: QaEvidence[];
   transactions: QaTransaction[];
+  versions: QaSubmissionVersion[];
+  verificationHistory: QaVerification[];
+  qaReview: QaReview;
 }
 
 /** The two answers QA gives on the decision screen (the labels are "Confirm correct" and "Reject"). */

@@ -1,4 +1,3 @@
-import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/drag-drop';
 import { Component, DestroyRef, NgZone, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -113,7 +112,6 @@ const emptyColumn = (loading: boolean): ColumnState => ({
   standalone: true,
   imports: [
     FormsModule,
-    DragDropModule,
     HeaderComponent,
     SidebarComponent,
     WorkDetailDrawerComponent,
@@ -146,7 +144,6 @@ export class WorkBoardComponent extends LocalizedComponent {
   private readonly listReload = new Subject<void>();
   private readonly keywordInput = new Subject<void>();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
-  private suppressClick = false;
   /** Bumped on every board reload so a late "load more" answer cannot land in a newer board. */
   private boardVersion = 0;
 
@@ -166,7 +163,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
-  protected readonly view = signal<'board' | 'list' | 'monitor' | 'handovers'>('board');
+  protected readonly view = signal<'list' | 'monitor' | 'handovers'>('list');
   protected readonly profileLoading = signal(true);
   protected readonly profileFailed = signal(false);
   protected readonly columns = signal<Record<BoardColumnKey, ColumnState>>(this.emptyColumns(true));
@@ -407,7 +404,7 @@ export class WorkBoardComponent extends LocalizedComponent {
     if (scope === 'team' && !this.isManager()) return;
     this.scope.set(scope);
     if (scope === 'mine' && this.view() === 'monitor') {
-      this.view.set('board');
+      this.view.set('list');
     }
     this.quick.set(null);
     this.positionId.set('');
@@ -421,7 +418,7 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   // ---- Filters and view -----------------------------------------------------------------------
 
-  protected setView(mode: 'board' | 'list' | 'monitor' | 'handovers'): void {
+  protected setView(mode: 'list' | 'monitor' | 'handovers'): void {
     if (mode === 'monitor' && !this.isTeam()) return;
     if (this.view() === mode) return;
     this.view.set(mode);
@@ -743,7 +740,6 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   protected openDetail(item: WorkListItem): void {
-    if (this.suppressClick) return;
     this.selectedId.set(item.id);
   }
 
@@ -751,33 +747,16 @@ export class WorkBoardComponent extends LocalizedComponent {
     this.selectedId.set(null);
   }
 
-  protected onDragStarted(): void {
-    this.suppressClick = true;
-  }
+  // ---- Start / complete -----------------------------------------------------------------------
 
-  protected onDragEnded(): void {
-    setTimeout(() => (this.suppressClick = false));
-  }
-
-  // ---- Drag and drop / start / complete -------------------------------------------------------
-
-  /** The only move is into the action's column: "start" goes to In progress, "complete" to Done. */
-  protected readonly canEnter = (
-    drag: CdkDrag<WorkListItem>,
-    drop: CdkDropList<BoardColumnKey>,
-  ): boolean => drop.data === this.action().column && this.canAct(drag.data);
-
-  protected onDrop(event: CdkDragDrop<BoardColumnKey, BoardColumnKey, WorkListItem>): void {
-    if (event.previousContainer === event.container) return;
-    if (this.canEnter(event.item, event.container)) this.changeStatus(event.item.data);
-  }
-
-  /** Moves the card at once and puts it back, with a message, when the API refuses. */
-  protected changeStatus(item: WorkListItem): void {
+  /** Updates the row status optimistically and puts it back, with a message, when the API refuses. */
+  protected changeStatus(item: WorkListItem, event?: Event): void {
+    event?.stopPropagation();
     const { status: target, column: to } = this.action();
     const from = columnKeyOf(this.columnDefs(), item.status);
     if (!from || !this.canAct(item)) return;
     const before = this.columns();
+    const beforeList = this.list();
     this.columns.update((columns) => {
       const moved = { ...item, status: target };
       const stays = from === to;
@@ -795,6 +774,14 @@ export class WorkBoardComponent extends LocalizedComponent {
         },
       };
     });
+    this.list.update((page) =>
+      page
+        ? {
+            ...page,
+            items: page.items.map((c) => (c.id === item.id ? { ...c, status: target } : c)),
+          }
+        : page,
+    );
 
     this.works
       .changeStatus(item.id, { status: target })
@@ -810,6 +797,18 @@ export class WorkBoardComponent extends LocalizedComponent {
               ),
             },
           }));
+          this.list.update((page) =>
+            page
+              ? {
+                  ...page,
+                  items: page.items.map((c) =>
+                    c.id === item.id
+                      ? { ...c, status: detail.status, updatedAt: detail.updatedAt }
+                      : c,
+                  ),
+                }
+              : page,
+          );
           this.showToast(
             'success',
             this.i18n.translate(this.isTeam() ? 'work.toast.completed' : 'work.toast.started', {
@@ -819,6 +818,7 @@ export class WorkBoardComponent extends LocalizedComponent {
         },
         error: (error: { status?: number }) => {
           this.columns.set(before);
+          this.list.set(beforeList);
           this.showToast('error', this.changeStatusError(error.status, item));
         },
       });

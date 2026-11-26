@@ -14,19 +14,25 @@ import {
   tap,
 } from 'rxjs';
 import { RouteStateService, stateValue } from '../../core/route-state.service';
+import { AuthService } from '../../core/auth.service';
+import { EmployeeService } from '../../core/employee.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   QaEvidence,
   QaKind,
   QaQueueDetail,
   QaSeverity,
+  QaSubmissionVersion,
   QaTransaction,
   QaVerdict,
+  QaVerification,
 } from '../../core/qa-queue.models';
 import { QaQueueService } from '../../core/qa-queue.service';
+import { canCreateRiskEvents } from '../../core/risk-event.guard';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { displayBytes } from '../../shared/ui/display';
 import { openBlob } from '../appeals/appeal-display';
+import { RiskEventCreateModalComponent } from '../risk-events/risk-event-create-modal.component';
 import { isKind, QaQueueContext, qaErrorKey } from './qa-queue-display';
 
 const MIN_REASON_LENGTH = 10;
@@ -34,7 +40,7 @@ const SEVERITIES: readonly QaSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 @Component({
   selector: 'app-qa-queue-detail',
-  imports: [FormsModule, SidebarComponent, HeaderComponent],
+  imports: [FormsModule, SidebarComponent, HeaderComponent, RiskEventCreateModalComponent],
   templateUrl: './qa-queue-detail.component.html',
   styleUrls: [
     '../appeals/appeals-shared.scss',
@@ -50,6 +56,8 @@ export class QaQueueDetailComponent extends LocalizedComponent {
   private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly context = inject(QaQueueContext);
+  private readonly auth = inject(AuthService);
+  private readonly employees = inject(EmployeeService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly load = new Subject<{ kind: QaKind; id: string }>();
 
@@ -69,12 +77,35 @@ export class QaQueueDetailComponent extends LocalizedComponent {
   protected readonly submitting = signal(false);
   protected readonly errorKey = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
+  protected readonly recordingRisk = signal(false);
+  /** The caller's own employee id: QA never records a risk event against themselves. */
+  private readonly myEmployeeId = signal<string | null>(null);
 
   protected readonly isPending = computed(() => this.detail()?.item.tab === 'PENDING');
   protected readonly isSample = computed(() => this.detail()?.item.kind === 'SAMPLE');
-  protected readonly commentValid = computed(
-    () => this.verdict() === 'CONFIRM' || this.comment().trim().length >= MIN_REASON_LENGTH,
+  /** Only passing a 5% sample needs no reason; dismissing a flag (REV-06-M3) and every rejection do. */
+  protected readonly commentRequired = computed(
+    () => this.verdict() === 'REJECT' || !this.isSample(),
   );
+  protected readonly commentValid = computed(
+    () => !this.commentRequired() || this.comment().trim().length >= MIN_REASON_LENGTH,
+  );
+  protected readonly canRecordRisk = computed(() => {
+    const me = this.myEmployeeId();
+    const detail = this.detail();
+    return !!me && !!detail && detail.item.employeeId !== me;
+  });
+  protected readonly riskPreset = computed(() => {
+    const item = this.detail()?.item;
+    return item
+      ? {
+          employeeId: item.employeeId,
+          employeeCode: item.employeeCode,
+          employeeName: item.employeeName,
+          workCode: item.workCode,
+        }
+      : null;
+  });
   protected readonly canSave = computed(() => this.isPending() && !this.submitting());
   /** The explanation under the reason box follows what the chosen verdict will do for this kind of item. */
   protected readonly verdictNote = computed(() => {
@@ -137,6 +168,13 @@ export class QaQueueDetailComponent extends LocalizedComponent {
         this.notice.set(null);
         this.load.next({ kind: upper, id });
       });
+
+    if (canCreateRiskEvents(this.auth.currentUser()?.permissions)) {
+      this.employees
+        .me()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({ next: (me) => this.myEmployeeId.set(me.id), error: () => undefined });
+    }
   }
 
   protected retry(): void {
@@ -235,12 +273,47 @@ export class QaQueueDetailComponent extends LocalizedComponent {
   }
 
   protected reviewedText(): string {
-    const detail = this.detail();
-    if (!detail?.reviewedAt) return '';
+    const review = this.detail()?.qaReview;
+    if (!review?.reviewedAt) return '';
     return this.i18n.translate('qaQueue.reviewedBy', {
-      name: detail.reviewedByName ?? '—',
-      date: this.i18n.formatDate(detail.reviewedAt, 'DD/MM/YYYY HH:mm'),
+      name: review.reviewedByName ?? '—',
+      date: this.i18n.formatDate(review.reviewedAt, 'DD/MM/YYYY HH:mm'),
     });
+  }
+
+  protected versionLabel(version: QaSubmissionVersion): string {
+    return this.i18n.translate('qaQueue.versionLabel', {
+      no: version.submissionNo,
+      date: this.i18n.formatDate(version.submittedAt, 'DD/MM/YYYY HH:mm'),
+    });
+  }
+
+  protected submissionStatus(version: QaSubmissionVersion): string {
+    return (
+      (this.localization.qaQueue.submissionStatus as Record<string, string>)[version.status] ??
+      version.status
+    );
+  }
+
+  protected historyText(entry: QaVerification): string {
+    return this.i18n.translate('qaQueue.historyEntry', {
+      no: entry.submissionNo,
+      round: entry.roundNo,
+      name: entry.verifierName,
+    });
+  }
+
+  protected decisionLabel(entry: QaVerification): string {
+    return this.localization.qaQueue.decision[entry.decision];
+  }
+
+  protected date(value: string | null): string {
+    return value ? this.i18n.formatDate(value, 'DD/MM/YYYY HH:mm') : '';
+  }
+
+  protected onRiskRecorded(result: { code: string }): void {
+    this.recordingRisk.set(false);
+    this.notice.set(this.i18n.translate('qaQueue.riskCreated', { code: result.code }));
   }
 
   protected alreadyDecidedText(): string {

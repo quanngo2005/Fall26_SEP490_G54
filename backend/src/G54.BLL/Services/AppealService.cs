@@ -49,6 +49,12 @@ public sealed partial class AppealService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // APPEAL_CONTRACT §2.5: an unknown appeal is always 404, even when the decision itself is invalid.
+        if (!await db.Appeals.AsNoTracking().AnyAsync(a => a.Id == appealId, cancellationToken))
+        {
+            throw new NotFoundException("Khiếu nại", appealId);
+        }
+
         var decision = request.Decision?.Trim().ToUpperInvariant();
         var note = request.Note?.Trim();
         if (decision is not (AppealDecisions.Accept or AppealDecisions.Adjust or AppealDecisions.Reject))

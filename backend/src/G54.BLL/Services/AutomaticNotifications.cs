@@ -255,6 +255,27 @@ internal static class AutomaticNotifications
             batchId);
     }
 
+    /// <summary>BR-17: a customer gave an employee 1 star; each department manager hears it, once per rating.</summary>
+    public static List<NotificationDraft> ServiceRatedOneStar(
+        ServiceRating rating,
+        Employee employee,
+        IEnumerable<Guid> deptManagerEmployeeIds)
+    {
+        var comment = string.IsNullOrEmpty(rating.CustomerComment) ? string.Empty : $" Nhận xét: {rating.CustomerComment}";
+        return deptManagerEmployeeIds
+            .Where(id => id != employee.Id)
+            .Distinct()
+            .Select(id => new NotificationDraft(
+                id,
+                NotificationType.RatingOneStar,
+                ClampTitle($"Khách hàng đánh giá 1 sao: {employee.FullName}"),
+                ClampBody($"{employee.FullName} ({employee.EmployeeCode}) nhận đánh giá 1 sao cho giao dịch {rating.TransactionCode} ngày {rating.RatingDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)}.{comment}"),
+                NotificationSeverity.Important,
+                NotificationRelatedType.ImportBatch,
+                rating.ImportBatchId))
+            .ToList();
+    }
+
     /// <summary>A risk event was recorded/confirmed against an employee.</summary>
     public static List<NotificationDraft> RiskEventRecorded(
         RiskEvent riskEvent,

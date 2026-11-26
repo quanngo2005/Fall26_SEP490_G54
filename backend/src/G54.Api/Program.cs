@@ -54,6 +54,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddBusinessLogic();
 builder.Services.Configure<G54.BLL.Common.SystemParametersOptions>(builder.Configuration.GetSection(G54.BLL.Common.SystemParametersOptions.SectionName));
 builder.Services.AddLiveSystemParameters();
+builder.Services.Configure<G54.BLL.Common.CallRecordingOptions>(builder.Configuration.GetSection(G54.BLL.Common.CallRecordingOptions.SectionName));
 builder.Services.AddDataAccess(databaseConnection);
 builder.Services.AddAuthenticationDataAccess(databaseConnection);
 // Overrides the NullAuditContextProvider registered by AddDataAccess: within the API, the actor/request

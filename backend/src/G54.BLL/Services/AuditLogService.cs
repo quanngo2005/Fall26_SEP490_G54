@@ -41,7 +41,9 @@ public sealed class AuditLogService(IAuditLogRepository repository) : IAuditLogS
 
         var sortDesc = !string.Equals(query.Sort, "occurredAt asc", StringComparison.OrdinalIgnoreCase);
 
-        var filter = new AuditLogFilter(query.EntityName, query.EntityId, query.Action, query.ActorId, query.From, query.To, query.Keyword);
+        // Npgsql only accepts offset 0 for timestamptz, so a client offset (e.g. +07:00) must be normalised to UTC.
+        var filter = new AuditLogFilter(query.EntityName, query.EntityId, query.Action, query.ActorId,
+            query.From?.ToUniversalTime(), query.To?.ToUniversalTime(), query.Keyword);
         var (items, totalCount) = await repository.GetPagedAsync(filter, page, pageSize, sortDesc, ct);
 
         var dtos = items.Select(ToListItemDto).ToList();

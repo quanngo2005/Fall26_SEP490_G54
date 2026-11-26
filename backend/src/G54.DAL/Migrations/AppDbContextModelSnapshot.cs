@@ -49,6 +49,8 @@ namespace G54.DAL.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence("ai_review_flag_code_seq");
+
             modelBuilder.HasSequence("qa_item_code_seq");
 
             modelBuilder.HasSequence("risk_event_code_seq");
@@ -170,6 +172,146 @@ namespace G54.DAL.Migrations
                             t.HasCheckConstraint("ck_actual_progress_denominator", "denominator IS NULL OR denominator > 0");
 
                             t.HasCheckConstraint("ck_actual_progress_value", "value >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.AiReviewFlag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CallRecordingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("call_recording_id");
+
+                    b.Property<long>("CodeNo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("code_no")
+                        .HasDefaultValueSql("nextval('ai_review_flag_code_seq')");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
+
+                    b.Property<string>("Detector")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("detector");
+
+                    b.Property<string>("DismissReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("dismiss_reason");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<int>("EndMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("end_ms");
+
+                    b.Property<string>("EvidenceText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("evidence_text");
+
+                    b.Property<string>("FlagType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("flag_type");
+
+                    b.Property<string>("KbRefs")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("kb_refs");
+
+                    b.Property<string>("KbVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kb_version");
+
+                    b.Property<string>("PipelineVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pipeline_version");
+
+                    b.Property<Guid?>("QualityFlagId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("quality_flag_id");
+
+                    b.Property<decimal>("RankScore")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("rank_score");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<Guid?>("RiskEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("risk_event_id");
+
+                    b.Property<string>("RuleCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("rule_code");
+
+                    b.Property<int>("StartMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("start_ms");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallRecordingId")
+                        .HasDatabaseName("ix_ai_review_flag_recording");
+
+                    b.HasIndex("CodeNo")
+                        .IsUnique()
+                        .HasDatabaseName("uq_ai_review_flag_code_no");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_ai_review_flag_employee");
+
+                    b.HasIndex("QualityFlagId");
+
+                    b.HasIndex("ReviewedBy");
+
+                    b.HasIndex("RiskEventId");
+
+                    b.HasIndex("Status", "RankScore")
+                        .HasDatabaseName("ix_ai_review_flag_status");
+
+                    b.ToTable("ai_review_flag", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_ai_review_flag_media", "start_ms >= 0 AND end_ms > start_ms");
+
+                            t.HasCheckConstraint("ck_ai_review_flag_rank_score", "rank_score >= 0 AND rank_score <= 1");
                         });
                 });
 
@@ -486,6 +628,167 @@ namespace G54.DAL.Migrations
 
                             t.HasCheckConstraint("ck_business_objective_no_self_parent", "parent_objective_id IS NULL OR parent_objective_id <> id");
                         });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.CallRecording", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("error_code");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("file_path");
+
+                    b.Property<string>("KbVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kb_version");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("mime_type");
+
+                    b.Property<string>("PipelineVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pipeline_version");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("processing_status");
+
+                    b.Property<string>("ProductCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("product_code");
+
+                    b.Property<Guid>("ResultSubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_submission_id");
+
+                    b.Property<DateTimeOffset>("RetainUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retain_until");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sha256");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<string>("TransactionRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_ref");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at");
+
+                    b.Property<Guid>("UploadedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploaded_by");
+
+                    b.Property<Guid>("WorkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResultSubmissionId")
+                        .HasDatabaseName("ix_call_recording_submission");
+
+                    b.HasIndex("UploadedBy");
+
+                    b.HasIndex("WorkId");
+
+                    b.HasIndex("ProcessingStatus", "UploadedAt")
+                        .HasDatabaseName("ix_call_recording_queue");
+
+                    b.ToTable("call_recording", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_call_recording_size", "size_bytes > 0");
+                        });
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.CallTranscript", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AsrModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("asr_model");
+
+                    b.Property<Guid>("CallRecordingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("call_recording_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("language");
+
+                    b.Property<bool>("PiiMasked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("pii_masked");
+
+                    b.Property<string>("Segments")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("segments");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CallRecordingId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_call_transcript_recording");
+
+                    b.ToTable("call_transcript", (string)null);
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.CampaignWorkType", b =>
@@ -1105,6 +1408,14 @@ namespace G54.DAL.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("file_name");
 
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("TRANSACTION")
+                        .HasColumnName("file_type");
+
                     b.Property<DateTimeOffset>("ImportedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("imported_at");
@@ -1123,6 +1434,8 @@ namespace G54.DAL.Migrations
 
                     b.HasKey("Id")
                         .HasName("import_batch_pkey");
+
+                    b.HasIndex(new[] { "FileType", "ImportedAt" }, "ix_import_batch_file_type");
 
                     b.ToTable("import_batch", (string)null);
                 });
@@ -2027,6 +2340,11 @@ namespace G54.DAL.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DismissReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("dismiss_reason");
+
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("uuid")
                         .HasColumnName("employee_id");
@@ -2048,6 +2366,14 @@ namespace G54.DAL.Migrations
                     b.Property<Guid>("ResultSubmissionId")
                         .HasColumnType("uuid")
                         .HasColumnName("result_submission_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByEmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_employee_id");
 
                     b.Property<string>("ReworkComment")
                         .HasMaxLength(2000)
@@ -2092,6 +2418,8 @@ namespace G54.DAL.Migrations
 
                     b.HasIndex("ResultSubmissionId")
                         .HasDatabaseName("ix_quality_flag_submission");
+
+                    b.HasIndex("ReviewedByEmployeeId");
 
                     b.HasIndex("Status", "CreatedAt")
                         .HasDatabaseName("ix_quality_flag_status");
@@ -2359,6 +2687,14 @@ namespace G54.DAL.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("AiReviewFlagId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ai_review_flag_id");
+
+                    b.Property<Guid?>("CallRecordingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("call_recording_id");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -2385,6 +2721,14 @@ namespace G54.DAL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("event_type");
+
+                    b.Property<int?>("MediaEndMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("media_end_ms");
+
+                    b.Property<int?>("MediaStartMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("media_start_ms");
 
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone")
@@ -2442,6 +2786,14 @@ namespace G54.DAL.Migrations
 
                     b.HasKey("Id")
                         .HasName("risk_event_pkey");
+
+                    b.HasIndex("AiReviewFlagId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_risk_event_ai_review_flag")
+                        .HasFilter("ai_review_flag_id IS NOT NULL");
+
+                    b.HasIndex("CallRecordingId")
+                        .HasDatabaseName("ix_risk_event_call_recording");
 
                     b.HasIndex("CodeNo")
                         .IsUnique()
@@ -2553,6 +2905,60 @@ namespace G54.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("role_permission", (string)null);
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ServiceRating", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CustomerComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("customer_comment");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("employee_id");
+
+                    b.Property<Guid>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<DateOnly>("RatingDate")
+                        .HasColumnType("date")
+                        .HasColumnName("rating_date");
+
+                    b.Property<short>("Score")
+                        .HasColumnType("smallint")
+                        .HasColumnName("score");
+
+                    b.Property<string>("TransactionCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_code");
+
+                    b.HasKey("Id")
+                        .HasName("service_rating_pkey");
+
+                    b.HasIndex(new[] { "ImportBatchId" }, "ix_service_rating_batch");
+
+                    b.HasIndex(new[] { "EmployeeId" }, "ix_service_rating_employee");
+
+                    b.HasIndex(new[] { "TransactionCode" }, "uq_service_rating_transaction_code")
+                        .IsUnique();
+
+                    b.ToTable("service_rating", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_service_rating_score", "score BETWEEN 1 AND 5");
+                        });
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.SidebarConfiguration", b =>
@@ -3847,6 +4253,47 @@ namespace G54.DAL.Migrations
                     b.Navigation("TargetAssignment");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.AiReviewFlag", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.CallRecording", "CallRecording")
+                        .WithMany("Flags")
+                        .HasForeignKey("CallRecordingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_review_flag_recording");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_review_flag_employee");
+
+                    b.HasOne("G54.DAL.Entities.QualityFlag", null)
+                        .WithMany()
+                        .HasForeignKey("QualityFlagId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ai_review_flag_quality_flag");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "ReviewedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ReviewedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ai_review_flag_reviewed_by");
+
+                    b.HasOne("G54.DAL.Entities.RiskEvent", null)
+                        .WithMany()
+                        .HasForeignKey("RiskEventId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ai_review_flag_risk_event");
+
+                    b.Navigation("CallRecording");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ReviewedByEmployee");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Appeal", b =>
                 {
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
@@ -3915,6 +4362,48 @@ namespace G54.DAL.Migrations
                         .HasConstraintName("fk_business_objective_parent");
 
                     b.Navigation("ParentObjective");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.CallRecording", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.ResultSubmission", "ResultSubmission")
+                        .WithMany()
+                        .HasForeignKey("ResultSubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_call_recording_submission");
+
+                    b.HasOne("G54.DAL.Entities.Employee", "UploadedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("UploadedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_call_recording_uploaded_by");
+
+                    b.HasOne("G54.DAL.Entities.Work", "Work")
+                        .WithMany()
+                        .HasForeignKey("WorkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_call_recording_work");
+
+                    b.Navigation("ResultSubmission");
+
+                    b.Navigation("UploadedByEmployee");
+
+                    b.Navigation("Work");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.CallTranscript", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.CallRecording", "CallRecording")
+                        .WithOne("Transcript")
+                        .HasForeignKey("G54.DAL.Entities.CallTranscript", "CallRecordingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_call_transcript_recording");
+
+                    b.Navigation("CallRecording");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.CampaignWorkType", b =>
@@ -4384,6 +4873,12 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_quality_flag_submission");
 
+                    b.HasOne("G54.DAL.Entities.Employee", "ReviewedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_quality_flag_reviewer");
+
                     b.Navigation("Employee");
 
                     b.Navigation("FlaggedByEmployee");
@@ -4391,6 +4886,8 @@ namespace G54.DAL.Migrations
                     b.Navigation("QaSample");
 
                     b.Navigation("ResultSubmission");
+
+                    b.Navigation("ReviewedByEmployee");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.RankingPolicy", b =>
@@ -4447,6 +4944,18 @@ namespace G54.DAL.Migrations
 
             modelBuilder.Entity("G54.DAL.Entities.RiskEvent", b =>
                 {
+                    b.HasOne("G54.DAL.Entities.AiReviewFlag", null)
+                        .WithOne()
+                        .HasForeignKey("G54.DAL.Entities.RiskEvent", "AiReviewFlagId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_risk_event_ai_review_flag");
+
+                    b.HasOne("G54.DAL.Entities.CallRecording", null)
+                        .WithMany()
+                        .HasForeignKey("CallRecordingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_risk_event_call_recording");
+
                     b.HasOne("G54.DAL.Entities.Employee", "Employee")
                         .WithMany("RiskEvents")
                         .HasForeignKey("EmployeeId")
@@ -4501,6 +5010,27 @@ namespace G54.DAL.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("G54.DAL.Entities.ServiceRating", b =>
+                {
+                    b.HasOne("G54.DAL.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_rating_employee");
+
+                    b.HasOne("G54.DAL.Entities.ImportBatch", "ImportBatch")
+                        .WithMany("ServiceRatings")
+                        .HasForeignKey("ImportBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_service_rating_batch");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ImportBatch");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.TargetAssignment", b =>
@@ -4940,6 +5470,13 @@ namespace G54.DAL.Migrations
                     b.Navigation("TargetAssignments");
                 });
 
+            modelBuilder.Entity("G54.DAL.Entities.CallRecording", b =>
+                {
+                    b.Navigation("Flags");
+
+                    b.Navigation("Transcript");
+                });
+
             modelBuilder.Entity("G54.DAL.Entities.Department", b =>
                 {
                     b.Navigation("Employees");
@@ -5016,6 +5553,8 @@ namespace G54.DAL.Migrations
             modelBuilder.Entity("G54.DAL.Entities.ImportBatch", b =>
                 {
                     b.Navigation("Errors");
+
+                    b.Navigation("ServiceRatings");
 
                     b.Navigation("Transactions");
                 });

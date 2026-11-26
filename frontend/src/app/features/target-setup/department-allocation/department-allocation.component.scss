@@ -228,6 +228,12 @@
 @media (max-width: 1100px) {
   .allocation-layout {
     flex-direction: column;
+
+    /* Stretch (not flex-start) so the main panel takes the container width instead of its content width. */
+    align-items: stretch;
+  }
+  .allocation-main {
+    width: 100%;
   }
 
   .kpi-picker {

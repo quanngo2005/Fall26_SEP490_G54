@@ -11,30 +11,56 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { catchError, EMPTY, finalize, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, map, merge, Observable, Subject, switchMap, tap } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { RiskEventAttachment, RiskEventDetails, RiskSeverity } from '../../core/risk-event.models';
+import { canTransitionRiskEvents } from '../../core/risk-event.guard';
+import {
+  RiskEventAttachment,
+  RiskEventDetails,
+  RiskSeverity,
+  RiskStatus,
+  RiskTransition,
+} from '../../core/risk-event.models';
 import { RiskEventService } from '../../core/risk-event.service';
 import { AppDatePipe } from '../../shared/pipes';
 import { displayBytes } from '../../shared/ui/display';
 import { openBlob } from '../appeals/appeal-display';
 import { MIN_REVERSAL_REASON, riskErrorKey } from './risk-event-display';
 
-/** The right-hand drawer of the risk event list (SCR-RSK-01-D1): the full record and the reversal. */
+/** What the drawer changed, so the list can refresh and say so. */
+export interface RiskEventChange {
+  code: string;
+  action: RiskTransition | 'reverse';
+}
+
+/** The lifecycle moves each status offers (contract §1); the reversal follows `canReverse`. */
+const TRANSITIONS: Partial<Record<RiskStatus, readonly RiskTransition[]>> = {
+  OPEN: ['confirm', 'dismiss'],
+  CONFIRMED: ['resolve'],
+};
+
+/** The right-hand drawer of the risk event list (SCR-RSK-01-D1): the full record, its lifecycle and the reversal. */
 @Component({
   selector: 'app-risk-event-drawer',
   imports: [FormsModule, AppDatePipe],
   templateUrl: './risk-event-drawer.component.html',
-  styleUrls: ['./risk-events-badges.scss', './risk-event-drawer.component.scss'],
+  styleUrls: [
+    './risk-events-badges.scss',
+    './risk-event-drawer.component.scss',
+    './risk-event-dialog.scss',
+  ],
 })
 export class RiskEventDrawerComponent extends LocalizedComponent {
   private readonly api = inject(RiskEventService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly reload = new Subject<void>();
 
   readonly eventId = input.required<string>();
   readonly closed = output<void>();
-  /** Emits the code of the event after it was reversed, so the list can refresh. */
-  readonly reversed = output<string>();
+  /** Emits after the event was confirmed, dismissed, resolved or reversed, so the list can refresh. */
+  readonly changed = output<RiskEventChange>();
 
   protected readonly details = signal<RiskEventDetails | null>(null);
   protected readonly loading = signal(false);
@@ -42,6 +68,7 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
   protected readonly notFound = signal(false);
   protected readonly previewFailed = signal(false);
 
+  protected readonly transition = signal<RiskTransition | null>(null);
   protected readonly reversing = signal(false);
   protected readonly reason = signal('');
   protected readonly showValidation = signal(false);
@@ -53,15 +80,42 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
   );
   protected readonly isReversed = computed(() => this.details()?.item.state === 'REVERSED');
 
+  protected readonly transitions = computed(() => {
+    if (this.details()?.isOwnEvent) return [];
+    const status = this.details()?.item.status;
+    const permissions = this.auth.currentUser()?.permissions;
+    return (status ? (TRANSITIONS[status] ?? []) : []).filter((transition) =>
+      canTransitionRiskEvents(permissions, transition),
+    );
+  });
+
+  /** OPEN → CONFIRMED → RESOLVED, or OPEN → DISMISSED; a reversed event shows how far it got before the reversal. */
+  protected readonly statusSteps = computed(() => {
+    const details = this.details();
+    if (!details) return [];
+    const status = details.item.status;
+    const path: RiskStatus[] =
+      status === 'DISMISSED' && !details.reversedAt
+        ? ['OPEN', 'DISMISSED']
+        : ['OPEN', 'CONFIRMED', 'RESOLVED'];
+    const reached = path.indexOf(details.reversedAt ? 'CONFIRMED' : status);
+    return path.map((step, index) => ({
+      status: step,
+      reached: index <= reached,
+      current: step === status,
+    }));
+  });
+
   constructor() {
     super();
-    toObservable(this.eventId)
+    merge(toObservable(this.eventId), this.reload.pipe(map(() => this.eventId())))
       .pipe(
         switchMap((id) => {
           this.details.set(null);
           this.failed.set(false);
           this.notFound.set(false);
           this.previewFailed.set(false);
+          this.transition.set(null);
           this.reversing.set(false);
           this.loading.set(true);
           return this.api.details(id).pipe(
@@ -81,6 +135,38 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
 
   protected close(): void {
     this.closed.emit();
+  }
+
+  protected openTransition(transition: RiskTransition): void {
+    this.errorKey.set(null);
+    this.transition.set(transition);
+  }
+
+  protected cancelTransition(): void {
+    if (!this.submitting()) this.transition.set(null);
+  }
+
+  /** Runs the chosen move, then reloads the record: confirm, dismiss and resolve do not return the drawer data. */
+  protected confirmTransition(): void {
+    const current = this.details();
+    const transition = this.transition();
+    if (!current || !transition || this.submitting()) return;
+    this.errorKey.set(null);
+    this.submitting.set(true);
+    const request: Observable<unknown> = this.api[transition](current.item.id);
+    request
+      .pipe(
+        finalize(() => this.submitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.transition.set(null);
+          this.changed.emit({ code: current.item.code, action: transition });
+          this.reload.next();
+        },
+        error: (error: unknown) => this.errorKey.set(riskErrorKey(error, 'transition')),
+      });
   }
 
   protected openReverse(): void {
@@ -110,7 +196,7 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
         next: (updated) => {
           this.details.set(updated);
           this.reversing.set(false);
-          this.reversed.emit(updated.item.code);
+          this.changed.emit({ code: updated.item.code, action: 'reverse' });
         },
         error: (error: unknown) => this.errorKey.set(riskErrorKey(error, 'reverse')),
       });
@@ -135,6 +221,12 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
           type: this.typeLabel(item.eventType),
         })
       : '';
+  }
+
+  protected transitionTitle(transition: RiskTransition): string {
+    return this.i18n.translate(`riskEvents.transition.${transition}.title`, {
+      code: this.details()?.item.code ?? '',
+    });
   }
 
   protected typeLabel(code: string): string {
@@ -192,7 +284,8 @@ export class RiskEventDrawerComponent extends LocalizedComponent {
   @HostListener('document:keydown.escape', ['$event'])
   protected onEscape(event: Event): void {
     event.preventDefault();
-    if (this.reversing()) this.cancelReverse();
+    if (this.transition()) this.cancelTransition();
+    else if (this.reversing()) this.cancelReverse();
     else this.close();
   }
 }

@@ -92,6 +92,38 @@ describe('ImportHistoryService', () => {
     ]);
   });
 
+  it('reads one batch by id', () => {
+    let result: unknown;
+    service.detail('b1').subscribe((data) => (result = data));
+
+    const data = { id: 'b1', fileName: 'tx.xlsx', errorRows: 2, errors: null };
+    http.expectOne(`${url}/b1`).flush({ success: true, status: 200, data });
+
+    expect(result).toEqual(data);
+  });
+
+  it('pages the errors and the saved transactions of a batch', () => {
+    let errors: unknown;
+    let transactions: unknown;
+    service.errors('b1', 3, 200).subscribe((data) => (errors = data));
+    service.transactions('b1', 2, 20).subscribe((data) => (transactions = data));
+
+    const errorRequest = http.expectOne((r) => r.url === `${url}/b1/errors`);
+    expect(errorRequest.request.params.get('page')).toBe('3');
+    expect(errorRequest.request.params.get('pageSize')).toBe('200');
+    const errorPage = { items: [], totalCount: 0, page: 3, pageSize: 200 };
+    errorRequest.flush({ success: true, status: 200, data: errorPage });
+
+    const transactionRequest = http.expectOne((r) => r.url === `${url}/b1/transactions`);
+    expect(transactionRequest.request.params.get('page')).toBe('2');
+    expect(transactionRequest.request.params.get('pageSize')).toBe('20');
+    const transactionPage = { items: [], totalCount: 0, page: 2, pageSize: 20 };
+    transactionRequest.flush({ success: true, status: 200, data: transactionPage });
+
+    expect(errors).toEqual(errorPage);
+    expect(transactions).toEqual(transactionPage);
+  });
+
   it('downloads the template as a blob', () => {
     service.downloadTemplate().subscribe();
 

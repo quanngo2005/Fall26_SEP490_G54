@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using G54.BLL.Common.Exceptions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -139,6 +140,60 @@ public sealed class StorageService(
         return Task.CompletedTask;
     }
 
+    public async Task<string> StoreCallRecordingAsync(IFormFile file, string relativePath, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+
+        var destination = ResolveRelativePath(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        await using (var source = file.OpenReadStream())
+        await using (var target = new FileStream(
+            destination,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 81920,
+            useAsync: true))
+        {
+            int read;
+            while ((read = await source.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                hash.AppendData(buffer, 0, read);
+                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            }
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    public Task<Stream> OpenCallRecordingReadAsync(string relativePath, CancellationToken cancellationToken = default)
+    {
+        var path = ResolveRelativePath(relativePath);
+        if (!File.Exists(path))
+        {
+            throw new NotFoundException("Tệp ghi âm không còn tồn tại trên máy chủ.");
+        }
+
+        Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920, useAsync: true);
+        return Task.FromResult(stream);
+    }
+
+    public void DeleteCallRecording(string relativePath)
+    {
+        try
+        {
+            File.Delete(ResolveRelativePath(relativePath));
+            LogFileDeleted(logger, relativePath, null);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ValidationException)
+        {
+            LogFileDeleteFailed(logger, relativePath, exception);
+        }
+    }
+
     private static async Task ValidateAsync(IFormFile file, CancellationToken cancellationToken)
     {
         if (file.Length <= 0)
@@ -204,6 +259,20 @@ public sealed class StorageService(
         if (!canonicalPath.StartsWith(canonicalBaseDir, StringComparison.OrdinalIgnoreCase))
         {
             LogTraversalAttempt(logger, filePath ?? string.Empty, null);
+            throw new ValidationException("Đường dẫn lưu trữ tệp không hợp lệ.");
+        }
+
+        return canonicalPath;
+    }
+
+    /// <summary>Maps a path relative to the evidence folder (subfolders allowed) to a location that never escapes it.</summary>
+    private string ResolveRelativePath(string relativePath)
+    {
+        var canonicalBaseDir = WithTrailingSeparator(Path.GetFullPath(ResolveBaseDirectory()));
+        var canonicalPath = Path.GetFullPath(Path.Combine(canonicalBaseDir, relativePath));
+        if (Path.IsPathRooted(relativePath) || !canonicalPath.StartsWith(canonicalBaseDir, StringComparison.OrdinalIgnoreCase))
+        {
+            LogTraversalAttempt(logger, relativePath, null);
             throw new ValidationException("Đường dẫn lưu trữ tệp không hợp lệ.");
         }
 

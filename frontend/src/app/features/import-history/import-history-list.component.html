@@ -28,12 +28,10 @@
           />
         </div>
         <app-ui-select
-          [options]="noOptions"
-          [value]="''"
-          [disabled]="true"
-          [placeholder]="t.fileType"
+          [options]="fileTypeOptions()"
+          [value]="fileType()"
           [ariaLabel]="t.fileType"
-          [title]="t.filterComingSoon"
+          (valueChange)="selectFileType($event)"
         />
         <app-ui-select
           [options]="noOptions"
@@ -94,10 +92,12 @@
                   <tr
                     [class.is-selected]="batch.id === selectedId()"
                     [attr.aria-selected]="batch.id === selectedId()"
+                    tabindex="0"
                     (click)="selectRow(batch)"
+                    (keydown.enter)="selectRow(batch)"
                   >
                     <td class="col-mono">{{batchCode(batch)}}</td>
-                    <td>{{t.fileTypeTransaction}}</td>
+                    <td>{{fileTypeLabel()}}</td>
                     <td class="col-primary">{{batch.fileName}}</td>
                     <td>—</td>
                     <td class="col-mono">{{batch.importedAt | appDate: dateTime}}</td>
@@ -132,6 +132,14 @@
           />
         </div>
         <p class="ui-table-footnote">{{t.footnote}}</p>
+      }
+
+      @if (selectedId(); as id) {
+        <app-import-batch-drawer
+          [batchId]="id"
+          [fileType]="fileType()"
+          (closed)="selectedId.set(null)"
+        />
       }
     </main>
   </div>

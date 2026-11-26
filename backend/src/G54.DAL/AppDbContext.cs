@@ -2243,11 +2243,19 @@ public partial class AppDbContext : DbContext
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);
+        ConfigureCallRecordings(modelBuilder);
+        ConfigureServiceRatings(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("import_batch_pkey");
             entity.ToTable("import_batch");
+            entity.HasIndex(e => new { e.FileType, e.ImportedAt }, "ix_import_batch_file_type");
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FileType)
+                .HasConversion(PgNameConverter<ImportFileType>())
+                .HasMaxLength(20)
+                .HasDefaultValue(ImportFileType.Transaction)
+                .HasColumnName("file_type");
             entity.Property(e => e.FileName).HasMaxLength(255).HasColumnName("file_name");
             entity.Property(e => e.TotalRows).HasColumnName("total_rows");
             entity.Property(e => e.ImportedRows).HasColumnName("imported_rows");

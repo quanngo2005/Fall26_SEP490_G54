@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Evaluation;
 using G54.BLL.Services;
@@ -33,6 +34,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", employeeId), ("periodId", periodId));
         var result = await service.GetEvaluationFormAsync(employeeId, periodId, User.GetRequiredUserId(), comparePeriodId, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -52,6 +54,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", employeeId), ("periodId", periodId));
         var file = await service.ExportEvaluationFormAsync(
             employeeId,
             periodId,
@@ -75,6 +78,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] SubmitEvaluationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("employeeId", request.EmployeeId), ("periodId", request.PeriodId));
         var result = await service.SubmitEvaluationAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -103,6 +107,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? departmentId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentEmployeesForEvaluationAsync(
             periodId,
             departmentId,
@@ -174,6 +179,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? comparePeriodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetRankingBoardAsync(periodId, departmentId, comparePeriodId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -241,6 +247,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? departmentId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var file = await service.ExportRankingBoardAsync(periodId, departmentId, User.GetRequiredUserId(), cancellationToken);
         return File(file.Content, ExcelContentType, file.FileName);
     }
@@ -277,6 +284,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid? positionId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentCalibrationAsync(
             periodId,
             departmentId,
@@ -300,6 +308,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] SubmitCalibrationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("departmentId", request.DepartmentId), ("periodId", request.PeriodId));
         var result = await service.SubmitDepartmentCalibrationAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -316,6 +325,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetBranchApprovalOverviewAsync(periodId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -333,6 +343,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] RejectCalibrationRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.RejectDepartmentCalibrationAsync(
             departmentId,
             request,
@@ -356,6 +367,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] ApproveDepartmentRankingRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.ApproveDepartmentCalibrationAsync(
             departmentId,
             request,
@@ -377,6 +389,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId));
         var result = await service.GetPreCloseCheckAsync(
             periodId,
             User.GetRequiredUserId(),
@@ -398,6 +411,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromBody] FinalizeEvaluationPeriodRequestDto request,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", request.PeriodId));
         var result = await service.FinalizeAndLockPeriodAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
@@ -453,7 +467,18 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid criteriaId,
         CancellationToken cancellationToken)
     {
+        RequireIds(("periodId", periodId), ("criteriaId", criteriaId));
         var result = await service.GetPersonalCriteriaLedgerAsync(periodId, criteriaId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>An omitted GUID binds to Guid.Empty; refuse it as a validation error instead of reporting "not found".</summary>
+    private static void RequireIds(params (string Name, Guid Value)[] ids)
+    {
+        var missing = ids.Where(i => i.Value == Guid.Empty).Select(i => $"'{i.Name}' là bắt buộc.").ToList();
+        if (missing.Count > 0)
+        {
+            throw new ValidationException(missing);
+        }
     }
 }
