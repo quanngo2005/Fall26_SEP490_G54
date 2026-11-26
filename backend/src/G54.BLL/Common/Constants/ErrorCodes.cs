@@ -147,6 +147,14 @@ public static class ErrorCodes
     public const string AccountExists = "ACCOUNT_EXISTS";
     public const string CannotLockSelf = "CANNOT_LOCK_SELF";
 
+    // Campaign customers (docs/api/CAMPAIGN_CONTRACT.md §5)
+    public const string CampaignCustomerClosed = "CAMPAIGN_CUSTOMER_CLOSED";
+    public const string CampaignNotRunning = "CAMPAIGN_NOT_RUNNING";
+    public const string WorkTypeNotInCampaign = "WORK_TYPE_NOT_IN_CAMPAIGN";
+    public const string EmployeeNotParticipant = "EMPLOYEE_NOT_PARTICIPANT";
+    public const string CampaignHasAssignments = "CAMPAIGN_HAS_ASSIGNMENTS";
+    public const string CampaignWorkLocked = "CAMPAIGN_WORK_LOCKED";
+    public const string CampaignNotCompletable = "CAMPAIGN_NOT_COMPLETABLE";
     // Call recordings (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §9)
     public const string CallRecordingInvalidFile = "CALL_RECORDING_INVALID_FILE";
     public const string CallRecordingSubmissionClosed = "CALL_RECORDING_SUBMISSION_CLOSED";
@@ -240,6 +248,13 @@ public static class ErrorCodes
         [UsernameExists] = ("Tên đăng nhập đã tồn tại trong hệ thống.", "The username already exists in the system."),
         [AccountExists] = ("Nhân sự được chọn đã có tài khoản đăng nhập.", "The selected employee already has a user account."),
         [CannotLockSelf] = ("Bạn không thể khóa chính tài khoản đang đăng nhập.", "You cannot lock the account you are signed in with."),
+        [CampaignCustomerClosed] = ("Khách hàng này đã chốt và không thể cập nhật thêm.", "This customer is already closed and cannot be updated further."),
+        [CampaignNotRunning] = ("Chiến dịch không ở trạng thái đang chạy nên không thể thao tác.", "The campaign is not running, so this action is not allowed."),
+        [WorkTypeNotInCampaign] = ("Sản phẩm đã chọn không thuộc danh mục sản phẩm của chiến dịch.", "The selected product is not one of the campaign's work types."),
+        [EmployeeNotParticipant] = ("Nhân viên không phải là thành viên tham gia chiến dịch.", "The employee is not an active participant of the campaign."),
+        [CampaignHasAssignments] = ("Chiến dịch đã có khách hàng được phân bổ hoặc công việc được sinh ra nên không thể thay đổi sản phẩm hoặc gỡ thành viên. Vui lòng phân công lại trước.", "The campaign already has assigned customers or generated work, so the product cannot change or a participant cannot be removed. Reassign first."),
+        [CampaignWorkLocked] = ("Công việc này thuộc một chiến dịch và chỉ có thể cập nhật từ màn hình Chiến dịch của tôi.", "This work belongs to a campaign and can only be updated from My Campaigns."),
+        [CampaignNotCompletable] = ("Trạng thái hiện tại của chiến dịch không cho phép hoàn tất hoặc hủy.", "The campaign's current status does not allow completing or cancelling it."),
         [CallRecordingInvalidFile] = ("Tệp ghi âm không hợp lệ (mp3, m4a, mp4, wav; tối đa 50 MB).", "Invalid call recording file (mp3, m4a, mp4, wav; up to 50 MB)."),
         [CallRecordingSubmissionClosed] = ("Kết quả đã rút, không thể tải ghi âm.", "The result submission was withdrawn, so no recording can be uploaded."),
         [CallRecordingNotReady] = ("Ghi âm đang được xử lý.", "The call recording is still being processed."),

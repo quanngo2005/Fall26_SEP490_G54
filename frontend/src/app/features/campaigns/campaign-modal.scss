@@ -2,6 +2,12 @@
 .modal-dialog.is-wide {
   width: min(760px, 100%);
 }
+/* The form sits between the dialog and its body: without being a flex column the body never scrolls and the footer buttons fall outside the viewport. */
+.modal-dialog > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .section-title {
   margin: 20px 0 12px;
   border-bottom: 1px solid #e2e8f0;

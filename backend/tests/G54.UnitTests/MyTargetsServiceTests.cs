@@ -243,6 +243,32 @@ public sealed class MyTargetsServiceTests
     }
 
     [Fact]
+    public async Task GetChangeLog_Self_WithoutManagePermission_ReturnsEntries()
+    {
+        var f = await CreateAsync();
+        await new TargetChangeLogService(f.Db, TimeProvider.System).LogAsync(
+            f.ManagerId, TargetChangeLogAction.Adjust, tier: 3, kpiId: f.KpiId, unit: "VND", period: "YEAR",
+            oldValue: 100m, newValue: 120m, basis: "MANUAL", employeeId: f.EmployeeId, departmentId: f.DepartmentId, year: f.Year);
+        var employeeService = new MyTargetsService(new UnitOfWork(f.Db), new AllocationPermissions(admin: false),
+            new TargetChangeLogService(f.Db, TimeProvider.System), TimeProvider.System, Options.Create(new SystemParametersOptions()));
+
+        var result = await employeeService.GetChangeLogAsync(f.EmployeeId, f.Year, f.EmployeeId, null, CancellationToken.None);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetChangeLog_SameDepartmentColleagueWithoutManagePermission_ThrowsForbidden()
+    {
+        var f = await CreateAsync();
+        var colleagueService = new MyTargetsService(new UnitOfWork(f.Db), new AllocationPermissions(admin: false),
+            new TargetChangeLogService(f.Db, TimeProvider.System), TimeProvider.System, Options.Create(new SystemParametersOptions()));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => colleagueService.GetChangeLogAsync(
+            f.ManagerId, f.Year, f.EmployeeId, null, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ReplyFeedback_InScope_SetsReply()
     {
         var f = await CreateAsync();

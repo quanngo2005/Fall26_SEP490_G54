@@ -43,4 +43,18 @@ public interface ICampaignService
         BatchWorkGeneratorRequestDto request,
         Guid currentUserId,
         CancellationToken cancellationToken = default);
+
+    Task<CampaignDecisionResultDto> CompleteAsync(
+        Guid id,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<CampaignDecisionResultDto> CancelAsync(
+        Guid id,
+        CancelCampaignRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Sends the campaign owner a one-time reminder once a RUNNING campaign's end date has passed.</summary>
+    Task<int> SendEndReminderAsync(DateOnly today, CancellationToken cancellationToken = default);
 }

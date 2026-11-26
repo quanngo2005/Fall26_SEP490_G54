@@ -125,6 +125,41 @@ public sealed class HandoverServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_LeadWork_IsLocked()
+    {
+        var (from, to, work) = await ArrangeAsync();
+        _db.CampaignCustomers.Add(new CampaignCustomer
+        {
+            Id = Guid.NewGuid(),
+            BusinessCampaignId = Guid.NewGuid(),
+            CustomerCif = "CIF-LEAD",
+            CustomerName = "Lead Customer",
+            AssigneeEmployeeId = from.Id,
+            ContactStatus = CampaignContactStatus.Closed,
+            WorkId = work.Id,
+            UpdatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id)));
+
+        Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Create_NonLeadCampaignWork_IsUnaffected()
+    {
+        var (from, to, work) = await ArrangeAsync();
+        work.BusinessCampaignId = Guid.NewGuid();
+        await _db.SaveChangesAsync();
+
+        var result = await ServiceWith().CreateHandoverAsync(work.Id, from.Id, Request(to.Id));
+
+        Assert.Equal("PENDING", result.Status);
+    }
+
+    [Fact]
     public async Task Create_ResolvesCallerByAccountId()
     {
         var (from, to, work) = await ArrangeAsync();

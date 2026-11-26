@@ -25,7 +25,14 @@ public partial class BusinessCampaign
 
     public BusinessCampaignStatus Status { get; set; }
 
+    /// <summary>The employee who created the campaign; null for legacy rows. Receives the end-date reminder.</summary>
+    public Guid? CreatedBy { get; set; }
+
+    public virtual Employee? CreatedByEmployee { get; set; }
+
     public virtual BusinessObjective BusinessObjective { get; set; } = null!;
+
+    public virtual ICollection<CampaignCustomer> CampaignCustomers { get; set; } = new List<CampaignCustomer>();
 
     public virtual ICollection<CampaignWorkType> CampaignWorkTypes { get; set; } = new List<CampaignWorkType>();
 

@@ -326,6 +326,61 @@ public sealed class ResultSubmissionServiceTests
     }
 
     [Fact]
+    public async Task CreateSubmissionAsync_LeadWorkWhoseCustomerIsNotClosed_IsLocked()
+    {
+        var (context, _, service, _, _) = CreateTestEnvironment();
+        using (context)
+        {
+            var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context);
+            context.CampaignCustomers.Add(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = Guid.NewGuid(),
+                CustomerCif = "CIF-LEAD",
+                CustomerName = "Lead Customer",
+                AssigneeEmployeeId = assignee.Id,
+                ContactStatus = CampaignContactStatus.Called,
+                WorkId = work.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var request = new CreateWorkSubmissionRequestDto
+            {
+                Comment = "Hoan thanh.",
+                MetricItems = new List<SubmissionMetricInputDto> { new(kpi1.Id, 15m, null) },
+            };
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.CreateSubmissionAsync(work.Id, assignee.Id, request));
+
+            Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task CreateSubmissionAsync_NonLeadCampaignWork_IsUnaffected()
+    {
+        var (context, _, service, _, _) = CreateTestEnvironment();
+        using (context)
+        {
+            var (assignee, _, work, kpi1, _) = await SeedWorkContextAsync(context);
+            work.BusinessCampaignId = Guid.NewGuid();
+            await context.SaveChangesAsync();
+
+            var request = new CreateWorkSubmissionRequestDto
+            {
+                Comment = "Hoan thanh.",
+                MetricItems = new List<SubmissionMetricInputDto> { new(kpi1.Id, 15m, null) },
+            };
+
+            var result = await service.CreateSubmissionAsync(work.Id, assignee.Id, request);
+
+            Assert.Equal("SUBMITTED", result.Status);
+        }
+    }
+
+    [Fact]
     public async Task CreateSubmissionAsync_ValidDataWithFiles_UploadsFilesAndCreatesEvidences()
     {
         var tempFolder = Path.Combine(Path.GetTempPath(), "G54_Tests_Files_" + Guid.NewGuid().ToString("N"));

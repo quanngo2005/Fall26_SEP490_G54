@@ -130,6 +130,12 @@ public sealed partial class ResultSubmissionService(
             throw new ForbiddenException("Chỉ người được giao việc mới có quyền nộp báo cáo kết quả.");
         }
 
+        var leadStatus = await CampaignLeadWork.LeadStatusAsync(unitOfWork.Repository<CampaignCustomer>().Query(), work.Id, cancellationToken);
+        if (leadStatus is not null && leadStatus != CampaignContactStatus.Closed)
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignWorkLocked, null, 409);
+        }
+
         if (!WorkStateMachine.TryGetNextStatus(work.Status, WorkAction.Submit, out var workStatusAfterSubmit))
         {
             throw new ConflictException(

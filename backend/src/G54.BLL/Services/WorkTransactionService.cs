@@ -33,13 +33,37 @@ public sealed class WorkTransactionService(
         return await ToDtoAsync(work, ct);
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
     public async Task<WorkTransactionsDto> AddAsync(
         Guid workId, Guid userId, AddWorkTransactionsRequestDto request, CancellationToken ct = default)
     {
         var work = await LoadOwnWorkAsync(workId, userId, ct);
-        var codes = (request.TransactionCodes ?? []).Select(NormalizeCode).Where(c => c.Length > 0).Distinct().ToList();
+        var leadStatus = await CampaignLeadWork.LeadStatusAsync(db.CampaignCustomers, work.Id, ct);
+        if (leadStatus is not null && leadStatus != CampaignContactStatus.Closed)
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignWorkLocked, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        await AddCoreAsync(work, request.TransactionCodes, ct);
+        return await ToDtoAsync(work, ct);
+    }
+
+    /// <inheritdoc/>
+    public async Task<WorkTransactionsDto> AddForLeadCloseAsync(Work work, IReadOnlyList<string> codes, CancellationToken ct = default)
+    {
+        await AddCoreAsync(work, codes, ct);
+        return await ToDtoAsync(work, ct);
+    }
+
+    /// <summary>
+    /// Shared body of <see cref="AddAsync"/> / <see cref="AddForLeadCloseAsync"/>: validates the codes, the limit
+    /// and duplicates before the first <c>SaveChanges</c> (a rejected code leaves the Work unchanged), submits the
+    /// Work if it is not already SUBMITTED, then reconciles each new code against imported transactions.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1311:Specify a culture or use an invariant version", Justification = "Translated to PostgreSQL upper().")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Globalization", "CA1304:Specify CultureInfo", Justification = "Npgsql translates only the parameterless ToUpper() to SQL upper().")]
+    private async Task AddCoreAsync(Work work, IReadOnlyList<string>? requestedCodes, CancellationToken ct)
+    {
+        var codes = (requestedCodes ?? []).Select(NormalizeCode).Where(c => c.Length > 0).Distinct().ToList();
         if (codes.Count == 0 || codes.Any(c => c.Length > MaxCodeLength))
         {
             throw new ValidationException($"transactionCodes must hold 1+ codes of at most {MaxCodeLength} characters.");
@@ -51,7 +75,7 @@ public sealed class WorkTransactionService(
             throw new BusinessRuleException(ErrorCodes.WorkInvalidState, statusCode: StatusCodes.Status409Conflict);
         }
 
-        if (await db.WorkTransactions.CountAsync(w => w.WorkId == workId, ct) + codes.Count > MaxCodes)
+        if (await db.WorkTransactions.CountAsync(w => w.WorkId == work.Id, ct) + codes.Count > MaxCodes)
         {
             throw new BusinessRuleException(ErrorCodes.WorkTransactionLimit, statusCode: StatusCodes.Status409Conflict);
         }
@@ -65,7 +89,7 @@ public sealed class WorkTransactionService(
         var added = codes.Select(c => new WorkTransaction
         {
             Id = Guid.NewGuid(),
-            WorkId = workId,
+            WorkId = work.Id,
             TransactionCode = c,
             Status = WorkTransactionStatus.InReview,
             CreatedAt = now,
@@ -89,7 +113,6 @@ public sealed class WorkTransactionService(
 
         await CompleteIfAllMatchedAsync(work, ct);
         await NotifyMismatchedAsync([(work, added)], ct);
-        return await ToDtoAsync(work, ct);
     }
 
     public async Task<WorkTransactionsDto> RemoveAsync(Guid workId, Guid transactionId, Guid userId, CancellationToken ct = default)
@@ -100,6 +123,16 @@ public sealed class WorkTransactionService(
         if (item.Status == WorkTransactionStatus.Matched)
         {
             throw new BusinessRuleException(ErrorCodes.WorkInvalidState, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        var leadStatus = await CampaignLeadWork.LeadStatusAsync(db.CampaignCustomers, work.Id, ct);
+        if (leadStatus is not null)
+        {
+            var isLastCode = await db.WorkTransactions.CountAsync(w => w.WorkId == workId, ct) <= 1;
+            if (leadStatus != CampaignContactStatus.Closed || isLastCode)
+            {
+                throw new BusinessRuleException(ErrorCodes.CampaignWorkLocked, statusCode: StatusCodes.Status409Conflict);
+            }
         }
 
         db.WorkTransactions.Remove(item);

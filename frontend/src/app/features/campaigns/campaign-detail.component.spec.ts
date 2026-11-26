@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, Input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -56,6 +57,9 @@ const detail = (overrides: Partial<CampaignDetail> = {}): CampaignDetail => ({
     inExecutionWorksCount: 30,
     pendingWorksCount: 25,
     progressPercent: 42.7,
+    customerTotal: 48,
+    customerUnassigned: 6,
+    customerClosed: 9,
   },
   canGenerateBatchWork: true,
   canApprove: false,
@@ -158,13 +162,25 @@ describe('CampaignDetailComponent', () => {
     expect(root.querySelector('.notice')?.textContent).toContain('Đã tạo 36 công việc');
   });
 
-  it('shows a not-found state when the campaign cannot be loaded', async () => {
-    api.detail.and.returnValue(throwError(() => new Error('404')));
+  it('shows a not-found state when the API answers 404', async () => {
+    api.detail.and.returnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
     const { root } = await open();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain(
       'Không tìm thấy chiến dịch',
     );
+  });
+
+  it('shows a retry state instead of not-found when the API fails with 500', async () => {
+    api.detail.and.returnValue(throwError(() => new HttpErrorResponse({ status: 500 })));
+    const { root } = await open();
+
+    const alert = root.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Không tải được chiến dịch');
+    expect(alert?.textContent).not.toContain('Không tìm thấy');
+    api.detail.and.returnValue(of(detail()));
+    alert?.querySelector('button')?.click();
+    expect(api.detail).toHaveBeenCalledTimes(2);
   });
 
   it('marks a campaign past its end date as overdue', async () => {

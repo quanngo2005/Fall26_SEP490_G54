@@ -98,6 +98,9 @@ export interface CampaignMetrics {
   inExecutionWorksCount: number;
   pendingWorksCount: number;
   progressPercent: number;
+  customerTotal: number;
+  customerUnassigned: number;
+  customerClosed: number;
 }
 
 export interface CampaignDetail {
