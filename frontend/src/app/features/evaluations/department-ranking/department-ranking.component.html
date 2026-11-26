@@ -1,4 +1,4 @@
-﻿<div class="workspace-layout">
+<div class="workspace-layout">
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
@@ -45,11 +45,11 @@
         <div class="ui-page-actions">
           <button
             type="button"
-            class="button button-secondary"
+            [class]="isTeam() ? 'button button-primary' : 'button button-secondary'"
             [disabled]="saving() || !board()"
             (click)="saveDraft()"
           >
-            {{localization.evaluations.departmentRanking.saveDraft}}
+            {{ isTeam() ? localization.evaluations.departmentRanking.saveProposal : localization.evaluations.departmentRanking.saveDraft }}
           </button>
           <button
             type="button"
@@ -59,14 +59,16 @@
           >
             {{localization.evaluations.departmentRanking.exportExcel}}
           </button>
-          <button
-            type="button"
-            class="button button-primary"
-            [disabled]="!canSend() || sending()"
-            (click)="openConfirmSend()"
-          >
-            {{localization.evaluations.departmentRanking.sendToDirector}}
-          </button>
+          @if (!isTeam()) {
+            <button
+              type="button"
+              class="button button-primary"
+              [disabled]="!canSend() || sending()"
+              (click)="openConfirmSend()"
+            >
+              {{localization.evaluations.departmentRanking.sendToDirector}}
+            </button>
+          }
         </div>
       </header>
 
@@ -155,347 +157,29 @@
                 </button>
               </div>
             </div>
-            <div class="staff-scroll">
-              <table class="ranking-table staff-table">
-                <thead>
-                  <tr>
-                    <th class="stt-col">{{localization.evaluations.departmentRanking.colStt}}</th>
-                    <th>{{localization.evaluations.departmentRanking.colId}}</th>
-                    <th>{{localization.evaluations.departmentRanking.colName}}</th>
-                    <th>{{localization.evaluations.departmentRanking.colStatus}}</th>
-                    <th class="num-col">{{localization.evaluations.departmentRanking.colSla}}</th>
-                    <th class="num-col">
-                      {{localization.evaluations.departmentRanking.colTarget}}
-                    </th>
-                    <th class="num-col">
-                      {{localization.evaluations.departmentRanking.colRisk}}
-                    </th>
-                    <th class="num-col penalty-col">
-                      {{localization.evaluations.departmentRanking.colPenalty}}
-                    </th>
-                    <th class="num-col score-col">
-                      {{localization.evaluations.departmentRanking.colScore}}
-                    </th>
-                    @if (adjusting()) {
-                      <th class="tier-col">
-                        {{localization.evaluations.departmentRanking.colSystemTier}}
-                      </th>
-                    }
-                    <th class="tier-col">
-                      {{localization.evaluations.departmentRanking.colFinalTier}}
-                    </th>
-                    @if (adjusting()) {
-                      <th>{{localization.evaluations.departmentRanking.colReason}}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of displayRows(); track row.employeeId) {
-                    <tr>
-                      <td class="stt-col font-mono">{{row.rank}}</td>
-                      <td class="font-mono">{{row.employeeCode}}</td>
-                      <td>
-                        <button
-                          type="button"
-                          class="staff-name staff-link"
-                          (click)="openEmployeeForm(row)"
-                        >
-                          {{row.fullName}}
-                        </button>
-                      </td>
-                      <td>
-                        @switch (row.evaluationStatus) {
-                          @case ('DRAFT') {
-                            <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
-                          }
-                          @case ('CALCULATED') {
-                            <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
-                          }
-                          @case ('DISPUTED') {
-                            <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
-                          }
-                        }
-                      </td>
-                      <td class="num-col">
-                        <div class="metric hover-card" (mouseenter)="placePopup($event, onTimeTip)">
-                          <span class="font-mono hover-trigger">
-                            {{row.onTimeSla.value === null
-                                ? emptyValue
-                                : formatNumber(row.onTimeSla.value, 1) + '%'}}
-                          </span>
-                          <div #onTimeTip class="hover-popup" role="tooltip">
-                            {{onTimeText(row)}}
-                          </div>
-                          @if (row.onTimeSla.change !== null && row.onTimeSla.change !== 0) {
-                            <span
-                              class="delta font-mono"
-                              [class.delta-good]="deltaTone(row.onTimeSla.change, true) === 'good'"
-                              [class.delta-bad]="deltaTone(row.onTimeSla.change, true) === 'bad'"
-                            >
-                              {{row.onTimeSla.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.onTimeSla.change, 1)}}
-                            </span>
-                          }
-                        </div>
-                      </td>
-                      <td class="num-col">
-                        <div class="hover-card" (mouseenter)="placePopup($event, criteriaTip)">
-                          <span class="font-mono hover-trigger">
-                            {{row.achievedCriteria === null
-                                ? emptyValue
-                                : row.achievedCriteria + '/' + row.totalCriteria}}
-                          </span>
-                          <div #criteriaTip class="hover-popup hover-popup-wide" role="tooltip">
-                            <div class="popup-title">
-                              {{criteriaTitleText(row)}}
-                            </div>
-                            <table class="popup-table">
-                              <tbody>
-                                @for (criterion of row.criteria; track criterion.kpiName) {
-                                  <tr>
-                                    <td>{{criterion.kpiName}}</td>
-                                    <td
-                                      class="num-col font-mono"
-                                      [class.popup-good]="criterion.isAchieved"
-                                      [class.popup-bad]="!criterion.isAchieved"
-                                    >
-                                      {{criterion.actualValue === null
-                                          ? emptyValue
-                                          : formatNumber(criterion.actualValue, 1)}}/{{formatNumber(criterion.targetValue, 1)}}
-                                      {{criterion.unit}}
-                                    </td>
-                                  </tr>
-                                }
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="num-col">
-                        <div class="metric hover-card" (mouseenter)="placePopup($event, riskTip)">
-                          <span class="font-mono hover-trigger">
-                            {{row.riskEventCount.value === null
-                                ? emptyValue
-                                : row.riskEventCount.value}}
-                          </span>
-                          <div #riskTip class="hover-popup hover-popup-wide" role="tooltip">
-                            <div class="popup-title">{{riskTitleText(row)}}</div>
-                            @for (event of row.riskEvents; track event.code) {
-                              <div class="popup-line">
-                                {{event.code}} · {{event.description}}
-                              </div>
-                            } @empty {
-                              <div class="popup-line">
-                                {{localization.evaluations.departmentRanking.hoverRiskEmpty}}
-                              </div>
-                            }
-                          </div>
-                          @if (
-                            row.riskEventCount.change !== null && row.riskEventCount.change !== 0
-                          ) {
-                            <span
-                              class="delta font-mono"
-                              [class.delta-good]="
-                                deltaTone(row.riskEventCount.change, false) === 'good'
-                              "
-                              [class.delta-bad]="
-                                deltaTone(row.riskEventCount.change, false) === 'bad'
-                              "
-                            >
-                              {{row.riskEventCount.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.riskEventCount.change, 0)}}
-                            </span>
-                          }
-                        </div>
-                      </td>
-                      <td class="num-col penalty-col">
-                        <div class="metric">
-                          <span class="font-mono">
-                            {{row.riskPenalty.value === null
-                                ? emptyValue
-                                : formatNumber(row.riskPenalty.value, 1)}}
-                          </span>
-                          @if (row.riskPenalty.change !== null && row.riskPenalty.change !== 0) {
-                            <span
-                              class="delta font-mono"
-                              [class.delta-good]="
-                                deltaTone(row.riskPenalty.change, false) === 'good'
-                              "
-                              [class.delta-bad]="deltaTone(row.riskPenalty.change, false) === 'bad'"
-                            >
-                              {{row.riskPenalty.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.riskPenalty.change, 1)}}
-                            </span>
-                          }
-                        </div>
-                      </td>
-                      <td class="num-col score-col">
-                        <div class="metric">
-                          <span class="font-mono score-value">
-                            {{row.quantitativeScore.value === null
-                                ? emptyValue
-                                : formatNumber(row.quantitativeScore.value, 2)}}
-                          </span>
-                          @if (
-                            row.quantitativeScore.change !== null &&
-                            row.quantitativeScore.change !== 0
-                          ) {
-                            <span
-                              class="delta font-mono"
-                              [class.delta-good]="
-                                deltaTone(row.quantitativeScore.change, true) === 'good'
-                              "
-                              [class.delta-bad]="
-                                deltaTone(row.quantitativeScore.change, true) === 'bad'
-                              "
-                            >
-                              {{row.quantitativeScore.change > 0 ? '▲' : '▼'}}
-                              {{formatNumber(row.quantitativeScore.change, 2)}}
-                            </span>
-                          }
-                        </div>
-                      </td>
-                      @if (adjusting()) {
-                        <td class="tier-col">
-                          @if (row.systemTier; as tier) {
-                            <span class="tier-badge" [ngClass]="tierClass(tier)">{{tier}}</span>
-                          } @else {
-                            <span>{{emptyValue}}</span>
-                          }
-                        </td>
-                      }
-                      <td class="tier-col">
-                        @if (isCurrentPeriod() && adjusting() && canAdjustRow(row)) {
-                          <span
-                            class="tier-select"
-                            [ngClass]="tierClass(finalTierOf(row))"
-                            [class.tier-select-changed]="isTierChanged(row)"
-                          >
-                            <select
-                              class="tier-select-input"
-                              [attr.aria-label]="
-                                localization.evaluations.departmentRanking.colFinalTier
-                              "
-                              (change)="setFinalTier(row, $event)"
-                            >
-                              @for (tier of tierOptions; track tier) {
-                                <option [value]="tier" [selected]="tier === finalTierOf(row)">
-                                  {{tier}}
-                                </option>
-                              }
-                            </select>
-                          </span>
-                        } @else {
-                          @if (row.finalTier; as tier) {
-                            <span class="tier-badge" [ngClass]="tierClass(tier)">{{tier}}</span>
-                          } @else {
-                            <span>{{emptyValue}}</span>
-                          }
-                        }
-                      </td>
-                      @if (adjusting()) {
-                        <td>
-                          @if (isTierChanged(row)) {
-                            <input
-                              type="text"
-                              class="reason-input"
-                              [class.reason-missing]="isReasonMissing(row)"
-                              [value]="reasonOf(row)"
-                              [attr.aria-label]="
-                                localization.evaluations.departmentRanking.colReason
-                              "
-                              [placeholder]="
-                                isReasonMissing(row)
-                                  ? localization.evaluations.departmentRanking.reasonRequired
-                                  : ''
-                              "
-                              (input)="setReason(row, $event)"
-                            />
-                          }
-                        </td>
-                      }
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+            <app-department-ranking-staff-table
+              [rows]="staffTableRows()"
+              [adjusting]="adjusting()"
+              [editable]="isCurrentPeriod()"
+              (tierChange)="onStaffTierChange($event)"
+              (reasonChange)="onStaffReasonChange($event)"
+              (openEmployee)="openEmployeeForm($event)"
+            />
             <p class="staff-footer meta">{{staffFooterText()}}</p>
           </article>
 
           <article class="panel tier-panel">
-            <h2 class="panel-title">
-              {{localization.evaluations.departmentRanking.tierCardTitle}}
-            </h2>
-            <table class="ranking-table tier-table">
-              <thead>
-                <tr>
-                  <th>{{localization.evaluations.departmentRanking.colTier}}</th>
-                  <th class="num-col">{{localization.evaluations.departmentRanking.colShare}}</th>
-                  <th class="num-col">{{localization.evaluations.departmentRanking.colSlots}}</th>
-                  <th class="num-col">
-                    {{localization.evaluations.departmentRanking.colActual}}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of tierTableRows(); track row.tier) {
-                  <tr>
-                    <td>
-                      <span class="tier-badge" [ngClass]="tierClass(row.tier)">{{row.tier}}</span>
-                    </td>
-                    <td class="num-col font-mono">
-                      {{row.share === null ? emptyValue : formatNumber(row.share, 0) + '%'}}
-                    </td>
-                    <td class="num-col font-mono">
-                      {{row.headcount ?? emptyValue}}
-                    </td>
-                    <td class="num-col font-mono">
-                      {{row.actualCount}}
-                      @if (row.isFilled) {
-                        <span
-                          class="tick"
-                          [attr.aria-label]="
-                            localization.evaluations.departmentRanking.slotsFilledAria
-                          "
-                          >✓</span
-                        >
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td>{{localization.evaluations.departmentRanking.totalLabel}}</td>
-                  <td class="num-col font-mono">
-                    {{tierTableRows().length ? '100%' : emptyValue}}
-                  </td>
-                  <td class="num-col font-mono">{{totalSlots()}}</td>
-                  <td class="num-col font-mono">
-                    {{totalActual()}}
-                    @if (allSlotsFilled()) {
-                      <span
-                        class="tick"
-                        [attr.aria-label]="
-                          localization.evaluations.departmentRanking.slotsFilledAria
-                        "
-                        >✓</span
-                      >
-                    }
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-            @if (board() && !canSend() && sendBlockers().length > 0) {
-              <div class="alert-banner error" role="alert">
-                <app-layout-icon name="riskEvents" class="alert-icon" />
-                <ul class="blocker-list">
-                  @for (blocker of sendBlockers(); track blocker) {
-                    <li>{{blocker}}</li>
-                  }
-                </ul>
-              </div>
-            }
+            <app-department-ranking-tier-table
+              [title]="localization.evaluations.departmentRanking.tierCardTitle"
+              [tierTableRows]="tierTableRows()"
+              [totalSlots]="totalSlots()"
+              [totalActual]="totalActual()"
+              [allSlotsFilled]="allSlotsFilled()"
+              [sendBlockers]="sendBlockers()"
+              [canSend]="canSend()"
+              [showBlockers]="!!board()"
+              [emptyValue]="emptyValue"
+            />
           </article>
         </section>
       }

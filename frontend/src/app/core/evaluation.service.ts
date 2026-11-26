@@ -30,6 +30,8 @@ import {
   SaveRankingBoardRequest,
   AutoAssignRankingBoardRequest,
   SubmitEvaluationRequest,
+  RankingSlotQuotas,
+  UpdateRankingSlotQuotasRequest,
 } from './evaluation.models';
 
 @Injectable({ providedIn: 'root' })
@@ -103,6 +105,34 @@ export class EvaluationService {
     return this.http
       .post<ApiResponse<CalibrationDecisionResult>>(
         `${this.url}/approvals/${departmentId}/recalibrate`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getDepartmentSlotQuotas(
+    departmentId: string,
+    periodId?: string | null,
+  ): Observable<RankingSlotQuotas> {
+    let params = new HttpParams();
+    if (periodId) {
+      params = params.set('periodId', periodId);
+    }
+    return this.http
+      .get<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/departments/${departmentId}/quotas`,
+        { params },
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  updateDepartmentSlotQuotas(
+    departmentId: string,
+    request: UpdateRankingSlotQuotasRequest,
+  ): Observable<RankingSlotQuotas> {
+    return this.http
+      .put<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/departments/${departmentId}/quotas`,
         request,
       )
       .pipe(map((response) => this.unwrap(response)));

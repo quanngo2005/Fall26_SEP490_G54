@@ -1,6 +1,7 @@
 using G54.Api.Authorization;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Evaluation;
+using G54.BLL.Dtos.SystemParameter;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -414,6 +415,46 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             User.GetRequiredUserId(),
             cancellationToken);
 
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets ranking slot quotas for a department (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpGet("approvals/departments/{departmentId:guid}/quotas")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> GetDepartmentSlotQuotas(
+        [FromRoute] Guid departmentId,
+        [FromQuery] Guid? periodId,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        var result = await quotaService.GetAsync(departmentId, periodId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Updates ranking slot quotas for a department by Branch Manager (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpPut("approvals/departments/{departmentId:guid}/quotas")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> UpdateDepartmentSlotQuotas(
+        [FromRoute] Guid departmentId,
+        [FromBody] UpdateRankingSlotQuotasDto request,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        if (departmentId != request.DepartmentId)
+        {
+            request = request with { DepartmentId = departmentId };
+        }
+        var result = await quotaService.UpdateAsync(request, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

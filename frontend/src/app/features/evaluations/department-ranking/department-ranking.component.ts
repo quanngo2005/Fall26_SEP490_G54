@@ -17,6 +17,11 @@ import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
 import { StatusBadgeComponent, UiSelectComponent } from '../../../shared/ui';
 import { saveFile } from '../../performance-dashboard/performance-page';
+import {
+  DepartmentRankingStaffTableComponent,
+  StaffTableRow,
+} from './department-ranking-staff-table/department-ranking-staff-table.component';
+import { DepartmentRankingTierTableComponent } from './department-ranking-tier-table/department-ranking-tier-table.component';
 
 interface TierTableRow {
   tier: RankingTierCode;
@@ -63,6 +68,8 @@ function compositeSortKey(row: RankingBoardStaffRow, sort: CompositeSort): numbe
     LayoutIconComponent,
     StatusBadgeComponent,
     UiSelectComponent,
+    DepartmentRankingStaffTableComponent,
+    DepartmentRankingTierTableComponent,
   ],
   templateUrl: './department-ranking.component.html',
   styleUrls: [
@@ -95,6 +102,9 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
   lockNoticeText(): string {
     const board = this.board();
     if (!board) return '';
+    if (board.isTeam) {
+      return this.localization.evaluations.departmentRanking.teamLockNotice;
+    }
     if (board.isSentToDirector) {
       return this.localization.evaluations.departmentRanking.noticeSent;
     }
@@ -258,6 +268,8 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
 
   readonly lockReached = computed(() => this.board()?.isLocked ?? false);
 
+  readonly isTeam = computed(() => this.board()?.isTeam ?? false);
+
   readonly canSend = computed(() => this.board()?.canSendToDirector ?? false);
 
   /** Hạng hệ thống và lý do điều chỉnh chỉ hiện với kỳ đang diễn ra (hôm nay nằm trong khoảng ngày của kỳ). */
@@ -273,6 +285,21 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
   canAdjustRow(row: RankingBoardStaffRow): boolean {
     return row.evaluationStatus === 'CALCULATED' || row.evaluationStatus === 'SUBMITTED';
   }
+
+  readonly staffTableRows = computed<StaffTableRow[]>(() =>
+    this.displayRows().map((row) => {
+      const finalTier = this.finalTierOf(row);
+      const isChanged = this.isTierChanged(row);
+      return {
+        row,
+        finalTier,
+        reason: this.reasonOf(row),
+        isChanged,
+        isReasonMissing: this.isReasonMissing(row),
+        canAdjust: this.canAdjustRow(row),
+      };
+    }),
+  );
 
   readonly sendBlockers = computed(() => this.board()?.sendBlockers ?? []);
 
@@ -469,14 +496,20 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     return this.isTierChanged(row) && this.reasonOf(row).trim() === '';
   }
 
-  setFinalTier(row: RankingBoardStaffRow, event: Event): void {
-    const tier = (event.target as HTMLSelectElement).value as RankingTierCode;
+  setFinalTier(row: RankingBoardStaffRow, tier: RankingTierCode): void {
     this.pendingTier.update((map) => new Map(map).set(row.employeeId, tier));
   }
 
-  setReason(row: RankingBoardStaffRow, event: Event): void {
-    const reason = (event.target as HTMLInputElement).value;
+  setReason(row: RankingBoardStaffRow, reason: string): void {
     this.pendingReason.update((map) => new Map(map).set(row.employeeId, reason));
+  }
+
+  onStaffTierChange(event: { row: RankingBoardStaffRow; tier: RankingTierCode }): void {
+    this.setFinalTier(event.row, event.tier);
+  }
+
+  onStaffReasonChange(event: { row: RankingBoardStaffRow; reason: string }): void {
+    this.setReason(event.row, event.reason);
   }
 
   openEmployeeForm(row: RankingBoardStaffRow): void {
@@ -484,37 +517,6 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     if (!periodId) return;
     this.formTarget.save({ employeeId: row.employeeId, periodId });
     void this.router.navigate(['/evaluations/form']);
-  }
-
-  onTimeText(row: RankingBoardStaffRow): string {
-    return this.localization.evaluations.departmentRanking.hoverOnTime
-      .replace('{onTime}', String(row.onTimeCompletedCount))
-      .replace('{total}', String(row.completedWithDeadlineCount));
-  }
-
-  criteriaTitleText(row: RankingBoardStaffRow): string {
-    return this.localization.evaluations.departmentRanking.hoverCriteria
-      .replace('{achieved}', String(row.achievedCriteria ?? this.emptyValue))
-      .replace('{total}', String(row.totalCriteria));
-  }
-
-  riskTitleText(row: RankingBoardStaffRow): string {
-    return this.localization.evaluations.departmentRanking.hoverRiskTitle.replace(
-      '{count}',
-      String(row.riskEvents.length),
-    );
-  }
-
-  placePopup(event: MouseEvent, popup: HTMLElement): void {
-    const anchor = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    popup.style.top = `${anchor.bottom + 6}px`;
-    popup.style.left = `${anchor.right}px`;
-    popup.style.transform = 'translateX(-100%)';
-  }
-
-  deltaTone(delta: number | null, higherIsBetter: boolean): 'good' | 'bad' | null {
-    if (delta === null || delta === 0) return null;
-    return delta > 0 === higherIsBetter ? 'good' : 'bad';
   }
 
   tierClass(tier: RankingTierCode | null): string {

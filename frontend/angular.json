@@ -36,6 +36,8 @@
             "styles": [
               "src/styles.scss",
               "src/app/shared/ui/data-table.scss",
+              "src/app/shared/ui/ui-controls.scss",
+              "src/app/shared/ui/metric-cards.scss",
               "src/app/shared/ui/drawer.scss"
             ],
             "scripts": []
@@ -106,6 +108,8 @@
             "styles": [
               "src/styles.scss",
               "src/app/shared/ui/data-table.scss",
+              "src/app/shared/ui/ui-controls.scss",
+              "src/app/shared/ui/metric-cards.scss",
               "src/app/shared/ui/drawer.scss"
             ],
             "scripts": []

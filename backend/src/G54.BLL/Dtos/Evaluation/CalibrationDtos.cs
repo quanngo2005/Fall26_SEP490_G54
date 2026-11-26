@@ -67,7 +67,8 @@ public sealed record CalibrationEmployeeRowDto(
     string EvaluationStatus,
     Guid? EvaluationId,
     DateTimeOffset? CalculatedAt,
-    IReadOnlyList<string>? ProposedTierExplanation = null);
+    IReadOnlyList<string>? ProposedTierExplanation = null,
+    decimal? RiskPenalty = null);
 
 public sealed record CalibrationOverviewDto(
     CalibrationDepartmentDto Department,

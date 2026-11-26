@@ -1,0 +1,199 @@
+<div class="staff-scroll">
+  <table class="ranking-table staff-table">
+    <thead>
+      <tr>
+        <th class="stt-col">{{localization.evaluations.departmentRanking.colStt}}</th>
+        <th>{{localization.evaluations.departmentRanking.colId}}</th>
+        <th>{{localization.evaluations.departmentRanking.colName}}</th>
+        <th>{{localization.evaluations.departmentRanking.colStatus}}</th>
+        <th class="num-col">{{localization.evaluations.departmentRanking.colSla}}</th>
+        <th class="num-col">{{localization.evaluations.departmentRanking.colTarget}}</th>
+        <th class="num-col">{{localization.evaluations.departmentRanking.colRisk}}</th>
+        <th class="num-col penalty-col">{{localization.evaluations.departmentRanking.colPenalty}}</th>
+        <th class="num-col score-col">{{localization.evaluations.departmentRanking.colScore}}</th>
+        @if (adjusting()) {
+          <th class="tier-col">{{localization.evaluations.departmentRanking.colSystemTier}}</th>
+        }
+        <th class="tier-col">{{localization.evaluations.departmentRanking.colFinalTier}}</th>
+        @if (adjusting()) {
+          <th>{{localization.evaluations.departmentRanking.colReason}}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of rows(); track item.row.employeeId) {
+        <tr>
+          <td class="stt-col font-mono">{{item.row.rank}}</td>
+          <td class="font-mono">{{item.row.employeeCode}}</td>
+          <td>
+            <button type="button" class="staff-name staff-link" (click)="openEmployee.emit(item.row)">
+              {{item.row.fullName}}
+            </button>
+          </td>
+          <td>
+            @switch (item.row.evaluationStatus) {
+              @case ('DRAFT') {
+                <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
+              }
+              @case ('CALCULATED') {
+                <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
+              }
+              @case ('DISPUTED') {
+                <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
+              }
+            }
+          </td>
+          <td class="num-col">
+            <div class="metric hover-card" (mouseenter)="placePopup($event, onTimeTip)">
+              <span class="font-mono hover-trigger">
+                {{item.row.onTimeSla.value === null ? emptyValue : formatNumber(item.row.onTimeSla.value, 1) + '%'}}
+              </span>
+              <div #onTimeTip class="hover-popup" role="tooltip">{{onTimeText(item.row)}}</div>
+              @if (item.row.onTimeSla.change !== null && item.row.onTimeSla.change !== 0) {
+                <span
+                  class="delta font-mono"
+                  [class.delta-good]="deltaTone(item.row.onTimeSla.change, true) === 'good'"
+                  [class.delta-bad]="deltaTone(item.row.onTimeSla.change, true) === 'bad'"
+                >
+                  {{item.row.onTimeSla.change > 0 ? '▲' : '▼'}}
+                  {{formatNumber(item.row.onTimeSla.change, 1)}}
+                </span>
+              }
+            </div>
+          </td>
+          <td class="num-col">
+            <div class="hover-card" (mouseenter)="placePopup($event, criteriaTip)">
+              <span class="font-mono hover-trigger">
+                {{item.row.achievedCriteria === null ? emptyValue : item.row.achievedCriteria + '/' + item.row.totalCriteria}}
+              </span>
+              <div #criteriaTip class="hover-popup hover-popup-wide" role="tooltip">
+                <div class="popup-title">{{criteriaTitleText(item.row)}}</div>
+                <table class="popup-table">
+                  <tbody>
+                    @for (criterion of item.row.criteria; track criterion.kpiName) {
+                      <tr>
+                        <td>{{criterion.kpiName}}</td>
+                        <td
+                          class="num-col font-mono"
+                          [class.popup-good]="criterion.isAchieved"
+                          [class.popup-bad]="!criterion.isAchieved"
+                        >
+                          {{criterion.actualValue === null ? emptyValue : formatNumber(criterion.actualValue, 1)}}/{{formatNumber(criterion.targetValue, 1)}}
+                          {{criterion.unit}}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </td>
+          <td class="num-col">
+            <div class="metric hover-card" (mouseenter)="placePopup($event, riskTip)">
+              <span class="font-mono hover-trigger">
+                {{item.row.riskEventCount.value === null ? emptyValue : item.row.riskEventCount.value}}
+              </span>
+              <div #riskTip class="hover-popup hover-popup-wide" role="tooltip">
+                <div class="popup-title">{{riskTitleText(item.row)}}</div>
+                @for (event of item.row.riskEvents; track event.code) {
+                  <div class="popup-line">{{event.code}} · {{event.description}}</div>
+                } @empty {
+                  <div class="popup-line">{{localization.evaluations.departmentRanking.hoverRiskEmpty}}</div>
+                }
+              </div>
+              @if (item.row.riskEventCount.change !== null && item.row.riskEventCount.change !== 0) {
+                <span
+                  class="delta font-mono"
+                  [class.delta-good]="deltaTone(item.row.riskEventCount.change, false) === 'good'"
+                  [class.delta-bad]="deltaTone(item.row.riskEventCount.change, false) === 'bad'"
+                >
+                  {{item.row.riskEventCount.change > 0 ? '▲' : '▼'}}
+                  {{formatNumber(item.row.riskEventCount.change, 0)}}
+                </span>
+              }
+            </div>
+          </td>
+          <td class="num-col penalty-col">
+            <div class="metric">
+              <span class="font-mono">
+                {{item.row.riskPenalty.value === null ? emptyValue : formatNumber(item.row.riskPenalty.value, 1)}}
+              </span>
+              @if (item.row.riskPenalty.change !== null && item.row.riskPenalty.change !== 0) {
+                <span
+                  class="delta font-mono"
+                  [class.delta-good]="deltaTone(item.row.riskPenalty.change, false) === 'good'"
+                  [class.delta-bad]="deltaTone(item.row.riskPenalty.change, false) === 'bad'"
+                >
+                  {{item.row.riskPenalty.change > 0 ? '▲' : '▼'}}
+                  {{formatNumber(item.row.riskPenalty.change, 1)}}
+                </span>
+              }
+            </div>
+          </td>
+          <td class="num-col score-col">
+            <div class="metric">
+              <span class="font-mono score-value">
+                {{item.row.quantitativeScore.value === null ? emptyValue : formatNumber(item.row.quantitativeScore.value, 2)}}
+              </span>
+              @if (item.row.quantitativeScore.change !== null && item.row.quantitativeScore.change !== 0) {
+                <span
+                  class="delta font-mono"
+                  [class.delta-good]="deltaTone(item.row.quantitativeScore.change, true) === 'good'"
+                  [class.delta-bad]="deltaTone(item.row.quantitativeScore.change, true) === 'bad'"
+                >
+                  {{item.row.quantitativeScore.change > 0 ? '▲' : '▼'}}
+                  {{formatNumber(item.row.quantitativeScore.change, 2)}}
+                </span>
+              }
+            </div>
+          </td>
+          @if (adjusting()) {
+            <td class="tier-col">
+              @if (item.row.systemTier; as tier) {
+                <span class="tier-badge" [ngClass]="tierClass(tier)">{{tier}}</span>
+              } @else {
+                <span>{{emptyValue}}</span>
+              }
+            </td>
+          }
+          <td class="tier-col">
+            @if (editable() && adjusting() && item.canAdjust) {
+              <span class="tier-select" [ngClass]="tierClass(item.finalTier)" [class.tier-select-changed]="item.isChanged">
+                <select
+                  class="tier-select-input"
+                  [attr.aria-label]="localization.evaluations.departmentRanking.colFinalTier"
+                  (change)="onTierSelected(item.row, $event)"
+                >
+                  @for (tier of tierOptions; track tier) {
+                    <option [value]="tier" [selected]="tier === item.finalTier">{{tier}}</option>
+                  }
+                </select>
+              </span>
+            } @else {
+              @if (item.row.finalTier; as tier) {
+                <span class="tier-badge" [ngClass]="tierClass(tier)">{{tier}}</span>
+              } @else {
+                <span>{{emptyValue}}</span>
+              }
+            }
+          </td>
+          @if (adjusting()) {
+            <td>
+              @if (item.isChanged) {
+                <input
+                  type="text"
+                  class="reason-input"
+                  [class.reason-missing]="item.isReasonMissing"
+                  [value]="item.reason"
+                  [attr.aria-label]="localization.evaluations.departmentRanking.colReason"
+                  [placeholder]="item.isReasonMissing ? localization.evaluations.departmentRanking.reasonRequired : ''"
+                  (input)="onReasonInput(item.row, $event)"
+                />
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

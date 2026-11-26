@@ -14,6 +14,6 @@ public static class RankingSlotTierCodes
 /// <summary>Headcount cap of one tier. A null headcount means the department has not configured the tier yet.</summary>
 public sealed record RankingSlotQuotaDto(string TierCode, int? Headcount);
 
-public sealed record RankingSlotQuotasDto(Guid DepartmentId, IReadOnlyList<RankingSlotQuotaDto> Slots);
+public sealed record RankingSlotQuotasDto(Guid DepartmentId, IReadOnlyList<RankingSlotQuotaDto> Slots, Guid? PeriodId = null);
 
-public sealed record UpdateRankingSlotQuotasDto(Guid DepartmentId, IReadOnlyList<RankingSlotQuotaDto> Slots);
+public sealed record UpdateRankingSlotQuotasDto(Guid DepartmentId, IReadOnlyList<RankingSlotQuotaDto> Slots, Guid? PeriodId = null);

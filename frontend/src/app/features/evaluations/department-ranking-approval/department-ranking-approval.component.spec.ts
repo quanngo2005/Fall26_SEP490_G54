@@ -188,11 +188,35 @@ describe('DepartmentRankingApprovalComponent', () => {
       'rejectDepartment',
       'finalize',
       'getPreCloseCheck',
+      'periods',
+      'getDepartmentSlotQuotas',
+      'updateDepartmentSlotQuotas',
     ]);
 
-    i18nServiceSpy = jasmine.createSpyObj('I18nService', [], {
+    i18nServiceSpy = jasmine.createSpyObj('I18nService', ['formatNumber'], {
       localization: {
         evaluations: {
+          departmentRanking: {
+            colId: 'MÃ NV',
+            colName: 'HỌ VÀ TÊN',
+            colStatus: 'TRẠNG THÁI',
+            colPenalty: 'ĐIỂM PHẠT',
+            periodTypeAria: 'Loại kỳ',
+            periodAria: 'Kỳ',
+            comparePeriodAria: 'So sánh kỳ',
+            periodTypeMonth: 'Kỳ tháng',
+            periodTypeQuarter: 'Kỳ quý',
+            periodTypeYear: 'Kỳ năm',
+            comparePeriodNone: 'Không so sánh',
+            comparePeriodWith: 'So với: {period}',
+          },
+          evaluationForm: {
+            statusDraft: 'Bản nháp',
+            statusCalculated: 'Đã tính',
+            statusSubmitted: 'Đã gửi',
+            statusDisputed: 'Khiếu nại',
+            statusFinal: 'Hoàn thành',
+          },
           departmentApproval: {
             pageTitle: 'Phê duyệt xếp hạng chi nhánh',
             breadcrumbHome: 'Trang chủ',
@@ -225,7 +249,7 @@ describe('DepartmentRankingApprovalComponent', () => {
             tabHiddenSuffix: 'ẩn',
             colIndex: '#',
             colEmployee: 'NHÂN VIÊN',
-            colTotalPe: 'TỔNG PE',
+            colTotalPe: 'ĐIỂM PE',
             colProposed: 'ĐỀ XUẤT',
             colFinalized: 'TP CHỐT',
             colManagerReason: 'LÝ DO TRƯỞNG PHÒNG',
@@ -266,6 +290,34 @@ describe('DepartmentRankingApprovalComponent', () => {
         items: [],
       }),
     );
+
+    evaluationServiceSpy.periods.and.returnValue(
+      of([
+        {
+          id: 'p-1',
+          code: 'Q3-2026',
+          name: 'Quý 3/2026',
+          startDate: '2026-07-01',
+          endDate: '2026-09-30',
+          periodType: 'QUARTER',
+          status: 'IN_REVIEW',
+          isActive: true,
+        },
+      ]),
+    );
+    evaluationServiceSpy.getDepartmentSlotQuotas.and.returnValue(
+      of({
+        departmentId: 'd-1',
+        slots: [
+          { tierCode: 'A1', headcount: 1 },
+          { tierCode: 'A2', headcount: 2 },
+          { tierCode: 'A3', headcount: 3 },
+          { tierCode: 'B', headcount: 4 },
+          { tierCode: 'C', headcount: 5 },
+        ],
+      }),
+    );
+    i18nServiceSpy.formatNumber.and.callFake((val: number) => String(val));
 
     await TestBed.configureTestingModule({
       imports: [DepartmentRankingApprovalComponent],
@@ -414,5 +466,52 @@ describe('DepartmentRankingApprovalComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/performance-traceability'], {
       queryParams: { employeeId: 'emp-1', periodId: 'p-1' },
     });
+  });
+
+  it('should update department quota when BM edits and submits', () => {
+    evaluationServiceSpy.updateDepartmentSlotQuotas.and.returnValue(
+      of({
+        departmentId: 'd-1',
+        slots: [
+          { tierCode: 'A1', headcount: 2 },
+          { tierCode: 'A2', headcount: 2 },
+          { tierCode: 'A3', headcount: 3 },
+          { tierCode: 'B', headcount: 4 },
+          { tierCode: 'C', headcount: 5 },
+        ],
+      }),
+    );
+
+    component.onQuotaHeadcountChange({ tier: 'A1', headcount: 2 });
+    component.submitDepartmentQuota();
+
+    expect(evaluationServiceSpy.updateDepartmentSlotQuotas).toHaveBeenCalled();
+    expect(component.toastMessage()).toContain('thành công');
+  });
+
+  it('should not allow updating quota when period is locked or closed', () => {
+    evaluationServiceSpy.updateDepartmentSlotQuotas.calls.reset();
+    component.periods.set([
+      {
+        id: 'p-1',
+        code: 'PER-LOCKED',
+        name: 'Kỳ đã chốt',
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        periodType: 'MONTH',
+        status: 'LOCKED',
+        isActive: false,
+      },
+    ]);
+    component.periodId.set('p-1');
+
+    expect(component.isPeriodLocked()).toBeTrue();
+
+    const oldHeadcount = component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount;
+    component.onQuotaHeadcountChange({ tier: 'A1', headcount: 99 });
+    expect(component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount).toBe(oldHeadcount);
+
+    component.submitDepartmentQuota();
+    expect(evaluationServiceSpy.updateDepartmentSlotQuotas).not.toHaveBeenCalled();
   });
 });

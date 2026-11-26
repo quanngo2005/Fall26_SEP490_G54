@@ -187,6 +187,7 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   readonly exporting = signal(false);
   readonly exportFailed = signal(false);
   readonly dashboard = signal<DepartmentEvaluationDashboard | null>(null);
+  readonly isTeam = computed(() => this.dashboard()?.department?.isTeam ?? false);
   readonly selectedDepartmentId = signal<string | null>(null);
   readonly selectedPeriodType = signal<PeriodTypeFilter>('MONTH');
   readonly selectedPeriodId = signal<string | null>(null);

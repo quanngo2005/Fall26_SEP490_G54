@@ -898,6 +898,8 @@ public sealed partial class EvaluationService(
 
             var evalStatus = pe != null ? pe.Status.ToEnumString() : "NOT_STARTED";
 
+            var empRiskPenalty = empRisks is { Count: > 0 } ? empRisks.Sum(r => RiskPenalty(r, parameters?.Value)) : 0m;
+
             unrankedRows.Add(new CalibrationEmployeeRowDto(
                 emp.Id,
                 emp.EmployeeCode,
@@ -921,7 +923,8 @@ public sealed partial class EvaluationService(
                 evalStatus,
                 pe?.Id,
                 pe?.CalculatedAt,
-                explanation));
+                explanation,
+                RiskPenalty: empRiskPenalty));
         }
 
         List<CalibrationEmployeeRowDto> rankedRoster;
@@ -1037,6 +1040,19 @@ public sealed partial class EvaluationService(
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == request.DepartmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", request.DepartmentId);
+
+        if (!request.IsDraft)
+        {
+            var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+            hierarchy.Nodes.TryGetValue(reviewer.DepartmentId, out var reviewerNode);
+            if (department.LevelType == DepartmentLevelType.Team || reviewerNode?.Level == DepartmentLevelType.Team)
+            {
+                throw new BusinessRuleException(
+                    ErrorCodes.Conflict,
+                    "Cấp nhóm (Team Lead) chỉ được phép lưu bản ghi đề xuất hiệu chuẩn (nháp) cho Trưởng phòng xem xét, không được gửi trực tiếp lên Giám đốc chi nhánh.",
+                    409);
+            }
+        }
 
         var rosterDepartments = await RosterDepartmentIdsAsync(request.DepartmentId, includeSubDepartments, cancellationToken);
         var employees = await db.Employees

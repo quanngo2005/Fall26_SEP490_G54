@@ -344,6 +344,7 @@ export interface RankingBoardOverview {
   tiers: RankingBoardTier[];
   staffRows: RankingBoardStaffRow[];
   generatedAt: string;
+  isTeam?: boolean;
 }
 
 export interface RankingBoardAdjustmentItem {
@@ -394,6 +395,24 @@ export interface CalibrationEmployeeRow {
   evaluationStatus: string;
   evaluationId: string | null;
   calculatedAt: string | null;
+  riskPenalty?: number | null;
+}
+
+export interface RankingSlotQuotaItem {
+  tierCode: string;
+  headcount: number | null;
+}
+
+export interface RankingSlotQuotas {
+  departmentId: string;
+  slots: RankingSlotQuotaItem[];
+  periodId?: string | null;
+}
+
+export interface UpdateRankingSlotQuotasRequest {
+  departmentId: string;
+  slots: RankingSlotQuotaItem[];
+  periodId?: string | null;
 }
 
 export interface CalibrationQuota {
@@ -562,6 +581,8 @@ export interface DepartmentEvaluationDepartment {
   code: string;
   name: string;
   managerName: string | null;
+  levelType?: string | null;
+  isTeam?: boolean;
 }
 
 export interface DepartmentEvaluationGroupKpi {

@@ -4,7 +4,9 @@ public sealed record DepartmentEvaluationDepartmentDto(
     Guid Id,
     string Code,
     string Name,
-    string? ManagerName);
+    string? ManagerName,
+    string? LevelType = null,
+    bool IsTeam = false);
 
 public sealed record DepartmentEvaluationGroupKpiDto(
     Guid KpiDefinitionId,

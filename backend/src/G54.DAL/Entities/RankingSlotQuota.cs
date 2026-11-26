@@ -5,9 +5,13 @@ public sealed class RankingSlotQuota : BaseEntity
 {
     public Guid DepartmentId { get; set; }
 
+    public Guid? EvaluationPeriodId { get; set; }
+
     public string TierCode { get; set; } = null!;
 
     public int Headcount { get; set; }
 
     public Department Department { get; set; } = null!;
+
+    public EvaluationPeriod? EvaluationPeriod { get; set; }
 }

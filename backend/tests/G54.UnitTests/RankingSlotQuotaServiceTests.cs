@@ -125,6 +125,77 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetAsync(Guid.NewGuid()));
     }
 
+    [Fact]
+    public async Task Update_WhenPeriodIsLockedOrClosed_ThrowsBusinessRuleExceptionWith409()
+    {
+        var lockedPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "PER-LOCKED",
+            Name = "Kỳ khóa",
+            Status = PeriodStatus.Locked,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-1)),
+            EndDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        };
+        _db.EvaluationPeriods.Add(lockedPeriod);
+        await _db.SaveChangesAsync();
+
+        var service = new RankingSlotQuotaService(_db);
+        var request = Request(1, 2, 3, 4, 5) with { PeriodId = lockedPeriod.Id };
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.UpdateAsync(request));
+        Assert.Equal(409, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_WhenPeriodHasNoDirectQuotas_FallsBackToPriorPeriod()
+    {
+        var period1 = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "PER-1",
+            Name = "Kỳ 1",
+            Status = PeriodStatus.Closed,
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 1, 31),
+        };
+        var period2 = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "PER-2",
+            Name = "Kỳ 2",
+            Status = PeriodStatus.Open,
+            StartDate = new DateOnly(2026, 2, 1),
+            EndDate = new DateOnly(2026, 2, 28),
+        };
+        _db.EvaluationPeriods.AddRange(period1, period2);
+        await _db.SaveChangesAsync();
+
+        var service = new RankingSlotQuotaService(_db);
+        await service.UpdateAsync(Request(10, 20, 30, 40, 50) with { PeriodId = null }); // baseline
+        // Period 1 was saved directly in db (e.g. before closing)
+        _db.RankingSlotQuotas.AddRange(
+            new RankingSlotQuota { DepartmentId = _departmentId, EvaluationPeriodId = period1.Id, TierCode = "A1", Headcount = 1 },
+            new RankingSlotQuota { DepartmentId = _departmentId, EvaluationPeriodId = period1.Id, TierCode = "A2", Headcount = 2 },
+            new RankingSlotQuota { DepartmentId = _departmentId, EvaluationPeriodId = period1.Id, TierCode = "A3", Headcount = 3 },
+            new RankingSlotQuota { DepartmentId = _departmentId, EvaluationPeriodId = period1.Id, TierCode = "B", Headcount = 4 },
+            new RankingSlotQuota { DepartmentId = _departmentId, EvaluationPeriodId = period1.Id, TierCode = "C", Headcount = 5 });
+        await _db.SaveChangesAsync();
+
+        // Querying period2 without explicit quotas should fall back to period1 (the latest prior period)
+        var result = await service.GetAsync(_departmentId, period2.Id);
+        Assert.Equal(new int?[] { 1, 2, 3, 4, 5 }, result.Slots.Select(s => s.Headcount).ToArray());
+
+        // Updating period2 does not change period1
+        await service.UpdateAsync(Request(7, 7, 7, 7, 7) with { PeriodId = period2.Id });
+
+        var period1Quotas = await service.GetAsync(_departmentId, period1.Id);
+        Assert.Equal(new int?[] { 1, 2, 3, 4, 5 }, period1Quotas.Slots.Select(s => s.Headcount).ToArray());
+
+        var period2Quotas = await service.GetAsync(_departmentId, period2.Id);
+        Assert.Equal(new int?[] { 7, 7, 7, 7, 7 }, period2Quotas.Slots.Select(s => s.Headcount).ToArray());
+    }
+
     private UpdateRankingSlotQuotasDto Request(int a1, int a2, int a3, int b, int c = 5) => new(_departmentId,
     [
         new RankingSlotQuotaDto("A1", a1),

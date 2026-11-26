@@ -126,11 +126,14 @@ public sealed partial class EvaluationService
             .ToListAsync(cancellationToken);
 
         var managerName = ResolveDepartmentManagerName(activeEmployees) ?? reviewer.FullName;
+        var isTeamDept = deptNode.Level == DepartmentLevelType.Team;
         var departmentDto = new DepartmentEvaluationDepartmentDto(
             deptNode.Id,
             deptNode.Code,
             deptNode.Name,
-            managerName);
+            managerName,
+            deptNode.Level.ToString(),
+            isTeamDept);
 
         var downgradeConfig = await LoadDowngradeConfigurationAsync(cancellationToken);
         var operations = await BuildDashboardOperationsAsync(subtree, period, today, activeEmployees.Count, cancellationToken);
@@ -1198,9 +1201,9 @@ public sealed partial class EvaluationService
             ["Số KPI đạt kế hoạch", metKpiCount],
             ["Tổng số KPI", totalKpiCount],
             ["Số KPI cần lưu ý", Math.Max(0, totalKpiCount - metKpiCount)],
-            ["Hoàn thành đúng hạn SLA (%)", dashboard.Operations.OnTimeRatePercent],
+            ["Trễ hạn (%)", dashboard.Operations.OnTimeRatePercent],
             ["Việc hoàn thành đúng hạn", dashboard.Operations.OnTimeCompletedCount],
-            ["Việc quá hạn SLA", dashboard.Operations.OverdueCount],
+            ["Việc trễ hạn", dashboard.Operations.OverdueCount],
             ["Việc đang xử lý", dashboard.Operations.InProgressCount],
             ["Tải công việc TB (việc/người)", dashboard.Operations.LoadPerStaff],
             ["Cán bộ đã chấm điểm", dashboard.Performance.EvaluatedEmployeeCount],
@@ -1371,13 +1374,13 @@ public sealed partial class EvaluationService
         [
             ["Hoàn thành đúng hạn", operations.OnTimeCompletedCount, DashboardShare(operations.OnTimeCompletedCount, total)],
             ["Đang xử lý", operations.InProgressCount, DashboardShare(operations.InProgressCount, total)],
-            ["Quá hạn SLA", operations.OverdueCount, DashboardShare(operations.OverdueCount, total)],
+            ["Trễ hạn", operations.OverdueCount, DashboardShare(operations.OverdueCount, total)],
             ["Tổng việc theo dõi", total, DashboardShare(total, total)],
         ];
         WriteDashboardTable(
             sheet,
             dashboard,
-            "CÔNG VIỆC & SLA PHÒNG BAN",
+            "CÔNG VIỆC & TRỄ HẠN PHÒNG BAN",
             ["Hạng mục", "Số việc", "Tỷ trọng (%)"],
             rows,
             [null, "#,##0", "0.0\"%\""]);
@@ -1397,7 +1400,7 @@ public sealed partial class EvaluationService
             "Họ tên",
             "Vị trí",
             .. groupNames,
-            "Tổng điểm",
+            "Điểm PE",
             "Điểm kỳ so sánh",
             "± Kỳ trước",
             "Xếp loại",
@@ -1405,7 +1408,7 @@ public sealed partial class EvaluationService
             "Đang xử lý",
             "Quá hạn",
             "Tổng việc",
-            "SLA đúng hạn (%)",
+            "Trễ hạn (%)",
             "Trạng thái",
             "Trạng thái phiếu",
         ];

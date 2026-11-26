@@ -37,21 +37,14 @@ public sealed partial class EvaluationService
         var deptId = calibration.Department.Id;
         var rows = calibration.RankedRoster;
 
-        var slots = await db.RankingSlotQuotas
-            .AsNoTracking()
-            .Where(q => q.DepartmentId == deptId && !q.IsDeleted)
-            .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        hierarchy.Nodes.TryGetValue(deptId, out var node);
 
-        if (slots.Count == 0)
+        var slots = await ResolveDepartmentRankingSlotQuotasAsync(deptId, period, cancellationToken);
+
+        if (slots.Count == 0 && node is not null && node.Level == DepartmentLevelType.Team && node.ParentId.HasValue)
         {
-            var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
-            if (hierarchy.Nodes.TryGetValue(deptId, out var node) && node.ParentId.HasValue)
-            {
-                slots = await db.RankingSlotQuotas
-                    .AsNoTracking()
-                    .Where(q => q.DepartmentId == node.ParentId.Value && !q.IsDeleted)
-                    .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
-            }
+            slots = await ResolveDepartmentRankingSlotQuotasAsync(node.ParentId.Value, period, cancellationToken);
         }
 
         var tiers = RankingBoardTierCodes.Select(code =>
@@ -67,7 +60,15 @@ public sealed partial class EvaluationService
             : await ResolveRankingComparePeriodAsync(period, cancellationToken);
         var staffRows = await BuildRankingStaffRowsAsync(rows, period, comparePeriod, currentUserId, cancellationToken);
 
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        hierarchy.Nodes.TryGetValue(reviewer.DepartmentId, out var reviewerNode);
+        var isTeam = node?.Level == DepartmentLevelType.Team || reviewerNode?.Level == DepartmentLevelType.Team;
+
         var blockers = BuildRankingSendBlockers(tiers, staffRows, calibration.DisputedPendingCount);
+        if (isTeam)
+        {
+            blockers.Add("Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất xếp loại cho Trưởng phòng kiểm soát, không gửi trực tiếp lên Giám đốc chi nhánh.");
+        }
         var isLocked = IsRankingLocked(period);
         var isSent = rows.Count > 0 && rows.All(r => r.EvaluationStatus is "SUBMITTED" or "FINAL");
 
@@ -82,12 +83,13 @@ public sealed partial class EvaluationService
             Params.RankingLockDay,
             RankingLockDate(period, Params.RankingLockDay),
             isLocked,
-            blockers.Count == 0,
+            !isTeam && blockers.Count == 0,
             isSent,
             blockers,
             tiers,
             staffRows,
-            timeProvider.GetUtcNow());
+            timeProvider.GetUtcNow(),
+            isTeam);
     }
 
     public async Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
@@ -155,7 +157,19 @@ public sealed partial class EvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await EnsureBranchScopeAsync(currentUserId, "finalize", cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, "calibrate", reviewer, request.DepartmentId, cancellationToken);
+
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        hierarchy.Nodes.TryGetValue(request.DepartmentId, out var deptNode);
+        hierarchy.Nodes.TryGetValue(reviewer.DepartmentId, out var reviewerNode);
+        if (deptNode?.Level == DepartmentLevelType.Team || reviewerNode?.Level == DepartmentLevelType.Team)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.Conflict,
+                "Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất xếp loại cho Trưởng phòng kiểm soát, không gửi trực tiếp lên Giám đốc chi nhánh.",
+                409);
+        }
 
         var board = await GetRankingBoardAsync(request.PeriodId, request.DepartmentId, null, currentUserId, cancellationToken);
         var blockers = board.SendBlockers;
@@ -200,8 +214,8 @@ public sealed partial class EvaluationService
         }
 
         var staffSheet = workbook.AddWorksheet("Nhân viên");
-        WriteRankingRow(staffSheet, 1, "STT", "Nhân viên", "SLA đúng hạn (%)", "Đạt chỉ tiêu", "Sự kiện rủi ro",
-            "Phạt", "Điểm định lượng", "Hạng hệ thống", "Hạng chốt", "Lý do điều chỉnh");
+        WriteRankingRow(staffSheet, 1, "STT", "Nhân viên", "Trễ hạn (%)", "Đạt chỉ tiêu", "Sự kiện rủi ro",
+            "Phạt", "Điểm đánh giá", "Hạng hệ thống", "Hạng chốt", "Lý do điều chỉnh");
         for (var i = 0; i < board.StaffRows.Count; i++)
         {
             var row = board.StaffRows[i];
@@ -252,9 +266,9 @@ public sealed partial class EvaluationService
 
         var metrics = new List<RankingCompareMetricDto>
         {
-            CompareRankingMetric("quantitative", "Điểm định lượng", first.Quantitative, second.Quantitative, higherIsBetter: true),
+            CompareRankingMetric("quantitative", "Điểm đánh giá", first.Quantitative, second.Quantitative, higherIsBetter: true),
             CompareRankingMetric("criteria", "Chỉ tiêu đạt", first.CriteriaRate, second.CriteriaRate, higherIsBetter: true),
-            CompareRankingMetric("sla", "SLA đúng hạn", first.Sla, second.Sla, higherIsBetter: true),
+            CompareRankingMetric("sla", "Trễ hạn", first.Sla, second.Sla, higherIsBetter: true),
             CompareRankingMetric("risk", "Sự kiện rủi ro", first.RiskCount, second.RiskCount, higherIsBetter: false),
         };
 
@@ -468,15 +482,6 @@ public sealed partial class EvaluationService
     private static string FormatRankingNumber(decimal? value) =>
         value?.ToString("0.#", CultureInfo.InvariantCulture) ?? "—";
 
-    private async Task EnsureBranchScopeAsync(Guid actorAccountId, string action, CancellationToken cancellationToken)
-    {
-        var granted = await permissions.GetEffectivePermissionsAsync(actorAccountId, cancellationToken);
-        if (AccessScope.LevelFor(granted, "evaluation", action) < AccessScope.BranchLevel)
-        {
-            throw new ForbiddenException("Bạn không có quyền gửi bảng xếp hạng cho giám đốc chi nhánh.");
-        }
-    }
-
     private async Task<RankingCompareSubject> LoadRankingCompareEmployeeAsync(
         Guid employeeId,
         EvaluationPeriod period,
@@ -555,5 +560,47 @@ public sealed partial class EvaluationService
         }
 
         return new RankingCompareMetricDto(key, label, value1, value2, winner, difference, []);
+    }
+
+    private async Task<Dictionary<string, int>> ResolveDepartmentRankingSlotQuotasAsync(
+        Guid deptId,
+        EvaluationPeriod period,
+        CancellationToken cancellationToken)
+    {
+        // 1. Direct match for period
+        var direct = await db.RankingSlotQuotas
+            .AsNoTracking()
+            .Where(q => q.DepartmentId == deptId && q.EvaluationPeriodId == period.Id && !q.IsDeleted)
+            .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
+        if (direct.Count > 0)
+        {
+            return direct;
+        }
+
+        // 2. Preceding period
+        var prevPeriodId = await db.RankingSlotQuotas
+            .AsNoTracking()
+            .Where(q => q.DepartmentId == deptId && !q.IsDeleted && q.EvaluationPeriodId != null && q.EvaluationPeriod!.StartDate < period.StartDate)
+            .OrderByDescending(q => q.EvaluationPeriod!.StartDate)
+            .Select(q => q.EvaluationPeriodId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (prevPeriodId.HasValue)
+        {
+            var prev = await db.RankingSlotQuotas
+                .AsNoTracking()
+                .Where(q => q.DepartmentId == deptId && q.EvaluationPeriodId == prevPeriodId.Value && !q.IsDeleted)
+                .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
+            if (prev.Count > 0)
+            {
+                return prev;
+            }
+        }
+
+        // 3. Baseline
+        return await db.RankingSlotQuotas
+            .AsNoTracking()
+            .Where(q => q.DepartmentId == deptId && q.EvaluationPeriodId == null && !q.IsDeleted)
+            .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, cancellationToken);
     }
 }
