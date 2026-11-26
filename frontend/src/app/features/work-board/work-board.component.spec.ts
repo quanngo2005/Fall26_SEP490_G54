@@ -110,15 +110,15 @@ describe('WorkBoardComponent', () => {
 
   beforeEach(async () => {
     data = [
-      work('WK-1', 'New', { plannedEndDate: '2020-01-01' }),
-      work('WK-2', 'New'),
-      work('WK-3', 'InProgress'),
-      work('WK-4', 'Rejected'),
-      work('WK-5', 'Submitted'),
-      work('WK-6', 'Done'),
-      work('WK-7', 'Done'),
-      work('WK-8', 'Done'),
-      work('WK-9', 'Overdue', { plannedEndDate: '2020-01-01' }),
+      work('WK-1', 'NEW', { plannedEndDate: '2020-01-01' }),
+      work('WK-2', 'NEW'),
+      work('WK-3', 'IN_PROGRESS'),
+      work('WK-4', 'REJECTED'),
+      work('WK-5', 'SUBMITTED'),
+      work('WK-6', 'DONE'),
+      work('WK-7', 'DONE'),
+      work('WK-8', 'DONE'),
+      work('WK-9', 'OVERDUE', { plannedEndDate: '2020-01-01' }),
     ];
     works = jasmine.createSpyObj<WorkService>('WorkService', ['list', 'detail', 'changeStatus']);
     works.list.and.callFake((filter = {}) => {
@@ -216,14 +216,14 @@ describe('WorkBoardComponent', () => {
 
   it('starts a work from the Jira list, updating it to InProgress on success', async () => {
     works.changeStatus.and.returnValue(
-      of({ status: 'InProgress', updatedAt: '2026-10-27T10:00:00+00:00' } as WorkDetail),
+      of({ status: 'IN_PROGRESS', updatedAt: '2026-10-27T10:00:00+00:00' } as WorkDetail),
     );
     const fixture = await create();
 
     rowByCode(fixture, 'WK-1').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
     fixture.detectChanges();
 
-    expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1', { status: 'InProgress' });
+    expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1', { status: 'IN_PROGRESS' });
     expect(text(rowByCode(fixture, 'WK-1').querySelector('.chip'))).toBe('Đang thực hiện');
     expect(text(root(fixture).querySelector('.toast'))).toContain('WK-1');
   });
@@ -261,7 +261,7 @@ describe('WorkBoardComponent', () => {
     fixture.detectChanges();
 
     expect(works.list).toHaveBeenCalledWith(
-      jasmine.objectContaining({ assigneeEmployeeId: 'e1', status: ['Overdue'], pageSize: 20 }),
+      jasmine.objectContaining({ assigneeEmployeeId: 'e1', status: ['OVERDUE'], pageSize: 20 }),
     );
     expect(rows(fixture).length).toBe(1);
     expect(text(rows(fixture)[0].querySelector('.col-code'))).toContain('WK-9');
@@ -281,21 +281,21 @@ describe('WorkBoardComponent', () => {
   describe('as a manager', () => {
     beforeEach(async () => {
       data = [
-        work('WK-1042', 'New', { priority: 'High' }),
-        work('WK-1047', 'New', { assigneeEmployeeId: 'e2', assigneeEmployeeName: 'Phạm Văn D' }),
-        work('WK-1038', 'InProgress'),
-        work('WK-1036', 'InProgress', {
+        work('WK-1042', 'NEW', { priority: 'High' }),
+        work('WK-1047', 'NEW', { assigneeEmployeeId: 'e2', assigneeEmployeeName: 'Phạm Văn D' }),
+        work('WK-1038', 'IN_PROGRESS'),
+        work('WK-1036', 'IN_PROGRESS', {
           assigneeEmployeeId: 'e2',
           assigneeEmployeeName: 'Phạm Văn D',
         }),
-        work('WK-1031', 'Submitted'),
-        work('WK-1010', 'Submitted', { workTypeId: null, workTypeName: null }),
-        work('WK-1027', 'Verified', {
+        work('WK-1031', 'SUBMITTED'),
+        work('WK-1010', 'SUBMITTED', { workTypeId: null, workTypeName: null }),
+        work('WK-1027', 'VERIFIED', {
           assigneeEmployeeId: 'e2',
           assigneeEmployeeName: 'Phạm Văn D',
         }),
-        work('WK-1019', 'Done'),
-        work('WK-1022', 'Overdue', {
+        work('WK-1019', 'DONE'),
+        work('WK-1022', 'OVERDUE', {
           plannedEndDate: '2020-01-01',
           assigneeEmployeeId: 'e3',
           assigneeEmployeeName: 'Hoàng Thị E',
@@ -459,7 +459,7 @@ describe('WorkBoardComponent', () => {
       expect(works.list).toHaveBeenCalledWith(
         jasmine.objectContaining({
           departmentId: 'd1',
-          status: ['New', 'InProgress', 'HandedOver', 'Rejected', 'Submitted'],
+          status: ['NEW', 'IN_PROGRESS', 'HANDED_OVER', 'REJECTED', 'SUBMITTED'],
           pageSize: 20,
         }),
       );
@@ -497,14 +497,14 @@ describe('WorkBoardComponent', () => {
 
     it('completes a Verified work via quick action and updates the row to Done', () => {
       works.changeStatus.and.returnValue(
-        of({ status: 'Done', updatedAt: '2026-10-28T09:00:00+00:00' } as WorkDetail),
+        of({ status: 'DONE', updatedAt: '2026-10-28T09:00:00+00:00' } as WorkDetail),
       );
       const fixture = create();
 
       rowByCode(fixture, 'WK-1027').querySelector<HTMLButtonElement>('.jira-quick-btn')?.click();
       fixture.detectChanges();
 
-      expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1027', { status: 'Done' });
+      expect(works.changeStatus).toHaveBeenCalledOnceWith('id-WK-1027', { status: 'DONE' });
       expect(text(root(fixture).querySelector('.toast'))).toContain('WK-1027');
       expect(text(rowByCode(fixture, 'WK-1027').querySelector('.chip'))).toBe('Hoàn thành');
     });

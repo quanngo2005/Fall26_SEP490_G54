@@ -56,7 +56,7 @@ export class AppealSubmitModalComponent extends LocalizedComponent implements On
       .me()
       .pipe(
         switchMap((me) =>
-          this.works.list({ status: ['Rejected'], assigneeEmployeeId: me.id, pageSize: 100 }).pipe(
+          this.works.list({ status: ['REJECTED'], assigneeEmployeeId: me.id, pageSize: 100 }).pipe(
             switchMap((page) =>
               page.items.length === 0
                 ? of([] as { workCode: string; workTitle: string; list: SubmissionDetail[] }[])

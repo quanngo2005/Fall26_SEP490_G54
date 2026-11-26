@@ -1,3 +1,4 @@
+import { currentPeriod } from '../../core/period-options';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -192,7 +193,9 @@ export class MySubmissionsComponent extends LocalizedComponent implements OnInit
       )
       .subscribe((periods) => {
         this.periods.set(periods);
-        const active = periods.find((p) => p.isActive);
+        // Open on the period that contains today (UC84); `isActive` marks the newest open period, which can be a
+        // future month with pre-created data and would hide what the employee just submitted.
+        const active = currentPeriod(periods) ?? periods.find((p) => p.isActive);
         if (active) this.periodFilter.set(active.id);
         this.reload.next();
       });

@@ -64,7 +64,7 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
         Assert.Equal("PENDING", result.Data.GetProperty("status").GetString());
         Assert.Equal(0m, result.Data.GetProperty("referrerSharePercent").GetDecimal());
         Assert.Equal(api.EmployeeIdOf("emp2"), result.Data.GetProperty("toEmployeeId").GetGuid());
-        Assert.Equal((api.EmployeeIdOf("emp1"), "InProgress"), await WorkStateAsync(work));
+        Assert.Equal((api.EmployeeIdOf("emp1"), "IN_PROGRESS"), await WorkStateAsync(work));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
         Assert.Equal(201, result.Code);
         Assert.Equal("ACCEPTED", result.Data.GetProperty("status").GetString());
         Assert.Equal(40m, result.Data.GetProperty("referrerSharePercent").GetDecimal());
-        Assert.Equal((api.EmployeeIdOf("emp2"), "HandedOver"), await WorkStateAsync(work));
+        Assert.Equal((api.EmployeeIdOf("emp2"), "HANDED_OVER"), await WorkStateAsync(work));
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
         var result = await api.SendAsync("UC80-01", HttpMethod.Post, $"/handovers/{handover}/manager/approve", "mgr");
         Assert.Equal(200, result.Code);
         Assert.Equal("ACCEPTED", result.Data.GetProperty("status").GetString());
-        Assert.Equal((api.EmployeeIdOf("emp2"), "HandedOver"), await WorkStateAsync(work));
+        Assert.Equal((api.EmployeeIdOf("emp2"), "HANDED_OVER"), await WorkStateAsync(work));
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
         Assert.Equal(200, result.Code);
         Assert.Equal("ACCEPTED", result.Data.GetProperty("status").GetString());
         Assert.Equal(api.EmployeeIdOf("emp3"), result.Data.GetProperty("toEmployeeId").GetGuid());
-        Assert.Equal((api.EmployeeIdOf("emp3"), "HandedOver"), await WorkStateAsync(work));
+        Assert.Equal((api.EmployeeIdOf("emp3"), "HANDED_OVER"), await WorkStateAsync(work));
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class HandoverHttpTests(ObjectiveKpiTargetFixture api)
         var result = await api.SendAsync("UC82-01", HttpMethod.Post, $"/handovers/{handover}/manager/reject", "mgr");
         Assert.Equal(200, result.Code);
         Assert.Equal("REJECTED", result.Data.GetProperty("status").GetString());
-        Assert.Equal((api.EmployeeIdOf("emp1"), "InProgress"), await WorkStateAsync(work));
+        Assert.Equal((api.EmployeeIdOf("emp1"), "IN_PROGRESS"), await WorkStateAsync(work));
     }
 
     [Fact]

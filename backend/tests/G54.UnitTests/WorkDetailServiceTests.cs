@@ -309,7 +309,7 @@ public sealed class WorkDetailServiceTests
 
         var detail = await env.Service.UpdatePlanAsync(work.Id, env.Manager.Id, new UpdateWorkPlanDto { PlannedEndDate = tomorrow });
 
-        Assert.Equal("InProgress", detail.Status);
+        Assert.Equal("IN_PROGRESS", detail.Status);
     }
 
     [Fact]

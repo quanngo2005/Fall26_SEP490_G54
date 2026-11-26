@@ -46,17 +46,17 @@ describe('work board helpers', () => {
   });
 
   it('puts every status except Cancelled into a column', () => {
-    expect(columnKeyOf(BOARD_COLUMNS, 'New')).toBe('new');
-    expect(columnKeyOf(BOARD_COLUMNS, 'HandedOver')).toBe('inProgress');
-    expect(columnKeyOf(BOARD_COLUMNS, 'Rejected')).toBe('inProgress');
-    expect(columnKeyOf(BOARD_COLUMNS, 'Verified')).toBe('submitted');
-    expect(columnKeyOf(BOARD_COLUMNS, 'Overdue')).toBe('overdue');
-    expect(columnKeyOf(BOARD_COLUMNS, 'Cancelled')).toBeNull();
+    expect(columnKeyOf(BOARD_COLUMNS, 'NEW')).toBe('new');
+    expect(columnKeyOf(BOARD_COLUMNS, 'HANDED_OVER')).toBe('inProgress');
+    expect(columnKeyOf(BOARD_COLUMNS, 'REJECTED')).toBe('inProgress');
+    expect(columnKeyOf(BOARD_COLUMNS, 'VERIFIED')).toBe('submitted');
+    expect(columnKeyOf(BOARD_COLUMNS, 'OVERDUE')).toBe('overdue');
+    expect(columnKeyOf(BOARD_COLUMNS, 'CANCELLED')).toBeNull();
   });
 
   it('lists Verified work in its own column on a manager board', () => {
-    expect(columnKeyOf(TEAM_COLUMNS, 'Verified')).toBe('verified');
-    expect(columnKeyOf(TEAM_COLUMNS, 'Submitted')).toBe('submitted');
+    expect(columnKeyOf(TEAM_COLUMNS, 'VERIFIED')).toBe('verified');
+    expect(columnKeyOf(TEAM_COLUMNS, 'SUBMITTED')).toBe('submitted');
     expect(TEAM_COLUMNS.map((column) => column.key)).toEqual([
       'new',
       'inProgress',
@@ -68,9 +68,9 @@ describe('work board helpers', () => {
   });
 
   it('completes only a Verified work', () => {
-    expect(canComplete({ status: 'Verified' })).toBeTrue();
+    expect(canComplete({ status: 'VERIFIED' })).toBeTrue();
     expect(
-      ['New', 'InProgress', 'Submitted', 'Overdue', 'Done', 'Cancelled'].some((status) =>
+      ['NEW', 'IN_PROGRESS', 'SUBMITTED', 'OVERDUE', 'DONE', 'CANCELLED'].some((status) =>
         canComplete({ status } as never),
       ),
     ).toBeFalse();
@@ -86,11 +86,11 @@ describe('work board helpers', () => {
   });
 
   it('allows starting only from the statuses the API accepts', () => {
-    expect(['New', 'HandedOver', 'Rejected'].every((status) => canStart({ status } as never))).toBe(
-      true,
-    );
     expect(
-      ['InProgress', 'Submitted', 'Verified', 'Overdue', 'Done', 'Cancelled'].some((status) =>
+      ['NEW', 'HANDED_OVER', 'REJECTED'].every((status) => canStart({ status } as never)),
+    ).toBe(true);
+    expect(
+      ['IN_PROGRESS', 'SUBMITTED', 'VERIFIED', 'OVERDUE', 'DONE', 'CANCELLED'].some((status) =>
         canStart({ status } as never),
       ),
     ).toBeFalse();

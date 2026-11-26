@@ -16,21 +16,21 @@ export type WorkScope = 'mine' | 'team';
  * has to do. An employee's board keeps `Verified` with the submitted ones, since only a manager completes it.
  */
 export const BOARD_COLUMNS: readonly BoardColumnDef[] = [
-  { key: 'new', statuses: ['New'] },
-  { key: 'inProgress', statuses: ['InProgress', 'HandedOver', 'Rejected'] },
-  { key: 'submitted', statuses: ['Submitted', 'Verified'] },
-  { key: 'done', statuses: ['Done'] },
-  { key: 'overdue', statuses: ['Overdue'] },
+  { key: 'new', statuses: ['NEW'] },
+  { key: 'inProgress', statuses: ['IN_PROGRESS', 'HANDED_OVER', 'REJECTED'] },
+  { key: 'submitted', statuses: ['SUBMITTED', 'VERIFIED'] },
+  { key: 'done', statuses: ['DONE'] },
+  { key: 'overdue', statuses: ['OVERDUE'] },
 ];
 
 /** A manager's board has its own Verified column: verified work waits there until the manager completes it. */
 export const TEAM_COLUMNS: readonly BoardColumnDef[] = [
-  { key: 'new', statuses: ['New'] },
-  { key: 'inProgress', statuses: ['InProgress', 'HandedOver', 'Rejected'] },
-  { key: 'submitted', statuses: ['Submitted'] },
-  { key: 'verified', statuses: ['Verified'] },
-  { key: 'done', statuses: ['Done'] },
-  { key: 'overdue', statuses: ['Overdue'] },
+  { key: 'new', statuses: ['NEW'] },
+  { key: 'inProgress', statuses: ['IN_PROGRESS', 'HANDED_OVER', 'REJECTED'] },
+  { key: 'submitted', statuses: ['SUBMITTED'] },
+  { key: 'verified', statuses: ['VERIFIED'] },
+  { key: 'done', statuses: ['DONE'] },
+  { key: 'overdue', statuses: ['OVERDUE'] },
 ];
 
 export type QuickFilter = 'open' | 'dueToday' | 'overdue' | 'done';
@@ -53,7 +53,7 @@ export function quickFilterColumns(
 }
 
 /** `PATCH /works/{id}/status` lets the assignee set `InProgress` only from these statuses. */
-const STARTABLE: readonly WorkStatus[] = ['New', 'HandedOver', 'Rejected'];
+const STARTABLE: readonly WorkStatus[] = ['NEW', 'HANDED_OVER', 'REJECTED'];
 
 const BUSINESS_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const MINUTES_PER_DAY = 24 * 60;
@@ -65,7 +65,7 @@ export function canStart(item: Pick<WorkListItem, 'status'>): boolean {
 
 /** `PATCH /works/{id}/status` lets the assignee's direct manager complete a work only once it is verified. */
 export function canComplete(item: Pick<WorkListItem, 'status'>): boolean {
-  return item.status === 'Verified';
+  return item.status === 'VERIFIED';
 }
 
 export function columnKeyOf(

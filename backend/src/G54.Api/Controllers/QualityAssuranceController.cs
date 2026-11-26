@@ -49,7 +49,7 @@ public sealed class QualityAssuranceController(
     }
 
     [HttpPost("submissions/{submissionId:guid}/quality-flags")]
-    [HasPermission("quality_flag", "create", PermissionScopes.All)]
+    [HasPermission("quality_flag", "create", PermissionScopes.Dept)]
     [ProducesResponseType<ApiResponse<QualityFlagDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
@@ -86,7 +86,7 @@ public sealed class QualityAssuranceController(
     }
 
     [HttpPost("quality-flags/{id:guid}/request-rework")]
-    [HasPermission("quality_flag", "rework", PermissionScopes.All)]
+    [HasPermission("quality_flag", "rework", PermissionScopes.Dept)]
     [ProducesResponseType<ApiResponse<QualityFlagDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]

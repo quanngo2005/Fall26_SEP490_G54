@@ -27,7 +27,7 @@ const detail = (overrides: Partial<WorkDetail> = {}): WorkDetail =>
     assigneeEmployeeName: 'Nguyễn Văn A',
     assigneeEmployeeCode: 'NV001',
     priority: 'High',
-    status: 'InProgress',
+    status: 'IN_PROGRESS',
     plannedStartDate: '2026-10-24',
     plannedEndDate: '2099-12-31',
     estimatedHours: null,
