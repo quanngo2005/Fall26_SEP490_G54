@@ -13,6 +13,11 @@ from app.main import create_app
 TEST_SERVICE_KEY = "test-key-0123456789"
 
 
+@pytest.fixture(autouse=True)
+def stub_asr_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ASR_BACKEND", "stub")
+
+
 @pytest.fixture
 def test_key() -> str:
     return TEST_SERVICE_KEY

@@ -1,0 +1,87 @@
+/* W6 tier 2 matrix (design/v3/w06-t2-matrix.png). Shares the W5 tier bar, badges and footer styles. */
+.matrix-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.spacer {
+  flex: 1 1 auto;
+}
+.period-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.period-label {
+  color: #64748b;
+  font-size: 12px;
+  margin-right: 4px;
+}
+.period-tab {
+  height: 30px;
+  border: 0.8px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #475569;
+  cursor: pointer;
+  font:
+    500 13px 'Nunito Sans',
+    sans-serif;
+  padding: 0 12px;
+}
+.period-tab.is-active {
+  border-color: #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 600;
+}
+.matrix-table {
+  min-width: 720px;
+}
+.group-head th {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.matrix-col-head {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+.matrix-col-head:disabled {
+  cursor: default;
+}
+.matrix-col-name {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cell-dash {
+  color: #94a3b8;
+}
+.matrix-table tfoot th,
+.matrix-table tfoot td {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.matrix-table tfoot .is-mismatch {
+  color: #b91c1c;
+}
+.matrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+}

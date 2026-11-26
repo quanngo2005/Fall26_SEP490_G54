@@ -54,14 +54,6 @@ class AnalyzeStats(BaseModel):
     source_sha256: str
 
 
-class AnalyzeResponse(BaseModel):
-    pipeline_version: str
-    stage: str = "W1_RAW"
-    asr: AsrInfo
-    segments: list[Segment]
-    stats: AnalyzeStats
-
-
 class FlagType(str, Enum):
     ABSOLUTE_CLAIM = "ABSOLUTE_CLAIM"
     TYING_COERCION = "TYING_COERCION"
@@ -87,6 +79,21 @@ class Flag(BaseModel):
     kb_chunk_ids: list[str] = Field(default_factory=list)
     rank_score: float
     details: dict[str, Any] = Field(default_factory=dict)
+
+
+class MutedAudio(BaseModel):
+    mime_type: str
+    base64: str
+
+
+class AnalyzeResponse(BaseModel):
+    pipeline_version: str
+    stage: str = "W2_MASKED"
+    asr: AsrInfo
+    segments: list[Segment]
+    flags: list[Flag] = Field(default_factory=list)
+    muted_audio: MutedAudio
+    stats: AnalyzeStats
 
 
 class DetectRequest(BaseModel):

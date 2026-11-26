@@ -4,6 +4,8 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.version import PIPELINE_VERSION
+
 
 def test_detect_success(client: TestClient, auth_headers: dict[str, str]) -> None:
     payload = {
@@ -26,7 +28,7 @@ def test_detect_success(client: TestClient, auth_headers: dict[str, str]) -> Non
     assert resp.status_code == 200
     data = resp.json()
     assert data == {
-        "pipeline_version": "0.1.0",
+        "pipeline_version": PIPELINE_VERSION,
         "stage": "W1_STUB",
         "kb_version": None,
         "service_spans": [],

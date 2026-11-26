@@ -7,7 +7,7 @@ import { EmployeeService } from '../../core/employee.service';
 import { EvaluationService } from '../../core/evaluation.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { KpiDefinitionService } from '../../core/kpi-definition.service';
-import { TargetSetup } from '../../core/target-assignment.models';
+import { QuarterSplit, TargetSetup } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { BranchTargetOverviewComponent } from './branch-target-overview.component';
 
@@ -28,6 +28,16 @@ function setup(status: string): TargetSetup {
   };
 }
 
+const emptyQuarterSplit: QuarterSplit = {
+  branchYearId: 'by-1',
+  year: 2026,
+  status: 'DRAFT',
+  importedAt: null,
+  fileRatios: null,
+  quarters: [],
+  rows: [],
+};
+
 /** G19: "Thiết lập mục tiêu năm" follows the setup state of the selected year. */
 describe('BranchTargetOverviewComponent setup button', () => {
   let targetApi: jasmine.SpyObj<TargetAssignmentService>;
@@ -36,9 +46,11 @@ describe('BranchTargetOverviewComponent setup button', () => {
     targetApi = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
       'list',
       'getSetup',
+      'getQuarterSplit',
     ]);
     targetApi.list.and.returnValue(of([]));
     targetApi.getSetup.and.returnValue(of(setup(status)));
+    targetApi.getQuarterSplit.and.returnValue(of(emptyQuarterSplit));
 
     TestBed.configureTestingModule({
       providers: [

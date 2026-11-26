@@ -1,0 +1,100 @@
+@let text = localization.publishStep;
+@if (loading()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="load()">
+      {{text.retry}}
+    </button>
+  </div>
+} @else {
+  @if (published()) {
+    <p class="publish-done" role="status">{{text.publishedInfo}}</p>
+  }
+  <div class="summary-cards">
+    <div class="summary-card">
+      <span class="summary-label">{{text.cardKpi}}</span>
+      <strong class="summary-value">{{kpiSummary()}}</strong>
+    </div>
+    <div class="summary-card">
+      <span class="summary-label">{{text.cardDepartments}}</span>
+      <strong class="summary-value">{{rows().length}}</strong>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="publish-table" [attr.aria-label]="text.tableAria">
+      <thead>
+        <tr>
+          <th scope="col">{{text.columnDepartment}}</th>
+          <th scope="col">{{text.columnManager}}</th>
+          <th scope="col" class="num">{{text.columnKpiCount}}</th>
+          <th scope="col" class="num">{{changeHeader()}}</th>
+          <th scope="col">{{text.columnNote}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.departmentId) {
+          <tr>
+            <td>{{row.departmentName}}</td>
+            <td>{{row.managerName ?? text.noManager}}</td>
+            <td class="num">{{row.kpiCount}}</td>
+            <td
+              class="num"
+              [class.change-up]="row.changePercent !== null && row.changePercent > 0"
+              [class.change-down]="row.changePercent !== null && row.changePercent < 0"
+            >
+              {{changeText(row.changePercent)}}
+            </td>
+            <td>
+              @if (row.changePercent === null) {
+                <span class="note-tag">{{noHistoryNote()}}</span>
+              } @else {
+                —
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty-cell" colspan="5">{{text.empty}}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (!published() && (setupState()?.blockers ?? []).length > 0) {
+    <div class="publish-blockers" role="alert">
+      <p class="publish-blockers-title">{{text.blockersTitle}}</p>
+      <ul>
+        @for (blocker of setupState()?.blockers ?? []; track blocker.kpiId) {
+          <li>{{blocker.kpiName}}</li>
+        }
+      </ul>
+    </div>
+  }
+  @if (error) {
+    <div class="publish-error" role="alert">{{error}}</div>
+  }
+
+  <div class="publish-footer">
+    <button type="button" class="button button-secondary" (click)="back.emit()">
+      {{text.back}}
+    </button>
+    @if (!published()) {
+      <span class="publish-note">{{text.publishNote}}</span>
+      <button
+        type="button"
+        class="button button-primary"
+        [disabled]="!setupState()?.canPublish || publishing || rows().length === 0"
+        (click)="publish.emit()"
+      >
+        {{publishLabel()}}
+      </button>
+    }
+  </div>
+}

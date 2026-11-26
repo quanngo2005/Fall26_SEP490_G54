@@ -1,327 +1,180 @@
-import { EvaluationPeriodOption } from '../../core/evaluation.models';
-import { KpiDefinition } from '../../core/kpi-definition.models';
+import { MyTargetKpi, MyTargetProgressKpi, MyTargetYear } from '../../core/my-targets.models';
 import {
-  SuggestedDailyTarget,
-  TargetAssignment,
-  TargetAssignmentFeedback,
-} from '../../core/target-assignment.models';
-import {
-  YearInput,
-  buildYearView,
-  changedAfterConfirm,
-  pendingQuarter,
-  quarterComments,
-  slicesOfMonth,
+  bannerFor,
+  buildYearViewRows,
+  deltaVsPreviousYearPercent,
+  filterProgress,
+  groupKpis,
+  isIncreasedOver15,
+  isNewKpi,
+  progressCardCounts,
+  sortByPaceGap,
+  summaryCards,
+  yearElapsedPercent,
 } from './my-targets.utils';
 
-const period = (id: string, name: string, start: string, end: string, type = 'QUARTER') =>
-  ({
-    id,
-    code: id,
-    name,
-    periodType: type,
-    startDate: start,
-    endDate: end,
-    status: 'OPEN',
-    isActive: true,
-  }) as EvaluationPeriodOption;
+function kpi(overrides: Partial<MyTargetKpi> = {}): MyTargetKpi {
+  return {
+    kpiId: 'k1',
+    kpiCode: 'KPI1',
+    kpiName: 'KPI 1',
+    unit: 'tr VND',
+    aggregationType: 'SUM',
+    year: 1200,
+    q1: 300,
+    q2: 300,
+    q3: 300,
+    q4: 300,
+    previousYearTarget: 1000,
+    previousYearActual: 950,
+    changed: false,
+    changedOldValue: null,
+    changedNewValue: null,
+    hasFeedback: false,
+    ...overrides,
+  };
+}
 
-const kpi = (id: string, code: string) =>
-  ({ id, code, name: `KPI ${code}`, unit: 'VND' }) as KpiDefinition;
+function year(overrides: Partial<MyTargetYear> = {}): MyTargetYear {
+  return {
+    year: 2027,
+    employeeId: 'e1',
+    employeeName: 'A',
+    departmentId: 'd1',
+    departmentName: 'Phòng A',
+    ackStatus: 'PENDING',
+    confirmedAt: null,
+    kpis: [kpi()],
+    ...overrides,
+  };
+}
 
-const target = (
-  id: string,
-  periodId: string,
-  kpiId: string,
-  value: number,
-  extra: Partial<TargetAssignment> = {},
-): TargetAssignment => ({
-  id,
-  kpiDefinitionId: kpiId,
-  evaluationPeriodId: periodId,
-  departmentId: null,
-  employeeId: 'e1',
-  parentAssignmentId: null,
-  targetValue: value,
-  status: 'ACTIVE',
-  updatedAt: '2026-10-20T09:15:02+07:00',
-  feedbackStatus: 'NOT_VIEWED',
-  feedbackAt: null,
-  ...extra,
-});
+function progressKpi(overrides: Partial<MyTargetProgressKpi> = {}): MyTargetProgressKpi {
+  return {
+    kpiId: 'k1',
+    kpiCode: 'KPI1',
+    kpiName: 'KPI 1',
+    unit: 'tr VND',
+    progress: {
+      target: 100,
+      achieved: 50,
+      inReviewCount: 0,
+      achievedPercent: 50,
+      expectedPacePercent: 50,
+      paceStatus: 'ON_PACE',
+    },
+    ...overrides,
+  };
+}
 
-const daily = (
-  periodId: string,
-  workingDays: number,
-  items: SuggestedDailyTarget['items'],
-): SuggestedDailyTarget => ({
-  employeeId: 'e1',
-  evaluationPeriodId: periodId,
-  periodStart: '2026-10-01',
-  periodEnd: '2026-12-31',
-  workingDays,
-  items,
-});
+describe('my-targets.utils', () => {
+  it('computes the delta vs. last year and flags a >15% increase', () => {
+    expect(deltaVsPreviousYearPercent(kpi({ year: 1200, previousYearTarget: 1000 }))).toBeCloseTo(
+      20,
+    );
+    expect(deltaVsPreviousYearPercent(kpi({ previousYearTarget: null }))).toBeNull();
+    expect(isIncreasedOver15(kpi({ year: 1200, previousYearTarget: 1000 }))).toBeTrue();
+    expect(isIncreasedOver15(kpi({ year: 1100, previousYearTarget: 1000 }))).toBeFalse();
+  });
 
-const spreadItem = (id: string, kpiId: string, months: [string, number, number][]) => ({
-  targetAssignmentId: id,
-  kpiDefinitionId: kpiId,
-  kpiCode: kpiId,
-  unit: 'VND',
-  isWholeNumber: false,
-  targetValue: months.reduce((sum, m) => sum + m[2], 0),
-  plannedDaily: 1,
-  plannedWeekly: 5,
-  months: months.map(([month, workingDays, value]) => ({
-    month,
-    workingDays,
-    value,
-    daily: 1,
-    weekly: 5,
-  })),
-});
+  it('treats a KPI with no previous-year target as new', () => {
+    expect(isNewKpi(kpi({ previousYearTarget: null }))).toBeTrue();
+    expect(isNewKpi(kpi({ previousYearTarget: 1000 }))).toBeFalse();
+  });
 
-const PERIODS = [
-  period('q3', 'Quý 3/2026', '2026-07-01', '2026-09-30'),
-  period('q4', 'Quý 4/2026', '2026-10-01', '2026-12-31'),
-  period('m10', 'Tháng 10/2026', '2026-10-01', '2026-10-31', 'MONTH'),
-  period('q1-25', 'Quý 1/2025', '2025-01-01', '2025-03-31'),
-];
-
-const KPIS = [kpi('k2', 'THE'), kpi('k1', 'HDV')];
-
-describe('my-targets utils', () => {
-  describe('buildYearView', () => {
-    const base = (): YearInput => ({
-      periods: PERIODS,
-      targets: [
-        target('t1', 'q4', 'k1', 6_400_000_000),
-        target('t2', 'q4', 'k2', 50),
-        target('t3', 'q3', 'k1', 5_600_000_000, {
-          feedbackStatus: 'CONFIRMED',
-          feedbackAt: '2026-07-02T08:00:00+07:00',
-        }),
-        target('x', 'm10', 'k1', 1),
+  it('builds the summary cards from the KPI list', () => {
+    const data = year({
+      kpis: [
+        kpi({ kpiId: 'k1', year: 1200, previousYearTarget: 1000, hasFeedback: true }),
+        kpi({ kpiId: 'k2', year: 100, previousYearTarget: null }),
       ],
-      daily: {
-        q4: daily('q4', 64, [
-          spreadItem('t1', 'k1', [
-            ['2026-10', 22, 2.2],
-            ['2026-11', 21, 2.1],
-            ['2026-12', 21, 2.1],
-          ]),
-          spreadItem('t2', 'k2', [
-            ['2026-10', 22, 17],
-            ['2026-11', 21, 17],
-            ['2026-12', 21, 16],
-          ]),
-        ]),
-        q3: daily('q3', 65, [
-          spreadItem('t3', 'k1', [
-            ['2026-07', 23, 2],
-            ['2026-08', 21, 2],
-            ['2026-09', 21, 1.6],
-          ]),
-        ]),
-      },
-      kpis: KPIS,
-      today: '2026-10-28',
     });
-
-    it('lists only the quarters the employee has targets in, in date order, for the running year', () => {
-      const view = buildYearView(base())!;
-
-      expect(view.year).toBe(2026);
-      expect(view.quarters.map((q) => q.periodId)).toEqual(['q3', 'q4']);
-    });
-
-    it('uses the KPIs of the targets as columns, ordered by code', () => {
-      const view = buildYearView(base())!;
-
-      expect(view.kpis.map((k) => k.code)).toEqual(['HDV', 'THE']);
-    });
-
-    it('takes the quarter value and working days from the target and the planned split', () => {
-      const q4 = buildYearView(base())!.quarters[1];
-
-      expect(q4.workingDays).toBe(64);
-      expect(q4.values).toEqual({ k1: 6_400_000_000, k2: 50 });
-      expect(q4.assignedAt).toBe('2026-10-20T09:15:02+07:00');
-    });
-
-    it('builds the month rows from the planned split and marks which month is running', () => {
-      const months = buildYearView(base())!.quarters[1].months;
-
-      expect(months.map((m) => [m.key, m.workingDays, m.phase])).toEqual([
-        ['2026-10', 22, 'CURRENT'],
-        ['2026-11', 21, 'PLANNED'],
-        ['2026-12', 21, 'PLANNED'],
-      ]);
-      expect(months[0].values).toEqual({ k1: 2.2, k2: 17 });
-      expect(months[0].end).toBe('2026-10-31');
-    });
-
-    it('sets the status: finished quarters first, then unanswered, confirmed, commented', () => {
-      const view = buildYearView(base())!;
-      expect(view.quarters.map((q) => q.status)).toEqual(['ENDED', 'PENDING']);
-
-      const confirmed = buildYearView({
-        ...base(),
-        targets: base().targets.map((t) => ({
-          ...t,
-          feedbackStatus: 'CONFIRMED' as const,
-          feedbackAt: '2026-10-21T14:02:11+07:00',
-        })),
-      })!;
-      expect(confirmed.quarters[1].status).toBe('CONFIRMED');
-      expect(confirmed.quarters[1].feedbackAt).toBe('2026-10-21T14:02:11+07:00');
-
-      const commented = buildYearView({
-        ...base(),
-        targets: base().targets.map((t) => ({
-          ...t,
-          feedbackStatus: 'COMMENTED' as const,
-          feedbackAt: '2026-10-21T14:02:11+07:00',
-        })),
-      })!;
-      expect(commented.quarters[1].status).toBe('COMMENTED');
-    });
-
-    it('treats a quarter as pending while any one of its targets is unanswered', () => {
-      const input = base();
-      const targets = input.targets.map((t, i) =>
-        i === 0 ? { ...t, feedbackStatus: 'CONFIRMED' as const } : t,
-      );
-
-      expect(buildYearView({ ...input, targets })!.quarters[1].status).toBe('PENDING');
-    });
-
-    it('adds the year up only for KPIs every quarter spreads over the days', () => {
-      const input = base();
-      const q3 = daily('q3', 65, [{ ...spreadItem('t3', 'k1', []), months: [] }]);
-
-      const view = buildYearView({ ...input, daily: { ...input.daily, q3 } })!;
-
-      expect(view.totalWorkingDays).toBe(129);
-      expect(view.totalValues['k1']).toBeNull();
-      expect(view.totalValues['k2']).toBe(50);
-    });
-
-    it('sums a spread KPI over the year', () => {
-      const view = buildYearView(base())!;
-
-      expect(view.totalValues['k1']).toBe(12_000_000_000);
-    });
-
-    it('shows the latest year when none is running, and nothing without quarter targets', () => {
-      const old = buildYearView({ ...base(), today: '2027-02-01' })!;
-      expect(old.year).toBe(2026);
-
-      expect(buildYearView({ ...base(), targets: [target('x', 'm10', 'k1', 1)] })).toBeNull();
-      expect(buildYearView({ ...base(), periods: [] })).toBeNull();
-    });
-
-    it('copes with a quarter whose planned split could not be loaded', () => {
-      const q4 = buildYearView({ ...base(), daily: {} })!.quarters[1];
-
-      expect(q4.workingDays).toBe(0);
-      expect(q4.months).toEqual([]);
-    });
+    const s = summaryCards(data);
+    expect(s.kpiCount).toBe(2);
+    expect(s.increasedCount).toBe(1);
+    expect(s.newCount).toBe(1);
+    expect(s.feedbackCount).toBe(1);
+    expect(s.avgDeltaPercent).toBeCloseTo(20);
   });
 
-  describe('pendingQuarter and changedAfterConfirm', () => {
-    const view = () =>
-      buildYearView({
-        periods: PERIODS,
-        targets: [target('t1', 'q4', 'k1', 10)],
-        daily: {},
-        kpis: KPIS,
-        today: '2026-10-28',
-      })!;
-
-    const entry = (
-      type: 'CONFIRM' | 'COMMENT',
-      createdAt: string,
-      comment: string | null = null,
-    ): TargetAssignmentFeedback => ({
-      id: `${type}-${createdAt}`,
-      targetAssignmentId: 't1',
-      employeeId: 'e1',
-      type,
-      comment,
-      createdAt,
-    });
-
-    it('finds the quarter still waiting, none once it is answered', () => {
-      expect(pendingQuarter(view())?.periodId).toBe('q4');
-
-      const answered = buildYearView({
-        periods: PERIODS,
-        targets: [target('t1', 'q4', 'k1', 10, { feedbackStatus: 'CONFIRMED' })],
-        daily: {},
-        kpis: KPIS,
-        today: '2026-10-28',
-      })!;
-      expect(pendingQuarter(answered)).toBeNull();
-    });
-
-    it('detects a change after a confirmation only when an older confirmation exists', () => {
-      const q4 = pendingQuarter(view())!;
-
-      expect(changedAfterConfirm(q4, {})).toBeFalse();
-      expect(
-        changedAfterConfirm(q4, { t1: [entry('COMMENT', '2026-10-21T08:00:00Z', 'x')] }),
-      ).toBeFalse();
-      expect(
-        changedAfterConfirm(q4, { t1: [entry('CONFIRM', '2026-10-21T08:00:00Z')] }),
-      ).toBeTrue();
-    });
-
-    it('lists comments newest first and shows a comment sent to every KPI once', () => {
-      const q4 = buildYearView({
-        periods: PERIODS,
-        targets: [target('t1', 'q4', 'k1', 10), target('t2', 'q4', 'k2', 5)],
-        daily: {},
-        kpis: KPIS,
-        today: '2026-10-28',
-      })!.quarters[0];
-
-      const comments = quarterComments(q4, {
-        t1: [
-          entry('COMMENT', '2026-10-22T08:00:00.000Z', 'Số liệu chưa khớp'),
-          entry('COMMENT', '2026-10-21T08:00:00.000Z', 'Trước đó'),
-        ],
-        t2: [
-          entry('COMMENT', '2026-10-22T08:00:00.400Z', 'Số liệu chưa khớp'),
-          entry('CONFIRM', '2026-10-20T08:00:00.000Z'),
-        ],
-      });
-
-      expect(comments.map((c) => c.comment)).toEqual(['Số liệu chưa khớp', 'Trước đó']);
-    });
+  it('picks the banner kind from the ack status', () => {
+    expect(bannerFor(year({ ackStatus: 'PENDING' })).kind).toBe('PENDING');
+    expect(bannerFor(year({ ackStatus: 'RECONFIRM' })).kind).toBe('RECONFIRM');
+    expect(bannerFor(year({ ackStatus: 'CONFIRMED' })).kind).toBe('CONFIRMED');
   });
 
-  describe('slicesOfMonth', () => {
-    it('joins the KPIs by bucket and keeps the buckets that start inside the month', () => {
-      const slices = slicesOfMonth({ start: '2026-11-01', end: '2026-11-30' }, [
-        {
-          kpiDefinitionId: 'k1',
-          items: [
-            { start: '2026-10-26', end: '2026-10-30', workingDays: 5, value: 9 },
-            { start: '2026-11-02', end: '2026-11-06', workingDays: 5, value: 10 },
-            { start: '2026-11-09', end: '2026-11-13', workingDays: 5, value: 11 },
-          ],
-        },
-        {
-          kpiDefinitionId: 'k2',
-          items: [{ start: '2026-11-02', end: '2026-11-06', workingDays: 5, value: 3 }],
-        },
-      ]);
+  it('groups KPIs by the shared 7-group catalog order', () => {
+    const data = [kpi({ kpiId: 'k1' }), kpi({ kpiId: 'k2' }), kpi({ kpiId: 'k3' })];
+    const groupNames = new Map([
+      ['k1', 'Tín dụng'],
+      ['k2', 'Huy động vốn'],
+      ['k3', 'Huy động vốn'],
+    ]);
+    const groups = groupKpis(data, groupNames);
+    expect(groups.map((g) => g.name)).toEqual(['Huy động vốn', 'Tín dụng']);
+    expect(groups[0].kpis.length).toBe(2);
+  });
 
-      expect(slices).toEqual([
-        { start: '2026-11-02', end: '2026-11-06', values: { k1: 10, k2: 3 } },
-        { start: '2026-11-09', end: '2026-11-13', values: { k1: 11 } },
-      ]);
-    });
+  it('buckets quarter progress into needs-attention / all / on-pace', () => {
+    const kpis = [
+      progressKpi({ kpiId: 'slow', progress: { ...progressKpi().progress, paceStatus: 'SLOW' } }),
+      progressKpi({
+        kpiId: 'risk',
+        progress: { ...progressKpi().progress, paceStatus: 'AT_RISK' },
+      }),
+      progressKpi({ kpiId: 'ok', progress: { ...progressKpi().progress, paceStatus: 'ON_PACE' } }),
+    ];
+    expect(filterProgress(kpis, 'NEEDS_ATTENTION').map((k) => k.kpiId)).toEqual(['slow', 'risk']);
+    expect(filterProgress(kpis, 'ON_PACE').map((k) => k.kpiId)).toEqual(['ok']);
+    expect(filterProgress(kpis, 'ALL').length).toBe(3);
+
+    const counts = progressCardCounts(kpis);
+    expect(counts.slow).toBe(1);
+    expect(counts.atRisk).toBe(1);
+    expect(counts.onPace).toBe(1);
+  });
+
+  it('sorts progress rows by pace gap, worst first', () => {
+    const kpis = [
+      progressKpi({
+        kpiId: 'a',
+        progress: { ...progressKpi().progress, achievedPercent: 40, expectedPacePercent: 50 },
+      }),
+      progressKpi({
+        kpiId: 'b',
+        progress: { ...progressKpi().progress, achievedPercent: 20, expectedPacePercent: 50 },
+      }),
+    ];
+    expect(sortByPaceGap(kpis).map((k) => k.kpiId)).toEqual(['b', 'a']);
+  });
+
+  it('computes the % of the year elapsed', () => {
+    expect(yearElapsedPercent('2027-01-01', 2027)).toBeCloseTo(0, 0);
+    expect(yearElapsedPercent('2027-12-31', 2027)).toBeCloseTo(100, 0);
+    expect(yearElapsedPercent('2027-07-02', 2027)).toBeGreaterThan(49);
+  });
+
+  it('builds the year-view rows with past/current/future quarter cells', () => {
+    const yearKpis = [
+      progressKpi({ progress: { ...progressKpi().progress, target: 400, achieved: 180 } }),
+    ];
+    const q1 = [
+      progressKpi({ progress: { ...progressKpi().progress, target: 100, achieved: 100 } }),
+    ];
+    const q2 = [
+      progressKpi({ progress: { ...progressKpi().progress, target: 100, achieved: 80 } }),
+    ];
+    const q3: typeof q1 = [];
+    const q4: typeof q1 = [];
+    const rows = buildYearViewRows(
+      yearKpis,
+      { Q1: q1, Q2: q2, Q3: q3, Q4: q4 },
+      2027,
+      '2027-05-15',
+    );
+
+    expect(rows[0].quarters[0].state).toBe('ACHIEVED_PAST');
+    expect(rows[0].quarters[1].state).toBe('CURRENT');
+    expect(rows[0].quarters[2].state).toBeNull();
   });
 });

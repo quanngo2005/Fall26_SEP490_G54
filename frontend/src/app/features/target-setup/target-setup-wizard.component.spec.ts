@@ -7,9 +7,10 @@ import { DepartmentSummary } from '../../core/department.models';
 import { DepartmentService } from '../../core/department.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { PagedResult } from '../../core/paged-result.model';
-import { TargetSetup, TargetSetupStep } from '../../core/target-assignment.models';
+import { KpiAllocation, TargetSetup, TargetSetupStep } from '../../core/target-assignment.models';
 import { TargetAssignmentService } from '../../core/target-assignment.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { TargetSuggestionService } from '../../core/target-suggestion.service';
 import { TargetSetupWizardComponent } from './target-setup-wizard.component';
 
 @Component({ selector: 'app-header', template: '' })
@@ -41,13 +42,13 @@ describe('TargetSetupWizardComponent', () => {
     pageSize: 100,
   });
 
-  const setupState = (step: TargetSetupStep): TargetSetup => ({
+  const setupState = (step: TargetSetupStep, status = 'DRAFT'): TargetSetup => ({
     branchYearId: step === 'IMPORT' ? null : 'by-1',
     hasBranchYear: step !== 'IMPORT',
     importedAt: null,
     rowCount: 3,
     step,
-    status: 'DRAFT',
+    status,
     quarters: { done: 0, total: 3 },
     allocation: { done: 0, total: 3 },
     canPublish: false,
@@ -60,15 +61,23 @@ describe('TargetSetupWizardComponent', () => {
     canPublish?: boolean;
     publish?: 'ok' | 'blocked';
     departments?: DepartmentSummary[];
+    queryParams?: Record<string, string>;
+    status?: string;
+    /** Spy on `Router.navigate` before the component is created, to capture a navigate call made on init. */
+    captureNavigate?: boolean;
+    allAllocations?: KpiAllocation[];
   }
 
   let api: jasmine.SpyObj<TargetAssignmentService>;
+  let navigateSpy: jasmine.Spy | undefined;
 
   function render(options: RenderOptions = {}): ComponentFixture<TargetSetupWizardComponent> {
     const targetApi = jasmine.createSpyObj<TargetAssignmentService>('TargetAssignmentService', [
       'getSetup',
       'getQuarterSplit',
       'getKpiAllocation',
+      'getAllAllocations',
+      'saveKpiAllocation',
       'publish',
     ]);
     api = targetApi;
@@ -77,9 +86,13 @@ describe('TargetSetupWizardComponent', () => {
     targetApi.getSetup.and.returnValue(
       options.fail
         ? throwError(() => new Error('boom'))
-        : of({ ...setupState(options.step ?? 'IMPORT'), canPublish: options.canPublish ?? false }),
+        : of({
+            ...setupState(options.step ?? 'IMPORT', options.status),
+            canPublish: options.canPublish ?? false,
+          }),
     );
     targetApi.getKpiAllocation.and.returnValue(throwError(() => new Error('not needed')));
+    targetApi.getAllAllocations.and.returnValue(of(options.allAllocations ?? []));
     targetApi.publish.and.returnValue(
       options.publish === 'blocked'
         ? throwError(
@@ -115,13 +128,18 @@ describe('TargetSetupWizardComponent', () => {
             kpiCode: 'KPI_1',
             kpiName: 'KPI 1',
             unit: 'VND',
+            groupCode: 'G',
+            groupName: 'Group',
+            aggregationType: 'SUM',
             isRatio: false,
             yearValue: 100,
             q1: 25,
             q2: 25,
             q3: 25,
             q4: 25,
+            previousYearValue: null,
             previousYear: null,
+            previousYearActual: null,
             sum: 100,
             diff: 0,
             matched: true,
@@ -130,19 +148,32 @@ describe('TargetSetupWizardComponent', () => {
       }),
     );
 
+    const suggestApi = jasmine.createSpyObj<TargetSuggestionService>('TargetSuggestionService', [
+      'suggest',
+    ]);
+
     TestBed.configureTestingModule({
       providers: [
         { provide: DepartmentService, useValue: departmentApi },
         { provide: TargetAssignmentService, useValue: targetApi },
+        { provide: TargetSuggestionService, useValue: suggestApi },
         {
           provide: ActivatedRoute,
-          useValue: { paramMap: of(convertToParamMap({ year: '2026' })) },
+          useValue: {
+            paramMap: of(convertToParamMap({ year: '2026' })),
+            snapshot: { queryParamMap: convertToParamMap(options.queryParams ?? {}) },
+          },
         },
       ],
     }).overrideComponent(TargetSetupWizardComponent, {
       remove: { imports: [HeaderComponent, SidebarComponent] },
       add: { imports: [HeaderStub, SidebarStub] },
     });
+
+    navigateSpy = undefined;
+    if (options.captureNavigate) {
+      navigateSpy = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    }
 
     const fixture = TestBed.createComponent(TargetSetupWizardComponent);
     TestBed.inject(I18nService).setLanguage('vi');
@@ -251,6 +282,37 @@ describe('TargetSetupWizardComponent', () => {
     }
   });
 
+  it('opens step 2 and asks it to suggest when ?step=2&suggest=1 and the year is DRAFT', () => {
+    const fixture = render({ step: 'ALLOCATE', queryParams: { step: '2', suggest: '1' } });
+    const element = fixture.nativeElement as HTMLElement;
+
+    // ALLOCATE maps to step 3 by default, but the query param should still open step 2.
+    expect(bodyTitle(fixture)).toBe(
+      TestBed.inject(I18nService).localization.targetSetup.stepQuarter,
+    );
+    const suggestInput = element.querySelector('app-branch-quarter-split');
+    expect(suggestInput).not.toBeNull();
+  });
+
+  it('clears ?step/&suggest from the URL after applying it once', () => {
+    render({ step: 'QUARTER', queryParams: { step: '2', suggest: '1' }, captureNavigate: true });
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/target-setup', 2026], { replaceUrl: true });
+  });
+
+  it('ignores ?step=2 when the setup is no longer DRAFT (not clickable)', () => {
+    const fixture = render({
+      step: 'PUBLISHED',
+      status: 'PUBLISHED',
+      queryParams: { step: '2', suggest: '1' },
+    });
+
+    // PUBLISHED stays on its own mapped step (4), the query param is ignored.
+    expect(bodyTitle(fixture)).toBe(
+      TestBed.inject(I18nService).localization.targetSetup.stepPublish,
+    );
+  });
+
   it('renders step 2 with the quarter split and moves to step 3 on Phân bổ', () => {
     const fixture = render({ step: 'QUARTER' });
     const element = fixture.nativeElement as HTMLElement;
@@ -265,6 +327,82 @@ describe('TargetSetupWizardComponent', () => {
       TestBed.inject(I18nService).localization.targetSetup.stepAllocate,
     );
   });
+  it('shows the per-KPI view by default and switches to the matrix component', () => {
+    const fixture = render({ step: 'ALLOCATE' });
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('app-department-allocation')).not.toBeNull();
+    expect(element.querySelector('app-department-allocation-matrix')).toBeNull();
+    const tabs = Array.from(element.querySelectorAll<HTMLButtonElement>('.view-switch-tab'));
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Theo chỉ tiêu', 'Ma trận']);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+
+    tabs[1].click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('app-department-allocation')).toBeNull();
+    expect(element.querySelector('app-department-allocation-matrix')).not.toBeNull();
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(api.getAllAllocations).toHaveBeenCalledWith('by-1');
+  });
+
+  it('asks to confirm before switching views when the matrix has unsaved edits, and discards on confirm', () => {
+    const allocation: KpiAllocation = {
+      kpiId: 'k1',
+      kpiName: 'KPI 1',
+      unit: 'VND',
+      workType: 'Teller',
+      branch: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25 },
+      departments: [
+        {
+          departmentId: 'd1',
+          departmentName: 'Phòng Giao dịch',
+          headcount: 3,
+          year: 100,
+          q1: 25,
+          q2: 25,
+          q3: 25,
+          q4: 25,
+          previousYear: null,
+          previousYearActual: null,
+          matched: true,
+        },
+      ],
+      totals: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25 },
+      remaining: { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 },
+      hiddenDepartments: [],
+    };
+    const fixture = render({ step: 'ALLOCATE', allAllocations: [allocation] });
+    const element = fixture.nativeElement as HTMLElement;
+    const tabs = Array.from(element.querySelectorAll<HTMLButtonElement>('.view-switch-tab'));
+
+    tabs[1].click();
+    fixture.detectChanges();
+    const input = element.querySelector<HTMLInputElement>('.matrix-table tbody input')!;
+    input.dispatchEvent(new Event('focus'));
+    input.value = '400';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    input.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+
+    tabs[0].click();
+    fixture.detectChanges();
+
+    // Still on the matrix: the confirm dialog is up instead of switching right away.
+    expect(element.querySelector('app-department-allocation-matrix')).not.toBeNull();
+    expect(element.querySelector('.confirm-dialog')).not.toBeNull();
+
+    const confirm = Array.from(
+      element.querySelectorAll<HTMLButtonElement>('.confirm-actions button'),
+    ).find((button) => button.textContent?.trim() === 'Chuyển cách xem')!;
+    confirm.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('app-department-allocation-matrix')).toBeNull();
+    expect(element.querySelector('app-department-allocation')).not.toBeNull();
+  });
+
   function clickText(fixture: ComponentFixture<TargetSetupWizardComponent>, label: string): void {
     const button = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
@@ -276,21 +414,66 @@ describe('TargetSetupWizardComponent', () => {
     fixture.detectChanges();
   }
 
-  it('keeps Phát hành disabled until every target matches', () => {
-    const fixture = render({ step: 'PUBLISH', canPublish: false });
-    const button = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        '.publish-panel button',
-      ),
-    )[0];
+  const publishAllocation: KpiAllocation = {
+    kpiId: 'k1',
+    kpiName: 'KPI 1',
+    unit: 'VND',
+    workType: 'Teller',
+    branch: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25 },
+    departments: [
+      {
+        departmentId: 'd1',
+        departmentName: 'Phòng Giao dịch',
+        headcount: 3,
+        year: 100,
+        q1: 25,
+        q2: 25,
+        q3: 25,
+        q4: 25,
+        previousYear: 80,
+        previousYearActual: null,
+        matched: true,
+      },
+    ],
+    totals: { year: 100, q1: 25, q2: 25, q3: 25, q4: 25 },
+    remaining: { year: 0, q1: 0, q2: 0, q3: 0, q4: 0 },
+    hiddenDepartments: [],
+  };
+
+  it('keeps "Phát hành cho N phòng" disabled until every target matches', () => {
+    const fixture = render({
+      step: 'PUBLISH',
+      canPublish: false,
+      allAllocations: [publishAllocation],
+    });
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      '.publish-footer .button-primary',
+    )!;
+    expect(button.textContent?.trim()).toBe('Phát hành cho 1 phòng');
     expect(button.disabled).toBeTrue();
   });
 
+  it('W7 lists each department with its KPIs received and the change against last year', () => {
+    const fixture = render({
+      step: 'PUBLISH',
+      canPublish: true,
+      allAllocations: [publishAllocation],
+    });
+    const cells = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.publish-table tbody td'),
+    ).map((cell) => cell.textContent?.trim());
+    expect(cells.slice(0, 4)).toEqual(['Phòng Giao dịch', 'Chưa xác định', '1', '+25,0%']);
+  });
+
   it('publishes after confirmation and returns to the overview', () => {
-    const fixture = render({ step: 'PUBLISH', canPublish: true });
+    const fixture = render({
+      step: 'PUBLISH',
+      canPublish: true,
+      allAllocations: [publishAllocation],
+    });
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
 
-    clickText(fixture, 'Phát hành');
+    clickText(fixture, 'Phát hành cho 1 phòng');
     expect((fixture.nativeElement as HTMLElement).querySelector('.confirm-dialog')).not.toBeNull();
     const dialogButtons = (
       fixture.nativeElement as HTMLElement
@@ -303,9 +486,14 @@ describe('TargetSetupWizardComponent', () => {
   });
 
   it('shows why publishing was refused', () => {
-    const fixture = render({ step: 'PUBLISH', canPublish: true, publish: 'blocked' });
+    const fixture = render({
+      step: 'PUBLISH',
+      canPublish: true,
+      publish: 'blocked',
+      allAllocations: [publishAllocation],
+    });
 
-    clickText(fixture, 'Phát hành');
+    clickText(fixture, 'Phát hành cho 1 phòng');
     (fixture.nativeElement as HTMLElement)
       .querySelectorAll<HTMLButtonElement>('.confirm-actions button')[1]
       .click();

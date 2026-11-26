@@ -165,6 +165,9 @@ public sealed class EvaluationPeriodsControllerTests
             return Task.FromResult(PeriodToReturn);
         }
 
+        public Task<CreateYearPeriodsResultDto> CreateYearAsync(CreateYearPeriodsRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CreateYearPeriodsResultDto(Guid.NewGuid(), request.Year ?? 0, 7));
+
         public Task<EvaluationPeriodStatusDto> CreateAsync(CreateEvaluationPeriodRequestDto request, CancellationToken cancellationToken = default)
         {
             PassedCreateRequest = request;

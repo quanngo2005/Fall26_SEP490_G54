@@ -17,14 +17,14 @@ namespace G54.BLL.Services;
 /// <summary>
 /// Implements <see cref="ITargetImportService"/>: reads the "KPI Năm-Quý" sheet, runs
 /// <see cref="BranchYearTargetImportDefinition"/> on it, and on commit writes the valid rows plus the AuditLog
-/// entry (D10) in one transaction, then reuses <see cref="ITargetAllocationService"/> for the returned tree.
+/// entry (D10) in one transaction, then reuses <see cref="ITargetSetupService"/> for the returned tree.
 /// </summary>
 public sealed class TargetImportService(
     IUnitOfWork uow,
     AppDbContext db,
     BranchYearTargetImportDefinition definition,
     BranchYearTargetCommitter committer,
-    ITargetAllocationService targetAllocationService,
+    ITargetSetupService targetSetupService,
     IOptions<SystemParametersOptions> parameters,
     TimeProvider time) : ITargetImportService
 {
@@ -93,7 +93,7 @@ public sealed class TargetImportService(
             return await committer.WriteAsync(valid, context, ct);
         }, cancellationToken);
 
-        var tree = await targetAllocationService.GetTreeAsync(branchId, year, null, userId, cancellationToken);
+        var tree = await targetSetupService.GetTreeAsync(branchId, year, null, userId, cancellationToken);
         var committed = result.Created + result.Updated + result.Unchanged;
         return new TargetImportCommitResultDto(branchId, year, tree, committed, rows.Count - valid.Count, result.NeedsReview);
     }

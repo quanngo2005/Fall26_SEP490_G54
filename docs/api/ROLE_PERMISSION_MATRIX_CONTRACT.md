@@ -44,6 +44,13 @@ All endpoints require `[HasPermission("role", "update", "System")]` (SYSTEM_ADMI
 - `locked`: business-fixed cell; server must reject changes to it.
 - `allowedScopes`: optional subset the admin may pick; null = all.
 
+Matrix resources include the AI call triage permissions (`CALL_RECORDING_AI_TRIAGE_CONTRACT.md` §2):
+
+| Resource | Actions | Seeded for |
+|---|---|---|
+| `ai_review_flag` | `read`, `review` | `VERIFIER`, `SYSTEM_ADMIN` (`All`) |
+| `call_recording` | `play` | `VERIFIER`, `SYSTEM_ADMIN` (`All`) |
+
 ## PUT body
 
 ```json

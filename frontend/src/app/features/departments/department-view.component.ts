@@ -21,7 +21,7 @@ import {
 } from '../../core/department.models';
 import { PerfAttentionComponent } from '../performance-dashboard/performance-attention.component';
 import {
-  formatArrow,
+  formatSigned,
   formatValue,
   NOT_AVAILABLE,
   toneOf,
@@ -232,7 +232,7 @@ export class DepartmentViewComponent extends LocalizedComponent {
     const name = this.compareName();
     return name == null || value == null
       ? null
-      : `${formatArrow(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
+      : `${formatSigned(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
   }
 
   protected tone(value: number | null) {

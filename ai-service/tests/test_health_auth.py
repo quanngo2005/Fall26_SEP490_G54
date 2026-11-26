@@ -4,12 +4,14 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.version import PIPELINE_VERSION
+
 
 def test_health_endpoint_no_auth(client: TestClient) -> None:
     resp = client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
-    assert data == {"status": "ok", "pipeline_version": "0.1.0"}
+    assert data == {"status": "ok", "pipeline_version": PIPELINE_VERSION}
 
 
 def test_analyze_auth_enforcement(client: TestClient) -> None:

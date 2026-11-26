@@ -179,6 +179,63 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
             period.Id, period.Code, period.Name, type.ToEnumString(), period.ParentPeriodId, start, end, period.Status.ToEnumString());
     }
 
+    public async Task<CreateYearPeriodsResultDto> CreateYearAsync(CreateYearPeriodsRequestDto request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Year is not { } year || year < 2000 || year > 2100)
+        {
+            throw new ValidationException("Năm (year) là bắt buộc, trong khoảng 2000 - 2100.");
+        }
+
+        var yearCode = $"{year}";
+        if (await db.EvaluationPeriods.AnyAsync(p => p.Code == yearCode, cancellationToken))
+        {
+            throw new ConflictException($"Kỳ năm {year} đã tồn tại.");
+        }
+
+        var now = time.GetUtcNow();
+        EvaluationPeriod Make(string code, string name, PeriodType type, Guid? parentId, DateOnly start, DateOnly end) => new()
+        {
+            Id = Guid.NewGuid(),
+            Code = code,
+            Name = name,
+            PeriodType = type,
+            ParentPeriodId = parentId,
+            StartDate = start,
+            EndDate = end,
+            Status = PeriodStatus.Open,
+            UpdatedAt = now,
+        };
+
+        var yearPeriod = Make(yearCode, $"Năm {year}", PeriodType.Year, null, new DateOnly(year, 1, 1), new DateOnly(year, 12, 31));
+        var halves = new[]
+        {
+            Make($"{year}-H1", $"6 tháng đầu {year}", PeriodType.HalfYear, yearPeriod.Id, new DateOnly(year, 1, 1), new DateOnly(year, 6, 30)),
+            Make($"{year}-H2", $"6 tháng cuối {year}", PeriodType.HalfYear, yearPeriod.Id, new DateOnly(year, 7, 1), new DateOnly(year, 12, 31)),
+        };
+        var quarters = Enumerable.Range(1, 4).Select(q => Make(
+            $"{year}-Q{q}",
+            $"Quý {q}/{year}",
+            PeriodType.Quarter,
+            halves[(q - 1) / 2].Id,
+            new DateOnly(year, ((q - 1) * 3) + 1, 1),
+            new DateOnly(year, q * 3, 1).AddMonths(1).AddDays(-1))).ToList();
+
+        db.EvaluationPeriods.Add(yearPeriod);
+        db.EvaluationPeriods.AddRange(halves);
+        db.EvaluationPeriods.AddRange(quarters);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (PostgresConflict.IsUniqueViolation(ex))
+        {
+            throw new ConflictException($"Kỳ năm {year} đã tồn tại.");
+        }
+
+        return new CreateYearPeriodsResultDto(yearPeriod.Id, year, 1 + halves.Length + quarters.Count);
+    }
+
     public async Task<ClosePeriodResultDto> CloseAsync(Guid periodId, CancellationToken cancellationToken = default)
     {
         var period = await db.EvaluationPeriods.SingleOrDefaultAsync(p => p.Id == periodId, cancellationToken)

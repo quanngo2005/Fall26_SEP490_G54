@@ -22,12 +22,10 @@ public sealed class TargetAssignmentControllerTests
     }
 
     private static TargetAssignmentController CreateController(
-        ITargetAllocationService? allocService = null,
         ITargetImportService? importService = null,
         ITargetSetupService? setupService = null)
     {
         return new TargetAssignmentController(
-            allocService ?? new StubTargetAllocationService(),
             importService ?? new StubTargetImportService(),
             setupService ?? new StubTargetSetupService())
         {
@@ -227,6 +225,28 @@ public sealed class TargetAssignmentControllerTests
     }
 
     [Fact]
+    public async Task GetAllAllocations_ReturnsOkWithKpiAllocationDtoList()
+    {
+        var branchYearId = Guid.NewGuid();
+        var alloc = new KpiAllocationDto(
+            Guid.NewGuid(), "KPI 1", "VND", "WORK",
+            new BranchTargetValuesDto(100, 25, 25, 25, 25),
+            [],
+            new AllocationTotalsDto(100, 25, 25, 25, 25),
+            new AllocationRemainingDto(0, 0, 0, 0, 0),
+            []);
+        var setupService = new StubTargetSetupService { AllAllocationsResult = [alloc] };
+        var controller = CreateController(setupService: setupService);
+
+        var result = await controller.GetAllAllocations(branchYearId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<IReadOnlyList<KpiAllocationDto>>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Same(setupService.AllAllocationsResult, envelope.Data);
+    }
+
+    [Fact]
     public async Task SaveAllocation_ReturnsOkWithSavedKpiAllocation()
     {
         var branchYearId = Guid.NewGuid();
@@ -267,12 +287,95 @@ public sealed class TargetAssignmentControllerTests
     }
 
     [Fact]
+    public async Task GetEmployeeAllocation_ReturnsOkWithEmployeeAllocationDto()
+    {
+        var deptYearId = Guid.NewGuid();
+        var alloc = new EmployeeAllocationDto(
+            deptYearId, Guid.NewGuid(), "KPI 1", "VND", Guid.NewGuid(), "Dept 1", "ACTIVE",
+            new DepartmentTargetValuesDto(100, 25, 25, 25, 25),
+            [],
+            new AllocationTotalsDto(100, 25, 25, 25, 25),
+            new AllocationRemainingDto(0, 0, 0, 0, 0),
+            []);
+        var setupService = new StubTargetSetupService { EmployeeAllocationResult = alloc };
+        var controller = CreateController(setupService: setupService);
+
+        var result = await controller.GetEmployeeAllocation(deptYearId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<EmployeeAllocationDto>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Same(alloc, envelope.Data);
+    }
+
+    [Fact]
+    public async Task GetAllEmployeeAllocations_ReturnsOkWithEmployeeAllocationDtoList()
+    {
+        var deptYearId = Guid.NewGuid();
+        var alloc = new EmployeeAllocationDto(
+            deptYearId, Guid.NewGuid(), "KPI 1", "VND", Guid.NewGuid(), "Dept 1", "ACTIVE",
+            new DepartmentTargetValuesDto(100, 25, 25, 25, 25),
+            [],
+            new AllocationTotalsDto(100, 25, 25, 25, 25),
+            new AllocationRemainingDto(0, 0, 0, 0, 0),
+            []);
+        var setupService = new StubTargetSetupService { AllEmployeeAllocationsResult = [alloc] };
+        var controller = CreateController(setupService: setupService);
+
+        var result = await controller.GetAllEmployeeAllocations(deptYearId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<IReadOnlyList<EmployeeAllocationDto>>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Same(setupService.AllEmployeeAllocationsResult, envelope.Data);
+    }
+
+    [Fact]
+    public async Task SaveEmployeeAllocation_ReturnsOkWithSavedEmployeeAllocation()
+    {
+        var deptYearId = Guid.NewGuid();
+        var alloc = new EmployeeAllocationDto(
+            deptYearId, Guid.NewGuid(), "KPI 1", "VND", Guid.NewGuid(), "Dept 1", "ACTIVE",
+            new DepartmentTargetValuesDto(100, 25, 25, 25, 25),
+            [],
+            new AllocationTotalsDto(100, 25, 25, 25, 25),
+            new AllocationRemainingDto(0, 0, 0, 0, 0),
+            []);
+        var setupService = new StubTargetSetupService { EmployeeAllocationResult = alloc };
+        var controller = CreateController(setupService: setupService);
+        var request = new SaveEmployeeAllocationRequest([]);
+
+        var result = await controller.SaveEmployeeAllocation(deptYearId, request, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<EmployeeAllocationDto>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Same(alloc, envelope.Data);
+    }
+
+    [Fact]
+    public async Task PublishEmployees_ReturnsOkWithPublishEmployeesResult()
+    {
+        var deptYearId = Guid.NewGuid();
+        var publishResult = new PublishEmployeesResultDto(DateTimeOffset.UtcNow, Guid.NewGuid(), 2027, 5, 20);
+        var setupService = new StubTargetSetupService { PublishEmployeesResult = publishResult };
+        var controller = CreateController(setupService: setupService);
+
+        var result = await controller.PublishEmployees(deptYearId, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var envelope = Assert.IsType<ApiResponse<PublishEmployeesResultDto>>(ok.Value);
+        Assert.True(envelope.Success);
+        Assert.Same(publishResult, envelope.Data);
+    }
+
+    [Fact]
     public async Task AllocateDepartments_ReturnsOkWithTargetNodes()
     {
         var branchYearId = Guid.NewGuid();
         var nodes = new List<TargetNodeDto>();
-        var allocService = new StubTargetAllocationService { DepartmentNodes = nodes };
-        var controller = CreateController(allocService: allocService);
+        var allocService = new StubTargetSetupService { DepartmentNodes = nodes };
+        var controller = CreateController(setupService: allocService);
         var dto = new AllocateDepartmentsDto([], null);
 
         var result = await controller.AllocateDepartments(branchYearId, dto, CancellationToken.None);
@@ -288,8 +391,8 @@ public sealed class TargetAssignmentControllerTests
     {
         var deptYearId = Guid.NewGuid();
         var nodes = new List<TargetNodeDto>();
-        var allocService = new StubTargetAllocationService { QuarterNodes = nodes };
-        var controller = CreateController(allocService: allocService);
+        var allocService = new StubTargetSetupService { QuarterNodes = nodes };
+        var controller = CreateController(setupService: allocService);
         var dto = new AllocateQuartersDto([], null);
 
         var result = await controller.AllocateQuarters(deptYearId, dto, CancellationToken.None);
@@ -307,8 +410,8 @@ public sealed class TargetAssignmentControllerTests
         var node = new TargetNodeDto(
             Guid.NewGuid(), null, Guid.NewGuid(), "KPI", Guid.NewGuid(), "DEPT",
             Guid.NewGuid(), "P-2026", "YEAR", 100, 100, null, 1, "CONFIRMED", null, null, []);
-        var allocService = new StubTargetAllocationService { ConfirmedNode = node };
-        var controller = CreateController(allocService: allocService);
+        var allocService = new StubTargetSetupService { ConfirmedNode = node };
+        var controller = CreateController(setupService: allocService);
 
         var result = await controller.Confirm(deptYearId, CancellationToken.None);
 
@@ -323,8 +426,8 @@ public sealed class TargetAssignmentControllerTests
     {
         var branchId = Guid.NewGuid();
         var tree = new List<TargetNodeDto>();
-        var allocService = new StubTargetAllocationService { TreeNodes = tree };
-        var controller = CreateController(allocService: allocService);
+        var allocService = new StubTargetSetupService { TreeNodes = tree };
+        var controller = CreateController(setupService: allocService);
 
         var result = await controller.GetTree(branchId, 2026, 2025, CancellationToken.None);
 
@@ -355,6 +458,7 @@ public sealed class TargetAssignmentControllerTests
     {
         public QuarterSplitDto QuartersResult { get; set; } = null!;
         public KpiAllocationDto AllocationResult { get; set; } = null!;
+        public IReadOnlyList<KpiAllocationDto> AllAllocationsResult { get; set; } = [];
         public TargetSetupDto SetupResult { get; set; } = null!;
         public PublishResultDto PublishResult { get; set; } = null!;
 
@@ -368,6 +472,9 @@ public sealed class TargetAssignmentControllerTests
         public Task<KpiAllocationDto> GetAllocationAsync(Guid branchYearId, Guid kpiId, Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult(AllocationResult);
 
+        public Task<IReadOnlyList<KpiAllocationDto>> GetAllAllocationsAsync(Guid branchYearId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(AllAllocationsResult);
+
         public Task<KpiAllocationDto> SaveAllocationAsync(
             Guid branchYearId, Guid kpiId, SaveKpiAllocationRequest request, Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult(AllocationResult);
@@ -377,10 +484,46 @@ public sealed class TargetAssignmentControllerTests
 
         public Task<PublishResultDto> PublishAsync(Guid branchYearId, Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult(PublishResult);
-    }
 
-    private sealed class StubTargetAllocationService : ITargetAllocationService
-    {
+        public EmployeeAllocationDto EmployeeAllocationResult { get; set; } = null!;
+        public IReadOnlyList<EmployeeAllocationDto> AllEmployeeAllocationsResult { get; set; } = [];
+        public PublishEmployeesResultDto PublishEmployeesResult { get; set; } = null!;
+
+        public Task<EmployeeAllocationDto> GetEmployeeAllocationAsync(Guid deptYearId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(EmployeeAllocationResult);
+
+        public Task<IReadOnlyList<EmployeeAllocationDto>> GetAllEmployeeAllocationsAsync(Guid deptYearId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(AllEmployeeAllocationsResult);
+
+        public Task<EmployeeAllocationDto> SaveEmployeeAllocationAsync(
+            Guid deptYearId, SaveEmployeeAllocationRequest request, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(EmployeeAllocationResult);
+
+        public Task<PublishEmployeesResultDto> PublishEmployeesAsync(Guid deptYearId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(PublishEmployeesResult);
+
+        public RemindDepartmentManagerResultDto RemindResult { get; set; } = null!;
+        public ProgressRollupDto ProgressResult { get; set; } = null!;
+
+        public Task<QuarterSplitDto> AdjustQuartersAsync(
+            Guid branchYearId, AdjustQuarterSplitRequest request, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(QuartersResult);
+
+        public Task<KpiAllocationDto> AdjustAllocationAsync(
+            Guid branchYearId, Guid kpiId, AdjustKpiAllocationRequest request, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(AllocationResult);
+
+        public Task<EmployeeAllocationDto> AdjustEmployeeAllocationAsync(
+            Guid deptYearId, AdjustEmployeeAllocationRequest request, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(EmployeeAllocationResult);
+
+        public Task<RemindDepartmentManagerResultDto> RemindDepartmentManagerAsync(
+            Guid branchYearId, Guid departmentId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(RemindResult);
+
+        public Task<ProgressRollupDto> GetProgressRollupAsync(Guid branchYearId, Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(ProgressResult);
+
         public List<TargetNodeDto> DepartmentNodes { get; set; } = [];
         public List<TargetNodeDto> QuarterNodes { get; set; } = [];
         public TargetNodeDto ConfirmedNode { get; set; } = null!;
@@ -402,4 +545,3 @@ public sealed class TargetAssignmentControllerTests
             Task.FromResult(TreeNodes);
     }
 }
-

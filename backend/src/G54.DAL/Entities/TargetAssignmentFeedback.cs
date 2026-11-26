@@ -15,6 +15,24 @@ public partial class TargetAssignmentFeedback
 
     public string? Comment { get; set; }
 
+    /// <summary>Employee's proposed year value for a mid-term feedback (Target Allocation v3, my-targets feedback). Null for a plain comment/confirm.</summary>
+    public decimal? ProposedYear { get; set; }
+
+    public decimal? ProposedQ1 { get; set; }
+
+    public decimal? ProposedQ2 { get; set; }
+
+    public decimal? ProposedQ3 { get; set; }
+
+    public decimal? ProposedQ4 { get; set; }
+
+    /// <summary>DM's reply to the employee's feedback (&lt;= 500 chars); null until replied.</summary>
+    public string? Reply { get; set; }
+
+    public Guid? RepliedBy { get; set; }
+
+    public DateTimeOffset? RepliedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public virtual TargetAssignment TargetAssignment { get; set; } = null!;

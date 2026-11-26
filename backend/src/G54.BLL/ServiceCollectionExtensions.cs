@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IStorageService, StorageService>();
         services.AddScoped<IEvidenceService, EvidenceService>();
+        services.AddScoped<ICallRecordingService, CallRecordingService>();
         services.AddScoped<IWorkSubmissionValidator, WorkSubmissionValidator>();
         services.AddScoped<IEventBus, EventBus>();
         services.AddScoped<IResultSubmissionService, ResultSubmissionService>();
@@ -76,7 +77,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
-        services.AddScoped<ITargetAllocationService, TargetAllocationService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
         services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
         services.AddScoped<IServiceRatingImportService, ServiceRatingImportService>();
@@ -92,6 +92,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<BranchYearTargetCommitter>();
         services.AddScoped<ITargetImportService, TargetImportService>();
         services.AddScoped<ITargetSetupService, TargetSetupService>();
+        services.AddScoped<ITargetSuggestionService, TargetSuggestionService>();
+        services.AddScoped<ITargetChangeLogService, TargetChangeLogService>();
+        services.AddScoped<IMyTargetsService, MyTargetsService>();
         return services;
     }
 }

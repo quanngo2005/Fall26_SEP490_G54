@@ -1,6 +1,7 @@
 """Application configuration settings."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,3 +18,8 @@ class Settings(BaseSettings):
     FFPROBE_BIN: str = "ffprobe"
     FFMPEG_TIMEOUT_SECONDS: int = 120
     TMP_DIR: Path | None = None
+    ASR_BACKEND: Literal["faster-whisper", "stub"] = "faster-whisper"
+    ASR_MODEL: str = "large-v3-turbo"
+    ASR_DEVICE: Literal["auto", "cuda", "cpu"] = "auto"
+    ASR_COMPUTE_TYPE: str = "auto"
+    ASR_MODEL_DIR: Path | None = None

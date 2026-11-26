@@ -35,7 +35,8 @@ public sealed class Notifier(
             Severity = draft.Severity,
             Title = draft.Title,
             Body = draft.Body,
-            RelatedType = draft.RelatedType,
+            // ck_notification_related: a related type needs a related id, so a type-only draft stores neither.
+            RelatedType = draft.RelatedId is null ? null : draft.RelatedType,
             RelatedId = draft.RelatedId,
             CreatedAt = now,
         }).ToList();
